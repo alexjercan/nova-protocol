@@ -1,51 +1,35 @@
 //! Segmented controls: the recessed [`segmented_container`] and its ghost
 //! [`segmented_option`] buttons.
 
-use bevy::{ecs::relationship::RelatedSpawner, prelude::*};
+use bevy::{ecs::relationship::RelatedSpawner, platform::collections::HashSet, prelude::*};
 
 use super::{button, ButtonSpec, ButtonVariant, Selected};
-use crate::{skin::UiSkin, theme};
+use crate::theme::{ActiveUiTheme, BORDER_W};
 
-/// Marks a [`segmented_container`] so the skin reconciler repaints it live on a
-/// `UiSkin` flip. Its OPTIONS are `ThemedButton`s and already reskin through the
+/// Marks a [`segmented_container`] so the theme reconciler paints it and
+/// repaints it live. Its OPTIONS are `ThemedButton`s and already follow the
 /// button reconciler; without this the container's own recess and corner radius
-/// stayed in the old skin until the screen was next rebuilt.
+/// stayed in the old look until the screen was next rebuilt.
 #[derive(Component)]
 pub struct SegmentedSkin;
-
-/// The segmented container's `(background, border, corner radius)` per skin -
-/// the single source both the factory and the reconciler paint from.
-fn segmented_container_paint(skin: UiSkin) -> (Color, Color, f32) {
-    if skin.is_phosphor() {
-        (
-            Color::srgba(0.0, 0.0, 0.0, 0.35),
-            theme::PHOSPHOR.with_alpha(0.25),
-            theme::RADIUS,
-        )
-    } else {
-        (Color::srgba(0.0, 0.0, 0.0, 0.4), theme::CASE_EDGE, 7.0)
-    }
-}
 
 /// The bordered/recessed container of a segmented control. Spawn
 /// [`segmented_option`]s into it, pairing each with a `ButtonValue<T>` (and
 /// `Selected` on the active one) for a functional settings row, or use the
 /// display-only [`segmented`] convenience.
-pub fn segmented_container(skin: UiSkin) -> impl Bundle {
-    let (bg, border, radius) = segmented_container_paint(skin);
+pub fn segmented_container() -> impl Bundle {
     (
         Node {
             flex_direction: FlexDirection::Row,
             column_gap: px(3),
             padding: UiRect::all(px(3)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(radius)),
+            border: UiRect::all(px(BORDER_W)),
             align_self: AlignSelf::Start,
             ..default()
         },
         SegmentedSkin,
-        BorderColor::all(border),
-        BackgroundColor(bg),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
     )
 }
 
@@ -55,8 +39,7 @@ pub fn segmented_container(skin: UiSkin) -> impl Bundle {
 /// group bar, which has one segment per binding group. A single-line container
 /// would push its last groups off the panel edge, where nothing can click
 /// them.
-pub fn segmented_container_wrapping(skin: UiSkin) -> impl Bundle {
-    let (bg, border, radius) = segmented_container_paint(skin);
+pub fn segmented_container_wrapping() -> impl Bundle {
     (
         Node {
             flex_direction: FlexDirection::Row,
@@ -64,31 +47,36 @@ pub fn segmented_container_wrapping(skin: UiSkin) -> impl Bundle {
             column_gap: px(3),
             row_gap: px(3),
             padding: UiRect::all(px(3)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(radius)),
+            border: UiRect::all(px(BORDER_W)),
             align_self: AlignSelf::Start,
             ..default()
         },
         SegmentedSkin,
-        BorderColor::all(border),
-        BackgroundColor(bg),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
     )
 }
 
-/// Repaint LIVE segmented containers on a `UiSkin` change (their options ride
-/// the button reconciler).
-pub(super) fn reconcile_segmented_skins(
-    skin: Res<UiSkin>,
-    mut q: Query<(&mut Node, &mut BackgroundColor, &mut BorderColor), With<SegmentedSkin>>,
+/// Paint segmented containers on a theme change and on spawn (their options
+/// ride the button reconciler).
+pub(super) fn reconcile_segmented_themes(
+    theme: Res<ActiveUiTheme>,
+    mut q: Query<(Entity, &mut Node, &mut BackgroundColor, &mut BorderColor), With<SegmentedSkin>>,
+    added: Query<Entity, Added<SegmentedSkin>>,
 ) {
-    if !skin.is_changed() {
+    let restyle_all = theme.is_changed();
+    let just_added: HashSet<Entity> = added.iter().collect();
+    if !restyle_all && just_added.is_empty() {
         return;
     }
-    let (bg, border, radius) = segmented_container_paint(*skin);
-    for (mut node, mut bgc, mut border_color) in &mut q {
-        node.border_radius = BorderRadius::all(px(radius));
-        *bgc = bg.into();
-        border_color.set_all(border);
+    let paint = theme.segmented();
+    for (entity, mut node, mut bgc, mut border_color) in &mut q {
+        if !restyle_all && !just_added.contains(&entity) {
+            continue;
+        }
+        node.border_radius = BorderRadius::all(px(paint.radius));
+        *bgc = paint.fill.base.into();
+        border_color.set_all(paint.border);
     }
 }
 
@@ -120,10 +108,10 @@ pub fn segmented_option_fit(label: &str) -> impl Bundle {
 /// A display-only segmented control: a [`segmented_container`] of
 /// [`segmented_option`]s with `active` selected. For a FUNCTIONAL settings row,
 /// build the container yourself and add `ButtonValue<T>` to each option.
-pub fn segmented(options: &[&str], active: usize, skin: UiSkin) -> impl Bundle {
+pub fn segmented(options: &[&str], active: usize) -> impl Bundle {
     let options: Vec<String> = options.iter().map(|s| s.to_string()).collect();
     (
-        segmented_container(skin),
+        segmented_container(),
         Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
             for (i, opt) in options.iter().enumerate() {
                 let mut ent = parent.spawn(segmented_option(opt));
@@ -138,18 +126,18 @@ pub fn segmented(options: &[&str], active: usize, skin: UiSkin) -> impl Bundle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widget::fixtures::{bg, skin_app};
+    use crate::{
+        theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+        widget::fixtures::{bg, hardware, phosphor, select, themed_app},
+    };
 
-    /// The segmented CONTAINER repaints live on a skin flip. Its options already
-    /// did (they are `ThemedButton`s), which is what made the stale recess read
-    /// as a half-reskinned row.
+    /// The segmented CONTAINER repaints live on a theme change. Its options
+    /// already did (they are `ThemedButton`s), which is what made the stale
+    /// recess read as a half-re-themed row.
     #[test]
-    fn segmented_container_reskins_on_skin_change() {
-        let mut app = skin_app(UiSkin::Phosphor);
-        let seg = app
-            .world_mut()
-            .spawn(segmented_container(UiSkin::Phosphor))
-            .id();
+    fn segmented_container_repaints_on_theme_change() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        let seg = app.world_mut().spawn(segmented_container()).id();
         app.update();
         let radius = |app: &App| {
             app.world()
@@ -159,15 +147,23 @@ mod tests {
                 .border_radius
                 .top_left
         };
-        assert_eq!(radius(&app), px(theme::RADIUS), "phosphor recess");
+        assert_eq!(
+            radius(&app),
+            px(phosphor().segmented().radius),
+            "phosphor recess"
+        );
 
-        *app.world_mut().resource_mut::<UiSkin>() = UiSkin::Hardware;
+        select(&mut app, HARDWARE_THEME_ID);
         app.update();
         assert_eq!(
             bg(&app, seg),
-            Color::srgba(0.0, 0.0, 0.0, 0.4),
-            "the container repainted for the hardware skin"
+            hardware().segmented().fill.base,
+            "the container repainted for the hardware theme"
         );
-        assert_eq!(radius(&app), px(7.0), "and took the hardware corner radius");
+        assert_eq!(
+            radius(&app),
+            px(hardware().segmented().radius),
+            "and took the hardware corner radius"
+        );
     }
 }

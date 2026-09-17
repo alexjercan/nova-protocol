@@ -1,0 +1,2069 @@
+[
+    UiTheme((
+        id: "base/phosphor",
+        name: "Phosphor",
+        inherit: None,
+        palette: {
+            "accent": "#ffb84a",
+            "accent_high": "#ffd07a",
+            "accent_low": "#e6952f",
+            "black": "#000000",
+            "body": "#b9ffc9",
+            "danger": "#ff4e42",
+            "danger_text_hot": "#ffd9d5",
+            "hover_text": "#d6ffe4",
+            "info": "#36a3ff",
+            "inverted": "#04140a",
+            "label": "#0d6e35",
+            "nominal": "#36ff79",
+            "primary": "#36ff79",
+            "primary_high": "#7dffab",
+            "primary_low": "#12b552",
+            "screen_lifted": "#002b0f",
+            "secondary": "#19a64f",
+            "surface": "#001304",
+            "void": "#03060b",
+            "white": "#ffffff",
+        },
+        metrics: Some((
+            border_width: 1.0,
+            radius: 2.0,
+            panel_radius: 10.0,
+        )),
+        roles: (
+            button: Some((
+                normal: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.05,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.4,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                hovered: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.12,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("hover_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                pressed: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.2,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                selected: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("primary"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                selected_pressed: (
+                    fill: Solid((
+                        value: Variable("primary_low"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                disabled: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.02,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.12,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 0.3,
+                    ),
+                    effect: None,
+                ),
+            )),
+            button_primary: Some((
+                normal: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("primary"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                hovered: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("primary"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                pressed: (
+                    fill: Solid((
+                        value: Variable("primary_low"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                selected: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("primary"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                selected_pressed: (
+                    fill: Solid((
+                        value: Variable("primary_low"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                disabled: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.02,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.12,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 0.3,
+                    ),
+                    effect: None,
+                ),
+            )),
+            button_danger: Some((
+                normal: (
+                    fill: Solid((
+                        value: Variable("danger"),
+                        alpha: 0.06,
+                    )),
+                    border: (
+                        value: Variable("danger"),
+                        alpha: 0.5,
+                    ),
+                    text: (
+                        value: Variable("danger"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                hovered: (
+                    fill: Solid((
+                        value: Variable("danger"),
+                        alpha: 0.16,
+                    )),
+                    border: (
+                        value: Variable("danger"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("danger_text_hot"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                pressed: (
+                    fill: Solid((
+                        value: Variable("danger"),
+                        alpha: 0.2,
+                    )),
+                    border: (
+                        value: Variable("danger"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("danger"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                selected: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("primary"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                selected_pressed: (
+                    fill: Solid((
+                        value: Variable("primary_low"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                disabled: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.02,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.12,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 0.3,
+                    ),
+                    effect: None,
+                ),
+            )),
+            button_ghost: Some((
+                normal: (
+                    fill: Solid((
+                        value: Literal("#000000"),
+                        alpha: 0.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.25,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                hovered: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.06,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.4,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                pressed: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.14,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                selected: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("primary"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                selected_pressed: (
+                    fill: Solid((
+                        value: Variable("primary_low"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                disabled: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.02,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.12,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 0.3,
+                    ),
+                    effect: None,
+                ),
+            )),
+            panel: Some((
+                fill: Radial(
+                    base: (
+                        value: Variable("surface"),
+                        alpha: 1.0,
+                    ),
+                    anchor: Top,
+                    stops: [
+                        (
+                            color: (
+                                value: Variable("primary"),
+                                alpha: 0.06,
+                            ),
+                            percent: 0.0,
+                        ),
+                        (
+                            color: (
+                                value: Variable("black"),
+                                alpha: 0.0,
+                            ),
+                            percent: 70.0,
+                        ),
+                    ],
+                ),
+                border: (
+                    value: Variable("primary"),
+                    alpha: 0.16,
+                ),
+                effect: None,
+                radius: None,
+            )),
+            panel_head: Some((
+                border: (
+                    value: Variable("primary"),
+                    alpha: 0.18,
+                ),
+                title: (
+                    value: Variable("primary"),
+                    alpha: 1.0,
+                ),
+                rule: (
+                    value: Variable("label"),
+                    alpha: 0.6,
+                ),
+                tag: (
+                    value: Variable("primary"),
+                    alpha: 1.0,
+                ),
+            )),
+            list_row: Some((
+                normal: (
+                    fill: Solid((
+                        value: Literal("#000000"),
+                        alpha: 0.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.14,
+                    ),
+                ),
+                hovered: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.06,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.2,
+                    ),
+                ),
+                selected: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.14,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+            segmented: Some((
+                fill: Solid((
+                    value: Variable("black"),
+                    alpha: 0.35,
+                )),
+                border: (
+                    value: Variable("primary"),
+                    alpha: 0.25,
+                ),
+                effect: None,
+                radius: None,
+            )),
+            slider_track: Some((
+                surface: (
+                    fill: Solid((
+                        value: Variable("black"),
+                        alpha: 0.5,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.32,
+                    ),
+                    effect: None,
+                    radius: None,
+                ),
+                height: 14.0,
+                meter: Blocks(
+                    segments: 24,
+                    gap: 2.0,
+                ),
+                lit: (
+                    value: Variable("primary"),
+                    alpha: 1.0,
+                ),
+                unlit: (
+                    value: Variable("primary"),
+                    alpha: 0.16,
+                ),
+            )),
+            text_field: Some((
+                normal: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.035,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.32,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                hovered: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.035,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.65,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                focused: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.08,
+                    )),
+                    border: (
+                        value: Variable("accent"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                error: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.08,
+                    )),
+                    border: (
+                        value: Variable("danger"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+            )),
+            checkbox: Some((
+                radius: None,
+                off: (
+                    fill: Solid((
+                        value: Literal("#000000"),
+                        alpha: 0.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.4,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                on: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+            )),
+            toggle: Some((
+                radius: None,
+                knob_radius: 1.0,
+                off: (
+                    fill: Solid((
+                        value: Variable("black"),
+                        alpha: 0.4,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 0.35,
+                    ),
+                    text: (
+                        value: Variable("label"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                on: (
+                    fill: Solid((
+                        value: Variable("primary"),
+                        alpha: 0.14,
+                    )),
+                    border: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("primary"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("primary"),
+                            alpha: 0.35,
+                        ),
+                        offset_y: 0.0,
+                        blur: 5.0,
+                    )),
+                ),
+            )),
+            badge: Some((
+                bracketed: true,
+                padding_x: 2.0,
+                border_width: 0.0,
+                border_alpha: 0.0,
+                fill_alpha: 0.0,
+            )),
+            scroll_bar: Some((
+                track: (
+                    value: Variable("primary"),
+                    alpha: 0.07,
+                ),
+                thumb: (
+                    value: Variable("primary"),
+                    alpha: 0.35,
+                ),
+            )),
+            key_chip: Some((
+                fill: Solid((
+                    value: Variable("black"),
+                    alpha: 0.3,
+                )),
+                border: (
+                    value: Variable("accent"),
+                    alpha: 0.5,
+                ),
+                text: (
+                    value: Variable("accent"),
+                    alpha: 1.0,
+                ),
+                effect: None,
+            )),
+            separator: Some((
+                value: Variable("label"),
+                alpha: 0.5,
+            )),
+        ),
+    )),
+    UiTheme((
+        id: "base/hardware",
+        name: "Hardware",
+        inherit: None,
+        palette: {
+            "accent": "#ffb84a",
+            "accent_high": "#ffd07a",
+            "accent_low": "#e6952f",
+            "black": "#000000",
+            "body": "#c3d2d8",
+            "case_0": "#0a0d10",
+            "case_1": "#161b20",
+            "case_2": "#232a31",
+            "case_3": "#2f383f",
+            "case_edge": "#05070a",
+            "case_text": "#dcefe0",
+            "danger": "#ff4e42",
+            "danger_face_dark": "#3a1512",
+            "danger_face_lit": "#6b2a26",
+            "danger_text_hot": "#ffd9d5",
+            "face_hot_high": "#3a444c",
+            "face_hot_low": "#12171b",
+            "face_hot_mid": "#222a31",
+            "info": "#36a3ff",
+            "inverted": "#0a0d10",
+            "knob_off": "#55636c",
+            "label": "#69777f",
+            "nominal": "#36ff79",
+            "nominal_high": "#7dffab",
+            "nominal_low": "#12b552",
+            "primary": "#dcefe0",
+            "secondary": "#8b9aa3",
+            "surface": "#161b20",
+            "void": "#05070a",
+            "white": "#ffffff",
+        },
+        metrics: Some((
+            border_width: 1.0,
+            radius: 7.0,
+            panel_radius: 10.0,
+        )),
+        roles: (
+            button: Some((
+                normal: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("case_1"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("case_3"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_1"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_0"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("black"),
+                            alpha: 0.55,
+                        ),
+                        offset_y: 2.0,
+                        blur: 8.0,
+                    )),
+                ),
+                hovered: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("face_hot_mid"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("face_hot_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("face_hot_mid"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("face_hot_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("white"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("black"),
+                            alpha: 0.55,
+                        ),
+                        offset_y: 2.0,
+                        blur: 8.0,
+                    )),
+                ),
+                pressed: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("case_0"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("case_0"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_1"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                selected: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("accent"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("accent_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("accent"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                selected_pressed: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("accent"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("accent_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                disabled: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("case_1"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("case_3"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_1"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_0"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 0.34,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("black"),
+                            alpha: 0.55,
+                        ),
+                        offset_y: 2.0,
+                        blur: 8.0,
+                    )),
+                ),
+            )),
+            button_primary: Some((
+                normal: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("nominal"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("nominal_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("nominal"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("nominal_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("nominal"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                hovered: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("nominal"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("nominal_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("nominal"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("nominal_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("nominal"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                pressed: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("nominal"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("nominal_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("nominal"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("nominal_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                selected: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("accent"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("accent_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("accent"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                selected_pressed: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("accent"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("accent_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                disabled: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("case_1"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("case_3"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_1"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_0"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 0.34,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("black"),
+                            alpha: 0.55,
+                        ),
+                        offset_y: 2.0,
+                        blur: 8.0,
+                    )),
+                ),
+            )),
+            button_danger: Some((
+                normal: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("case_1"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("case_3"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_1"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_0"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("danger_text_hot"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("black"),
+                            alpha: 0.55,
+                        ),
+                        offset_y: 2.0,
+                        blur: 8.0,
+                    )),
+                ),
+                hovered: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("danger"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("danger_face_lit"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("danger_face_dark"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("white"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("black"),
+                            alpha: 0.55,
+                        ),
+                        offset_y: 2.0,
+                        blur: 8.0,
+                    )),
+                ),
+                pressed: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("danger"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("danger_face_dark"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("danger_face_lit"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("white"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                selected: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("accent"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("accent_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("accent"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                selected_pressed: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("accent"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("accent_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                disabled: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("case_1"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("case_3"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_1"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_0"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 0.34,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("black"),
+                            alpha: 0.55,
+                        ),
+                        offset_y: 2.0,
+                        blur: 8.0,
+                    )),
+                ),
+            )),
+            button_ghost: Some((
+                normal: (
+                    fill: Solid((
+                        value: Literal("#000000"),
+                        alpha: 0.0,
+                    )),
+                    border: (
+                        value: Variable("white"),
+                        alpha: 0.12,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                hovered: (
+                    fill: Solid((
+                        value: Variable("white"),
+                        alpha: 0.04,
+                    )),
+                    border: (
+                        value: Variable("white"),
+                        alpha: 0.22,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                pressed: (
+                    fill: Solid((
+                        value: Variable("black"),
+                        alpha: 0.22,
+                    )),
+                    border: (
+                        value: Variable("white"),
+                        alpha: 0.3,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                selected: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("accent"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("accent_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("accent"),
+                            alpha: 0.22,
+                        ),
+                        offset_y: 0.0,
+                        blur: 7.0,
+                    )),
+                ),
+                selected_pressed: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("accent"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("accent_low"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("accent_high"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                disabled: (
+                    fill: Linear(
+                        base: (
+                            value: Variable("case_1"),
+                            alpha: 1.0,
+                        ),
+                        degrees: 180.0,
+                        stops: [
+                            (
+                                color: (
+                                    value: Variable("case_3"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 0.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_1"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 55.0,
+                            ),
+                            (
+                                color: (
+                                    value: Variable("case_0"),
+                                    alpha: 1.0,
+                                ),
+                                percent: 100.0,
+                            ),
+                        ],
+                    ),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 0.34,
+                    ),
+                    effect: Some((
+                        color: (
+                            value: Variable("black"),
+                            alpha: 0.55,
+                        ),
+                        offset_y: 2.0,
+                        blur: 8.0,
+                    )),
+                ),
+            )),
+            panel: Some((
+                fill: Linear(
+                    base: (
+                        value: Variable("case_1"),
+                        alpha: 1.0,
+                    ),
+                    degrees: 168.0,
+                    stops: [
+                        (
+                            color: (
+                                value: Variable("case_2"),
+                                alpha: 1.0,
+                            ),
+                            percent: 0.0,
+                        ),
+                        (
+                            color: (
+                                value: Variable("case_0"),
+                                alpha: 1.0,
+                            ),
+                            percent: 88.0,
+                        ),
+                        (
+                            color: (
+                                value: Variable("case_edge"),
+                                alpha: 1.0,
+                            ),
+                            percent: 100.0,
+                        ),
+                    ],
+                ),
+                border: (
+                    value: Variable("case_edge"),
+                    alpha: 1.0,
+                ),
+                effect: Some((
+                    color: (
+                        value: Variable("black"),
+                        alpha: 0.55,
+                    ),
+                    offset_y: 2.0,
+                    blur: 8.0,
+                )),
+                radius: None,
+            )),
+            panel_head: Some((
+                border: (
+                    value: Variable("case_edge"),
+                    alpha: 1.0,
+                ),
+                title: (
+                    value: Variable("white"),
+                    alpha: 1.0,
+                ),
+                rule: (
+                    value: Variable("case_3"),
+                    alpha: 1.0,
+                ),
+                tag: (
+                    value: Variable("white"),
+                    alpha: 0.7,
+                ),
+            )),
+            list_row: Some((
+                normal: (
+                    fill: Solid((
+                        value: Variable("white"),
+                        alpha: 0.02,
+                    )),
+                    border: (
+                        value: Variable("white"),
+                        alpha: 0.05,
+                    ),
+                ),
+                hovered: (
+                    fill: Solid((
+                        value: Variable("white"),
+                        alpha: 0.06,
+                    )),
+                    border: (
+                        value: Variable("white"),
+                        alpha: 0.1,
+                    ),
+                ),
+                selected: (
+                    fill: Solid((
+                        value: Variable("case_2"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("accent"),
+                        alpha: 0.5,
+                    ),
+                ),
+            )),
+            segmented: Some((
+                fill: Solid((
+                    value: Variable("black"),
+                    alpha: 0.4,
+                )),
+                border: (
+                    value: Variable("case_edge"),
+                    alpha: 1.0,
+                ),
+                effect: None,
+                radius: None,
+            )),
+            slider_track: Some((
+                surface: (
+                    fill: Solid((
+                        value: Variable("black"),
+                        alpha: 0.55,
+                    )),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                    radius: Some(6.0),
+                ),
+                height: 10.0,
+                meter: Fill,
+                lit: (
+                    value: Variable("nominal_low"),
+                    alpha: 1.0,
+                ),
+                unlit: (
+                    value: Variable("black"),
+                    alpha: 0.0,
+                ),
+            )),
+            text_field: Some((
+                normal: (
+                    fill: Solid((
+                        value: Variable("case_text"),
+                        alpha: 0.035,
+                    )),
+                    border: (
+                        value: Variable("case_text"),
+                        alpha: 0.32,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                hovered: (
+                    fill: Solid((
+                        value: Variable("case_text"),
+                        alpha: 0.035,
+                    )),
+                    border: (
+                        value: Variable("case_text"),
+                        alpha: 0.65,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                focused: (
+                    fill: Solid((
+                        value: Variable("case_text"),
+                        alpha: 0.08,
+                    )),
+                    border: (
+                        value: Variable("accent"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                error: (
+                    fill: Solid((
+                        value: Variable("case_text"),
+                        alpha: 0.08,
+                    )),
+                    border: (
+                        value: Variable("danger"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("case_text"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+            )),
+            checkbox: Some((
+                radius: Some(5.0),
+                off: (
+                    fill: Solid((
+                        value: Variable("case_0"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("nominal"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                on: (
+                    fill: Solid((
+                        value: Variable("nominal"),
+                        alpha: 1.0,
+                    )),
+                    border: (
+                        value: Variable("nominal"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("inverted"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+            )),
+            toggle: Some((
+                radius: Some(11.0),
+                knob_radius: 9.0,
+                off: (
+                    fill: Solid((
+                        value: Variable("black"),
+                        alpha: 0.5,
+                    )),
+                    border: (
+                        value: Variable("case_edge"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("knob_off"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+                on: (
+                    fill: Solid((
+                        value: Variable("nominal"),
+                        alpha: 0.14,
+                    )),
+                    border: (
+                        value: Variable("nominal"),
+                        alpha: 1.0,
+                    ),
+                    text: (
+                        value: Variable("nominal"),
+                        alpha: 1.0,
+                    ),
+                    effect: None,
+                ),
+            )),
+            badge: Some((
+                bracketed: false,
+                padding_x: 8.0,
+                border_width: 1.0,
+                border_alpha: 0.4,
+                fill_alpha: 0.06,
+            )),
+            scroll_bar: Some((
+                track: (
+                    value: Variable("white"),
+                    alpha: 0.04,
+                ),
+                thumb: (
+                    value: Variable("case_3"),
+                    alpha: 1.0,
+                ),
+            )),
+            key_chip: Some((
+                fill: Solid((
+                    value: Variable("black"),
+                    alpha: 0.3,
+                )),
+                border: (
+                    value: Variable("accent"),
+                    alpha: 0.5,
+                ),
+                text: (
+                    value: Variable("accent"),
+                    alpha: 1.0,
+                ),
+                effect: None,
+            )),
+            separator: Some((
+                value: Variable("label"),
+                alpha: 0.5,
+            )),
+        ),
+    )),
+]

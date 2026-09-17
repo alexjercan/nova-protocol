@@ -1,6 +1,6 @@
 # Add moddable RON UI themes
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 

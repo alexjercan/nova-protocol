@@ -15,7 +15,7 @@ use bevy::{
 };
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
-use nova_ui::theme;
+use nova_ui::theme::UiColor;
 
 use crate::{
     config::{
@@ -32,6 +32,7 @@ use crate::{
         EditContext, NextChildOrdinal, NodeView, ObjectChoice, ObjectNode, SectionNode,
         SectionNodes, ShipDriver, ShipNode,
     },
+    palette,
     preview::{insert_preview_section, PreviewRole},
     snap::{self, PlacedSection},
     ExampleStates,
@@ -771,7 +772,7 @@ pub(crate) fn sync_placement_ghost(
         status.report(founding.then(|| {
             (
                 "click empty space - the first part founds the ship".to_string(),
-                theme::PHOSPHOR_MUTED,
+                UiColor::Label,
             )
         }));
         return;
@@ -820,8 +821,8 @@ pub(crate) fn sync_placement_ghost(
             .unwrap_or_default()
             .aabb_half_extents();
         let colour = match placement.solve.refusal {
-            None => theme::PHOSPHOR,
-            Some(_) => theme::RED,
+            None => palette::GO,
+            Some(_) => palette::NO,
         };
         // Gizmos are drawn in WORLD space while the solve is ship-local.
         let pose = ship_pose
@@ -1190,14 +1191,14 @@ pub(crate) fn draw_link_points(
             eye,
             origin,
             (ship_pose.rotation() * Vec3::Y).normalize_or(Vec3::Y),
-            theme::PHOSPHOR,
+            palette::GO,
             true,
         );
         if let Some(part) = sections.get_section(armed) {
             let half = part.base.collider.unwrap_or_default().aabb_half_extents();
             gizmos.cube(
                 ship_pose.compute_transform().with_scale(half * 2.0),
-                theme::PHOSPHOR_MUTED,
+                palette::GO_MUTED,
             );
         }
         return;
@@ -1233,9 +1234,9 @@ pub(crate) fn draw_link_points(
             // green ticks on grey plating read as scratches.
             let taken_next = aimed == Some((section_index, point_index));
             let colour = if taken_next {
-                theme::AMBER_NOVA
+                palette::AIMED
             } else {
-                theme::PHOSPHOR
+                palette::GO
             };
             draw_socket(&mut gizmos, eye, position, normal, colour, taken_next);
         }
@@ -1259,8 +1260,8 @@ pub(crate) fn draw_link_points(
         ship_pose.transform_point(transform.translation + transform.rotation * source.position),
         (ship_pose.rotation() * transform.rotation * source.normal).normalize_or(Vec3::Z),
         match placement.solve.refusal {
-            None => theme::PHOSPHOR,
-            Some(_) => theme::RED,
+            None => palette::GO,
+            Some(_) => palette::NO,
         },
         true,
     );
@@ -1335,7 +1336,7 @@ pub(crate) fn draw_ship_heading(
     let pose = ship_pose.compute_transform();
     let origin = pose.translation;
     let nose = origin + pose.rotation * (Vec3::NEG_Z * reach);
-    gizmos.arrow(origin, nose, theme::AMBER_NOVA);
+    gizmos.arrow(origin, nose, palette::AIMED);
 }
 
 #[cfg(test)]

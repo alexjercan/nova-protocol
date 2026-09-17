@@ -18,7 +18,7 @@ use nova_gameplay::prelude::{
 };
 use nova_input::prelude::{BindingSpec, InputBindings, MousePath, MouseSensitivity};
 use nova_os_ui::prelude::NovaOsMonitorSettings;
-use nova_ui::prelude::UiSkin;
+use nova_ui::theme::{SelectedUiTheme, PHOSPHOR_THEME_ID};
 use serde::{Deserialize, Serialize};
 
 use crate::settings::{FieldNoteSetting, TrainingPromptSetting, WindowModeSetting};
@@ -56,9 +56,11 @@ pub struct PersistedSettings {
     /// The graphics-quality preset.
     #[serde(default)]
     pub graphics_quality: GraphicsQuality,
-    /// The UI skin (phosphor terminal vs hardware casing).
-    #[serde(default)]
-    pub ui_skin: UiSkin,
+    /// The selected UI theme, by stable id (`base/phosphor`, `base/hardware`,
+    /// or a theme a mod declares). A string, not an enum: the set of themes is
+    /// open, and a mod's theme has to survive a restart.
+    #[serde(default = "default_ui_theme")]
+    pub ui_theme: String,
     /// NOVA OS BRIGHT knob detent.
     #[serde(default = "default_bright_detent")]
     pub nova_os_bright_detent: usize,
@@ -105,6 +107,12 @@ fn default_free_camera_sensitivity() -> f32 {
     MousePath::FreeCamera.default_raw()
 }
 
+/// The theme a store written before this field, or by a player who never
+/// opened Settings, comes back as: the base terminal look.
+fn default_ui_theme() -> String {
+    PHOSPHOR_THEME_ID.to_string()
+}
+
 fn default_bright_detent() -> usize {
     NovaOsMonitorSettings::default().bright_detent
 }
@@ -131,7 +139,7 @@ impl Default for PersistedSettings {
             mouse_rcs_sensitivity: default_rcs_sensitivity(),
             mouse_free_camera_sensitivity: default_free_camera_sensitivity(),
             graphics_quality: GraphicsQuality::default(),
-            ui_skin: UiSkin::default(),
+            ui_theme: default_ui_theme(),
             nova_os_bright_detent: default_bright_detent(),
             nova_os_scan_detent: default_scan_detent(),
             nova_os_sound_enabled: default_sound_enabled(),
@@ -152,7 +160,7 @@ impl PersistedSettings {
         music_volume: MusicVolume,
         sensitivity: MouseSensitivity,
         quality: GraphicsQuality,
-        skin: UiSkin,
+        theme: SelectedUiTheme,
         monitor: NovaOsMonitorSettings,
         window_mode: WindowModeSetting,
         training_prompt: TrainingPromptSetting,
@@ -168,7 +176,7 @@ impl PersistedSettings {
             mouse_rcs_sensitivity: sensitivity.raw(MousePath::Rcs),
             mouse_free_camera_sensitivity: sensitivity.raw(MousePath::FreeCamera),
             graphics_quality: quality,
-            ui_skin: skin,
+            ui_theme: theme.0,
             nova_os_bright_detent: monitor.bright_detent,
             nova_os_scan_detent: monitor.scan_detent,
             nova_os_sound_enabled: monitor.sound_enabled,
@@ -348,7 +356,7 @@ impl SettingsStorePlugin {
     /// [`allow_settings_saves`].
     ///
     /// A capture or a probe sweep must produce the same frames and the same
-    /// numbers on any machine, and the developer's own graphics preset, skin
+    /// numbers on any machine, and the developer's own graphics preset, theme
     /// or window mode would otherwise decide what a screenshot shows. The
     /// write direction matters more: a scripted run that saves is a run that
     /// rewrites the settings of whoever launched it, which is how a screenshot
@@ -373,7 +381,7 @@ impl Plugin for SettingsStorePlugin {
     fn build(&self, app: &mut App) {
         // Every one of these is owned by some other plugin in the assembled
         // app - the mixer buses and the quality preset by `NovaGameplayPlugin`,
-        // the sensitivities by `NovaInputPlugin`, the skin by `NovaUiPlugin`,
+        // the sensitivities by `NovaInputPlugin`, the theme selection by `NovaUiPlugin`,
         // the monitor knobs by `NovaOsUiPlugin`. `init_resource` is idempotent,
         // so initing them here as well is what lets this plugin be added first,
         // last, or alone.
@@ -383,7 +391,7 @@ impl Plugin for SettingsStorePlugin {
         app.init_resource::<MusicVolume>();
         app.init_resource::<MouseSensitivity>();
         app.init_resource::<GraphicsQuality>();
-        app.init_resource::<UiSkin>();
+        app.init_resource::<SelectedUiTheme>();
         app.init_resource::<NovaOsMonitorSettings>();
         app.init_resource::<WindowModeSetting>();
         app.init_resource::<TrainingPromptSetting>();
@@ -425,7 +433,7 @@ pub(crate) fn load_persisted_settings(
     mut music_volume: ResMut<MusicVolume>,
     mut sensitivity: ResMut<MouseSensitivity>,
     mut quality: ResMut<GraphicsQuality>,
-    mut skin: ResMut<UiSkin>,
+    mut theme: ResMut<SelectedUiTheme>,
     mut monitor: ResMut<NovaOsMonitorSettings>,
     mut window_mode: ResMut<WindowModeSetting>,
     mut training_prompt: ResMut<TrainingPromptSetting>,
@@ -442,7 +450,7 @@ pub(crate) fn load_persisted_settings(
     *music_volume = MusicVolume(saved.music_volume.clamp(0.0, 1.0));
     *sensitivity = saved.mouse_sensitivity();
     *quality = saved.graphics_quality;
-    *skin = saved.ui_skin;
+    *theme = SelectedUiTheme(saved.ui_theme.clone());
     *monitor = saved.nova_os_monitor();
     *window_mode = saved.window_mode;
     *training_prompt = saved.training_prompt;
@@ -528,7 +536,7 @@ pub(crate) struct LiveSettings<'w> {
     music_volume: Res<'w, MusicVolume>,
     sensitivity: Res<'w, MouseSensitivity>,
     quality: Res<'w, GraphicsQuality>,
-    skin: Res<'w, UiSkin>,
+    theme: Res<'w, SelectedUiTheme>,
     monitor: Res<'w, NovaOsMonitorSettings>,
     window_mode: Res<'w, WindowModeSetting>,
     training_prompt: Res<'w, TrainingPromptSetting>,
@@ -551,7 +559,7 @@ impl LiveSettings<'_> {
             || moved(self.music_volume.is_changed(), self.music_volume.is_added())
             || moved(self.sensitivity.is_changed(), self.sensitivity.is_added())
             || moved(self.quality.is_changed(), self.quality.is_added())
-            || moved(self.skin.is_changed(), self.skin.is_added())
+            || moved(self.theme.is_changed(), self.theme.is_added())
             || moved(self.monitor.is_changed(), self.monitor.is_added())
             || moved(self.window_mode.is_changed(), self.window_mode.is_added())
             || moved(
@@ -571,7 +579,7 @@ impl LiveSettings<'_> {
             *self.music_volume,
             *self.sensitivity,
             *self.quality,
-            *self.skin,
+            self.theme.clone(),
             *self.monitor,
             *self.window_mode,
             *self.training_prompt,
@@ -624,7 +632,7 @@ mod tests {
     use nova_gameplay::prelude::{GraphicsQuality, InterfaceVolume, MusicVolume, WorldVolume};
     use nova_input::prelude::{MousePath, MouseSensitivity};
     use nova_os_ui::prelude::NovaOsMonitorSettings;
-    use nova_ui::prelude::UiSkin;
+    use nova_ui::theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID};
 
     use super::{PersistedSettings, KEY};
     use crate::settings::{FieldNoteSetting, TrainingPromptSetting, WindowModeSetting};
@@ -660,7 +668,7 @@ mod tests {
             mouse_rcs_sensitivity: MousePath::Rcs.range().raw(300.0),
             mouse_free_camera_sensitivity: MousePath::FreeCamera.range().raw(250.0),
             graphics_quality: GraphicsQuality::Low,
-            ui_skin: UiSkin::Hardware,
+            ui_theme: HARDWARE_THEME_ID.to_string(),
             nova_os_bright_detent: 3,
             nova_os_scan_detent: 0,
             nova_os_sound_enabled: false,
@@ -737,7 +745,7 @@ mod tests {
                 mouse_rcs_sensitivity: MousePath::Rcs.default_raw(),
                 mouse_free_camera_sensitivity: MousePath::FreeCamera.default_raw(),
                 graphics_quality: GraphicsQuality::default(),
-                ui_skin: UiSkin::default(),
+                ui_theme: PHOSPHOR_THEME_ID.to_string(),
                 nova_os_bright_detent: NovaOsMonitorSettings::default().bright_detent,
                 nova_os_scan_detent: NovaOsMonitorSettings::default().scan_detent,
                 nova_os_sound_enabled: NovaOsMonitorSettings::default().sound_enabled,
@@ -825,31 +833,32 @@ mod tests {
         clear(&store);
     }
 
-    /// The UI skin choice survives a save/load round-trip (DoD 2). Default is Phosphor,
-    /// so a Hardware choice is the non-default proof; and an older store lacking the
-    /// field defaults to Phosphor rather than failing to load.
+    /// The UI theme choice survives a save/load round-trip as a stable ID -
+    /// the whole point of the format: a theme a MOD declares has an id this
+    /// crate has never heard of, so the store must carry the string through
+    /// untouched rather than an enum it can name.
     #[test]
-    fn ui_skin_setting_persists_across_save_load() {
-        let store = temp_store("ui_skin");
+    fn the_ui_theme_id_persists_across_save_load() {
+        let store = temp_store("ui_theme");
         clear(&store);
 
         let settings = PersistedSettings {
-            ui_skin: UiSkin::Hardware,
+            ui_theme: "wildcat/amber_crt".to_string(),
             ..PersistedSettings::default()
         };
         save_to(&store, KEY, &settings);
         assert_eq!(
-            load_from::<PersistedSettings>(&store, KEY).map(|s| s.ui_skin),
-            Some(UiSkin::Hardware),
-            "the Hardware skin choice round-trips through the store"
+            load_from::<PersistedSettings>(&store, KEY).map(|s| s.ui_theme),
+            Some("wildcat/amber_crt".to_string()),
+            "a mod's theme id round-trips through the store unchanged"
         );
 
-        // A pre-skin store still loads, defaulting the skin to Phosphor.
+        // A store written before the field defaults to the base terminal look.
         write_raw(&store, b"(master_volume: 0.5)");
         assert_eq!(
-            load_from::<PersistedSettings>(&store, KEY).map(|s| s.ui_skin),
-            Some(UiSkin::Phosphor),
-            "a store written before the ui_skin field defaults to Phosphor"
+            load_from::<PersistedSettings>(&store, KEY).map(|s| s.ui_theme),
+            Some(PHOSPHOR_THEME_ID.to_string()),
+            "a store with no ui_theme field falls back to base/phosphor"
         );
         clear(&store);
     }

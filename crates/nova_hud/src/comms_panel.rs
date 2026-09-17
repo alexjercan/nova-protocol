@@ -619,7 +619,7 @@ mod tests {
 
     use bevy::time::TimeUpdateStrategy;
     use nova_gameplay::narrative_accent::prelude::default_comms_accent;
-    use nova_ui::hud::ChipTone;
+    use nova_ui::{hud::ChipTone, theme::ActiveUiTheme};
 
     use super::*;
 
@@ -1332,7 +1332,7 @@ mod tests {
     fn a_cue_that_names_no_accent_is_drawn_in_the_comms_blue() {
         assert_eq!(
             default_comms_accent(),
-            ChipTone::Comms.text(),
+            ChipTone::Comms.text(&ActiveUiTheme::default()),
             "the cue default IS the HUD's comms tone, not a second blue beside it"
         );
 

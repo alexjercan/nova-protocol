@@ -18,7 +18,7 @@ use bevy::{light::NotShadowCaster, prelude::*};
 use nova_events::units::prelude::*;
 use nova_gameplay::{gravity::prelude::*, markers::prelude::*};
 use nova_ship::flight::prelude::*;
-use nova_ui::hud::{chip_node, chip_paint, ChipTone};
+use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
 
 use super::{
     flight_status::prelude::DESTINATION_MARKER_PX,
@@ -127,32 +127,35 @@ pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bu
                 Name::new("DestinationReadoutUI"),
                 DestinationReadoutUIMarker,
                 chip(READOUT_OFFSET),
-                chip_paint(ChipTone::Phosphor),
+                chip_paint(ChipTone::Readout),
                 Text::new(""),
                 TextFont::from_font_size(12.0),
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()
                 },
-                TextColor(ChipTone::Phosphor.text()),
+                ChipText::value(ChipTone::Readout),
+                TextColor(Color::NONE),
             ),
             (
                 Name::new("FlipMarkerUI"),
                 FlipMarkerUIMarker,
                 chip(Vec2::ZERO),
-                chip_paint(ChipTone::Phosphor),
+                chip_paint(ChipTone::Readout),
                 Text::new(""),
                 TextFont::from_font_size(12.0),
-                TextColor(ChipTone::Phosphor.text()),
+                ChipText::value(ChipTone::Readout),
+                TextColor(Color::NONE),
             ),
             (
                 Name::new("RadiusSpokeChipUI"),
                 RadiusSpokeChipUIMarker,
                 chip(Vec2::ZERO),
-                chip_paint(ChipTone::Phosphor),
+                chip_paint(ChipTone::Readout),
                 Text::new(""),
                 TextFont::from_font_size(12.0),
-                TextColor(ChipTone::Phosphor.text()),
+                ChipText::value(ChipTone::Readout),
+                TextColor(Color::NONE),
             ),
         ],
     )

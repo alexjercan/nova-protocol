@@ -13,8 +13,10 @@ use bevy::{
 };
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{button, panel, ButtonSpec, UiSkin, UiText},
+    prelude::{button, panel, ButtonSpec, UiText},
     theme,
+    theme::{ActiveUiTheme, UiColor},
+    widget::{ThemedBorder, ThemedFill, ThemedRadius, ThemedText},
 };
 
 use crate::{
@@ -123,14 +125,10 @@ pub(crate) fn rebuild_gallery(
     layout: Res<GalleryLayout>,
     stage: Res<crate::gallery::scene::GalleryStage>,
     sections: Res<GameSections>,
-    skin: Res<UiSkin>,
     existing: Query<Entity, Or<(With<GalleryRoot>, With<GalleryItem>)>>,
     mut last: Local<Option<GalleryState>>,
 ) {
-    let dirty = last.as_ref() != Some(&*state)
-        || sections.is_changed()
-        || skin.is_changed()
-        || layout.is_changed();
+    let dirty = last.as_ref() != Some(&*state) || sections.is_changed() || layout.is_changed();
     if !dirty {
         return;
     }
@@ -143,7 +141,6 @@ pub(crate) fn rebuild_gallery(
         return;
     }
 
-    let skin = *skin;
     let listed = catalog::browsable(&sections, state.category, &state.filter);
     let per_page = layout.page();
     let pages = listed.len().div_ceil(per_page).max(1);
@@ -186,7 +183,7 @@ pub(crate) fn rebuild_gallery(
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },
-                panel(skin),
+                panel(),
             ))
             .with_children(|header| {
                 header.spawn((
@@ -197,7 +194,8 @@ pub(crate) fn rebuild_gallery(
                         font_size: FontSize::Px(20.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Primary),
                 ));
 
                 for category in GalleryCategory::ROW {
@@ -270,10 +268,11 @@ pub(crate) fn rebuild_gallery(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(if narrowed {
-                        theme::AMBER_NOVA
+                    TextColor(Color::NONE),
+                    ThemedText::new(if narrowed {
+                        UiColor::Accent
                     } else {
-                        theme::PHOSPHOR_MUTED
+                        UiColor::Label
                     }),
                     Node {
                         margin: UiRect::left(px(6)),
@@ -297,17 +296,9 @@ pub(crate) fn rebuild_gallery(
             });
 
             if state.focused {
-                focus_body(root, &sections, &listed, state.selected, skin, &mut stages);
+                focus_body(root, &sections, &listed, state.selected, &mut stages);
             } else {
-                grid_body(
-                    root,
-                    &sections,
-                    &listed,
-                    start,
-                    state.selected,
-                    *layout,
-                    &mut stages,
-                );
+                grid_body(root, &sections, &listed, start, *layout, &mut stages);
             }
 
             root.spawn((
@@ -331,7 +322,8 @@ pub(crate) fn rebuild_gallery(
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
                 Node {
                     margin: UiRect::axes(px(16), px(8)),
                     ..default()
@@ -353,7 +345,6 @@ fn grid_body(
     sections: &GameSections,
     listed: &[usize],
     start: usize,
-    selected: usize,
     layout: GalleryLayout,
     stages: &mut Vec<(Entity, usize, bool)>,
 ) {
@@ -385,7 +376,7 @@ fn grid_body(
                             .and_then(|index| sections.get(*index).map(|section| (*index, section)))
                         {
                             Some((index, section)) => {
-                                let stage = spawn_cell(row_node, section, slot, slot == selected);
+                                let stage = spawn_cell(row_node, section, slot);
                                 stages.push((stage, index, false));
                             }
                             // An empty slot still takes its share of the row, so a
@@ -407,12 +398,7 @@ fn grid_body(
 /// One tile: a transparent preview area (the 3D shows through it) over an
 /// opaque name strip. Returns the preview area, which is what a preview
 /// centres itself on.
-fn spawn_cell(
-    row: &mut ChildSpawnerCommands,
-    section: &SectionConfig,
-    listed: usize,
-    selected: bool,
-) -> Entity {
+fn spawn_cell(row: &mut ChildSpawnerCommands, section: &SectionConfig, listed: usize) -> Entity {
     let mut stage = Entity::PLACEHOLDER;
     row.spawn((
         Name::new(format!("Gallery Tile {}", section.base.name)),
@@ -425,11 +411,13 @@ fn spawn_cell(
             flex_basis: px(0),
             flex_direction: FlexDirection::Column,
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(cell_border(selected, false)),
-        BackgroundColor(cell_fill(selected, false)),
+        ThemedRadius::control(),
+        // Unpainted: `paint_gallery_cells` runs every frame and is the tile's
+        // only paint path, so the theme reaches it there.
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
     ))
     .with_children(|cell| {
         stage = cell
@@ -460,7 +448,8 @@ fn spawn_cell(
                 padding: UiRect::horizontal(px(6)),
                 ..default()
             },
-            BackgroundColor(theme::SCREEN_0),
+            BackgroundColor(Color::NONE),
+            ThemedFill::new(UiColor::Surface),
             Pickable {
                 should_block_lower: false,
                 is_hoverable: false,
@@ -473,7 +462,8 @@ fn spawn_cell(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::SCREEN_TEXT),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Body),
                 ),
                 (
                     UiText,
@@ -482,7 +472,8 @@ fn spawn_cell(
                         font_size: FontSize::Px(10.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                 ),
             ],
         ));
@@ -496,7 +487,6 @@ fn focus_body(
     sections: &GameSections,
     listed: &[usize],
     selected: usize,
-    skin: UiSkin,
     stages: &mut Vec<(Entity, usize, bool)>,
 ) {
     let Some((index, section)) = listed
@@ -546,7 +536,7 @@ fn focus_body(
                     border: UiRect::all(px(theme::BORDER_W)),
                     ..default()
                 },
-                panel(skin),
+                panel(),
             ))
             .with_children(|card| {
                 card.spawn((
@@ -556,7 +546,8 @@ fn focus_body(
                         font_size: FontSize::Px(18.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Primary),
                 ));
                 card.spawn((
                     UiText,
@@ -565,7 +556,8 @@ fn focus_body(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                     Node {
                         margin: UiRect::bottom(px(6)),
                         ..default()
@@ -588,7 +580,8 @@ fn focus_body(
                                     font_size: FontSize::Px(12.0),
                                     ..default()
                                 },
-                                TextColor(theme::PHOSPHOR_MUTED),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Label),
                             ),
                             (
                                 UiText,
@@ -597,7 +590,8 @@ fn focus_body(
                                     font_size: FontSize::Px(12.0),
                                     ..default()
                                 },
-                                TextColor(theme::SCREEN_TEXT),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Body),
                             ),
                         ],
                     ));
@@ -636,10 +630,10 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
     // Amber whenever the field is holding parts back, focused or not: the box
     // is the only thing on screen that says WHY the grid is short.
     let (text, color) = match (focused, filter.is_empty()) {
-        (true, true) => ("_".to_string(), theme::SCREEN_TEXT),
-        (true, false) => (format!("{filter}_"), theme::AMBER_NOVA),
-        (false, true) => ("/ to filter".to_string(), theme::PHOSPHOR_MUTED),
-        (false, false) => (filter.to_string(), theme::AMBER_NOVA),
+        (true, true) => ("_".to_string(), UiColor::Body),
+        (true, false) => (format!("{filter}_"), UiColor::Accent),
+        (false, true) => ("/ to filter".to_string(), UiColor::Label),
+        (false, false) => (filter.to_string(), UiColor::Accent),
     };
     (
         Name::new("Gallery Filter"),
@@ -653,15 +647,17 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
             align_items: AlignItems::Center,
             padding: UiRect::horizontal(px(8)),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(match (focused, filter.is_empty()) {
-            (_, false) => theme::AMBER_NOVA,
-            (true, true) => theme::PHOSPHOR,
-            (false, true) => theme::PHOSPHOR_MUTED,
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(match (focused, filter.is_empty()) {
+            (_, false) => UiColor::Accent,
+            (true, true) => UiColor::Primary,
+            (false, true) => UiColor::Label,
         }),
-        BackgroundColor(theme::SCREEN_0),
+        BackgroundColor(Color::NONE),
+        ThemedFill::new(UiColor::Surface),
         children![(
             UiText,
             Text::new(text),
@@ -669,7 +665,8 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
                 font_size: FontSize::Px(12.0),
                 ..default()
             },
-            TextColor(color),
+            TextColor(Color::NONE),
+            ThemedText::new(color),
         )],
     )
 }
@@ -679,6 +676,7 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
 /// 3D preview behind it.
 pub(crate) fn paint_gallery_cells(
     state: Res<GalleryState>,
+    theme: Res<ActiveUiTheme>,
     mut cells: Query<(
         &GalleryCell,
         &Hovered,
@@ -688,25 +686,24 @@ pub(crate) fn paint_gallery_cells(
 ) {
     for (cell, hovered, mut border, mut background) in &mut cells {
         let selected = cell.listed == state.selected;
-        *border = BorderColor::all(cell_border(selected, hovered.get()));
-        background.0 = cell_fill(selected, hovered.get());
+        *border = BorderColor::all(cell_border(&theme, selected, hovered.get()));
+        background.0 = cell_fill(&theme, selected, hovered.get());
     }
 }
 
-fn cell_border(selected: bool, hovered: bool) -> Color {
-    match (selected, hovered) {
-        (true, _) => theme::PHOSPHOR,
-        (false, true) => theme::PHOSPHOR_DIM,
-        (false, false) => theme::PHOSPHOR_MUTED,
-    }
+fn cell_border(theme: &ActiveUiTheme, selected: bool, hovered: bool) -> Color {
+    theme.color(match (selected, hovered) {
+        (true, _) => UiColor::Primary,
+        (false, true) => UiColor::Secondary,
+        (false, false) => UiColor::Label,
+    })
 }
 
 /// Tile fills stay nearly transparent on purpose: whatever alpha they carry
 /// tints the 3D preview behind them.
-fn cell_fill(selected: bool, hovered: bool) -> Color {
+fn cell_fill(theme: &ActiveUiTheme, selected: bool, hovered: bool) -> Color {
     match (selected, hovered) {
-        (true, _) => theme::PHOSPHOR.with_alpha(0.05),
-        (false, true) => theme::PHOSPHOR.with_alpha(0.05),
+        (true, _) | (false, true) => theme.color_alpha(UiColor::Primary, 0.05),
         (false, false) => Color::NONE,
     }
 }

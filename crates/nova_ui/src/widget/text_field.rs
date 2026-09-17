@@ -12,7 +12,7 @@ use bevy::{
 };
 
 use super::UiText;
-use crate::{skin::UiSkin, theme};
+use crate::theme::{ActiveUiTheme, FieldState, UiColor, UiMetric, BORDER_W};
 
 const FONT_SIZE: f32 = 14.0;
 const CHARACTER_WIDTH: f32 = 8.4;
@@ -151,13 +151,14 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
             min_height,
             align_items: AlignItems::Center,
             padding: UiRect::axes(px(10), vertical_pad),
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            border: UiRect::all(px(BORDER_W)),
             position_type: PositionType::Relative,
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR.with_alpha(0.32)),
-        BackgroundColor(theme::PHOSPHOR.with_alpha(0.035)),
+        // Unpainted: `paint_text_fields` is the single paint path, and it runs
+        // every frame, so a field takes its theme on the frame it appears.
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
         Children::spawn(SpawnWith(|parent: &mut RelatedSpawner<ChildOf>| {
             parent.spawn((
                 TextFieldDisplay,
@@ -167,7 +168,7 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
                     font_size: FontSize::Px(FONT_SIZE),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR),
+                TextColor(Color::NONE),
             ));
             parent.spawn((
                 TextFieldErrorDisplay,
@@ -177,7 +178,7 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::semantic::THREAT),
+                TextColor(Color::NONE),
                 Node {
                     position_type: PositionType::Absolute,
                     top: percent(100),
@@ -362,7 +363,7 @@ pub(super) fn text_field_keyboard(
 }
 
 pub(super) fn paint_text_fields(
-    skin: Res<UiSkin>,
+    theme: Res<ActiveUiTheme>,
     mut q_fields: Query<
         (
             Entity,
@@ -371,6 +372,7 @@ pub(super) fn paint_text_fields(
             Option<&TextFieldFocused>,
             Option<&TextFieldError>,
             &Hovered,
+            &mut Node,
             &mut BorderColor,
             &mut BackgroundColor,
             &Children,
@@ -387,30 +389,31 @@ pub(super) fn paint_text_fields(
         Or<(With<TextFieldDisplay>, With<TextFieldErrorDisplay>)>,
     >,
 ) {
-    for (entity, value, config, focus, error, hovered, mut border, mut background, children) in
-        &mut q_fields
+    let radius = theme.metric(UiMetric::Radius);
+    let error_ink = theme.color(UiColor::Danger);
+    for (
+        entity,
+        value,
+        config,
+        focus,
+        error,
+        hovered,
+        mut node,
+        mut border,
+        mut background,
+        children,
+    ) in &mut q_fields
     {
         let _ = entity;
-        let phosphor = if skin.is_phosphor() {
-            theme::PHOSPHOR
-        } else {
-            theme::SCREEN_TEXT
-        };
-        let border_color = if error.is_some() {
-            theme::semantic::THREAT
-        } else if focus.is_some() {
-            theme::AMBER_NOVA
-        } else if hovered.get() {
-            phosphor.with_alpha(0.65)
-        } else {
-            phosphor.with_alpha(0.32)
-        };
-        border.set_all(border_color);
-        *background = if focus.is_some() {
-            phosphor.with_alpha(0.08).into()
-        } else {
-            phosphor.with_alpha(0.035).into()
-        };
+        let paint = theme.text_field(FieldState::resolve(
+            error.is_some(),
+            focus.is_some(),
+            hovered.get(),
+        ));
+        let ink = paint.text;
+        border.set_all(paint.border);
+        *background = paint.fill.base.into();
+        node.border_radius = BorderRadius::all(px(radius));
 
         for child in children.iter() {
             let Ok((mut text, mut color, error_display, mut visibility)) = q_display.get_mut(child)
@@ -418,6 +421,7 @@ pub(super) fn paint_text_fields(
                 continue;
             };
             if error_display.is_some() {
+                *color = TextColor(error_ink);
                 if let Some(error) = error {
                     text.0.clone_from(&error.0);
                     *visibility = Visibility::Inherited;
@@ -429,10 +433,10 @@ pub(super) fn paint_text_fields(
             }
             *visibility = Visibility::Inherited;
             let mut shown = if value.0.is_empty() && focus.is_none() {
-                color.0 = phosphor.with_alpha(0.42);
+                color.0 = ink.with_alpha(ink.alpha() * 0.42);
                 config.placeholder.clone()
             } else {
-                color.0 = phosphor;
+                color.0 = ink;
                 value.0.clone()
             };
             if let Some(focus) = focus {
@@ -446,7 +450,7 @@ pub(super) fn paint_text_fields(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{skin::UiSkin, widget::fixtures::skin_app};
+    use crate::{theme::PHOSPHOR_THEME_ID, widget::fixtures::themed_app};
 
     fn press(app: &mut App, key_code: KeyCode, logical_key: Key) {
         app.world_mut().write_message(KeyboardInput {
@@ -468,7 +472,7 @@ mod tests {
 
     #[test]
     fn focused_field_edits_at_the_caret() {
-        let mut app = skin_app(UiSkin::Phosphor);
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
         app.add_message::<KeyboardInput>();
         let field = app
             .world_mut()
@@ -491,7 +495,7 @@ mod tests {
     /// click into another field resolves - the older one commits and lets go.
     #[test]
     fn a_second_focus_takes_the_field_over_instead_of_killing_the_keyboard() {
-        let mut app = skin_app(UiSkin::Phosphor);
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
         app.add_message::<KeyboardInput>();
         let first = app
             .world_mut()
@@ -529,7 +533,7 @@ mod tests {
 
     #[test]
     fn escape_restores_the_focus_entry_value() {
-        let mut app = skin_app(UiSkin::Phosphor);
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
         app.add_message::<KeyboardInput>();
         let field = app
             .world_mut()

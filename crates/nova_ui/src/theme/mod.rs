@@ -1,105 +1,90 @@
-//! The Nova Protocol UI theme.
+//! The Nova Protocol UI theme: the authored format, its resolver, the shipped
+//! base themes, and the functional gameplay colours that are NOT themed.
 //!
-//! The primary palette is the **NOVA OS** language (green phosphor on a
-//! near-black screen inside a dark moulded casing), carried verbatim from the
-//! accepted PoC `web/design/nova_ui_rework_poc.html` (its `:root` tokens). The
-//! widget layer ([`crate::widget`]) renders every control from these tokens in
-//! one of two skins - the phosphor CLI look (default) and the light-3D hardware
-//! casing (see [`crate::skin::UiSkin`]).
+//! The visual language is **NOVA OS** (green phosphor on a near-black screen
+//! inside a dark moulded casing), carried verbatim from the accepted PoC
+//! `web/design/nova_ui_rework_poc.html` (its `:root` tokens). Every one of those
+//! tokens now lives in [`base`] as authored theme DATA rather than as a `const`
+//! here, because a theme is mod content like a section or a ship is: the base
+//! mod ships `base/phosphor` and `base/hardware`, and a mod adds a look by
+//! declaring a new id.
 //!
-//! The flat navy/cyan `web/src/style.css` palette that this theme used to mirror
-//! has been fully retired. Site and game are no longer two hand-synced lists:
-//! `web/src/style.css` now mirrors the SAME PoC `:root` block this module does,
-//! and `web/tests/theme.test.ts` parses both and fails on drift. Change the PoC
-//! first, then both consumers.
+//! The four pieces:
 //!
-//! The site is single-skin: it draws only the PHOSPHOR look, and its test fails
-//! if any hardware-skin material token is consumed. The game keeps both skins -
-//! only here is [`crate::skin::UiSkin`] a user choice.
+//! - [`config`] - the serde format a `Content::UiTheme` item carries;
+//! - [`resolve`] - the inheritance walk, the palette resolution, and
+//!   [`ActiveUiTheme`], the complete paint table the widgets read;
+//! - [`base`] - the two shipped themes, as builders `content gen` serializes;
+//! - [`registry`] - [`GameUiThemes`], [`SelectedUiTheme`] and the one system
+//!   that resolves them into [`ActiveUiTheme`].
 //!
-//! Palette + metrics only - typography routes through [`crate::font::UiFont`].
+//! # What is NOT themed
+//!
+//! [`semantic`] and [`combat`] below. Those carry gameplay MEANING rather than
+//! style - a hostile reticle must be red and an ally green in every theme, so a
+//! theme that could move them could make the game unreadable. They are the
+//! documented exemption to the coverage contract; everything a player would
+//! call chrome goes through [`ActiveUiTheme`].
+//!
+//! The site mirrors the same PoC `:root` block in `web/src/style.css`, and
+//! `web/tests/theme.test.ts` parses both and fails on drift. It is
+//! single-skin - it draws only the phosphor look. Change the PoC first, then
+//! both consumers.
+//!
+//! Palette and metrics only - typography routes through [`crate::font::UiFont`].
 
-use bevy::prelude::*;
+pub mod base;
+pub mod config;
+pub mod registry;
+pub mod resolve;
 
-// NOVA OS palette (the PoC :root tokens).
+#[cfg(test)]
+mod tests;
 
-/// Deepest field behind everything (`--space`).
-pub const SPACE: Color = Color::srgb_u8(0x03, 0x06, 0x0b);
+/// Glob-import surface for the theme: the authored format, the live resolved
+/// theme and the semantic names screens ask it for.
+pub mod prelude {
+    pub use super::{
+        config::{SliderMeter, UiThemeConfig, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+        registry::{GameUiThemes, SelectedUiTheme, UiThemeDiagnostic, UiThemeSystems},
+        resolve::{
+            ActiveUiTheme, ButtonState, FieldState, OnOff, RowState, ThemeButton, ThemeIssue,
+            UiColor, UiMetric,
+        },
+    };
+}
 
-/// Casing gradient tone 0 - the darkest case face (`--case-0`).
-pub const CASE_0: Color = Color::srgb_u8(0x0a, 0x0d, 0x10);
-/// Casing gradient tone 1 (`--case-1`).
-pub const CASE_1: Color = Color::srgb_u8(0x16, 0x1b, 0x20);
-/// Casing gradient tone 2 (`--case-2`).
-pub const CASE_2: Color = Color::srgb_u8(0x23, 0x2a, 0x31);
-/// Casing gradient tone 3 - the lightest, top of a moulded face (`--case-3`).
-pub const CASE_3: Color = Color::srgb_u8(0x2f, 0x38, 0x3f);
-/// The near-black seam between case pieces (`--case-edge`).
-pub const CASE_EDGE: Color = Color::srgb_u8(0x05, 0x07, 0x0a);
+pub use config::{SliderMeter, UiThemeConfig, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID};
+pub use registry::{GameUiThemes, SelectedUiTheme, UiThemeDiagnostic, UiThemeSystems};
+pub use resolve::{
+    lint_theme, resolve_theme, ActiveUiTheme, ButtonState, FieldState, OnOff, ResolvedBadge,
+    ResolvedBar, ResolvedCheckbox, ResolvedFill, ResolvedHead, ResolvedRow, ResolvedSlider,
+    ResolvedState, ResolvedSurface, ResolvedToggle, RowState, ThemeButton, ThemeIssue, UiColor,
+    UiMetric,
+};
 
-/// Hover face top tone (`--face-hot` 0%).
-pub const CASE_HOT_HI: Color = Color::srgb_u8(0x3a, 0x44, 0x4c);
-/// Hover face mid tone (`--face-hot` 55%).
-pub const CASE_HOT_MID: Color = Color::srgb_u8(0x22, 0x2a, 0x31);
-/// Hover face bottom tone (`--face-hot` 100%).
-pub const CASE_HOT_LO: Color = Color::srgb_u8(0x12, 0x17, 0x1b);
-
-/// CRT screen surface, darkest (`--screen-0`).
-pub const SCREEN_0: Color = Color::srgb_u8(0x00, 0x13, 0x04);
-/// CRT screen surface, lifted (`--screen-1`).
-pub const SCREEN_1: Color = Color::srgb_u8(0x00, 0x2b, 0x0f);
-
-/// Primary phosphor green (`--phosphor`): live text, active borders, glyphs.
-pub const PHOSPHOR: Color = Color::srgb_u8(0x36, 0xff, 0x79);
-/// Dim phosphor (`--phosphor-dim`): secondary text, idle fills.
-pub const PHOSPHOR_DIM: Color = Color::srgb_u8(0x19, 0xa6, 0x4f);
-/// Muted phosphor (`--phosphor-muted`): labels, section heads, tags.
-pub const PHOSPHOR_MUTED: Color = Color::srgb_u8(0x0d, 0x6e, 0x35);
-/// Bright phosphor, top of the primary-button gradient (`#7dffab`).
-pub const PHOSPHOR_HI: Color = Color::srgb_u8(0x7d, 0xff, 0xab);
-/// Deep phosphor, bottom of the primary-button gradient (`#12b552`).
-pub const PHOSPHOR_LO: Color = Color::srgb_u8(0x12, 0xb5, 0x52);
-
-/// Amber accent (`--amber`): key-chips, hardware selection, warnings.
-pub const AMBER_NOVA: Color = Color::srgb_u8(0xff, 0xb8, 0x4a);
-/// Bright amber, top of the amber selection gradient (`#ffd07a`).
-pub const AMBER_HI: Color = Color::srgb_u8(0xff, 0xd0, 0x7a);
-/// Deep amber, bottom of the amber selection gradient (`#e6952f`).
-pub const AMBER_LO: Color = Color::srgb_u8(0xe6, 0x95, 0x2f);
-
-/// Orange accent (`--orange`).
-pub const ORANGE: Color = Color::srgb_u8(0xff, 0x7b, 0x2d);
-/// Red accent / danger family (`--red`).
-pub const RED: Color = Color::srgb_u8(0xff, 0x4e, 0x42);
-/// Blue accent / info (`--blue`).
-pub const BLUE: Color = Color::srgb_u8(0x36, 0xa3, 0xff);
-
-/// Phosphor body text (`--text` #b9ffc9): the greenish white of readable copy.
-pub const SCREEN_TEXT: Color = Color::srgb_u8(0xb9, 0xff, 0xc9);
-/// The dark ink of glyphs sitting on a bright (inverted phosphor / amber) fill.
-pub const INK: Color = Color::srgb_u8(0x04, 0x14, 0x0a);
-
-// -- Metrics --
-
-/// Sharp corner radius (phosphor uses 2px corners).
-pub const RADIUS: f32 = 2.0;
-/// Softer corner radius for the hardware skin's moulded controls (7px).
-pub const RADIUS_HW: f32 = 7.0;
-/// Panel corner radius (10px).
-pub const PANEL_RADIUS: f32 = 10.0;
-/// Hard 1px border width.
-pub const BORDER_W: f32 = 1.0;
 /// Placeholder/thumbnail icon size (the wiki `.wiki-child__icon` is 44x44).
+///
+/// A LAYOUT number, not paint: a theme may not move it, so it stays a const
+/// here rather than joining the three metrics a theme owns.
 pub const ICON: f32 = 44.0;
+
+/// The hairline every themed border is DRAWN at, in logical pixels.
+///
+/// Layout, not paint, which is why it is a `const` beside [`ICON`] rather than
+/// a role: a `Node`'s `border` is a box-model size, so it changes what the
+/// layout reserves and how the text inside sits. Both shipped themes ask for
+/// 1px ([`UiMetric::BorderWidth`]), and a theme that wanted 2px would reflow
+/// every screen rather than restyle it.
+pub const BORDER_W: f32 = 1.0;
 
 /// Semantic HUD accents: the meaning-carrying gameplay colours (threat, ally,
 /// nav, objective, ...), centralized here so the HUD has ONE palette source.
 ///
 /// These are the game's FUNCTIONAL colours (a hostile reticle must be red, an
-/// ally green), distinct from the neutral chrome above - so they keep their own
-/// tuned hues rather than snapping to the cyan/amber brand accents. Values are
-/// the canonical HUD literals verbatim, so centralizing them changed nothing
-/// visually.
+/// ally green), which is why they are consts here rather than theme roles: a
+/// theme that could move them could make the game unreadable. Values are the
+/// canonical HUD literals verbatim.
 ///
 /// A colour whose ALPHA varies per widget cannot live here, because a `Color`
 /// carries one. Those are [`super::combat`]: a hue family plus the widget's own
@@ -120,6 +105,20 @@ pub mod semantic {
     pub const NEUTRAL: Color = Color::srgba(0.85, 0.88, 0.9, 0.9);
     /// The recurring dark readout backdrop (health bar, focus meter).
     pub const BACKDROP: Color = Color::srgba(0.15, 0.15, 0.15, 0.8);
+    /// The comms channel: what a narrative cue that names no accent is drawn in.
+    ///
+    /// Semantic, not chrome, and a `const` rather than a theme role for a second
+    /// reason: it is the serde DEFAULT of a cue's `accent` field, so it is
+    /// baked into authored content at parse time and cannot depend on which
+    /// theme happens to be live.
+    pub const COMMS: Color = Color::srgb_u8(0x36, 0xa3, 0xff);
+    /// The crew channel: a line spoken inside the player's own ship, in the
+    /// instrument green the HUD reads its own numbers in. Authored into a cue
+    /// the same way [`COMMS`] is, so it is a `const` for the same reason.
+    pub const CREW: Color = Color::srgb_u8(0x36, 0xff, 0x79);
+    /// The overheard channel: a line the player is not the addressee of, in
+    /// the amber the HUD keeps for what demands attention.
+    pub const OVERHEARD: Color = Color::srgb_u8(0xff, 0xb8, 0x4a);
 
     #[cfg(test)]
     mod tests {
@@ -137,6 +136,10 @@ pub mod semantic {
             assert_eq!(ALLY, Color::srgba(0.35, 0.9, 0.55, 1.0));
             assert_eq!(NEUTRAL, Color::srgba(0.85, 0.88, 0.9, 0.9));
             assert_eq!(BACKDROP, Color::srgba(0.15, 0.15, 0.15, 0.8));
+            // Carried verbatim from the retired `theme::BLUE` (PoC `--blue`).
+            assert_eq!(COMMS, Color::srgb_u8(0x36, 0xa3, 0xff));
+            assert_eq!(CREW, Color::srgb_u8(0x36, 0xff, 0x79));
+            assert_eq!(OVERHEARD, Color::srgb_u8(0xff, 0xb8, 0x4a));
         }
     }
 }

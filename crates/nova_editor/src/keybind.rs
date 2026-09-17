@@ -9,7 +9,11 @@ use nova_input::prelude::{
     InputSources, RebindSurface, RebindVerdict,
 };
 use nova_ship::prelude::*;
-use nova_ui::prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode, UiText};
+use nova_ui::{
+    prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode, UiText},
+    theme::UiColor,
+    widget::{ThemedFill, ThemedText},
+};
 
 use crate::{
     config::{EditorSays, SelectedNode},
@@ -130,7 +134,8 @@ pub(crate) fn sync_section_keybind_labels(
                     height: px(LEADER_PX),
                     ..default()
                 },
-                BackgroundColor(nova_ui::theme::AMBER_NOVA.with_alpha(0.6)),
+                BackgroundColor(Color::NONE),
+                ThemedFill::alpha(UiColor::Accent, 0.6),
                 Visibility::Hidden,
             ));
             commands.spawn((
@@ -150,7 +155,8 @@ pub(crate) fn sync_section_keybind_labels(
                     font_size: FontSize::Px(16.0),
                     ..default()
                 },
-                TextColor(nova_ui::theme::AMBER_NOVA),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Accent),
                 Node {
                     position_type: PositionType::Absolute,
                     // Pill padding + rounded corners so the background

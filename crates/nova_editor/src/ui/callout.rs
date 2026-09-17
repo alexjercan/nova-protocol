@@ -7,8 +7,9 @@
 use bevy::{picking::Pickable, prelude::*};
 use nova_ship::prelude::{GameSections, SectionConfig};
 use nova_ui::{
-    prelude::{hang_at, panel, Hang, UiSkin, UiText},
-    theme,
+    prelude::{hang_at, panel, Hang, UiText},
+    theme::{self, UiColor},
+    widget::{ThemedRadius, ThemedText},
 };
 
 use crate::{
@@ -26,7 +27,6 @@ const CALLOUT_HANG: Hang = Hang {
     align: Vec2::new(0.5, 0.0),
     gap: Vec2::new(0.0, 28.0),
 };
-
 /// The panel that follows the ghost.
 #[derive(Component)]
 pub(crate) struct PlacementCallout;
@@ -42,7 +42,7 @@ pub(crate) struct CalloutRefusal;
 pub(crate) struct CalloutMate;
 
 /// The callout, parked hidden until a part is in hand.
-pub(crate) fn placement_callout(skin: UiSkin) -> impl Bundle {
+pub(crate) fn placement_callout() -> impl Bundle {
     (
         Name::new("Placement Callout"),
         PlacementCallout,
@@ -59,10 +59,10 @@ pub(crate) fn placement_callout(skin: UiSkin) -> impl Bundle {
             row_gap: px(2),
             padding: UiRect::axes(px(8), px(4)),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        panel(skin),
+        ThemedRadius::control(),
+        panel(),
         children![
             (
                 Name::new("Placement Refusal"),
@@ -77,7 +77,8 @@ pub(crate) fn placement_callout(skin: UiSkin) -> impl Bundle {
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::RED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Danger),
                 Node {
                     display: Display::None,
                     ..default()
@@ -93,7 +94,8 @@ pub(crate) fn placement_callout(skin: UiSkin) -> impl Bundle {
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
                 Node {
                     display: Display::None,
                     ..default()

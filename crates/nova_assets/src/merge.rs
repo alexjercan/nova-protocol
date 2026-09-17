@@ -18,6 +18,7 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::*;
 use nova_training::prelude::{Lesson, LessonSeverity, TrainingCatalog};
+use nova_ui::theme::{GameUiThemes, UiThemeConfig};
 
 use crate::{
     collections::GameAssets,
@@ -437,6 +438,7 @@ pub fn register_bundles(
     commands.insert_resource(GameStyles(outcome.styles));
     commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(TrainingCatalog::new(outcome.lessons));
+    commands.insert_resource(GameUiThemes(outcome.ui_themes));
 }
 
 /// The scenario ids the last merge published, so the next one knows which
@@ -488,6 +490,11 @@ pub struct MergeOutcome {
     /// order: `TrainingCatalog::new` sorts by category, authored order and id,
     /// so which mod arrived first never decides how the handbook reads.
     pub lessons: Vec<Lesson>,
+    /// UI themes in registration order, overlaid last-wins by id - so a mod
+    /// restyles a shipped look by declaring its id and adds one by declaring a
+    /// new id. The order is what the Settings picker lists, so the base mod's
+    /// default stays first.
+    pub ui_themes: Vec<UiThemeConfig>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -581,6 +588,13 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
         Content::Lesson(lesson) => match into.lessons.iter_mut().find(|l| l.id == lesson.id) {
             Some(existing) => *existing = lesson.clone(),
             None => into.lessons.push(lesson.clone()),
+        },
+        // A Vec, overlaid in place, because this order IS the Settings picker's
+        // order: a mod that restyles `base/phosphor` must leave the default
+        // where the player expects to find it.
+        Content::UiTheme(cfg) => match into.ui_themes.iter_mut().find(|t| t.id == cfg.id) {
+            Some(existing) => *existing = cfg.clone(),
+            None => into.ui_themes.push(cfg.clone()),
         },
     }
 }

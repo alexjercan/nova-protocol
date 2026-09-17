@@ -16,10 +16,11 @@ use bevy::{
 };
 use nova_ui::{
     prelude::{
-        button, text_field, themed_button, ButtonSpec, TextFieldSpec, TextFieldValue, UiSkin,
-        UiText,
+        button, text_field, themed_button, ButtonSpec, TextFieldSpec, TextFieldValue, UiText,
     },
     theme,
+    theme::{ActiveUiTheme, UiColor},
+    widget::{ThemedBorder, ThemedText},
 };
 
 use crate::{
@@ -81,7 +82,6 @@ pub(crate) struct BundleRow(pub(crate) SaveSlot);
 pub(crate) fn open_file_window(
     mut commands: Commands,
     mut asked: ResMut<FileWindowRequest>,
-    skin: Res<UiSkin>,
     layer: Option<Single<Entity, With<EditorWindowLayer>>>,
     open: Query<(), With<FileWindow>>,
     document: Res<DocumentSlot>,
@@ -116,7 +116,7 @@ pub(crate) fn open_file_window(
     let bundles = saved_bundles();
     commands
         .entity(*layer)
-        .with_children(|layer| spawn_file_window(layer, kind, &name, bundles, at, *skin));
+        .with_children(|layer| spawn_file_window(layer, kind, &name, bundles, at));
 }
 
 /// The name a Save As opens on: the one the document was last saved under, or
@@ -147,7 +147,6 @@ fn spawn_file_window(
     name: &str,
     bundles: Vec<SaveSlot>,
     at: Vec2,
-    skin: UiSkin,
 ) {
     let title = match kind {
         FileWindowKind::SaveAs => "Save As",
@@ -159,7 +158,6 @@ fn spawn_file_window(
         "File Window",
         title,
         at,
-        skin,
         (FileWindow(kind), KnownBundles(bundles)),
         |body, _window| {
             if kind == FileWindowKind::Open {
@@ -174,7 +172,8 @@ fn spawn_file_window(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Primary),
                 ));
             }
             if kind == FileWindowKind::SaveAs {
@@ -186,7 +185,8 @@ fn spawn_file_window(
                         font_size: FontSize::Px(11.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                 ));
                 body.spawn((
                     Name::new("Save Name Field"),
@@ -210,7 +210,8 @@ fn spawn_file_window(
                         font_size: FontSize::Px(11.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                 ));
             }
             body.spawn((
@@ -221,7 +222,8 @@ fn spawn_file_window(
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::AMBER_NOVA),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Accent),
                 Node {
                     margin: UiRect::top(px(6)),
                     ..default()
@@ -236,7 +238,8 @@ fn spawn_file_window(
                         font_size: FontSize::Px(11.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                 ));
             }
             for slot in &listed {
@@ -266,7 +269,8 @@ fn spawn_file_window(
                         font_size: FontSize::Px(11.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                     Node {
                         margin: UiRect::bottom(px(4)),
                         ..default()
@@ -297,7 +301,8 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: FileWindowKi
                 border: UiRect::top(px(theme::BORDER_W)),
                 ..default()
             },
-            BorderColor::all(theme::PHOSPHOR.with_alpha(0.16)),
+            BorderColor::all(Color::NONE),
+            ThemedBorder::alpha(UiColor::Primary, 0.16),
         ))
         .with_children(|answers| {
             // The safe answer FIRST and named for what it does, the way the
@@ -362,6 +367,7 @@ fn empty_line(_kind: FileWindowKind) -> &'static str {
 /// re-layout.
 pub(crate) fn sync_save_name(
     mut commands: Commands,
+    theme: Res<ActiveUiTheme>,
     fields: Query<&TextFieldValue, With<SaveNameField>>,
     known: Query<&KnownBundles>,
     mut readouts: Query<(&mut Text, &mut TextColor), With<SaveIdReadout>>,
@@ -371,14 +377,21 @@ pub(crate) fn sync_save_name(
         return;
     };
     let id = bundle_id(typed.0.trim());
+    // Resolved here rather than carried as a `ThemedText` marker: this system
+    // already writes the readout's `TextColor` every frame, and two writers for
+    // one component is two answers to one question. It runs unconditionally, so
+    // a theme flip lands on the next frame like the wording does.
     let (line, colour) = match id.as_deref() {
-        Err(NameProblem::Unusable) => ("A name needs a letter or a digit.".to_string(), theme::RED),
+        Err(NameProblem::Unusable) => (
+            "A name needs a letter or a digit.".to_string(),
+            UiColor::Danger,
+        ),
         // The one derived id the editor keeps for itself. Said here because
         // the list below CANNOT say it: the sandbox is a registered scenario
         // rather than a file, so it is in no row to collide with.
         Err(NameProblem::Reserved) => (
             "That name is the editor's own. Pick another.".to_string(),
-            theme::RED,
+            UiColor::Danger,
         ),
         Ok(id) => match bundles.0.iter().find(|slot| slot.id == id) {
             // The collision, said before the press rather than after it: two
@@ -386,11 +399,12 @@ pub(crate) fn sync_save_name(
             // second one written silently replaces the first.
             Some(taken) => (
                 format!("overwrites \"{}\" ({id})", taken.name),
-                theme::AMBER_NOVA,
+                UiColor::Accent,
             ),
-            None => (format!("saves as {id}"), theme::PHOSPHOR_MUTED),
+            None => (format!("saves as {id}"), UiColor::Label),
         },
     };
+    let colour = theme.color(colour);
     for (mut text, mut paint) in &mut readouts {
         if text.0 != line {
             text.0.clone_from(&line);

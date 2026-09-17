@@ -8,9 +8,12 @@ use bevy::{
     ui_widgets::{observe, Button},
 };
 use nova_ui::{
-    prelude::{panel, ThemedButton, UiSkin, UiText},
+    prelude::{panel, ThemedButton, UiText},
     theme,
-    widget::{checkbox, checkbox_glyph, list_row_colors, ListRow},
+    theme::UiColor,
+    widget::{
+        checkbox, checkbox_glyph, ListRow, ThemedBorder, ThemedFill, ThemedRadius, ThemedText,
+    },
 };
 use nova_wfc::prelude::WfcZone;
 
@@ -28,7 +31,7 @@ use crate::{
 /// The row is the button and the box is a picture. `ui_widgets::Button` on the
 /// box would swallow the press before the row saw it, and a 22px target in a
 /// 150px rail is a worse one than the row it sits in.
-pub(crate) fn skin_toggle_row(on: bool, skin: UiSkin) -> impl Bundle {
+pub(crate) fn skin_toggle_row(on: bool) -> impl Bundle {
     (
         ThemedButton,
         Button,
@@ -43,11 +46,13 @@ pub(crate) fn skin_toggle_row(on: bool, skin: UiSkin) -> impl Bundle {
             align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceBetween,
             column_gap: px(6),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR_MUTED),
-        BackgroundColor(theme::SCREEN_0),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(UiColor::Label),
+        BackgroundColor(Color::NONE),
+        ThemedFill::new(UiColor::Surface),
         children![
             (
                 UiText,
@@ -56,9 +61,10 @@ pub(crate) fn skin_toggle_row(on: bool, skin: UiSkin) -> impl Bundle {
                     font_size: FontSize::Px(13.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Primary),
             ),
-            (SkinToggleCheckbox, checkbox(on, skin)),
+            (SkinToggleCheckbox, checkbox(on)),
         ],
     )
 }
@@ -80,14 +86,7 @@ pub(crate) fn skin_toggle_row(on: bool, skin: UiSkin) -> impl Bundle {
 /// makes it, so five styles at tool height push Play off the bottom of the
 /// screen. Measured, not guessed. The block is sized to the row for the same
 /// reason: the shared 22px `swatch` would set the height of the list.
-pub(crate) fn style_row(
-    id: &str,
-    name: &str,
-    colour: Color,
-    selected: bool,
-    skin: UiSkin,
-) -> impl Bundle {
-    let (background, border) = list_row_colors(selected, false, skin);
+pub(crate) fn style_row(id: &str, name: &str, colour: Color) -> impl Bundle {
     (
         ListRow,
         StyleChoice(id.to_string()),
@@ -101,11 +100,11 @@ pub(crate) fn style_row(
             border: UiRect::all(px(theme::BORDER_W)),
             align_items: AlignItems::Center,
             column_gap: px(6),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(border),
-        BackgroundColor(background),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
         children![
             (
                 StyleSwatch(colour),
@@ -117,7 +116,8 @@ pub(crate) fn style_row(
                     border_radius: BorderRadius::all(px(2)),
                     ..default()
                 },
-                BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
+                BorderColor::all(Color::NONE),
+                ThemedBorder::alpha(UiColor::Primary, 0.4),
                 BackgroundColor(colour),
             ),
             (
@@ -127,7 +127,8 @@ pub(crate) fn style_row(
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Primary),
             )
         ],
     )
@@ -146,9 +147,7 @@ pub(crate) fn part_row(
     name: &str,
     drawn: bool,
     zone: Option<WfcZone>,
-    skin: UiSkin,
 ) -> impl Bundle {
-    let (background, border) = list_row_colors(drawn, false, skin);
     (
         ListRow,
         PartChoice {
@@ -165,11 +164,11 @@ pub(crate) fn part_row(
             border: UiRect::all(px(theme::BORDER_W)),
             align_items: AlignItems::Center,
             column_gap: px(4),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(border),
-        BackgroundColor(background),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
         children![
             (
                 PartTick,
@@ -179,7 +178,8 @@ pub(crate) fn part_row(
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Primary),
                 Node {
                     width: px(7),
                     flex_shrink: 0.0,
@@ -193,7 +193,8 @@ pub(crate) fn part_row(
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Primary),
                 // The name takes the slack so the chip stays hard right,
                 // where it reads as a setting on the row rather than as part
                 // of the name.
@@ -230,10 +231,11 @@ pub(crate) fn zone_chip(zone: Option<WfcZone>, drawn: bool) -> impl Bundle {
             padding: UiRect::axes(px(4), px(0)),
             flex_shrink: 0.0,
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR_MUTED),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(UiColor::Label),
         children![(
             UiText,
             Text::new(zone_label(zone).to_string()),
@@ -241,7 +243,8 @@ pub(crate) fn zone_chip(zone: Option<WfcZone>, drawn: bool) -> impl Bundle {
                 font_size: FontSize::Px(10.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR_DIM),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Secondary),
         )],
     )
 }
@@ -297,8 +300,7 @@ const ROW_TEXT: f32 = 11.0;
 /// the row it reveals then cannot disagree about what "marked" looks like.
 /// Wider than tall and side by side, which is what says these two are one
 /// choice rather than two more things in the column.
-pub(crate) fn rail_tab(tab: RailTab, label: &str, selected: bool, skin: UiSkin) -> impl Bundle {
-    let (background, border) = list_row_colors(selected, false, skin);
+pub(crate) fn rail_tab(tab: RailTab, label: &str) -> impl Bundle {
     (
         ListRow,
         RailTabButton(tab),
@@ -313,12 +315,12 @@ pub(crate) fn rail_tab(tab: RailTab, label: &str, selected: bool, skin: UiSkin) 
             border: UiRect::all(px(theme::BORDER_W)),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             overflow: Overflow::clip(),
             ..default()
         },
-        BorderColor::all(border),
-        BackgroundColor(background),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
         children![(
             UiText,
             Text::new(label.to_uppercase()),
@@ -330,7 +332,8 @@ pub(crate) fn rail_tab(tab: RailTab, label: &str, selected: bool, skin: UiSkin) 
                 font_size: FontSize::Px(11.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Primary),
         )],
     )
 }
@@ -360,15 +363,7 @@ pub(crate) fn rail_tab_strip() -> Node {
 /// Indentation is what the eye reads a tree by, and it costs no width in a
 /// 150px rail: `|- ` in front of every child ate 18px of the label on every
 /// row, and a minted id is exactly the thing that then ran out of room.
-pub(crate) fn scene_row(
-    depth: usize,
-    lead: &str,
-    label: &str,
-    trail: &str,
-    selected: bool,
-    skin: UiSkin,
-) -> impl Bundle {
-    let (background, border) = list_row_colors(selected, false, skin);
+pub(crate) fn scene_row(depth: usize, lead: &str, label: &str, trail: &str) -> impl Bundle {
     #[expect(
         clippy::cast_precision_loss,
         reason = "tree depth is single digits, not a precision question"
@@ -402,12 +397,12 @@ pub(crate) fn scene_row(
             border: UiRect::all(px(theme::BORDER_W)),
             align_items: AlignItems::Center,
             column_gap: px(6),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             overflow: Overflow::clip(),
             ..default()
         },
-        BorderColor::all(border),
-        BackgroundColor(background),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
         children![
             (
                 // `UiText`, like every span in the row: the marks are line art
@@ -417,7 +412,8 @@ pub(crate) fn scene_row(
                 Text::new(lead.to_string()),
                 one_line,
                 row_font.clone(),
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ),
             // The label is the half that may clip, so it sits in the shrinking
             // column: `flex_basis` 0 plus `min_width` 0 is what lets a long id
@@ -435,7 +431,8 @@ pub(crate) fn scene_row(
                     Text::new(label.to_string()),
                     one_line,
                     row_font.clone(),
-                    TextColor(theme::PHOSPHOR),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Primary),
                 )],
             ),
             // Which one this is. Fixed at the row's right edge, because it is
@@ -445,7 +442,8 @@ pub(crate) fn scene_row(
                 Text::new(trail.to_string()),
                 one_line,
                 row_font,
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ),
             row_trash(),
         ],
@@ -476,7 +474,8 @@ fn row_trash() -> impl Bundle {
                 font_size: FontSize::Px(ROW_TEXT),
                 ..default()
             },
-            TextColor(theme::RED),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Danger),
         )],
     )
 }
@@ -511,7 +510,7 @@ const TOOLTIP_GAP: f32 = 8.0;
 /// Deaf to the pointer: it stands beside the row it describes, over the stage,
 /// and a hint that blocked the placement raycast would make the rail's own
 /// tree unusable to build beside.
-pub(crate) fn scene_tooltip(skin: UiSkin) -> impl Bundle {
+pub(crate) fn scene_tooltip() -> impl Bundle {
     (
         Name::new("Scene Row Hint"),
         SceneRowTooltip,
@@ -527,10 +526,10 @@ pub(crate) fn scene_tooltip(skin: UiSkin) -> impl Bundle {
             align_items: AlignItems::FlexStart,
             padding: UiRect::axes(px(8), px(5)),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        panel(skin),
+        ThemedRadius::control(),
+        panel(),
         children![
             (
                 Name::new("Scene Row Hint Kind"),
@@ -540,7 +539,8 @@ pub(crate) fn scene_tooltip(skin: UiSkin) -> impl Bundle {
                     font_size: FontSize::Px(10.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ),
             (
                 Name::new("Scene Row Hint Id"),
@@ -554,7 +554,8 @@ pub(crate) fn scene_tooltip(skin: UiSkin) -> impl Bundle {
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Primary),
             )
         ],
     )

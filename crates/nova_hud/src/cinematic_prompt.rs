@@ -24,7 +24,11 @@
 
 use bevy::prelude::*;
 use nova_input::prelude::InputBindings;
-use nova_ui::{hud::ChipTone, theme};
+use nova_ui::{
+    hud::{chip_paint, ChipText, ChipTone},
+    theme,
+    widget::ThemedRadius,
+};
 
 use super::keybind_dock::prelude::{KeybindDockMarker, DOCK_BOTTOM_PX};
 
@@ -94,21 +98,21 @@ fn spawn_cinematic_prompt(mut commands: Commands) {
                 justify_content: JustifyContent::Center,
                 padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)),
                 border: UiRect::all(Val::Px(theme::BORDER_W)),
-                border_radius: BorderRadius::all(Val::Px(theme::RADIUS)),
                 ..default()
             },
+            ThemedRadius::control(),
             // Centring the measured box on the screen midline, which is what
             // the hand-computed negative margin was trying to be.
             UiTransform::from_translation(Val2::percent(-50.0, 0.0)),
-            BorderColor::all(tone.border()),
-            BackgroundColor(tone.fill()),
+            chip_paint(tone),
         ))
         .with_children(|prompt| {
             prompt.spawn((
                 CinematicPromptText,
                 Text::new(""),
                 TextFont::from_font_size(12.0),
-                TextColor(tone.text()),
+                ChipText::value(tone),
+                TextColor(Color::NONE),
             ));
         });
 }

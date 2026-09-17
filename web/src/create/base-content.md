@@ -1,11 +1,12 @@
 # Base content catalog
 
 Every id and asset the base game ships, so your mod can reference them
-instead of guessing. Five registries matter to a mod author: **section
+instead of guessing. Six registries matter to a mod author: **section
 prototype ids** (what `source: Prototype(id: "<id>")` can name), **ship ids**
 (what `design: Prototype(id: "<id>")` can name - tabled in
 [Ships](../ships/#base-ships)), **style ids** (what a design's `style:` can
-name), **scenario ids** (what `NextScenario` and campaigns can target), and
+name), **scenario ids** (what `NextScenario` and campaigns can target), **UI
+theme ids** (what a theme's `inherit:` can name), and
 **base asset paths** (what `dep://base/<path>` can reach). All of it is generated from the Rust builders
 by `cargo run content gen` into
 `assets/base/**/*.content.ron` - the generated RON is the shipped truth, and
@@ -149,14 +150,29 @@ draws them under. A mod may add its own campaigns, or replace `season_one` by
 reusing its id - see [Campaigns](../campaigns/).
 
 There are no other content kinds - a content file holds `Section`, `Scenario`,
-`Campaign`, `Ship`, `Style` and `Lesson` items only; factions are not content,
-and neither is impact audio, a comms channel or the table a generated hull is
-drawn from - all three are engine-owned. The base ship ids are tabled in
-[Ships](../ships/#base-ships), the style ids [above](#skin-styles).
+`Campaign`, `Ship`, `Style`, `Lesson` and `UiTheme` items only; factions are
+not content, and neither is impact audio, a comms channel or the table a
+generated hull is drawn from - all three are engine-owned. The base ship ids
+are tabled in [Ships](../ships/#base-ships), the style ids
+[above](#skin-styles), the theme ids [below](#ui-theme-ids).
 
 New Game is base-owned: `new_game_scenario: Some("tutorial")` in
 `assets/base/base.bundle.ron` is honored only from the base bundle; a mod
 declaring it is warned and ignored.
+
+## UI theme ids
+
+What a [UI theme](../ui-themes/)'s `inherit:` can name, and what declaring the
+same id RESTYLES. Both are root themes, so either is a complete parent.
+
+| id | display name | what it is |
+|---|---|---|
+| `base/phosphor` | Phosphor | the shipped default: the CLI-drawn terminal - flat phosphor-on-black fills, square-ish corners, a block-meter slider and bracketed `[TAG]` badges |
+| `base/hardware` | Hardware | the moulded casing: case-gradient faces, drop-shadow bevels, amber selection, round corners, a solid slider fill and chip badges |
+
+A player whose selected theme stops resolving - they disabled the mod that
+declared it - falls back to `base/phosphor`, so a mod must never leave that id
+unpaintable.
 
 ## Assets: what dep://base/ can reach
 
@@ -275,8 +291,8 @@ How a mod item interacts with this catalog (implemented in
 `crates/nova_assets/src/merge.rs`):
 
 - The matching key is the id string per kind - `Section` matches on
-  `base.id`; `Scenario`, `Campaign`, `Ship`, and `Style` on `id`. Names and
-  file paths never participate.
+  `base.id`; `Scenario`, `Campaign`, `Ship`, `Style`, `Lesson` and `UiTheme`
+  on `id`. Names and file paths never participate.
 - Same id as base (or an earlier bundle) = REPLACE, whole item. It is not a
   field-level patch: an overlay must restate every field it wants to keep.
   Sections replace in place, so the editor palette order is preserved.
@@ -297,7 +313,9 @@ prototypes, one module per family (`hull`, `controller`, `thruster`, `turret`,
 `torpedo_bay`, `railgun`, `docking_port`), `styles.rs` the
 skin styles, `ships/` owns the block hulls,
 `scenarios/` groups the training range and the main-menu backdrops, and
-`lessons.rs` owns the handbook screens. If this page and the generated RON
+`lessons.rs` owns the handbook screens. The two UI themes are built one level
+down, in `crates/nova_ui/src/theme/base.rs`, beside the format they are
+written in. If this page and the generated RON
 ever disagree, the RON is the
 truth and this page has a bug - the `content_ron_parity` test pins the RON to
 the builders.

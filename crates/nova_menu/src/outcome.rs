@@ -9,9 +9,10 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ui::{
-    prelude::{UiSkin, REPORT_Z},
+    prelude::REPORT_Z,
     theme,
-    widget::panel,
+    theme::UiColor,
+    widget::{panel, ThemedRadius, ThemedText},
 };
 
 use crate::{
@@ -37,7 +38,6 @@ pub(crate) struct OutcomeOverlay {
 /// whichever comes first.
 pub(crate) fn sync_outcome_overlay(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     outcome: Res<CurrentOutcome>,
     world: Option<Res<NovaEventWorld>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
@@ -130,10 +130,10 @@ pub(crate) fn sync_outcome_overlay(
                         width: px(320),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    panel(*skin),
+                    ThemedRadius::control(),
+                    panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -153,7 +153,8 @@ pub(crate) fn sync_outcome_overlay(
                                 font_size: FontSize::Px(16.0),
                                 ..default()
                             },
-                            TextColor(theme::SCREEN_TEXT),
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColor::Body),
                             Node {
                                 margin: UiRect::top(px(8)),
                                 max_width: px(280),
@@ -186,7 +187,8 @@ pub(crate) fn sync_outcome_overlay(
                             font_size: FontSize::Px(12.0),
                             ..default()
                         },
-                        TextColor(theme::PHOSPHOR_MUTED),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
                         Node {
                             margin: UiRect::top(px(4)),
                             ..default()
@@ -278,7 +280,6 @@ pub(crate) struct StartFailureCamera;
 /// the boot loading screen owns one.
 pub(crate) fn sync_start_failure_overlay(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     failure: Res<ScenarioStartFailure>,
     q_existing: Query<Entity, Or<(With<StartFailureOverlay>, With<StartFailureCamera>)>>,
 ) {
@@ -330,10 +331,10 @@ pub(crate) fn sync_start_failure_overlay(
                         width: px(380),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    panel(*skin),
+                    ThemedRadius::control(),
+                    panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -352,7 +353,8 @@ pub(crate) fn sync_start_failure_overlay(
                             font_size: FontSize::Px(16.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
                         Node {
                             margin: UiRect::top(px(8)),
                             max_width: px(340),
@@ -367,7 +369,8 @@ pub(crate) fn sync_start_failure_overlay(
                                 font_size: FontSize::Px(13.0),
                                 ..default()
                             },
-                            TextColor(theme::PHOSPHOR_MUTED),
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColor::Label),
                             Node {
                                 margin: UiRect::top(px(4)),
                                 max_width: px(340),

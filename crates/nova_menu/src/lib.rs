@@ -28,7 +28,7 @@ use nova_os_ui::prelude::NovaOsCloseTransition;
 use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure, UnloadScenario};
 use nova_ui::{
     input_mode::prelude::{in_input_mode, InputMode},
-    prelude::UiSkin,
+    theme::SelectedUiTheme,
     widget::button_on_setting,
 };
 
@@ -109,8 +109,8 @@ use settings::{
 use settings_store::SettingsStorePlugin;
 use training::{
     advance_lesson_loops, poll_lesson_media, refresh_training_details, refresh_training_list,
-    sync_menu_aside, training_details_dirty, training_list_dirty, PendingLessonMedia,
-    SelectedLessonId,
+    sync_lesson_rows, sync_menu_aside, training_details_dirty, training_list_dirty,
+    PendingLessonMedia, SelectedLessonId,
 };
 use training_store::TrainingProgressPlugin;
 use widgets::{on_menu_button_activate, play_menu_focus_cue, MenuCueSystems};
@@ -188,7 +188,7 @@ impl Plugin for NovaMenuPlugin {
         app.add_observer(on_volume_slider_change);
         app.add_observer(on_sensitivity_slider_change);
         app.add_observer(button_on_setting::<GraphicsQuality>);
-        app.add_observer(button_on_setting::<UiSkin>);
+        app.add_observer(button_on_setting::<SelectedUiTheme>);
         app.add_observer(button_on_setting::<WindowModeSetting>);
         app.add_observer(button_on_setting::<TrainingPromptSetting>);
         app.add_observer(button_on_setting::<FieldNoteSetting>);
@@ -267,6 +267,7 @@ impl Plugin for NovaMenuPlugin {
             (
                 poll_lesson_media,
                 refresh_training_list.run_if(training_list_dirty),
+                sync_lesson_rows,
                 refresh_training_details.run_if(training_details_dirty),
                 advance_lesson_loops,
                 sync_menu_aside,

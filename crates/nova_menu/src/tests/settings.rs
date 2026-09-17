@@ -1,6 +1,6 @@
-//! The settings screen: that the controls build, that the skin buttons and the
-//! volume slider write through to their resources and reskin live, and that an
-//! edit made just before quitting is still persisted.
+//! The settings screen: that the controls build, that the theme buttons and
+//! the volume slider write through to their resources and restyle live, and
+//! that an edit made just before quitting is still persisted.
 
 use bevy::{
     prelude::*,
@@ -11,11 +11,10 @@ use nova_input::prelude::{
     ActionBinding, InputBindings, InputSource, MousePath, MouseSensitivity, MouseSensitivityRange,
 };
 use nova_ui::{
-    prelude::UiSkin,
-    widget::{
-        button_on_setting, segmented_option, ButtonValue, Selected, SliderBlock, SliderFill,
-        SLIDER_SEGMENTS,
+    theme::{
+        base::base_ui_themes, ActiveUiTheme, SelectedUiTheme, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
     },
+    widget::{button_on_setting, segmented_option, ButtonValue, Selected, SliderBlock, SliderFill},
 };
 
 use super::support::{
@@ -73,39 +72,45 @@ fn open_group(app: &mut App, group: &'static str) {
     app.update();
 }
 
-/// DoD 2: pressing a `UI skin` segmented button (a `ThemedButton` carrying
-/// `ButtonValue<UiSkin>`) drives the shared `UiSkin` resource + moves `Selected`,
-/// through the same `button_on_setting` path as GraphicsQuality. Exercises the real
-/// `segmented_button` factory.
+/// Pressing a `UI Theme` segmented button (a `ThemedButton` carrying
+/// `ButtonValue<SelectedUiTheme>`) drives the shared [`SelectedUiTheme`]
+/// resource + moves `Selected`, through the same `button_on_setting` path as
+/// GraphicsQuality. Exercises the real `segmented_option` factory.
 #[test]
-fn ui_skin_button_sets_resource() {
+fn a_theme_button_sets_the_selection() {
     let mut app = App::new();
-    app.insert_resource(UiSkin::Phosphor);
-    app.add_observer(button_on_setting::<UiSkin>);
+    app.insert_resource(SelectedUiTheme(PHOSPHOR_THEME_ID.to_string()));
+    app.add_observer(button_on_setting::<SelectedUiTheme>);
 
     let phosphor = app
         .world_mut()
         .spawn((
             segmented_option("Phosphor"),
-            ButtonValue(UiSkin::Phosphor),
+            ButtonValue(SelectedUiTheme(PHOSPHOR_THEME_ID.to_string())),
             Selected,
         ))
         .id();
     let hardware = app
         .world_mut()
-        .spawn((segmented_option("Hardware"), ButtonValue(UiSkin::Hardware)))
+        .spawn((
+            segmented_option("Hardware"),
+            ButtonValue(SelectedUiTheme(HARDWARE_THEME_ID.to_string())),
+        ))
         .id();
 
-    // Activate Hardware -> resource flips, selection moves off Phosphor.
+    // Activate Hardware -> selection flips, highlight moves off Phosphor.
     // flush: the observer moves `Selected` through `Commands`.
     app.world_mut()
         .trigger(bevy::ui_widgets::Activate { entity: hardware });
     app.world_mut().flush();
-    assert_eq!(*app.world().resource::<UiSkin>(), UiSkin::Hardware);
+    assert_eq!(
+        app.world().resource::<SelectedUiTheme>().0,
+        HARDWARE_THEME_ID
+    );
     assert!(app.world().entity(hardware).contains::<Selected>());
     assert!(
         !app.world().entity(phosphor).contains::<Selected>(),
-        "the previous skin selection is cleared"
+        "the previous theme selection is cleared"
     );
 }
 
@@ -235,19 +240,24 @@ fn settings_panel_builds_one_tab_at_a_time() {
         );
     }
 
-    // INTERFACE: one button per skin.
+    // INTERFACE: one button per REGISTERED theme, not per enum variant - the
+    // picker is built from `GameUiThemes`, so a mod's theme appears here too.
     open_tab(&mut app, SettingsTabKind::Interface);
-    let skins: Vec<bool> = {
+    let themes: Vec<bool> = {
         let mut q = app
             .world_mut()
-            .query::<(&ButtonValue<UiSkin>, Has<Selected>)>();
+            .query::<(&ButtonValue<SelectedUiTheme>, Has<Selected>)>();
         q.iter(app.world()).map(|(_, sel)| sel).collect()
     };
-    assert_eq!(skins.len(), 2, "one button per UI skin");
     assert_eq!(
-        skins.iter().filter(|&&s| s).count(),
+        themes.len(),
+        base_ui_themes().len(),
+        "one button per registered UI theme"
+    );
+    assert_eq!(
+        themes.iter().filter(|&&s| s).count(),
         1,
-        "exactly one skin is highlighted as current"
+        "exactly one theme is highlighted as current"
     );
 }
 
@@ -300,13 +310,18 @@ fn dragging_a_volume_slider_sets_only_its_own_track() {
     );
 }
 
-/// DoD at the CALLER, not just the widget: the SHIPPED settings volume slider - the one
-/// the owner played with - re-skins live and shows its value in the new skin. A widget-
-/// level test proves the factory; this proves the wiring (lesson
-/// `pin-each-caller-not-just-shared-core`).
+/// DoD at the CALLER, not just the widget: the SHIPPED settings volume slider -
+/// the one the owner played with - restyles live and shows its value in the new
+/// theme. A widget-level test proves the factory; this proves the wiring
+/// (lesson `pin-each-caller-not-just-shared-core`).
 #[test]
-fn the_settings_volume_slider_reskins_live() {
+fn the_settings_volume_slider_restyles_live() {
     let mut app = mods_app();
+    // One frame past the menu build: the panel's spawn commands apply at the
+    // END of that update, so `Added<SliderTrack>` - and with it the track's
+    // first meter - lands on the frame after. A player opens Settings many
+    // frames later; only a test can be this early.
+    app.update();
     let slider =
         entity_by_name(&mut app, "Master Volume Slider Track").expect("volume slider exists");
 
@@ -330,13 +345,22 @@ fn the_settings_volume_slider_reskins_live() {
         (b, f)
     };
 
+    // The block count is the THEME's, not a constant this crate knows.
+    let segments = app
+        .world()
+        .resource::<ActiveUiTheme>()
+        .slider_track()
+        .meter
+        .segments()
+        .expect("base/phosphor draws a block meter");
     assert_eq!(
         child_kinds(&mut app),
-        (SLIDER_SEGMENTS, 0),
+        (segments, 0),
         "phosphor: the segmented block-meter"
     );
 
-    *app.world_mut().resource_mut::<UiSkin>() = UiSkin::Hardware;
+    *app.world_mut().resource_mut::<SelectedUiTheme>() =
+        SelectedUiTheme(HARDWARE_THEME_ID.to_string());
     app.update();
     assert_eq!(
         child_kinds(&mut app),
@@ -367,7 +391,7 @@ fn the_settings_volume_slider_reskins_live() {
     assert_eq!(
         width,
         percent(value * 100.0),
-        "the reskinned fill shows the current volume"
+        "the restyled fill shows the current volume"
     );
 }
 

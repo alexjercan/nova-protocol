@@ -10,7 +10,6 @@ use bevy::{
 };
 
 use super::*;
-use crate::prelude::UiSkin;
 
 /// A viewport 300 physical px tall holding 500 physical px of content, at
 /// `scale` device pixels per logical pixel.
@@ -271,7 +270,7 @@ fn a_scroll_bar_takes_the_pane_beside_it() {
         .spawn(scroll_row())
         .with_children(|row| {
             row.spawn((scroll_column(), scroll_viewport()));
-            row.spawn(scroll_bar(UiSkin::default()));
+            row.spawn(scroll_bar());
         })
         .id();
     app.world_mut().run_system_once(wire_scroll_bars).unwrap();
@@ -299,7 +298,7 @@ fn a_rebuilt_pane_is_picked_up_again() {
         .spawn(scroll_row())
         .with_children(|row| {
             row.spawn((scroll_column(), scroll_viewport()));
-            row.spawn(scroll_bar(UiSkin::default()));
+            row.spawn(scroll_bar());
         })
         .id();
     app.world_mut().run_system_once(wire_scroll_bars).unwrap();
@@ -345,7 +344,7 @@ fn a_bar_is_painted_only_while_its_pane_can_move() {
     let bar = app
         .world_mut()
         .spawn((
-            scroll_bar(UiSkin::default()),
+            scroll_bar(),
             bevy::ui_widgets::Scrollbar::new(
                 short,
                 bevy::ui_widgets::ControlOrientation::Vertical,
@@ -401,7 +400,7 @@ fn a_bar_over_a_pane_that_is_gone_is_not_painted() {
     let bar = app
         .world_mut()
         .spawn((
-            scroll_bar(UiSkin::default()),
+            scroll_bar(),
             bevy::ui_widgets::Scrollbar::new(
                 pane,
                 bevy::ui_widgets::ControlOrientation::Vertical,

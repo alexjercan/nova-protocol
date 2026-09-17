@@ -58,6 +58,10 @@ pub(super) fn chip_layout_app() -> App {
     // use for, so register them directly.
     app.init_asset::<Image>().init_asset::<TextureAtlasLayout>();
 
+    // The chip paint systems read the live theme; `NovaUiPlugin` owns it in
+    // production and this rig registers no game plugins.
+    app.init_resource::<nova_ui::theme::ActiveUiTheme>();
+
     app.world_mut().spawn((
         Camera2d,
         Camera {

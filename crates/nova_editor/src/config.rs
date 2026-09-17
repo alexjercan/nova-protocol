@@ -6,7 +6,7 @@
 //! [`crate::node`] as a tree of node entities, one config component per node.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
-use nova_ui::theme;
+use nova_ui::theme::UiColor;
 use nova_wfc::prelude::WfcZone;
 
 /// The group every immediate-mode line in the editor draws in.
@@ -296,9 +296,9 @@ pub(crate) struct PlacementStatus;
 #[derive(Resource, Default)]
 pub(crate) struct EditorStatus {
     /// The placement readout, or `None` when nothing is being placed.
-    readout: Option<(String, Color)>,
+    readout: Option<(String, UiColor)>,
     /// The last thing a verb said, and the moment it stops holding the line.
-    said: Option<(String, Color, f64)>,
+    said: Option<(String, UiColor, f64)>,
 }
 
 /// How long a verb holds the line before the readout gets it back.
@@ -306,12 +306,12 @@ const SAID_HOLD_SECS: f64 = 4.0;
 
 impl EditorStatus {
     /// Write the placement readout, or clear it.
-    pub(crate) fn report(&mut self, line: Option<(String, Color)>) {
+    pub(crate) fn report(&mut self, line: Option<(String, UiColor)>) {
         self.readout = line;
     }
 
     /// Say something that has to be read: it holds the line for a few seconds.
-    pub(crate) fn say(&mut self, message: impl Into<String>, tint: Color, now: f64) {
+    pub(crate) fn say(&mut self, message: impl Into<String>, tint: UiColor, now: f64) {
         self.said = Some((message.into(), tint, now + SAID_HOLD_SECS));
     }
 
@@ -331,7 +331,7 @@ impl EditorStatus {
     }
 
     /// What the line shows right now.
-    pub(crate) fn line(&self) -> Option<(&str, Color)> {
+    pub(crate) fn line(&self) -> Option<(&str, UiColor)> {
         self.said
             .as_ref()
             .map(|(message, tint, _)| (message.as_str(), *tint))
@@ -360,14 +360,14 @@ impl EditorSays<'_> {
     /// work out what just happened.
     pub(crate) fn refuse(&mut self, message: impl Into<String>) {
         let now = self.time.elapsed_secs_f64();
-        self.status.say(message, theme::RED, now);
+        self.status.say(message, UiColor::Danger, now);
     }
 
     /// Say what happened, in phosphor. For a thing the editor did FOR you and
     /// would otherwise do silently.
     pub(crate) fn note(&mut self, message: impl Into<String>) {
         let now = self.time.elapsed_secs_f64();
-        self.status.say(message, theme::PHOSPHOR, now);
+        self.status.say(message, UiColor::Primary, now);
     }
 }
 

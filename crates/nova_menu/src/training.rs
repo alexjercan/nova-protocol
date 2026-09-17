@@ -39,14 +39,15 @@ use nova_hud::prelude::{KeyGlyphs, NovaHudAssets};
 use nova_input::prelude::InputBindings;
 use nova_training::prelude::*;
 use nova_ui::{
-    prelude::UiSkin,
     screen::{
         details_pane, footer_back_slot, list_detail_screen, list_pane, overlay_root, scroll_bar,
         scroll_column, scroll_row, scroll_viewport,
     },
     theme,
+    theme::UiColor,
     widget::{
-        badge, list_row, panel, panel_header, BadgeKind, ButtonSpec, ListRow, Selected, UiText,
+        badge, list_row, panel, panel_header, BadgeKind, ButtonSpec, Selected, ThemedBorder,
+        ThemedFill, ThemedRadius, ThemedText, UiText,
     },
 };
 
@@ -78,6 +79,12 @@ pub(crate) struct TrainingProgressLabel;
 pub(crate) struct LessonRow {
     pub(crate) id: LessonId,
 }
+
+/// A lesson row's state badge, carrying the state it was drawn for so
+/// [`sync_lesson_rows`] can tell a badge that is still right from one that is
+/// stale without re-reading its text.
+#[derive(Component)]
+pub(crate) struct LessonStatusBadge(pub(crate) LessonStatus);
 
 /// The details-pane Practice button, and the practice range it hands off to.
 ///
@@ -159,7 +166,7 @@ const PANEL_PCT: f32 = 85.0;
 /// re-arms the refreshers to fill them on the first Update after entry - one
 /// population path for entry, selection and a live catalog change alike, the
 /// same shape the mods and scenarios screens use.
-pub(crate) fn spawn_training_panel(commands: &mut Commands, skin: UiSkin) {
+pub(crate) fn spawn_training_panel(commands: &mut Commands) {
     commands
         .spawn((
             DespawnOnExit(GameStates::MainMenu),
@@ -177,10 +184,10 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands, skin: UiSkin) {
                         height: percent(PANEL_PCT),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::PANEL_RADIUS)),
                         ..default()
                     },
-                    panel(skin),
+                    ThemedRadius::panel(),
+                    panel(),
                 ))
                 .with_children(|parent| {
                     // Title, then subtitle, exactly as the Mods and Scenarios
@@ -209,7 +216,8 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands, skin: UiSkin) {
                                     font_size: FontSize::Px(24.0),
                                     ..default()
                                 },
-                                TextColor(theme::SCREEN_TEXT),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Body),
                             ),
                             (
                                 Name::new("Training Progress"),
@@ -220,7 +228,8 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands, skin: UiSkin) {
                                     font_size: FontSize::Px(13.0),
                                     ..default()
                                 },
-                                TextColor(theme::PHOSPHOR),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Primary),
                             ),
                         ],
                     ));
@@ -235,7 +244,8 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands, skin: UiSkin) {
                             font_size: FontSize::Px(13.0),
                             ..default()
                         },
-                        TextColor(theme::PHOSPHOR_MUTED),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
                     ));
 
                     parent.spawn((
@@ -254,7 +264,7 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands, skin: UiSkin) {
                                             scroll_column(),
                                             scroll_viewport(),
                                         ),
-                                        (Name::new("Training List Scroll Bar"), scroll_bar(skin),),
+                                        (Name::new("Training List Scroll Bar"), scroll_bar(),),
                                     ],
                                 )],
                             ),
@@ -292,7 +302,7 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands, skin: UiSkin) {
 /// The note is the LAST child, so the corner grows upward from a fixed bottom
 /// edge and the note sits in the same place whether the prompt is above it or
 /// not.
-pub(crate) fn spawn_menu_aside(commands: &mut Commands, skin: UiSkin, note: Option<&FieldNote>) {
+pub(crate) fn spawn_menu_aside(commands: &mut Commands, note: Option<&FieldNote>) {
     let aside = commands
         .spawn((
             DespawnOnExit(GameStates::MainMenu),
@@ -321,10 +331,10 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, skin: UiSkin, note: Opti
                     padding: UiRect::all(px(14)),
                     row_gap: px(4),
                     border: UiRect::all(px(theme::BORDER_W)),
-                    border_radius: BorderRadius::all(px(theme::RADIUS)),
                     ..default()
                 },
-                panel(skin),
+                ThemedRadius::control(),
+                panel(),
                 children![
                     (
                         Name::new("Training Prompt Header"),
@@ -341,7 +351,8 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, skin: UiSkin, note: Opti
                             font_size: FontSize::Px(13.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
                     ),
                     (
                         Name::new("Training Prompt Actions"),
@@ -383,7 +394,7 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, skin: UiSkin, note: Opti
         ))
         .id();
     if let Some(note) = note {
-        spawn_field_note_card(commands, aside, skin, note);
+        spawn_field_note_card(commands, aside, note);
     }
 }
 
@@ -395,7 +406,7 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, skin: UiSkin, note: Opti
 /// appears for a note that came from a lesson; a compiled boot note has no page
 /// to open. `Don't show again` is on EVERY note, because a player who does not
 /// want facts in the corner does not want them either way.
-fn spawn_field_note_card(commands: &mut Commands, aside: Entity, skin: UiSkin, note: &FieldNote) {
+fn spawn_field_note_card(commands: &mut Commands, aside: Entity, note: &FieldNote) {
     commands.entity(aside).with_children(|corner| {
         corner
             .spawn((
@@ -406,10 +417,10 @@ fn spawn_field_note_card(commands: &mut Commands, aside: Entity, skin: UiSkin, n
                     padding: UiRect::all(px(14)),
                     row_gap: px(4),
                     border: UiRect::all(px(theme::BORDER_W)),
-                    border_radius: BorderRadius::all(px(theme::RADIUS)),
                     ..default()
                 },
-                panel(skin),
+                ThemedRadius::control(),
+                panel(),
             ))
             .with_children(|card| {
                 card.spawn((
@@ -425,7 +436,8 @@ fn spawn_field_note_card(commands: &mut Commands, aside: Entity, skin: UiSkin, n
                             font_size: FontSize::Px(13.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
                     ));
                 }
                 card.spawn((
@@ -600,23 +612,96 @@ pub(crate) fn on_first_pilot_dismiss(
 // -- Refreshers --
 
 pub(crate) fn training_list_dirty(
-    skin: Res<UiSkin>,
     catalog: Res<TrainingCatalog>,
-    progress: Res<TrainingProgress>,
-    selected: Res<SelectedLessonId>,
     spawned: Query<(), Added<TrainingList>>,
 ) -> bool {
     // The just-spawned pane is the load-bearing trigger, not a convenience.
-    // The catalog and the progress record are inserted when the plugin is
-    // built, which is BEFORE the `Update` schedule first initializes, so their
-    // change ticks are already old the first time this condition is asked. The
-    // menu, by contrast, is rebuilt on every entry to it: an empty pane is
-    // always newly spawned, and that is what this reads.
-    !spawned.is_empty()
-        || skin.is_changed()
-        || catalog.is_changed()
-        || progress.is_changed()
-        || selected.is_changed()
+    // The catalog is inserted when the plugin is built, which is BEFORE the
+    // `Update` schedule first initializes, so its change tick is already old
+    // the first time this condition is asked. The menu, by contrast, is
+    // rebuilt on every entry to it: an empty pane is always newly spawned, and
+    // that is what this reads.
+    //
+    // Neither the SELECTION nor the PROGRESS record is a signal here. One click
+    // moves both (`select_lesson` marks the lesson Viewed), and rebuilding on
+    // either despawned and respawned all sixty-odd rows to move one highlight
+    // one place - the flash the handbook twitched with, and the scroll position
+    // with it. `sync_lesson_rows` moves the highlight and rewrites the one
+    // badge that changed instead.
+    !spawned.is_empty() || catalog.is_changed()
+}
+
+/// The one-line count above the two panes. Written by both the rebuild and the
+/// per-row sync, because the record moves on a click the list no longer
+/// rebuilds for - and a stale "0 opened" over a row that reads READ is the
+/// screen disagreeing with itself.
+fn write_progress_label(
+    catalog: &TrainingCatalog,
+    progress: &TrainingProgress,
+    labels: &mut Query<&mut Text, With<TrainingProgressLabel>>,
+) {
+    let (viewed, completed, total) = progress.counts(catalog);
+    for mut label in labels {
+        label.0 = format!("{completed} of {total} completed - {viewed} opened");
+    }
+}
+
+/// Move the row highlight and the row state badges without rebuilding the list.
+///
+/// The counterpart to the two signals [`training_list_dirty`] no longer reads.
+/// Only rows whose highlight or state actually moved are touched, so the list
+/// under the pointer holds still.
+pub(crate) fn sync_lesson_rows(
+    mut commands: Commands,
+    catalog: Res<TrainingCatalog>,
+    selected: Res<SelectedLessonId>,
+    progress: Res<TrainingProgress>,
+    rows: Query<(Entity, &LessonRow, Has<Selected>, Option<&Children>)>,
+    badges: Query<(Entity, &LessonStatusBadge)>,
+    mut labels: Query<&mut Text, With<TrainingProgressLabel>>,
+) {
+    if !selected.is_changed() && !progress.is_changed() {
+        return;
+    }
+    write_progress_label(&catalog, &progress, &mut labels);
+    for (entity, row, marked, children) in &rows {
+        let highlighted = selected.0.as_deref() == Some(row.id.as_str());
+        if highlighted != marked {
+            // `try_*`: a row can be despawned the same frame this deferred
+            // command is queued (the menu tearing down under a state change).
+            let mut ent = commands.entity(entity);
+            if highlighted {
+                ent.try_insert(Selected);
+            } else {
+                ent.try_remove::<Selected>();
+            }
+        }
+        let status = progress.status(&row.id);
+        // An untouched lesson draws no badge at all, so what SHOULD be on the
+        // row is an `Option` too, and "nothing, correctly" has to compare equal
+        // to "nothing" rather than count as a change every frame.
+        let wanted = status_badge(status).map(|_| status);
+        let drawn = children
+            .into_iter()
+            .flatten()
+            .find_map(|child| badges.get(*child).ok());
+        if drawn.map(|(_, badge)| badge.0) == wanted {
+            continue;
+        }
+        if let Some((badge_entity, _)) = drawn {
+            commands.entity(badge_entity).try_despawn();
+        }
+        if let Some((kind, text)) = status_badge(status) {
+            let name = format!("Lesson Status: {}", row.id);
+            commands.entity(entity).with_children(|parent| {
+                parent.spawn((
+                    Name::new(name),
+                    LessonStatusBadge(status),
+                    badge(kind, text),
+                ));
+            });
+        }
+    }
 }
 
 pub(crate) fn training_details_dirty(
@@ -641,7 +726,6 @@ pub(crate) fn training_details_dirty(
 /// pane fed without claiming the player read anything.
 pub(crate) fn refresh_training_list(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     catalog: Res<TrainingCatalog>,
     progress: Res<TrainingProgress>,
     mut selected: ResMut<SelectedLessonId>,
@@ -662,10 +746,7 @@ pub(crate) fn refresh_training_list(
         selected.0 = catalog.first_id().cloned();
     }
 
-    let (viewed, completed, total) = progress.counts(&catalog);
-    for mut label in &mut labels {
-        label.0 = format!("{completed} of {total} completed - {viewed} opened");
-    }
+    write_progress_label(&catalog, &progress, &mut labels);
 
     commands.entity(list).with_children(|list| {
         if catalog.is_empty() {
@@ -677,7 +758,8 @@ pub(crate) fn refresh_training_list(
                     font_size: FontSize::Px(13.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ));
             return;
         }
@@ -699,7 +781,6 @@ pub(crate) fn refresh_training_list(
                     lesson,
                     progress.status(&lesson.id),
                     selected.0.as_deref() == Some(lesson.id.as_str()),
-                    *skin,
                 );
             }
         }
@@ -716,15 +797,13 @@ fn spawn_lesson_row(
     lesson: &Lesson,
     status: LessonStatus,
     selected: bool,
-    skin: UiSkin,
 ) {
     let mut row = list.spawn((
         Name::new(format!("Lesson Row: {}", lesson.id)),
         LessonRow {
             id: lesson.id.clone(),
         },
-        list_row(selected, skin),
-        ListRow,
+        list_row(),
         Button,
         Hovered::default(),
         observe(on_lesson_row_select),
@@ -741,7 +820,8 @@ fn spawn_lesson_row(
                 font_size: FontSize::Px(15.0),
                 ..default()
             },
-            TextColor(theme::SCREEN_TEXT),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Body),
             Node {
                 flex_grow: 1.0,
                 // Without this a long title refuses to wrap and pushes the
@@ -753,7 +833,8 @@ fn spawn_lesson_row(
         if let Some((kind, text)) = status_badge(status) {
             row.spawn((
                 Name::new(format!("Lesson Status: {}", lesson.id)),
-                badge(kind, text, skin),
+                LessonStatusBadge(status),
+                badge(kind, text),
             ));
         }
     });
@@ -781,7 +862,6 @@ fn status_badge(status: LessonStatus) -> Option<(BadgeKind, &'static str)> {
 )]
 pub(crate) fn refresh_training_details(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     catalog: Res<TrainingCatalog>,
     progress: Res<TrainingProgress>,
     selected: Res<SelectedLessonId>,
@@ -802,7 +882,6 @@ pub(crate) fn refresh_training_details(
         .as_deref()
         .and_then(|id| catalog.get(id))
         .cloned();
-    let skin = *skin;
     // The keycap art lives inside the HUD's asset bundle, the same place
     // the settings rebind rows read it from. A rig without it falls back to
     // the chip's own text.
@@ -837,12 +916,13 @@ pub(crate) fn refresh_training_details(
                     font_size: FontSize::Px(14.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ));
             return;
         };
 
-        spawn_media_frame(details, &lesson.media, media, skin);
+        spawn_media_frame(details, &lesson.media, media);
 
         details
             .spawn((
@@ -861,11 +941,13 @@ pub(crate) fn refresh_training_details(
                     padding: UiRect::all(px(12)),
                     margin: UiRect::top(px(10)),
                     border: UiRect::all(px(theme::BORDER_W)),
-                    border_radius: BorderRadius::all(px(theme::RADIUS)),
                     ..default()
                 },
-                BorderColor::all(theme::PHOSPHOR_MUTED),
-                BackgroundColor(theme::SCREEN_0),
+                ThemedRadius::control(),
+                BorderColor::all(Color::NONE),
+                ThemedBorder::new(UiColor::Label),
+                BackgroundColor(Color::NONE),
+                ThemedFill::new(UiColor::Surface),
             ))
             .with_children(|box_| {
                 box_.spawn((
@@ -886,7 +968,8 @@ pub(crate) fn refresh_training_details(
                             font_size: FontSize::Px(17.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
                         Node {
                             flex_grow: 1.0,
                             min_width: px(0),
@@ -894,7 +977,7 @@ pub(crate) fn refresh_training_details(
                         },
                     ));
                     if let Some((kind, text)) = status {
-                        head.spawn((Name::new("Lesson Details Status"), badge(kind, text, skin)));
+                        head.spawn((Name::new("Lesson Details Status"), badge(kind, text)));
                     }
                 });
 
@@ -913,7 +996,8 @@ pub(crate) fn refresh_training_details(
                                         font_size: FontSize::Px(14.0),
                                         ..default()
                                     },
-                                    TextColor(theme::SCREEN_TEXT),
+                                    TextColor(Color::NONE),
+                                    ThemedText::new(UiColor::Body),
                                 ));
                                 if !lesson.actions.is_empty() {
                                     body.spawn((
@@ -931,7 +1015,7 @@ pub(crate) fn refresh_training_details(
                                     });
                                 }
                             });
-                        row.spawn((Name::new("Lesson Body Scroll Bar"), scroll_bar(skin)));
+                        row.spawn((Name::new("Lesson Body Scroll Bar"), scroll_bar()));
                     });
 
                 spawn_lesson_actions(box_, &lesson);
@@ -1029,7 +1113,6 @@ fn spawn_media_frame(
     body: &mut ChildSpawnerCommands,
     media: &LessonMedia,
     resolved: Option<ResolvedMedia>,
-    skin: UiSkin,
 ) {
     let (kind, tag) = if media.is_loop() {
         (BadgeKind::Amber, "loop")
@@ -1049,12 +1132,14 @@ fn spawn_media_frame(
             padding: UiRect::all(px(12)),
             row_gap: px(8),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             overflow: Overflow::clip(),
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR_MUTED),
-        BackgroundColor(theme::SCREEN_0),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(UiColor::Label),
+        BackgroundColor(Color::NONE),
+        ThemedFill::new(UiColor::Surface),
     ))
     .with_children(|frame| match resolved {
         Some(ResolvedMedia::Still(handle)) => {
@@ -1081,7 +1166,7 @@ fn spawn_media_frame(
             ));
         }
         None => {
-            frame.spawn((Name::new("Lesson Media Tag"), badge(kind, tag, skin)));
+            frame.spawn((Name::new("Lesson Media Tag"), badge(kind, tag)));
             frame.spawn((
                 Name::new("Lesson Media Legend"),
                 UiText,
@@ -1090,7 +1175,8 @@ fn spawn_media_frame(
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_DIM),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Secondary),
                 TextLayout {
                     justify: Justify::Center,
                     ..default()
@@ -1193,7 +1279,8 @@ fn spawn_binding_row(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::SCREEN_TEXT),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Body),
             Node {
                 flex_grow: 1.0,
                 flex_basis: px(0),
@@ -1211,7 +1298,7 @@ fn spawn_binding_row(
             },
         ))
         .with_children(|slot| {
-            spawn_binding_chips(slot, &chips, glyphs, theme::SCREEN_TEXT, Color::WHITE);
+            spawn_binding_chips(slot, &chips, glyphs, UiColor::Body, None);
         });
     });
 }
@@ -1273,7 +1360,8 @@ fn spawn_lesson_actions(box_: &mut ChildSpawnerCommands, lesson: &Lesson) {
                 font_size: FontSize::Px(12.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR_MUTED),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Label),
         ));
     });
 }

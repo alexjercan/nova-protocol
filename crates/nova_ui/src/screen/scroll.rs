@@ -4,11 +4,12 @@
 use bevy::{
     input::mouse::{MouseScrollUnit, MouseWheel},
     picking::hover::Hovered,
+    platform::collections::HashSet,
     prelude::*,
     ui_widgets::{ControlOrientation, Scrollbar, ScrollbarThumb},
 };
 
-use crate::{skin::UiSkin, theme};
+use crate::theme::{ActiveUiTheme, UiMetric};
 
 /// Pixels scrolled per line of wheel movement.
 ///
@@ -161,35 +162,63 @@ pub struct SiblingScrollBar;
 /// thumb the whole track then. A bar that appeared only once the content
 /// overflowed would take its own width out of the pane on the way in, which
 /// reflows the content that summoned it.
-pub fn scroll_bar(skin: UiSkin) -> impl Bundle {
-    let phosphor = skin.is_phosphor();
-    let (track, thumb) = if phosphor {
-        (
-            theme::PHOSPHOR.with_alpha(0.07),
-            theme::PHOSPHOR.with_alpha(0.35),
-        )
-    } else {
-        (Color::WHITE.with_alpha(0.04), theme::CASE_3)
-    };
+pub fn scroll_bar() -> impl Bundle {
     (
         SiblingScrollBar,
+        ThemedScrollBar,
         Node {
             width: px(BAR_W),
             align_self: AlignSelf::Stretch,
             flex_shrink: 0.0,
             margin: UiRect::left(px(4)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BackgroundColor(track),
+        BackgroundColor(Color::NONE),
         children![(
-            ScrollbarThumb {
-                border_radius: BorderRadius::all(px(theme::RADIUS)),
-                ..default()
-            },
-            BackgroundColor(thumb),
+            ThemedScrollThumb,
+            ScrollbarThumb::default(),
+            BackgroundColor(Color::NONE),
         )],
     )
+}
+
+/// Marks a [`scroll_bar`]'s track, so the reconciler paints it and repaints it
+/// live on a theme change.
+#[derive(Component)]
+pub struct ThemedScrollBar;
+
+/// Marks a [`scroll_bar`]'s thumb.
+#[derive(Component)]
+pub struct ThemedScrollThumb;
+
+/// Paint scrollbars on a theme change and on spawn.
+fn reconcile_scroll_bars(
+    theme: Res<ActiveUiTheme>,
+    mut q_track: Query<(Entity, &mut Node, &mut BackgroundColor), With<ThemedScrollBar>>,
+    added: Query<Entity, Added<ThemedScrollBar>>,
+    mut q_thumb: Query<
+        (&mut ScrollbarThumb, &mut BackgroundColor),
+        (With<ThemedScrollThumb>, Without<ThemedScrollBar>),
+    >,
+) {
+    let restyle_all = theme.is_changed();
+    let just_added: HashSet<Entity> = added.iter().collect();
+    if !restyle_all && just_added.is_empty() {
+        return;
+    }
+    let paint = theme.scroll_bar();
+    let radius = BorderRadius::all(px(theme.metric(UiMetric::Radius)));
+    for (entity, mut node, mut bg) in &mut q_track {
+        if !restyle_all && !just_added.contains(&entity) {
+            continue;
+        }
+        node.border_radius = radius;
+        *bg = paint.track.into();
+    }
+    for (mut thumb, mut bg) in &mut q_thumb {
+        thumb.border_radius = radius;
+        *bg = paint.thumb.into();
+    }
 }
 
 /// A row holding a [`scroll_column`] and the [`scroll_bar`] beside it.
@@ -271,6 +300,9 @@ pub(crate) fn build(app: &mut App) {
             scroll_viewports.run_if(resource_exists::<Messages<MouseWheel>>),
             wire_scroll_bars,
             hide_idle_scroll_bars.after(wire_scroll_bars),
+            // After the theme resolves, like every other widget reconciler, so
+            // a selection change repaints in the same frame.
+            reconcile_scroll_bars.after(crate::theme::UiThemeSystems),
         ),
     );
     // AFTER layout, or it clamps this frame's offset against last frame's

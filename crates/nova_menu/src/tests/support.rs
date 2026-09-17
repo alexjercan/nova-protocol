@@ -18,6 +18,7 @@ use nova_input::prelude::RegisterInputActions;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{camera_bindings, flight_bindings};
 use nova_training::prelude::{Lesson, TrainingCatalog};
+use nova_ui::theme::{base::base_ui_themes, GameUiThemes};
 
 use crate::{
     mods::{ModEnableCheckbox, ModRow, ModToggle, SelectedModId},
@@ -103,6 +104,11 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     // the fixture supplies both so all three row states are on screen at once.
     app.insert_resource(dummy_lessons());
     app.insert_resource(dummy_progress());
+    // The theme registry the Settings picker is built from. In production the
+    // content merge publishes it (`register_bundles`); a menu-only harness
+    // merges no content, and an empty registry would draw a picker with no
+    // rows at all.
+    app.insert_resource(GameUiThemes(base_ui_themes()));
     // Headless: no TimePlugin, so provide the clocks the pause systems and the
     // handbook's looping demonstrations touch. Nothing advances them, so a test
     // that wants time to pass moves the clock itself.

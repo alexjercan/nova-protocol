@@ -5,8 +5,9 @@
 //! owning scenario module.
 
 use bevy::prelude::{AudioSource, Color};
-use nova_gameplay::prelude::{default_comms_accent, AssetRef, ChipTone};
+use nova_gameplay::prelude::{default_comms_accent, AssetRef};
 use nova_scenario::prelude::*;
+use nova_ui::theme::semantic;
 
 /// Glob-import surface for generic scenario authoring constructors.
 pub mod prelude {
@@ -192,13 +193,13 @@ pub fn comms(speaker: impl Into<String>, text: impl Into<String>) -> EventAction
 /// A line spoken inside the player's own ship, drawn in the instrument green
 /// the HUD uses for its own readouts.
 pub fn crew(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
-    cue(ChipTone::Phosphor.text(), speaker, text)
+    cue(semantic::CREW, speaker, text)
 }
 
 /// A line the player overhears rather than receives, drawn in the amber the
 /// HUD keeps for what demands attention.
 pub fn guard(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
-    cue(ChipTone::Amber.text(), speaker, text)
+    cue(semantic::OVERHEARD, speaker, text)
 }
 
 /// Build a keyed cinematic action: a beat chain the player may walk out of.

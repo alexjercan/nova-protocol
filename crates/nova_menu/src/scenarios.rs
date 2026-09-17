@@ -10,9 +10,12 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ui::{
-    prelude::UiSkin,
     theme,
-    widget::{list_row, separator, themed_button, ListRow, Selected, ThemedButton, UiText},
+    theme::UiColor,
+    widget::{
+        list_row, separator, themed_button, Selected, ThemedBorder, ThemedButton, ThemedFill,
+        ThemedRadius, ThemedText, UiText,
+    },
 };
 
 /// Marker for the Scenarios panel root, toggled by the Scenarios button.
@@ -122,22 +125,33 @@ pub(crate) fn listed_scenarios(scenarios: &GameScenarios) -> Vec<ScenarioConfig>
 }
 
 /// `refresh_scenarios_list` / `refresh_scenario_details` re-run when the
-/// scenario registry changed (an enabled mod added/removed scenarios) or the
-/// selection changed. Both refreshers share the signals; the list writes the
-/// selection (default/repair) and the chained details refresh sees that write
-/// the same frame.
+/// scenario registry changed (an enabled mod added/removed scenarios), or a
+/// campaign group was expanded or collapsed. The list writes the selection
+/// (default/repair) and the chained details refresh sees that write the same
+/// frame.
+///
+/// The SELECTION is deliberately not a signal here: `on_scenario_row_select`
+/// moves the row `Selected` highlight itself, so a rebuild would respawn every
+/// row to land a highlight that is already where it belongs. It also loses the
+/// scroll position, and `poll_scenario_thumbnail` re-marks the selection on
+/// every frame a thumbnail is still loading - which rebuilt the whole picker
+/// each of those frames. The menu build used to reset the selection to arm
+/// this refresh; the just-spawned trigger is what arms it now.
 pub(crate) fn scenarios_list_dirty(
-    skin: Res<UiSkin>,
     scenarios: Option<Res<GameScenarios>>,
     campaigns: Option<Res<GameCampaigns>>,
     collapsed: Res<CollapsedCampaigns>,
-    selected: Res<SelectedScenarioId>,
+    spawned: Query<(), Added<ScenariosList>>,
 ) -> bool {
-    skin.is_changed()
+    // The just-spawned pane is the load-bearing trigger, not a convenience:
+    // the registries are published by the content merge, long before the menu,
+    // so their change ticks are already old the first time this condition is
+    // asked. The menu is rebuilt on every entry to it, and an empty pane is
+    // always newly spawned - which is what fills the picker on the way in.
+    !spawned.is_empty()
         || scenarios.is_some_and(|s| s.is_changed())
         || campaigns.is_some_and(|c| c.is_changed())
         || collapsed.is_changed()
-        || selected.is_changed()
 }
 
 pub(crate) fn scenario_details_dirty(
@@ -194,7 +208,6 @@ pub(crate) fn selectable_scenario_ids(
 /// selection keeps the details pane fed.
 pub(crate) fn refresh_scenarios_list(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     scenarios: Option<Res<GameScenarios>>,
     campaigns: Option<Res<GameCampaigns>>,
     collapsed: Res<CollapsedCampaigns>,
@@ -242,7 +255,8 @@ pub(crate) fn refresh_scenarios_list(
                     font_size: FontSize::Px(13.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ));
         }
         for campaign in &ordered {
@@ -260,12 +274,12 @@ pub(crate) fn refresh_scenarios_list(
                     continue;
                 };
                 let is_selected = selected.0.as_deref() == Some(member.id.as_str());
-                spawn_scenario_row(list, member, is_selected, true, *skin);
+                spawn_scenario_row(list, member, is_selected, true);
             }
         }
         for s in &uncampaigned {
             let is_selected = selected.0.as_deref() == Some(s.id.as_str());
-            spawn_scenario_row(list, s, is_selected, false, *skin);
+            spawn_scenario_row(list, s, is_selected, false);
         }
     });
 }
@@ -305,14 +319,16 @@ pub(crate) fn spawn_campaign_header(
             padding: UiRect::all(px(8)),
             margin: UiRect::bottom(px(4)),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
+        ThemedRadius::control(),
         ThemedButton,
         Button,
         Hovered::default(),
-        BorderColor::all(theme::PHOSPHOR_MUTED),
-        BackgroundColor(theme::SCREEN_0),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(UiColor::Label),
+        BackgroundColor(Color::NONE),
+        ThemedFill::new(UiColor::Surface),
         observe(on_campaign_header_toggle),
     ))
     .with_children(|header| {
@@ -323,7 +339,8 @@ pub(crate) fn spawn_campaign_header(
                 font_size: FontSize::Px(15.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Primary),
         ));
     });
 }
@@ -336,7 +353,6 @@ pub(crate) fn spawn_scenario_row(
     s: &ScenarioConfig,
     selected: bool,
     indent: bool,
-    skin: UiSkin,
 ) {
     // The shared interactive `list_row` as a direct list child. A campaign
     // member is INDENTED under its header (owner feedback 2026-07-29: "the
@@ -348,8 +364,7 @@ pub(crate) fn spawn_scenario_row(
     let mut row = list.spawn((
         Name::new(format!("Scenario Row: {}", s.id)),
         ScenarioRow { id: s.id.clone() },
-        list_row(selected, skin),
-        ListRow,
+        list_row(),
         Button,
         Hovered::default(),
         observe(on_scenario_row_select),
@@ -388,7 +403,8 @@ pub(crate) fn spawn_scenario_row(
                     font_size: FontSize::Px(15.0),
                     ..default()
                 },
-                TextColor(theme::SCREEN_TEXT),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Body),
             ));
             if !s.description.is_empty() {
                 col.spawn((
@@ -399,7 +415,8 @@ pub(crate) fn spawn_scenario_row(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_DIM),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Secondary),
                 ));
             }
         });
@@ -440,7 +457,8 @@ pub(crate) fn refresh_scenario_details(
                     font_size: FontSize::Px(14.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ));
             details.spawn((
                 Name::new("Scenario Details Actions"),
@@ -458,7 +476,8 @@ pub(crate) fn refresh_scenario_details(
                 font_size: FontSize::Px(20.0),
                 ..default()
             },
-            TextColor(theme::SCREEN_TEXT),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Body),
         ));
         details.spawn((Name::new("Scenario Details Separator"), separator()));
         // The thumbnail (authored + asset server present; headless test apps have
@@ -491,7 +510,8 @@ pub(crate) fn refresh_scenario_details(
                             border: UiRect::all(px(theme::BORDER_W)),
                             ..default()
                         },
-                        BorderColor::all(theme::PHOSPHOR_MUTED),
+                        BorderColor::all(Color::NONE),
+                        ThemedBorder::new(UiColor::Label),
                     ));
                 } else {
                     warn!(
@@ -513,7 +533,8 @@ pub(crate) fn refresh_scenario_details(
                     font_size: FontSize::Px(14.0),
                     ..default()
                 },
-                TextColor(theme::SCREEN_TEXT),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Body),
                 Node {
                     margin: UiRect::bottom(px(8)),
                     ..default()

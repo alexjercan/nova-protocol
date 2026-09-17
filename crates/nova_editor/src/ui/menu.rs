@@ -21,9 +21,9 @@ use bevy::{
 };
 use nova_gameplay::prelude::GameStates;
 use nova_ui::{
-    prelude::UiSkin,
     theme,
-    widget::{checkbox_glyph, key_chip, list_row_colors, ListRow, UiText},
+    theme::{ActiveUiTheme, UiColor},
+    widget::{checkbox_glyph, key_chip, ListRow, ThemedRadius, UiText},
 };
 
 use crate::{
@@ -172,13 +172,7 @@ const TAIL_FONT: f32 = 11.0;
 /// Every row has exactly three children - the lead, the label and the tail - so
 /// [`sync_menu_item_paint`] and [`sync_view_menu_marks`] can reach any of them
 /// by position rather than by search.
-pub(crate) fn menu_item_row(
-    label: &str,
-    lead: MenuLead,
-    tail: MenuTail,
-    skin: UiSkin,
-) -> impl Bundle {
-    let (background, border) = list_row_colors(false, false, skin);
+pub(crate) fn menu_item_row(label: &str, lead: MenuLead, tail: MenuTail) -> impl Bundle {
     (
         ListRow,
         MenuItem,
@@ -193,11 +187,11 @@ pub(crate) fn menu_item_row(
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
             column_gap: px(8),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(border),
-        BackgroundColor(background),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
         children![
             menu_item_lead(lead),
             (
@@ -207,7 +201,7 @@ pub(crate) fn menu_item_row(
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(ITEM_LABEL),
+                TextColor(Color::NONE),
                 // GROWS, which is what right-aligns the tail: three children in
                 // a row cannot be spaced apart without pushing the label to the
                 // middle of the menu.
@@ -243,7 +237,7 @@ fn menu_item_lead(lead: MenuLead) -> impl Bundle {
             font_size: FontSize::Px(12.0),
             ..default()
         },
-        TextColor(ITEM_MARK),
+        TextColor(Color::NONE),
         Node {
             width: px(12),
             flex_shrink: 0.0,
@@ -274,7 +268,7 @@ fn menu_item_tail(tail: MenuTail) -> impl Bundle {
                             font_size: FontSize::Px(TAIL_FONT),
                             ..default()
                         },
-                        TextColor(ITEM_MARK),
+                        TextColor(Color::NONE),
                     ));
                 }
             },
@@ -497,13 +491,15 @@ pub(crate) enum ViewToggle {
 }
 
 /// A disabled row's text, and an enabled one's, for the label column and the
-/// shortcut column. Painted by a system rather than baked in at spawn because
+/// shortcut column. Rows spawn UNPAINTED and [`sync_menu_item_paint`] is their
+/// only paint path - one writer for one component, and a theme flip reaches an
+/// open menu. Painted by a system rather than baked in at spawn because
 /// Edit > Delete greys and ungreys with the selection (see
 /// [`sync_menu_delete`]) - and a row that only says "disabled" in its border
 /// is a row a builder keeps pressing.
-const ITEM_LABEL: Color = theme::PHOSPHOR;
+const ITEM_LABEL: UiColor = UiColor::Primary;
 /// The right-hand column: the shortcut, or a toggle's on/off mark.
-const ITEM_MARK: Color = theme::PHOSPHOR_MUTED;
+const ITEM_MARK: UiColor = UiColor::Label;
 /// How much of its colour a greyed row keeps.
 const DISABLED_ALPHA: f32 = 0.35;
 
@@ -514,19 +510,23 @@ const DISABLED_ALPHA: f32 = 0.35;
 /// border down with the letter or the row reads as live from the one thing on
 /// it that is coloured.
 pub(crate) fn sync_menu_item_paint(
+    theme: Res<ActiveUiTheme>,
     items: Query<(Has<InteractionDisabled>, &Children), With<MenuItem>>,
     tails: Query<&Children>,
     chips: Query<Has<MenuKeyChip>>,
     mut texts: Query<&mut TextColor>,
     mut borders: Query<&mut BorderColor>,
 ) {
+    let item_label = theme.color(ITEM_LABEL);
+    let item_mark = theme.color(ITEM_MARK);
+    let chip_ink = theme.color(UiColor::Accent);
     for (disabled, children) in &items {
         let mut children = children.iter();
         if let Some(lead) = children.next() {
-            paint_text(&mut texts, lead, ITEM_MARK, disabled);
+            paint_text(&mut texts, lead, item_mark, disabled);
         }
         if let Some(label) = children.next() {
-            paint_text(&mut texts, label, ITEM_LABEL, disabled);
+            paint_text(&mut texts, label, item_label, disabled);
         }
         let Some(tail) = children.next() else {
             continue;
@@ -536,16 +536,16 @@ pub(crate) fn sync_menu_item_paint(
         };
         if chips.get(tail).unwrap_or(false) {
             for &text in tails.get(tail).map(|kids| &kids[..]).unwrap_or_default() {
-                paint_text(&mut texts, text, theme::AMBER_NOVA, disabled);
+                paint_text(&mut texts, text, chip_ink, disabled);
             }
-            let edge = alpha_if(theme::AMBER_NOVA.with_alpha(0.5), disabled);
+            let edge = alpha_if(theme.color_alpha(UiColor::Accent, 0.5), disabled);
             if let Ok(mut border) = borders.get_mut(tail) {
                 if border.left != edge {
                     border.set_all(edge);
                 }
             }
         } else {
-            paint_text(&mut texts, tail, ITEM_MARK, disabled);
+            paint_text(&mut texts, tail, item_mark, disabled);
         }
     }
 }
@@ -925,12 +925,7 @@ mod tests {
         let row = world
             .spawn((
                 ViewToggle::LinkPoints,
-                menu_item_row(
-                    "Link Points",
-                    MenuLead::Toggle,
-                    MenuTail::None,
-                    UiSkin::default(),
-                ),
+                menu_item_row("Link Points", MenuLead::Toggle, MenuTail::None),
             ))
             .id();
         world.flush();

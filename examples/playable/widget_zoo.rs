@@ -1,17 +1,18 @@
 //! widget_zoo: a live, FUNCTIONAL showcase of the nova_ui widget library (the
-//! `nova_ui::widget` factories) in both skins - the same constructors the game
-//! spawns (`button(...)`, `segmented(...)`, `slider_track(...)`, `checkbox(...)`,
-//! `toggle(...)`, `badge(...)`, `panel(...)`, `list_row(...)`). Everything here
-//! is interactive: the buttons hover/press, the Skin control reskins the whole
-//! zoo live, the segmented selects, the checkboxes/toggles flip, and the slider
-//! drags (its phosphor block-meter tracks the value).
+//! `nova_ui::widget` factories) in both base themes - the same constructors the
+//! game spawns (`button(...)`, `segmented(...)`, `slider_track(...)`,
+//! `checkbox(...)`, `toggle(...)`, `badge(...)`, `panel(...)`,
+//! `list_row(...)`). Everything here is interactive: the buttons hover/press,
+//! the Theme control repaints the whole zoo live WITHOUT respawning a widget,
+//! the segmented selects, the checkboxes/toggles flip, and the slider drags
+//! (its phosphor block-meter tracks the value).
 //!
 //! It doubles as the render eyeball for tasks 20260728-175734/-175738: phosphor
 //! reads as flat CLI elements, hardware as light-3D moulded controls.
 //!
 //! Interactive run:  `cargo run --example widget_zoo`  (drag the slider, click
-//! the Skin control / checks / toggles; `S` also flips the skin).
-//! Capture both skins: `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/zoo cargo run
+//! the Theme control / checks / toggles; `S` also flips the theme).
+//! Capture both themes: `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/zoo cargo run
 //! --example widget_zoo --features debug` -> widget_zoo-{phosphor,hardware}.png
 //! then exit. (`--features debug` because the shot goes through the fleet's
 //! shared `capture_window`.)
@@ -41,7 +42,8 @@ use clap::Parser;
 use nova_protocol::prelude::GameStates;
 use nova_ui::{
     prelude::*,
-    widget::{ButtonSpec, UiText},
+    theme::{base::base_ui_themes, ActiveUiTheme, UiColor, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+    widget::{ButtonSpec, ThemedFill, ThemedText, UiText},
     NovaUiPlugin,
 };
 
@@ -49,7 +51,7 @@ use nova_ui::{
 #[command(name = "widget_zoo")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Every nova_ui widget factory, live and clickable, in both skins",
+    about = "Every nova_ui widget factory, live and clickable, in both base themes",
     long_about = None
 )]
 struct Cli;
@@ -58,8 +60,8 @@ struct Cli;
 // coordinates is what makes a run survive a layout move: only a RENAME breaks a
 // beat (task 20260804-094021).
 const IDLE_BUTTON: &str = "Zoo Idle Button";
-const SKIN_HARDWARE: &str = "Zoo Skin Hardware";
-const SKIN_PHOSPHOR: &str = "Zoo Skin Phosphor";
+const THEME_HARDWARE: &str = "Zoo Theme Hardware";
+const THEME_PHOSPHOR: &str = "Zoo Theme Phosphor";
 const LEVEL_ALL: &str = "Zoo Level All";
 const LEVEL_MINIMAL: &str = "Zoo Level Minimal";
 const LEVEL_NONE: &str = "Zoo Level None";
@@ -80,11 +82,14 @@ fn main() -> AppExit {
         }),
         ..default()
     }));
-    // The shared widget observers + skin reconciler + font router (inits UiSkin).
+    // The shared widget observers + theme reconcilers + font router.
     app.add_plugins(NovaUiPlugin);
-    // The Skin control + the demo HUD-level control drive their resources through
-    // the same `button_on_setting` path the game's Settings use.
-    app.add_observer(button_on_setting::<UiSkin>);
+    // The zoo loads no mod content, so it registers the two base themes itself -
+    // the same `Vec<UiThemeConfig>` the base mod's generated RON carries.
+    app.insert_resource(GameUiThemes(base_ui_themes()));
+    // The Theme control + the demo HUD-level control drive their resources
+    // through the same `button_on_setting` path the game's Settings use.
+    app.add_observer(button_on_setting::<SelectedUiTheme>);
     app.add_observer(button_on_setting::<DemoLevel>);
     app.init_resource::<DemoLevel>();
     app.init_resource::<ZooChecks>();
@@ -99,11 +104,16 @@ fn main() -> AppExit {
     app.add_systems(
         Update,
         (
-            rebuild_body.run_if(resource_changed::<UiSkin>.or_else(resource_changed::<ZooChecks>)),
-            toggle_skin_key,
+            // NOT on a theme change: every widget here repaints itself through
+            // its own reconciler, so a theme flip that needed a rebuild would be
+            // the bug this zoo exists to catch.
+            rebuild_body.run_if(resource_changed::<ZooChecks>),
+            repaint_backdrop.after(UiThemeSystems),
+            toggle_theme_key,
+            sync_theme_marks.run_if(resource_changed::<SelectedUiTheme>),
         ),
     );
-    // The two-skin capture pass. Behind `debug` because it shoots through the
+    // The two-theme capture pass. Behind `debug` because it shoots through the
     // shared `capture_window`, which is where `NOVA_CAPTURE_DIR` is resolved for
     // the whole fleet - the zoo used to resolve it a second time itself.
     #[cfg(feature = "debug")]
@@ -159,7 +169,7 @@ impl Default for ZooChecks {
 }
 
 /// The draggable slider's value (`0..1`), kept in a resource so a body rebuild
-/// (skin/checks change) restores the slider where the player left it.
+/// (a checks change) restores the slider where the player left it.
 #[derive(Resource)]
 struct ZooSliderValue(f32);
 
@@ -188,36 +198,22 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 row_gap: px(18),
                 ..default()
             },
-            BackgroundColor(theme::SPACE),
-            // Soft nebula glows behind the panels (demo scene backdrop).
-            BackgroundGradient(vec![
-                Gradient::from(RadialGradient::new(
-                    UiPosition::TOP_LEFT,
-                    RadialGradientShape::FarthestSide,
-                    vec![
-                        ColorStop::percent(theme::BLUE.with_alpha(0.10), 0.0),
-                        ColorStop::percent(Color::NONE, 40.0),
-                    ],
-                )),
-                Gradient::from(RadialGradient::new(
-                    UiPosition::BOTTOM_RIGHT,
-                    RadialGradientShape::FarthestSide,
-                    vec![
-                        ColorStop::percent(theme::PHOSPHOR.with_alpha(0.06), 0.0),
-                        ColorStop::percent(Color::NONE, 42.0),
-                    ],
-                )),
-            ]),
+            BackgroundColor(Color::NONE),
+            ThemedFill::new(UiColor::Void),
+            // The glows are painted by `repaint_backdrop`, which has the live
+            // theme to mix them from. A gradient is not a plain colour, so no
+            // `Themed*` marker covers it.
+            BackgroundGradient(Vec::new()),
         ))
         .with_children(|root| {
             top_bar(root);
         });
-    // The body is spawned by `rebuild_body` on the first frame (UiSkin is
-    // "changed" at startup), so there is one code path for spawn + reskin.
+    // The body is spawned by `rebuild_body` on the first frame (`ZooChecks` is
+    // "changed" at startup), so there is one code path for spawn + rebuild.
 }
 
-/// The persistent header: title + the live Skin control (Phosphor | Hardware),
-/// a functional `ButtonValue<UiSkin>` segmented row.
+/// The persistent header: title + the live Theme control (Phosphor | Hardware),
+/// a functional `ButtonValue<SelectedUiTheme>` segmented row.
 fn top_bar(root: &mut ChildSpawnerCommands) {
     root.spawn(Node {
         flex_direction: FlexDirection::Row,
@@ -233,44 +229,49 @@ fn top_bar(root: &mut ChildSpawnerCommands) {
                 font_size: FontSize::Px(18.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Primary),
         ));
         bar.spawn((
             UiText,
-            Text::new("Skin"),
+            Text::new("Theme"),
             TextFont {
                 font_size: FontSize::Px(12.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR_MUTED),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Label),
             Node {
                 margin: UiRect::left(px(12)),
                 ..default()
             },
         ));
-        // A functional segmented: each option carries `ButtonValue<UiSkin>`, so a
-        // click drives the shared `UiSkin` resource (reskinning the whole zoo).
-        bar.spawn(segmented_container(UiSkin::Phosphor))
-            .with_children(|seg| {
-                for (label, value, name) in [
-                    ("Phosphor", UiSkin::Phosphor, SKIN_PHOSPHOR),
-                    ("Hardware", UiSkin::Hardware, SKIN_HARDWARE),
-                ] {
-                    let mut b =
-                        seg.spawn((segmented_option(label), ButtonValue(value), Name::new(name)));
-                    if value == UiSkin::Phosphor {
-                        b.insert(Selected);
-                    }
+        // A functional segmented: each option carries
+        // `ButtonValue<SelectedUiTheme>`, so a click drives the shared selection
+        // and the resolver repaints the whole zoo.
+        bar.spawn(segmented_container()).with_children(|seg| {
+            for (label, id, name) in [
+                ("Phosphor", PHOSPHOR_THEME_ID, THEME_PHOSPHOR),
+                ("Hardware", HARDWARE_THEME_ID, THEME_HARDWARE),
+            ] {
+                let mut b = seg.spawn((
+                    segmented_option(label),
+                    ButtonValue(SelectedUiTheme(id.to_string())),
+                    Name::new(name),
+                ));
+                if id == PHOSPHOR_THEME_ID {
+                    b.insert(Selected);
                 }
-            });
+            }
+        });
     });
 }
 
-/// (Re)build the panel grid for the current skin + interactive state. One path
-/// serves the first spawn and every reskin/flip.
+/// (Re)build the panel grid for the current interactive state. One path serves
+/// the first spawn and every check flip. A THEME change never comes through
+/// here: the widgets repaint themselves.
 fn rebuild_body(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     checks: Res<ZooChecks>,
     slider: Res<ZooSliderValue>,
     roots: Query<Entity, With<ZooRoot>>,
@@ -282,7 +283,6 @@ fn rebuild_body(
     let Ok(root) = roots.single() else {
         return;
     };
-    let skin = *skin;
     let checks = *checks;
     let value = slider.0;
     commands.entity(root).with_children(|root| {
@@ -300,9 +300,9 @@ fn rebuild_body(
             },
         ))
         .with_children(|body| {
-            buttons_panel(body, skin);
-            controls_panel(body, skin, checks, value);
-            content_panel(body, skin, checks);
+            buttons_panel(body);
+            controls_panel(body, checks, value);
+            content_panel(body, checks);
         });
     });
 }
@@ -310,27 +310,25 @@ fn rebuild_body(
 /// A titled panel with a padded body.
 fn panel_cell(
     body: &mut ChildSpawnerCommands,
-    skin: UiSkin,
     title: &str,
     tag: Option<&str>,
     build: impl FnOnce(&mut ChildSpawnerCommands),
 ) {
-    body.spawn((panel_node(), panel(skin)))
-        .with_children(|cell| {
-            cell.spawn((panel_head(title, tag, skin),));
-            cell.spawn(Node {
-                width: px(320),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(10),
-                padding: UiRect::all(px(16)),
-                ..default()
-            })
-            .with_children(build);
-        });
+    body.spawn((panel_node(), panel())).with_children(|cell| {
+        cell.spawn((panel_head(title, tag),));
+        cell.spawn(Node {
+            width: px(320),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(10),
+            padding: UiRect::all(px(16)),
+            ..default()
+        })
+        .with_children(build);
+    });
 }
 
-fn buttons_panel(body: &mut ChildSpawnerCommands, skin: UiSkin) {
-    panel_cell(body, skin, "Buttons", None, |c| {
+fn buttons_panel(body: &mut ChildSpawnerCommands) {
+    panel_cell(body, "Buttons", None, |c| {
         sub_header(c, "States");
         c.spawn(flow_row()).with_children(|r| {
             r.spawn((button(ButtonSpec::new("Idle")), Name::new(IDLE_BUTTON)));
@@ -359,11 +357,11 @@ fn buttons_panel(body: &mut ChildSpawnerCommands, skin: UiSkin) {
     });
 }
 
-fn controls_panel(body: &mut ChildSpawnerCommands, skin: UiSkin, checks: ZooChecks, value: f32) {
-    panel_cell(body, skin, "Controls", None, |c| {
+fn controls_panel(body: &mut ChildSpawnerCommands, checks: ZooChecks, value: f32) {
+    panel_cell(body, "Controls", None, |c| {
         sub_header(c, "Segmented (HUD detail)");
         // Functional: `ButtonValue<DemoLevel>` drives the DemoLevel resource.
-        c.spawn(segmented_container(skin)).with_children(|seg| {
+        c.spawn(segmented_container()).with_children(|seg| {
             for (label, level, name) in [
                 ("All", DemoLevel::All, LEVEL_ALL),
                 ("Minimal", DemoLevel::Minimal, LEVEL_MINIMAL),
@@ -383,7 +381,7 @@ fn controls_panel(body: &mut ChildSpawnerCommands, skin: UiSkin, checks: ZooChec
         // moving the hardware fill.
         c.spawn((
             Name::new(SLIDER),
-            slider_track(value, skin),
+            slider_track(value),
             Slider {
                 track_click: TrackClick::Snap,
                 ..default()
@@ -399,55 +397,36 @@ fn controls_panel(body: &mut ChildSpawnerCommands, skin: UiSkin, checks: ZooChec
             // Named HERE and not inside `clickable`: the Content panel's list
             // rows wrap the same ids, and a driven name must resolve to exactly
             // one entity.
-            r.spawn((
-                clickable(checkbox(checks.0[0], skin), 0),
-                Name::new(CHECK_FIRST),
-            ));
-            r.spawn((
-                clickable(checkbox(checks.0[1], skin), 1),
-                Name::new(CHECK_SECOND),
-            ));
-            r.spawn((
-                clickable(toggle(checks.0[2], skin), 2),
-                Name::new(TOGGLE_FIRST),
-            ));
-            r.spawn((
-                clickable(toggle(checks.0[3], skin), 3),
-                Name::new(TOGGLE_SECOND),
-            ));
+            r.spawn((clickable(checkbox(checks.0[0]), 0), Name::new(CHECK_FIRST)));
+            r.spawn((clickable(checkbox(checks.0[1]), 1), Name::new(CHECK_SECOND)));
+            r.spawn((clickable(toggle(checks.0[2]), 2), Name::new(TOGGLE_FIRST)));
+            r.spawn((clickable(toggle(checks.0[3]), 3), Name::new(TOGGLE_SECOND)));
         });
     });
 }
 
-fn content_panel(body: &mut ChildSpawnerCommands, skin: UiSkin, checks: ZooChecks) {
-    panel_cell(body, skin, "Content", Some("DELTA-9"), |c| {
+fn content_panel(body: &mut ChildSpawnerCommands, checks: ZooChecks) {
+    panel_cell(body, "Content", Some("DELTA-9"), |c| {
         sub_header(c, "List rows");
-        list_row_entry(c, skin, checks.0[0], "Deep salvage", "v1.2 // nova.labs", 0);
-        list_row_entry(c, skin, checks.0[1], "Hard vacuum", "v0.4 // driftco", 1);
+        list_row_entry(c, checks.0[0], "Deep salvage", "v1.2 // nova.labs", 0);
+        list_row_entry(c, checks.0[1], "Hard vacuum", "v0.4 // driftco", 1);
         sub_header(c, "Badges");
         c.spawn(flow_row()).with_children(|r| {
-            r.spawn(badge(BadgeKind::Green, "online", skin));
-            r.spawn(badge(BadgeKind::Amber, "warn", skin));
-            r.spawn(badge(BadgeKind::Blue, "info", skin));
-            r.spawn(badge(BadgeKind::Red, "fault", skin));
-            r.spawn(badge(BadgeKind::Mute, "idle", skin));
+            r.spawn(badge(BadgeKind::Green, "online"));
+            r.spawn(badge(BadgeKind::Amber, "warn"));
+            r.spawn(badge(BadgeKind::Blue, "info"));
+            r.spawn(badge(BadgeKind::Red, "fault"));
+            r.spawn(badge(BadgeKind::Mute, "idle"));
         });
     });
 }
 
 /// A list row with a title/subtitle and a trailing clickable checkbox that
 /// shares its enabled bit with the matching Controls checkbox.
-fn list_row_entry(
-    c: &mut ChildSpawnerCommands,
-    skin: UiSkin,
-    on: bool,
-    title: &str,
-    sub: &str,
-    id: usize,
-) {
+fn list_row_entry(c: &mut ChildSpawnerCommands, on: bool, title: &str, sub: &str, id: usize) {
     let title = title.to_string();
     let sub = sub.to_string();
-    c.spawn(list_row(on, skin)).with_children(|row| {
+    c.spawn(list_row()).with_children(|row| {
         row.spawn(Node {
             flex_direction: FlexDirection::Column,
             flex_grow: 1.0,
@@ -461,7 +440,8 @@ fn list_row_entry(
                     font_size: FontSize::Px(13.0),
                     ..default()
                 },
-                TextColor(theme::SCREEN_TEXT),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Body),
             ));
             col.spawn((
                 UiText,
@@ -470,10 +450,11 @@ fn list_row_entry(
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_DIM),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Secondary),
             ));
         });
-        row.spawn(clickable(checkbox(on, skin), id));
+        row.spawn(clickable(checkbox(on), id));
     });
 }
 
@@ -505,13 +486,75 @@ fn on_slider_change(change: On<ValueChange<f32>>, mut value: ResMut<ZooSliderVal
     value.0 = change.value.clamp(0.0, 1.0);
 }
 
-/// `S` flips the skin (the segmented control does the same via ButtonValue).
-fn toggle_skin_key(keys: Res<ButtonInput<KeyCode>>, mut skin: ResMut<UiSkin>) {
+/// The two soft nebula glows behind the panels (the demo scene backdrop), mixed
+/// from the live theme.
+///
+/// Its own system because a `BackgroundGradient` carries whole `Color` stops
+/// rather than a semantic name, so there is no marker component to hang it on.
+fn repaint_backdrop(
+    theme: Res<ActiveUiTheme>,
+    mut roots: Query<&mut BackgroundGradient, With<ZooRoot>>,
+) {
+    if !theme.is_changed() {
+        return;
+    }
+    for mut gradient in &mut roots {
+        gradient.0 = vec![
+            Gradient::from(RadialGradient::new(
+                UiPosition::TOP_LEFT,
+                RadialGradientShape::FarthestSide,
+                vec![
+                    ColorStop::percent(theme.color_alpha(UiColor::Info, 0.10), 0.0),
+                    ColorStop::percent(Color::NONE, 40.0),
+                ],
+            )),
+            Gradient::from(RadialGradient::new(
+                UiPosition::BOTTOM_RIGHT,
+                RadialGradientShape::FarthestSide,
+                vec![
+                    ColorStop::percent(theme.color_alpha(UiColor::Primary, 0.06), 0.0),
+                    ColorStop::percent(Color::NONE, 42.0),
+                ],
+            )),
+        ];
+    }
+}
+
+/// `S` flips the theme (the segmented control does the same via ButtonValue).
+fn toggle_theme_key(keys: Res<ButtonInput<KeyCode>>, mut selected: ResMut<SelectedUiTheme>) {
     if keys.just_pressed(KeyCode::KeyS) {
-        *skin = match *skin {
-            UiSkin::Phosphor => UiSkin::Hardware,
-            UiSkin::Hardware => UiSkin::Phosphor,
+        let next = if selected.0 == PHOSPHOR_THEME_ID {
+            HARDWARE_THEME_ID
+        } else {
+            PHOSPHOR_THEME_ID
         };
+        *selected = SelectedUiTheme(next.to_string());
+    }
+}
+
+/// Move the Theme control's mark onto whichever theme is live.
+///
+/// `button_on_setting` moves `Selected` when a button is PRESSED, and the two
+/// other ways the selection moves here - the `S` key and the capture pass -
+/// write the resource directly. Without this the chip stayed on Phosphor while
+/// the whole zoo was drawn in hardware, which is exactly the disagreement the
+/// zoo exists to catch.
+fn sync_theme_marks(
+    mut commands: Commands,
+    selected: Res<SelectedUiTheme>,
+    buttons: Query<(Entity, &ButtonValue<SelectedUiTheme>, Has<Selected>)>,
+) {
+    for (entity, value, marked) in &buttons {
+        let wanted = value.0 == *selected;
+        if wanted == marked {
+            continue;
+        }
+        let mut entity = commands.entity(entity);
+        if wanted {
+            entity.try_insert(Selected);
+        } else {
+            entity.try_remove::<Selected>();
+        }
     }
 }
 
@@ -524,7 +567,8 @@ fn sub_header(c: &mut ChildSpawnerCommands, text: &str) {
             font_size: FontSize::Px(10.0),
             ..default()
         },
-        TextColor(theme::PHOSPHOR_MUTED),
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Label),
         Node {
             margin: UiRect::top(px(4)),
             ..default()
@@ -541,7 +585,8 @@ fn note(c: &mut ChildSpawnerCommands, text: &str) {
             font_size: FontSize::Px(11.0),
             ..default()
         },
-        TextColor(theme::PHOSPHOR_DIM),
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Secondary),
     ));
 }
 
@@ -575,7 +620,7 @@ struct Capture {
 fn drive_capture(
     mut commands: Commands,
     mut cap: ResMut<Capture>,
-    mut skin: ResMut<UiSkin>,
+    mut selected: ResMut<SelectedUiTheme>,
     mut exit: MessageWriter<AppExit>,
     log: Option<Res<nova_protocol::prelude::CaptureLog>>,
 ) {
@@ -603,7 +648,7 @@ fn drive_capture(
             cap.stage = 2;
         }
         2 => {
-            *skin = UiSkin::Hardware;
+            *selected = SelectedUiTheme(HARDWARE_THEME_ID.to_string());
             cap.stage = 3;
             cap.wait = 60;
         }
@@ -731,26 +776,27 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
         .until(pointer_released())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        // Reskin: a full click on the Skin control's Hardware option, waited
+        // Retheme: a full click on the Theme control's Hardware option, waited
         // out on the SETTING - `Activate` fires on release, and the option is
-        // one of a set, so "the pointer let go" is not yet "the skin took".
+        // one of a set, so "the pointer let go" is not yet "the theme took".
         .click_named(
             "zoo: click Hardware",
-            SKIN_HARDWARE,
-            resource_where::<UiSkin>(|skin| *skin == UiSkin::Hardware),
+            THEME_HARDWARE,
+            resource_where::<SelectedUiTheme>(|theme| theme.0 == HARDWARE_THEME_ID),
             BEAT_DEADLINE_SECS,
         )
-        .step("zoo: the skin flipped")
+        .step("zoo: the theme flipped")
         .on_enter(|world: &mut World| {
             assert_eq!(
-                *world.resource::<UiSkin>(),
-                UiSkin::Hardware,
-                "clicking {SKIN_HARDWARE} must drive the shared UiSkin resource"
+                world.resource::<SelectedUiTheme>().0,
+                HARDWARE_THEME_ID,
+                "clicking {THEME_HARDWARE} must drive the shared SelectedUiTheme"
             );
-            info!("zoo: skin is Hardware");
-            // `rebuild_body` despawned and respawned the whole body for the new
-            // skin - the exact moment a reconciler ghosts or duplicates.
-            assert_live_tree(world, "after the reskin");
+            info!("zoo: theme is {HARDWARE_THEME_ID}");
+            // Nothing was rebuilt for the flip - every widget repainted in
+            // place - so this is where a reconciler that ghosts or duplicates
+            // would show.
+            assert_live_tree(world, "after the theme flip");
         })
         .add()
         .click_named(
@@ -903,7 +949,7 @@ fn background_alpha(world: &mut World, name: &str) -> f32 {
 /// per driven name, and no `TextShadow` anywhere under the root.
 ///
 /// This is the check `cargo check` cannot make. `rebuild_body` despawns and
-/// respawns the body on every skin/check change, so a reconciler that spawns
+/// respawns the body on every check change, so a reconciler that spawns
 /// before it despawns leaves a ghost - visible only as a duplicate in the live
 /// tree. `TextShadow` is refused by nova_ui on purpose (it is a hard drop
 /// shadow, not the phosphor glow); a stray one only shows up here.
@@ -920,8 +966,8 @@ fn assert_live_tree(world: &mut World, when: &str) {
 
     const DRIVEN: &[&str] = &[
         IDLE_BUTTON,
-        SKIN_PHOSPHOR,
-        SKIN_HARDWARE,
+        THEME_PHOSPHOR,
+        THEME_HARDWARE,
         LEVEL_ALL,
         LEVEL_MINIMAL,
         LEVEL_NONE,

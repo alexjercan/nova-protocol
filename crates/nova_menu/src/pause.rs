@@ -19,10 +19,11 @@ use nova_os::prelude::{NovaOsTerminal, ShellKind};
 use nova_os_ui::prelude::NovaOsCloseTransition;
 use nova_scenario::prelude::*;
 use nova_ui::{
-    prelude::{UiSkin, PAUSE_SETTINGS_Z, PAUSE_Z},
+    prelude::{PAUSE_SETTINGS_Z, PAUSE_Z},
     screen::{scroll_bar, scroll_column, scroll_viewport},
     theme,
-    widget::{panel, ButtonVariant, UiText},
+    theme::UiColor,
+    widget::{panel, ButtonVariant, ThemedRadius, ThemedText, UiText},
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -347,7 +348,6 @@ pub(crate) fn reconcile_pause_overlay(
     pause: Res<State<PauseStates>>,
     next_pause: Res<NextState<PauseStates>>,
     scenario: Option<Res<CurrentScenario>>,
-    skin: Res<UiSkin>,
     active_settings_tab: Res<SettingsActiveTab>,
     outcome: Option<Res<CurrentOutcome>>,
     failure: Option<Res<ScenarioStartFailure>>,
@@ -411,10 +411,10 @@ pub(crate) fn reconcile_pause_overlay(
                         width: px(280),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    panel(*skin),
+                    ThemedRadius::control(),
+                    panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -425,7 +425,8 @@ pub(crate) fn reconcile_pause_overlay(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
                     ));
                     parent.spawn((
                         Name::new("Resume Button"),
@@ -502,10 +503,10 @@ pub(crate) fn reconcile_pause_overlay(
                         max_height: percent(SETTINGS_PANEL_MAX_H_PCT),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    panel(*skin),
+                    ThemedRadius::control(),
+                    panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -516,13 +517,14 @@ pub(crate) fn reconcile_pause_overlay(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
                         Node {
                             margin: UiRect::bottom(px(12)),
                             ..default()
                         },
                     ));
-                    build_settings_tabs(parent, *skin, active_settings_tab.0);
+                    build_settings_tabs(parent, active_settings_tab.0);
                     parent
                         .spawn((
                             Name::new("Pause Settings Body Row"),
@@ -546,7 +548,7 @@ pub(crate) fn reconcile_pause_overlay(
                                 scroll_column(),
                                 scroll_viewport(),
                             ));
-                            row.spawn((Name::new("Pause Settings Scroll Bar"), scroll_bar(*skin)));
+                            row.spawn((Name::new("Pause Settings Scroll Bar"), scroll_bar()));
                         });
                     parent.spawn((
                         Name::new("Pause Settings Back Button"),

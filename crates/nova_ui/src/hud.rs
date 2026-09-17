@@ -8,22 +8,29 @@
 //! (its `.chip` rule); this module is the ONE place it is expressed so the
 //! sites stay in a family instead of drifting apart.
 //!
-//! HUD chrome is **phosphor-only** - there is no [`crate::skin::UiSkin`] toggle
-//! here. The casing skin is a NOVA OS / menu / editor concern; nothing in the
-//! cockpit's projected overlay is a moulded plastic panel.
+//! HUD chrome follows the active UI theme like the rest of the chrome does, so
+//! every chip method takes an [`ActiveUiTheme`]. What it does NOT take from the
+//! theme is which tone a readout wears - [`ChipTone`] is a MEANING vocabulary
+//! (nav/status green, amber for objectives and autopilot mode, red for locks
+//! and threats, blue for comms), and a theme only decides what those four
+//! families look like, never which one a chip gets. Pick the tone by MEANING,
+//! never by taste.
 //!
-//! The semantic variants ([`ChipTone`]) keep their meaning colours: nav/status
-//! green phosphor, amber for objectives and autopilot mode, red for locks and
-//! threats, blue for comms. Pick the tone by MEANING, never by taste.
+//! The projected reticles, lock crosshairs and faction markers stay off the
+//! theme entirely - those are [`theme::semantic`] and [`theme::combat`], the
+//! documented exemption.
 
 /// Glob-import surface for the flight-HUD chip language.
 pub mod prelude {
-    pub use super::{body_colour, chip_node, chip_paint, quiet_chip, text_chip, ChipTone};
+    pub use super::{
+        body_colour, chip_node, chip_paint, quiet_chip, text_chip, ChipInk, ChipText, ChipTone,
+        ThemedChip,
+    };
 }
 
-use bevy::prelude::*;
+use bevy::{platform::collections::HashSet, prelude::*};
 
-use crate::theme;
+use crate::theme::{ActiveUiTheme, UiColor, UiThemeSystems};
 
 /// The chip's translucent slab fill (`rgba(2,14,8,0.62)` in the demo) - dark
 /// enough to hold text over a bright starfield, sheer enough that the HUD never
@@ -51,12 +58,14 @@ pub const CHIP_LABEL_FONT: f32 = 10.0;
 
 /// A chip's semantic family. The tone decides the text, unit-suffix and border
 /// colours; the fill is shared so the whole HUD reads as one instrument.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(
+    Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Reflect, serde::Serialize, serde::Deserialize,
+)]
 pub enum ChipTone {
-    /// Flight/nav/status readouts - green phosphor, the HUD's default voice.
+    /// Flight/nav/status readouts - the HUD's default voice, drawn in whatever
+    /// the active theme calls its primary ink.
     #[default]
-    Phosphor,
+    Readout,
     /// Objective and autopilot-mode chips - the "do this now" amber.
     Amber,
     /// Locks, threats and the hostile target inset - combat red.
@@ -66,37 +75,46 @@ pub enum ChipTone {
 }
 
 impl ChipTone {
-    /// The chip's foreground (the value text).
-    pub fn text(self) -> Color {
+    /// The semantic colour this tone's family is drawn from.
+    fn family(self) -> UiColor {
         match self {
-            ChipTone::Phosphor => theme::PHOSPHOR,
-            ChipTone::Amber => theme::AMBER_NOVA,
-            ChipTone::Threat => Color::srgb_u8(0xff, 0x8f, 0x86),
-            ChipTone::Comms => theme::BLUE,
+            ChipTone::Readout => UiColor::Primary,
+            ChipTone::Amber => UiColor::Accent,
+            ChipTone::Threat => UiColor::Danger,
+            ChipTone::Comms => UiColor::Info,
+        }
+    }
+
+    /// The chip's foreground (the value text).
+    pub fn text(self, theme: &ActiveUiTheme) -> Color {
+        match self {
+            // The threat text is a PALE red for readability over a red-tinted
+            // slab, while its border stays the saturated family colour. Lifted
+            // from the family rather than authored beside it, so a theme that
+            // moves danger moves both together.
+            ChipTone::Threat => body_colour(theme.color(UiColor::Danger)),
+            other => theme.color(other.family()),
         }
     }
 
     /// The dimmer tone for unit suffixes and secondary text (`.u` in the demo).
-    pub fn unit(self) -> Color {
+    pub fn unit(self, theme: &ActiveUiTheme) -> Color {
         match self {
-            ChipTone::Phosphor => theme::PHOSPHOR_DIM,
-            ChipTone::Amber => theme::ORANGE,
-            ChipTone::Threat => theme::RED,
-            ChipTone::Comms => theme::BLUE.with_alpha(0.7),
+            ChipTone::Readout => theme.color(UiColor::Secondary),
+            ChipTone::Amber => theme.color(UiColor::AccentLow),
+            ChipTone::Threat => theme.color(UiColor::Danger),
+            ChipTone::Comms => theme.color_alpha(UiColor::Info, 0.7),
         }
     }
 
     /// The 1px border colour - the tone at [`CHIP_BORDER_ALPHA`].
-    pub fn border(self) -> Color {
-        match self {
-            // The bordered tones use their own accent, not the text colour:
-            // the threat text is a pale red for readability while its border
-            // must stay the saturated combat red.
-            ChipTone::Threat => theme::RED.with_alpha(0.45),
-            ChipTone::Amber => theme::AMBER_NOVA.with_alpha(0.45),
-            ChipTone::Comms => theme::BLUE.with_alpha(0.4),
-            ChipTone::Phosphor => theme::PHOSPHOR.with_alpha(CHIP_BORDER_ALPHA),
-        }
+    pub fn border(self, theme: &ActiveUiTheme) -> Color {
+        let alpha = match self {
+            ChipTone::Threat | ChipTone::Amber => 0.45,
+            ChipTone::Comms => 0.4,
+            ChipTone::Readout => CHIP_BORDER_ALPHA,
+        };
+        theme.color_alpha(self.family(), alpha)
     }
 
     /// The slab fill. One fill for the whole family except the threat inset,
@@ -119,8 +137,8 @@ impl ChipTone {
     /// Derived rather than authored so a tone cannot ship a reading colour that
     /// disagrees with its own accent - and so a cue a MOD accents gets one
     /// without picking a second hex value out of the air.
-    pub fn body(self) -> Color {
-        body_colour(self.text())
+    pub fn body(self, theme: &ActiveUiTheme) -> Color {
+        body_colour(self.text(theme))
     }
 }
 
@@ -160,19 +178,117 @@ pub fn chip_node() -> Node {
     }
 }
 
+/// Marks a HUD chip, so [`reconcile_chips`] paints its slab and its hairline
+/// border from the active theme and repaints them when the theme changes.
+///
+/// A chip spawns UNPAINTED, like every other themed widget: a bundle factory
+/// cannot reach the world, so paint that is baked in at spawn is paint that
+/// goes stale the moment the player changes theme.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ThemedChip {
+    tone: ChipTone,
+    /// A quiet chip wears the calmer slab and a border at a third of the alpha,
+    /// so persistent chrome does not compete with the live readouts.
+    quiet: bool,
+}
+
+impl ThemedChip {
+    /// A live readout chip.
+    pub fn loud(tone: ChipTone) -> Self {
+        Self { tone, quiet: false }
+    }
+
+    /// A calm chrome chip (the status bar, the dock's unavailable keys).
+    pub fn quiet(tone: ChipTone) -> Self {
+        Self { tone, quiet: true }
+    }
+
+    /// This chip's `(fill, border)` in `theme`.
+    fn paint(self, theme: &ActiveUiTheme) -> (Color, Color) {
+        if self.quiet {
+            (CHIP_FILL_QUIET, self.tone.border(theme).with_alpha(0.22))
+        } else {
+            (self.tone.fill(), self.tone.border(theme))
+        }
+    }
+}
+
+/// Which of a tone's three inks a chip span is written in.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ChipInk {
+    /// The value text - [`ChipTone::text`].
+    Value,
+    /// A unit suffix or a secondary label - [`ChipTone::unit`].
+    Unit,
+    /// A sentence to read rather than a label - [`ChipTone::body`].
+    Body,
+}
+
+/// Marks a chip's text, so [`reconcile_chip_text`] writes its `TextColor` from
+/// the active theme and rewrites it on a theme change.
+///
+/// Sits on the chip node itself when the chip IS the text, and on a child span
+/// when a chip carries several inks (a value and its unit suffix).
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ChipText {
+    tone: ChipTone,
+    ink: ChipInk,
+}
+
+impl ChipText {
+    /// The value ink of `tone`.
+    pub fn value(tone: ChipTone) -> Self {
+        Self {
+            tone,
+            ink: ChipInk::Value,
+        }
+    }
+
+    /// The unit-suffix ink of `tone`.
+    pub fn unit(tone: ChipTone) -> Self {
+        Self {
+            tone,
+            ink: ChipInk::Unit,
+        }
+    }
+
+    /// The reading ink of `tone`.
+    pub fn body(tone: ChipTone) -> Self {
+        Self {
+            tone,
+            ink: ChipInk::Body,
+        }
+    }
+
+    /// This span's colour in `theme`.
+    fn color(self, theme: &ActiveUiTheme) -> Color {
+        match self.ink {
+            ChipInk::Value => self.tone.text(theme),
+            ChipInk::Unit => self.tone.unit(theme),
+            ChipInk::Body => self.tone.body(theme),
+        }
+    }
+}
+
 /// The paint components of a chip in `tone` - spread over a node that already
 /// carries [`chip_node`] geometry (or a positioned variant of it).
 pub fn chip_paint(tone: ChipTone) -> impl Bundle {
     (
-        BackgroundColor(tone.fill()),
-        BorderColor::all(tone.border()),
+        ThemedChip::loud(tone),
+        BackgroundColor(Color::NONE),
+        BorderColor::all(Color::NONE),
     )
 }
 
 /// A complete text chip: geometry, paint and the tone's text colour. The caller
 /// adds the `Text`/`TextFont` (font size varies per site) and any positioning.
 pub fn text_chip(tone: ChipTone) -> impl Bundle {
-    (chip_node(), chip_paint(tone), TextColor(tone.text()))
+    (
+        chip_node(),
+        chip_paint(tone),
+        ChipText::value(tone),
+        TextColor(Color::NONE),
+    )
 }
 
 /// A quiet chip (the status bar): the same shape at a calmer border and fill,
@@ -180,10 +296,61 @@ pub fn text_chip(tone: ChipTone) -> impl Bundle {
 pub fn quiet_chip(tone: ChipTone) -> impl Bundle {
     (
         chip_node(),
-        BackgroundColor(CHIP_FILL_QUIET),
-        BorderColor::all(tone.border().with_alpha(0.22)),
-        TextColor(tone.unit()),
+        ThemedChip::quiet(tone),
+        BackgroundColor(Color::NONE),
+        BorderColor::all(Color::NONE),
+        ChipText::unit(tone),
+        TextColor(Color::NONE),
     )
+}
+
+/// Register the chip reconcilers. Both run AFTER [`UiThemeSystems`], so a theme
+/// flip reaches the HUD in the same frame it resolves.
+pub(crate) fn build(app: &mut App) {
+    app.add_systems(
+        Update,
+        (reconcile_chips, reconcile_chip_text).after(UiThemeSystems),
+    );
+}
+
+/// Paint chips on a theme change and on spawn.
+fn reconcile_chips(
+    theme: Res<ActiveUiTheme>,
+    mut q: Query<(Entity, &ThemedChip, &mut BackgroundColor, &mut BorderColor)>,
+    added: Query<Entity, Added<ThemedChip>>,
+) {
+    let restyle_all = theme.is_changed();
+    let just_added: HashSet<Entity> = added.iter().collect();
+    if !restyle_all && just_added.is_empty() {
+        return;
+    }
+    for (entity, chip, mut bg, mut border) in &mut q {
+        if !restyle_all && !just_added.contains(&entity) {
+            continue;
+        }
+        let (fill, edge) = chip.paint(&theme);
+        *bg = fill.into();
+        border.set_all(edge);
+    }
+}
+
+/// Write chip text colours on a theme change and on spawn.
+fn reconcile_chip_text(
+    theme: Res<ActiveUiTheme>,
+    mut q: Query<(Entity, &ChipText, &mut TextColor)>,
+    added: Query<Entity, Added<ChipText>>,
+) {
+    let restyle_all = theme.is_changed();
+    let just_added: HashSet<Entity> = added.iter().collect();
+    if !restyle_all && just_added.is_empty() {
+        return;
+    }
+    for (entity, span, mut color) in &mut q {
+        if !restyle_all && !just_added.contains(&entity) {
+            continue;
+        }
+        *color = TextColor(span.color(&theme));
+    }
 }
 
 #[cfg(test)]
@@ -194,7 +361,7 @@ mod tests {
     /// single instrument; only the threat inset departs (a red-tinted slab).
     #[test]
     fn the_chip_family_shares_its_slab() {
-        for tone in [ChipTone::Phosphor, ChipTone::Amber, ChipTone::Comms] {
+        for tone in [ChipTone::Readout, ChipTone::Amber, ChipTone::Comms] {
             assert_eq!(tone.fill(), CHIP_FILL, "{tone:?} rides the shared slab");
         }
         assert_ne!(
@@ -209,25 +376,81 @@ mod tests {
     /// inverts this reads as a mislabelled chip.
     #[test]
     fn each_tone_orders_text_above_unit_above_border() {
+        let theme = ActiveUiTheme::default();
         let luma = |color: Color| {
             let c = color.to_srgba();
             0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue
         };
         for tone in [
-            ChipTone::Phosphor,
+            ChipTone::Readout,
             ChipTone::Amber,
             ChipTone::Threat,
             ChipTone::Comms,
         ] {
             assert!(
-                luma(tone.text()) >= luma(tone.unit()),
+                luma(tone.text(&theme)) >= luma(tone.unit(&theme)),
                 "{tone:?}: the value must not be dimmer than its unit suffix"
             );
             assert!(
-                tone.border().alpha() < 1.0,
+                tone.border(&theme).alpha() < 1.0,
                 "{tone:?}: the border is a hairline, not a solid frame"
             );
         }
+    }
+
+    /// A chip and its text follow the active theme LIVE. Fails if the chip
+    /// reconcilers are unregistered, which is the defect the HUD had before:
+    /// a chip kept the look its screen was built in.
+    ///
+    /// Flipped onto a MOD theme rather than onto `base/hardware`: the two
+    /// shipped looks share one palette (a hardware casing draws the same
+    /// phosphor ink), so a base-to-base flip moves a chip's slab and border but
+    /// not its ink - and the ink is what this reconciler writes.
+    #[test]
+    fn a_chip_repaints_on_a_theme_change() {
+        use crate::{
+            theme::{
+                base::base_ui_themes,
+                config::{UiThemeConfig, PHOSPHOR_THEME_ID},
+                GameUiThemes, SelectedUiTheme,
+            },
+            NovaUiPlugin,
+        };
+
+        const AMBER_CRT: &str = "wildcat/amber_crt";
+        let mut themes = base_ui_themes();
+        themes.push(UiThemeConfig {
+            id: AMBER_CRT.to_string(),
+            name: "Amber CRT".to_string(),
+            inherit: Some(PHOSPHOR_THEME_ID.to_string()),
+            palette: [("primary".to_string(), "#ffb84a".to_string())]
+                .into_iter()
+                .collect(),
+            metrics: None,
+            roles: crate::theme::config::UiRoles::default(),
+        });
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, NovaUiPlugin));
+        app.insert_resource(GameUiThemes(themes));
+        let chip = app.world_mut().spawn(text_chip(ChipTone::Readout)).id();
+        app.update();
+
+        let read = |app: &App| {
+            let entity = app.world().entity(chip);
+            (
+                entity.get::<BackgroundColor>().unwrap().0,
+                entity.get::<TextColor>().unwrap().0,
+            )
+        };
+        let (fill, ink) = read(&app);
+        assert_eq!(fill, ChipTone::Readout.fill(), "the slab painted on spawn");
+        assert_ne!(ink, Color::NONE, "and so did the value ink");
+
+        *app.world_mut().resource_mut::<SelectedUiTheme>() = SelectedUiTheme(AMBER_CRT.to_string());
+        app.update();
+        let (_, amber_ink) = read(&app);
+        assert_ne!(amber_ink, ink, "a theme that moves `primary` moves the ink");
     }
 
     /// The geometry is a bordered, rounded slab - a chip that lost its border

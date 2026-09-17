@@ -31,5 +31,5 @@ pub mod prelude {
 /// comms traffic - authoring the colour on all of them would be noise around
 /// the few that differ.
 pub fn default_comms_accent() -> Color {
-    nova_ui::theme::BLUE
+    nova_ui::theme::semantic::COMMS
 }

@@ -30,6 +30,9 @@ nova_mod_format = { path = "../nova_mod_format" }
 nova_modding = { path = "../nova_modding" }
 nova_scenario = { path = "../nova_scenario" }
 nova_training = { path = "../nova_training" }
+# The base mod's two UI themes are builders in nova_ui, serialized here like
+# every other piece of base content.
+nova_ui = { path = "../nova_ui" }
 # The quantity types the builders author in: base content is written in meters
 # and the audit reports reach in meters.
 nova_events = { path = "../nova_events" }

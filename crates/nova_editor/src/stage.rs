@@ -24,13 +24,13 @@ use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::subtree_collider_aabb;
 use nova_scenario::prelude::{LightConfig, ScenarioObjectKind};
-use nova_ui::theme;
 
 use crate::{
     config::{EditorGizmos, EditorOverlays, HoveredNode, SelectedNode},
     gallery::EditorCamera,
     gizmo::GizmoAxis,
     node::{objects_of, EditContext, ObjectNodes},
+    palette,
     ui::inspector::PANEL_W as INSPECTOR_W,
 };
 
@@ -72,16 +72,16 @@ const LEVEL: f32 = 1.0e-3;
 /// the subject; at this weight the decade lines carry the scale and the grid
 /// is the floor again.
 const GRID: Color = Color::srgba_u8(0x0d, 0x6e, 0x35, 0x9c);
-const GRID_DECADE: Color = theme::PHOSPHOR_DIM;
+const GRID_DECADE: Color = palette::GO_DIM;
 
 /// The drop line from the selected node to the plane, and the footprint ring
 /// where it lands.
-const PLUMB: Color = theme::AMBER_NOVA;
+const PLUMB: Color = palette::AIMED;
 
 /// A trigger volume - the sphere a beacon or a crate fires `OnEnter` from. One
 /// colour for all of them, because what they have in common is the thing worth
 /// seeing: fly in here and the scenario hears about it.
-const TRIGGER: Color = theme::BLUE;
+const TRIGGER: Color = palette::TRIGGER;
 
 /// How much of the distance to the camera a sun's arrow spans, and the disc its
 /// parallel rays leave from as a fraction of that arrow.
@@ -217,14 +217,14 @@ pub(crate) fn draw_world_grid(
         gizmos.line(
             Vec3::new(centre.x - half, 0.0, 0.0),
             Vec3::new(centre.x + half, 0.0, 0.0),
-            theme::RED,
+            palette::NO,
         );
     }
     if centre.x.abs() <= half {
         gizmos.line(
             Vec3::new(0.0, 0.0, centre.z - half),
             Vec3::new(0.0, 0.0, centre.z + half),
-            theme::BLUE,
+            palette::TRIGGER,
         );
     }
 
@@ -251,12 +251,12 @@ pub(crate) fn draw_world_grid(
 
 /// The colour the mark is drawn in. The brightest phosphor on the stage: the
 /// selection is the one thing on screen every other panel is about.
-const MARK: Color = theme::PHOSPHOR;
+const MARK: Color = palette::GO;
 
 /// The colour a HOVER is drawn in. A step down from the selection, because the
 /// pointer answers "which one is this" and the selection answers "which one am
 /// I working on" - and the second must still be findable while the first moves.
-const HOVER_MARK: Color = theme::PHOSPHOR_DIM;
+const HOVER_MARK: Color = palette::GO_DIM;
 
 /// How far off the node's own skin the box stands, as a fraction of its
 /// longest side. Off the body rather than on it - an outline flush with a hull

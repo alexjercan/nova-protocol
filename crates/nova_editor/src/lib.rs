@@ -61,6 +61,7 @@ mod highlight;
 mod inspect;
 mod keybind;
 mod node;
+mod palette;
 mod placement;
 mod preview;
 mod probe;

@@ -12,7 +12,7 @@ use nova_events::units::prelude::*;
 use nova_scenario::prelude::{
     AsteroidConfig, BeaconConfig, EntityFilterConfig, ScenarioObjectKind, KIND_ROCK,
 };
-use nova_ui::prelude::TextFieldSubmitted;
+use nova_ui::{prelude::TextFieldSubmitted, theme::ActiveUiTheme};
 
 use super::*;
 use crate::{
@@ -30,7 +30,7 @@ use crate::{
 /// The panel, the window layer and the two reconcilers that keep them in step.
 fn window_app() -> App {
     let mut app = App::new();
-    app.insert_resource(UiSkin::default());
+    app.init_resource::<ActiveUiTheme>();
     app.init_resource::<SelectedNode>();
     // A slider that cannot write says so on the status line.
     app.init_resource::<crate::config::EditorStatus>();
@@ -46,7 +46,7 @@ fn window_app() -> App {
     // A window entity, because a floating window is placed and clamped against
     // the screen it stands on.
     app.world_mut().spawn(Window::default());
-    app.world_mut().spawn(inspector_panel(UiSkin::default()));
+    app.world_mut().spawn(inspector_panel());
     app.world_mut().spawn(window_layer());
     app.add_systems(
         Update,

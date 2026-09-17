@@ -33,7 +33,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{bottom_edge_px, StatusBarRootMarker},
-    theme::combat,
+    theme::{combat, ActiveUiTheme, UiColor},
 };
 
 use crate::prelude::*;
@@ -112,9 +112,17 @@ const FACTION_NEUTRAL_COLOR: Color = nova_ui::theme::semantic::NEUTRAL;
 /// the player's aim.
 const NEUTRALIZED_FLASH_SECS: f32 = 1.4;
 const CONFIRMATION_FADE_SECS: f32 = 0.4;
-const NEUTRALIZED_FLASH_COLOR: Color = nova_ui::theme::PHOSPHOR;
+/// The confirmation legends take the theme's own accents rather than a hex:
+/// the two systems below fade them every frame, so they read the live theme
+/// and the backdrop tints stay literal (they are near-black washes tuned to the
+/// inset, not palette colours).
+fn neutralized_flash_color(theme: &ActiveUiTheme) -> Color {
+    theme.color(UiColor::Primary)
+}
 const NEUTRALIZED_FLASH_BACKDROP: Color = Color::srgba(0.0, 0.04, 0.01, 0.9);
-const DESTROYED_FLASH_COLOR: Color = nova_ui::theme::AMBER_NOVA;
+fn destroyed_flash_color(theme: &ActiveUiTheme) -> Color {
+    theme.color(UiColor::Accent)
+}
 const DESTROYED_FLASH_BACKDROP: Color = Color::srgba(0.05, 0.025, 0.0, 0.92);
 
 /// NO-SIGNAL overlay: shown when a combat lock exists on a body the
@@ -401,7 +409,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                 TargetInsetDestroyedFlashMarker,
                 Text::new("DESTROYED"),
                 TextFont::from_font_size(nova_ui::hud::CHIP_FONT),
-                TextColor(DESTROYED_FLASH_COLOR),
+                TextColor(Color::NONE),
                 TextLayout::justify(Justify::Center),
                 Node {
                     position_type: PositionType::Absolute,
@@ -420,7 +428,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                 TargetInsetNeutralizedFlashMarker { remaining: 0.0 },
                 Text::new("NEUTRALIZED"),
                 TextFont::from_font_size(nova_ui::hud::CHIP_FONT),
-                TextColor(NEUTRALIZED_FLASH_COLOR),
+                TextColor(Color::NONE),
                 TextLayout::justify(Justify::Center),
                 Node {
                     position_type: PositionType::Absolute,
@@ -900,6 +908,7 @@ fn drive_inset_frame_state(
 /// remain after this inset-local flash fades.
 fn flash_locked_target_neutralized(
     time: Res<Time>,
+    theme: Res<ActiveUiTheme>,
     q_player: Query<&CombatLock, With<PlayerSpaceshipMarker>>,
     q_newly_neutralized: Query<(), Added<NeutralizedMarker>>,
     mut q_flash: Query<
@@ -935,7 +944,7 @@ fn flash_locked_target_neutralized(
         }
 
         let alpha = (flash.remaining / CONFIRMATION_FADE_SECS).clamp(0.0, 1.0);
-        text.0 = NEUTRALIZED_FLASH_COLOR.with_alpha(alpha);
+        text.0 = neutralized_flash_color(&theme).with_alpha(alpha);
         backdrop.0 =
             NEUTRALIZED_FLASH_BACKDROP.with_alpha(NEUTRALIZED_FLASH_BACKDROP.alpha() * alpha);
     }
@@ -945,6 +954,7 @@ fn flash_locked_target_neutralized(
 /// countdown is the single lifetime source, so text and final shot close
 /// together.
 fn show_confirmed_destruction(
+    theme: Res<ActiveUiTheme>,
     q_player: Query<&CombatLock, With<PlayerSpaceshipMarker>>,
     q_panel: Query<(&TargetInsetKillCam, &TargetInsetDestroyedTarget), With<TargetInsetHudMarker>>,
     mut q_flash: Query<
@@ -977,7 +987,7 @@ fn show_confirmed_destruction(
         };
         visibility.set_if_neq(Visibility::Inherited);
         let alpha = (remaining / CONFIRMATION_FADE_SECS).clamp(0.0, 1.0);
-        text.0 = DESTROYED_FLASH_COLOR.with_alpha(alpha);
+        text.0 = destroyed_flash_color(&theme).with_alpha(alpha);
         backdrop.0 = DESTROYED_FLASH_BACKDROP.with_alpha(DESTROYED_FLASH_BACKDROP.alpha() * alpha);
     }
     if remaining.is_some() {
@@ -1587,6 +1597,9 @@ mod tests {
     #[test]
     fn confirmed_destruction_owns_the_kill_cam_ribbon() {
         let mut world = World::new();
+        // The paint system reads the live theme; `NovaUiPlugin` owns it in
+        // production and a bare `World` has none.
+        world.init_resource::<ActiveUiTheme>();
         let target = world.spawn_empty().id();
         let player = world.spawn((PlayerSpaceshipMarker, CombatLock(None))).id();
         world.spawn((
@@ -1619,7 +1632,7 @@ mod tests {
         );
         assert_eq!(
             world.entity(flash).get::<TextColor>().unwrap().0,
-            DESTROYED_FLASH_COLOR
+            destroyed_flash_color(&ActiveUiTheme::default())
         );
         assert_eq!(
             *world.entity(neutralized).get::<Visibility>().unwrap(),
@@ -1751,6 +1764,9 @@ mod tests {
     fn only_the_locked_targets_neutralization_flashes_in_the_inset() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        // The paint system reads the live theme; `NovaUiPlugin` owns it in
+        // production and a bare `World` has none.
+        world.init_resource::<ActiveUiTheme>();
         let target = world.spawn_empty().id();
         world.spawn(NeutralizedMarker);
         world.spawn((PlayerSpaceshipMarker, CombatLock(Some(target))));
@@ -1787,7 +1803,7 @@ mod tests {
         );
         assert_eq!(
             world.entity(flash).get::<TextColor>().unwrap().0,
-            NEUTRALIZED_FLASH_COLOR
+            neutralized_flash_color(&ActiveUiTheme::default())
         );
 
         world

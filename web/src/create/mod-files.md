@@ -2,8 +2,8 @@
 
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-six kinds of reusable item: campaigns, scenarios, ship sections, whole ships,
-ship skin styles, and training lessons.
+seven kinds of reusable item: campaigns, scenarios, ship sections, whole
+ships, ship skin styles, training lessons, and UI themes.
 
 Use this page to choose the right file. Then open the detailed reference for the
 item you want to author.
@@ -143,7 +143,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-six item kinds:
+seven item kinds:
 
 ```ron
 [
@@ -184,6 +184,16 @@ six item kinds:
         ),
         fixtures: [],
     )),
+    UiTheme((
+        id: "my-mod/amber",
+        name: "Amber CRT",
+        inherit: Some("base/phosphor"),
+        palette: {
+            "primary": "#ffb84a",
+        },
+        metrics: None,
+        roles: (),
+    )),
 ]
 ```
 
@@ -191,7 +201,7 @@ Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
 
-## The six content chapters
+## The seven content chapters
 
 <div id="wiki-children"></div>
 
@@ -208,6 +218,9 @@ Large mods can use one scenario per file and list all of them in `content`.
 - A [lesson](../lessons/) is one screen of the in-game training handbook: a
   demonstration, a few lines, the actions it names, and sometimes a focused
   range to fly.
+- A [UI theme](../ui-themes/) is the look the whole interface paints in: the
+  palette, the metrics, and the paint of every control in every state. The
+  player picks one in Settings.
 
 ## Paths and dependencies
 
@@ -225,10 +238,10 @@ the [base content catalog](../base-content/) for reusable base ids and assets.
 
 Content merges by item id:
 
-- A new id adds a campaign, scenario, section, ship, or style.
+- A new id adds a campaign, scenario, section, ship, style, lesson, or theme.
 - An id that already exists replaces that whole item.
 - A duplicate id inside one bundle is a conflict; the first item is kept.
 
-For sections, the key is `base.id`. For campaigns, scenarios, ships, and
-styles, the key is `id`. Prefix new ids with your mod id to avoid accidental
-collisions.
+For sections, the key is `base.id`. For campaigns, scenarios, ships, styles,
+lessons, and UI themes, the key is `id`. Prefix new ids with your mod id to
+avoid accidental collisions.

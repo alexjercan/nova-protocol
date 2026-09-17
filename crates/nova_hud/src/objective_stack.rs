@@ -36,8 +36,9 @@ use bevy::prelude::*;
 use nova_gameplay::{objectives::GameObjectives, prelude::*};
 use nova_input::prelude::{source_label, InputBindings};
 use nova_ui::{
-    hud::{chip_node, ChipTone},
+    hud::{chip_node, ChipText, ChipTone},
     prelude::bottom_edge_px,
+    theme::ActiveUiTheme,
 };
 
 use super::{emphasis::prelude::*, HudTier, NovaHudAssets, NovaHudSystems};
@@ -374,6 +375,7 @@ fn read_on_nova_os(
 /// every frame and never leave rest.
 fn sync_objective_chips(
     notifications: Res<ObjectiveNotifications>,
+    theme: Res<ActiveUiTheme>,
     assets: Option<Res<NovaHudAssets>>,
     bindings: Option<Res<InputBindings>>,
     mut commands: Commands,
@@ -394,7 +396,7 @@ fn sync_objective_chips(
     commands.entity(stack).with_children(|stack| {
         // Newest on top: the freshest posting is the one to read first.
         for shown in notifications.shown.iter().rev() {
-            stack.spawn(objective_chip(shown));
+            stack.spawn(objective_chip(shown, &theme));
         }
         // One TAB affordance for the whole stack, riding it: it says "the full
         // list is in the computer", and it leaves when the last chip does.
@@ -419,7 +421,7 @@ fn novaos_key_label(bindings: Option<&InputBindings>) -> String {
 /// to the world entity it is about - `ObjectiveMarkerTarget` has a free-form
 /// label and no objective id - so there is nothing to measure a distance to.
 /// Range stays the world-anchored marker chip's job, which HAS the target.
-fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
+fn objective_chip(shown: &ObjectiveNotification, theme: &ActiveUiTheme) -> impl Bundle {
     let alpha = shown.alpha();
     let mut node = chip_node();
     node.max_width = Val::Percent(80.0);
@@ -440,11 +442,10 @@ fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
                 .fill()
                 .with_alpha(ChipTone::Amber.fill().alpha() * alpha),
         ),
-        BorderColor::all(
-            ChipTone::Amber
-                .border()
-                .with_alpha(ChipTone::Amber.border().alpha() * alpha),
-        ),
+        BorderColor::all({
+            let edge = ChipTone::Amber.border(theme);
+            edge.with_alpha(edge.alpha() * alpha)
+        }),
         Pickable::IGNORE,
         children![
             (
@@ -461,7 +462,7 @@ fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
                     rotation: Rot2::degrees(45.0),
                     ..default()
                 },
-                BorderColor::all(chip_alpha(alpha)),
+                BorderColor::all(chip_alpha(alpha, theme)),
                 Pickable::IGNORE,
             ),
             (
@@ -472,7 +473,7 @@ fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
                     linebreak: LineBreak::WordBoundary,
                     ..default()
                 },
-                TextColor(chip_alpha(alpha)),
+                TextColor(chip_alpha(alpha, theme)),
                 Pickable::IGNORE,
             ),
         ],
@@ -486,8 +487,8 @@ fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
 /// two paths agreed only because the amber tone happens to be fully opaque
 /// today - give it a sub-1.0 alpha and an absolute fade would render a read
 /// chip BRIGHTER than an unread one.
-fn chip_alpha(factor: f32) -> Color {
-    let text = ChipTone::Amber.text();
+fn chip_alpha(factor: f32, theme: &ActiveUiTheme) -> Color {
+    let text = ChipTone::Amber.text(theme);
     text.with_alpha(text.alpha() * factor)
 }
 
@@ -537,7 +538,8 @@ fn tab_footer(key: &str, cap: Option<KeyCap>) -> impl Bundle {
                     key.to_string()
                 }),
                 TextFont::from_font_size(TAB_FONT_PX),
-                TextColor(ChipTone::Amber.unit()),
+                ChipText::unit(ChipTone::Amber),
+                TextColor(Color::NONE),
                 Node {
                     display: if cap.is_some() {
                         Display::None
@@ -555,7 +557,8 @@ fn tab_footer(key: &str, cap: Option<KeyCap>) -> impl Bundle {
                 // The AMBER dim tone, not the phosphor the retired hint used:
                 // the footer belongs to the objective notification above it, and
                 // a green word under an amber chip reads as a second element.
-                TextColor(ChipTone::Amber.unit()),
+                ChipText::unit(ChipTone::Amber),
+                TextColor(Color::NONE),
                 Pickable::IGNORE,
             ),
         ],
@@ -567,6 +570,7 @@ fn tab_footer(key: &str, cap: Option<KeyCap>) -> impl Bundle {
 /// pop is the emphasis while it plays, and the fade owns the alpha after.
 fn breathe_objective_chips(
     time: Res<Time>,
+    theme: Res<ActiveUiTheme>,
     notifications: Res<ObjectiveNotifications>,
     q_chips: Query<(&ObjectiveStackChip, &HudEmphasis, &Children)>,
     mut q_text: Query<&mut TextColor>,
@@ -588,7 +592,7 @@ fn breathe_objective_chips(
         let alpha = if shown.read_secs.is_some() || emphasis.popping() {
             continue;
         } else {
-            chip_alpha(wave)
+            chip_alpha(wave, &theme)
         };
         for &child in children {
             if let Ok(mut color) = q_text.get_mut(child) {
@@ -721,6 +725,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.add_plugins(StatesPlugin);
+        // `NovaUiPlugin` owns the live theme in production; this harness adds
+        // no plugins, and the paint systems below read it as a required
+        // resource.
+        app.init_resource::<ActiveUiTheme>();
         app.init_state::<nova_gameplay::PauseStates>();
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
             0.5,
@@ -1028,7 +1036,7 @@ mod tests {
         app.update();
         advance(&mut app, CHIP_POP_SECS);
 
-        let rest = ChipTone::Amber.text().alpha();
+        let rest = ChipTone::Amber.text(&ActiveUiTheme::default()).alpha();
         let (mut dimmed, mut bright) = (false, false);
         for _ in 0..16 {
             app.update();

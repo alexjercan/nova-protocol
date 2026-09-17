@@ -10,13 +10,16 @@ use nova_info::prelude::*;
 use nova_scenario::prelude::*;
 use nova_training::prelude::{catalog_field_notes, FieldNoteRotation, TrainingCatalog};
 use nova_ui::{
-    prelude::UiSkin,
     screen::{
         details_pane, footer_back_slot, list_detail_screen, list_pane, overlay_root, scroll_bar,
         scroll_column, scroll_viewport,
     },
     theme,
-    widget::{panel, panel_head, themed_button, ButtonVariant, Selected, UiText},
+    theme::UiColor,
+    widget::{
+        panel, panel_head, themed_button, ButtonVariant, Selected, ThemedFill, ThemedRadius,
+        ThemedText, ThemedTextShadow, UiText,
+    },
 };
 
 use crate::{
@@ -45,7 +48,6 @@ pub(crate) fn setup_menu_ui(
     mut active_tab: ResMut<ModsActiveTab>,
     mut selected: ResMut<SelectedModId>,
     mut selected_scenario: ResMut<SelectedScenarioId>,
-    skin: Res<UiSkin>,
     active_settings_tab: Res<SettingsActiveTab>,
     catalog: Res<TrainingCatalog>,
     mut rotation: ResMut<FieldNoteRotation>,
@@ -65,10 +67,10 @@ pub(crate) fn setup_menu_ui(
                 width: px(280),
                 padding: UiRect::all(px(20)),
                 border: UiRect::all(px(theme::BORDER_W)),
-                border_radius: BorderRadius::all(px(theme::RADIUS)),
                 ..default()
             },
-            panel(*skin),
+            ThemedRadius::control(),
+            panel(),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -79,9 +81,11 @@ pub(crate) fn setup_menu_ui(
                     font_size: FontSize::Px(28.0),
                     ..default()
                 },
-                TextColor(theme::SCREEN_TEXT),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Body),
+                ThemedTextShadow::alpha(UiColor::Primary, 0.35),
                 TextShadow {
-                    color: theme::PHOSPHOR.with_alpha(0.35),
+                    color: Color::NONE,
                     offset: Vec2::ZERO,
                 },
             ));
@@ -93,7 +97,8 @@ pub(crate) fn setup_menu_ui(
                     margin: UiRect::all(px(10)),
                     ..default()
                 },
-                BackgroundColor(theme::PHOSPHOR_MUTED),
+                BackgroundColor(Color::NONE),
+                ThemedFill::new(UiColor::Label),
             ));
             parent.spawn((
                 Name::new("New Game Button"),
@@ -148,7 +153,8 @@ pub(crate) fn setup_menu_ui(
                                 font_size: FontSize::Px(10.0),
                                 ..default()
                             },
-                            TextColor(theme::PHOSPHOR_MUTED),
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColor::Label),
                         ));
                     }
                 });
@@ -180,10 +186,10 @@ pub(crate) fn setup_menu_ui(
                         max_height: percent(SETTINGS_PANEL_MAX_H_PCT),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    panel(*skin),
+                    ThemedRadius::control(),
+                    panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -193,13 +199,14 @@ pub(crate) fn setup_menu_ui(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
                         Node {
                             margin: UiRect::bottom(px(12)),
                             ..default()
                         },
                     ));
-                    build_settings_tabs(parent, *skin, active_settings_tab.0);
+                    build_settings_tabs(parent, active_settings_tab.0);
                     parent
                         .spawn((
                             Name::new("Settings Body Row"),
@@ -224,7 +231,7 @@ pub(crate) fn setup_menu_ui(
                                 scroll_column(),
                                 scroll_viewport(),
                             ));
-                            row.spawn((Name::new("Settings Scroll Bar"), scroll_bar(*skin)));
+                            row.spawn((Name::new("Settings Scroll Bar"), scroll_bar()));
                         });
                     parent.spawn((
                         Name::new("Settings Back Button"),
@@ -262,16 +269,13 @@ pub(crate) fn setup_menu_ui(
                         height: percent(85),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::PANEL_RADIUS)),
                         ..default()
                     },
-                    panel(*skin),
+                    ThemedRadius::panel(),
+                    panel(),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((
-                        Name::new("Mods Title"),
-                        panel_head("Mods", Some("DELTA-9"), *skin),
-                    ));
+                    parent.spawn((Name::new("Mods Title"), panel_head("Mods", Some("DELTA-9"))));
                     parent.spawn((
                         Name::new("Mods Subtitle"),
                         Text::new("Enable installed mods. Base is always on."),
@@ -279,7 +283,8 @@ pub(crate) fn setup_menu_ui(
                             font_size: FontSize::Px(13.0),
                             ..default()
                         },
-                        TextColor(theme::PHOSPHOR_MUTED),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
                     ));
 
                     parent.spawn((
@@ -368,10 +373,10 @@ pub(crate) fn setup_menu_ui(
                         height: percent(85),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    panel(*skin),
+                    ThemedRadius::control(),
+                    panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -381,7 +386,8 @@ pub(crate) fn setup_menu_ui(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
                     ));
                     parent.spawn((
                         Name::new("Scenarios Subtitle"),
@@ -390,7 +396,8 @@ pub(crate) fn setup_menu_ui(
                             font_size: FontSize::Px(13.0),
                             ..default()
                         },
-                        TextColor(theme::PHOSPHOR_MUTED),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
                     ));
 
                     parent.spawn((
@@ -430,10 +437,10 @@ pub(crate) fn setup_menu_ui(
     // the row is the way in - and the note is picked ONCE here, on menu entry,
     // because the corner is never reconciled and a note must not change while
     // the player is reading it.
-    spawn_training_panel(&mut commands, *skin);
+    spawn_training_panel(&mut commands);
     let notes = catalog_field_notes(&catalog);
     let note = rotation.pick(&notes, time.elapsed().subsec_nanos() as usize);
-    spawn_menu_aside(&mut commands, *skin, note);
+    spawn_menu_aside(&mut commands, note);
 }
 
 pub(crate) fn on_new_game(

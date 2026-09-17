@@ -21,9 +21,11 @@ use bevy::{
 use nova_ui::{
     prelude::{
         button, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, slider_track,
-        themed_button, ButtonSpec, UiSkin, UiText,
+        themed_button, ButtonSpec, UiText,
     },
     theme,
+    theme::UiColor,
+    widget::{ThemedBorder, ThemedRadius, ThemedText},
 };
 
 use crate::{
@@ -288,7 +290,6 @@ pub(crate) fn on_destructive_item(
     activate: On<Activate>,
     rows: Query<&DestructiveVerb>,
     mut commands: Commands,
-    skin: Res<UiSkin>,
     layer: Option<Single<Entity, With<EditorWindowLayer>>>,
     open: Query<(), With<ConfirmWindow>>,
     screen: Option<Single<&Window>>,
@@ -306,7 +307,7 @@ pub(crate) fn on_destructive_item(
     let at = Vec2::new(((size.x - CONFIRM_W) * 0.5).max(8.0), TOP_MARGIN);
     commands
         .entity(*layer)
-        .with_children(|layer| spawn_confirm_window(layer, *verb, at, *skin));
+        .with_children(|layer| spawn_confirm_window(layer, *verb, at));
 }
 
 /// The question, its two answers, and the bar you can drag it by.
@@ -314,7 +315,6 @@ fn spawn_confirm_window(
     layer: &mut RelatedSpawnerCommands<ChildOf>,
     verb: DestructiveVerb,
     at: Vec2,
-    skin: UiSkin,
 ) {
     let mut frame = layer.spawn((
         Name::new("Confirm Window"),
@@ -330,7 +330,7 @@ fn spawn_confirm_window(
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
-        panel(skin),
+        panel(),
     ));
     let window = frame.id();
     frame.with_children(|frame| {
@@ -347,7 +347,8 @@ fn spawn_confirm_window(
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },
-                BorderColor::all(theme::PHOSPHOR.with_alpha(0.16)),
+                BorderColor::all(Color::NONE),
+                ThemedBorder::alpha(UiColor::Primary, 0.16),
                 observe(on_window_drag),
             ))
             .with_children(|bar| {
@@ -359,7 +360,8 @@ fn spawn_confirm_window(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::AMBER_NOVA),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Accent),
                 ));
             });
         frame
@@ -382,7 +384,8 @@ fn spawn_confirm_window(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Primary),
                 ));
                 // The templates, where the verb has no single answer: each
                 // row IS an answer, and pressing one both picks the world and
@@ -414,7 +417,8 @@ fn spawn_confirm_window(
                                     font_size: FontSize::Px(11.0),
                                     ..default()
                                 },
-                                TextColor(theme::PHOSPHOR_MUTED),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Label),
                                 Node {
                                     margin: UiRect::bottom(px(6)),
                                     ..default()
@@ -503,7 +507,6 @@ pub(crate) fn close_confirm_window(
 pub(crate) fn on_open_colour_window(
     activate: On<Activate>,
     mut commands: Commands,
-    skin: Res<UiSkin>,
     swatches: Query<(&InspectorField, &InspectorSwatch, &BackgroundColor)>,
     layer: Option<Single<Entity, With<EditorWindowLayer>>>,
     open: Query<(Entity, &ColourWindow)>,
@@ -535,7 +538,6 @@ pub(crate) fn on_open_colour_window(
             &swatch.label,
             painted.0,
             Vec2::new(left, TOP_MARGIN),
-            *skin,
         );
     });
 }
@@ -561,7 +563,6 @@ fn fresh_window_left(width: f32) -> f32 {
 pub(crate) fn on_open_ref_window(
     activate: On<Activate>,
     mut commands: Commands,
-    skin: Res<UiSkin>,
     chips: Query<(&InspectorField, &InspectorRef)>,
     ids: DocumentIds,
     files: AssetIndex,
@@ -599,7 +600,7 @@ pub(crate) fn on_open_ref_window(
     let label = chip.label.clone();
     let field = field.clone();
     commands.entity(*layer).with_children(|layer| {
-        spawn_ref_window(layer, field, &label, &offered, &empty, at, *skin);
+        spawn_ref_window(layer, field, &label, &offered, &empty, at);
     });
 }
 
@@ -610,7 +611,6 @@ pub(crate) fn on_open_ref_window(
 pub(crate) fn on_open_pick_window(
     activate: On<Activate>,
     mut commands: Commands,
-    skin: Res<UiSkin>,
     buttons: Query<(&InspectorField, &InspectorPick)>,
     layer: Option<Single<Entity, With<EditorWindowLayer>>>,
     open: Query<(Entity, &ChoiceWindow)>,
@@ -635,7 +635,7 @@ pub(crate) fn on_open_pick_window(
     let (label, options, hints) = (pick.label.clone(), pick.options.clone(), pick.hints.clone());
     let field = field.clone();
     commands.entity(*layer).with_children(|layer| {
-        spawn_choice_window(layer, field, &label, &options, &hints, at, *skin);
+        spawn_choice_window(layer, field, &label, &options, &hints, at);
     });
 }
 
@@ -647,14 +647,12 @@ fn spawn_choice_window(
     options: &[String],
     hints: &[String],
     at: Vec2,
-    skin: UiSkin,
 ) {
     window_frame(
         layer,
         "Choice Window",
         label,
         at,
-        skin,
         ChoiceWindow { field },
         |body, window| {
             for (index, variant) in options.iter().enumerate() {
@@ -692,7 +690,8 @@ fn spawn_choice_window(
                             font_size: FontSize::Px(10.0),
                             ..default()
                         },
-                        TextColor(theme::PHOSPHOR_MUTED),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
                         Node {
                             padding: UiRect::new(px(10), px(6), px(0), px(3)),
                             ..default()
@@ -754,14 +753,12 @@ fn spawn_ref_window(
     offered: &[String],
     empty: &str,
     at: Vec2,
-    skin: UiSkin,
 ) {
     window_frame(
         layer,
         "Ref Window",
         label,
         at,
-        skin,
         RefWindow { field },
         |body, window| {
             if offered.is_empty() {
@@ -776,7 +773,8 @@ fn spawn_ref_window(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                 ));
                 return;
             }
@@ -845,7 +843,6 @@ pub(crate) fn window_frame(
     name: &str,
     title: &str,
     at: Vec2,
-    skin: UiSkin,
     held: impl Bundle,
     body: impl FnOnce(&mut RelatedSpawnerCommands<ChildOf>, Entity),
 ) -> Entity {
@@ -867,7 +864,7 @@ pub(crate) fn window_frame(
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
-        panel(skin),
+        panel(),
     ));
     let window = frame.id();
     let bar_name = format!("{name} Bar");
@@ -887,7 +884,8 @@ pub(crate) fn window_frame(
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },
-                BorderColor::all(theme::PHOSPHOR.with_alpha(0.16)),
+                BorderColor::all(Color::NONE),
+                ThemedBorder::alpha(UiColor::Primary, 0.16),
                 observe(on_window_drag),
             ))
             .with_children(|bar| {
@@ -905,7 +903,8 @@ pub(crate) fn window_frame(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Primary),
                 ));
                 bar.spawn((
                     Name::new(close_name),
@@ -923,7 +922,8 @@ pub(crate) fn window_frame(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                     observe(on_window_close),
                 ));
             });
@@ -942,7 +942,7 @@ pub(crate) fn window_frame(
                         scroll_viewport(),
                     ))
                     .with_children(|filled| body(filled, window));
-                scroll.spawn((Name::new(format!("{name} Scrollbar")), scroll_bar(skin)));
+                scroll.spawn((Name::new(format!("{name} Scrollbar")), scroll_bar()));
             });
     });
     window
@@ -956,14 +956,12 @@ fn spawn_colour_window(
     label: &str,
     colour: Color,
     at: Vec2,
-    skin: UiSkin,
 ) {
     window_frame(
         layer,
         "Colour Window",
         label,
         at,
-        skin,
         ColourWindow { field },
         |body, window| {
             body.spawn((
@@ -973,10 +971,11 @@ fn spawn_colour_window(
                     width: percent(100),
                     height: px(30),
                     border: UiRect::all(px(theme::BORDER_W)),
-                    border_radius: BorderRadius::all(px(theme::RADIUS)),
                     ..default()
                 },
-                BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
+                ThemedRadius::control(),
+                BorderColor::all(Color::NONE),
+                ThemedBorder::alpha(UiColor::Primary, 0.4),
                 BackgroundColor(colour),
             ));
             body.spawn((
@@ -988,7 +987,8 @@ fn spawn_colour_window(
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ));
             for channel in [
                 ColourChannel::Red,
@@ -996,7 +996,7 @@ fn spawn_colour_window(
                 ColourChannel::Blue,
                 ColourChannel::Alpha,
             ] {
-                spawn_channel(body, window, channel, colour, skin);
+                spawn_channel(body, window, channel, colour);
             }
         },
     );
@@ -1008,7 +1008,6 @@ fn spawn_channel(
     window: Entity,
     channel: ColourChannel,
     colour: Color,
-    skin: UiSkin,
 ) {
     let value = channel.of(colour);
     body.spawn((
@@ -1029,7 +1028,8 @@ fn spawn_channel(
                 font_size: FontSize::Px(12.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR_MUTED),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Label),
             Node {
                 width: px(10),
                 flex_shrink: 0.0,
@@ -1053,7 +1053,7 @@ fn spawn_channel(
                 SliderValue(value),
                 SliderRange::new(0.0, 1.0),
                 SliderStep(1.0 / 255.0),
-                slider_track(value, skin),
+                slider_track(value),
             ));
         });
         row.spawn((
@@ -1065,7 +1065,8 @@ fn spawn_channel(
                 font_size: FontSize::Px(12.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Primary),
             Node {
                 width: px(26),
                 flex_shrink: 0.0,

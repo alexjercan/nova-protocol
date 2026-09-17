@@ -4,7 +4,11 @@ use bevy::{
     ui_widgets::{Activate, Button},
 };
 use nova_input::prelude::InputSource;
-use nova_ui::{skin::UiSkin, theme, widget::prelude::*};
+use nova_ui::{
+    theme,
+    theme::UiColor,
+    widget::{prelude::*, ThemedBorder, ThemedFill, ThemedText},
+};
 
 use super::*;
 
@@ -88,10 +92,6 @@ fn load_or_open_lobby(
     styles: Res<GameStyles>,
     requested: Res<StyleRequest>,
     mut roster: ResMut<Roster>,
-    // OPTIONAL because the skin belongs to the render-gated UI stack, and the
-    // autopilot path below returns before any of it is drawn - a required `Res`
-    // makes a `--norender` run panic here instead of fielding the match.
-    skin: Option<Res<UiSkin>>,
 ) {
     let side_styles = side_style_indexes(&styles, requested.0.as_deref(), &roster.ships);
     for ship in &mut roster.ships {
@@ -138,11 +138,7 @@ fn load_or_open_lobby(
             .wrapping_add(1),
         binding_overrides: roster.binding_overrides.clone(),
     };
-    let Some(skin) = skin else {
-        error!("wfc_arena lobby: no UiSkin, so there is no lobby to open - run with a renderer, or with NOVA_AUTOPILOT to field the match directly");
-        return;
-    };
-    spawn_lobby(&mut commands, &model, &styles, *skin);
+    spawn_lobby(&mut commands, &model, &styles);
     commands.insert_resource(model);
 }
 
@@ -157,7 +153,22 @@ fn start_match(
     result::begin_match(commands, roster.ships.len());
 }
 
-fn text(text: impl Into<String>, size: f32, color: Color) -> impl Bundle {
+fn text(text: impl Into<String>, size: f32, color: UiColor) -> impl Bundle {
+    (
+        UiText,
+        Text::new(text.into()),
+        TextFont {
+            font_size: FontSize::Px(size),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(color),
+    )
+}
+
+/// The same line in a MEANING colour the theme has no say over - a team tint,
+/// which names a side and must not move when the look does.
+fn tinted_text(text: impl Into<String>, size: f32, color: Color) -> impl Bundle {
     (
         UiText,
         Text::new(text.into()),
@@ -173,12 +184,7 @@ fn action_button(label: &str, action: LobbyAction) -> impl Bundle {
     (button(ButtonSpec::new(label)), action)
 }
 
-pub(super) fn spawn_lobby(
-    commands: &mut Commands,
-    model: &LobbyModel,
-    styles: &GameStyles,
-    skin: UiSkin,
-) {
+pub(super) fn spawn_lobby(commands: &mut Commands, model: &LobbyModel, styles: &GameStyles) {
     commands.spawn((LobbyCamera, Camera2d, IsDefaultUiCamera));
     commands
         .spawn((
@@ -194,14 +200,14 @@ pub(super) fn spawn_lobby(
                 row_gap: px(10),
                 ..default()
             },
-            BackgroundColor(theme::SPACE.with_alpha(0.97)),
+            BackgroundColor(Color::NONE), ThemedFill::alpha(UiColor::Void, 0.97),
         ))
         .with_children(|root| {
-            root.spawn(text("WFC ARENA / MATCH CONFIGURATOR", 25.0, theme::PHOSPHOR));
+            root.spawn(text("WFC ARENA / MATCH CONFIGURATOR", 25.0, UiColor::Primary));
             root.spawn(text(
                 "Configure both formations. Seeds are exact; use REROLL for another combat-ready hull.",
                 13.0,
-                theme::PHOSPHOR_DIM,
+                UiColor::Secondary,
             ));
             root.spawn(Node {
                 width: vw(94),
@@ -217,7 +223,7 @@ pub(super) fn spawn_lobby(
             })
             .with_children(|sides| {
                 for team in 0..TEAMS.len() {
-                    spawn_side(sides, team, model, styles, skin);
+                    spawn_side(sides, team, model, styles);
                 }
             });
             root.spawn(Node {
@@ -255,7 +261,6 @@ fn spawn_side(
     team: usize,
     model: &LobbyModel,
     styles: &GameStyles,
-    skin: UiSkin,
 ) {
     let count = model.ships.iter().filter(|ship| ship.team == team).count();
     parent
@@ -276,15 +281,16 @@ fn spawn_side(
                 ..default()
             },
             BorderColor::all(TEAMS[team].tint.with_alpha(0.62)),
-            BackgroundColor(theme::SCREEN_0.with_alpha(0.72)),
+            BackgroundColor(Color::NONE),
+            ThemedFill::alpha(UiColor::Surface, 0.72),
         ))
         .with_children(|side| {
-            side.spawn(text(
+            side.spawn(tinted_text(
                 format!("{} FORMATION", TEAMS[team].callsign),
                 19.0,
                 TEAMS[team].tint,
             ));
-            side.spawn(text("SIDE STYLE", 11.0, theme::PHOSPHOR_MUTED));
+            side.spawn(text("SIDE STYLE", 11.0, UiColor::Label));
             side.spawn(Node {
                 width: percent(100),
                 display: Display::Grid,
@@ -297,23 +303,18 @@ fn spawn_side(
                 for (index, style) in styles.iter().enumerate() {
                     let selected = model.side_styles[team] == index;
                     let mut row = list.spawn((
-                        list_row(selected, skin),
-                        ListRow,
+                        list_row(),
                         Button,
                         Hovered::default(),
                         LobbyAction::Style(team, index),
-                        children![text(
-                            style.name.to_ascii_uppercase(),
-                            12.0,
-                            theme::SCREEN_TEXT
-                        )],
+                        children![text(style.name.to_ascii_uppercase(), 12.0, UiColor::Body)],
                     ));
                     if selected {
                         row.insert(Selected);
                     }
                 }
             });
-            side.spawn(text("SHIPS", 11.0, theme::PHOSPHOR_MUTED));
+            side.spawn(text("SHIPS", 11.0, UiColor::Label));
             side.spawn(Node {
                 width: percent(100),
                 flex_grow: 1.0,
@@ -353,12 +354,14 @@ fn spawn_ship_row(
                 border: UiRect::all(px(theme::BORDER_W)),
                 ..default()
             },
-            BorderColor::all(theme::PHOSPHOR.with_alpha(0.15)),
-            BackgroundColor(theme::PHOSPHOR.with_alpha(0.025)),
+            BorderColor::all(Color::NONE),
+            ThemedBorder::alpha(UiColor::Primary, 0.15),
+            BackgroundColor(Color::NONE),
+            ThemedFill::alpha(UiColor::Primary, 0.025),
         ))
         .with_children(|row| {
             row.spawn((
-                text(format!("{:02}", slot + 1), 12.0, theme::PHOSPHOR_MUTED),
+                text(format!("{:02}", slot + 1), 12.0, UiColor::Label),
                 Node {
                     margin: UiRect::top(px(23)),
                     ..default()
@@ -371,7 +374,7 @@ fn spawn_ship_row(
                 ..default()
             })
             .with_children(|field| {
-                field.spawn(text("SEED", 9.0, theme::PHOSPHOR_MUTED));
+                field.spawn(text("SEED", 9.0, UiColor::Label));
                 field.spawn((
                     text_field(TextFieldSpec::new(&ship.seed).max_chars(20)),
                     LobbySeedField(slot),
@@ -441,13 +444,12 @@ fn rebuild_lobby(
     commands: &mut Commands,
     model: &LobbyModel,
     styles: &GameStyles,
-    skin: UiSkin,
     roots: &Query<Entity, With<LobbyRoot>>,
 ) {
     for root in roots {
         commands.entity(root).despawn();
     }
-    spawn_lobby(commands, model, styles, skin);
+    spawn_lobby(commands, model, styles);
 }
 
 #[expect(clippy::too_many_arguments, reason = "one system over the whole lobby")]
@@ -461,7 +463,6 @@ fn on_lobby_action(
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     styles: Res<GameStyles>,
-    skin: Res<UiSkin>,
     model: Option<ResMut<LobbyModel>>,
     mut roster: ResMut<Roster>,
 ) {
@@ -611,7 +612,7 @@ fn on_lobby_action(
         }
     }
     if rebuild {
-        rebuild_lobby(&mut commands, &model, &styles, *skin, &roots);
+        rebuild_lobby(&mut commands, &model, &styles, &roots);
     }
 }
 

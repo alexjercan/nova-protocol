@@ -19,7 +19,7 @@
 //! free while it plays.
 
 use bevy::prelude::*;
-use nova_ui::theme;
+use nova_ui::theme::{ActiveUiTheme, UiColor};
 
 /// The `CinematicTitle` resource, its card and the corner it sits in.
 pub mod prelude {
@@ -141,27 +141,31 @@ fn spawn_cinematic_title(mut commands: Commands) {
                 border: UiRect::left(Val::Px(CARD_RULE_PX)),
                 ..default()
             },
-            BorderColor::all(theme::AMBER_NOVA),
-            BackgroundColor(theme::SPACE.with_alpha(0.55)),
+            // Unpainted: `sync_cinematic_title` fades the whole card in and out
+            // every frame, so it owns the border, the fill and the three line
+            // tones together. A theme marker here would fight it for the same
+            // components.
+            BorderColor::all(Color::NONE),
+            BackgroundColor(Color::NONE),
         ))
         .with_children(|card| {
             card.spawn((
                 TitleLocation,
                 Text::new(""),
                 TextFont::from_font_size(20.0),
-                TextColor(theme::AMBER_HI),
+                TextColor(Color::NONE),
             ));
             card.spawn((
                 TitleDate,
                 Text::new(""),
                 TextFont::from_font_size(12.0),
-                TextColor(theme::AMBER_NOVA),
+                TextColor(Color::NONE),
             ));
             card.spawn((
                 TitleNote,
                 Text::new(""),
                 TextFont::from_font_size(11.0),
-                TextColor(theme::AMBER_LO),
+                TextColor(Color::NONE),
             ));
         });
 }
@@ -181,6 +185,7 @@ fn card_strength(age: f32, seconds: f32) -> f32 {
 #[expect(clippy::type_complexity, reason = "one query per marked text line")]
 fn sync_cinematic_title(
     title: Res<CinematicTitle>,
+    theme: Res<ActiveUiTheme>,
     mut q_card: Query<
         (
             &mut Visibility,
@@ -237,8 +242,8 @@ fn sync_cinematic_title(
         } else {
             AlignItems::FlexEnd
         };
-        *border = BorderColor::all(theme::AMBER_NOVA.with_alpha(strength));
-        background.0 = theme::SPACE.with_alpha(0.55 * strength);
+        *border = BorderColor::all(theme.color_alpha(UiColor::Accent, strength));
+        background.0 = theme.color_alpha(UiColor::Void, 0.55 * strength);
     }
     let Some(card) = card else {
         return;
@@ -250,13 +255,28 @@ fn sync_cinematic_title(
         color.0 = base.with_alpha(strength);
     };
     for (mut text, mut color) in &mut q_location {
-        line(&mut text, &mut color, &card.location, theme::AMBER_HI);
+        line(
+            &mut text,
+            &mut color,
+            &card.location,
+            theme.color(UiColor::AccentHigh),
+        );
     }
     for (mut text, mut color) in &mut q_date {
-        line(&mut text, &mut color, &card.date, theme::AMBER_NOVA);
+        line(
+            &mut text,
+            &mut color,
+            &card.date,
+            theme.color(UiColor::Accent),
+        );
     }
     for (mut text, mut color, mut node) in &mut q_note {
-        line(&mut text, &mut color, &card.note, theme::AMBER_LO);
+        line(
+            &mut text,
+            &mut color,
+            &card.note,
+            theme.color(UiColor::AccentLow),
+        );
         // An authored empty note is "no third line", not a blank one: a text
         // node with no glyphs still takes its line height in the column.
         node.display = if card.note.is_empty() {
@@ -275,6 +295,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<CinematicTitle>();
+        // `NovaUiPlugin` owns the live theme in production; this harness adds
+        // no plugins, and the paint systems below read it as a required
+        // resource.
+        app.init_resource::<ActiveUiTheme>();
         app.add_systems(Startup, spawn_cinematic_title);
         app.add_systems(Update, sync_cinematic_title);
         app

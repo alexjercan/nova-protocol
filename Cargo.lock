@@ -4589,6 +4589,7 @@ dependencies = [
  "nova_scenario",
  "nova_ship",
  "nova_training",
+ "nova_ui",
  "ron",
  "serde",
  "tempfile",
@@ -4825,6 +4826,7 @@ dependencies = [
  "nova_scenario",
  "nova_ship",
  "nova_training",
+ "nova_ui",
  "ron",
  "serde",
 ]
@@ -4951,6 +4953,7 @@ version = "0.13.2"
 dependencies = [
  "bevy",
  "nova_events",
+ "ron",
  "serde",
 ]
 

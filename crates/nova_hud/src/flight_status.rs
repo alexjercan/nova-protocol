@@ -13,7 +13,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_ship::{flight::prelude::*, prelude::CameraAuthoritySystems};
-use nova_ui::hud::{chip_node, chip_paint, ChipTone};
+use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
 
 use super::{
     emphasis::prelude::*, hull_shell::prelude::*, screen_indicator::prelude::*,
@@ -151,8 +151,9 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                     linebreak: LineBreak::NoWrap,
                     ..default()
                 },
-                chip_paint(ChipTone::Phosphor),
-                TextColor(ChipTone::Phosphor.text()),
+                chip_paint(ChipTone::Readout),
+                ChipText::value(ChipTone::Readout),
+                TextColor(Color::NONE),
                 // Grows while the autopilot is burning - the readout you are
                 // actually watching during a maneuver (demo 2's `.speed.emph`).
                 HudEmphasis::settle(SPEED_CHIP_EMPHASIS),
@@ -170,7 +171,8 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                 // The autopilot mode is an amber "the computer is flying"
                 // statement, not a nav readout (demo 2 `.mode`).
                 chip_paint(ChipTone::Amber),
-                TextColor(ChipTone::Amber.text()),
+                ChipText::value(ChipTone::Amber),
+                TextColor(Color::NONE),
             ),
         ],
     )

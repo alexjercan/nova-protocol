@@ -57,7 +57,7 @@ use nova_input::prelude::{BindingSpec, InputBindings, InputSource};
 #[cfg(feature = "debug")]
 use nova_protocol::prelude::*;
 #[cfg(feature = "debug")]
-use nova_ui::prelude::UiSkin;
+use nova_ui::prelude::SelectedUiTheme;
 
 #[derive(Parser)]
 #[command(name = "system_settings_persist")]
@@ -858,8 +858,8 @@ fn assert_the_older_store_defaults(world: &mut World) {
         defaults.interface_volume
     );
     assert_eq!(
-        *world.resource::<UiSkin>(),
-        defaults.ui_skin,
+        world.resource::<SelectedUiTheme>().0,
+        defaults.ui_theme,
         "a setting the older file never had must load on its serde default"
     );
     assert!(
@@ -873,7 +873,7 @@ fn assert_the_older_store_defaults(world: &mut World) {
         serde_json::json!({
             "master_volume": volume,
             "interface_volume": interface,
-            "ui_skin": format!("{:?}", *world.resource::<UiSkin>()),
+            "ui_theme": world.resource::<SelectedUiTheme>().0.clone(),
         }),
     );
 }

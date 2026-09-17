@@ -100,6 +100,10 @@ const GAUGE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     gap_px: 4.0,
     min_px: RING_PX * 0.6 * std::f32::consts::SQRT_2,
 };
+use nova_ui::{
+    theme::{ActiveUiTheme, UiColor},
+    widget::ThemedText,
+};
 
 /// Visual gap (px) two gauges of the same kind keep before they read as one.
 /// Measured between the gauge BOXES, so a wide torpedo bar and a ring cluster
@@ -300,7 +304,8 @@ fn cluster_badge() -> impl Bundle {
         AmmoReadoutClusterBadge,
         Text::new(""),
         TextFont::from_font_size(BADGE_FONT_PX),
-        TextColor(nova_ui::theme::AMBER_NOVA),
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Accent),
         Node {
             position_type: PositionType::Absolute,
             left: Val::Percent(100.0),
@@ -790,6 +795,7 @@ fn reload_alpha(elapsed: f32, progress: f32) -> f32 {
 /// per-bullet-type magazines later stays a local change.
 fn drive_ammo_readouts(
     time: Res<Time>,
+    theme: Res<ActiveUiTheme>,
     q_readouts: Query<(&AmmoReadoutSection, &AmmoReadoutKind, &Children), With<AmmoReadoutMarker>>,
     q_ammo: Query<&SectionAmmo>,
     q_reload: Query<&SectionReload>,
@@ -841,7 +847,7 @@ fn drive_ammo_readouts(
         // it is already coming back.
         let low = is_low_ammo(ammo) && active_reload.is_none();
         let hue = if low {
-            nova_ui::theme::AMBER_NOVA
+            theme.color(UiColor::Accent)
         } else {
             damage_type_color(damage_type)
         };
@@ -1255,6 +1261,7 @@ mod tests {
     fn sync_spawns_one_readout_per_player_weapon_with_ammo() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -1275,6 +1282,7 @@ mod tests {
     fn sync_ignores_infinite_ammo_weapons() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         // No SectionAmmo == infinite ammo: no readout at all.
@@ -1290,6 +1298,7 @@ mod tests {
     fn sync_ignores_other_ships_weapons() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         spawn_player(&mut world);
         let enemy = world.spawn(SpaceshipRootMarker).id();
@@ -1304,6 +1313,7 @@ mod tests {
     fn sync_despawns_readout_of_a_dead_weapon() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -1320,6 +1330,7 @@ mod tests {
     fn sync_despawns_readout_when_ammo_becomes_infinite() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -1379,6 +1390,7 @@ mod tests {
     fn driver_lights_turret_chunks_by_fraction() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -1415,6 +1427,7 @@ mod tests {
     fn a_spent_lance_darkens_its_one_pierce_blue_pip() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let lance = spawn_railgun(&mut world, player, Some(SectionAmmo::new(1)));
@@ -1453,6 +1466,7 @@ mod tests {
     fn driver_lights_one_torpedo_pip_per_remaining_round() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let torpedo = spawn_torpedo(&mut world, player, Some(SectionAmmo::new(4)));
@@ -1498,6 +1512,7 @@ mod tests {
         // amber), and a torpedo reads Explosive.
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -1646,6 +1661,7 @@ mod tests {
     fn driver_pulses_only_the_next_pdc_batch() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(500)));
@@ -1674,6 +1690,7 @@ mod tests {
     fn driver_pulses_one_incoming_torpedo_above_live_rounds() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let torpedo = spawn_torpedo(&mut world, player, Some(SectionAmmo::new(4)));
@@ -1697,6 +1714,7 @@ mod tests {
     fn driver_warns_amber_on_a_nearly_dry_group() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -1707,7 +1725,10 @@ mod tests {
         let healthy = lit_pip_color(&mut world, turret).expect("a lit pip");
         assert_ne!(
             healthy.to_srgba().to_vec3(),
-            nova_ui::theme::AMBER_NOVA.to_srgba().to_vec3(),
+            ActiveUiTheme::default()
+                .color(UiColor::Accent)
+                .to_srgba()
+                .to_vec3(),
             "a full magazine does not nag"
         );
 
@@ -1721,7 +1742,10 @@ mod tests {
         let low = lit_pip_color(&mut world, turret).expect("a lit pip");
         assert_eq!(
             low.to_srgba().to_vec3(),
-            nova_ui::theme::AMBER_NOVA.to_srgba().to_vec3(),
+            ActiveUiTheme::default()
+                .color(UiColor::Accent)
+                .to_srgba()
+                .to_vec3(),
             "a nearly-dry group warns in amber"
         );
         assert_eq!(
@@ -1758,7 +1782,10 @@ mod tests {
         let reloading = lit_pip_color(&mut world, torpedo).expect("a lit pip");
         assert_ne!(
             reloading.to_srgba().to_vec3(),
-            nova_ui::theme::AMBER_NOVA.to_srgba().to_vec3(),
+            ActiveUiTheme::default()
+                .color(UiColor::Accent)
+                .to_srgba()
+                .to_vec3(),
             "a rearming group shows its batch pulse, not the warning"
         );
     }
@@ -1770,6 +1797,7 @@ mod tests {
         // to loaded-type/count).
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -1824,6 +1852,7 @@ mod tests {
     fn a_reloading_lance_fills_its_one_pip_as_the_wait_runs() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let lance = spawn_railgun(&mut world, player, Some(SectionAmmo::new(1)));
@@ -1887,6 +1916,7 @@ mod tests {
     fn a_turret_ring_segment_carries_no_reload_column() {
         let mut world = World::new();
         world.init_resource::<Time>();
+        world.init_resource::<ActiveUiTheme>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(500)));

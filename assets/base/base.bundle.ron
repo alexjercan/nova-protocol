@@ -16,6 +16,10 @@
     // conflict. So this is a reading order - the parts, then the paint, then
     // what is built out of them.
     content: [
+        // The looks the whole UI paints in, first: a theme is chrome rather
+        // than a thing a scenario names, and the Settings picker reads this
+        // order, so the shipped default has to stand first in it.
+        "ui_themes/base.content.ron",
         "sections/base.content.ron",
         "styles/base.content.ron",
         "ships/base.content.ron",

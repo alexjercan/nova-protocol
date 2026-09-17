@@ -596,3 +596,36 @@ fn picker_rows_render_flat_name_sorted() {
         "rows render sorted by display name; the backdrop does not render"
     );
 }
+
+/// The picker fills on the way into the menu, after a boot that ran frames
+/// first.
+///
+/// The shipped boot order, which every other fixture here skips: the content
+/// merge publishes `GameScenarios` while the app is still Loading, so its
+/// change tick is already old by the time the picker's refresher is first asked
+/// whether it has work. The menu build used to reset `SelectedScenarioId` to
+/// arm the refresh, and dropping the selection from the gate opened the
+/// Scenarios tab with nothing in it - while every other test here still passed,
+/// because they all insert the registry on the frame before they enter.
+#[test]
+fn the_picker_fills_after_a_boot_that_ran_frames_before_the_menu() {
+    let mut app = app();
+    app.insert_resource(picker_scenarios());
+    for _ in 0..3 {
+        app.update();
+    }
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+    app.update();
+
+    assert!(
+        !scenario_row_ids(&mut app).is_empty(),
+        "the Scenarios tab opened with an empty list after a normal boot"
+    );
+    assert!(
+        app.world().resource::<SelectedScenarioId>().0.is_some(),
+        "nothing was selected, so the details pane has nothing to draw"
+    );
+}

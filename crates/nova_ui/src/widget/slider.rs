@@ -1,68 +1,64 @@
-//! Slider tracks: the phosphor block-meter and the hardware solid fill, the
-//! system that follows a `SliderValue`, and the reconciler that REBUILDS a
-//! track when the skin flips (the two skins are structurally different
-//! widgets, so a repaint cannot carry it).
+//! Slider tracks: the well, the meter inside it, the system that follows a
+//! `SliderValue`, and the reconciler that BUILDS a track's innards from the
+//! active theme (a block-meter and a solid fill are structurally different
+//! widgets, so a repaint cannot carry a theme change).
 
 use bevy::{
     ecs::relationship::RelatedSpawner,
+    platform::collections::HashSet,
     prelude::*,
     ui_widgets::{SliderRange, SliderValue},
 };
 
-use crate::{skin::UiSkin, theme};
+use crate::theme::{ActiveUiTheme, ResolvedSlider, SliderMeter, BORDER_W};
 
-/// Number of segments in a phosphor slider's block-meter.
-pub const SLIDER_SEGMENTS: usize = 24;
-
-/// Marks one segment of a phosphor slider block-meter; the tuple is its index.
-/// A driver (e.g. a slider's value-change system) reads the index + the current
-/// fraction through [`slider_meter_color`] to light the bar up to the value.
+/// Marks one segment of a block-meter track; the tuple is its index. The
+/// value-sync system reads the index + the current fraction through
+/// [`slider_meter_color`] to light the bar up to the value.
 #[derive(Component)]
 pub struct SliderBlock(pub usize);
 
-/// The colour of block `index` for a slider at `fraction`: full phosphor if the
-/// bar is lit (below the value), dim phosphor otherwise.
+/// The colour of block `index` for a slider at `fraction`: the theme's lit tone
+/// below the value, its unlit tone above.
 ///
 /// Only an empty slider reads empty and only a full one reads full: a plain
 /// `round()` lit 24/24 at 98% and 0/24 at 2%, so the meter lied about the two
-/// values a player is most likely to check, while the hardware fill (a
-/// continuous width) showed both correctly.
-pub fn slider_meter_color(index: usize, fraction: f32) -> Color {
+/// values a player is most likely to check, while a solid fill (a continuous
+/// width) showed both correctly.
+pub fn slider_meter_color(
+    index: usize,
+    fraction: f32,
+    segments: usize,
+    theme: &ResolvedSlider,
+) -> Color {
     let fraction = fraction.clamp(0.0, 1.0);
-    let segments = SLIDER_SEGMENTS as f32;
+    let count = segments as f32;
     let lit = if fraction <= 0.0 {
         0
     } else if fraction >= 1.0 {
-        SLIDER_SEGMENTS
+        segments
     } else {
-        (fraction * segments).round().clamp(1.0, segments - 1.0) as usize
+        (fraction * count).round().clamp(1.0, count - 1.0) as usize
     };
     if index < lit {
-        theme::PHOSPHOR
+        theme.lit
     } else {
-        theme::PHOSPHOR.with_alpha(0.16)
+        theme.unlit
     }
 }
 
-/// Track height in the phosphor skin (the segmented block-meter).
-const SLIDER_TRACK_PHOSPHOR_H: f32 = 14.0;
-/// Track height in the hardware skin (the solid moulded fill).
-const SLIDER_TRACK_HARDWARE_H: f32 = 10.0;
-
-/// Marks the HARDWARE track's single solid fill child, so the value-sync system
-/// can move it the way it lights the phosphor [`SliderBlock`]s. Without the
-/// marker the fill kept whatever width it was spawned with and the bar never
-/// followed a drag.
+/// Marks a solid-fill track's single fill child, so the value-sync system can
+/// move it the way it lights the [`SliderBlock`]s. Without the marker the fill
+/// kept whatever width it was spawned with and the bar never followed a drag.
 #[derive(Component)]
 pub struct SliderFill;
 
-/// Marks a [`slider_track`] so the skin reconciler REBUILDS it live when the
-/// `UiSkin` resource flips (mirrors [`crate::widget::PanelSkin`]). The track is not just
-/// repainted: the two skins are structurally different widgets (a row of
-/// [`SliderBlock`]s vs one [`SliderFill`]), so its children are respawned.
+/// Marks a [`slider_track`], so the theme reconciler BUILDS it and rebuilds it
+/// live. The track is not just repainted: a row of [`SliderBlock`]s and one
+/// [`SliderFill`] are different widgets, so its children are respawned.
 ///
 /// It carries the fraction a rebuilt DISPLAY-ONLY track must show - one spawned
-/// straight from `slider_track(0.7, skin)` with no slider attached, which the
+/// straight from `slider_track(0.7)` with no slider attached, which the
 /// signature invites, and which used to silently empty itself on a flip. It
 /// lives HERE, on the surviving track, not on the children the rebuild throws
 /// away (lesson `rebuilt-view-writes-go-to-state-not-the-entity`).
@@ -70,15 +66,15 @@ pub struct SliderFill;
 /// A track that HAS a `SliderValue` is read from that instead, so this stays a
 /// cache and never becomes a second source of truth for a real slider.
 #[derive(Component)]
-pub struct SliderTrackSkin(f32);
+pub struct SliderTrack(f32);
 
-impl SliderTrackSkin {
+impl SliderTrack {
     /// The remembered fraction, `[0, 1]`. Only meaningful for a DISPLAY-ONLY
     /// track - one with no slider at all. A track that HAS a `SliderValue` is
     /// read from that instead, so this is a cache that may lag by a frame.
     ///
-    /// A track whose fill re-skins but stays FROZEN at its spawn fraction is the
-    /// symptom of a caller that spawned the visual on the wrong entity:
+    /// A track whose fill re-themes but stays FROZEN at its spawn fraction is
+    /// the symptom of a caller that spawned the visual on the wrong entity:
     /// `slider_track` goes ON the slider, not under it, because
     /// `sync_slider_tracks` reads `(&Children, &SliderValue, ..)` off one entity.
     fn seed(&self) -> f32 {
@@ -86,102 +82,86 @@ impl SliderTrackSkin {
     }
 }
 
-/// The track's own `Node` geometry in a given skin - the single source both
-/// [`slider_track`] and the skin reconciler build from.
-fn slider_track_node(skin: UiSkin) -> Node {
-    let phosphor = skin.is_phosphor();
+/// The track's own `Node` geometry under a theme - the single source the
+/// reconciler builds from.
+fn slider_track_node(paint: &ResolvedSlider) -> Node {
     Node {
         width: percent(100),
-        height: px(if phosphor {
-            SLIDER_TRACK_PHOSPHOR_H
-        } else {
-            SLIDER_TRACK_HARDWARE_H
-        }),
-        border: UiRect::all(px(theme::BORDER_W)),
-        border_radius: BorderRadius::all(px(slider_track_radius(skin))),
+        height: px(paint.height),
+        border: UiRect::all(px(BORDER_W)),
+        border_radius: BorderRadius::all(px(paint.surface.radius)),
         align_items: AlignItems::Center,
-        // NO padding, in either skin: `slider_track` goes ON the slider entity,
+        // NO padding, in any theme: `slider_track` goes ON the slider entity,
         // and bevy's drag math maps the pointer across that node's FULL width.
-        // The phosphor track used to inset its meter by 2px a side, so the lit
-        // edge sat ~3px away from the value the click actually committed.
+        // The block-meter track used to inset its meter by 2px a side, so the
+        // lit edge sat ~3px away from the value the click actually committed.
         padding: UiRect::ZERO,
-        column_gap: if phosphor { px(2) } else { px(0) },
+        column_gap: match paint.meter {
+            SliderMeter::Blocks { gap, .. } => px(gap),
+            SliderMeter::Fill => px(0),
+        },
         ..default()
     }
 }
 
-/// The track's corner radius in a given skin (also used by the hardware fill,
-/// so the fill's leading edge matches the track it sits in).
-fn slider_track_radius(skin: UiSkin) -> f32 {
-    if skin.is_phosphor() {
-        theme::RADIUS
-    } else {
-        6.0
-    }
-}
-
-/// The track's `(background, border)` in a given skin.
-fn slider_track_colors(skin: UiSkin) -> (Color, Color) {
-    if skin.is_phosphor() {
-        (
-            Color::srgba(0.0, 0.0, 0.0, 0.5),
-            theme::PHOSPHOR.with_alpha(0.32),
-        )
-    } else {
-        (Color::srgba(0.0, 0.0, 0.0, 0.55), theme::CASE_EDGE)
-    }
-}
-
-/// Spawn the track's INNARDS for a skin: the phosphor block-meter, or the
-/// hardware solid fill. Shared by [`slider_track`] and the skin reconciler, so a
-/// rebuilt track is identical to a freshly spawned one.
-fn spawn_slider_track_children(parent: &mut RelatedSpawner<ChildOf>, fraction: f32, skin: UiSkin) {
+/// Spawn the track's INNARDS for a theme: the block-meter, or the solid fill.
+fn spawn_slider_track_children(
+    parent: &mut RelatedSpawner<ChildOf>,
+    fraction: f32,
+    paint: &ResolvedSlider,
+) {
     let fraction = fraction.clamp(0.0, 1.0);
-    if skin.is_phosphor() {
-        for i in 0..SLIDER_SEGMENTS {
+    match paint.meter {
+        SliderMeter::Blocks { segments, .. } => {
+            for i in 0..segments {
+                parent.spawn((
+                    SliderBlock(i),
+                    Node {
+                        flex_grow: 1.0,
+                        height: percent(100),
+                        border_radius: BorderRadius::all(px(1)),
+                        ..default()
+                    },
+                    BackgroundColor(slider_meter_color(i, fraction, segments, paint)),
+                ));
+            }
+        }
+        SliderMeter::Fill => {
             parent.spawn((
-                SliderBlock(i),
+                SliderFill,
                 Node {
-                    flex_grow: 1.0,
-                    height: percent(100),
-                    border_radius: BorderRadius::all(px(1)),
+                    width: percent(fraction * 100.0),
+                    height: percent(100.0),
+                    border_radius: BorderRadius::all(px(paint.surface.radius)),
                     ..default()
                 },
-                BackgroundColor(slider_meter_color(i, fraction)),
+                BackgroundColor(paint.lit),
             ));
         }
-    } else {
-        parent.spawn((
-            SliderFill,
-            Node {
-                width: percent(fraction * 100.0),
-                height: percent(100.0),
-                border_radius: BorderRadius::all(px(slider_track_radius(skin))),
-                ..default()
-            },
-            BackgroundColor(theme::PHOSPHOR_DIM),
-        ));
     }
 }
 
-/// A re-skin of the audio Slider's track (the existing `bevy_ui_widgets::Slider`
-/// keeps its value/range behaviour; this is the visual). Phosphor: a bordered
-/// track filled with a segmented BLOCK-METER (a row of [`SliderBlock`] bars lit
-/// up to `fraction`, no knob), matching the demo's dotted fill. Hardware: a
-/// solid [`SliderFill`]. `fraction` in `[0, 1]`. Spawn ON the slider entity.
+/// The audio Slider's track (the existing `bevy_ui_widgets::Slider` keeps its
+/// value/range behaviour; this is the visual): a bordered well showing the
+/// value either as a segmented BLOCK-METER or as one solid fill, whichever the
+/// theme's `slider_track` role asks for. `fraction` in `[0, 1]`. Spawn ON the
+/// slider entity.
 ///
-/// The track carries [`SliderTrackSkin`], so it re-skins live, and its fill
-/// follows the value in BOTH skins - neither is the caller's job.
-pub fn slider_track(fraction: f32, skin: UiSkin) -> impl Bundle {
-    let (track_bg, track_border) = slider_track_colors(skin);
+/// Spawns EMPTY and unpainted: the reconciler below fills it on the frame it
+/// appears and rebuilds it when the theme changes, so a track re-themes live
+/// and its fill follows the value - neither is the caller's job.
+pub fn slider_track(fraction: f32) -> impl Bundle {
     (
-        slider_track_node(skin),
-        SliderTrackSkin(fraction.clamp(0.0, 1.0)),
-        BorderColor::all(track_border),
-        BackgroundColor(track_bg),
-        Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
-            spawn_slider_track_children(parent, fraction, skin);
-        })),
+        SliderTrack(fraction.clamp(0.0, 1.0)),
+        Node {
+            width: percent(100),
+            border: UiRect::all(px(BORDER_W)),
+            align_items: AlignItems::Center,
+            padding: UiRect::ZERO,
+            ..default()
+        },
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
     )
 }
 
@@ -196,23 +176,23 @@ fn slider_fraction(value: &SliderValue, range: Option<&SliderRange>) -> f32 {
 }
 
 /// Show the current value on any `Slider` wearing a [`slider_track`]: light the
-/// phosphor [`SliderBlock`] meter, and move the hardware [`SliderFill`]. ONE
-/// system owns "the value changed -> the track shows it" for both skins - the
-/// hardware fill used to have no marker at all, so a drag moved the number and
-/// not the bar.
+/// [`SliderBlock`] meter, and move the [`SliderFill`]. ONE system owns "the
+/// value changed -> the track shows it" for both meter shapes - the solid fill
+/// used to have no marker at all, so a drag moved the number and not the bar.
 ///
-/// Registered by [`register`], so a `bevy_ui_widgets::Slider` + `slider_track`
-/// visual gets this for free (settings volume, the widget_zoo). It also runs for
-/// a track the skin reconciler just rebuilt (via the `Changed<Children>` arm),
-/// which keeps the rebuilt children honest even if the reconciler's own read of
-/// the value ever goes stale.
+/// Registered by [`build`](super::build), so a `bevy_ui_widgets::Slider` +
+/// `slider_track` visual gets this for free (settings volume, the widget_zoo).
+/// It also runs for a track the theme reconciler just rebuilt (via the
+/// `Changed<Children>` arm), which keeps the rebuilt children honest even if
+/// the reconciler's own read of the value ever goes stale.
 pub(super) fn sync_slider_tracks(
+    theme: Res<ActiveUiTheme>,
     mut changed: Query<
         (
             &Children,
             &SliderValue,
             Option<&SliderRange>,
-            Option<&mut SliderTrackSkin>,
+            Option<&mut SliderTrack>,
         ),
         Or<(
             Changed<SliderValue>,
@@ -223,9 +203,14 @@ pub(super) fn sync_slider_tracks(
     mut blocks: Query<(&SliderBlock, &mut BackgroundColor)>,
     mut fills: Query<&mut Node, With<SliderFill>>,
 ) {
+    let paint = theme.slider_track();
+    let segments = match paint.meter {
+        SliderMeter::Blocks { segments, .. } => segments,
+        SliderMeter::Fill => 0,
+    };
     for (kids, value, range, track) in &mut changed {
         let fraction = slider_fraction(value, range);
-        // Remember it for the skin reconciler, which rebuilds these children.
+        // Remember it for the theme reconciler, which rebuilds these children.
         if let Some(mut track) = track {
             if track.0 != fraction {
                 track.0 = fraction;
@@ -233,7 +218,7 @@ pub(super) fn sync_slider_tracks(
         }
         for &child in kids {
             if let Ok((block, mut bg)) = blocks.get_mut(child) {
-                *bg = slider_meter_color(block.0, fraction).into();
+                *bg = slider_meter_color(block.0, fraction, segments, paint).into();
             }
             if let Ok(mut node) = fills.get_mut(child) {
                 node.width = percent(fraction * 100.0);
@@ -242,57 +227,66 @@ pub(super) fn sync_slider_tracks(
     }
 }
 
-/// Rebuild LIVE slider tracks on a `UiSkin` change: repaint the track's own face
-/// and geometry, and respawn its children for the new skin (a segmented
+/// Build LIVE slider tracks on a theme change and on spawn: paint the track's
+/// own well and geometry, and spawn its children for the theme (a segmented
 /// block-meter and a solid fill are different widgets, so a colour swap cannot
-/// carry it). The rebuilt children are spawned AT the track's current value, so
-/// a display-only track (one with no `SliderValue`, spawned straight from
-/// `slider_track(fraction, skin)`) survives a flip too; `sync_slider_tracks`
-/// runs after this and refines a live slider's fill rather than being the only
-/// thing that fills it.
+/// carry it). The children are spawned AT the track's current value, so a
+/// display-only track (one with no `SliderValue`, spawned straight from
+/// `slider_track(fraction)`) survives a flip too; `sync_slider_tracks` runs
+/// after this and refines a live slider's fill rather than being the only thing
+/// that fills it.
 ///
 /// Value state lives on the SLIDER, never on the rebuilt children, so a rebuild
 /// cannot lose it (lesson `rebuilt-view-writes-go-to-state-not-the-entity`).
-pub(super) fn reconcile_slider_track_skins(
-    skin: Res<UiSkin>,
+#[expect(
+    clippy::type_complexity,
+    reason = "the track's geometry, its paint, its value source and the just-added set"
+)]
+pub(super) fn reconcile_slider_track_themes(
+    theme: Res<ActiveUiTheme>,
     mut commands: Commands,
     mut q: Query<(
         Entity,
         &mut Node,
         &mut BackgroundColor,
         &mut BorderColor,
-        &SliderTrackSkin,
+        &SliderTrack,
         Option<&SliderValue>,
         Option<&SliderRange>,
     )>,
+    added: Query<Entity, Added<SliderTrack>>,
 ) {
-    if !skin.is_changed() {
+    let rebuild_all = theme.is_changed();
+    let just_added: HashSet<Entity> = added.iter().collect();
+    if !rebuild_all && just_added.is_empty() {
         return;
     }
-    let (bg, border) = slider_track_colors(*skin);
-    let skin = *skin;
+    let paint = theme.slider_track().clone();
     for (entity, mut node, mut bgc, mut border_color, track, value, range) in &mut q {
-        *node = slider_track_node(skin);
-        *bgc = bg.into();
-        border_color.set_all(border);
+        if !rebuild_all && !just_added.contains(&entity) {
+            continue;
+        }
+        *node = slider_track_node(&paint);
+        *bgc = paint.surface.fill.base.into();
+        border_color.set_all(paint.surface.border);
         // Prefer the live value: the seed is a CACHE for the display-only case,
-        // and a cache read here could be a frame stale (a skin flip and a value
+        // and a cache read here could be a frame stale (a theme flip and a value
         // change landing together). A track with no `SliderValue` has only the
         // seed, which is the whole reason it exists.
         let fraction = value.map_or(track.seed(), |value| slider_fraction(value, range));
         commands
             .entity(entity)
-            .queue_silenced(rebuild_slider_track_children(fraction, skin));
+            .queue_silenced(rebuild_slider_track_children(fraction, paint.clone()));
     }
 }
 
 /// The track rebuild, as ONE entity command.
 ///
 /// It is one command, and a SILENCED one, on purpose. A caller may despawn a
-/// track's subtree on the same `UiSkin` change (the widget zoo rebuilds its
-/// whole body), and whether that lands before or after this is a
-/// registration-order accident when no ordering edge forces a flush between
-/// them - so neither half may panic on an already-dead entity. Splitting it as
+/// track's subtree on the same theme change (the widget zoo rebuilds its whole
+/// body), and whether that lands before or after this is a registration-order
+/// accident when no ordering edge forces a flush between them - so neither half
+/// may panic on an already-dead entity. Splitting it as
 /// `despawn_related().try_insert(..)` does NOT achieve that: `try_insert` is
 /// silenced but `despawn_related` still queues through the default handler,
 /// which the game escalates to a panic under `NOVA_AUTOPILOT` (see
@@ -306,12 +300,12 @@ pub(super) fn reconcile_slider_track_skins(
 /// flush, the reconciler stops matching the despawned entity and queues nothing,
 /// and the race cannot happen at all. Keep this ONE `queue_silenced` command:
 /// splitting it back out turns that test into a panic.
-fn rebuild_slider_track_children(fraction: f32, skin: UiSkin) -> impl EntityCommand {
+fn rebuild_slider_track_children(fraction: f32, paint: ResolvedSlider) -> impl EntityCommand {
     move |mut entity: EntityWorldMut| {
         entity.despawn_related::<Children>();
         entity.insert(Children::spawn(SpawnWith(
             move |parent: &mut RelatedSpawner<ChildOf>| {
-                spawn_slider_track_children(parent, fraction, skin);
+                spawn_slider_track_children(parent, fraction, &paint);
             },
         )));
     }
@@ -320,7 +314,10 @@ fn rebuild_slider_track_children(fraction: f32, skin: UiSkin) -> impl EntityComm
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widget::fixtures::skin_app;
+    use crate::{
+        theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+        widget::fixtures::{hardware, phosphor, select, themed_app},
+    };
 
     fn block_colors(app: &mut App, slider: Entity) -> Vec<Color> {
         let kids: Vec<Entity> = app
@@ -338,19 +335,28 @@ mod tests {
             .collect()
     }
 
+    /// How many blocks the phosphor meter draws, read from the theme rather
+    /// than restated here.
+    fn phosphor_segments() -> usize {
+        match phosphor().slider_track().meter {
+            SliderMeter::Blocks { segments, .. } => segments,
+            SliderMeter::Fill => panic!("base phosphor shows a block meter"),
+        }
+    }
+
     /// Spawn a slider the way the settings row does: the `Slider` entity IS the
     /// track, carrying its value, range and the `slider_track` visual.
-    fn spawn_slider(app: &mut App, value: f32, skin: UiSkin) -> Entity {
+    fn spawn_slider(app: &mut App, value: f32) -> Entity {
         app.world_mut()
             .spawn((
                 SliderValue(value),
                 SliderRange::new(0.0, 1.0),
-                slider_track(value, skin),
+                slider_track(value),
             ))
             .id()
     }
 
-    /// The hardware track's single solid fill child, by width.
+    /// A solid-fill track's single fill child, by width.
     fn fill_width(app: &mut App, slider: Entity) -> Option<Val> {
         let kids: Vec<Entity> = app
             .world()
@@ -364,22 +370,22 @@ mod tests {
             .find_map(|c| q.get(app.world(), c).ok().map(|node| node.width))
     }
 
-    /// `sync_slider_tracks` lights a slider's phosphor block-meter from its
+    /// `sync_slider_tracks` lights a slider's block-meter from its
     /// `SliderValue` - so a `Slider` wearing `slider_track` reacts to drags with
     /// no per-site code. Fails if the system is unregistered or the block
     /// recolour is wrong.
     #[test]
     fn sync_slider_tracks_lights_blocks_from_value() {
-        let mut app = skin_app(UiSkin::Phosphor);
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
         let slider = app
             .world_mut()
-            .spawn((SliderValue(0.0), slider_track(0.0, UiSkin::Phosphor)))
+            .spawn((SliderValue(0.0), slider_track(0.0)))
             .id();
         app.update();
+        let unlit = phosphor().slider_track().unlit;
+        let lit = phosphor().slider_track().lit;
         assert!(
-            block_colors(&mut app, slider)
-                .iter()
-                .all(|c| *c == theme::PHOSPHOR.with_alpha(0.16)),
+            block_colors(&mut app, slider).iter().all(|c| *c == unlit),
             "every bar is dim at value 0"
         );
 
@@ -388,9 +394,7 @@ mod tests {
         app.world_mut().entity_mut(slider).insert(SliderValue(1.0));
         app.update();
         assert!(
-            block_colors(&mut app, slider)
-                .iter()
-                .all(|c| *c == theme::PHOSPHOR),
+            block_colors(&mut app, slider).iter().all(|c| *c == lit),
             "every bar is lit at value 1.0"
         );
     }
@@ -401,40 +405,41 @@ mod tests {
     /// kept as the delivery guard that the un-clamped path is still exact.
     #[test]
     fn the_meter_reserves_a_block_at_each_end() {
-        let dim = theme::PHOSPHOR.with_alpha(0.16);
+        let theme = phosphor();
+        let paint = theme.slider_track();
+        let segments = phosphor_segments();
 
         assert_eq!(
-            slider_meter_color(0, 0.02),
-            theme::PHOSPHOR,
+            slider_meter_color(0, 0.02, segments, paint),
+            paint.lit,
             "a non-empty slider lights at least one block"
         );
         assert_eq!(
-            slider_meter_color(SLIDER_SEGMENTS - 1, 0.98),
-            dim,
+            slider_meter_color(segments - 1, 0.98, segments, paint),
+            paint.unlit,
             "a non-full slider leaves at least one block dark"
         );
 
         assert_eq!(
-            slider_meter_color(0, 0.0),
-            dim,
+            slider_meter_color(0, 0.0, segments, paint),
+            paint.unlit,
             "an EMPTY slider lights nothing"
         );
         assert_eq!(
-            slider_meter_color(SLIDER_SEGMENTS - 1, 1.0),
-            theme::PHOSPHOR,
+            slider_meter_color(segments - 1, 1.0, segments, paint),
+            paint.lit,
             "a FULL slider lights everything"
         );
     }
 
-    /// The HARDWARE track's solid fill follows the value, like the phosphor
-    /// block-meter does. Owner playtest 2026-07-29: "the hardware variant
-    /// doesn't move the slider, it stays fixed, but the value changes
-    /// correctly" - the fill child was unmarked, so the value-sync system could
-    /// not see it.
+    /// A solid-fill track follows the value, like the block-meter does. Owner
+    /// playtest 2026-07-29: "the hardware variant doesn't move the slider, it
+    /// stays fixed, but the value changes correctly" - the fill child was
+    /// unmarked, so the value-sync system could not see it.
     #[test]
-    fn hardware_slider_fill_follows_the_value() {
-        let mut app = skin_app(UiSkin::Hardware);
-        let slider = spawn_slider(&mut app, 0.25, UiSkin::Hardware);
+    fn a_solid_fill_track_follows_the_value() {
+        let mut app = themed_app(HARDWARE_THEME_ID);
+        let slider = spawn_slider(&mut app, 0.25);
         app.update();
         assert_eq!(
             fill_width(&mut app, slider),
@@ -451,27 +456,27 @@ mod tests {
         );
     }
 
-    /// The track RESTYLES live on a `UiSkin` flip. The two skins are different
-    /// WIDGETS inside (a segmented block-meter vs one solid fill), so the
-    /// reconciler rebuilds the children, not just the colours - and the rebuilt
-    /// track must show the CURRENT value, not a default.
+    /// The track REBUILDS live on a theme change. The two base themes ask for
+    /// different WIDGETS inside (a segmented block-meter vs one solid fill), so
+    /// the reconciler respawns the children, not just the colours - and the
+    /// rebuilt track must show the CURRENT value, not a default.
     #[test]
-    fn slider_track_reskins_and_keeps_its_value() {
-        let mut app = skin_app(UiSkin::Phosphor);
-        let slider = spawn_slider(&mut app, 0.5, UiSkin::Phosphor);
+    fn slider_track_rebuilds_and_keeps_its_value() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        let slider = spawn_slider(&mut app, 0.5);
         app.update();
         assert_eq!(
             block_colors(&mut app, slider).len(),
-            SLIDER_SEGMENTS,
+            phosphor_segments(),
             "phosphor shows the segmented block-meter"
         );
         assert_eq!(fill_width(&mut app, slider), None, "and no solid fill");
 
-        *app.world_mut().resource_mut::<UiSkin>() = UiSkin::Hardware;
+        select(&mut app, HARDWARE_THEME_ID);
         app.update();
         assert!(
             block_colors(&mut app, slider).is_empty(),
-            "the block-meter is gone on the hardware skin"
+            "the block-meter is gone on the hardware theme"
         );
         assert_eq!(
             fill_width(&mut app, slider),
@@ -480,43 +485,35 @@ mod tests {
         );
         assert_eq!(
             app.world().entity(slider).get::<Node>().unwrap().height,
-            px(SLIDER_TRACK_HARDWARE_H),
-            "the track geometry reskinned too, not just its children"
+            px(hardware().slider_track().height),
+            "the track geometry re-themed too, not just its children"
         );
 
-        *app.world_mut().resource_mut::<UiSkin>() = UiSkin::Phosphor;
+        select(&mut app, PHOSPHOR_THEME_ID);
         app.update();
         let colors = block_colors(&mut app, slider);
-        assert_eq!(
-            colors.len(),
-            SLIDER_SEGMENTS,
-            "and back: the block-meter returns"
-        );
+        let segments = phosphor_segments();
+        assert_eq!(colors.len(), segments, "and back: the block-meter returns");
+        let lit = phosphor().slider_track().lit;
         assert!(
-            colors
-                .iter()
-                .take(SLIDER_SEGMENTS / 2)
-                .all(|c| *c == theme::PHOSPHOR),
+            colors.iter().take(segments / 2).all(|c| *c == lit),
             "lit up to the current half-value, not dark"
         );
     }
 
-    /// A DISPLAY-ONLY track - one spawned straight from `slider_track(fraction,
-    /// skin)` with no `SliderValue`, which the signature invites - must survive
-    /// a skin flip too. The reconciler reads the fraction itself rather than
-    /// leaning on `sync_slider_tracks`, which cannot see a track that has no
-    /// value to sync from; otherwise such a track silently emptied itself on the
-    /// flip.
+    /// A DISPLAY-ONLY track - one spawned straight from
+    /// `slider_track(fraction)` with no `SliderValue`, which the signature
+    /// invites - must survive a theme flip too. The reconciler reads the
+    /// fraction itself rather than leaning on `sync_slider_tracks`, which cannot
+    /// see a track that has no value to sync from; otherwise such a track
+    /// silently emptied itself on the flip.
     #[test]
     fn a_display_only_track_keeps_its_fraction_across_a_flip() {
-        let mut app = skin_app(UiSkin::Phosphor);
-        let track = app
-            .world_mut()
-            .spawn(slider_track(0.75, UiSkin::Phosphor))
-            .id();
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        let track = app.world_mut().spawn(slider_track(0.75)).id();
         app.update();
 
-        *app.world_mut().resource_mut::<UiSkin>() = UiSkin::Hardware;
+        select(&mut app, HARDWARE_THEME_ID);
         app.update();
         assert_eq!(
             fill_width(&mut app, track),
@@ -531,13 +528,13 @@ mod tests {
     /// the fill where it was - the value had not changed, but what it MEANS had.
     #[test]
     fn a_changed_range_moves_the_fill_even_at_a_steady_value() {
-        let mut app = skin_app(UiSkin::Hardware);
+        let mut app = themed_app(HARDWARE_THEME_ID);
         let slider = app
             .world_mut()
             .spawn((
                 SliderValue(5.0),
                 SliderRange::new(0.0, 10.0),
-                slider_track(0.5, UiSkin::Hardware),
+                slider_track(0.5),
             ))
             .id();
         app.update();
@@ -574,13 +571,13 @@ mod tests {
             schedule::ScheduleBuildSettings,
         };
 
-        fn despawn_all_tracks(mut commands: Commands, q: Query<Entity, With<SliderTrackSkin>>) {
+        fn despawn_all_tracks(mut commands: Commands, q: Query<Entity, With<SliderTrack>>) {
             for entity in &q {
                 commands.entity(entity).despawn();
             }
         }
 
-        let mut app = skin_app(UiSkin::Phosphor);
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
         // The handler the game installs under `NOVA_AUTOPILOT`, which is how
         // every scripted run works - the configuration this failure mode bites in.
         app.insert_resource(FallbackErrorHandler(panic));
@@ -592,14 +589,13 @@ mod tests {
         });
         app.add_systems(
             Update,
-            despawn_all_tracks.before(reconcile_slider_track_skins),
+            despawn_all_tracks.before(reconcile_slider_track_themes),
         );
 
-        app.world_mut()
-            .spawn((SliderValue(0.5), slider_track(0.5, UiSkin::Phosphor)));
+        app.world_mut().spawn((SliderValue(0.5), slider_track(0.5)));
         app.update();
 
-        *app.world_mut().resource_mut::<UiSkin>() = UiSkin::Hardware;
+        select(&mut app, HARDWARE_THEME_ID);
         app.update();
     }
 }

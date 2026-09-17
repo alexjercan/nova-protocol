@@ -5,7 +5,7 @@
 use bevy::prelude::*;
 
 use super::scroll::ScrollViewport;
-use crate::{layer::MENU_PANEL_Z, theme};
+use crate::{layer::MENU_PANEL_Z, theme::BORDER_W, widget::ThemedSeparator};
 
 /// Width of the list pane, as a share of the screen card.
 const LIST_PANE_PERCENT: f32 = 40.0;
@@ -111,10 +111,14 @@ pub fn details_pane() -> impl Bundle {
             min_height: px(0),
             min_width: px(0),
             padding: UiRect::left(px(16)),
-            border: UiRect::left(px(theme::BORDER_W)),
+            border: UiRect::left(px(BORDER_W)),
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR_MUTED),
+        // The rule beside the list is the same rule `separator` draws, so it
+        // rides the same reconciler instead of naming a colour here - on the
+        // BORDER, which is the only channel this pane draws it in.
+        ThemedSeparator::Edge,
+        BorderColor::all(Color::NONE),
     )
 }
 

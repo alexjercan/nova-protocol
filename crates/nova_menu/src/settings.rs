@@ -21,11 +21,11 @@ use nova_ship::prelude::{
     SpaceshipTurretInputBinding,
 };
 use nova_ui::{
-    prelude::UiSkin,
-    theme,
+    theme::{GameUiThemes, SelectedUiTheme, UiColor, UiThemeDiagnostic},
     widget::{
         panel_header, segmented_container, segmented_container_wrapping, segmented_option,
-        segmented_option_fit, separator, slider_track, ButtonValue, Selected, UiText,
+        segmented_option_fit, separator, slider_track, ButtonValue, Selected, ThemedImageTint,
+        ThemedText, UiText,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -181,7 +181,7 @@ pub(crate) enum SettingsTabKind {
     Graphics,
     /// Every rebindable action, plus the fixed system chords.
     Controls,
-    /// The UI skin.
+    /// The UI theme and the two optional menu cards.
     Interface,
 }
 
@@ -454,11 +454,7 @@ impl WindowModeSetting {
 
 /// The tab bar: one segmented row above the scrolling body. Spawned by each
 /// entry point beside its own [`SettingsTabBody`], so a tab press reaches both.
-pub(crate) fn build_settings_tabs(
-    parent: &mut ChildSpawnerCommands,
-    skin: UiSkin,
-    active: SettingsTabKind,
-) {
+pub(crate) fn build_settings_tabs(parent: &mut ChildSpawnerCommands, active: SettingsTabKind) {
     parent
         .spawn((
             Name::new("Settings Tab Bar"),
@@ -468,7 +464,7 @@ pub(crate) fn build_settings_tabs(
             },
         ))
         .with_children(|bar| {
-            bar.spawn((Name::new("Settings Tabs"), segmented_container(skin)))
+            bar.spawn((Name::new("Settings Tabs"), segmented_container()))
                 .with_children(|row| {
                     for tab in SettingsTabKind::ALL {
                         let mut button = row.spawn((
@@ -549,12 +545,20 @@ pub(crate) fn settings_tab_dirty(
     group: Res<SettingsControlsGroup>,
     bindings: Res<InputBindings>,
     rebind: Res<PendingRebind>,
+    // The theme ROW is rebuilt from the registry, and the sentence under it
+    // from the diagnostic; neither moves under the pointer the way a slider
+    // does. The SELECTION is not here - `button_on_setting` moves `Selected`
+    // itself, so a theme press repaints without a rebuild.
+    themes: Res<GameUiThemes>,
+    diagnostic: Res<UiThemeDiagnostic>,
     spawned: Query<(), Added<SettingsTabBody>>,
 ) -> bool {
     active.is_changed()
         || group.is_changed()
         || bindings.is_changed()
         || rebind.is_changed()
+        || themes.is_changed()
+        || diagnostic.is_changed()
         || !spawned.is_empty()
 }
 
@@ -571,7 +575,9 @@ pub(crate) struct SettingsValues<'w> {
     music_volume: Res<'w, MusicVolume>,
     sensitivity: Res<'w, MouseSensitivity>,
     quality: Res<'w, GraphicsQuality>,
-    skin: Res<'w, UiSkin>,
+    themes: Res<'w, GameUiThemes>,
+    theme_selection: Res<'w, SelectedUiTheme>,
+    theme_diagnostic: Res<'w, UiThemeDiagnostic>,
     window_mode: Res<'w, WindowModeSetting>,
     prompt: Res<'w, TrainingPromptSetting>,
     field_note: Res<'w, FieldNoteSetting>,
@@ -592,7 +598,6 @@ pub(crate) fn refresh_settings_tab(
     hud_assets: Option<Res<NovaHudAssets>>,
 ) {
     let glyphs = hud_assets.as_deref().map(|assets| &assets.key_glyphs);
-    let skin = *values.skin;
     let levels = AudioLevels {
         master: values.volume.factor(),
         interface: values.interface_volume.factor(),
@@ -605,16 +610,16 @@ pub(crate) fn refresh_settings_tab(
         commands.entity(strip).despawn_related::<Children>();
         if active.0 == SettingsTabKind::Controls {
             commands.entity(strip).with_children(|strip| {
-                build_controls_header(strip, &bindings, &rebind, group.0, skin);
+                build_controls_header(strip, &bindings, &rebind, group.0);
             });
         }
     }
     for body in &bodies {
         commands.entity(body).despawn_related::<Children>();
         commands.entity(body).with_children(|list| match active.0 {
-            SettingsTabKind::Audio => build_audio_tab(list, levels, skin),
+            SettingsTabKind::Audio => build_audio_tab(list, levels),
             SettingsTabKind::Graphics => {
-                build_graphics_tab(list, *values.quality, *values.window_mode, skin);
+                build_graphics_tab(list, *values.quality, *values.window_mode);
             }
             SettingsTabKind::Controls => {
                 build_controls_tab(
@@ -624,11 +629,17 @@ pub(crate) fn refresh_settings_tab(
                     group.0,
                     glyphs,
                     *values.sensitivity,
-                    skin,
                 );
             }
             SettingsTabKind::Interface => {
-                build_interface_tab(list, skin, *values.prompt, *values.field_note);
+                build_interface_tab(
+                    list,
+                    &values.themes,
+                    &values.theme_selection,
+                    &values.theme_diagnostic,
+                    *values.prompt,
+                    *values.field_note,
+                );
             }
         });
     }
@@ -643,19 +654,14 @@ pub(crate) fn refresh_settings_tab(
 /// are the engine's two live buses. Music is RESERVED - the slider and the
 /// saved value are here so the surface and the store do not need a format break
 /// when music lands.
-fn build_audio_tab(list: &mut ChildSpawnerCommands, levels: AudioLevels, skin: UiSkin) {
+fn build_audio_tab(list: &mut ChildSpawnerCommands, levels: AudioLevels) {
     for channel in VolumeChannel::ALL {
-        build_volume_row(list, channel, levels.of(channel), skin);
+        build_volume_row(list, channel, levels.of(channel));
     }
 }
 
 /// One track's row: its name, its slider, and its percent readout.
-fn build_volume_row(
-    list: &mut ChildSpawnerCommands,
-    channel: VolumeChannel,
-    value: f32,
-    skin: UiSkin,
-) {
+fn build_volume_row(list: &mut ChildSpawnerCommands, channel: VolumeChannel, value: f32) {
     build_slider_row(
         list,
         SliderRow {
@@ -668,7 +674,6 @@ fn build_volume_row(
         },
         VolumeSlider(channel),
         VolumeLabel(channel),
-        skin,
     );
 }
 
@@ -701,7 +706,6 @@ fn build_slider_row(
     row: SliderRow,
     slider: impl Bundle,
     readout: impl Bundle,
-    skin: UiSkin,
 ) {
     let name = row.name;
     list.spawn((
@@ -724,7 +728,8 @@ fn build_slider_row(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::SCREEN_TEXT),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Body),
             Node {
                 min_width: px(70),
                 ..default()
@@ -751,7 +756,7 @@ fn build_slider_row(
                     SliderValue(row.value),
                     SliderRange::new(row.range.0, row.range.1),
                     SliderStep(row.step),
-                    slider_track(row.value, skin),
+                    slider_track(row.value),
                 ));
             });
         parent.spawn((
@@ -763,7 +768,8 @@ fn build_slider_row(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Primary),
             Node {
                 min_width: px(44),
                 ..default()
@@ -778,10 +784,9 @@ fn build_graphics_tab(
     list: &mut ChildSpawnerCommands,
     quality: GraphicsQuality,
     window_mode: WindowModeSetting,
-    skin: UiSkin,
 ) {
     list.spawn(panel_header("Quality"));
-    list.spawn((Name::new("Graphics Row"), segmented_container(skin)))
+    list.spawn((Name::new("Graphics Row"), segmented_container()))
         .with_children(|row| {
             for tier in GraphicsQuality::ALL {
                 let mut button = row.spawn((
@@ -802,7 +807,7 @@ fn build_graphics_tab(
     {
         list.spawn(separator());
         list.spawn(panel_header("Window"));
-        list.spawn((Name::new("Window Mode Row"), segmented_container(skin)))
+        list.spawn((Name::new("Window Mode Row"), segmented_container()))
             .with_children(|row| {
                 for mode in WindowModeSetting::ALL {
                     let mut button = row.spawn((
@@ -820,38 +825,62 @@ fn build_graphics_tab(
     let _ = window_mode;
 }
 
-/// INTERFACE - the UI skin choice and the two cards the menu's corner can
+/// INTERFACE - the UI theme choice and the two cards the menu's corner can
 /// carry. All three are segmented controls wired through `ButtonValue<T>` +
 /// the app-global `button_on_setting::<T>` observer, exactly like the graphics
 /// preset.
+///
+/// The theme row is built from [`GameUiThemes`], not from a list this crate
+/// knows: the two base looks and every theme an enabled mod declares are the
+/// same kind of thing, and a picker that named them would be the closed enum
+/// this format replaced. The row WRAPS, because that list has no length.
 fn build_interface_tab(
     list: &mut ChildSpawnerCommands,
-    skin: UiSkin,
+    themes: &GameUiThemes,
+    selected: &SelectedUiTheme,
+    diagnostic: &UiThemeDiagnostic,
     prompt: TrainingPromptSetting,
     field_note: FieldNoteSetting,
 ) {
-    list.spawn(panel_header("Skin"));
-    list.spawn((Name::new("UI Skin Row"), segmented_container(skin)))
+    list.spawn(panel_header("Theme"));
+    list.spawn((Name::new("UI Theme Row"), segmented_container_wrapping()))
         .with_children(|row| {
-            for option in [UiSkin::Phosphor, UiSkin::Hardware] {
-                let label = match option {
-                    UiSkin::Phosphor => "Phosphor",
-                    UiSkin::Hardware => "Hardware",
-                };
+            for (id, name) in themes.listed() {
                 let mut button = row.spawn((
-                    Name::new(format!("UI Skin {label}")),
-                    segmented_option(label),
-                    ButtonValue(option),
+                    Name::new(format!("UI Theme {id}")),
+                    segmented_option_fit(name),
+                    ButtonValue(SelectedUiTheme(id.to_string())),
                 ));
-                if option == skin {
+                if id == selected.0 {
                     button.insert(Selected);
                 }
             }
         });
+    // A player whose theme silently reverted - they disabled the mod that
+    // declared it, or the mod shipped a broken one - has no way to tell that
+    // from a forgotten setting. Say which theme failed and why, beside the row
+    // that is now showing something else.
+    if let Some(issue) = &diagnostic.0 {
+        list.spawn((
+            Name::new("UI Theme Diagnostic"),
+            UiText,
+            Text::new(format!("{}: {}", issue.theme, issue.message)),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Danger),
+            Node {
+                margin: UiRect::top(px(6)),
+                ..default()
+            },
+        ));
+    }
 
     list.spawn(separator());
     list.spawn(panel_header("Training prompt"));
-    list.spawn((Name::new("Training Prompt Row"), segmented_container(skin)))
+    list.spawn((Name::new("Training Prompt Row"), segmented_container()))
         .with_children(|row| {
             for option in TrainingPromptSetting::ALL {
                 let mut button = row.spawn((
@@ -867,7 +896,7 @@ fn build_interface_tab(
 
     list.spawn(separator());
     list.spawn(panel_header("Field notes"));
-    list.spawn((Name::new("Field Notes Row"), segmented_container(skin)))
+    list.spawn((Name::new("Field Notes Row"), segmented_container()))
         .with_children(|row| {
             for option in FieldNoteSetting::ALL {
                 let mut button = row.spawn((
@@ -892,7 +921,6 @@ fn build_controls_header(
     bindings: &InputBindings,
     rebind: &PendingRebind,
     open_group: &str,
-    skin: UiSkin,
 ) {
     let groups = controls_groups(bindings);
     let Some(open) = open_group_of(&groups, open_group) else {
@@ -901,7 +929,7 @@ fn build_controls_header(
     strip
         .spawn((
             Name::new("Controls Group Bar"),
-            segmented_container_wrapping(skin),
+            segmented_container_wrapping(),
         ))
         .with_children(|bar| {
             for group in &groups {
@@ -925,7 +953,8 @@ fn build_controls_header(
                 font_size: FontSize::Px(12.0),
                 ..default()
             },
-            TextColor(theme::AMBER_NOVA),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Accent),
             Node {
                 margin: UiRect::top(px(6)),
                 ..default()
@@ -982,7 +1011,6 @@ fn build_controls_tab(
     open_group: &str,
     glyphs: Option<&KeyGlyphs>,
     sensitivity: MouseSensitivity,
-    skin: UiSkin,
 ) {
     let groups = controls_groups(bindings);
     let Some(open) = open_group_of(&groups, open_group) else {
@@ -991,7 +1019,7 @@ fn build_controls_tab(
 
     if open == MOUSE_GROUP {
         for path in MousePath::ALL {
-            build_sensitivity_row(list, path, sensitivity.percent(path), skin);
+            build_sensitivity_row(list, path, sensitivity.percent(path));
         }
         return;
     }
@@ -1016,12 +1044,7 @@ fn build_controls_tab(
 /// speaks PERCENTAGES - each path's own `100%` baseline - because that is the
 /// only reading of three gains two orders of magnitude apart a player can
 /// compare; the raw engine value is what the observer stores.
-fn build_sensitivity_row(
-    list: &mut ChildSpawnerCommands,
-    path: MousePath,
-    percent: f32,
-    skin: UiSkin,
-) {
+fn build_sensitivity_row(list: &mut ChildSpawnerCommands, path: MousePath, percent: f32) {
     let range = path.range();
     build_slider_row(
         list,
@@ -1035,7 +1058,6 @@ fn build_sensitivity_row(
         },
         SensitivitySlider(path),
         SensitivityLabel(path),
-        skin,
     );
 }
 
@@ -1246,7 +1268,8 @@ fn spawn_rebind_row(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::SCREEN_TEXT),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Body),
             // The label takes ALL the leftover width, so the two chip columns
             // land at the same x on every row. Sized by the label instead, a
             // long verb pushed its chips right and the column read as ragged.
@@ -1314,13 +1337,7 @@ fn spawn_chip(
                 InteractionDisabled,
             ))
             .with_children(|slot| {
-                spawn_binding_chips(
-                    slot,
-                    chips,
-                    glyphs,
-                    theme::PHOSPHOR_MUTED,
-                    theme::PHOSPHOR_MUTED,
-                );
+                spawn_binding_chips(slot, chips, glyphs, UiColor::Label, Some(UiColor::Label));
             });
         });
         return;
@@ -1339,7 +1356,7 @@ fn spawn_chip(
             chip.insert(Selected);
         } else {
             chip.with_children(|slot| {
-                spawn_binding_chips(slot, chips, glyphs, theme::SCREEN_TEXT, Color::WHITE);
+                spawn_binding_chips(slot, chips, glyphs, UiColor::Body, None);
             });
         }
     });
@@ -1355,8 +1372,12 @@ pub(crate) fn spawn_binding_chips(
     slot: &mut ChildSpawnerCommands,
     chips: &[BindingChip],
     glyphs: Option<&KeyGlyphs>,
-    text_color: Color,
-    glyph_tint: Color,
+    text_color: UiColor,
+    // `None` = the art as drawn. A disabled row passes a tint so the PICTURE
+    // greys with its text: while the tint reached the text branch alone, an
+    // unchangeable row - Escape, Aim - drew a full-brightness keycap
+    // indistinguishable from the rebindable row under it.
+    glyph_tint: Option<UiColor>,
 ) {
     if chips.is_empty() {
         slot.spawn((
@@ -1366,7 +1387,8 @@ pub(crate) fn spawn_binding_chips(
                 font_size: FontSize::Px(12.0),
                 ..default()
             },
-            TextColor(text_color),
+            TextColor(Color::NONE),
+            ThemedText::new(text_color),
         ));
         return;
     }
@@ -1375,15 +1397,12 @@ pub(crate) fn spawn_binding_chips(
             glyphs.and_then(|glyphs| chip.glyph.as_deref().and_then(|label| glyphs.get(label)));
         match cap {
             Some(cap) => {
-                let (mut image, node) = cap.node(CHIP_GLYPH_PX);
-                // The PICTURE carries the disabled paint too, not only the text
-                // fallback. While the tint reached the text branch alone, a row
-                // that cannot be changed - Escape, Aim - drew a full-brightness
-                // keycap indistinguishable from the rebindable row under it, and
-                // the Pause row disagreed with itself: a bright Esc cap beside
-                // greyed-out `Start` text.
-                image.color = glyph_tint;
-                slot.spawn((Name::new(format!("Keycap: {}", chip.text)), image, node));
+                let (image, node) = cap.node(CHIP_GLYPH_PX);
+                let mut cap =
+                    slot.spawn((Name::new(format!("Keycap: {}", chip.text)), image, node));
+                if let Some(tint) = glyph_tint {
+                    cap.insert(ThemedImageTint::new(tint));
+                }
             }
             None => {
                 slot.spawn((
@@ -1393,7 +1412,8 @@ pub(crate) fn spawn_binding_chips(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(text_color),
+                    TextColor(Color::NONE),
+                    ThemedText::new(text_color),
                 ));
             }
         }
@@ -1511,7 +1531,7 @@ fn play_detent_tick(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) {
 
 /// Keep each volume slider's percent readout in sync with its own value. The
 /// bar fill is the shared `slider_track`, shown by nova_ui's
-/// `sync_slider_tracks` in either skin - so this only owns the `NN%` text. Runs
+/// `sync_slider_tracks` in every theme - so this only owns the `NN%` text. Runs
 /// every frame; there is at most one Audio tab open (main-menu or pause), and
 /// none while no settings panel is open.
 pub(crate) fn sync_volume_slider(
@@ -1589,7 +1609,8 @@ pub(crate) fn spawn_keybind_row(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::SCREEN_TEXT),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Body),
             Node {
                 flex_grow: 1.0,
                 flex_basis: px(0),
@@ -1622,8 +1643,8 @@ pub(crate) fn spawn_keybind_row(
                         slot,
                         &[chip],
                         glyphs,
-                        theme::PHOSPHOR_MUTED,
-                        theme::PHOSPHOR_MUTED,
+                        UiColor::Label,
+                        Some(UiColor::Label),
                     );
                 });
             });

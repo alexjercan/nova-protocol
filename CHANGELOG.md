@@ -189,6 +189,12 @@ does NOT get an entry - and it is the only place they are written down.
   spending a big world's triangles, and a kilometre-wide one is round.
 
 ### Modding & Mod Portal
+- A mod can ship a LOOK: a `UiTheme` content item is a complete UI theme - a
+  palette, three metrics and the paint of every widget role. Declare a new id to
+  add one, or `base/phosphor`'s id to restyle the shipped default.
+- A theme may inherit: `inherit: Some("base/phosphor")` takes every role it
+  omits, so a recolour is a palette and nothing else. A role it does declare
+  replaces the inherited one whole, states and all.
 - **(breaking)** Impact rows, narrative channels and ship grammars are code,
   not content. A style takes a `palette` and a three-word placement, an
   asteroid `kind` not `material`, a cue an `accent`.
@@ -215,6 +221,27 @@ does NOT get an entry - and it is the only place they are written down.
   enabled.
 
 ### Interface & HUD
+- **(breaking)** Settings > Interface lists THEMES rather than two skins. The
+  two shipped looks are now base-mod content (`base/phosphor`, `base/hardware`)
+  and an enabled mod's themes appear in the same row. The saved setting is the
+  theme id: an older store's `ui_skin` is dropped and opens on `base/phosphor`.
+- **(breaking)** A root theme's palette carries a thirteenth required variable,
+  `nominal` - the healthy, online, lit tone. It is what a passed check and an
+  enabled dependency ink in, and it is separate from `primary` so a look whose
+  ink is not green can still light a green lamp.
+- A theme change repaints what is already on screen. Every widget resolves its
+  paint from the live theme each frame it changes, so the menu, the pause
+  screen, the editor and the HUD chrome all move together instead of keeping
+  the look the screen was built in.
+- A selected theme whose mod is switched off falls back to `base/phosphor` and
+  says so under the theme row. The selection is kept, so re-enabling the mod
+  restores the look.
+- The Hardware look is a casing throughout. It carries its own semantic palette
+  instead of the terminal's, so labels, body copy and the mod and lesson preview
+  panes read in the casing's ink rather than in phosphor green.
+- Picking a lesson or a scenario moves the highlight instead of redrawing the
+  whole list, so the rows hold still, keep their scroll position, and a
+  thumbnail still loading no longer rebuilds the picker every frame.
 - The main menu opens a training handbook: 63 lessons in six categories, one
   screen each with a demonstration - a still or a two-second loop - your own
   bindings, a wiki link, and a Practice button that flies a range.

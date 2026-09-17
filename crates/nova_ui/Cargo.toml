@@ -12,13 +12,15 @@ bevy = { version = "0.19.0" }
 # crate both the display side and the physics side can reach, so a readout and
 # a hull measure a meter the same way.
 nova_events = { path = "../nova_events" }
-# `serde` enables Serialize/Deserialize on `UiSkin` so it can persist through the
-# settings store, mirroring nova_gameplay's setting resources. Optional: the
-# widget layer itself needs no serialization.
-serde = { version = "1", features = ["derive"], optional = true }
+# The UI-THEME format (`theme::config`) is serde unconditionally: it is mod
+# content, so every consumer of this crate reaches a crate that must parse it.
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# The theme tests decode an AUTHORED theme file rather than a builder, because
+# what a mod ships is RON text and `deny_unknown_fields` is part of the format.
+ron = { version = "0.12" }
 
 [lints]
 workspace = true
 
-[features]
-serde = ["dep:serde"]

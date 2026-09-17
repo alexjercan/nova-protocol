@@ -8,7 +8,7 @@ use crate::node::{ObjectChoice, ScenarioNode, ShipDriver};
 /// A scenario holding one ship and one rock, with the plate layer up.
 fn stage() -> (App, Entity, Entity) {
     let mut app = App::new();
-    app.init_resource::<UiSkin>();
+    app.init_resource::<ActiveUiTheme>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<HoveredNode>();
     let scenario = app

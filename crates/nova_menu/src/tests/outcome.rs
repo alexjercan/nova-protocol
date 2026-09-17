@@ -9,7 +9,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
-use nova_ui::prelude::UiSkin;
+use nova_ui::theme::ActiveUiTheme;
 
 use super::support::{
     all_text, app, app_with_outcome, clocks_paused, dummy_scenario, dummy_scenarios, enter_playing,
@@ -636,7 +636,7 @@ fn a_defeat_sounds_and_a_victory_leaves_the_chime_to_the_objective_panel() {
 
     let outcome_app = |kind: ScenarioOutcomeKind| {
         let mut app = cue_app();
-        app.init_resource::<UiSkin>();
+        app.init_resource::<ActiveUiTheme>();
         app.init_resource::<CurrentOutcome>();
         app.init_resource::<NovaEventWorld>();
         app.add_systems(Update, sync_outcome_overlay);

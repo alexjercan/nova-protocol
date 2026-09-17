@@ -17,12 +17,12 @@ use bevy::{
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::subtree_collider_aabb;
 use nova_ship::prelude::*;
-use nova_ui::theme;
 
 use crate::{
     config::EditorGizmos,
     gallery::{catalog, GalleryState},
     node::EditContext,
+    palette,
     placement::draw_socket,
     preview::{insert_preview_section, PreviewRole},
     ExampleStates,
@@ -467,7 +467,7 @@ pub(crate) fn draw_focus_sockets(
                 eye,
                 pose.transform_point(socket.position),
                 (pose.rotation() * socket.normal).normalize_or(Vec3::Z),
-                theme::PHOSPHOR,
+                palette::GO,
                 false,
             );
         }

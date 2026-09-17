@@ -12,11 +12,11 @@ use nova_assets::prelude::{
 };
 use nova_mod_format::BASE_MOD_ID;
 use nova_ui::{
-    prelude::UiSkin,
     theme,
+    theme::UiColor,
     widget::{
-        badge, checkbox, checkbox_colors, checkbox_glyph, list_row, separator, themed_button,
-        BadgeKind, ListRow, Selected, UiText,
+        badge, checkbox, list_row, separator, themed_button, BadgeKind, Selected, ThemedBorder,
+        ThemedCheckbox, ThemedFill, ThemedRadius, ThemedText, UiText,
     },
 };
 
@@ -123,15 +123,13 @@ pub(crate) fn spawn_mod_row(
     m: &ModInfo,
     enabled: bool,
     selected: bool,
-    skin: UiSkin,
 ) {
     // The shared interactive `list_row`: `ListRow` + `Button` + `Hovered` so the
     // nova_ui reconciler highlights it on hover/selection (matching the zoo).
     let mut row = list.spawn((
         Name::new(format!("Mod Row: {}", m.id)),
         ModRow { id: m.id.clone() },
-        list_row(selected, skin),
-        ListRow,
+        list_row(),
         Button,
         Hovered::default(),
         observe(on_mod_row_select),
@@ -157,7 +155,8 @@ pub(crate) fn spawn_mod_row(
                     font_size: FontSize::Px(15.0),
                     ..default()
                 },
-                TextColor(theme::SCREEN_TEXT),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Body),
             ));
             let line = version_author_line(&m.meta);
             if !line.is_empty() {
@@ -169,7 +168,8 @@ pub(crate) fn spawn_mod_row(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_DIM),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Secondary),
                 ));
             }
         });
@@ -177,7 +177,7 @@ pub(crate) fn spawn_mod_row(
             // The base pack cannot be disabled - a muted badge, not a checkbox.
             row.spawn((
                 Name::new("Mod Base Badge"),
-                badge(BadgeKind::Mute, BASE_MOD_ID, skin),
+                badge(BadgeKind::Mute, BASE_MOD_ID),
             ));
         } else {
             // The shared `checkbox` widget; still a `Button` + `MenuSfxButton` so
@@ -191,7 +191,7 @@ pub(crate) fn spawn_mod_row(
                     id: m.id.clone(),
                     base: m.base,
                 },
-                checkbox(enabled, skin),
+                checkbox(enabled),
                 MenuSfxButton,
                 Button,
                 Hovered::default(),
@@ -285,15 +285,11 @@ pub(crate) fn on_mod_row_select(
 /// downloaded set changed (the Explore rows' installed/update status tags).
 pub(crate) fn mods_list_dirty(
     active: Res<ModsActiveTab>,
-    skin: Res<UiSkin>,
     catalog: Option<Res<ModCatalog>>,
     remote: Option<Res<RemoteCatalog>>,
     downloaded: Option<Res<DownloadedMods>>,
 ) -> bool {
-    // `skin` too: a UiSkin flip rebuilds the rows so their shared widgets
-    // (list_row, checkbox, badge) re-spawn for the new skin.
     active.is_changed()
-        || skin.is_changed()
         || catalog.is_some_and(|c| c.is_changed())
         || remote.is_some_and(|r| r.is_changed())
         || downloaded.is_some_and(|d| d.is_changed())
@@ -333,7 +329,6 @@ pub(crate) fn mod_details_dirty(
 /// against the VISIBLE remote entries exactly like the Installed branch.
 pub(crate) fn refresh_mods_list(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     active: Res<ModsActiveTab>,
     catalog: Option<Res<ModCatalog>>,
     enabled: Option<Res<EnabledMods>>,
@@ -362,7 +357,7 @@ pub(crate) fn refresh_mods_list(
             commands.entity(list).with_children(|list| {
                 for m in &mods {
                     let is_selected = selected.0.as_deref() == Some(m.id.as_str());
-                    spawn_mod_row(list, m, is_enabled(&m.id), is_selected, *skin);
+                    spawn_mod_row(list, m, is_enabled(&m.id), is_selected);
                 }
             });
         }
@@ -406,11 +401,13 @@ pub(crate) fn refresh_mods_list(
                                 padding: UiRect::all(px(8)),
                                 margin: UiRect::bottom(px(4)),
                                 border: UiRect::all(px(theme::BORDER_W)),
-                                border_radius: BorderRadius::all(px(theme::RADIUS)),
                                 ..default()
                             },
-                            BorderColor::all(theme::PHOSPHOR_MUTED),
-                            BackgroundColor(theme::SPACE),
+                            ThemedRadius::control(),
+                            BorderColor::all(Color::NONE),
+                            ThemedBorder::new(UiColor::Label),
+                            BackgroundColor(Color::NONE),
+                            ThemedFill::new(UiColor::Void),
                         ))
                         .with_children(|row| {
                             row.spawn((
@@ -420,7 +417,8 @@ pub(crate) fn refresh_mods_list(
                                     font_size: FontSize::Px(13.0),
                                     ..default()
                                 },
-                                TextColor(theme::AMBER_NOVA),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Accent),
                             ));
                             row.spawn((
                                 Name::new("Portal Retry Slot"),
@@ -467,7 +465,8 @@ pub(crate) fn spawn_details_empty(details: &mut ChildSpawnerCommands) {
             font_size: FontSize::Px(14.0),
             ..default()
         },
-        TextColor(theme::PHOSPHOR_MUTED),
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Label),
     ));
     details.spawn((
         Name::new("Mod Details Actions"),
@@ -518,7 +517,8 @@ pub(crate) fn spawn_details_meta(
             font_size: FontSize::Px(20.0),
             ..default()
         },
-        TextColor(theme::SCREEN_TEXT),
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Body),
     ));
     if !line.is_empty() {
         details.spawn((
@@ -528,7 +528,8 @@ pub(crate) fn spawn_details_meta(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR_MUTED),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Label),
         ));
     }
     details.spawn((Name::new("Mod Details Separator"), separator()));
@@ -540,7 +541,8 @@ pub(crate) fn spawn_details_meta(
                 font_size: FontSize::Px(14.0),
                 ..default()
             },
-            TextColor(theme::SCREEN_TEXT),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Body),
             Node {
                 margin: UiRect::bottom(px(8)),
                 ..default()
@@ -554,7 +556,8 @@ pub(crate) fn spawn_details_meta(
             font_size: FontSize::Px(13.0),
             ..default()
         },
-        TextColor(theme::PHOSPHOR_MUTED),
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Label),
     ));
     if meta.dependencies.is_empty() {
         details.spawn((
@@ -564,16 +567,17 @@ pub(crate) fn spawn_details_meta(
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR_MUTED),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Label),
         ));
     } else {
         // One line per dep, coloured by whether it is enabled / installed / missing
         // so the player sees what enabling this mod will pull in.
         for dep in &meta.dependencies {
             let (suffix, color) = match dep_status(dep, catalog, enabled) {
-                DepStatus::Enabled => ("enabled", theme::PHOSPHOR),
-                DepStatus::InstalledDisabled => ("installed, disabled", theme::PHOSPHOR_MUTED),
-                DepStatus::Missing => ("missing", theme::AMBER_NOVA),
+                DepStatus::Enabled => ("enabled", UiColor::Nominal),
+                DepStatus::InstalledDisabled => ("installed, disabled", UiColor::Label),
+                DepStatus::Missing => ("missing", UiColor::Accent),
             };
             details.spawn((
                 Name::new(format!("Mod Details Dependency: {dep}")),
@@ -582,7 +586,8 @@ pub(crate) fn spawn_details_meta(
                     font_size: FontSize::Px(13.0),
                     ..default()
                 },
-                TextColor(color),
+                TextColor(Color::NONE),
+                ThemedText::new(color),
             ));
         }
     }
@@ -663,7 +668,8 @@ pub(crate) fn refresh_mod_details(
                                     font_size: FontSize::Px(14.0),
                                     ..default()
                                 },
-                                TextColor(theme::PHOSPHOR),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Primary),
                             ));
                         } else {
                             // Fixed-width slot: the percent-width themed
@@ -850,42 +856,26 @@ pub(crate) fn on_mod_toggle(
 }
 
 /// Keep each row's enable checkbox in sync with [`EnabledMods`] (after a click,
-/// or a future persisted set) IN PLACE - repaint the shared `checkbox` widget's
-/// fill/border/glyph for the new state without rebuilding the row (rows only
-/// rebuild on tab/catalog change). Uses nova_ui's `checkbox_colors`/
-/// `checkbox_glyph` so it stays identical to the `checkbox()` factory.
+/// or a future persisted set) IN PLACE, without rebuilding the row (rows only
+/// rebuild on tab/catalog change).
+///
+/// Writes the STATE, not the paint: nova_ui's [`ThemedCheckbox`] reconciler
+/// owns the fill, the border and the glyph together, so this cannot repaint
+/// one of the three and forget another, and the box follows a theme change on
+/// its own.
 pub(crate) fn sync_mod_checkboxes(
     enabled: Option<Res<EnabledMods>>,
-    skin: Res<UiSkin>,
-    mut checkboxes: Query<
-        (
-            &ModToggle,
-            &Children,
-            &mut BackgroundColor,
-            &mut BorderColor,
-        ),
-        With<ModEnableCheckbox>,
-    >,
-    mut glyphs: Query<(&mut Text, &mut TextColor)>,
+    mut checkboxes: Query<(&ModToggle, &mut ThemedCheckbox), With<ModEnableCheckbox>>,
 ) {
     let Some(enabled) = enabled else {
         return;
     };
-    for (toggle, children, mut bg, mut border) in &mut checkboxes {
-        let on = enabled.0.contains(&toggle.id);
-        let (fill, edge, glyph_color) = checkbox_colors(on, *skin);
-        *bg = fill.into();
-        border.set_all(edge);
-        for &child in children {
-            if let Ok((mut text, mut color)) = glyphs.get_mut(child) {
-                let mark = checkbox_glyph(on);
-                if text.0 != mark {
-                    text.0 = mark.to_string();
-                }
-                if color.0 != glyph_color {
-                    color.0 = glyph_color;
-                }
-            }
+    for (toggle, mut state) in &mut checkboxes {
+        let on = ThemedCheckbox(enabled.0.contains(&toggle.id));
+        // Guarded: an unconditional write marks every box changed every frame,
+        // and the reconciler restyles on `Changed<ThemedCheckbox>`.
+        if *state != on {
+            *state = on;
         }
     }
 }

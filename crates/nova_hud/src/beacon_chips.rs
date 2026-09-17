@@ -14,7 +14,7 @@
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_ui::hud::ChipTone;
+use nova_ui::hud::{ChipText, ChipTone};
 
 use super::{anchored_chip::prelude::*, screen_indicator::prelude::*, NAV_CYAN};
 
@@ -71,13 +71,17 @@ fn beacon_chip_hud(beacon: Entity, suppressed: bool) -> impl Bundle {
             Name::new("BeaconChipUI"),
             anchored_chip_node(
                 (!suppressed).then_some(beacon),
-                ChipTone::Phosphor,
+                ChipTone::Readout,
                 CHIP_CLEARANCE,
             ),
             children![
                 (
                     Name::new("BeaconChipLabel"),
-                    anchored_chip_label(LABEL_FONT_PX, ChipTone::Phosphor.text(), ()),
+                    anchored_chip_label(
+                        LABEL_FONT_PX,
+                        Color::NONE,
+                        ChipText::value(ChipTone::Readout),
+                    ),
                 ),
                 (
                     Name::new("BeaconChipArrow"),

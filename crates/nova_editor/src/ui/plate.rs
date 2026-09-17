@@ -17,9 +17,10 @@ use bevy::{color::Mix, picking::Pickable, prelude::*};
 use nova_gameplay::prelude::subtree_collider_aabb;
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ui::{
-    prelude::{clear_of, hang_at, Hang, UiSkin, UiText},
+    prelude::{clear_of, hang_at, Hang, UiText},
     theme,
-    widget::list_row_colors,
+    theme::{ActiveUiTheme, UiColor},
+    widget::{list_row_colors, ThemedRadius},
 };
 
 use crate::{
@@ -76,12 +77,20 @@ pub(crate) fn plate_layer() -> impl Bundle {
 
 /// One plate. Marked ones wear the list's selected paint, so a plate and the
 /// tree row it belongs to say "this one" the same way.
-fn plate(label: &str, marked: bool, skin: UiSkin) -> impl Bundle {
-    let (fill, border) = list_row_colors(marked, false, skin);
+fn plate(label: &str, marked: bool, theme: &ActiveUiTheme) -> impl Bundle {
+    let (fill, border) = list_row_colors(theme, marked, false);
     // The row's fill assumes a PANEL behind it. A plate has the stage behind
     // it, so the row paint is mixed over a chip of screen rather than trusted
     // to carry a label over whatever the camera is pointed at.
-    let background = theme::SCREEN_0.with_alpha(FILL).mix(&fill, fill.alpha());
+    let background = theme
+        .color(UiColor::Void)
+        .with_alpha(FILL)
+        .mix(&fill, fill.alpha());
+    let ink = theme.color(if marked {
+        UiColor::Primary
+    } else {
+        UiColor::Label
+    });
     (
         Pickable::IGNORE,
         Node {
@@ -90,9 +99,9 @@ fn plate(label: &str, marked: bool, skin: UiSkin) -> impl Bundle {
             top: px(0),
             padding: UiRect::axes(px(5), px(1)),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
+        ThemedRadius::control(),
         BorderColor::all(border),
         BackgroundColor(background),
         children![(
@@ -102,11 +111,7 @@ fn plate(label: &str, marked: bool, skin: UiSkin) -> impl Bundle {
                 font_size: FontSize::Px(11.0),
                 ..default()
             },
-            TextColor(if marked {
-                theme::PHOSPHOR
-            } else {
-                theme::PHOSPHOR_MUTED
-            }),
+            TextColor(ink),
         )],
     )
 }
@@ -194,7 +199,7 @@ fn label_of(name: &str, id: &str) -> String {
 )]
 pub(crate) fn sync_nameplates(
     mut commands: Commands,
-    skin: Res<UiSkin>,
+    theme: Res<ActiveUiTheme>,
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
     hovered: Res<HoveredNode>,
@@ -215,7 +220,10 @@ pub(crate) fn sync_nameplates(
     if !fresh.is_empty() {
         shown.clear();
     }
-    if *shown != wanted {
+    // A theme flip repaints a plate the only way it can be repainted: these
+    // are built with the paint baked in, because the plate is mixed over the
+    // stage rather than over a panel and no widget reconciler can know that.
+    if *shown != wanted || theme.is_changed() {
         if let Ok(layer) = layers.single() {
             commands.entity(layer).despawn_related::<Children>();
             commands.entity(layer).with_children(|layer| {
@@ -223,7 +231,7 @@ pub(crate) fn sync_nameplates(
                     layer.spawn((
                         Name::new(format!("Name Plate {label}")),
                         NamePlate(*node),
-                        plate(label, *marked, *skin),
+                        plate(label, *marked, &theme),
                     ));
                 }
             });

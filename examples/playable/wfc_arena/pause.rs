@@ -3,7 +3,11 @@ use bevy::{
     ui_widgets::Activate,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use nova_ui::{skin::UiSkin, theme, widget::prelude::*};
+use nova_ui::{
+    theme,
+    theme::UiColor,
+    widget::{prelude::*, ThemedText},
+};
 
 use super::*;
 
@@ -90,7 +94,7 @@ fn pause_button(label: &str, action: PauseAction, primary: bool) -> impl Bundle 
     (button(spec.block()), action)
 }
 
-fn spawn_pause(mut commands: Commands, skin: Res<UiSkin>) {
+fn spawn_pause(mut commands: Commands) {
     commands
         .spawn((
             DespawnOnExit(PauseStates::Paused),
@@ -120,7 +124,7 @@ fn spawn_pause(mut commands: Commands, skin: Res<UiSkin>) {
                         row_gap: px(7),
                         ..default()
                     },
-                    nova_ui::widget::panel(*skin),
+                    nova_ui::widget::panel(),
                 ))
                 .with_children(|panel| {
                     panel.spawn((
@@ -130,7 +134,8 @@ fn spawn_pause(mut commands: Commands, skin: Res<UiSkin>) {
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
                         Node {
                             margin: UiRect::bottom(px(10)),
                             ..default()
@@ -156,7 +161,6 @@ fn on_pause_action(
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     styles: Res<GameStyles>,
-    skin: Res<UiSkin>,
     model: Option<Res<lobby::LobbyModel>>,
     mut roster: ResMut<Roster>,
 ) {
@@ -183,7 +187,7 @@ fn on_pause_action(
             commands.trigger(UnloadScenario);
             commands.insert_resource(Scoreboard::default());
             result::leave_match(&mut commands);
-            lobby::spawn_lobby(&mut commands, &model, &styles, *skin);
+            lobby::spawn_lobby(&mut commands, &model, &styles);
             next.set(PauseStates::Unpaused);
         }
         PauseAction::Quit => {

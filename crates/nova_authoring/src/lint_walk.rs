@@ -21,6 +21,7 @@ use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
 use nova_training::prelude::{
     lint_lessons, unused_practice_ranges, Lesson, LessonIssue, LessonSeverity,
 };
+use nova_ui::theme::{lint_theme, UiThemeConfig};
 
 use crate::{
     balance::{BalanceAck, BALANCE_ACKS_FILE},
@@ -48,6 +49,7 @@ struct WalkedBundle {
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     lessons: Vec<Lesson>,
+    ui_themes: Vec<UiThemeConfig>,
     /// Every parsed content item paired with the bundle-relative file it was
     /// read from (a bundle lists several content files). Kept so the
     /// mod-relative `self://` resource-ref check can see every kind, and so
@@ -110,6 +112,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
     let mut lessons = Vec::new();
+    let mut ui_themes = Vec::new();
     for (_, item) in &content {
         match item {
             Content::Section(section) => sections.push(section.as_ref().clone()),
@@ -117,6 +120,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
+            Content::UiTheme(theme) => ui_themes.push(theme.clone()),
             // A style has no cross-content references of its own - it
             // names asset paths and nothing else - so it is walked for its
             // resource refs (below) and needs no bucket here.
@@ -131,6 +135,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         scenarios,
         campaigns,
         lessons,
+        ui_themes,
         content,
         acks: read_acks(dir),
     }
@@ -312,6 +317,40 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     .chain(unused_practice_ranges(all_lessons, &own_ranges));
     for issue in findings {
         issues.push((bundle.id.clone(), lesson_issue(issue)));
+    }
+
+    // UI-theme well-formedness: a theme must RESOLVE - every role reachable
+    // through its inheritance chain, every palette variable it names declared,
+    // every hex parseable. The chain is walked against every theme visible to
+    // this bundle (base + declared dependencies + its own), because a mod's
+    // theme may inherit from a base one. A theme that does not resolve is not
+    // a theme that looks wrong; it is one the game would refuse and fall back
+    // from, so the player would never see it at all.
+    let themes_by_bundle: HashMap<&str, &[UiThemeConfig]> = all
+        .iter()
+        .map(|b| (b.id.as_str(), b.ui_themes.as_slice()))
+        .collect();
+    let mut visible_themes: Vec<UiThemeConfig> = themes_by_bundle
+        .get(BASE_MOD_ID)
+        .map(|t| t.to_vec())
+        .unwrap_or_default();
+    for dep in &bundle.manifest.meta.dependencies {
+        if let Some(dep_themes) = themes_by_bundle.get(dep.as_str()) {
+            visible_themes.extend(dep_themes.iter().cloned());
+        }
+    }
+    visible_themes.extend(bundle.ui_themes.iter().cloned());
+    for theme in &bundle.ui_themes {
+        for issue in lint_theme(theme, &visible_themes) {
+            issues.push((
+                bundle.id.clone(),
+                LintIssue {
+                    severity: LintSeverity::Error,
+                    scenario: theme.id.clone(),
+                    message: issue.message,
+                },
+            ));
+        }
     }
 
     // Section-config well-formedness (turret joint trees today): validate
@@ -849,6 +888,13 @@ mod tests {
                 _ => None,
             })
             .collect();
+        let ui_themes = content
+            .iter()
+            .filter_map(|c| match c {
+                Content::UiTheme(theme) => Some(theme.clone()),
+                _ => None,
+            })
+            .collect();
         WalkedBundle {
             id: id.to_string(),
             manifest: BundleManifest {
@@ -865,6 +911,7 @@ mod tests {
             scenarios,
             campaigns,
             lessons,
+            ui_themes,
             // The tests do not exercise multi-file provenance; a single
             // synthetic file name carries every item.
             content: content

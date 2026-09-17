@@ -1,15 +1,16 @@
 //! Shared UI theme and widgets for the Nova Protocol game.
 //!
-//! One source of truth for the in-game UI look (menu, editor, HUD chrome),
-//! built on the NOVA OS palette. `theme` holds the palette + metrics; `skin`
-//! holds the [`UiSkin`](skin::UiSkin) selector (phosphor terminal vs hardware
-//! casing); `units` holds the player-facing distance/speed formatting policy;
-//! `widget` holds the skin-aware themed button + selection machinery and small
-//! layout helpers; `hud` holds the flight-HUD chip language (phosphor-only
-//! chrome projected over the world); `font` holds the shared UI typeface handle
-//! preloaded at startup; `status_bar` holds the top-right metrics bar;
-//! `input_mode` holds the one arbiter that decides who owns the keyboard;
-//! `layer` holds the stacking order every full-screen modal is placed in.
+//! One source of truth for the in-game UI look (menu, editor, HUD chrome).
+//! `theme` holds the moddable UI-THEME stack - the authored RON format, the
+//! resolver, the two themes the base mod ships, and
+//! [`ActiveUiTheme`](theme::ActiveUiTheme), the complete paint table every
+//! widget reads; `units` holds the player-facing distance/speed formatting
+//! policy; `widget` holds the themed button + selection machinery and small
+//! layout helpers; `hud` holds the flight-HUD chip language (chrome projected
+//! over the world); `font` holds the shared UI typeface handle preloaded at
+//! startup; `status_bar` holds the top-right metrics bar; `input_mode` holds
+//! the one arbiter that decides who owns the keyboard; `layer` holds the
+//! stacking order every full-screen modal is placed in.
 
 #![warn(missing_docs)]
 
@@ -20,14 +21,14 @@ pub mod hud;
 pub mod input_mode;
 pub mod layer;
 pub mod screen;
-pub mod skin;
 pub mod status_bar;
 pub mod theme;
 pub mod units;
 pub mod widget;
 
-/// Everything `nova_ui` needs running in an app: the themed-widget observers
-/// and skin reconcilers, the shared font router, and the status bar driver.
+/// Everything `nova_ui` needs running in an app: the theme resolver, the
+/// themed-widget observers and reconcilers, the shared font router, and the
+/// status bar driver.
 ///
 /// It is app-global rather than per-screen - doubled observers would write
 /// every colour twice per interaction - so the several plugins that use themed
@@ -48,15 +49,19 @@ impl Plugin for NovaUiPlugin {
     fn build(&self, app: &mut App) {
         trace!("NovaUiPlugin: build");
 
+        theme::registry::build(app);
         input_mode::build(app);
+        hud::build(app);
         widget::build(app);
         status_bar::build(app);
         screen::build(app);
     }
 }
 
-/// Glob-import surface: `use nova_ui::prelude::*` brings the [`theme`] palette,
-/// the [`UiSkin`](skin::UiSkin) selector, the [`units`] formatters and the
+/// Glob-import surface: `use nova_ui::prelude::*` brings the [`theme`] stack
+/// (the live [`ActiveUiTheme`](theme::ActiveUiTheme) and the semantic
+/// [`UiColor`](theme::UiColor) / [`UiMetric`](theme::UiMetric) names screens
+/// ask it for), the [`units`] formatters and the
 /// themed-button widgets ([`themed_button`](widget::themed_button),
 /// [`ThemedButton`](widget::ThemedButton), [`Selected`](widget::Selected), ...)
 /// into scope, plus the [`screen`] composition helpers and the [`status_bar`]
@@ -67,7 +72,7 @@ impl Plugin for NovaUiPlugin {
 pub mod prelude {
     pub use crate::{
         font::prelude::*, hud::prelude::*, input_mode::prelude::*, layer::prelude::*,
-        screen::prelude::*, skin::prelude::*, status_bar::prelude::*, theme, units,
+        screen::prelude::*, status_bar::prelude::*, theme, theme::prelude::*, units,
         widget::prelude::*,
     };
 }

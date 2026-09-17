@@ -1,108 +1,110 @@
-//! List rows: the [`list_row`] container, its `(selected, hovered, skin)`
-//! colours and the observers + reconciler that repaint an interactive
-//! [`ListRow`] live.
+//! List rows: the [`list_row`] container and the observers + reconciler that
+//! paint it from its `(selected, hovered)` state and the active theme.
 
 use bevy::{picking::hover::Hovered, platform::collections::HashSet, prelude::*, reflect::Is};
 
 use super::Selected;
-use crate::{skin::UiSkin, theme};
+use crate::theme::{ActiveUiTheme, RowState, UiMetric, BORDER_W};
+
+/// Marks a list row, so the reconciler paints it and repaints it live.
+///
+/// A row that ALSO carries `Button` + `Hovered` is interactive and rides the
+/// observers below as well; a plain row is a static display row. One marker
+/// serves both, because the paint is the same lookup either way - a static row
+/// simply never leaves [`RowState::Normal`].
+#[derive(Component)]
+pub struct ListRow;
 
 /// A list row container (spawn an icon / text / trailing widget into it).
-/// Transparent with an inset border; selection tints amber (hardware) or inverts
-/// phosphor. Not a `ThemedButton` - rows carry their own click handlers.
-pub fn list_row(selected: bool, skin: UiSkin) -> impl Bundle {
-    let (bg, border) = list_row_colors(selected, false, skin);
+///
+/// Spawns UNSELECTED and unpainted. Selection is the `Selected` component,
+/// which the caller inserts and removes as its own state moves; the reconciler
+/// and the observers both read it, so it is never a colour baked in at spawn.
+pub fn list_row() -> impl Bundle {
     (
+        ListRow,
         Node {
             width: percent(100),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
             column_gap: px(12),
             padding: UiRect::axes(px(13), px(10)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(if skin.is_phosphor() {
-                theme::RADIUS
-            } else {
-                7.0
-            })),
+            border: UiRect::all(px(BORDER_W)),
             ..default()
         },
-        BorderColor::all(border),
-        BackgroundColor(bg),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
     )
 }
 
-/// The `(background, border)` of a list row in a given `(selected, hovered,
-/// skin)` - the single source both [`list_row`] and the [`ListRow`] reconciler
-/// paint from.
-pub fn list_row_colors(selected: bool, hovered: bool, skin: UiSkin) -> (Color, Color) {
-    let phosphor = skin.is_phosphor();
-    match (selected, phosphor) {
-        (true, true) => (theme::PHOSPHOR.with_alpha(0.14), theme::PHOSPHOR),
-        (true, false) => (theme::CASE_2, theme::AMBER_NOVA.with_alpha(0.5)),
-        (false, true) if hovered => (
-            theme::PHOSPHOR.with_alpha(0.06),
-            theme::PHOSPHOR.with_alpha(0.2),
-        ),
-        (false, true) => (Color::NONE, theme::PHOSPHOR.with_alpha(0.14)),
-        (false, false) if hovered => (Color::WHITE.with_alpha(0.06), Color::WHITE.with_alpha(0.1)),
-        (false, false) => (Color::WHITE.with_alpha(0.02), Color::WHITE.with_alpha(0.05)),
-    }
+/// A row's `(background, border)` in the active theme - the accessor for a
+/// caller that paints its OWN row entity (the editor's stage highlight, its
+/// rail and its menus, which light rows from state the widget layer cannot
+/// see). A row that is a plain [`list_row`] needs none of this: the reconciler
+/// paints it.
+pub fn list_row_colors(theme: &ActiveUiTheme, selected: bool, hovered: bool) -> (Color, Color) {
+    let paint = theme.list_row(RowState::resolve(selected, hovered));
+    (paint.fill.base, paint.border)
 }
 
-/// Marks an INTERACTIVE list row (a `list_row` + `Button` + `Hovered`): the
-/// reconciler repaints it from its `Selected`/`Hovered` state + the skin, so
-/// clicking or hovering highlights it live (mods/scenarios rows). A plain
-/// `list_row` without this marker is a static display row (the widget_zoo).
-#[derive(Component)]
-pub struct ListRow;
-
 fn paint_list_row(
-    skin: UiSkin,
-    selected: bool,
-    hovered: bool,
+    theme: &ActiveUiTheme,
+    state: RowState,
+    node: &mut Node,
     bg: &mut BackgroundColor,
     border: &mut BorderColor,
 ) {
-    let (b, br) = list_row_colors(selected, hovered, skin);
-    *bg = b.into();
-    border.set_all(br);
+    let paint = theme.list_row(state);
+    *bg = paint.fill.base.into();
+    border.set_all(paint.border);
+    node.border_radius = BorderRadius::all(px(theme.metric(UiMetric::Radius)));
 }
 
 /// Repaint one [`ListRow`] on a hover/selection change (the removed component
 /// still reads present in its own `Remove` observer, so it is forced false).
 pub(super) fn list_row_on_interaction<E: EntityEvent, C: Component>(
     event: On<E, C>,
-    skin: Res<UiSkin>,
+    theme: Res<ActiveUiTheme>,
     mut q: Query<
         (
             &Hovered,
             Has<Selected>,
+            &mut Node,
             &mut BackgroundColor,
             &mut BorderColor,
         ),
         With<ListRow>,
     >,
 ) {
-    if let Ok((hovered, selected, mut bg, mut border)) = q.get_mut(event.event_target()) {
+    if let Ok((hovered, selected, mut node, mut bg, mut border)) = q.get_mut(event.event_target()) {
         let selected = selected && !(E::is::<Remove>() && C::is::<Selected>());
-        paint_list_row(*skin, selected, hovered.get(), &mut bg, &mut border);
+        paint_list_row(
+            &theme,
+            RowState::resolve(selected, hovered.get()),
+            &mut node,
+            &mut bg,
+            &mut border,
+        );
     }
 }
 
-/// Restyle LIVE list rows on a `UiSkin` change, and paint just-spawned rows
+/// Restyle LIVE list rows on a theme change, and paint just-spawned rows
 /// (`Added<ListRow>`) - the same override the button reconciler uses.
+///
+/// `Hovered` is optional here: a static display row has no picking components
+/// at all, and requiring one left every such row unpainted.
 #[expect(
     clippy::type_complexity,
-    reason = "one query per skin input plus the just-added set"
+    reason = "one query term per row visual state plus the just-added set"
 )]
-pub(super) fn reconcile_list_row_skins(
-    skin: Res<UiSkin>,
+pub(super) fn reconcile_list_row_themes(
+    theme: Res<ActiveUiTheme>,
     mut q: Query<
         (
             Entity,
-            &Hovered,
+            Option<&Hovered>,
             Has<Selected>,
+            &mut Node,
             &mut BackgroundColor,
             &mut BorderColor,
         ),
@@ -110,15 +112,22 @@ pub(super) fn reconcile_list_row_skins(
     >,
     added: Query<Entity, Added<ListRow>>,
 ) {
-    let restyle_all = skin.is_changed();
+    let restyle_all = theme.is_changed();
     let just_added: HashSet<Entity> = added.iter().collect();
     if !restyle_all && just_added.is_empty() {
         return;
     }
-    for (entity, hovered, selected, mut bg, mut border) in &mut q {
+    for (entity, hovered, selected, mut node, mut bg, mut border) in &mut q {
         if !restyle_all && !just_added.contains(&entity) {
             continue;
         }
-        paint_list_row(*skin, selected, hovered.get(), &mut bg, &mut border);
+        let hovered = hovered.is_some_and(Hovered::get);
+        paint_list_row(
+            &theme,
+            RowState::resolve(selected, hovered),
+            &mut node,
+            &mut bg,
+            &mut border,
+        );
     }
 }

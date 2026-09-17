@@ -26,6 +26,10 @@ nova_ship = { path = "../nova_ship", features = ["serde"] }
 # unconditionally, so no feature is needed - and nova_training depends on
 # nothing in this crate, which is what keeps the edge acyclic.
 nova_training = { path = "../nova_training" }
+# `UiThemeConfig` (the `Content::UiTheme` payload). The theme format is serde
+# unconditionally, and nova_ui depends on nothing here, so the edge is acyclic -
+# the same shape as nova_training above.
+nova_ui = { path = "../nova_ui" }
 
 [lints]
 workspace = true

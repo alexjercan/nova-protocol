@@ -1,17 +1,21 @@
-//! Shared themed widgets, rendered from the NOVA OS palette ([`crate::theme`])
-//! in one of two skins ([`crate::skin::UiSkin`]): the phosphor CLI terminal look
-//! (default) and the light-3D hardware casing.
+//! Shared themed widgets, painted from the live [`ActiveUiTheme`] - whichever
+//! theme the enabled mods declared and the player selected.
 //!
 //! The heart is the [`ThemedButton`] (`button`): one click + colour model for
-//! every screen (menu, editor, HUD chrome). Small layout helpers (`chrome`)
+//! every screen (menu, editor, HUD chrome). Small chrome helpers (`chrome`)
 //! render the rest.
 //!
-//! Each skin-aware widget family carries a marker and rides its own reconciler,
-//! so a `UiSkin` flip restyles what is already on screen instead of waiting for
-//! the screen to be rebuilt: [`ThemedButton`], [`ListRow`], [`PanelSkin`],
-//! [`SegmentedSkin`] and [`SliderTrackSkin`]. The slider track is the odd one -
-//! its two skins are structurally different widgets (a row of [`SliderBlock`]s
-//! vs one [`SliderFill`]), so it REBUILDS its children where the others repaint.
+//! NO factory here takes paint, and none reads the theme: every widget spawns
+//! UNPAINTED carrying a marker, and its reconciler is the single paint path.
+//! That is what lets a theme change reach what is already on screen, and it is
+//! also why a caller never threads a look through a hundred spawn sites.
+//!
+//! Every reconciler runs `.after(UiThemeSystems)`, so a selection change
+//! resolves and repaints in ONE frame rather than flashing the old theme.
+//!
+//! The slider track is the odd family out: a theme chooses between a segmented
+//! block-meter and a solid fill, which are different widgets rather than
+//! different colours, so it REBUILDS its children where the others repaint.
 //!
 //! One family per module - `button`, `panel`, `list_row`, `slider`,
 //! `segmented`, `chrome` - all re-exported here, so `widget::<item>` paths are
@@ -23,21 +27,23 @@
 /// small layout helpers.
 pub mod prelude {
     pub use super::{
-        badge, button, button_on_setting, checkbox, checkbox_colors, checkbox_glyph, key_chip,
-        list_row, list_row_colors, menu_button, panel, panel_head, panel_header, panel_node,
+        badge, button, button_on_setting, checkbox, checkbox_glyph, key_chip, list_row,
+        list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, panel_radius,
         segmented, segmented_container, segmented_container_wrapping, segmented_option,
         segmented_option_fit, separator, slider_meter_color, slider_track, swatch, text_field,
         themed_button, toggle, BadgeKind, ButtonLabel, ButtonSpec, ButtonValue, ButtonVariant,
-        ListRow, PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin,
-        TextField, TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted,
-        TextFieldSystems, TextFieldValue, ThemedButton, UiText, SLIDER_SEGMENTS,
+        KeyChip, KeyChipLabel, ListRow, PanelHeadTag, PanelHeadTitle, SegmentedSkin, Selected,
+        SliderBlock, SliderFill, SliderTrack, TextField, TextFieldError, TextFieldFocused,
+        TextFieldSpec, TextFieldSubmitted, TextFieldSystems, TextFieldValue, ThemedBadge,
+        ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint, ThemedPanel,
+        ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedText, ThemedTextShadow,
+        ThemedToggle, UiText,
     };
 }
 
 mod button;
 mod chrome;
 mod list_row;
-mod paint;
 mod panel;
 mod segmented;
 mod slider;
@@ -62,11 +68,16 @@ pub use slider::*;
 pub use text_field::*;
 
 use self::{
-    button::{button_on_interaction, reconcile_button_skins},
-    list_row::{list_row_on_interaction, reconcile_list_row_skins},
-    panel::reconcile_panel_skins,
-    segmented::reconcile_segmented_skins,
-    slider::{reconcile_slider_track_skins, sync_slider_tracks},
+    button::{button_on_interaction, reconcile_button_themes, reconcile_key_chips},
+    chrome::{
+        reconcile_badges, reconcile_checkboxes, reconcile_separators, reconcile_swatches,
+        reconcile_themed_images, reconcile_themed_nodes, reconcile_themed_text,
+        reconcile_themed_text_shadows, reconcile_toggles,
+    },
+    list_row::{list_row_on_interaction, reconcile_list_row_themes},
+    panel::{reconcile_panel_head_themes, reconcile_panel_themes},
+    segmented::reconcile_segmented_themes,
+    slider::{reconcile_slider_track_themes, sync_slider_tracks},
     text_field::{
         one_field_holds_the_focus, paint_text_fields, text_field_keyboard, text_field_on_pointer,
     },
@@ -74,7 +85,7 @@ use self::{
 use crate::{
     font::UiFont,
     input_mode::{owns_or_enters, InputMode},
-    skin::UiSkin,
+    theme::UiThemeSystems,
 };
 
 /// Marks the currently-active button within a `ButtonValue<T>` selection group.
@@ -86,12 +97,8 @@ pub struct Selected;
 #[derive(Component)]
 pub struct UiText;
 
-/// Wire the button colour observers, the skin reconcilers and the font router.
+/// Wire the button colour observers, the theme reconcilers and the font router.
 pub(crate) fn build(app: &mut App) {
-    // `init_resource` is idempotent, so owning the skin here keeps the
-    // widget layer self-contained for tests and slim apps even though settings
-    // is what persists it.
-    app.init_resource::<UiSkin>();
     app.add_message::<KeyboardInput>();
     app.add_message::<TextFieldSubmitted>();
 
@@ -116,17 +123,28 @@ pub(crate) fn build(app: &mut App) {
     app.add_systems(
         Update,
         (
-            reconcile_button_skins,
-            reconcile_list_row_skins,
-            reconcile_panel_skins,
-            reconcile_segmented_skins,
+            reconcile_button_themes,
+            reconcile_key_chips,
+            reconcile_list_row_themes,
+            reconcile_panel_themes,
+            reconcile_panel_head_themes,
+            reconcile_segmented_themes,
+            reconcile_themed_text,
+            reconcile_themed_text_shadows,
+            reconcile_themed_images,
+            reconcile_themed_nodes,
+            reconcile_separators,
+            reconcile_badges,
+            reconcile_checkboxes,
+            reconcile_swatches,
+            reconcile_toggles,
             // The rebuild first, then the value onto its new children. The
             // explicit edge auto-inserts an `ApplyDeferred`
             // (`ScheduleBuildSettings::auto_insert_apply_deferred`, default
             // true), so the respawned children are VISIBLE to the value system
             // this same frame.
-            reconcile_slider_track_skins,
-            sync_slider_tracks.after(reconcile_slider_track_skins),
+            reconcile_slider_track_themes,
+            sync_slider_tracks.after(reconcile_slider_track_themes),
             (
                 one_field_holds_the_focus.before(text_field_keyboard),
                 // The field is Insert's owner, so it types under Insert and
@@ -139,7 +157,11 @@ pub(crate) fn build(app: &mut App) {
                 paint_text_fields,
             )
                 .in_set(TextFieldSystems),
-        ),
+        )
+            // The theme resolves first: a reconciler that ran BEFORE it painted
+            // the outgoing theme, so every selection change showed one stale
+            // frame.
+            .after(UiThemeSystems),
     );
     // Route the font BEFORE UI text is measured/laid out (PostUpdate,
     // before `UiSystems::Content`), not in Update - a `UiText` spawned this

@@ -100,7 +100,7 @@ pub(crate) fn play_menu_focus_cue(
 }
 
 /// The main-menu / pause / outcome button: the shared nova_ui [`menu_button`] (40px /
-/// 16px `ThemedButton`, coloured by the nova_ui observers + skin reconciler) plus the
+/// 16px `ThemedButton`, coloured by the nova_ui observers + theme reconciler) plus the
 /// [`MenuSfxButton`] marker that scopes the click cue to menu-family buttons (the
 /// editor's `ThemedButton`s stay silent). One observer path for every button in the
 /// game.

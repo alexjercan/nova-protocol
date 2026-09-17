@@ -6,6 +6,7 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_input::prelude::{BindingSpec, InputBindings, InputSource};
 use nova_training::prelude::*;
+use nova_ui::prelude::Selected;
 
 use super::support::{
     all_texts, app, dummy_lessons, dummy_progress, dummy_scenarios, entity_by_name, FIXTURE_NOTE,
@@ -15,8 +16,8 @@ use crate::{
     scenarios::NewGameScenario,
     settings::{FieldNoteSetting, TrainingPromptSetting},
     training::{
-        LessonRow, MenuAside, MenuFieldNoteCard, SelectedLessonId, TrainingPanel,
-        TrainingPromptCard,
+        LessonRow, LessonStatusBadge, MenuAside, MenuFieldNoteCard, SelectedLessonId,
+        TrainingPanel, TrainingPromptCard,
     },
     training_store::TrainingStoreAccess,
 };
@@ -105,6 +106,52 @@ fn rows(app: &mut App) -> Vec<String> {
             app.world()
                 .get::<LessonRow>(child)
                 .map(|row| row.id.clone())
+        })
+        .collect()
+}
+
+/// Every lesson row ENTITY, in draw order - the identity the rebuild tests read.
+fn row_entities(app: &mut App) -> Vec<Entity> {
+    let list = entity_by_name(app, "Training List").expect("the list");
+    let children: Vec<Entity> = app
+        .world()
+        .get::<Children>(list)
+        .map(|children| children.iter().collect())
+        .unwrap_or_default();
+    children
+        .into_iter()
+        .filter(|child| app.world().get::<LessonRow>(*child).is_some())
+        .collect()
+}
+
+/// The id of the row wearing the `Selected` highlight.
+fn marked_row(app: &mut App) -> Option<String> {
+    let mut q = app
+        .world_mut()
+        .query_filtered::<&LessonRow, With<Selected>>();
+    q.iter(app.world()).next().map(|row| row.id.clone())
+}
+
+/// The badge legends on one row.
+fn badge_texts(app: &mut App, row: Entity) -> Vec<String> {
+    let children: Vec<Entity> = app
+        .world()
+        .get::<Children>(row)
+        .map(|children| children.iter().collect())
+        .unwrap_or_default();
+    children
+        .into_iter()
+        .filter(|child| app.world().get::<LessonStatusBadge>(*child).is_some())
+        .flat_map(|badge| {
+            let grandchildren: Vec<Entity> = app
+                .world()
+                .get::<Children>(badge)
+                .map(|children| children.iter().collect())
+                .unwrap_or_default();
+            grandchildren
+                .into_iter()
+                .filter_map(|child| app.world().get::<Text>(child).map(|text| text.0.clone()))
+                .collect::<Vec<_>>()
         })
         .collect()
 }
@@ -690,4 +737,75 @@ fn the_corner_carries_its_markers() {
     assert_eq!(notes.iter(app.world()).count(), 1);
     let mut panels = app.world_mut().query::<(Entity, &TrainingPanel)>();
     assert_eq!(panels.iter(app.world()).count(), 1);
+}
+
+/// Selecting a lesson MOVES the highlight; it does not rebuild the list.
+///
+/// The rows used to be despawned and respawned on every click, because one
+/// click writes both the selection and the progress record and the list
+/// refreshed on either. Sixty-odd rows flashed to move one highlight one place,
+/// and the scroll position went with them. Fails if `training_list_dirty`
+/// starts reading those two signals again.
+#[test]
+fn selecting_a_lesson_moves_the_highlight_without_respawning_the_rows() {
+    let mut app = training_app();
+    let before: Vec<Entity> = row_entities(&mut app);
+    assert!(before.len() > 1, "the fixture draws more than one row");
+
+    click(&mut app, "Lesson Row: flight_momentum");
+    app.update();
+
+    assert_eq!(
+        row_entities(&mut app),
+        before,
+        "the rows were respawned for a selection that only moved a highlight"
+    );
+    assert_eq!(selected(&app).as_deref(), Some("flight_momentum"));
+    assert_eq!(
+        marked_row(&mut app).as_deref(),
+        Some("flight_momentum"),
+        "the `Selected` highlight did not follow the selection"
+    );
+}
+
+/// The count over the two panes follows the record even though the list no
+/// longer rebuilds. A row that reads READ under a summary that still says
+/// "3 opened" is the screen disagreeing with itself.
+#[test]
+fn opening_a_new_lesson_moves_the_progress_summary() {
+    let mut app = training_app();
+    let total = app.world().resource::<TrainingCatalog>().len();
+
+    // `combat_turrets` is untouched in the fixture, so opening it moves the
+    // opened count; the three lessons already in the record would not.
+    click(&mut app, "Lesson Row: combat_turrets");
+    app.update();
+
+    let wanted = format!("1 of {total} completed - 4 opened");
+    let texts = all_texts(&mut app);
+    assert!(
+        texts.iter().any(|t| t == &wanted),
+        "no progress summary reading `{wanted}`: {texts:?}"
+    );
+}
+
+/// A row that has just been opened grows its READ badge in place.
+#[test]
+fn a_freshly_opened_lesson_grows_its_badge_without_a_rebuild() {
+    let mut app = training_app();
+    let row = entity_by_name(&mut app, "Lesson Row: combat_turrets").expect("the row");
+    assert!(
+        badge_texts(&mut app, row).is_empty(),
+        "an untouched lesson must wear no badge"
+    );
+
+    click(&mut app, "Lesson Row: combat_turrets");
+    app.update();
+
+    assert_eq!(
+        entity_by_name(&mut app, "Lesson Row: combat_turrets"),
+        Some(row),
+        "the row was respawned rather than restated"
+    );
+    assert_eq!(badge_texts(&mut app, row), vec!["[READ]".to_string()]);
 }

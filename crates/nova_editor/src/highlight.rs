@@ -16,7 +16,7 @@ use bevy::{
     prelude::*,
 };
 use nova_ui::{
-    prelude::UiSkin,
+    theme::ActiveUiTheme,
     widget::{list_row_colors, Selected},
 };
 
@@ -98,10 +98,10 @@ fn hovered_node_of_view(
 /// the pointer are the same row - there is no second highlight to learn.
 ///
 /// Idempotent and every frame: nothing tracks who painted last, and the
-/// reconciler in `nova_ui` may repaint any row on a skin change without
+/// reconciler in `nova_ui` may repaint any row on a theme change without
 /// knowing about the stage.
 pub(crate) fn paint_hovered_rows(
-    skin: Res<UiSkin>,
+    theme: Res<ActiveUiTheme>,
     hovered: Res<HoveredNode>,
     mut rows: Query<(
         &SceneRow,
@@ -113,7 +113,7 @@ pub(crate) fn paint_hovered_rows(
 ) {
     for (row, pointer, selected, mut background, mut border) in &mut rows {
         let lit = pointer.get() || hovered.0 == Some(row.0);
-        let (wanted_background, wanted_border) = list_row_colors(selected, lit, *skin);
+        let (wanted_background, wanted_border) = list_row_colors(&theme, selected, lit);
         if background.0 != wanted_background {
             background.0 = wanted_background;
             border.set_all(wanted_border);
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn a_stage_hover_lights_exactly_one_row() {
         let mut world = World::new();
-        world.init_resource::<UiSkin>();
+        world.init_resource::<ActiveUiTheme>();
         let node = world.spawn_empty().id();
         let other = world.spawn_empty().id();
         world.insert_resource(HoveredNode(Some(node)));
@@ -200,15 +200,15 @@ mod tests {
             .run_system_once(paint_hovered_rows)
             .expect("the paint runs");
 
-        let skin = *world.resource::<UiSkin>();
+        let theme = world.resource::<ActiveUiTheme>().clone();
         assert_eq!(
             world.get::<BackgroundColor>(lit).expect("a colour").0,
-            list_row_colors(false, true, skin).0,
+            list_row_colors(&theme, false, true).0,
             "the named row wears the hover colours"
         );
         assert_eq!(
             world.get::<BackgroundColor>(dark).expect("a colour").0,
-            list_row_colors(false, false, skin).0,
+            list_row_colors(&theme, false, false).0,
             "and every other row is left alone"
         );
     }
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn a_selected_row_is_not_dimmed_by_a_hover_elsewhere() {
         let mut world = World::new();
-        world.init_resource::<UiSkin>();
+        world.init_resource::<ActiveUiTheme>();
         let node = world.spawn_empty().id();
         let elsewhere = world.spawn_empty().id();
         world.insert_resource(HoveredNode(Some(elsewhere)));
@@ -236,10 +236,10 @@ mod tests {
             .run_system_once(paint_hovered_rows)
             .expect("the paint runs");
 
-        let skin = *world.resource::<UiSkin>();
+        let theme = world.resource::<ActiveUiTheme>().clone();
         assert_eq!(
             world.get::<BackgroundColor>(row).expect("a colour").0,
-            list_row_colors(true, false, skin).0
+            list_row_colors(&theme, true, false).0
         );
     }
 }

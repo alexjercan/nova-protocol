@@ -14,9 +14,10 @@ use bevy::{
 use nova_assets::prelude::ModQuarantine;
 use nova_gameplay::prelude::GameStates;
 use nova_ui::{
-    prelude::{UiSkin, REPORT_Z},
+    prelude::REPORT_Z,
     theme,
-    widget::panel,
+    theme::UiColor,
+    widget::{panel, ThemedRadius, ThemedText},
 };
 
 use crate::widgets::button;
@@ -36,7 +37,6 @@ pub(crate) struct ModReportOverlay;
 /// already on the front door, and that failure owes the same report.
 pub(crate) fn sync_mod_report_overlay(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     quarantine: Res<ModQuarantine>,
     q_existing: Query<Entity, With<ModReportOverlay>>,
 ) {
@@ -89,10 +89,10 @@ pub(crate) fn sync_mod_report_overlay(
                         width: px(420),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    panel(*skin),
+                    ThemedRadius::control(),
+                    panel(),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -113,7 +113,7 @@ pub(crate) fn sync_mod_report_overlay(
                             font_size: FontSize::Px(16.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE), ThemedText::new(UiColor::Body),
                         Node {
                             margin: UiRect::top(px(8)),
                             max_width: px(380),
@@ -128,7 +128,7 @@ pub(crate) fn sync_mod_report_overlay(
                                 font_size: FontSize::Px(13.0),
                                 ..default()
                             },
-                            TextColor(theme::PHOSPHOR_MUTED),
+                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
                             Node {
                                 margin: UiRect::top(px(4)),
                                 max_width: px(380),
@@ -149,7 +149,7 @@ pub(crate) fn sync_mod_report_overlay(
                                 font_size: FontSize::Px(13.0),
                                 ..default()
                             },
-                            TextColor(theme::PHOSPHOR_MUTED),
+                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
                             Node {
                                 margin: UiRect::top(px(4)),
                                 max_width: px(380),

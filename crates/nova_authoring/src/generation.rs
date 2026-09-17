@@ -18,6 +18,7 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
+use nova_ui::theme::UiThemeConfig;
 
 use crate::base_content;
 
@@ -140,6 +141,26 @@ pub fn build_lesson_content() -> Vec<Content> {
     build_lessons().into_iter().map(Content::Lesson).collect()
 }
 
+/// The base mod's UI themes, in the order the file carries them - the default
+/// first, so the Settings picker lists it first.
+pub fn build_ui_themes() -> Vec<UiThemeConfig> {
+    nova_ui::theme::base::base_ui_themes()
+}
+
+/// The UI themes wrapped as one `Vec<Content>` of `Content::UiTheme` items -
+/// the shape the committed `assets/base/ui_themes/base.content.ron` file
+/// carries.
+///
+/// ONE file for both looks: a theme is read against the other looks it shares a
+/// role table with, and the file IS the worked example a mod copies to author
+/// its own.
+pub fn build_ui_theme_content() -> Vec<Content> {
+    build_ui_themes()
+        .into_iter()
+        .map(Content::UiTheme)
+        .collect()
+}
+
 /// The built-in scenarios, each wrapped as its own single-item
 /// `Vec<Content>` (`[Content::Scenario(..)]`) keyed by scenario id - the
 /// shape each committed `assets/scenarios/<id>.content.ron` file carries. The
@@ -184,6 +205,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/training/base.content.ron".to_string(),
             serialize_content(&build_lesson_content()),
+        ),
+        (
+            "base/ui_themes/base.content.ron".to_string(),
+            serialize_content(&build_ui_theme_content()),
         ),
     ];
     files.extend(build_scenario_contents().into_iter().map(|(id, content)| {

@@ -1,11 +1,13 @@
-//! The themed button: paint model, interaction observers, live-skin
+//! The themed button: paint application, interaction observers, live-theme
 //! reconciler and the [`ButtonSpec`] build recipe.
 //!
-//! The visual is a pure function of `(skin, variant, state)` - see
-//! [`button_paint`] - applied both by the per-interaction observers
-//! (hover/press/disable/select) and by [`reconcile_button_skins`], the system
-//! that restyles LIVE buttons when the `UiSkin` resource flips or a new button
-//! is spawned.
+//! The visual is a LOOKUP - `theme.button(variant, state)` - not a function
+//! written here: the paint of all four variants in all six states is authored
+//! data (`crates/nova_ui/src/theme/base.rs`, serialized into the base mod).
+//! This module decides which state a button is IN and puts the resolved paint
+//! on it, from both the per-interaction observers (hover/press/disable/select)
+//! and [`reconcile_button_themes`], the system that restyles LIVE buttons when
+//! the theme changes or a new button is spawned.
 
 use bevy::{
     ecs::relationship::RelatedSpawner,
@@ -17,13 +19,12 @@ use bevy::{
     ui_widgets::{Activate, Button},
 };
 
-use super::{
-    paint::{drop_shadow, glow_shadow, grad2, grad3},
-    Selected, UiText,
+use super::{Selected, UiText};
+use crate::theme::{
+    ActiveUiTheme, ButtonState, ResolvedState, ThemeButton, UiColor, UiMetric, BORDER_W,
 };
-use crate::{skin::UiSkin, theme};
 
-/// Marks a themed button so the colour observers + skin reconciler pick it up.
+/// Marks a themed button so the colour observers + theme reconciler pick it up.
 #[derive(Component)]
 pub struct ThemedButton;
 
@@ -33,8 +34,7 @@ pub enum ButtonVariant {
     /// Neutral button.
     #[default]
     Default,
-    /// Primary call-to-action: solid phosphor (phosphor skin) / phosphor
-    /// gradient (hardware), always inverted glyphs.
+    /// Primary call-to-action: the theme's lit face, in every live state.
     Primary,
     /// Destructive action: red family.
     Danger,
@@ -43,8 +43,8 @@ pub enum ButtonVariant {
 }
 
 /// Marks the primary label text span inside a themed button, so the paint code
-/// can recolour it (e.g. inverted [`theme::INK`] on selection) without touching
-/// the key-chip or block-cursor spans.
+/// can recolour it (e.g. inverted glyphs on selection) without touching the
+/// key-chip or block-cursor spans.
 #[derive(Component)]
 pub struct ButtonLabel;
 
@@ -58,300 +58,32 @@ pub struct ButtonCursor;
 /// a button entity is treated as a resource insert.
 #[derive(Component, Debug, Clone)]
 pub struct ButtonValue<T>(pub T);
-/// The full visual of a button in a given `(skin, variant, state)`. Applied
-/// identically by the interaction observers and the skin reconciler, so the two
-/// paths can never disagree.
-struct Paint {
-    /// Solid background (phosphor skin) or the base under the gradient (hardware).
-    bg: Color,
-    border: Color,
-    /// Colour of the [`ButtonLabel`] span.
-    text: Color,
-    radius: f32,
-    /// `Some` on the hardware skin: the moulded-face gradient.
-    gradient: Option<BackgroundGradient>,
-    /// `Some` on the hardware skin: the drop shadow giving the face depth.
-    shadow: Option<BoxShadow>,
-    /// Block-cursor visibility (hover/selected).
-    cursor_visible: bool,
-}
-
-/// Light green-grey of hardware-face button text (demo `#dcefe0`).
-const HW_TEXT: Color = Color::srgb_u8(0xdc, 0xef, 0xe0);
-/// Softened red text on a hovered danger face (demo `#ffd9d5`).
-const DANGER_TEXT_HOT: Color = Color::srgb_u8(0xff, 0xd9, 0xd5);
-/// Brightened phosphor label text on a hovered phosphor button (demo `#d6ffe4`).
-const PHOSPHOR_HOVER_TEXT: Color = Color::srgb_u8(0xd6, 0xff, 0xe4);
-/// The pure visual function: `(skin, variant, state) -> Paint`.
-fn button_paint(
-    skin: UiSkin,
-    variant: ButtonVariant,
-    disabled: bool,
-    hovered: bool,
-    pressed: bool,
-    selected: bool,
-) -> Paint {
-    let cursor_visible = hovered || selected;
-    match skin {
-        UiSkin::Phosphor => phosphor_paint(
-            variant,
-            disabled,
-            hovered,
-            pressed,
-            selected,
-            cursor_visible,
-        ),
-        UiSkin::Hardware => hardware_paint(
-            variant,
-            disabled,
-            hovered,
-            pressed,
-            selected,
-            cursor_visible,
-        ),
-    }
-}
-
-fn phosphor_paint(
-    variant: ButtonVariant,
-    disabled: bool,
-    hovered: bool,
-    pressed: bool,
-    selected: bool,
-    cursor_visible: bool,
-) -> Paint {
-    let p = theme::PHOSPHOR;
-    // Primary reads like a permanent selection (solid phosphor, inverted glyphs).
-    let inverted = selected || matches!(variant, ButtonVariant::Primary);
-
-    let (bg, border, text) = if disabled {
-        (p.with_alpha(0.02), p.with_alpha(0.12), p.with_alpha(0.3))
-    } else if inverted {
-        // Pressed dims the lit face (and drops the glow below): an inverted
-        // button is already at full phosphor, so sinking is the only move left.
-        if pressed {
-            (theme::PHOSPHOR_LO, p, theme::INK)
-        } else {
-            (p, p, theme::INK)
-        }
-    } else {
-        match variant {
-            ButtonVariant::Danger => {
-                let r = theme::RED;
-                if pressed {
-                    (r.with_alpha(0.2), r, r)
-                } else if hovered {
-                    (r.with_alpha(0.16), r, DANGER_TEXT_HOT)
-                } else {
-                    (r.with_alpha(0.06), r.with_alpha(0.5), r)
-                }
-            }
-            ButtonVariant::Ghost => {
-                if pressed {
-                    (p.with_alpha(0.14), p, p)
-                } else if hovered {
-                    (p.with_alpha(0.06), p.with_alpha(0.4), p)
-                } else {
-                    (Color::NONE, p.with_alpha(0.25), p)
-                }
-            }
-            _ => {
-                if pressed {
-                    (p.with_alpha(0.2), p, p)
-                } else if hovered {
-                    (p.with_alpha(0.12), p, PHOSPHOR_HOVER_TEXT)
-                } else {
-                    (p.with_alpha(0.05), p.with_alpha(0.4), p)
-                }
-            }
-        }
-    };
-
-    // The inverted (selected/primary) phosphor face carries the PoC glow - a
-    // shadow, not a gradient, so the "phosphor is a flat CLI element" contract
-    // (which forbids a bevel GRADIENT) still holds. Pressing puts it out.
-    let shadow = (!disabled && inverted && !pressed).then(|| glow_shadow(theme::PHOSPHOR));
-
-    Paint {
-        bg,
-        border,
-        text,
-        radius: theme::RADIUS,
-        gradient: None,
-        shadow,
-        cursor_visible,
-    }
-}
-
-fn hardware_paint(
-    variant: ButtonVariant,
-    disabled: bool,
-    hovered: bool,
-    pressed: bool,
-    selected: bool,
-    cursor_visible: bool,
-) -> Paint {
-    let radius = theme::RADIUS_HW;
-    let border = theme::CASE_EDGE;
-
-    // Selected -> amber gradient; Primary -> phosphor gradient; both inverted.
-    // Both sink the same way every other hardware face does: the bevel gradient
-    // is inverted and the drop shadow goes away.
-    if !disabled && selected {
-        return Paint {
-            bg: theme::AMBER_NOVA,
-            border,
-            text: theme::INK,
-            radius,
-            gradient: Some(if pressed {
-                grad3(theme::AMBER_LO, theme::AMBER_NOVA, theme::AMBER_HI)
-            } else {
-                grad3(theme::AMBER_HI, theme::AMBER_NOVA, theme::AMBER_LO)
-            }),
-            shadow: (!pressed).then(|| glow_shadow(theme::AMBER_NOVA)),
-            cursor_visible,
-        };
-    }
-    if !disabled && matches!(variant, ButtonVariant::Primary) {
-        return Paint {
-            bg: theme::PHOSPHOR,
-            border,
-            text: theme::INK,
-            radius,
-            gradient: Some(if pressed {
-                grad3(theme::PHOSPHOR_LO, theme::PHOSPHOR, theme::PHOSPHOR_HI)
-            } else {
-                grad3(theme::PHOSPHOR_HI, theme::PHOSPHOR, theme::PHOSPHOR_LO)
-            }),
-            shadow: (!pressed).then(|| glow_shadow(theme::PHOSPHOR)),
-            cursor_visible,
-        };
-    }
-
-    if disabled {
-        return Paint {
-            bg: theme::CASE_1,
-            border,
-            text: HW_TEXT.with_alpha(0.34),
-            radius,
-            gradient: Some(grad3(theme::CASE_3, theme::CASE_1, theme::CASE_0)),
-            shadow: Some(drop_shadow()),
-            cursor_visible,
-        };
-    }
-
-    match variant {
-        // Ghost stays fill-less by contract, so the press cannot be a bevel: it
-        // is a dark wash under the border instead.
-        ButtonVariant::Ghost => Paint {
-            bg: if pressed {
-                Color::BLACK.with_alpha(0.22)
-            } else if hovered {
-                Color::WHITE.with_alpha(0.04)
-            } else {
-                Color::NONE
-            },
-            border: Color::WHITE.with_alpha(if pressed {
-                0.3
-            } else if hovered {
-                0.22
-            } else {
-                0.12
-            }),
-            text: HW_TEXT,
-            radius,
-            gradient: None,
-            shadow: None,
-            cursor_visible,
-        },
-        ButtonVariant::Danger => {
-            // Pressed is its OWN paint, like every other hardware variant:
-            // sunk (no drop shadow) and darker. Collapsing it into `hovered`
-            // left Exit with no press feedback on this skin only.
-            if pressed || hovered {
-                let lit = Color::srgb_u8(0x6b, 0x2a, 0x26);
-                let dark = Color::srgb_u8(0x3a, 0x15, 0x12);
-                Paint {
-                    bg: theme::RED,
-                    border,
-                    text: Color::WHITE,
-                    radius,
-                    // Pressed inverts the gradient and drops the shadow: the
-                    // face reads as sunk rather than raised.
-                    gradient: Some(if pressed {
-                        grad2(dark, lit)
-                    } else {
-                        grad2(lit, dark)
-                    }),
-                    shadow: (!pressed).then(drop_shadow),
-                    cursor_visible,
-                }
-            } else {
-                Paint {
-                    bg: theme::CASE_1,
-                    border,
-                    text: DANGER_TEXT_HOT,
-                    radius,
-                    gradient: Some(grad3(theme::CASE_3, theme::CASE_1, theme::CASE_0)),
-                    shadow: Some(drop_shadow()),
-                    cursor_visible,
-                }
-            }
-        }
-        _ => {
-            if pressed {
-                Paint {
-                    bg: theme::CASE_0,
-                    border,
-                    text: HW_TEXT,
-                    radius,
-                    gradient: Some(grad2(theme::CASE_0, theme::CASE_1)),
-                    shadow: None,
-                    cursor_visible,
-                }
-            } else if hovered {
-                Paint {
-                    bg: theme::CASE_HOT_MID,
-                    border,
-                    text: Color::WHITE,
-                    radius,
-                    gradient: Some(grad3(
-                        theme::CASE_HOT_HI,
-                        theme::CASE_HOT_MID,
-                        theme::CASE_HOT_LO,
-                    )),
-                    shadow: Some(drop_shadow()),
-                    cursor_visible,
-                }
-            } else {
-                Paint {
-                    bg: theme::CASE_1,
-                    border,
-                    text: HW_TEXT,
-                    radius,
-                    gradient: Some(grad3(theme::CASE_3, theme::CASE_1, theme::CASE_0)),
-                    shadow: Some(drop_shadow()),
-                    cursor_visible,
-                }
-            }
-        }
-    }
-}
-
 type LabelText<'w, 's> =
     Query<'w, 's, &'static mut TextColor, (With<ButtonLabel>, Without<ButtonCursor>)>;
 type CursorText<'w, 's> =
     Query<'w, 's, &'static mut TextColor, (With<ButtonCursor>, Without<ButtonLabel>)>;
 
-/// Apply a computed [`Paint`] to one button: its own fill/border/radius +
-/// gradient/shadow (inserted or removed to switch skins) + its label/cursor
+/// Which theme table a [`ButtonVariant`] paints from.
+fn table(variant: ButtonVariant) -> ThemeButton {
+    match variant {
+        ButtonVariant::Default => ThemeButton::Default,
+        ButtonVariant::Primary => ThemeButton::Primary,
+        ButtonVariant::Danger => ThemeButton::Danger,
+        ButtonVariant::Ghost => ThemeButton::Ghost,
+    }
+}
+
+/// Apply a resolved state to one button: its own fill/border/radius +
+/// gradient/shadow (inserted or removed to switch themes) + its label/cursor
 /// spans' colours.
 #[expect(
     clippy::too_many_arguments,
     reason = "one reconciler over every part of a button"
 )]
 fn apply_paint(
-    paint: Paint,
+    paint: &ResolvedState,
+    cursor_visible: bool,
+    theme: &ActiveUiTheme,
     commands: &mut Commands,
     entity: Entity,
     bg: &mut BackgroundColor,
@@ -361,9 +93,9 @@ fn apply_paint(
     q_label: &mut LabelText,
     q_cursor: &mut CursorText,
 ) {
-    *bg = paint.bg.into();
+    *bg = paint.fill.base.into();
     border.set_all(paint.border);
-    node.border_radius = BorderRadius::all(px(paint.radius));
+    node.border_radius = BorderRadius::all(px(theme.metric(UiMetric::Radius)));
 
     // `try_insert` / `try_remove`, not `insert` / `remove`: a button can be despawned
     // the SAME frame the reconciler paints it (a menu/state teardown despawns
@@ -372,17 +104,17 @@ fn apply_paint(
     // examples promote to a panic; the try_ forms silently no-op on a dead
     // entity. (Repo idiom, e.g. nova_gameplay integrity/glue.rs.)
     let mut ent = commands.entity(entity);
-    match paint.gradient {
+    match &paint.fill.gradient {
         Some(g) => {
-            ent.try_insert(g);
+            ent.try_insert(g.clone());
         }
         None => {
             ent.try_remove::<BackgroundGradient>();
         }
     }
-    match paint.shadow {
+    match &paint.shadow {
         Some(s) => {
-            ent.try_insert(s);
+            ent.try_insert(s.clone());
         }
         None => {
             ent.try_remove::<BoxShadow>();
@@ -394,22 +126,23 @@ fn apply_paint(
             *tc = TextColor(paint.text);
         }
         if let Ok(mut tc) = q_cursor.get_mut(child) {
-            // The cursor keeps its phosphor hue; only its alpha toggles.
-            *tc =
-                TextColor(theme::PHOSPHOR.with_alpha(if paint.cursor_visible { 1.0 } else { 0.0 }));
+            // The cursor keeps the theme's primary ink; only its alpha toggles.
+            *tc = TextColor(
+                theme.color_alpha(UiColor::Primary, if cursor_visible { 1.0 } else { 0.0 }),
+            );
         }
     }
 }
 
 /// The button colour observer: on any hover/press/disable/select change,
-/// recompute + apply the button's paint for the current skin. Generic over the
+/// look up + apply the button's paint in the active theme. Generic over the
 /// event `E` and component `C` so one body handles Add/Remove/Insert of
 /// `Pressed`, `InteractionDisabled`, `Hovered` and `Selected`; the removed
 /// component still reads present inside its own `Remove` observer, so its state
 /// is forced false there.
 pub(super) fn button_on_interaction<E: EntityEvent, C: Component>(
     event: On<E, C>,
-    skin: Res<UiSkin>,
+    theme: Res<ActiveUiTheme>,
     mut commands: Commands,
     mut q_button: Query<
         (
@@ -444,9 +177,11 @@ pub(super) fn button_on_interaction<E: EntityEvent, C: Component>(
     let selected = selected && !(removing && C::is::<Selected>());
     let variant = variant.copied().unwrap_or_default();
 
-    let paint = button_paint(*skin, variant, disabled, hovered.get(), pressed, selected);
+    let state = ButtonState::resolve(disabled, pressed, selected, hovered.get());
     apply_paint(
-        paint,
+        theme.button(table(variant), state),
+        hovered.get() || selected,
+        &theme,
         &mut commands,
         entity,
         &mut bg,
@@ -458,16 +193,21 @@ pub(super) fn button_on_interaction<E: EntityEvent, C: Component>(
     );
 }
 
-/// Restyle LIVE themed buttons: on a `UiSkin` change repaint every button;
+/// Restyle LIVE themed buttons: on a theme change repaint every button;
 /// otherwise paint only the just-spawned ones (`Added<ThemedButton>`, an
 /// override that must defer past the deferred-spawn flush - hence a SYSTEM, not
 /// an `Add` observer - per lesson mode-keyed-reconciler-just-spawned-override).
+///
+/// This is the ONLY thing that paints a button. [`button`] spawns an unpainted
+/// shell, so there is one path from state to pixels instead of a factory that
+/// guesses an idle face and a reconciler that corrects it - which is what used
+/// to flash a phosphor button on the hardware look for a frame.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per button visual state"
 )]
-pub(super) fn reconcile_button_skins(
-    skin: Res<UiSkin>,
+pub(super) fn reconcile_button_themes(
+    theme: Res<ActiveUiTheme>,
     mut commands: Commands,
     mut q_button: Query<
         (
@@ -488,7 +228,7 @@ pub(super) fn reconcile_button_skins(
     mut q_label: LabelText,
     mut q_cursor: CursorText,
 ) {
-    let restyle_all = skin.is_changed();
+    let restyle_all = theme.is_changed();
     let just_added: HashSet<Entity> = added.iter().collect();
     if !restyle_all && just_added.is_empty() {
         return;
@@ -514,9 +254,11 @@ pub(super) fn reconcile_button_skins(
             continue;
         }
         let variant = variant.copied().unwrap_or_default();
-        let paint = button_paint(*skin, variant, disabled, hovered.get(), pressed, selected);
+        let state = ButtonState::resolve(disabled, pressed, selected, hovered.get());
         apply_paint(
-            paint,
+            theme.button(table(variant), state),
+            hovered.get() || selected,
+            &theme,
             &mut commands,
             entity,
             &mut bg,
@@ -642,9 +384,9 @@ impl ButtonSpec {
 }
 
 /// Build the button bundle from a [`ButtonSpec`]. Spawns the label span, plus an
-/// optional block cursor and key-chip, as children; the initial colours are the
-/// phosphor idle face and get corrected to the live skin by
-/// `reconcile_button_skins` on the frame it appears.
+/// optional block cursor and key-chip, as children, UNPAINTED:
+/// [`reconcile_button_themes`] paints it on the frame it appears, which is the
+/// single path from state to pixels.
 ///
 /// An EMPTY `text` spawns no label span at all, which is how a caller that
 /// spawns its own content (an icon) gets a button with nothing else in it.
@@ -665,28 +407,27 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
         JustifyContent::Center
     };
 
-    // Phosphor idle face (default skin) - the reconciler repaints on spawn.
-    let idle = phosphor_paint(variant, false, false, false, false, false);
-
     (
         Node {
             width: if fit { Val::Auto } else { percent(100) },
             min_height: px(min_height),
             margin: UiRect::vertical(px(4)),
             padding: UiRect::axes(px(12), px(6)),
-            border: UiRect::all(px(theme::BORDER_W)),
+            // The border WIDTH is layout, so it is set here; its colour, the
+            // fill and the radius are the theme's and land on the reconciler's
+            // first pass.
+            border: UiRect::all(px(BORDER_W)),
             justify_content: justify,
             align_items: AlignItems::Center,
             column_gap: px(8),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
         ThemedButton,
         variant,
         Button,
         Hovered::default(),
-        BorderColor::all(idle.border),
-        BackgroundColor(idle.bg),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
         Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
             if block {
                 parent.spawn((
@@ -697,7 +438,7 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
                         font_size: FontSize::Px(font_size),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR.with_alpha(0.0)),
+                    TextColor(Color::NONE),
                 ));
             }
             // An EMPTY label spawns nothing, not an empty span: the button
@@ -714,7 +455,7 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
                         font_size: FontSize::Px(font_size),
                         ..default()
                     },
-                    TextColor(idle.text),
+                    TextColor(Color::NONE),
                     // No TextShadow. Bevy's `TextShadow` is a hard drop
                     // shadow (no blur), so its default 4px black offset ghosts
                     // the label on a bright/inverted fill instead of glowing.
@@ -736,25 +477,73 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
 /// would be a second answer to what a key looks like.
 pub fn key_chip(text: &str, font_size: f32) -> impl Bundle {
     (
+        KeyChip,
         Node {
             margin: UiRect::left(px(8)),
             padding: UiRect::axes(px(5), px(1)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            border: UiRect::all(px(BORDER_W)),
             ..default()
         },
-        BorderColor::all(theme::AMBER_NOVA.with_alpha(0.5)),
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.3)),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
         children![(
+            KeyChipLabel,
             UiText,
             Text::new(text.to_string()),
             TextFont {
                 font_size: FontSize::Px((font_size - 2.0).max(10.0)),
                 ..default()
             },
-            TextColor(theme::AMBER_NOVA),
+            TextColor(Color::NONE),
         )],
     )
+}
+
+/// Marks a [`key_chip`] so the theme reconciler paints it and repaints it live.
+#[derive(Component)]
+pub struct KeyChip;
+
+/// Marks a [`key_chip`]'s legend span, so the reconciler recolours the legend
+/// without reaching into whatever else a caller spawned beside it.
+#[derive(Component)]
+pub struct KeyChipLabel;
+
+/// Paint keycap chips from the theme's `key_chip` role, on a theme change and
+/// on spawn - the same two triggers every other family reconciles on.
+pub(super) fn reconcile_key_chips(
+    theme: Res<ActiveUiTheme>,
+    mut q: Query<
+        (
+            Entity,
+            &mut BackgroundColor,
+            &mut BorderColor,
+            &mut Node,
+            &Children,
+        ),
+        With<KeyChip>,
+    >,
+    added: Query<Entity, Added<KeyChip>>,
+    mut q_label: Query<&mut TextColor, With<KeyChipLabel>>,
+) {
+    let restyle_all = theme.is_changed();
+    let just_added: HashSet<Entity> = added.iter().collect();
+    if !restyle_all && just_added.is_empty() {
+        return;
+    }
+    let paint = theme.key_chip();
+    for (entity, mut bg, mut border, mut node, children) in &mut q {
+        if !restyle_all && !just_added.contains(&entity) {
+            continue;
+        }
+        *bg = paint.fill.base.into();
+        border.set_all(paint.border);
+        node.border_radius = BorderRadius::all(px(theme.metric(UiMetric::Radius)));
+        for &child in children {
+            if let Ok(mut tc) = q_label.get_mut(child) {
+                *tc = TextColor(paint.text);
+            }
+        }
+    }
 }
 
 /// A default themed button (34px / 14px, neutral). The one-arg convenience the
@@ -772,7 +561,10 @@ pub fn menu_button(text: &str) -> impl Bundle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widget::fixtures::{bg, has_gradient, skin_app};
+    use crate::{
+        theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+        widget::fixtures::{bg, hardware, has_gradient, phosphor, select, themed_app},
+    };
 
     fn label_color(app: &mut App, entity: Entity) -> Color {
         let children: Vec<Entity> = app
@@ -793,87 +585,85 @@ mod tests {
         panic!("a ButtonLabel span exists");
     }
 
-    /// The phosphor skin renders a button as a CLI element: a flat
-    /// phosphor-tinted fill, a 1px phosphor border and NO bevel gradient/shadow -
-    /// and selection INVERTS (solid phosphor fill, dark ink glyphs). Pins the
-    /// state table so a future tweak that reintroduces a gradient on the phosphor
-    /// skin (a bevelled button on glass) fails here.
+    /// `base/phosphor` renders a button as a CLI element: a flat
+    /// phosphor-tinted fill, a 1px phosphor border and NO bevel gradient or
+    /// shadow - and selection INVERTS (solid phosphor fill, dark ink glyphs).
+    /// Pins the authored state table so an edit that reintroduces a gradient on
+    /// the terminal look (a bevelled button on glass) fails here.
     #[test]
     fn phosphor_button_states_render_cli_markers() {
-        let mut app = skin_app(UiSkin::Phosphor);
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
         let btn = app.world_mut().spawn(button(ButtonSpec::new("Go"))).id();
         app.update();
 
-        assert_eq!(bg(&app, btn), theme::PHOSPHOR.with_alpha(0.05));
+        let theme = phosphor();
+        assert_eq!(bg(&app, btn), theme.color_alpha(UiColor::Primary, 0.05));
         assert_eq!(
             app.world().entity(btn).get::<BorderColor>().unwrap().top,
-            theme::PHOSPHOR.with_alpha(0.4)
+            theme.color_alpha(UiColor::Primary, 0.4)
         );
         assert!(
             !has_gradient(&app, btn),
             "phosphor is a flat CLI element, not a bevel"
         );
         assert!(!app.world().entity(btn).contains::<BoxShadow>());
-        assert_eq!(label_color(&mut app, btn), theme::PHOSPHOR);
+        assert_eq!(label_color(&mut app, btn), theme.color(UiColor::Primary));
 
         // Selected inverts: solid phosphor fill, ink glyphs.
         app.world_mut().entity_mut(btn).insert(Selected);
         app.update();
-        assert_eq!(bg(&app, btn), theme::PHOSPHOR);
-        assert_eq!(label_color(&mut app, btn), theme::INK);
+        assert_eq!(bg(&app, btn), theme.color(UiColor::Primary));
+        assert_eq!(label_color(&mut app, btn), theme.color(UiColor::Inverted));
         assert!(!has_gradient(&app, btn), "inverted phosphor is still flat");
     }
 
-    /// The hardware skin renders a button as a moulded control: a case-gradient
-    /// face + a drop shadow + soft (7px) corners. Pins the bevel so a regression
-    /// that drops the gradient (flat button on the hardware skin) fails here.
+    /// `base/hardware` renders a button as a moulded control: a case-gradient
+    /// face + a drop shadow + soft (7px) corners. Pins the bevel so an edit
+    /// that drops the gradient (a flat button on the casing look) fails here.
     #[test]
     fn hardware_button_states_render_bevel() {
-        let mut app = skin_app(UiSkin::Hardware);
+        let mut app = themed_app(HARDWARE_THEME_ID);
         let btn = app.world_mut().spawn(button(ButtonSpec::new("Go"))).id();
         app.update();
 
+        let theme = hardware();
         assert!(has_gradient(&app, btn), "hardware face is a gradient bevel");
         assert!(
             app.world().entity(btn).contains::<BoxShadow>(),
             "hardware has depth"
         );
         assert_eq!(
-            app.world().entity(btn).get::<BorderColor>().unwrap().top,
-            theme::CASE_EDGE
-        );
-        assert_eq!(
             app.world().entity(btn).get::<Node>().unwrap().border_radius,
-            BorderRadius::all(px(theme::RADIUS_HW))
+            BorderRadius::all(px(theme.metric(UiMetric::Radius)))
         );
 
         // Selected -> amber gradient, inverted ink glyphs (still a bevel).
         app.world_mut().entity_mut(btn).insert(Selected);
         app.update();
         assert!(has_gradient(&app, btn));
-        assert_eq!(label_color(&mut app, btn), theme::INK);
+        assert_eq!(label_color(&mut app, btn), theme.color(UiColor::Inverted));
     }
 
-    /// Flipping the `UiSkin` resource restyles buttons ALREADY in the tree, and a
-    /// button spawned on a frame with NO skin change is still painted for the
-    /// current skin (the `Added<ThemedButton>` override). This second half FAILS
-    /// with only the `skin.is_changed()` path wired, which is the whole point of
-    /// the override (lesson mode-keyed-reconciler-just-spawned-override).
+    /// Moving the SELECTION restyles buttons ALREADY in the tree, and a button
+    /// spawned on a frame with NO theme change is still painted for the current
+    /// theme (the `Added<ThemedButton>` override). The second half FAILS with
+    /// only the `theme.is_changed()` path wired, which is the whole point of the
+    /// override (lesson mode-keyed-reconciler-just-spawned-override).
     #[test]
-    fn skin_switch_restyles_spawned_widgets() {
-        let mut app = skin_app(UiSkin::Phosphor);
+    fn theme_switch_restyles_spawned_widgets() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
         let first = app.world_mut().spawn(button(ButtonSpec::new("First"))).id();
         app.update();
         assert!(!has_gradient(&app, first), "phosphor: flat");
 
-        *app.world_mut().resource_mut::<UiSkin>() = UiSkin::Hardware;
+        select(&mut app, HARDWARE_THEME_ID);
         app.update();
         assert!(
             has_gradient(&app, first),
-            "live button restyled to hardware bevel"
+            "live button restyled to the hardware bevel"
         );
 
-        // A button spawned now - a frame with NO skin change - must still be
+        // A button spawned now - a frame with NO theme change - must still be
         // painted hardware by the just-spawned override.
         let second = app
             .world_mut()
@@ -882,50 +672,58 @@ mod tests {
         app.update();
         assert!(
             has_gradient(&app, second),
-            "just-spawned button painted for the current skin without a skin change"
+            "just-spawned button painted for the current theme without a theme change"
         );
     }
 
-    /// EVERY variant must give a press its own face, on BOTH skins. Two bugs
-    /// live here: a variant that reacts on one skin only (the hardware Danger
-    /// face - the Exit button - collapsed hover and press into one paint), and
-    /// a variant that reacts on NEITHER (`Ghost`, which `segmented_option`
-    /// builds, so the Graphics-preset and UI-skin rows had no press feedback at
-    /// all). Parity alone would pass the second case, so assert both.
+    /// EVERY variant must give a press its own face, in BOTH base themes. Two
+    /// bugs live here: a variant that reacts in one theme only (the hardware
+    /// Danger face - the Exit button - collapsed hover and press into one
+    /// paint), and a variant that reacts in NEITHER (`Ghost`, which
+    /// `segmented_option` builds, so the Graphics-preset and theme rows had no
+    /// press feedback at all). Parity alone would pass the second case, so
+    /// assert both.
+    ///
+    /// Now a check on authored CONTENT rather than on code: it is the base
+    /// themes' role tables that must keep pressed distinct from hovered.
     #[test]
-    fn press_reads_differently_from_hover_in_both_skins() {
-        // The visually load-bearing parts of a Paint, comparable. The gradient
-        // is compared by its STOPS, not its stop count: a variant that reacts
-        // to press only through gradient colours must still read as reacting.
-        let face = |skin, variant, hovered, pressed| {
-            let p = button_paint(skin, variant, false, hovered, pressed, false);
+    fn press_reads_differently_from_hover_in_both_base_themes() {
+        // The visually load-bearing parts of a resolved state, comparable. The
+        // gradient is compared by its STOPS, not its stop count: a variant that
+        // reacts to press only through gradient colours must still read as
+        // reacting.
+        let face = |theme: &ActiveUiTheme, variant, state| {
+            let p = theme.button(table(variant), state);
             (
-                format!("{:?}", p.bg),
+                format!("{:?}", p.fill.base),
                 format!("{:?}", p.text),
-                format!("{:?}", p.gradient),
+                format!("{:?}", p.fill.gradient),
                 p.shadow.is_some(),
             )
         };
+        let reacts_to_press = |theme: &ActiveUiTheme, variant| {
+            face(theme, variant, ButtonState::Hovered) != face(theme, variant, ButtonState::Pressed)
+        };
 
-        let reacts_to_press =
-            |skin, variant| face(skin, variant, true, false) != face(skin, variant, true, true);
-
+        let phosphor = phosphor();
+        let hardware = hardware();
         for variant in [
             ButtonVariant::Default,
             ButtonVariant::Primary,
             ButtonVariant::Danger,
             ButtonVariant::Ghost,
         ] {
-            for skin in [UiSkin::Phosphor, UiSkin::Hardware] {
+            for theme in [&phosphor, &hardware] {
                 assert!(
-                    reacts_to_press(skin, variant),
-                    "{variant:?} has no press feedback on {skin:?}"
+                    reacts_to_press(theme, variant),
+                    "{variant:?} has no press feedback in {}",
+                    theme.id()
                 );
             }
             assert_eq!(
-                reacts_to_press(UiSkin::Phosphor, variant),
-                reacts_to_press(UiSkin::Hardware, variant),
-                "{variant:?} gives press its own face on one skin but not the other"
+                reacts_to_press(&phosphor, variant),
+                reacts_to_press(&hardware, variant),
+                "{variant:?} gives press its own face in one base theme but not the other"
             );
         }
     }

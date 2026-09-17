@@ -35,10 +35,14 @@ use nova_ui::{
     prelude::{
         button, key_chip, panel, panel_header, scroll_bar, scroll_column, scroll_row,
         scroll_viewport, separator, text_field, themed_button, ButtonLabel, ButtonSpec,
-        TextFieldSpec, UiSkin, UiText,
+        TextFieldSpec, UiText,
     },
     theme,
-    widget::{checkbox_colors, checkbox_glyph, list_row_colors, ListRow, Selected},
+    theme::{ActiveUiTheme, UiColor},
+    widget::{
+        checkbox_glyph, ListRow, Selected, ThemedBorder, ThemedCheckbox, ThemedFill, ThemedRadius,
+        ThemedText,
+    },
 };
 use nova_wfc::prelude::{WfcPlan, WfcZone};
 
@@ -105,7 +109,7 @@ use crate::{
 /// GREYED, NOT ABSENT, for the items that are not built: Undo and Redo are
 /// nobody's. A menu that only lists what already works cannot say what the
 /// editor is going to be.
-fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: UiSkin) {
+fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
     match menu {
         MenuId::File => {
             // The rows that can lose work do not DO anything: they put the
@@ -115,35 +119,35 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("New Scenario Item"),
                 DestructiveVerb::NewScenario,
-                menu_item_row("New Scenario", MenuLead::None, MenuTail::None, skin),
+                menu_item_row("New Scenario", MenuLead::None, MenuTail::None),
             ));
             items.spawn((
                 Name::new("Save Item"),
-                menu_item_row("Save", MenuLead::None, MenuTail::Key("Ctrl+S"), skin),
+                menu_item_row("Save", MenuLead::None, MenuTail::Key("Ctrl+S")),
                 observe(ask_to_save),
             ));
             items.spawn((
                 Name::new("Save As... Item"),
-                menu_item_row("Save As...", MenuLead::None, MenuTail::None, skin),
+                menu_item_row("Save As...", MenuLead::None, MenuTail::None),
                 observe(ask_to_save_as),
             ));
             items.spawn((
                 Name::new("Open Item"),
-                menu_item_row("Open", MenuLead::None, MenuTail::None, skin),
+                menu_item_row("Open", MenuLead::None, MenuTail::None),
                 observe(ask_to_open),
             ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Back To Main Menu Item"),
                 DestructiveVerb::MainMenu,
-                menu_item_row("Back to Main Menu", MenuLead::None, MenuTail::None, skin),
+                menu_item_row("Back to Main Menu", MenuLead::None, MenuTail::None),
             ));
         }
         MenuId::Edit => {
             for label in ["Undo", "Redo"] {
                 items.spawn((
                     Name::new(format!("{label} Item")),
-                    menu_item_row(label, MenuLead::None, MenuTail::Word("soon"), skin),
+                    menu_item_row(label, MenuLead::None, MenuTail::Word("soon")),
                     InteractionDisabled,
                 ));
             }
@@ -151,7 +155,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Delete Item"),
                 MenuDeleteItem,
-                menu_item_row("Delete", MenuLead::None, MenuTail::Key("Del"), skin),
+                menu_item_row("Delete", MenuLead::None, MenuTail::Key("Del")),
                 observe(delete_selected_node),
             ));
         }
@@ -159,25 +163,25 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Key Legend Item"),
                 ViewToggle::KeyLegend,
-                menu_item_row("Key Legend", MenuLead::Toggle, MenuTail::None, skin),
+                menu_item_row("Key Legend", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_key_legend),
             ));
             items.spawn((
                 Name::new("Link Points Item"),
                 ViewToggle::LinkPoints,
-                menu_item_row("Link Points", MenuLead::Toggle, MenuTail::None, skin),
+                menu_item_row("Link Points", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_link_points),
             ));
             items.spawn((
                 Name::new("World Grid Item"),
                 ViewToggle::WorldGrid,
-                menu_item_row("World Grid", MenuLead::Toggle, MenuTail::None, skin),
+                menu_item_row("World Grid", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_world_grid),
             ));
             items.spawn((
                 Name::new("Object Volumes Item"),
                 ViewToggle::ObjectVolumes,
-                menu_item_row("Object Volumes", MenuLead::Toggle, MenuTail::None, skin),
+                menu_item_row("Object Volumes", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_object_volumes),
             ));
             // The inspector's own view, in the menu that holds the stage's:
@@ -187,7 +191,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("All Fields Item"),
                 ViewToggle::AllFields,
-                menu_item_row("All Fields", MenuLead::Toggle, MenuTail::None, skin),
+                menu_item_row("All Fields", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_all_fields),
             ));
             // And the tree's: an event names the nodes it fires on by id, so
@@ -195,14 +199,14 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Ids Item"),
                 ViewToggle::Ids,
-                menu_item_row("Ids", MenuLead::Toggle, MenuTail::None, skin),
+                menu_item_row("Ids", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_ids),
             ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Frame Selection Item"),
                 FrameSelectionItem,
-                menu_item_row("Frame Selection", MenuLead::None, MenuTail::Key("F"), skin),
+                menu_item_row("Frame Selection", MenuLead::None, MenuTail::Key("F")),
                 observe(on_frame_selection),
             ));
             // The axis views, under the one that frames: they answer the same
@@ -214,7 +218,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                     Name::new(format!("{} View Item", angle.label())),
                     FrameSelectionItem,
                     ViewPresetItem(angle),
-                    menu_item_row(angle.label(), MenuLead::None, MenuTail::None, skin),
+                    menu_item_row(angle.label(), MenuLead::None, MenuTail::None),
                     observe(on_view_preset),
                 ));
             }
@@ -226,7 +230,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 Name::new("Parts Item"),
                 ShipMenuItem,
                 GalleryAction::Open,
-                menu_item_row("Parts...", MenuLead::None, MenuTail::Key("Tab"), skin),
+                menu_item_row("Parts...", MenuLead::None, MenuTail::Key("Tab")),
             ));
             items.spawn(separator());
             // The pose verbs. They live only in a legend View can switch off,
@@ -239,7 +243,6 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                     "Roll the Part (or wheel)",
                     MenuLead::None,
                     MenuTail::Key("R"),
-                    skin,
                 ),
                 observe(roll_armed_part),
             ));
@@ -250,26 +253,20 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                     "Cycle the Socket (or Ctrl+wheel)",
                     MenuLead::None,
                     MenuTail::Key("F"),
-                    skin,
                 ),
                 observe(cycle_armed_socket),
             ));
             items.spawn((
                 Name::new("Put The Part Down Item"),
                 ArmedMenuItem,
-                menu_item_row(
-                    "Put the Part Down",
-                    MenuLead::None,
-                    MenuTail::Key("Esc"),
-                    skin,
-                ),
+                menu_item_row("Put the Part Down", MenuLead::None, MenuTail::Key("Esc")),
                 observe(put_armed_part_down),
             ));
             items.spawn(separator());
             items.spawn((
                 Name::new("Rebind Key Item"),
                 RebindButton,
-                menu_item_row("Rebind Key...", MenuLead::None, MenuTail::None, skin),
+                menu_item_row("Rebind Key...", MenuLead::None, MenuTail::None),
                 observe(on_rebind_action),
             ));
         }
@@ -301,7 +298,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                         // one already there. The first ship of an empty
                         // document becomes the player's and the tree fills its
                         // mark in.
-                        menu_item_row("New Ship", MenuLead::Glyph(SHIP_AI), MenuTail::None, skin),
+                        menu_item_row("New Ship", MenuLead::Glyph(SHIP_AI), MenuTail::None),
                         observe(create_blank_ship),
                     ));
                     world.spawn(separator());
@@ -314,7 +311,6 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                                 choice.label(),
                                 MenuLead::Glyph(choice_mark(choice)),
                                 MenuTail::None,
-                                skin,
                             ),
                             observe(create_scenario_object),
                         ));
@@ -332,7 +328,6 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                                 &format!("{}...", category.label()),
                                 MenuLead::Glyph(category_mark(category)),
                                 MenuTail::None,
-                                skin,
                             ),
                         ));
                     }
@@ -355,7 +350,6 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                                 // `Step` are the two rows nobody can rank from
                                 // their names alone.
                                 MenuTail::Word(add.hint()),
-                                skin,
                             ),
                             observe(add_script_node),
                         ));
@@ -411,7 +405,6 @@ pub(crate) fn register(app: &mut App) {
 
 pub(crate) fn setup_editor_scene(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     game_assets: Res<GameAssets>,
     styles: Res<GameStyles>,
     sections: Res<GameSections>,
@@ -419,7 +412,6 @@ pub(crate) fn setup_editor_scene(
     context: Res<EditContext>,
     q_ships: Query<&ShipNode>,
 ) {
-    let skin = *skin;
     // The rail is built for the ship the editor opens on. With none entered the
     // checkbox starts bare, which is what a fresh ship is.
     let skinned = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
@@ -521,7 +513,7 @@ pub(crate) fn setup_editor_scene(
                     column_gap: px(10),
                     ..default()
                 },
-                panel(skin),
+                panel(),
             ))
             .with_children(|bar| {
                 // THREE COLUMNS, not a row with a spacer: Play sits in the
@@ -558,7 +550,7 @@ pub(crate) fn setup_editor_scene(
                             font_size: FontSize::Px(16.0),
                             ..default()
                         },
-                        TextColor(theme::SCREEN_TEXT),
+                        TextColor(Color::NONE), ThemedText::new(UiColor::Body),
                     ));
                     // The menu bar. Every entry drops a real list: a greyed
                     // placeholder says the editor has menus while answering no
@@ -598,9 +590,9 @@ pub(crate) fn setup_editor_scene(
                                         menu,
                                         menu_z(),
                                         menu_dropdown_node(),
-                                        panel(skin),
+                                        panel(),
                                     ))
-                                    .with_children(|items| build_menu(items, menu, skin));
+                                    .with_children(|items| build_menu(items, menu));
                                 });
                         }
                     });
@@ -736,7 +728,7 @@ pub(crate) fn setup_editor_scene(
                             border: UiRect::right(px(theme::BORDER_W)),
                             ..default()
                         },
-                        panel(skin),
+                        panel(),
                     ))
                     .with_children(|column| {
                         // The rail SCROLLS as one column, bar and all: the tree
@@ -763,16 +755,18 @@ pub(crate) fn setup_editor_scene(
                                     rail.spawn((Name::new("Rail Tabs"), rail_tab_strip()))
                                         .with_children(|strip| {
                                             for (tab, label) in RAIL_TABS {
-                                                strip.spawn((
+                                                let mut entity = strip.spawn((
                                                     Name::new(format!("Rail Tab {label}")),
-                                                    rail_tab(
-                                                        tab,
-                                                        label,
-                                                        tab == RailTab::default(),
-                                                        skin,
-                                                    ),
+                                                    rail_tab(tab, label),
                                                     observe(on_rail_tab),
                                                 ));
+                                                // The MARK is the state the row
+                                                // reconciler paints from, so it
+                                                // is inserted rather than baked
+                                                // into the factory.
+                                                if tab == RailTab::default() {
+                                                    entity.insert(Selected);
+                                                }
                                             }
                                         });
                                     rail.spawn((
@@ -816,7 +810,7 @@ pub(crate) fn setup_editor_scene(
                                                     font_size: FontSize::Px(READOUT_TEXT),
                                                     ..default()
                                                 },
-                                                TextColor(theme::PHOSPHOR),
+                                                TextColor(Color::NONE), ThemedText::new(UiColor::Primary),
                                                 Node {
                                                     margin: UiRect::top(px(4)),
                                                     ..default()
@@ -835,7 +829,7 @@ pub(crate) fn setup_editor_scene(
                                                     font_size: FontSize::Px(11.0),
                                                     ..default()
                                                 },
-                                                TextColor(theme::PHOSPHOR_MUTED),
+                                                TextColor(Color::NONE), ThemedText::new(UiColor::Label),
                                                 Node {
                                                     margin: UiRect::bottom(px(4)),
                                                     ..default()
@@ -846,7 +840,7 @@ pub(crate) fn setup_editor_scene(
                                             // and what it looks like when it flies.
                                             settings.spawn((
                                                 Name::new("Ship Skin Toggle"),
-                                                skin_toggle_row(skinned, skin),
+                                                skin_toggle_row(skinned),
                                                 observe(on_skin_toggle),
                                             ));
                                             // The sentence that used to hide in the key legend.
@@ -862,7 +856,7 @@ pub(crate) fn setup_editor_scene(
                                                     font_size: FontSize::Px(11.0),
                                                     ..default()
                                                 },
-                                                TextColor(theme::PHOSPHOR_MUTED),
+                                                TextColor(Color::NONE), ThemedText::new(UiColor::Label),
                                                 Node {
                                                     margin: UiRect::bottom(px(4)),
                                                     ..default()
@@ -885,19 +879,17 @@ pub(crate) fn setup_editor_scene(
                                                     for (index, (id, name, colour)) in
                                                         listed.iter().enumerate()
                                                     {
-                                                        list.spawn((
+                                                        let mut row = list.spawn((
                                                             Name::new(format!("Style: {name}")),
-                                                            // The first is what an unset style
-                                                            // wears, so it starts marked.
-                                                            style_row(
-                                                                id,
-                                                                name,
-                                                                *colour,
-                                                                index == 0,
-                                                                skin,
-                                                            ),
+                                                            style_row(id, name, *colour),
                                                             observe(on_style_choice),
                                                         ));
+                                                        // The first is what an
+                                                        // unset style wears, so
+                                                        // it starts marked.
+                                                        if index == 0 {
+                                                            row.insert(Selected);
+                                                        }
                                                     }
                                                 });
                                         },
@@ -935,7 +927,7 @@ pub(crate) fn setup_editor_scene(
                                                 font_size: FontSize::Px(11.0),
                                                 ..default()
                                             },
-                                            TextColor(theme::PHOSPHOR_MUTED),
+                                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
                                             Node {
                                                 margin: UiRect::bottom(px(4)),
                                                 ..default()
@@ -979,7 +971,7 @@ pub(crate) fn setup_editor_scene(
                                                 font_size: FontSize::Px(10.0),
                                                 ..default()
                                             },
-                                            TextColor(theme::PHOSPHOR_MUTED),
+                                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
                                             Node {
                                                 margin: UiRect::top(px(6)),
                                                 ..default()
@@ -994,7 +986,7 @@ pub(crate) fn setup_editor_scene(
                                                 font_size: FontSize::Px(10.0),
                                                 ..default()
                                             },
-                                            TextColor(theme::PHOSPHOR_DIM),
+                                            TextColor(Color::NONE), ThemedText::new(UiColor::Secondary),
                                         ));
                                         // What the collapse may draw. The
                                         // whole merged catalog, so a mod's
@@ -1011,7 +1003,7 @@ pub(crate) fn setup_editor_scene(
                                                 font_size: FontSize::Px(10.0),
                                                 ..default()
                                             },
-                                            TextColor(theme::PHOSPHOR_MUTED),
+                                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
                                             Node {
                                                 margin: UiRect::top(px(6)),
                                                 ..default()
@@ -1027,7 +1019,7 @@ pub(crate) fn setup_editor_scene(
                                                 font_size: FontSize::Px(10.0),
                                                 ..default()
                                             },
-                                            TextColor(theme::PHOSPHOR_MUTED),
+                                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
                                             Node {
                                                 margin: UiRect::bottom(px(3)),
                                                 ..default()
@@ -1043,7 +1035,7 @@ pub(crate) fn setup_editor_scene(
                                                 for (id, name, drawn, zone) in &drawable {
                                                     let mut row = list.spawn((
                                                         Name::new(format!("Part: {id}")),
-                                                        part_row(id, name, *drawn, *zone, skin),
+                                                        part_row(id, name, *drawn, *zone),
                                                         observe(on_part_choice),
                                                     ));
                                                     // The MARK is the setting;
@@ -1056,14 +1048,14 @@ pub(crate) fn setup_editor_scene(
                                             });
                                     });
                                 });
-                                row.spawn((Name::new("Rail Scrollbar"), scroll_bar(skin)));
+                                row.spawn((Name::new("Rail Scrollbar"), scroll_bar()));
                             });
                     });
                 // The Inspector, on the OTHER side of the stage from the tree:
                 // the rail says what the document holds and this says what one
                 // of those things is, and putting both in one column is what
                 // ran the old all-in-one rail out of screen.
-                content.spawn(inspector_panel(skin));
+                content.spawn(inspector_panel());
             });
 
             // The hint a tree row reveals on hover, and the layer the floating
@@ -1072,9 +1064,9 @@ pub(crate) fn setup_editor_scene(
             // SCREEN: the windows stand above everything else the editor draws
             // - a window a panel could cover would be a window nobody opened -
             // and the hint stands above the windows.
-            root.spawn(scene_tooltip(skin));
-            root.spawn(inspector_tooltip(skin));
-            root.spawn(placement_callout(skin));
+            root.spawn(scene_tooltip());
+            root.spawn(inspector_tooltip());
+            root.spawn(placement_callout());
             root.spawn(plate_layer());
             root.spawn(window_layer());
 
@@ -1130,18 +1122,18 @@ pub(crate) fn setup_editor_scene(
                             Node {
                                 padding: UiRect::axes(px(10), px(4)),
                                 border: UiRect::all(px(theme::BORDER_W)),
-                                border_radius: BorderRadius::all(px(theme::RADIUS)),
                                 ..default()
                             },
-                            BorderColor::all(theme::RED),
-                            BackgroundColor(theme::SPACE),
+                            ThemedRadius::control(),
+                            BorderColor::all(Color::NONE), ThemedBorder::new(UiColor::Danger),
+                            BackgroundColor(Color::NONE), ThemedFill::new(UiColor::Void),
                             UiText,
                             Text::new(""),
                             TextFont {
                                 font_size: FontSize::Px(13.0),
                                 ..default()
                             },
-                            TextColor(theme::RED),
+                            TextColor(Color::NONE), ThemedText::new(UiColor::Danger),
                         )],
                     ),
                     // Contextual (see `sync_key_legend`): a builder holding a
@@ -2053,7 +2045,6 @@ fn ordinal_of(script: &ScriptNodes, node: Entity) -> String {
 /// respawning every frame and eating its own hover.
 pub(crate) fn sync_scene_list(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     context: Res<EditContext>,
     catalog: Option<Res<GameSections>>,
     overlays: Res<EditorOverlays>,
@@ -2107,17 +2098,17 @@ pub(crate) fn sync_scene_list(
         commands.entity(list).despawn_related::<Children>();
         commands.entity(list).with_children(|list| {
             for row in &wanted {
-                // Painted marked from the start rather than waiting for the
-                // pass below: these rows do not exist in `rows` until next
-                // frame, and a highlight that lags a frame behind the click
-                // that made it reads as a dropped input.
+                // Marked from the start rather than waiting for the pass
+                // below: these rows do not exist in `rows` until next frame,
+                // and a highlight that lags a frame behind the click that made
+                // it reads as a dropped input.
                 let marked = Some(row.node) == selected.0;
                 let mut entity = list.spawn((
                     // Named by ID, drawn by LABEL: the walks and the probe
                     // find a row by the node's own key, whatever the rail has
                     // room to print.
                     Name::new(format!("Scene Row {}", row.id)),
-                    scene_row(row.depth, &row.lead, &row.label, &row.trail, marked, *skin),
+                    scene_row(row.depth, &row.lead, &row.label, &row.trail),
                     SceneRow(row.node),
                     // What a hover reveals: the kind the icon stands for, and
                     // the id the 150px row had to clip.
@@ -2127,6 +2118,9 @@ pub(crate) fn sync_scene_list(
                     },
                     observe(on_scene_row),
                 ));
+                if marked {
+                    entity.insert(Selected);
+                }
                 // The row's own delete, on the child that draws it: a press on
                 // the trash must not read as a press on the row it sits in.
                 let trash = entity.id();
@@ -2303,6 +2297,7 @@ pub(crate) fn on_scene_row(
 /// once its hold is over, so every other reader sees the line as it reads.
 pub(crate) fn sync_status_line(
     time: Res<Time>,
+    theme: Res<ActiveUiTheme>,
     mut status: ResMut<EditorStatus>,
     lines: Query<
         (&mut Text, &mut TextColor, &mut BorderColor, &mut Visibility),
@@ -2314,6 +2309,7 @@ pub(crate) fn sync_status_line(
     for (mut text, mut colour, mut border, mut visibility) in lines {
         match line {
             Some((message, tint)) => {
+                let tint = theme.color(tint);
                 if text.0 != message {
                     text.0 = message.to_string();
                 }
@@ -2437,7 +2433,6 @@ pub(crate) enum Crumb {
 /// respawning it under the pointer every frame would kill its own hover.
 pub(crate) fn sync_breadcrumb(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
     ids: Query<&NodeId>,
@@ -2507,10 +2502,10 @@ pub(crate) fn sync_breadcrumb(
         for crumb in &wanted {
             match crumb {
                 Crumb::Level(word) => {
-                    bar.spawn((Name::new("Crumb Level"), crumb_word(word, theme::PHOSPHOR)));
+                    bar.spawn((Name::new("Crumb Level"), crumb_word(word, UiColor::Primary)));
                 }
                 Crumb::Slash => {
-                    bar.spawn(crumb_word("/", theme::PHOSPHOR_DIM));
+                    bar.spawn(crumb_word("/", UiColor::Secondary));
                 }
                 Crumb::Step { node, id, label } => {
                     bar.spawn((
@@ -2518,7 +2513,7 @@ pub(crate) fn sync_breadcrumb(
                         // walks find a step by the id whatever it reads as.
                         Name::new(format!("Crumb {id}")),
                         CrumbStep(*node),
-                        crumb_chip(label, *skin),
+                        crumb_chip(label),
                         observe(on_crumb_step),
                     ));
                 }
@@ -2526,7 +2521,7 @@ pub(crate) fn sync_breadcrumb(
                     bar.spawn((
                         Name::new("Crumb Selection"),
                         CrumbSelection(*node),
-                        crumb_chip(&format!("selected {label}"), *skin),
+                        crumb_chip(&format!("selected {label}")),
                         observe(on_crumb_selection),
                     ));
                 }
@@ -2537,7 +2532,7 @@ pub(crate) fn sync_breadcrumb(
 }
 
 /// One word of the crumb that is not a control: the level, and the separators.
-fn crumb_word(text: &str, colour: Color) -> impl Bundle {
+fn crumb_word(text: &str, colour: UiColor) -> impl Bundle {
     (
         UiText,
         Text::new(text.to_string()),
@@ -2549,7 +2544,8 @@ fn crumb_word(text: &str, colour: Color) -> impl Bundle {
             font_size: FontSize::Px(13.0),
             ..default()
         },
-        TextColor(colour),
+        TextColor(Color::NONE),
+        ThemedText::new(colour),
     )
 }
 
@@ -2557,8 +2553,7 @@ fn crumb_word(text: &str, colour: Color) -> impl Bundle {
 ///
 /// A [`ListRow`], so nova_ui's own reconciler paints the hover - the same paint
 /// the tree rows wear, which is what says the two are the same kind of thing.
-fn crumb_chip(label: &str, skin: UiSkin) -> impl Bundle {
-    let (background, border) = list_row_colors(false, false, skin);
+fn crumb_chip(label: &str) -> impl Bundle {
     (
         ListRow,
         Button,
@@ -2566,13 +2561,13 @@ fn crumb_chip(label: &str, skin: UiSkin) -> impl Bundle {
         Node {
             padding: UiRect::axes(px(6), px(2)),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             align_items: AlignItems::Center,
             ..default()
         },
-        BorderColor::all(border),
-        BackgroundColor(background),
-        children![crumb_word(label, theme::PHOSPHOR)],
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
+        children![crumb_word(label, UiColor::Primary)],
     )
 }
 
@@ -2689,6 +2684,7 @@ pub(crate) fn on_style_choice(
 /// need not be a frame the style changed on.
 pub(crate) fn sync_style_list(
     mut commands: Commands,
+    theme: Res<ActiveUiTheme>,
     context: Res<EditContext>,
     q_ships: Query<&ShipNode>,
     styles: Res<GameStyles>,
@@ -2698,11 +2694,11 @@ pub(crate) fn sync_style_list(
 ) {
     let ship = edited_ship(&context, &q_ships);
     let skinned = ship.is_some_and(|ship| ship.skin);
-    let label = if skinned {
-        theme::PHOSPHOR
+    let label = theme.color(if skinned {
+        UiColor::Primary
     } else {
-        theme::PHOSPHOR_MUTED
-    };
+        UiColor::Label
+    });
     let paint = if skinned { 1.0 } else { GREYED_STYLE_ALPHA };
 
     // Nothing is marked while the skin is off: the ship is wearing no style,
@@ -2743,40 +2739,26 @@ pub(crate) fn sync_style_list(
     }
 }
 
-/// Repaint the skin checkbox for the state it reports, IN PLACE.
+/// Write the skin checkbox's STATE from the ship it reports on.
 ///
-/// Painted from nova_ui's `checkbox_colors`/`checkbox_glyph` rather than by
-/// respawning the widget, so it cannot drift from the `checkbox()` factory the
-/// rail built it with - and so the row's hover state survives a toggle.
+/// Writes the state rather than the paint: `ThemedCheckbox` is the one input
+/// nova_ui's checkbox reconciler paints from, so the box cannot drift from the
+/// `checkbox()` factory the rail built it with, and it follows a theme flip
+/// with every other control.
 ///
 /// Compared before writing rather than gated on a change, for the same reason
 /// as [`sync_key_legend`]: the row is spawned on entering the editor, which
-/// need not be a frame the toggle changed on.
+/// need not be a frame the toggle changed on. The compare also keeps the
+/// reconciler's `Changed` gate honest.
 pub(crate) fn sync_skin_toggle(
     context: Res<EditContext>,
     q_ships: Query<&ShipNode>,
-    skin: Res<UiSkin>,
-    boxes: Query<(&Children, &mut BackgroundColor, &mut BorderColor), With<SkinToggleCheckbox>>,
-    mut glyphs: Query<(&mut Text, &mut TextColor)>,
+    mut boxes: Query<&mut ThemedCheckbox, With<SkinToggleCheckbox>>,
 ) {
-    let on = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
-    let (fill, edge, glyph_colour) = checkbox_colors(on, *skin);
-    let mark = checkbox_glyph(on);
-    for (children, mut background, mut border) in boxes {
-        if background.0 != fill {
-            *background = fill.into();
-            border.set_all(edge);
-        }
-        for &child in children {
-            let Ok((mut text, mut colour)) = glyphs.get_mut(child) else {
-                continue;
-            };
-            if text.0 != mark {
-                text.0 = mark.to_string();
-            }
-            if colour.0 != glyph_colour {
-                colour.0 = glyph_colour;
-            }
+    let on = ThemedCheckbox(edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin));
+    for mut state in &mut boxes {
+        if *state != on {
+            *state = on;
         }
     }
 }
@@ -2828,7 +2810,8 @@ fn legend_mode_cell() -> impl Bundle {
             font_size: FontSize::Px(12.0),
             ..default()
         },
-        TextColor(theme::AMBER_NOVA),
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Accent),
     )
 }
 
@@ -2855,7 +2838,8 @@ fn legend_cell(index: usize) -> impl Bundle {
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ),
         ],
     )
@@ -3092,7 +3076,7 @@ mod tests {
     /// empty document. The tests below fill the document in.
     fn scene_app() -> App {
         let mut app = App::new();
-        app.insert_resource(UiSkin::default());
+        app.init_resource::<ActiveUiTheme>();
         app.init_resource::<SelectedNode>();
         app.init_resource::<EditorOverlays>();
         app.init_resource::<RailTab>();
@@ -4479,7 +4463,7 @@ mod tests {
         app.init_resource::<EditContext>();
         app.init_resource::<SelectedNode>();
         app.init_resource::<FrameRequest>();
-        app.init_resource::<UiSkin>();
+        app.init_resource::<ActiveUiTheme>();
         let scenario = app
             .world_mut()
             .spawn((ScenarioNode::default(), NodeId("scenario".to_string())))
@@ -4648,6 +4632,9 @@ mod tests {
     /// style, wired to the real observer so a press goes the way a click does.
     fn app(clad: bool) -> App {
         let mut app = App::new();
+        // `sync_style_list` inks its rows from the live theme; `NovaUiPlugin`
+        // owns this resource in production and this harness adds no plugins.
+        app.init_resource::<ActiveUiTheme>();
         app.insert_resource(GameStyles(vec![style("first"), style("second")]));
         let ship = app
             .world_mut()
@@ -4664,10 +4651,7 @@ mod tests {
             .spawn((StyleList, rail_list_node()))
             .with_children(|list| {
                 for (id, name, colour) in &listed {
-                    list.spawn((
-                        style_row(id, name, *colour, false, UiSkin::default()),
-                        observe(on_style_choice),
-                    ));
+                    list.spawn((style_row(id, name, *colour), observe(on_style_choice)));
                 }
             });
         app.add_systems(Update, sync_style_list);

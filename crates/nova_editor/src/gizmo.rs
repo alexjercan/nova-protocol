@@ -25,13 +25,12 @@ use bevy::{
     prelude::*,
 };
 use nova_gameplay::prelude::subtree_bounding_sphere;
-use nova_ui::theme;
 
 use crate::{
     config::SelectedNode,
     gallery::{EditorCamera, GalleryState},
     node::{EditContext, ObjectBodyStale, ObjectNode, ShipNode},
-    ExampleStates,
+    palette, ExampleStates,
 };
 
 /// Where the arms END, in rig-local units. Everything else is a fraction of it,
@@ -119,9 +118,9 @@ impl GizmoAxis {
     /// same axis, so they are the same colour.
     pub(crate) fn colour(self) -> Color {
         match self {
-            Self::X => theme::RED,
-            Self::Y => theme::PHOSPHOR,
-            Self::Z => theme::BLUE,
+            Self::X => palette::NO,
+            Self::Y => palette::GO,
+            Self::Z => palette::TRIGGER,
         }
     }
 

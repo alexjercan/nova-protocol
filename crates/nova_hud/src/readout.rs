@@ -24,7 +24,7 @@
 //! next scenario or the menu.
 
 use bevy::prelude::*;
-use nova_ui::hud::{chip_node, chip_paint, ChipTone};
+use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
 
 use super::HudTier;
 
@@ -211,8 +211,9 @@ fn sync_readout_rows(
                 // scenario clock reads as an instrument readout, not as text
                 // floating over the starfield.
                 chip_node(),
-                chip_paint(ChipTone::Phosphor),
-                TextColor(ChipTone::Phosphor.text()),
+                chip_paint(ChipTone::Readout),
+                ChipText::value(ChipTone::Readout),
+                TextColor(Color::NONE),
             ));
         });
     }

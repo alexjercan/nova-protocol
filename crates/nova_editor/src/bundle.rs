@@ -52,7 +52,7 @@ use nova_scenario::prelude::{
     SpaceshipController, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{GameSections, TargetingSettings};
-use nova_ui::theme;
+use nova_ui::theme::UiColor;
 
 use crate::{
     config::{EditorStatus, SelectedNode},
@@ -679,7 +679,7 @@ pub(crate) fn apply_file_request(
         FileRequest::None => {}
         FileRequest::Save | FileRequest::SaveAs(_) => {
             let Some(slot) = target else {
-                status.say("nothing has named this document yet", theme::RED, now);
+                status.say("nothing has named this document yet", UiColor::Danger, now);
                 return;
             };
             let items = document_content(
@@ -706,12 +706,12 @@ pub(crate) fn apply_file_request(
                         enabled.0.insert(slot.id.clone());
                     }
                     info!("editor: saved the document as mod '{}'", slot.id);
-                    status.say(format!("saved as {}", slot.name), theme::PHOSPHOR, now);
+                    status.say(format!("saved as {}", slot.name), UiColor::Primary, now);
                     document.0 = Some(slot);
                 }
                 Err(error) => {
                     error!("editor: the save failed - {error}");
-                    status.say(format!("save failed: {error}"), theme::RED, now);
+                    status.say(format!("save failed: {error}"), UiColor::Danger, now);
                 }
             }
         }
@@ -719,11 +719,11 @@ pub(crate) fn apply_file_request(
             let lifted = match read_save(&id).map(|items| lift_content(&items)) {
                 Ok(Some(lifted)) => lifted,
                 Ok(None) => {
-                    status.say("that file holds no range", theme::RED, now);
+                    status.say("that file holds no range", UiColor::Danger, now);
                     return;
                 }
                 Err(error) => {
-                    status.say(format!("nothing to open: {error}"), theme::RED, now);
+                    status.say(format!("nothing to open: {error}"), UiColor::Danger, now);
                     return;
                 }
             };
@@ -744,7 +744,7 @@ pub(crate) fn apply_file_request(
             info!("editor: opened the saved document - {ships} ship(s), {objects} object(s)");
             status.say(
                 format!("opened - {ships} ship(s), {objects} object(s)"),
-                theme::PHOSPHOR,
+                UiColor::Primary,
                 now,
             );
         }

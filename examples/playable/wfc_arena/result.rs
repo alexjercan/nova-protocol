@@ -5,7 +5,11 @@ use bevy::{
     ui_widgets::Activate,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use nova_ui::{skin::UiSkin, theme, widget::prelude::*};
+use nova_ui::{
+    theme,
+    theme::UiColor,
+    widget::{prelude::*, ThemedText},
+};
 
 use super::*;
 
@@ -215,7 +219,6 @@ fn detect_and_show_result(
     mut warnings: ResMut<BoundaryWarnings>,
     roster: Res<Roster>,
     score: Res<Scoreboard>,
-    skin: Res<UiSkin>,
     q_fighters: Query<
         (Entity, &EntityId, &Allegiance, &GlobalTransform),
         With<SpaceshipRootMarker>,
@@ -377,7 +380,6 @@ fn detect_and_show_result(
         &flow.starting_structure,
         &remaining,
         &flow.final_operational,
-        *skin,
     );
     flow.shown = true;
 }
@@ -416,7 +418,11 @@ fn show_boundary_warnings(
             GlobalZIndex(20),
         ))
         .with_children(|panel| {
-            panel.spawn(result_text("ARENA BOUNDARY", 15.0, theme::semantic::THREAT));
+            panel.spawn(tinted_result_text(
+                "ARENA BOUNDARY",
+                15.0,
+                theme::semantic::THREAT,
+            ));
             for warning in &warnings.0 {
                 panel.spawn(result_text(
                     format!(
@@ -426,7 +432,7 @@ fn show_boundary_warnings(
                         warning.remaining_secs
                     ),
                     12.0,
-                    theme::SCREEN_TEXT,
+                    UiColor::Body,
                 ));
             }
         });
@@ -469,7 +475,22 @@ fn keep_interactive_screen_owned(
     }
 }
 
-fn result_text(text: impl Into<String>, size: f32, color: Color) -> impl Bundle {
+fn result_text(text: impl Into<String>, size: f32, color: UiColor) -> impl Bundle {
+    (
+        UiText,
+        Text::new(text.into()),
+        TextFont {
+            font_size: FontSize::Px(size),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(color),
+    )
+}
+
+/// The same line in a MEANING colour the theme has no say over - a team tint or
+/// a threat warning, which must not move when the look does.
+fn tinted_result_text(text: impl Into<String>, size: f32, color: Color) -> impl Bundle {
     (
         UiText,
         Text::new(text.into()),
@@ -503,7 +524,6 @@ fn spawn_result(
     starting: &[f32],
     remaining: &[f32],
     operational: &[bool],
-    skin: UiSkin,
 ) {
     commands
         .spawn((
@@ -534,14 +554,14 @@ fn spawn_result(
                         row_gap: px(8),
                         ..default()
                     },
-                    nova_ui::widget::panel(skin),
+                    nova_ui::widget::panel(),
                 ))
                 .with_children(|panel| {
-                    panel.spawn(result_text(ending.label(), 28.0, theme::AMBER_NOVA));
+                    panel.spawn(result_text(ending.label(), 28.0, UiColor::Accent));
                     panel.spawn(result_text(
                         format!("MATCH TIME  {:02}:{:02}", duration as u64 / 60, duration as u64 % 60),
                         13.0,
-                        theme::PHOSPHOR_DIM,
+                        UiColor::Secondary,
                     ));
                     panel.spawn(Node {
                         width: percent(100),
@@ -571,7 +591,7 @@ fn spawn_result(
                                 })
                                 .insert(BorderColor::all(team_info.tint.with_alpha(0.6)))
                                 .with_children(|column| {
-                                    column.spawn(result_text(
+                                    column.spawn(tinted_result_text(
                                         team_info.callsign,
                                         20.0,
                                         team_info.tint,
@@ -582,13 +602,13 @@ fn spawn_result(
                                             score.pool[team].unwrap_or(0.0), score.dealt[team]
                                         ),
                                         13.0,
-                                        theme::SCREEN_TEXT,
+                                        UiColor::Body,
                                     ));
                                 });
                         }
                     });
 
-                    panel.spawn(result_text("AMMUNITION FIRED", 12.0, theme::PHOSPHOR_MUTED));
+                    panel.spawn(result_text("AMMUNITION FIRED", 12.0, UiColor::Label));
                     let ammunition: BTreeSet<&str> = score
                         .fired
                         .iter()
@@ -603,11 +623,11 @@ fn spawn_result(
                                 score.fired[1].0.get(name).copied().unwrap_or(0),
                             ),
                             12.0,
-                            theme::SCREEN_TEXT,
+                            UiColor::Body,
                         ));
                     }
 
-                    panel.spawn(result_text("SHIP OUTCOMES", 12.0, theme::PHOSPHOR_MUTED));
+                    panel.spawn(result_text("SHIP OUTCOMES", 12.0, UiColor::Label));
                     for (slot, ship) in roster.ships.iter().enumerate() {
                         let state = if operational.get(slot).copied().unwrap_or(false) {
                             "OPERATIONAL"
@@ -628,7 +648,7 @@ fn spawn_result(
                                 starting.get(slot).copied().unwrap_or(0.0),
                             ),
                             12.0,
-                            theme::SCREEN_TEXT,
+                            UiColor::Body,
                         ));
                     }
                     panel.spawn(Node {
@@ -665,7 +685,6 @@ fn on_result_action(
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     styles: Res<GameStyles>,
-    skin: Res<UiSkin>,
     model: Option<Res<lobby::LobbyModel>>,
     mut roster: ResMut<Roster>,
 ) {
@@ -695,7 +714,7 @@ fn on_result_action(
             commands.trigger(UnloadScenario);
             commands.insert_resource(Scoreboard::default());
             leave_match(&mut commands);
-            lobby::spawn_lobby(&mut commands, &model, &styles, *skin);
+            lobby::spawn_lobby(&mut commands, &model, &styles);
         }
         ResultAction::Quit => {
             commands.write_message(AppExit::Success);

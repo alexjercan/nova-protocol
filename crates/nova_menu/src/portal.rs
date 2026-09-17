@@ -15,7 +15,10 @@ use nova_assets::prelude::{
 };
 use nova_ui::{
     theme,
-    widget::{themed_button, Selected, ThemedButton},
+    theme::UiColor,
+    widget::{
+        themed_button, Selected, ThemedBorder, ThemedButton, ThemedFill, ThemedRadius, ThemedText,
+    },
 };
 
 use crate::mods::{on_mod_row_select, version_author_line, ModRow};
@@ -280,18 +283,21 @@ pub(crate) fn spawn_explore_note(list: &mut ChildSpawnerCommands, name: &'static
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR_MUTED),
-        BackgroundColor(theme::SPACE),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(UiColor::Label),
+        BackgroundColor(Color::NONE),
+        ThemedFill::new(UiColor::Void),
         children![(
             Text::new(text.to_string()),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR_MUTED),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Label),
         )],
     ));
 }
@@ -320,14 +326,16 @@ pub(crate) fn spawn_explore_row(
             padding: UiRect::all(px(8)),
             margin: UiRect::bottom(px(4)),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
+        ThemedRadius::control(),
         ThemedButton,
         Button,
         Hovered::default(),
-        BorderColor::all(theme::PHOSPHOR_MUTED),
-        BackgroundColor(theme::SCREEN_0),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(UiColor::Label),
+        BackgroundColor(Color::NONE),
+        ThemedFill::new(UiColor::Surface),
         observe(on_mod_row_select),
     ));
     if selected {
@@ -350,7 +358,8 @@ pub(crate) fn spawn_explore_row(
                     font_size: FontSize::Px(15.0),
                     ..default()
                 },
-                TextColor(theme::SCREEN_TEXT),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Body),
             ));
             let line = portal_version_author_line(entry);
             if !line.is_empty() {
@@ -361,7 +370,8 @@ pub(crate) fn spawn_explore_row(
                         font_size: FontSize::Px(12.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                 ));
             }
         });
@@ -373,10 +383,11 @@ pub(crate) fn spawn_explore_row(
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(if tag == "update" {
-                    theme::AMBER_NOVA
+                TextColor(Color::NONE),
+                ThemedText::new(if tag == "update" {
+                    UiColor::Accent
                 } else {
-                    theme::PHOSPHOR_MUTED
+                    UiColor::Label
                 }),
             ));
         }
@@ -417,7 +428,7 @@ pub(crate) fn spawn_action_text(
     actions: &mut ChildSpawnerCommands,
     name: &'static str,
     text: String,
-    color: Color,
+    color: UiColor,
 ) {
     actions.spawn((
         Name::new(name),
@@ -426,7 +437,8 @@ pub(crate) fn spawn_action_text(
             font_size: FontSize::Px(14.0),
             ..default()
         },
-        TextColor(color),
+        TextColor(Color::NONE),
+        ThemedText::new(color),
     ));
 }
 
@@ -451,7 +463,7 @@ pub(crate) fn spawn_portal_actions(
 ) {
     match job {
         Some(InstallStatus::Failed(reason)) => {
-            spawn_action_text(actions, "Mod Details Job Error", reason, theme::AMBER_NOVA);
+            spawn_action_text(actions, "Mod Details Job Error", reason, UiColor::Accent);
             actions
                 .spawn((
                     Name::new("Mod Details Action Buttons"),
@@ -488,14 +500,14 @@ pub(crate) fn spawn_portal_actions(
                 // Handled by the arm above; keep the match total.
                 InstallStatus::Failed(reason) => reason,
             };
-            spawn_action_text(actions, "Mod Details Progress", text, theme::PHOSPHOR);
+            spawn_action_text(actions, "Mod Details Progress", text, UiColor::Primary);
         }
         None if updating => {
             spawn_action_text(
                 actions,
                 "Mod Details Progress",
                 "Updating...".to_string(),
-                theme::PHOSPHOR,
+                UiColor::Primary,
             );
         }
         None => {
@@ -554,7 +566,7 @@ pub(crate) fn spawn_portal_actions(
                     actions,
                     "Mod Details Offline Note",
                     "offline - reconnect to install or update".to_string(),
-                    theme::PHOSPHOR_MUTED,
+                    UiColor::Label,
                 );
             }
         }

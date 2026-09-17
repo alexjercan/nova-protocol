@@ -69,6 +69,10 @@ const CUE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     gap_px: 16.0,
     min_px: 48.0,
 };
+use nova_ui::{
+    theme::{ActiveUiTheme, UiColor},
+    widget::{ThemedBorder, ThemedText},
+};
 
 /// How far off the bottom of the screen the dock row sits.
 ///
@@ -215,22 +219,22 @@ struct GotoCueUIMarker;
 /// The paint a chip carries in `state`: fill, border, text. `Hot` inverts -
 /// phosphor slab, dark ink text - which is why it reads instantly at the edge
 /// of vision (demo 2 `.vchip.hot`).
-fn chip_paint(state: DockChipState) -> (Color, Color, Color) {
+fn chip_paint(state: DockChipState, theme: &ActiveUiTheme) -> (Color, Color, Color) {
     match state {
         DockChipState::Dim => (
             chip::CHIP_FILL_QUIET.with_alpha(0.28),
-            nova_ui::theme::PHOSPHOR.with_alpha(0.16),
-            nova_ui::theme::PHOSPHOR_MUTED.with_alpha(0.55),
+            theme.color_alpha(UiColor::Primary, 0.16),
+            theme.color_alpha(UiColor::Label, 0.55),
         ),
         DockChipState::Available => (
             chip::CHIP_FILL,
-            nova_ui::theme::PHOSPHOR.with_alpha(0.4),
-            nova_ui::theme::PHOSPHOR,
+            theme.color_alpha(UiColor::Primary, 0.4),
+            theme.color(UiColor::Primary),
         ),
         DockChipState::Hot => (
-            nova_ui::theme::PHOSPHOR,
-            nova_ui::theme::PHOSPHOR,
-            nova_ui::theme::INK,
+            theme.color(UiColor::Primary),
+            theme.color(UiColor::Primary),
+            theme.color(UiColor::Inverted),
         ),
     }
 }
@@ -255,7 +259,6 @@ fn glyph_tint(state: DockChipState) -> Color {
 /// [`FlightVerbHints`] the update system already reads.
 pub fn keybind_dock_hud() -> impl Bundle {
     let chip_of = |index: usize| {
-        let (fill, border, text) = chip_paint(DockChipState::Dim);
         (
             DockChip(index),
             DockChipState::Dim,
@@ -271,8 +274,10 @@ pub fn keybind_dock_hud() -> impl Bundle {
                 border_radius: BorderRadius::all(Val::Px(4.0)),
                 ..default()
             },
-            BackgroundColor(fill),
-            BorderColor::all(border),
+            // Unpainted: `update_dock` paints every chip, and its `Added` gate
+            // makes that the frame the chip appears.
+            BackgroundColor(Color::NONE),
+            BorderColor::all(Color::NONE),
             Pickable::IGNORE,
             children![
                 (
@@ -292,7 +297,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
                     ChipKeyText,
                     Text::new(""),
                     TextFont::from_font_size(CHIP_TEXT_PX),
-                    TextColor(text),
+                    TextColor(Color::NONE),
                     Node {
                         display: Display::None,
                         ..default()
@@ -302,7 +307,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
                     ChipLabel,
                     Text::new(DOCK_VERBS[index]),
                     TextFont::from_font_size(CHIP_TEXT_PX),
-                    TextColor(text),
+                    TextColor(Color::NONE),
                 ),
             ],
         )
@@ -363,7 +368,8 @@ pub fn verb_cues_hud() -> impl Bundle {
             ),
             CUE_CLEARANCE,
             BackgroundColor(chip::CHIP_FILL),
-            BorderColor::all(nova_ui::theme::PHOSPHOR.with_alpha(0.4)),
+            BorderColor::all(Color::NONE),
+            ThemedBorder::alpha(UiColor::Primary, 0.4),
             children![
                 (
                     ChipGlyph,
@@ -380,7 +386,8 @@ pub fn verb_cues_hud() -> impl Bundle {
                     ChipKeyText,
                     Text::new(""),
                     TextFont::from_font_size(CHIP_TEXT_PX),
-                    TextColor(nova_ui::theme::PHOSPHOR),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Primary),
                     Node {
                         display: Display::None,
                         ..default()
@@ -390,7 +397,8 @@ pub fn verb_cues_hud() -> impl Bundle {
                     ChipLabel,
                     Text::new(label),
                     TextFont::from_font_size(CHIP_TEXT_PX),
-                    TextColor(nova_ui::theme::PHOSPHOR),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Primary),
                 ),
             ],
         )
@@ -596,6 +604,7 @@ fn paint_key_visual<FG, FT>(
 #[expect(clippy::type_complexity, reason = "one query per chip part")]
 fn update_dock(
     hints: Res<FlightVerbHints>,
+    theme: Res<ActiveUiTheme>,
     situations: Res<HudSituations>,
     emphasis: Res<HintEmphasis>,
     assets: Option<Res<NovaHudAssets>>,
@@ -621,10 +630,15 @@ fn update_dock(
     // `emphasis` is in the gate because it now decides VISIBILITY: a spotlight
     // set on a frame where nothing else moved must still reveal its chip.
     let assets_changed = assets.as_ref().is_some_and(|a| a.is_changed());
+    // The theme is in the gate for the same reason `assets` is: it decides
+    // what a chip is PAINTED, and this system is the only writer of that
+    // paint, so a theme change that skipped here left the dock in the old look
+    // until the next hint moved.
     if !hints.is_changed()
         && !situations.is_changed()
         && !emphasis.is_changed()
         && !assets_changed
+        && !theme.is_changed()
         && q_added.is_empty()
     {
         return;
@@ -655,7 +669,7 @@ fn update_dock(
         }
 
         state.set_if_neq(next);
-        let (fill_color, border_color, text_color) = chip_paint(next);
+        let (fill_color, border_color, text_color) = chip_paint(next, &theme);
         fill.set_if_neq(BackgroundColor(fill_color));
         border.set_if_neq(BorderColor::all(border_color));
 
@@ -688,8 +702,8 @@ fn grow_hot_chips(mut q_chip: Query<(&DockChipState, &mut HudEmphasis), With<Doc
 
 /// The availability border and label colors [`update_dock`] gives a chip - the
 /// base the emphasis pulse departs from and returns to.
-fn base_colors(state: DockChipState) -> (Color, Color) {
-    let (_, border, text) = chip_paint(state);
+fn base_colors(state: DockChipState, theme: &ActiveUiTheme) -> (Color, Color) {
+    let (_, border, text) = chip_paint(state, theme);
     (border, text)
 }
 
@@ -713,6 +727,7 @@ fn emphasis_color(available: bool, wave: f32) -> Color {
 /// mid-pulse.
 fn pulse_emphasized_chips(
     time: Res<Time>,
+    theme: Res<ActiveUiTheme>,
     emphasis: Res<HintEmphasis>,
     hints: Res<FlightVerbHints>,
     mut q_chip: Query<(&DockChip, &DockChipState, &mut BorderColor, &Children)>,
@@ -746,7 +761,7 @@ fn pulse_emphasized_chips(
                 // Restore the base exactly once per change; steady state leaves
                 // unemphasized chips to update_dock (whose own write is identical,
                 // so the diffed writes below are no-ops).
-                base_colors(*state)
+                base_colors(*state, &theme)
             } else {
                 continue;
             };
@@ -936,6 +951,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<Image>();
+        // `NovaUiPlugin` owns the live theme in production; this harness adds
+        // no plugins, and the paint systems below read it as a required
+        // resource.
+        app.init_resource::<ActiveUiTheme>();
         // The dock reads the contextual situations for its Hot states;
         // idle-cruise defaults keep these rigs testing the availability paint
         // they were written for.
@@ -1057,7 +1076,7 @@ mod tests {
                 .get::<BackgroundColor>()
                 .unwrap()
                 .0,
-            chip_paint(DockChipState::Available).0,
+            chip_paint(DockChipState::Available, &ActiveUiTheme::default()).0,
             "the hot chip is painted differently, not just marked"
         );
     }
@@ -1311,7 +1330,7 @@ mod tests {
                 .get::<BorderColor>()
                 .unwrap()
                 .top,
-            base_colors(DockChipState::Dim).0,
+            base_colors(DockChipState::Dim, &ActiveUiTheme::default()).0,
             "and drops its gold rather than freezing mid-pulse"
         );
     }
@@ -1482,7 +1501,7 @@ mod tests {
         );
         assert_eq!(
             label_color(&app, chips[0]),
-            base_colors(DockChipState::Available).1,
+            base_colors(DockChipState::Available, &ActiveUiTheme::default()).1,
             "unemphasized chips keep their availability paint"
         );
 
@@ -1492,7 +1511,7 @@ mod tests {
         app.update();
         assert_eq!(
             label_color(&app, chips[1]),
-            base_colors(DockChipState::Dim).1,
+            base_colors(DockChipState::Dim, &ActiveUiTheme::default()).1,
             "the cleared chip returns to its availability paint"
         );
 
@@ -1502,7 +1521,7 @@ mod tests {
         app.update();
         assert_eq!(
             label_color(&app, chips[1]),
-            base_colors(DockChipState::Dim).1
+            base_colors(DockChipState::Dim, &ActiveUiTheme::default()).1
         );
     }
 
@@ -1530,7 +1549,7 @@ mod tests {
         app.update();
         assert_ne!(
             border(&app),
-            chip_paint(DockChipState::Available).1,
+            chip_paint(DockChipState::Available, &ActiveUiTheme::default()).1,
             "delivery guard: the chip pulses"
         );
 
@@ -1539,7 +1558,7 @@ mod tests {
         app.update();
         assert_eq!(
             border(&app),
-            base_colors(DockChipState::Dim).0,
+            base_colors(DockChipState::Dim, &ActiveUiTheme::default()).0,
             "the keyless chip returns to its base instead of freezing gold"
         );
     }

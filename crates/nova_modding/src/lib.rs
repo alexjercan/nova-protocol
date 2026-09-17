@@ -14,7 +14,8 @@
 //!   wears: materials per surface role plus the decoration it scatters,
 //! - [`Content::Ship`] - a [`ShipDesignPrototype`], a whole hull a scenario spawns by id,
 //!   and
-//! - [`Content::Lesson`] - a [`Lesson`], one screen of the training handbook.
+//! - [`Content::Lesson`] - a [`Lesson`], one screen of the training handbook, and
+//! - [`Content::UiTheme`] - a [`UiThemeConfig`], one look the whole UI paints in.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
@@ -51,6 +52,7 @@ pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BA
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipDesignPrototype};
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
+use nova_ui::theme::UiThemeConfig;
 use serde::{Deserialize, Serialize};
 
 /// Glob-import surface: `use nova_modding::prelude::*` brings the content/bundle
@@ -105,6 +107,15 @@ pub enum Content {
     /// id denotes a learning OUTCOME - persisted progress names it - so an
     /// overlay may change the presentation and must keep the meaning.
     Lesson(Lesson),
+    /// A [`UiThemeConfig`] - registers into `GameUiThemes` keyed by its id. One
+    /// complete look for the whole UI: the palette, the metrics and the paint
+    /// for every widget role.
+    ///
+    /// A mod restyles a shipped look by declaring its id and adds a look by
+    /// declaring a new one. The player's choice is persisted as that id, so an
+    /// id is a promise: renaming one drops every player who had it back to
+    /// `base/phosphor`.
+    UiTheme(UiThemeConfig),
 }
 
 impl Content {
@@ -122,6 +133,7 @@ impl Content {
             Content::Style(_) => "style",
             Content::Ship(_) => "ship",
             Content::Lesson(_) => "lesson",
+            Content::UiTheme(_) => "ui theme",
         }
     }
 
@@ -135,6 +147,7 @@ impl Content {
             Content::Style(cfg) => &cfg.id,
             Content::Ship(cfg) => &cfg.id,
             Content::Lesson(lesson) => &lesson.id,
+            Content::UiTheme(cfg) => &cfg.id,
         }
     }
 

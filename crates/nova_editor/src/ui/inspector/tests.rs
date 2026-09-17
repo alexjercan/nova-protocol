@@ -35,7 +35,7 @@ use crate::{
 /// node. The tests below hang things off it.
 fn inspector_app() -> App {
     let mut app = App::new();
-    app.insert_resource(UiSkin::default());
+    app.init_resource::<ActiveUiTheme>();
     app.init_resource::<SelectedNode>();
     // The panel reads the View menu's own toggles: CURATED unless All Fields
     // is on, which is the state a fresh editor opens in.
@@ -48,7 +48,7 @@ fn inspector_app() -> App {
     // the line and the clock that expires it.
     app.init_resource::<crate::config::EditorStatus>();
     app.init_resource::<Time>();
-    app.world_mut().spawn(inspector_panel(UiSkin::default()));
+    app.world_mut().spawn(inspector_panel());
     app.add_systems(Update, sync_inspector);
     app
 }
@@ -345,7 +345,7 @@ fn a_returning_panel_gets_its_rows_back() {
         .single(app.world())
         .expect("one panel");
     app.world_mut().entity_mut(panel).despawn();
-    app.world_mut().spawn(inspector_panel(UiSkin::default()));
+    app.world_mut().spawn(inspector_panel());
     app.update();
 
     assert!(

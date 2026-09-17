@@ -27,10 +27,11 @@ use nova_ui::{
         panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
         segmented_container, segmented_container_wrapping, segmented_option, segmented_option_fit,
         text_field, ButtonLabel, ButtonVariant, Selected, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldSubmitted, TextFieldValue, ThemedButton, UiSkin, UiText,
+        TextFieldSpec, TextFieldSubmitted, TextFieldValue, ThemedButton, UiText,
     },
     theme,
-    widget::{checkbox, checkbox_colors, checkbox_glyph, swatch},
+    theme::{ActiveUiTheme, UiColor},
+    widget::{checkbox, swatch, ThemedBorder, ThemedCheckbox, ThemedRadius, ThemedText},
 };
 
 use crate::{
@@ -176,10 +177,11 @@ fn ref_chip() -> impl Bundle {
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::alpha(UiColor::Primary, 0.4),
         BackgroundColor(Color::NONE),
         children![(
             UiText,
@@ -188,7 +190,8 @@ fn ref_chip() -> impl Bundle {
                 font_size: FontSize::Px(11.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR_MUTED),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Label),
         )],
     )
 }
@@ -213,10 +216,11 @@ fn reset_chip() -> impl Bundle {
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BorderColor::all(theme::AMBER_NOVA.with_alpha(0.5)),
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::alpha(UiColor::Accent, 0.5),
         BackgroundColor(Color::NONE),
         children![(
             UiText,
@@ -225,7 +229,8 @@ fn reset_chip() -> impl Bundle {
                 font_size: FontSize::Px(10.0),
                 ..default()
             },
-            TextColor(theme::AMBER_NOVA),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Accent),
         )],
     )
 }
@@ -254,13 +259,13 @@ fn spawn_override_mark(
     ));
 }
 
-/// What a row's name is painted in: the panel's own muted green, or the amber
+/// What a row's name is painted in: the panel's own label tone, or the accent
 /// that says this value is the placement's rather than the part's.
-fn label_colour(row: &InspectorRow) -> Color {
+fn label_colour(row: &InspectorRow) -> UiColor {
     if row.overridden {
-        theme::AMBER_NOVA
+        UiColor::Accent
     } else {
-        theme::PHOSPHOR_MUTED
+        UiColor::Label
     }
 }
 
@@ -603,7 +608,7 @@ impl Document<'_, '_> {
 
 /// The panel, built empty. Its rows are [`sync_inspector`]'s, because which
 /// rows exist is a question about the document rather than about the scene.
-pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
+pub(crate) fn inspector_panel() -> impl Bundle {
     (
         Name::new("Editor Inspector"),
         InspectorPanel,
@@ -626,7 +631,7 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
             overflow: Overflow::clip(),
             ..default()
         },
-        panel(skin),
+        panel(),
         children![
             // The header says which panel this is, and the mode rewrites it:
             // beside the stage it is the Inspector, and filling the screen it
@@ -650,7 +655,8 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::AMBER_NOVA),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Accent),
                 Node {
                     width: percent(100),
                     margin: UiRect::vertical(px(6)),
@@ -664,7 +670,8 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
                         font_size: FontSize::Px(10.0),
                         ..default()
                     },
-                    TextColor(theme::PHOSPHOR_MUTED),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColor::Label),
                 )],
             ),
             // SCROLLS. A turret's joint tree is thirty rows deep, and a panel
@@ -689,7 +696,7 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
                         },
                         scroll_viewport(),
                     ),
-                    (Name::new("Inspector Scrollbar"), scroll_bar(skin)),
+                    (Name::new("Inspector Scrollbar"), scroll_bar()),
                 ],
             ),
         ],
@@ -769,7 +776,7 @@ const OVERRIDDEN: &str =
 /// Deaf to the pointer: it stands beside the row it describes, over the panel
 /// the pointer is already inside, and a hint that took the hover would take it
 /// from the row that raised it and flicker itself away.
-pub(crate) fn inspector_tooltip(skin: UiSkin) -> impl Bundle {
+pub(crate) fn inspector_tooltip() -> impl Bundle {
     (
         Name::new("Inspector Hint"),
         InspectorTooltip,
@@ -786,10 +793,10 @@ pub(crate) fn inspector_tooltip(skin: UiSkin) -> impl Bundle {
             row_gap: px(3),
             padding: UiRect::axes(px(8), px(5)),
             border: UiRect::all(px(theme::BORDER_W)),
-            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        panel(skin),
+        ThemedRadius::control(),
+        panel(),
         children![
             (
                 Name::new("Inspector Hint Title"),
@@ -799,7 +806,8 @@ pub(crate) fn inspector_tooltip(skin: UiSkin) -> impl Bundle {
                     font_size: FontSize::Px(10.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_MUTED),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Label),
             ),
             (
                 Name::new("Inspector Hint Body"),
@@ -809,7 +817,8 @@ pub(crate) fn inspector_tooltip(skin: UiSkin) -> impl Bundle {
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Primary),
             )
         ],
     )
@@ -923,7 +932,8 @@ fn row_label(row: &InspectorRow, taken: f32) -> impl Bundle {
             font_size: FontSize::Px(11.0),
             ..default()
         },
-        TextColor(label_colour(row)),
+        TextColor(Color::NONE),
+        ThemedText::new(label_colour(row)),
     )
 }
 
@@ -949,7 +959,6 @@ fn spawn_choice_options(
     slot: usize,
     options: &[String],
     chosen: usize,
-    skin: UiSkin,
 ) {
     // A ROW SLOT around the control, because a segmented container sizes to
     // its content: as a flex item of a row it shrinks to the width it is given
@@ -972,9 +981,9 @@ fn spawn_choice_options(
         .with_children(|line| {
             let mut control = line.spawn(Name::new(format!("Inspector Choice {label}")));
             if wide {
-                control.insert(segmented_container_wrapping(skin));
+                control.insert(segmented_container_wrapping());
             } else {
-                control.insert(segmented_container(skin));
+                control.insert(segmented_container());
             }
             control.with_children(|segments| {
                 for (index, option) in options.iter().enumerate() {
@@ -1085,17 +1094,18 @@ fn spawn_pick_row(
                     min_width: px(0),
                     padding: UiRect::axes(px(8), px(3)),
                     border: UiRect::all(px(theme::BORDER_W)),
-                    border_radius: BorderRadius::all(px(theme::RADIUS)),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
                     column_gap: px(6),
                     overflow: Overflow::clip(),
                     ..default()
                 },
+                ThemedRadius::control(),
                 // The ghost face spelled out, like the Key row's: the
                 // button reconciler repaints it on hover, and these are the
                 // colours it lands on.
-                BorderColor::all(theme::PHOSPHOR.with_alpha(0.25)),
+                BorderColor::all(Color::NONE),
+                ThemedBorder::alpha(UiColor::Primary, 0.25),
                 BackgroundColor(Color::NONE),
                 observe(on_open_pick_window),
                 children![
@@ -1114,7 +1124,8 @@ fn spawn_pick_row(
                             font_size: FontSize::Px(11.0),
                             ..default()
                         },
-                        TextColor(theme::PHOSPHOR),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Primary),
                         Node {
                             flex_grow: 1.0,
                             flex_basis: px(0),
@@ -1130,7 +1141,8 @@ fn spawn_pick_row(
                             font_size: FontSize::Px(11.0),
                             ..default()
                         },
-                        TextColor(theme::PHOSPHOR_MUTED),
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
                     ),
                 ],
             ));
@@ -1152,7 +1164,6 @@ fn spawn_choice_row(
     slot: usize,
     options: &[String],
     chosen: usize,
-    skin: UiSkin,
     step: f32,
 ) {
     list.spawn((
@@ -1189,11 +1200,12 @@ fn spawn_choice_row(
                         font_size: FontSize::Px(11.0),
                         ..default()
                     },
-                    TextColor(label_colour(row)),
+                    TextColor(Color::NONE),
+                    ThemedText::new(label_colour(row)),
                 ));
                 spawn_override_mark(line, row, field, slot);
             });
-        spawn_choice_options(block, &row.label, field, slot, options, chosen, skin);
+        spawn_choice_options(block, &row.label, field, slot, options, chosen);
     });
 }
 
@@ -1217,7 +1229,6 @@ fn spawn_operand_row(
     options: &[String],
     chosen: usize,
     text: Option<&str>,
-    skin: UiSkin,
     step: f32,
 ) {
     list.spawn((
@@ -1244,7 +1255,7 @@ fn spawn_operand_row(
                     slot_node
                         .spawn((
                             Name::new(format!("Inspector Choice {}", row.label)),
-                            segmented_container(skin),
+                            segmented_container(),
                         ))
                         .with_children(|segments| {
                             for (index, option) in options.iter().enumerate() {
@@ -1326,7 +1337,6 @@ fn spawn_driver_row(
     node: Entity,
     slot: usize,
     driver: ShipDriver,
-    skin: UiSkin,
     step: f32,
 ) {
     list.spawn((
@@ -1353,10 +1363,11 @@ fn spawn_driver_row(
                 font_size: FontSize::Px(11.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR_MUTED),
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Label),
         ));
         block
-            .spawn((Name::new("Inspector Driver"), segmented_container(skin)))
+            .spawn((Name::new("Inspector Driver"), segmented_container()))
             .with_children(|options| {
                 for option in [ShipDriver::Player, ShipDriver::Ai, ShipDriver::Adrift] {
                     let label = driver_label(option);
@@ -1422,7 +1433,8 @@ fn unit_text(label: &str, unit: &'static str, slot: usize) -> impl Bundle {
             font_size: FontSize::Px(10.0),
             ..default()
         },
-        TextColor(theme::PHOSPHOR_DIM),
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Secondary),
         Node {
             min_width: px(UNIT_W),
             flex_shrink: 0.0,
@@ -1485,7 +1497,8 @@ fn spawn_axes_row(
                         font_size: FontSize::Px(11.0),
                         ..default()
                     },
-                    TextColor(label_colour(row)),
+                    TextColor(Color::NONE),
+                    ThemedText::new(label_colour(row)),
                 ));
                 spawn_override_mark(line, row, field, slot);
                 line.spawn(unit_text(&label, unit, slot));
@@ -1555,12 +1568,7 @@ fn spawn_axes_row(
 ///
 /// The widget names are stable - the driven walks find these by name and
 /// type into them.
-fn build_rows(
-    list: &mut RelatedSpawnerCommands<ChildOf>,
-    node: Entity,
-    rows: &[InspectorRow],
-    skin: UiSkin,
-) {
+fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[InspectorRow]) {
     let mut heading: Vec<String> = Vec::new();
     for (slot, row) in rows.iter().enumerate() {
         // The group as a TREE: only the levels this row does not share with
@@ -1588,7 +1596,8 @@ fn build_rows(
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
-                TextColor(theme::PHOSPHOR_DIM),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Secondary),
                 // A rule under each level, so the eye can see where one part
                 // of the config ends and the next begins without reading the
                 // headings at all.
@@ -1599,7 +1608,8 @@ fn build_rows(
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },
-                BorderColor::all(theme::PHOSPHOR.with_alpha(0.16)),
+                BorderColor::all(Color::NONE),
+                ThemedBorder::alpha(UiColor::Primary, 0.16),
             ));
         }
         row.group.clone_into(&mut heading);
@@ -1638,12 +1648,12 @@ fn build_rows(
                 continue;
             }
             if options.len() > 2 {
-                spawn_choice_row(list, row, &field, slot, options, *chosen, skin, step);
+                spawn_choice_row(list, row, &field, slot, options, *chosen, step);
                 continue;
             }
         }
         if let RowValue::Driver(driver) = &row.value {
-            spawn_driver_row(list, row, node, slot, *driver, skin, step);
+            spawn_driver_row(list, row, node, slot, *driver, step);
             continue;
         }
         if let RowValue::Operand {
@@ -1660,7 +1670,6 @@ fn build_rows(
                 options,
                 *chosen,
                 text.as_deref(),
-                skin,
                 step,
             );
             continue;
@@ -1770,9 +1779,7 @@ fn build_rows(
                     RowValue::Choice {
                         options, chosen, ..
                     } => {
-                        spawn_choice_options(
-                            value, &row.label, &field, slot, options, *chosen, skin,
-                        );
+                        spawn_choice_options(value, &row.label, &field, slot, options, *chosen);
                     }
                     RowValue::Flag(on) => {
                         value.spawn((
@@ -1782,7 +1789,7 @@ fn build_rows(
                             field.clone(),
                             Button,
                             Hovered::default(),
-                            checkbox(*on, skin),
+                            checkbox(*on),
                             observe(on_inspector_flag),
                         ));
                     }
@@ -1806,14 +1813,15 @@ fn build_rows(
                             Node {
                                 padding: UiRect::axes(px(8), px(3)),
                                 border: UiRect::all(px(theme::BORDER_W)),
-                                border_radius: BorderRadius::all(px(theme::RADIUS)),
                                 align_items: AlignItems::Center,
                                 ..default()
                             },
+                            ThemedRadius::control(),
                             // The ghost face, spelled out: the button reconciler
                             // repaints this on the frame it appears and on every
                             // hover after, so these are the colours it lands on.
-                            BorderColor::all(theme::PHOSPHOR.with_alpha(0.25)),
+                            BorderColor::all(Color::NONE),
+                            ThemedBorder::alpha(UiColor::Primary, 0.25),
                             BackgroundColor(Color::NONE),
                             observe(on_rebind_action),
                             children![(
@@ -1827,7 +1835,8 @@ fn build_rows(
                                     font_size: FontSize::Px(11.0),
                                     ..default()
                                 },
-                                TextColor(theme::PHOSPHOR),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Primary),
                             )],
                         ));
                     }
@@ -1846,7 +1855,8 @@ fn build_rows(
                                 font_size: FontSize::Px(12.0),
                                 ..default()
                             },
-                            TextColor(theme::PHOSPHOR_MUTED),
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColor::Label),
                         ));
                     }
                 });
@@ -1916,7 +1926,6 @@ fn empty_editor(
 /// reflection walk is the expensive part of either.
 pub(crate) fn sync_inspector(
     mut commands: Commands,
-    skin: Res<UiSkin>,
     document: Document,
     mut panels: Query<&mut Node, With<InspectorPanel>>,
     mut titles: Query<&mut Text, With<InspectorTitle>>,
@@ -1939,26 +1948,9 @@ pub(crate) fn sync_inspector(
             Without<InspectorGroup>,
         ),
     >,
-    flags: Query<
-        (
-            &InspectorSlot,
-            &Children,
-            &mut BackgroundColor,
-            &mut BorderColor,
-        ),
-        (With<InspectorFlag>, Without<InspectorSwatch>),
-    >,
-    mut glyphs: Query<
-        (&mut Text, &mut TextColor),
-        (Without<InspectorFixed>, Without<InspectorTitle>),
-    >,
+    mut flags: Query<(&InspectorSlot, &mut ThemedCheckbox), With<InspectorFlag>>,
     drivers: Query<(Entity, &InspectorSlot, &InspectorDriver, Has<Selected>)>,
-    // `Without` the checkbox, so the two mutable `BackgroundColor` queries are
-    // provably disjoint - a filter Bevy cannot prove is a panic at system init.
-    mut swatches: Query<
-        (&InspectorSlot, &mut BackgroundColor),
-        (With<InspectorSwatch>, Without<InspectorFlag>),
-    >,
+    mut swatches: Query<(&InspectorSlot, &mut BackgroundColor), With<InspectorSwatch>>,
     choices: Query<(Entity, &InspectorSlot, &InspectorChoice, Has<Selected>)>,
 ) {
     // A fresh list holds no rows whatever this `Local` remembers - it survives
@@ -2040,7 +2032,7 @@ pub(crate) fn sync_inspector(
     if shown.shape.as_ref() != Some(&shape) {
         commands.entity(list).despawn_related::<Children>();
         commands.entity(list).with_children(|list| {
-            build_rows(list, target.node(), &rows, *skin);
+            build_rows(list, target.node(), &rows);
         });
         shown.shape = Some(shape);
         // The widgets just queued do not exist yet, and the ones that do have
@@ -2104,26 +2096,16 @@ pub(crate) fn sync_inspector(
             text.0 = wanted;
         }
     }
-    for (slot, children, mut background, mut border) in flags {
+    for (slot, mut state) in &mut flags {
         let Some(RowValue::Flag(on)) = rows.get(slot.0).map(|row| &row.value) else {
             continue;
         };
-        let (fill, edge, glyph_colour) = checkbox_colors(*on, *skin);
-        if background.0 != fill {
-            *background = fill.into();
-            border.set_all(edge);
-        }
-        let mark = checkbox_glyph(*on);
-        for &child in children {
-            let Ok((mut text, mut colour)) = glyphs.get_mut(child) else {
-                continue;
-            };
-            if text.0 != mark {
-                text.0 = mark.to_string();
-            }
-            if colour.0 != glyph_colour {
-                colour.0 = glyph_colour;
-            }
+        // Written only on a real change: the checkbox reconciler restyles on
+        // `Changed<ThemedCheckbox>`, so a write every frame would repaint every
+        // flag in the panel every frame.
+        let wanted = ThemedCheckbox(*on);
+        if *state != wanted {
+            *state = wanted;
         }
     }
     for (entity, slot, option, marked) in &choices {
@@ -2173,6 +2155,7 @@ pub(crate) fn sync_inspector(
 /// the edit that caused it: the box keeps the refused text until it is
 /// corrected, and the reason has to keep with it.
 pub(crate) fn paint_field_reasons(
+    theme: Res<ActiveUiTheme>,
     refused: Query<(&InspectorSlot, &TextFieldError)>,
     mut units: Query<(
         &InspectorSlot,
@@ -2192,7 +2175,7 @@ pub(crate) fn paint_field_reasons(
         let (wanted, tint) = match (reason, unresolved) {
             (Some(reason), _) => (reason, theme::semantic::THREAT),
             (None, true) => (UNRESOLVED, theme::semantic::THREAT),
-            (None, false) => (unit.0, theme::PHOSPHOR_DIM),
+            (None, false) => (unit.0, theme.color(UiColor::Secondary)),
         };
         if text.0 != wanted {
             text.0 = wanted.to_string();
@@ -2260,13 +2243,14 @@ pub(crate) fn sync_reference_faults(
 /// background the way every other button does - that background is the value
 /// it is showing - so the border is the whole of the affordance.
 pub(crate) fn paint_swatch_hover(
+    theme: Res<ActiveUiTheme>,
     mut swatches: Query<(&Hovered, &mut BorderColor), With<InspectorSwatch>>,
 ) {
     for (hovered, mut border) in &mut swatches {
         let wanted = if hovered.get() {
-            theme::PHOSPHOR
+            theme.color(UiColor::Primary)
         } else {
-            theme::PHOSPHOR.with_alpha(0.4)
+            theme.color_alpha(UiColor::Primary, 0.4)
         };
         if border.top != wanted {
             border.set_all(wanted);

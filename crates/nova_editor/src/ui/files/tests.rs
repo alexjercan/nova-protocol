@@ -11,7 +11,7 @@ use crate::{node::NextChildOrdinal, scenario::SANDBOX_ID, ui::window::window_lay
 /// two systems that keep the readout in step.
 fn files_app() -> App {
     let mut app = App::new();
-    app.insert_resource(UiSkin::default());
+    app.init_resource::<ActiveUiTheme>();
     app.init_resource::<FileRequest>();
     app.init_resource::<FileWindowRequest>();
     app.init_resource::<DocumentSlot>();
@@ -65,14 +65,7 @@ fn put_up(app: &mut App, kind: FileWindowKind, name: &str, bundles: Vec<SaveSlot
         .commands()
         .entity(layer)
         .with_children(|layer| {
-            spawn_file_window(
-                layer,
-                kind,
-                &offered,
-                bundles,
-                Vec2::ZERO,
-                UiSkin::default(),
-            );
+            spawn_file_window(layer, kind, &offered, bundles, Vec2::ZERO);
         });
     app.world_mut().flush();
     app.update();
