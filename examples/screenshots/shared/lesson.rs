@@ -220,27 +220,57 @@ impl LessonChase {
     }
 }
 
-/// Ride beside the hull: an `Update` system a lesson producer adds once, inert
-/// until its step inserts a [`LessonChase`].
+/// Ride beside the hull: inert until a step inserts a [`LessonChase`].
 ///
 /// The hull it follows is the player's, which is the subject of every lesson
 /// shot this way. A frame with no player ship yet poses nothing and says so
 /// once per frame is too noisy to warn about, so it simply waits.
+///
+/// ## Why it reads the local `Transform`
+///
+/// `GlobalTransform` is written by `TransformSystems::Propagate`, which the
+/// whole camera authority chain runs BEFORE, so reading it here would sample
+/// where the hull was at the end of the previous frame. A spaceship root has
+/// no parent, so its `Transform` IS its world pose, and it is the value the
+/// physics step of THIS frame has already written.
 pub fn chase_lesson_camera(world: &mut World) {
     let Some(chase) = world.get_resource::<LessonChase>().copied() else {
         return;
     };
-    let mut hulls = world.query_filtered::<&GlobalTransform, (
-        With<SpaceshipRootMarker>,
-        With<PlayerSpaceshipMarker>,
-    )>();
+    let mut hulls = world
+        .query_filtered::<&Transform, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>();
     let Some(hull) = hulls.iter(world).next() else {
         return;
     };
-    let subject = Meters3::from_engine(hull.translation());
+    let subject = Meters3::from_engine(hull.translation);
     pose_camera(
         world,
         Meters3(subject.0 + chase.offset.0),
         Meters3(subject.0 + chase.aim.0),
+    );
+}
+
+/// Register [`chase_lesson_camera`] where a camera that follows a moving ship
+/// has to run, which is NOT `Update`.
+///
+/// The hull is moved by the fixed-step physics, and a rendered frame carries
+/// however many fixed steps its own length paid for - six of them, then seven,
+/// then six. A camera solved in `Update` is therefore always one rendered
+/// frame behind the hull it is bracketed to, by a distance that CHANGES with
+/// the step count: the ship sits off its mark in the cell, and the amount it
+/// is off by moves from frame to frame. That is the drift and snap a chase
+/// loop shows.
+///
+/// `PostUpdate` in [`CameraAuthoritySystems::Solve`] is where the game's own
+/// chase rig solves, for this reason and with this comment on it
+/// (`nova_ship/src/camera/chase.rs`): after the step that moved the hull, and
+/// before the override that writes the camera. Solved there the offset is
+/// exact every frame, so the rig needs no smoothing - a lesson chase is meant
+/// to be RIGID, and easing toward the hull would build the lag back in
+/// deliberately.
+pub fn lesson_chase_plugin(app: &mut App) {
+    app.add_systems(
+        PostUpdate,
+        chase_lesson_camera.in_set(CameraAuthoritySystems::Solve),
     );
 }

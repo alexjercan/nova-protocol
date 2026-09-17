@@ -45,7 +45,7 @@ mod ring;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use lesson::{chase_lesson_camera, lesson_profile, LessonChase, LESSON_GRID};
+use lesson::{lesson_chase_plugin, lesson_profile, LessonChase, LESSON_GRID};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -117,7 +117,7 @@ fn main() -> bevy::app::AppExit {
         // Nothing frozen and nothing posed by hand: both subjects are the
         // flight computer flying the hull. The chase is inert until a step
         // inserts its offset.
-        app.add_systems(Update, chase_lesson_camera);
+        app.add_plugins(lesson_chase_plugin);
     }
 
     app.run()

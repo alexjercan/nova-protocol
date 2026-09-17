@@ -66,7 +66,7 @@ use std::collections::BTreeMap;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use lesson::{chase_lesson_camera, lesson_profile, LessonChase, LESSON_GRID};
+use lesson::{lesson_chase_plugin, lesson_profile, LessonChase, LESSON_GRID};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -163,7 +163,7 @@ fn main() -> bevy::app::AppExit {
         // NOTHING is frozen: both subjects are the hull actually travelling,
         // and the rocks going past are how the reader knows it is. The chase
         // is inert until a step inserts its offset.
-        app.add_systems(Update, chase_lesson_camera);
+        app.add_plugins(lesson_chase_plugin);
     }
 
     app.run()
