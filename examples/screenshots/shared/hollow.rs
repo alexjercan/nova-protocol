@@ -435,6 +435,199 @@ pub fn duel_hollow(
     }
 }
 
+/// How much clear space the HUNTER set's raider is authored to want between
+/// the two skins, instead of the engine's 1 km default.
+///
+/// The number is a FRAMING decision and nothing else. The flight computer's
+/// shape - close while outside the band, circle once inside, nose on the
+/// target throughout - is the same at any clearance, but at the shipped
+/// kilometre the two hulls cannot share a frame that shows either of them: an
+/// eye far enough back to hold both draws a raider forty pixels wide. At 140 m
+/// the circle is about 215 m of centre distance, which one wide framing holds
+/// with the geometry legible.
+///
+/// Authored through `standoff_clearance`, which is the supported knob for
+/// exactly this ("author what a player should SEE between the two skins" -
+/// `nova_scenario::objects::spaceship::AIControllerConfig`), so what the
+/// demonstration shows is the production maneuver and not a posed copy of it.
+pub const HUNTER_STANDOFF: Meters = Meters(140.0);
+
+/// How far out the HUNTER set's raider starts: about 1.5 km on the player's
+/// port bow.
+///
+/// Far enough outside its own band that the CLOSE is a long run rather than a
+/// twitch, and well inside the 4 km detection default so the ship never has to
+/// be told to look.
+pub const HUNTER_START: Meters3 = Meters3::new(400.0, 140.0, -1_400.0);
+
+/// The HUNTER set: the player's hull on station and ONE live AI hostile
+/// flying the real engage maneuver around it.
+///
+/// The only set in the kit whose subject is an AI ship rather than a posed
+/// one. Everything else here poses its second hull on purpose - a maneuvering
+/// hostile will not hold a framing - and this set exists because one lesson's
+/// whole claim is what the flight computer DOES, so its demonstration cannot
+/// be a pose.
+///
+/// One hostile, not the ambush set's four: four AI craft put three other
+/// fights over the one the lesson is about. The player keeps no turret
+/// bindings either, so the only thing flying in the pocket is the subject.
+pub fn hunter_hollow(
+    game_assets: &GameAssets,
+    sections: &GameSections,
+    ships: &GameShipDesigns,
+) -> ScenarioConfig {
+    let player_hull = armoured(
+        sections,
+        kit::catalog_ship(ships, "block_gunship"),
+        HUNTER_ARMOUR,
+    );
+    let player = ship(
+        PLAYER_ID,
+        "Player Ship",
+        Meters3::ZERO,
+        Quat::IDENTITY,
+        SpaceshipController::Player(PlayerControllerConfig {
+            // EMPTY, unlike the fighting sets: this lesson is about what the
+            // OTHER ship does, and a player trigger bound to live guns is a
+            // second thing in the pocket that can shoot.
+            input_mapping: BTreeMap::new(),
+            speed_cap: None,
+        }),
+        None,
+        player_hull,
+    );
+    let raider = ship(
+        RAIDER_ID,
+        "Raider",
+        HUNTER_START,
+        Quat::from_rotation_y(std::f32::consts::PI),
+        SpaceshipController::AI(AIControllerConfig {
+            // A ROUTE, short and local, and it is not decoration: an AI ship
+            // authored with an empty patrol station-keeps, and a
+            // station-keeping ship that acquires a target shoots from where it
+            // is instead of closing. Measured - the first cut of this set gave
+            // it no route and it sat at its spawn distance for the whole run,
+            // firing and never moving. Two legs either side of the start is
+            // enough to have it under way when the grace ends.
+            patrol: vec![
+                HUNTER_START,
+                Meters3::new(
+                    HUNTER_START.0.x - 260.0,
+                    HUNTER_START.0.y,
+                    HUNTER_START.0.z - 180.0,
+                ),
+            ],
+            leash: Some(AI_LEASH),
+            engage_delay: Some(1.0),
+            standoff_clearance: Some(HUNTER_STANDOFF),
+            ..default()
+        }),
+        Some(Allegiance::Enemy),
+        kit::catalog_ship(ships, "block_raider"),
+    );
+
+    // ITS OWN SHELL, pushed out and scaled up, and this is the one thing in
+    // the set that is not the standard pocket. The fighting sets' wall starts
+    // at 480 m, which is a pocket a run-in crosses in four seconds - and worse,
+    // a camera standing far enough back to hold a 500 m run-in stands INSIDE
+    // that wall and photographs one rock. This wall starts at 1.1 km, so both
+    // the run-in and the eye that watches it are in clear space, with the
+    // field where a field belongs: behind them.
+    //
+    // FEWER rocks as well as farther ones. The first cut of this pocket kept
+    // the standard count at the new distance, and sixty-four boulders across
+    // the far wall is a busy enough picture that the two ships in front of it
+    // stop being the subject.
+    let shell = kit::NearField {
+        id_prefix: "hunter_rock_",
+        count: 36,
+        seed: 40507,
+        center: Meters3::ZERO,
+        distance: (Meters(1_100.0), Meters(2_400.0)),
+        radius: (Meters(22.0), Meters(60.0)),
+        y_spread: Meters(800.0),
+    };
+
+    ScenarioConfig {
+        description: "The rock hollow with one hostile flying its engage maneuver.".to_string(),
+        events: vec![ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![],
+            actions: [
+                vec![shell.action(game_assets), player, raider],
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
+            ]
+            .concat(),
+        }],
+        ..ScenarioConfig::new(
+            "rock_hollow_hunter".to_string(),
+            "Rock Hollow - Hunter".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
+    }
+}
+
+/// The gap the HUNTER set's sheet opens at.
+///
+/// The sheet records the CLOSE, not the circle, and that is a framing
+/// decision forced by the clock. Two seconds is twenty cells: at the 215 m
+/// band this set settles into, the orbit term is allowed a quarter of the
+/// hull's authority (`AI_ORBIT_AUTHORITY_RESERVE`), and the arc it covers in
+/// two seconds is a few degrees - twenty cells of a hull that looks parked.
+/// The approach is the part of the same maneuver that MOVES: a hundred metres
+/// a second and more, straight down the bearing, with the nose already on the
+/// target.
+///
+/// So the walk waits for the raider to fall inside this, and the sheet is the
+/// last of its run-in. Wide enough that the two hulls are still a pair on the
+/// screen, tight enough that the raider is a ship rather than a dot.
+pub const HUNTER_SHEET_GAP: Meters = Meters(500.0);
+
+/// The live centre-to-centre gap between the player and the hostile, or
+/// `None` while either of them is missing.
+///
+/// `try_query` rather than `query`: a predicate holds the world by shared
+/// reference, and the caching form needs it mutable.
+#[cfg(feature = "debug")]
+pub fn hunter_gap(world: &World) -> Option<Meters> {
+    let mut ships = world.try_query::<(&GlobalTransform, &EntityId)>()?;
+    let mut player = None;
+    let mut raider = None;
+    for (transform, id) in ships.iter(world) {
+        match id.0.as_str() {
+            PLAYER_ID => player = Some(transform.translation()),
+            RAIDER_ID => raider = Some(transform.translation()),
+            _ => {}
+        }
+    }
+    Some(Meters::from_engine(player?.distance(raider?)))
+}
+
+/// Advance once the hostile has closed to the gap the sheet opens at.
+#[cfg(feature = "debug")]
+pub fn the_hunter_has_closed() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        hunter_gap(world).is_some_and(|gap| gap.get() <= HUNTER_SHEET_GAP.get())
+    })
+}
+
+/// What to print when the close never happened: the gap itself, so a stall
+/// says whether the hostile was still coming, parked wide, or gone.
+#[cfg(feature = "debug")]
+pub fn hunter_diagnosis(world: &World) -> String {
+    match hunter_gap(world) {
+        Some(gap) => format!(
+            "the hostile is {:.0} m from the player, and the sheet opens at {:.0} m",
+            gap.get(),
+            HUNTER_SHEET_GAP.get()
+        ),
+        None => "one of the two hulls is no longer in the pocket".to_string(),
+    }
+}
+
 /// The FLYING set: the player's hull alone in the standard shell, for the
 /// lessons whose subject is the ship actually moving.
 ///
@@ -535,6 +728,47 @@ pub fn fighter(patrol: Vec<Meters3>) -> SpaceshipController {
         engage_delay: Some(ENGAGE_DELAY),
         ..default()
     })
+}
+
+/// How much of its own health the HUNTER set's player hull is given.
+///
+/// The set is the only one in the kit that is SHOT AT for its whole run: the
+/// hostile is live, it holds a band 140 m off the skin, and the walk then
+/// waits there for as long as the maneuver takes. At stock health that ended
+/// the same way every time - a controller node gone, the structure severed,
+/// the AI reporting `maneuver complete, disengaging` over a wreck, and the
+/// sheet never opening.
+///
+/// Health is the right knob because it is the only thing in the set nothing
+/// in frame reads: the screen is cinematic, so no bar, chip or marker shows a
+/// number that this changes. The maneuver, the guns, the rounds and the
+/// impacts are all the production path.
+pub const HUNTER_ARMOUR: f32 = 1_000.0;
+
+/// The same hull with every section's health multiplied, so a set that is shot
+/// at for its whole run still has its subject at the end of it.
+///
+/// A section is rebuilt as an INLINE copy of the resolved prototype, the way
+/// [`unlimited_turrets`] does it: a prototype reference carries no overrides,
+/// so the only way to change a number on one section is to author it.
+pub fn armoured(sections: &GameSections, mut hull: ShipDesign, factor: f32) -> ShipDesign {
+    hull.sections = hull
+        .sections
+        .into_iter()
+        .map(|mut section| {
+            let SectionSource::Prototype { id: prototype, .. } = &section.source else {
+                return section;
+            };
+            let Some(resolved) = sections.get_section(prototype) else {
+                return section;
+            };
+            let mut tougher = resolved.clone();
+            tougher.base.health *= factor;
+            section.source = SectionSource::Inline(tougher);
+            section
+        })
+        .collect();
+    hull
 }
 
 /// The same hull with every turret rebuilt without a magazine, so a capture that

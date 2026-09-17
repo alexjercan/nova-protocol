@@ -1096,7 +1096,7 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "a raider holding its standoff off the player\'s beam, crossing the bow with its nose kept on the camera while the rock field slides past behind it",
+            alt: "a raider running in on a parked gunship across a rock field, nose already on it, closing across the frame from one cell to the next",
         ),
         body: "An enemy flies the same flight computer you do: closing while it is outside its standoff, circling once inside, nose on you throughout. The standoff is clear space between the two hulls, and its speeds come off its own live drive.",
         wiki_path: "wiki/factions#what-allegiance-drives",

@@ -1255,8 +1255,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "How an enemy flies",
             looping(
                 "advanced_ai_flight",
-                "a raider holding its standoff off the player's beam, crossing the bow with its \
-                 nose kept on the camera while the rock field slides past behind it",
+                "a raider running in on a parked gunship across a rock field, nose already on it, \
+                 closing across the frame from one cell to the next",
             ),
             "An enemy flies the same flight computer you do: closing while it is outside its \
              standoff, circling once inside, nose on you throughout. The standoff is clear space \

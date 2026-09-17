@@ -97,6 +97,7 @@ PRODUCERS=(
     "lesson_novaos_ship|novaos_service:loop,novaos_rebind_section:loop"
     "lesson_menu_advanced|advanced_scenarios:still,advanced_mods:still,advanced_bindings:still"
     "lesson_menu_mouse|advanced_mouse:loop"
+    "lesson_advanced_ai_flight|advanced_ai_flight:loop"
     "lesson_menu_quality|novaos_shell:still,advanced_audio:still,advanced_graphics:still"
 )
 

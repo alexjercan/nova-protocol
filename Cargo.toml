@@ -777,6 +777,10 @@ name = "lesson_menu_mouse"
 path = "examples/screenshots/lesson_menu_mouse.rs"
 
 [[example]]
+name = "lesson_advanced_ai_flight"
+path = "examples/screenshots/lesson_advanced_ai_flight.rs"
+
+[[example]]
 name = "lesson_start_pause"
 path = "examples/screenshots/lesson_start_pause.rs"
 
