@@ -36,6 +36,26 @@ pub(super) const NADIA: &str = "Nadia - Gantry";
 /// Clearwell's manager at Baikal, and the shore end of the decision.
 pub(super) const ELENA: &str = "Elena - Baikal";
 
+/// The face each voice wears on the comms panel.
+///
+/// The art is the BOOK's: `scripts/generate-campaign-portraits.py` reads every
+/// skin, hair and coat colour below out of the same palette the encyclopedia
+/// portrait studies are drawn from, so these seven are the story's people in
+/// the game's medium rather than a second cast that happens to share their
+/// names. An unlisted speaker draws the panel's fallback tile.
+pub(super) fn portrait(speaker: &str) -> Option<&'static str> {
+    Some(match speaker {
+        JONAH => "jonah",
+        LEILA => "leila",
+        TOMAS => "tomas",
+        RINA => "rina",
+        SAMIR => "samir",
+        NADIA => "nadia",
+        ELENA => "elena",
+        _ => return None,
+    })
+}
+
 // --- the opening -------------------------------------------------------------
 
 pub(super) const OPEN_CARD_PLACE: &str = "SATURN, THE INNER LANES";

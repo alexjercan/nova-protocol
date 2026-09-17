@@ -101,10 +101,15 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
     }
 }
 
-/// Gantry, stranded: nobody at the helm, nothing hostile aboard, and the hull
-/// intact from outside. The damage the story gives it is to its main drive
-/// and its distribution - neither of which is a thing a hull shows - so what
-/// the player reads is a working ship going nowhere.
+/// Gantry, stranded: nobody at the helm, nothing hostile aboard, and a stern
+/// that is not there any more.
+///
+/// It flies the DAMAGED tender, which is the same hull with its drive, its
+/// transom, its service stack and half its aft arch missing - the shape of the
+/// hit the story gives it, and the reason the crew are on the radio instead of
+/// on their way home. Nothing drives it and nothing is authored to move it, so
+/// the wreck the player closes on is exactly as still as the intact hull was:
+/// the ship LOOKS worse and the clamp is no harder.
 pub(crate) fn gantry() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -118,7 +123,7 @@ pub(crate) fn gantry() -> ScenarioObjectConfig {
             controller: SpaceshipController::None,
             capabilities: ShipCapabilities::default(),
             design: ships::patched_design(
-                ships::BLOCK_FRAME_TENDER_SHIP_ID,
+                ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
                 [ships::on_section(
                     ships::BLOCK_PORT_COLLAR_SECTION_ID,
                     ships::section_health(GANTRY_COLLAR_HEALTH),
@@ -126,6 +131,55 @@ pub(crate) fn gantry() -> ScenarioObjectConfig {
             ),
         }),
     }
+}
+
+/// The plating that came off Gantry, still hanging where it was thrown.
+///
+/// Three pieces, hand-placed rather than scattered: they belong to the stern
+/// and the starboard arch the hull is missing, so they sit off those two faces
+/// and nowhere else. The port side - the flank Kaveri comes about onto, and
+/// the one the collar is on - is deliberately clear. A field of loose rock
+/// around the one place the player has to fly precisely would be a different
+/// chapter.
+pub(crate) fn wreckage() -> Vec<ScenarioObjectConfig> {
+    const PIECES: [(&str, Meters3, f32, f32); 3] = [
+        (
+            "gantry_debris_transom",
+            Meters3::new(60.0, 20.0, 90.0),
+            0.9,
+            0.4,
+        ),
+        (
+            "gantry_debris_stack",
+            Meters3::new(5.0, -35.0, 130.0),
+            2.3,
+            -0.7,
+        ),
+        (
+            "gantry_debris_arch",
+            Meters3::new(85.0, 5.0, 55.0),
+            1.6,
+            1.2,
+        ),
+    ];
+
+    PIECES
+        .into_iter()
+        .map(|(id, offset, yaw, pitch)| ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: id.to_string(),
+                name: "Debris".to_string(),
+                position: GANTRY_POSITION + offset,
+                rotation: Quat::from_rotation_y(yaw) * Quat::from_rotation_x(pitch),
+            },
+            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                allegiance: Some(Allegiance::Neutral),
+                controller: SpaceshipController::None,
+                capabilities: ShipCapabilities::default(),
+                design: ships::design(ships::BLOCK_WRECK_PLATE_SHIP_ID),
+            }),
+        })
+        .collect()
 }
 
 // --- the working lane --------------------------------------------------------

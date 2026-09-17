@@ -248,11 +248,14 @@ base bundle resources, and are NOT dep-referenceable.)
 - `textures/asteroid.png` - the asteroid surface texture
 - `thumbnails/tutorial.png` - the picker plate
 - `banner.png` - the base mod's banner
-- `portraits/*.png` - the green CRT faces a
+- `portraits/*.png` - the faces a
   [`NarrativeCue`](../actions/#narrativecue) puts on the comms card:
   `player.png`, the player's own label, and `range-control.png`, the training
-  range's voice. Reusable by any mod - a portrait is just an image ref, and a
-  mod that wants a face of its own ships it under its own tree
+  range's voice, both in the HUD's own green; and season one's crew -
+  `jonah.png`, `leila.png`, `tomas.png`, `rina.png`, `samir.png`, `nadia.png`
+  and `elena.png` - drawn from the story's character palettes. Reusable by any
+  mod - a portrait is just an image ref, and a mod that wants a face of its own
+  ships it under its own tree
 
 Skybox `.png.meta` sidecars ride along with their image automatically and are
 never listed or referenced directly, but a sky needs one: it is what makes the

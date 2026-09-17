@@ -121,14 +121,24 @@ fn the_opening_scene_hands_back_everything_it_takes() {
         "OnStart posts no objective over the scene"
     );
 
+    finish_hands_back(&config, SCENE_OPEN);
+}
+
+/// The finish handler for one scene, checked by its own key.
+///
+/// By KEY, never by position: the chapter has two scenes now, and a pin that
+/// took the first `OnCinematicFinished` it found would grade the opening twice
+/// and the distress call never.
+fn finish_hands_back(config: &ScenarioConfig, key: &str) -> Vec<EventActionConfig> {
     let finish = config
         .events
         .iter()
-        .find(|event| matches!(event.name, EventConfig::OnCinematicFinished))
-        .expect("the scene has a finish handler");
+        .filter(|event| matches!(event.name, EventConfig::OnCinematicFinished))
+        .find(|event| has_filter(event, &scene(key)))
+        .unwrap_or_else(|| panic!("scene '{key}' has a finish handler"));
     assert!(
-        finish.filters.len() == 1 && has_filter(finish, &scene(SCENE_OPEN)),
-        "the finish handler matches the scene by key, so a skip lands here too"
+        finish.filters.len() == 1,
+        "scene '{key}' matches on its key alone, so a skip lands here too"
     );
     assert!(
         finish
@@ -139,7 +149,53 @@ fn the_opening_scene_hands_back_everything_it_takes() {
                 .actions
                 .iter()
                 .any(|a| matches!(a, EventActionConfig::ResumePlayerControl(_))),
-        "every way out of the scene gives the camera and the helm back"
+        "every way out of scene '{key}' gives the camera and the helm back"
+    );
+    finish.actions.clone()
+}
+
+/// The distress call is a SCENE, and the ship is parked for it.
+///
+/// The pin is the pairing rather than the shot: a scene that takes the helm
+/// and cuts the camera away has to take the ship's speed off as well, or a
+/// skip hands a suspended captain back a hull still running at the manual cap
+/// through the end of a rock lane. The course change is the scene's exit, so
+/// it lands however the player leaves.
+#[test]
+fn the_call_stops_the_ship_before_it_looks_away() {
+    let config = config();
+    let call = config
+        .events
+        .iter()
+        .find(|event| {
+            event.actions.iter().any(
+                |a| matches!(a, EventActionConfig::Cinematic(scene) if scene.key == SCENE_CALL),
+            )
+        })
+        .expect("the call is a cinematic");
+    assert!(
+        call.actions
+            .iter()
+            .any(|a| matches!(a, EventActionConfig::SuspendPlayerControl(_)))
+            && call.actions.iter().any(
+                |a| matches!(a, EventActionConfig::ZeroShipMotion(stop) if stop.id == ID_KAVERI)
+            ),
+        "the call suspends the helm and brings Kaveri to rest"
+    );
+    let anchored = call
+        .actions
+        .iter()
+        .any(|a| matches!(a, EventActionConfig::SetCameraAnchor(shot) if shot.anchor == ID_GANTRY));
+    assert!(
+        anchored,
+        "the shot is of Gantry, which is what the call is about"
+    );
+
+    let out = finish_hands_back(&config, SCENE_CALL);
+    assert!(
+        has_action(&out, &post_objective(OBJ_REACH, script::OBJ_TEXT_REACH))
+            && has_action(&out, &APPROACH.raise_gate()),
+        "leaving the scene posts the course change and the volume it ends in, a skip included"
     );
 }
 
@@ -171,13 +227,12 @@ fn the_lane_arms_one_mark_at_a_time() {
                 _ => None,
             })
             .collect();
-        // The last mark has no next mark: what it arms, at the end of the
-        // distress chain, is the volume Gantry sits in.
-        let expected: BTreeSet<String> = [LANE
-            .get(index + 1)
-            .map_or_else(|| APPROACH.gate_id(), Mark::gate_id)]
-        .into_iter()
-        .collect();
+        // The last mark has no next mark: it starts the distress call, and the
+        // volume Gantry sits in is raised on the way OUT of that scene - see
+        // `the_call_stops_the_ship_before_it_looks_away` - so that a player
+        // who walks out of the call still gets the gate.
+        let expected: BTreeSet<String> =
+            LANE.get(index + 1).map(Mark::gate_id).into_iter().collect();
         assert_eq!(
             raised, expected,
             "{} raises exactly the one gate that follows it",
@@ -426,13 +481,22 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
             _ => None,
         })
         .collect();
-    assert_eq!(ships_spawned, vec![ID_KAVERI, ID_GANTRY]);
+    // The two crewed hulls, and then Gantry's own plating: the debris is a
+    // hull in the engine's eyes, so it is listed here, but nothing flies it
+    // and it is the only thing that may join them.
+    let (crewed, debris) = ships_spawned.split_at(2);
+    assert_eq!(crewed, [ID_KAVERI, ID_GANTRY]);
+    assert!(
+        debris.iter().all(|id| id.starts_with("gantry_debris")),
+        "the only other hulls in the chapter are Gantry's own wreckage: {debris:?}"
+    );
 
     let assets = crate::base_content::assets::BaseContentAssets::from_paths();
     let catalog = ships::ship_catalog(&assets);
     for id in [
         ships::BLOCK_WORKSHIP_SHIP_ID,
-        ships::BLOCK_FRAME_TENDER_SHIP_ID,
+        ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+        ships::BLOCK_WRECK_PLATE_SHIP_ID,
     ] {
         let design = catalog
             .iter()
@@ -449,6 +513,16 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
                 "'{id}' carries '{prototype}' - the chapter has no weapons in it"
             );
         }
+    }
+
+    for id in [
+        ships::BLOCK_WORKSHIP_SHIP_ID,
+        ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+    ] {
+        let design = catalog
+            .iter()
+            .find(|entry| entry.id == id)
+            .unwrap_or_else(|| panic!("'{id}' is a catalog ship"));
         assert!(
             design
                 .design
@@ -458,6 +532,53 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
             "'{id}' carries the collar the rescue docks on"
         );
     }
+}
+
+/// Gantry flies the DAMAGED tender, and the damage is all behind the collar.
+///
+/// The chapter asks for a hull that reads as hit and docks as easily as an
+/// intact one, which is two claims about the same cell plan: the drive and the
+/// stern are gone, and the port collar sits exactly where the whole ship's
+/// does. A future pass that moves the collar to dress the wreck up would make
+/// the rescue harder without saying so.
+#[test]
+fn gantrys_damage_is_aft_of_everything_the_rescue_touches() {
+    let assets = crate::base_content::assets::BaseContentAssets::from_paths();
+    let catalog = ships::ship_catalog(&assets);
+    let section = |ship: &str, id: &str| {
+        catalog
+            .iter()
+            .find(|entry| entry.id == ship)
+            .unwrap_or_else(|| panic!("'{ship}' is a catalog ship"))
+            .design
+            .sections
+            .iter()
+            .find(|section| section.id == id)
+            .cloned()
+    };
+
+    let whole = section(
+        ships::BLOCK_FRAME_TENDER_SHIP_ID,
+        ships::BLOCK_PORT_COLLAR_SECTION_ID,
+    )
+    .expect("the tender carries a collar");
+    let hurt = section(
+        ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+        ships::BLOCK_PORT_COLLAR_SECTION_ID,
+    )
+    .expect("the damaged tender still carries it");
+    assert!(
+        whole.position == hurt.position && whole.rotation == hurt.rotation,
+        "the collar has not moved: {:?} vs {:?}",
+        whole.position,
+        hurt.position
+    );
+
+    assert!(
+        section(ships::BLOCK_FRAME_TENDER_SHIP_ID, "main_drive").is_some()
+            && section(ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, "main_drive").is_none(),
+        "the raid took the main drive, which is what the mayday says it took"
+    );
 }
 
 #[test]

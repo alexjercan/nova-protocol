@@ -249,6 +249,56 @@ pub(super) fn frame_tender() -> BlockShip {
     }
 }
 
+/// The same frame tender after a raid took its stern: the hull chapter one
+/// finds adrift.
+///
+/// The story's damage is to the main drive and the distribution behind it, and
+/// a hull cannot show a dead bus - so the cell plan takes off what a hit that
+/// size WOULD leave: the drive, the transom it stood on, the service stack
+/// above that, and the starboard half of the aft arch that came away with
+/// them. Everything forward is untouched on purpose. The cab is where the
+/// three survivors are sheltering and the port collar is the only way off, so
+/// the ship reads as badly hurt without the rescue being one metre harder.
+pub(super) fn damaged_frame_tender() -> BlockShip {
+    BlockShip {
+        cells: union(vec![
+            // Everything forward of the hit, untouched.
+            block(IVec3::new(-1, 0, -4), IVec3::new(3, 1, 6)),
+            block(IVec3::new(-1, 1, -4), IVec3::new(3, 1, 2)),
+            // The tear, which is authored a COLUMN at a time rather than as a
+            // shorter ship. A clean plane across the hull reads as a vessel
+            // that was built this length; what the derived skin needs in order
+            // to clad something as broken is an uneven edge, so the port side
+            // runs two cells further aft than the starboard one and the deck
+            // above them stops somewhere else again.
+            block(IVec3::new(-1, 0, 2), IVec3::new(1, 1, 2)),
+            block(IVec3::new(1, 0, 2), IVec3::new(1, 1, 1)),
+            block(IVec3::new(-1, 1, -1), IVec3::new(2, 1, 4)),
+            block(IVec3::new(1, 1, -1), IVec3::new(1, 1, 2)),
+            // One plate of the service stack's deck, hanging off the port
+            // quarter with nothing around it.
+            block(IVec3::new(-1, 1, 3), IVec3::new(1, 1, 1)),
+            // The forward arch, whole. The aft one kept its port leg and one
+            // cell of its top bar; the starboard leg, the rest of the bar and
+            // the rail that tied the two arches together went with the stern.
+            block(IVec3::new(-2, 1, -1), IVec3::new(1, 2, 1)),
+            block(IVec3::new(2, 1, -1), IVec3::new(1, 2, 1)),
+            block(IVec3::new(-2, 1, 2), IVec3::new(1, 2, 1)),
+            block(IVec3::new(-1, 2, -1), IVec3::new(3, 1, 1)),
+            block(IVec3::new(-1, 2, 2), IVec3::new(1, 1, 1)),
+            block(IVec3::new(-2, 2, 0), IVec3::new(1, 1, 2)),
+        ]),
+        // No drive. "Main propulsion disabled" is the first thing the call
+        // says, and the empty transom is where the player reads it.
+        specials: vec![
+            cell_part(BLOCK_BRIDGE_SECTION_ID, CONTROLLER, IVec3::new(0, 1, -4)),
+            flank_collar(BLOCK_PORT_COLLAR_SECTION_ID, IVec3::new(-2, 0, -3)),
+        ],
+        plate: HULL,
+        style: INDUSTRIAL_STYLE_ID,
+    }
+}
+
 /// The military patrol boat: a two-deck fighting spine over a short ventral
 /// keel, stub wings, a dorsal fin, one vectoring drive, and six point-defense
 /// mounts covering both hemispheres. About a cutter and a half long - small

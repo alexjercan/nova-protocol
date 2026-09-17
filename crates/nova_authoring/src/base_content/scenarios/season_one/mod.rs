@@ -26,9 +26,12 @@
 //! on the clamp still being on, so releasing early stops the chain where it
 //! stands and re-docking starts it again.
 //!
-//! The cast has no portrait art yet, so the cues carry no icon and the comms
-//! panel draws its fallback tile. The channel colour still does the work: the
-//! crew speak in the room (green), Gantry and Baikal over the radio (blue).
+//! Every voice has a face. The portraits are generated from the story's own
+//! character palette (see `script::portrait`), and they are attached in one
+//! pass over the finished events rather than line by line, because the speaker
+//! already says which face it is. The channel colour keeps doing its own work
+//! on top: the crew speak in the room (green), Gantry and Baikal over the
+//! radio (blue).
 
 use bevy::prelude::Image;
 use nova_events::prelude::Meters3;
@@ -119,7 +122,23 @@ const LANE_GAP: f64 = 3.0;
 
 /// The distress chain, and the gaps inside it. Longer than the lane's, because
 /// this is the only stretch of the chapter the player is asked to listen to.
-const SEQ_DISTRESS: &str = "distress";
+///
+/// A SCENE rather than a sequence: the player is not flying during it, so the
+/// chapter takes the helm, brings Kaveri to rest behind the cut and holds the
+/// picture on Gantry for the whole call. It is the one look at the ship the
+/// chapter gets before the rescue, and the hull says what the dialogue is
+/// about to - no drive, no stern, three people still aboard.
+const SCENE_CALL: &str = "call";
+/// The shot: off Gantry's starboard BOW and above, looking aft down the length
+/// of the hull.
+///
+/// The angle is the composition. From here the ship reads intact at the near
+/// end and opens up at the far one - the stack gone, the arch cut in half, the
+/// transom empty where the drive was - with its own plating still drifting
+/// past the stern behind it. Standing off the stern instead would put that
+/// plating between the lens and the ship. Kaveri arrives on the opposite
+/// flank, so the player never flies this angle.
+const CALL_OFFSET: Meters3 = Meters3::new(150.0, 45.0, -120.0);
 /// LANE-4 -> the traffic. Long enough that the lane feels finished first.
 const CALL_OPEN_AT: f64 = 6.0;
 /// Between two lines of the call.
@@ -179,6 +198,27 @@ fn once(
         once: true,
         filters,
         actions,
+    }
+}
+
+/// Give every cue the face of whoever speaks it.
+///
+/// One pass over the finished graph, the tutorial's rule: a line that authored
+/// its own icon keeps it, and a speaker with no portrait draws the panel's
+/// fallback tile instead of a wrong face.
+fn apply_portraits(events: &mut [ScenarioEventConfig]) {
+    for event in events {
+        for action in &mut event.actions {
+            action.walk_mut(&mut |action| {
+                let EventActionConfig::NarrativeCue(cue) = action else {
+                    return;
+                };
+                if cue.icon.is_none() {
+                    cue.icon = script::portrait(&cue.speaker)
+                        .map(|name| AssetRef::from(format!("self://portraits/{name}.png")));
+                }
+            });
+        }
     }
 }
 
@@ -285,6 +325,7 @@ pub(crate) fn chapter_one(
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
     let mut spawns = vec![kaveri(), gantry()];
+    spawns.extend(wreckage());
     spawns.extend(moons());
     spawns.extend(lights(CHAPTER_ONE_SCENARIO_ID));
 
@@ -408,8 +449,25 @@ pub(crate) fn chapter_one(
                     complete_objective(OBJ_LANE),
                     advance(BEAT_CALL),
                     crew(script::TOMAS, script::LANE_FOUR),
-                    sequence(
-                        SEQ_DISTRESS,
+                    // The helm, the ship's speed and the camera, in that
+                    // order and all in the same frame. The cut is what makes
+                    // the stop free: the player never watches a loaded
+                    // workship lose 120 m/s in one tick, they are already
+                    // looking at Gantry when it happens.
+                    EventActionConfig::SuspendPlayerControl(SuspendPlayerControlActionConfig),
+                    EventActionConfig::ZeroShipMotion(ZeroShipMotionActionConfig {
+                        id: ID_KAVERI.to_string(),
+                    }),
+                    EventActionConfig::SetCameraAnchor(SetCameraAnchorActionConfig {
+                        blend: None,
+                        anchor: ID_GANTRY.to_string(),
+                        offset: CALL_OFFSET,
+                        frame: CameraOffsetFrame::World,
+                        look_at: CameraLookAtConfig::Object(ID_GANTRY.to_string()),
+                    }),
+                    cinematic(
+                        SCENE_CALL,
+                        true,
                         vec![
                             crew_line(CALL_OPEN_AT, script::SAMIR, script::CALL_TRAFFIC),
                             radio_line(CALL_GAP, script::NADIA, script::CALL_MAYDAY),
@@ -421,20 +479,34 @@ pub(crate) fn chapter_one(
                             radio_line(CALL_GAP, script::ELENA, script::CALL_REFUSAL),
                             radio_line(CALL_GAP, script::ELENA, script::CALL_BACKING),
                             crew_line(CALL_REPLY_GAP, script::JONAH, script::CALL_DECISION),
-                            step(
-                                CALL_ORDER_GAP,
-                                vec![
-                                    advance(BEAT_REACH),
-                                    post_objective(OBJ_REACH, script::OBJ_TEXT_REACH),
-                                    attach_objective_marker(ID_GANTRY, GANTRY_NAME),
-                                    APPROACH.raise_gate(),
-                                    show_hint_emphasis(HINT_RADAR),
-                                ],
-                            ),
+                            // The hold: the captain's order lands, and the
+                            // shot stays on the ship they have just agreed to
+                            // go and get. Nothing to run - the beat IS the
+                            // action, and it is what keeps the course change
+                            // off the same frame as the line that caused it.
+                            step(CALL_ORDER_GAP, vec![]),
                         ],
                     ),
                 ])
                 .collect(),
+        ),
+        // Every way out of the call ends here, a skip included: the camera and
+        // the helm come back, and the course change is on the HUD. Kaveri is
+        // at rest when it lands, which is the whole reason the scene took the
+        // ship's speed off - a captain handed the helm back mid-lane at full
+        // manual cap has been given a problem, not an order.
+        once(
+            EventConfig::OnCinematicFinished,
+            vec![scene(SCENE_CALL)],
+            vec![
+                EventActionConfig::ReleaseCamera(ReleaseCameraActionConfig),
+                EventActionConfig::ResumePlayerControl(ResumePlayerControlActionConfig),
+                advance(BEAT_REACH),
+                post_objective(OBJ_REACH, script::OBJ_TEXT_REACH),
+                attach_objective_marker(ID_GANTRY, GANTRY_NAME),
+                APPROACH.raise_gate(),
+                show_hint_emphasis(HINT_RADAR),
+            ],
         ),
         // Standing off Gantry: the port check, and then the collar.
         once(
@@ -574,6 +646,8 @@ pub(crate) fn chapter_one(
         defeat(ID_KAVERI, script::DEFEAT_KAVERI),
         defeat(ID_GANTRY, script::DEFEAT_GANTRY),
     ]);
+
+    apply_portraits(&mut events);
 
     ScenarioConfig {
         description: "Season 1, chapter one. Kaveri is running home to Baikal with a \

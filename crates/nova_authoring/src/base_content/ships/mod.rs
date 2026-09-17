@@ -44,6 +44,10 @@ pub const BLOCK_WORKSHIP_SHIP_ID: &str = "block_workship";
 /// The id the block-built frame tender is spawned by: a cargo body under two
 /// open gantry arches, carrying the same collar the workship docks on.
 pub const BLOCK_FRAME_TENDER_SHIP_ID: &str = "block_frame_tender";
+/// The id the raided frame tender is spawned by: the same hull with its stern
+/// and its main drive gone. Chapter one's casualty, and a second CATALOG entry
+/// rather than a spawn-time flag for the reason the module doc gives.
+pub const BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID: &str = "block_frame_tender_damaged";
 
 /// The id the block-built patrol gunship is spawned by: armoured, six point
 /// defense mounts, the fleet's warship.
@@ -105,6 +109,12 @@ pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipDesignPrototyp
             BLOCK_FRAME_TENDER_SHIP_ID,
             "Frame Tender",
             block::frame_tender(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+            "Frame Tender: Damaged",
+            block::damaged_frame_tender(),
         ),
         block_ship(
             assets,

@@ -755,6 +755,9 @@ impl ActionChoiceExt for ActionChoice {
                 order: String::new(),
                 ship: String::new(),
             }),
+            ActionChoice::ZeroShipMotion => {
+                EventActionConfig::ZeroShipMotion(ZeroShipMotionActionConfig { id: String::new() })
+            }
             ActionChoice::PatrolShip => EventActionConfig::PatrolShip(PatrolShipActionConfig {
                 order: String::new(),
                 ship: String::new(),

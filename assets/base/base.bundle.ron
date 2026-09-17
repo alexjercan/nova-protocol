@@ -149,9 +149,18 @@
         "thumbnails/season_one_chapter_one.png",
         // Green CRT portraits for the base game's comms voices: the player's
         // own face (shared with the story mod as `dep://base/portraits/
-        // player.png`) and the training range's Range Control.
+        // player.png`), the training range's Range Control, and season one's
+        // seven speakers, whose colours are read out of the book's own
+        // character palette by `scripts/generate-campaign-portraits.py`.
         "portraits/player.png",
         "portraits/range-control.png",
+        "portraits/jonah.png",
+        "portraits/leila.png",
+        "portraits/tomas.png",
+        "portraits/rina.png",
+        "portraits/samir.png",
+        "portraits/nadia.png",
+        "portraits/elena.png",
         // One demonstration per training lesson - a still, or a sprite sheet
         // cut by the grid the lesson authors. WEBP, because a sheet big enough
         // to fill the pane is megabytes as PNG and a tenth of that as WebP;

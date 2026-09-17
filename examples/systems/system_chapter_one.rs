@@ -207,6 +207,17 @@ const SETTLE: u32 = 12;
 #[cfg(feature = "debug")]
 const TAP_FRAMES: u32 = 3;
 
+/// Real seconds into the call before the shutter, and the frames it is held
+/// open for.
+///
+/// Far enough in that the scene's camera has taken the shot and the mayday is
+/// on the panel, and it is REAL seconds because the walk runs the world at
+/// [`WORLD_SPEED`]: the picture is a fact about the frame, not about the beat.
+#[cfg(feature = "debug")]
+const CALL_SHOT_AT: f32 = 2.5;
+#[cfg(feature = "debug")]
+const SHUTTER_FRAMES: u32 = 4;
+
 /// Seconds the boot step gets. The chapter spawns two hulls, three procedural
 /// moons and a scatter field behind an asset load; it is the longest wait in
 /// the run and the only one that is not dialogue.
@@ -231,7 +242,11 @@ struct Walk {
 #[cfg(feature = "debug")]
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    let mut app = editor_app(false, Some(StartupScenario::Id(CHAPTER.to_string())));
+    // Headless is the range's normal shape: every claim below is read out of
+    // the world, and a GPU would only make the walk slower. `NOVA_CAPTURE_DIR`
+    // asks for the other kind of evidence - what the chapter's cinematic
+    // camera actually framed - and that needs a renderer and a window.
+    let mut app = editor_app(capturing(), Some(StartupScenario::Id(CHAPTER.to_string())));
 
     app.init_resource::<Walk>();
     app.add_systems(Update, record_the_board);
@@ -283,6 +298,23 @@ fn script() -> AutopilotPlugin<GameStates> {
     }
     script = report(script, "the lane", report_the_lane);
 
+    // The call is a SCENE, and the one shot of Gantry the chapter takes before
+    // the rescue. A headless walk proves the beat ladder and nothing about the
+    // picture, so the frame is photographed - but only when a capture
+    // directory is asked for, because a correctness run should not write art.
+    if capturing() {
+        script = script
+            .step("chapter one: hold on the call's shot of Gantry")
+            .until(elapsed(CALL_SHOT_AT))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step("chapter one: photograph the call")
+            .on_enter(photograph_the_call)
+            .until(frames(SHUTTER_FRAMES))
+            .deadline(STEP_DEADLINE_SECS)
+            .add();
+    }
+
     script = script
         // The call, the refusal, and Clearwell covering it: the one stretch of
         // the chapter with nothing to fly.
@@ -301,6 +333,14 @@ fn script() -> AutopilotPlugin<GameStates> {
         .until(frames(SETTLE))
         .deadline(BEAT_DEADLINE_SECS)
         .add();
+    if capturing() {
+        script = script
+            .step("chapter one: photograph Gantry from the collar")
+            .on_enter(photograph_the_wreck)
+            .until(frames(SHUTTER_FRAMES))
+            .deadline(STEP_DEADLINE_SECS)
+            .add();
+    }
     script = report(script, "the envelope", report_the_envelope);
 
     script = tap_the_dock_key(
@@ -404,6 +444,76 @@ fn tap_the_dock_key(
 }
 
 // --- the world reads ---------------------------------------------------------
+
+/// Whether this run was asked for pictures.
+#[cfg(feature = "debug")]
+fn capturing() -> bool {
+    std::env::var_os("NOVA_CAPTURE_DIR").is_some()
+}
+
+/// Write one frame of the primary window under `NOVA_CAPTURE_DIR`.
+#[cfg(feature = "debug")]
+fn photograph(world: &mut World, name: &str) {
+    let directory = std::env::var("NOVA_CAPTURE_DIR").unwrap_or_else(|_| ".".to_string());
+    let path = std::path::Path::new(&directory).join(name);
+    if let Some(parent) = path.parent() {
+        if let Err(error) = std::fs::create_dir_all(parent) {
+            warn!("chapter one: cannot make {parent:?}: {error}");
+            return;
+        }
+    }
+    info!("chapter one: photographing {}", path.display());
+    report_the_framing(world);
+    world
+        .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
+        .observe(bevy::render::view::screenshot::save_to_disk(path));
+}
+
+/// Say what is in front of the lens, so a picture can be read without guessing
+/// which hull is which: the active camera, then every ship by range from it.
+#[cfg(feature = "debug")]
+fn report_the_framing(world: &mut World) {
+    let Some(lens) = world
+        .try_query_filtered::<&GlobalTransform, With<Camera3d>>()
+        .and_then(|mut cameras| cameras.iter(world).next().map(GlobalTransform::translation))
+    else {
+        warn!("chapter one: no camera to report");
+        return;
+    };
+    let Some(mut hulls) =
+        world.try_query_filtered::<(&EntityId, &Position), With<SpaceshipRootMarker>>()
+    else {
+        return;
+    };
+    let mut ranges: Vec<(String, f32)> = hulls
+        .iter(world)
+        .map(|(id, at)| (id.0.clone(), Meters3::from_engine(at.0 - lens).0.length()))
+        .collect();
+    ranges.sort_by(|left, right| left.1.total_cmp(&right.1));
+    let listed = ranges
+        .iter()
+        .map(|(id, range)| format!("{id} {range:.0} m"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    info!("chapter one: the lens is at {lens:?}; hulls by range: {listed}");
+}
+
+/// Photograph Gantry from where the rescue stands off it: the damaged stern,
+/// the plating that came off it, and the port collar the clamp goes on.
+#[cfg(feature = "debug")]
+fn photograph_the_wreck(world: &mut World) {
+    photograph(world, "chapter-one-gantry.png");
+}
+
+/// Photograph the call's shot of Gantry, under `NOVA_CAPTURE_DIR`.
+///
+/// The scene owns the camera at this point, so the frame is whatever the
+/// chapter framed - which is the claim: a headless pass grades the beat
+/// ladder, and only a rendered frame grades the shot.
+#[cfg(feature = "debug")]
+fn photograph_the_call(world: &mut World) {
+    photograph(world, "chapter-one-call.png");
+}
 
 /// Run the world at [`WORLD_SPEED`], once the chapter is live so the load
 /// itself is untouched.

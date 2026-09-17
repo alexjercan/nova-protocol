@@ -182,6 +182,7 @@ painted by a [style](../styles/). Nothing in the base game is a modelled mesh.
 | `block_hauler` | Bulk Hauler - a flat freight spine between two cargo shoulders, containers amidships, one vectoring drive |
 | `block_workship` | Utility Workship - the civilian work boat: an open cradle amidships for an outsized load, two bell drives aft, and a docking collar standing off the port flank |
 | `block_frame_tender` | Frame Tender - a long keel under a cargo body with two open gantry arches standing over it, carrying the same port-flank collar the workship docks on |
+| `block_frame_tender_damaged` | Frame Tender: Damaged - the same tender after a raid took its stern: no main drive, the transom and the service stack gone, and the aft arch broken off along a ragged, column-by-column edge. Everything forward of the hit, the cab and the collar included, is whole |
 | `block_gunship` | Patrol Gunship - the military patrol boat: a two-deck fighting spine and six PDC mounts covering both hemispheres |
 | `block_raider` | Salvage Raider - the scavenger: thin plating, an outrigger down one flank, a scrap boom up the other, two turrets welded where they fitted |
 | `block_carrier` | Industrial Carrier - the campaign's home, thirty-three cells long, with a cutter berth cut into each shoulder |

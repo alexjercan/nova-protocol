@@ -2,6 +2,7 @@
 //! the two force-fire verbs, the AI constraints, and the older speed cap and
 //! allegiance levers, plus the six root capability switches.
 
+use avian3d::prelude::{AngularVelocity, LinearVelocity};
 use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
@@ -343,6 +344,57 @@ impl EventAction<NovaEventWorld> for StopShipActionConfig {
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
                 install_ship_order(world, &id, order, ShipOrderDirective::Stop, "StopShip");
+            });
+        });
+    }
+}
+
+/// Take a ship's motion away outright: zero linear and angular velocity, this
+/// frame, with no maneuver flown and no fuel spent.
+///
+/// The CINEMATIC counterpart to [`StopShipActionConfig`], and the only one of
+/// the two a PLAYER hull accepts. A helm order cannot share a helm with live
+/// input, so `StopShip` refuses the player's ship - but a scene that cuts the
+/// camera away to another ship for a minute of dialogue has to leave the
+/// player's hull somewhere sane, and asking a suspended pilot to coast through
+/// a rock field is not it. Use it behind a cut, where the ship is off screen
+/// and the arithmetic is nobody's business.
+///
+/// It is NOT a way to fly a ship: it takes speed off and never puts any on,
+/// and a ship whose controller still wants to burn is moving again on the next
+/// tick. Pair it with `SuspendPlayerControl` for a player hull, or with
+/// `ClearShipOrder` for an ordered one.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ZeroShipMotionActionConfig {
+    /// The `EntityId` of the scoped ship to bring to rest.
+    #[reflect(@Names::Object)]
+    pub id: String,
+}
+
+impl EventAction<NovaEventWorld> for ZeroShipMotionActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.id.clone();
+        debug!("ZeroShipMotion: '{}' to rest", id);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(ship) = scoped_ship(world, &id) else {
+                    warn!("ZeroShipMotion: no scoped ship with id '{}'", id);
+                    return;
+                };
+                // Held intent as well as velocity: a pilot who was burning
+                // when the cut landed would otherwise spend the whole scene
+                // building the speed back up.
+                if let Some(mut intent) = world.get_mut::<FlightIntent>(ship) {
+                    intent.burn = 0.0;
+                }
+                if let Some(mut intent) = world.get_mut::<RcsIntent>(ship) {
+                    intent.0 = Vec3::ZERO;
+                }
+                world
+                    .entity_mut(ship)
+                    .insert((LinearVelocity(Vec3::ZERO), AngularVelocity(Vec3::ZERO)));
             });
         });
     }

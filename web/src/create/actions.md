@@ -40,6 +40,7 @@ never panics a scenario). All 46 at a glance:
 | [`PatrolShip`](#patrolship) | [ship state](#ship-state) | fly one loop of an authored waypoint route, back to where it started |
 | [`OrbitShip`](#orbitship) | [ship state](#ship-state) | put a ship in a stable ring around a gravity well and hold it |
 | [`ClearShipOrder`](#clearshiporder) | [ship state](#ship-state) | cancel whatever helm order a ship is under |
+| [`ZeroShipMotion`](#zeroshipmotion) | [ship state](#ship-state) | take a ship's velocity away behind a cut, the player's included |
 | [`ForceRailgunFire`](#forcerailgunfire) | [ship state](#ship-state) | fire one named railgun section |
 | [`ForceTorpedoFire`](#forcetorpedofire) | [ship state](#ship-state) | launch one named torpedo bay at a named target |
 | [`SetInfiniteAmmo`](#setinfiniteammo) | [ship state](#ship-state) | suspend or restore the finite magazine on every weapon of a ship |
@@ -852,7 +853,7 @@ SetAllegiance((id: "magpie", allegiance: Enemy)),
 
 ### Helm orders
 
-The six actions below take the helm of a ship the scenario owns: one authored
+The six helm actions below take the helm of a ship the scenario owns: one authored
 with `controller: None` OR one authored with `controller: AI` (see
 [Spaceship](../objects/#spaceship)). They refuse the PLAYER's ship - a lint
 Error, and a runtime error if one somehow reaches the engine - because a
@@ -1085,6 +1086,41 @@ completion: an order that was called off did not finish, so a beat gated on
 the completion correctly never runs. It also puts back the ship's own arrival
 standoff if a [`MoveShipTo`](#moveshipto) had displaced it. Clearing a ship
 that is under no order does nothing and says nothing.
+
+</details>
+
+### ZeroShipMotion
+
+Take a ship's motion away outright: linear and angular velocity to zero, this
+frame, with no maneuver flown and no fuel spent.
+
+NOT a helm order. It installs nothing, reports nothing, cancels nothing, and
+it is the one stop a PLAYER hull accepts.
+
+```ron
+ZeroShipMotion((id: "kaveri")),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `id` | string | required | scoped ship root, any controller |
+
+This is the CINEMATIC counterpart to [`StopShip`](#stopship), and the only one
+of the two a player's hull accepts. A helm order cannot share a helm with live
+input, so `StopShip` refuses a player ship out loud; but a scene that cuts the
+camera away for a minute of dialogue has to leave the player's ship somewhere
+sane, and asking a suspended pilot to coast on through a rock field is not it.
+Use it behind a cut, where the ship is off screen and the arithmetic is nobody's
+business - season one's distress call does exactly that, and is worth reading.
+
+It only ever takes speed off. A ship whose controller still wants to burn is
+moving again on the next tick, so pair it with
+[`SuspendPlayerControl`](#suspendplayercontrol) for a player hull or with
+[`ClearShipOrder`](#clearshiporder) for an ordered one. It reports no
+completion: there is no maneuver to finish.
 
 </details>
 

@@ -66,7 +66,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_frame_tender",
+                                id: "block_frame_tender_damaged",
                                 section_patches: {
                                     "port_collar": (
                                         config: (
@@ -74,6 +74,78 @@
                                         ),
                                     ),
                                 },
+                            ),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gantry_debris_transom",
+                            name: "Debris",
+                            position: (
+                                2460.0,
+                                20.0,
+                                -5910.0,
+                            ),
+                            rotation: (
+                                0.17889123,
+                                0.4262952,
+                                -0.08641431,
+                                0.88249815,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_wreck_plate",
+                            ),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gantry_debris_stack",
+                            name: "Debris",
+                            position: (
+                                2405.0,
+                                -35.0,
+                                -5870.0,
+                            ),
+                            rotation: (
+                                -0.14006945,
+                                0.8574256,
+                                0.31298476,
+                                0.38372198,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_wreck_plate",
+                            ),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gantry_debris_arch",
+                            name: "Debris",
+                            position: (
+                                2485.0,
+                                5.0,
+                                -5945.0,
+                            ),
+                            rotation: (
+                                0.3933902,
+                                0.59205955,
+                                -0.4050497,
+                                0.57501686,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_wreck_plate",
                             ),
                             controller: r#None,
                             allegiance: Some(Neutral),
@@ -389,6 +461,7 @@
                                     NarrativeCue((
                                         speaker: "Rina",
                                         text: "Load\'s secured, covers on. Passage is clear.",
+                                        icon: Some("self://portraits/rina.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -404,6 +477,7 @@
                                     NarrativeCue((
                                         speaker: "Tomas",
                                         text: "Rock is thick on the direct line. I can take us around it, or thread it and save us the hour.",
+                                        icon: Some("self://portraits/tomas.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -419,6 +493,7 @@
                                     NarrativeCue((
                                         speaker: "Leila",
                                         text: "Baikal loses production for every hour that assembly is out here. Thread it.",
+                                        icon: Some("self://portraits/leila.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -434,6 +509,7 @@
                                     NarrativeCue((
                                         speaker: "Jonah",
                                         text: "Thread it. Slowly - there is only the one assembly.",
+                                        icon: Some("self://portraits/jonah.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -449,6 +525,7 @@
                                     NarrativeCue((
                                         speaker: "Tomas",
                                         text: "Marks are up. She is carrying something today, so slide her across with the thrusters - [SHIFT] and the mouse. Do not swing her.",
+                                        icon: Some("self://portraits/tomas.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -560,6 +637,7 @@
                     NarrativeCue((
                         speaker: "Tomas",
                         text: "LANE-1. Next one is off to port and a little high.",
+                        icon: Some("self://portraits/tomas.png"),
                         accent: Srgba((
                             red: 0.21176471,
                             green: 1.0,
@@ -657,6 +735,7 @@
                     NarrativeCue((
                         speaker: "Leila",
                         text: "That is the way. The cradle does not care for being turned with two tonnes on it.",
+                        icon: Some("self://portraits/leila.png"),
                         accent: Srgba((
                             red: 0.21176471,
                             green: 1.0,
@@ -754,6 +833,7 @@
                     NarrativeCue((
                         speaker: "Rina",
                         text: "Tight through there. Nothing touched.",
+                        icon: Some("self://portraits/rina.png"),
                         accent: Srgba((
                             red: 0.21176471,
                             green: 1.0,
@@ -861,6 +941,7 @@
                     NarrativeCue((
                         speaker: "Tomas",
                         text: "LANE-4, and clear of the worst of it. Baikal in four hours.",
+                        icon: Some("self://portraits/tomas.png"),
                         accent: Srgba((
                             red: 0.21176471,
                             green: 1.0,
@@ -868,8 +949,23 @@
                             alpha: 1.0,
                         )),
                     )),
-                    Sequence((
-                        key: "distress",
+                    SuspendPlayerControl(()),
+                    ZeroShipMotion((
+                        id: "kaveri",
+                    )),
+                    SetCameraAnchor((
+                        anchor: "gantry",
+                        offset: (
+                            150.0,
+                            45.0,
+                            -120.0,
+                        ),
+                        frame: World,
+                        look_at: Object("gantry"),
+                    )),
+                    Cinematic((
+                        key: "call",
+                        skippable: true,
                         steps: [
                             (
                                 after: Some(6.0),
@@ -877,6 +973,7 @@
                                     NarrativeCue((
                                         speaker: "Samir",
                                         text: "Traffic. Distress, broad channel, and it is close.",
+                                        icon: Some("self://portraits/samir.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -892,6 +989,7 @@
                                     NarrativeCue((
                                         speaker: "Nadia - Gantry",
                                         text: "Gantry, requesting assistance. Main propulsion disabled.",
+                                        icon: Some("self://portraits/nadia.png"),
                                     )),
                                 ],
                             ),
@@ -901,6 +999,7 @@
                                     NarrativeCue((
                                         speaker: "Samir",
                                         text: "That\'s the captain from Aquila.",
+                                        icon: Some("self://portraits/samir.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -916,6 +1015,7 @@
                                     NarrativeCue((
                                         speaker: "Jonah",
                                         text: "Gantry, Kaveri. We hear you. How many aboard?",
+                                        icon: Some("self://portraits/jonah.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -931,6 +1031,7 @@
                                     NarrativeCue((
                                         speaker: "Nadia - Gantry",
                                         text: "Three. All alive. Owen\'s hurt. We\'ve isolated the damaged spaces.",
+                                        icon: Some("self://portraits/nadia.png"),
                                     )),
                                 ],
                             ),
@@ -940,6 +1041,7 @@
                                     NarrativeCue((
                                         speaker: "Tomas",
                                         text: "We can reach them before their reserves run out. The scheduled recovery can\'t. It costs us the repair plan - Ebro\'s load won\'t be ready.",
+                                        icon: Some("self://portraits/tomas.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -955,6 +1057,7 @@
                                     NarrativeCue((
                                         speaker: "Rina",
                                         text: "Then let\'s get them off it.",
+                                        icon: Some("self://portraits/rina.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -970,6 +1073,7 @@
                                     NarrativeCue((
                                         speaker: "Elena - Baikal",
                                         text: "Kaveri, Baikal. I asked EarthWorks to cover the diversion. Reed has three of his own people on that hull, and the answer was no.",
+                                        icon: Some("self://portraits/elena.png"),
                                     )),
                                 ],
                             ),
@@ -979,6 +1083,7 @@
                                     NarrativeCue((
                                         speaker: "Elena - Baikal",
                                         text: "Clearwell will cover it. Bring them home.",
+                                        icon: Some("self://portraits/elena.png"),
                                     )),
                                 ],
                             ),
@@ -988,6 +1093,7 @@
                                     NarrativeCue((
                                         speaker: "Jonah",
                                         text: "Tomas. Take the intercept.",
+                                        icon: Some("self://portraits/jonah.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -999,41 +1105,52 @@
                             ),
                             (
                                 after: Some(3.5),
-                                actions: [
-                                    VariableSet((
-                                        key: "beat",
-                                        expression: Term(Factor(Literal(Number(7.0)))),
-                                    )),
-                                    Objective((
-                                        id: "reach",
-                                        message: "Come about and close on Gantry.",
-                                    )),
-                                    ObjectiveMarkerAttach((
-                                        target_id: "gantry",
-                                        label: "Gantry",
-                                    )),
-                                    CreateScenarioArea((
-                                        id: "gantry_approach_gate",
-                                        name: "Gantry Gate",
-                                        position: (
-                                            2400.0,
-                                            0.0,
-                                            -6000.0,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        radius: 700.0,
-                                    )),
-                                    HintEmphasisSet((
-                                        verb: "RADAR",
-                                    )),
-                                ],
                             ),
                         ],
+                    )),
+                ],
+            ),
+            (
+                name: OnCinematicFinished,
+                once: true,
+                filters: [
+                    Cinematic((
+                        key: "call",
+                    )),
+                ],
+                actions: [
+                    ReleaseCamera(()),
+                    ResumePlayerControl(()),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(7.0)))),
+                    )),
+                    Objective((
+                        id: "reach",
+                        message: "Come about and close on Gantry.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "gantry",
+                        label: "Gantry",
+                    )),
+                    CreateScenarioArea((
+                        id: "gantry_approach_gate",
+                        name: "Gantry Gate",
+                        position: (
+                            2400.0,
+                            0.0,
+                            -6000.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 700.0,
+                    )),
+                    HintEmphasisSet((
+                        verb: "RADAR",
                     )),
                 ],
             ),
@@ -1066,6 +1183,7 @@
                                     NarrativeCue((
                                         speaker: "Tomas",
                                         text: "Gantry in sight. Matching their motion.",
+                                        icon: Some("self://portraits/tomas.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -1081,6 +1199,7 @@
                                     NarrativeCue((
                                         speaker: "Leila",
                                         text: "Gantry, did the fault reach your docking equipment?",
+                                        icon: Some("self://portraits/leila.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -1096,6 +1215,7 @@
                                     NarrativeCue((
                                         speaker: "Nadia - Gantry",
                                         text: "Not that branch. The collar on our port side is sound, and we can hold attitude.",
+                                        icon: Some("self://portraits/nadia.png"),
                                     )),
                                 ],
                             ),
@@ -1105,6 +1225,7 @@
                                     NarrativeCue((
                                         speaker: "Jonah",
                                         text: "Understood. We come to you.",
+                                        icon: Some("self://portraits/jonah.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
                                             green: 1.0,
@@ -1172,6 +1293,7 @@
                     NarrativeCue((
                         speaker: "Leila",
                         text: "Connection secure. Checking the seal.",
+                        icon: Some("self://portraits/leila.png"),
                     )),
                     TimerStart((
                         key: "transfer_start",
@@ -1220,6 +1342,7 @@
                     NarrativeCue((
                         speaker: "Rina",
                         text: "I\'m Rina. Tell me what he can manage, and we move together.",
+                        icon: Some("self://portraits/rina.png"),
                         accent: Srgba((
                             red: 0.21176471,
                             green: 1.0,
@@ -1248,6 +1371,7 @@
                     NarrativeCue((
                         speaker: "Samir",
                         text: "Owen is aboard and supported. Ivo behind him.",
+                        icon: Some("self://portraits/samir.png"),
                         accent: Srgba((
                             red: 0.21176471,
                             green: 1.0,
@@ -1276,6 +1400,7 @@
                     NarrativeCue((
                         speaker: "Nadia - Gantry",
                         text: "That\'s everyone. Three aboard Kaveri.",
+                        icon: Some("self://portraits/nadia.png"),
                     )),
                     TimerStart((
                         key: "transfer_done",
@@ -1327,6 +1452,7 @@
                     NarrativeCue((
                         speaker: "Rina",
                         text: "We have not got them all. Get back on that collar.",
+                        icon: Some("self://portraits/rina.png"),
                         accent: Srgba((
                             red: 0.21176471,
                             green: 1.0,
@@ -1363,6 +1489,7 @@
                     NarrativeCue((
                         speaker: "Rina",
                         text: "We have not got them all. Get back on that collar.",
+                        icon: Some("self://portraits/rina.png"),
                         accent: Srgba((
                             red: 0.21176471,
                             green: 1.0,
@@ -1429,6 +1556,7 @@
                     NarrativeCue((
                         speaker: "Leila",
                         text: "Connection secure. Checking the seal.",
+                        icon: Some("self://portraits/leila.png"),
                     )),
                     TimerStart((
                         key: "transfer_start",
@@ -1463,6 +1591,7 @@
                     NarrativeCue((
                         speaker: "Jonah",
                         text: "Baikal, Kaveri. We have all three. Coming home.",
+                        icon: Some("self://portraits/jonah.png"),
                     )),
                     Sequence((
                         key: "outro",
@@ -1473,6 +1602,7 @@
                                     NarrativeCue((
                                         speaker: "Elena - Baikal",
                                         text: "Mara has already called from Foundation. The load is late, the penalty stands, and that one is mine to answer. Come home.",
+                                        icon: Some("self://portraits/elena.png"),
                                     )),
                                 ],
                             ),

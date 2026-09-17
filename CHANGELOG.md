@@ -99,6 +99,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Two civilian industrial hulls join the base catalog: `block_workship`, an
   open work cradle over two bell drives, and `block_frame_tender`, a keel under
   two gantry arches. Both carry a flank collar.
+- The frame tender has a raided sister, `block_frame_tender_damaged`: no main
+  drive, its transom and service stack torn off along a ragged edge.
+  Everything forward of the hit, cab and collar, is whole.
 - **(breaking)** A ship is a DESIGN: `Ship`'s `hull` field is now `design`,
   its `collapse_threshold` moves under `integrity`, and its skin, style and
   sounds under `presentation`.
@@ -136,6 +139,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A scenario reacts to docking: `OnDocked` / `OnUndocked` carry the hull docked
   with as `id` and the asking hull as `other_id`. Undock covers every ending,
   a lost port or ship among them.
+- `ZeroShipMotion` takes a ship's velocity away outright, a PLAYER hull
+  included - the cinematic counterpart to `StopShip`, for a scene that cuts
+  away and must not leave you coasting.
 - **(breaking)** Six `SetShipCapability*` actions replace `SetControllerVerb`,
   one per capability (stop, goto, orbit, lock, rcs, point defence), each
   flipping it on the ship root.
@@ -221,6 +227,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The comms backlog holds 24 waiting lines, what three cards can reach while a
   line is still worth reading. A scenario posting faster drops the oldest cue,
   not the line about the fight you are in.
+- Season one's seven voices have faces on the comms panel, taking their skin,
+  hair and coat from the story's own character palettes. A radio caller
+  carries a blue channel chip, the cabin a green one.
 - A mistyped command reads the same at the NOVA OS prompt and in the Commands
   shell: an incomplete command lists its subcommands in both, the listing is
   column-aligned, and the hint under the caret names a bad subcommand before

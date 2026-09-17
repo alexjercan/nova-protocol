@@ -329,6 +329,14 @@ registry::scenario_actions! {
         effect: Injection,
         inspect: Reflect,
     },
+    /// Take a ship's velocity away outright, behind a cut. The cinematic
+    /// counterpart to `StopShip`, and the only one a player hull accepts.
+    ZeroShipMotion(ZeroShipMotionActionConfig) {
+        label: "Zero Ship Motion",
+        stem: "still",
+        effect: Injection,
+        inspect: Reflect,
+    },
     /// Fly an ordered ship one loop of an authored route.
     PatrolShip(PatrolShipActionConfig) {
         label: "Patrol Ship",
