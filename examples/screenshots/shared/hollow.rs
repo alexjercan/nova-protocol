@@ -81,6 +81,53 @@ pub const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
 /// game's small-craft fleet.
 pub const EXPECTED_TORPEDO_COUNT: usize = 1;
 
+/// Scenario id of the boat that keeps its shipped bay, for the frame that runs
+/// the two torpedo types against each other.
+pub const WEAVER_ID: &str = "hollow_weaver";
+/// Scenario id of its twin, the same hull with the other bay in it.
+pub const STRAIGHT_ID: &str = "hollow_straight";
+/// The shipped bay, and the bay it is swapped for: the two catalog sections
+/// that differ in nothing but the torpedo they hold
+/// (`base_content/sections/standard.rs`).
+pub const SERPENT_BAY_SECTION: &str = "torpedo_section";
+/// The straight-running bay, the other half of that pair.
+pub const LANCE_BAY_SECTION: &str = "lance_torpedo_section";
+/// Where the pair sits, and where it shoots: the two ends of a 2.4 km run
+/// laid ACROSS the hollow at one height.
+///
+/// LONG, because this frame's subject is the RUN rather than the launch. The
+/// ordnance boat's own post is 530 m off its target, which the drive covers in
+/// about two seconds - the whole length of a sheet - so a camera framed there
+/// gets the cold drop and the detonation and nothing in between. Two and a
+/// half kilometres buys seven seconds of cruise, and the sheet is cut out of
+/// the middle of it, with both rounds at cap and neither near its fuze.
+///
+/// LEVEL and at 360 m, because the run has to be clear of rock and the rock has
+/// to be in the picture. The shell is 460 m thick about the hollow's waist, so
+/// 360 m is over the top of it; the line passes within 360 m of the hollow's
+/// centre, which is inside the shell's own 480 m hole; and the shell therefore
+/// stands BEHIND and BELOW the two tracks for the whole sheet, which is what
+/// makes a pair of rounds holding station in frame read as moving at all.
+pub const TYPES_POSITION: Meters3 = Meters3::new(1_200.0, 360.0, 700.0);
+/// The far end of that run: where this set parks its raider.
+pub const TYPES_TARGET: Meters3 = Meters3::new(-900.0, 360.0, -500.0);
+/// How far apart the two boats stand - one ABOVE the other, on the same
+/// bearing.
+///
+/// Stacked rather than abreast, because the camera rides abeam: a boat set to
+/// one side of its partner is that much further from the lens than the other,
+/// and the two rounds then arrive on the sheet at different SIZES. Set wide,
+/// the straight round read as a distant spark beside a weaving arrow, which is
+/// a frame that has already told the reader which of the two to look at.
+/// Stacked, both rounds are the same distance from the camera and the same size
+/// in the cell, and nothing separates them but the ordnance.
+///
+/// Seventy meters, because the hull is fifty across: closer than that and the
+/// two boats are inside each other, and the set loads with one of them missing.
+pub const TYPES_SEPARATION: Meters = Meters(70.0);
+/// One bay on each of two boats.
+pub const EXPECTED_TYPE_TORPEDO_COUNT: usize = 2;
+
 /// Seconds each AI flight holds fire after it spawns, so the shots are taken of
 /// a fight that has settled rather than of four ships still sorting out where
 /// they are.
@@ -317,6 +364,158 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
             game_assets.cubemap.clone().into(),
         )
     }
+}
+
+/// The TWO-TYPE set: the ordnance pocket with a SECOND boat beside the first,
+/// carrying the other torpedo.
+///
+/// The two types are one authored difference - a weave angle and a cruise cap
+/// (`base_content/sections/ordnance.rs`) - so a frame that shows them one at a
+/// time shows nothing: a reader cannot tell a corkscrew from a straight line
+/// without the straight line beside it. Two hulls, side by side, firing on the
+/// same bearing in the same second, is the only staging where the difference
+/// is the ONLY thing that differs.
+///
+/// Same hull twice, not two classes. The boats are both
+/// `block_cleanup_leader`, and one of them has its bay prototype swapped -
+/// which is the lesson's own sentence ("Two normal bays ship, and only the
+/// run-in differs") built rather than asserted.
+pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
+    let run = (TYPES_TARGET - TYPES_POSITION).get().normalize_or_zero();
+    let across = run.cross(Vec3::Y).normalize_or_zero();
+    let apart = Meters3(Vec3::Y * (TYPES_SEPARATION.get() * 0.5));
+    // BROADSIDE to the target, so the bay fires ALONG the run.
+    //
+    // A bay ejects across its own hull (`base_content/ships/block.rs` mounts
+    // the cleanup leader's tube on the port flank, turned a quarter turn), and
+    // a boat pointed at its target therefore drops the round out sideways and
+    // leaves the guidance to haul it round. That turn takes longer than a whole
+    // sheet: measured on this set, a round nosed at the target was still 90
+    // percent of the way along its EJECTION line two seconds after launch, and
+    // the inner boat's round crossed the gap and hit the outer boat before the
+    // guidance had bent it anywhere.
+    //
+    // Turning the hulls a quarter turn puts the tube on the run instead, so
+    // both rounds leave on the line they will fly and the sheet is cut from a
+    // cruise rather than from a turn. `looking_to(across)` is that quarter
+    // turn: a hull's port axis is `up x back`, which for this facing is the run.
+    let heading = |_: Meters3| Transform::default().looking_to(across, Vec3::Y).rotation;
+
+    let weaver_at = TYPES_POSITION + apart;
+    let weaver = ship(
+        WEAVER_ID,
+        "Serpent Boat",
+        weaver_at,
+        heading(weaver_at),
+        SpaceshipController::None,
+        Some(Allegiance::Player),
+        kit::catalog_ship(ships, "block_cleanup_leader"),
+    );
+    let straight_at = TYPES_POSITION - apart;
+    let straight = ship(
+        STRAIGHT_ID,
+        "Lance Boat",
+        straight_at,
+        heading(straight_at),
+        SpaceshipController::None,
+        Some(Allegiance::Player),
+        lance_loaded(kit::catalog_ship(ships, "block_cleanup_leader")),
+    );
+    let raider = ship(
+        RAIDER_ID,
+        "Raider",
+        TYPES_TARGET,
+        Quat::from_rotation_y(std::f32::consts::PI - 0.4),
+        SpaceshipController::None,
+        Some(Allegiance::Enemy),
+        kit::catalog_ship(ships, "block_raider"),
+    );
+    // The player's hull is in the set but not in the frame: the camera rides
+    // the salvo a kilometre out. It is here because the game is a game about a
+    // player's ship - the HUD, the camera stack and the load gate all key off
+    // one - and a set without it is a set that behaves differently from the
+    // one the lesson is about.
+    let player = ship(
+        PLAYER_ID,
+        "Player Ship",
+        Meters3::ZERO,
+        Quat::IDENTITY,
+        SpaceshipController::Player(PlayerControllerConfig {
+            input_mapping: BTreeMap::new(),
+            speed_cap: None,
+        }),
+        None,
+        kit::catalog_ship(ships, "block_gunship"),
+    );
+    // A shell, because a camera riding two rounds that hold station in frame
+    // needs something standing still to move against - without it the sheet is
+    // two lit streaks on black and nothing in it says 300 m/s.
+    //
+    // PUSHED WAY BACK, unlike the other sets' shells. Those frame a hull at a
+    // hundred meters and want the rock close; this one rides a torpedo through
+    // the middle of the hollow, and the frame it needs is about 200 m across -
+    // wide enough for a 90 m corkscrew - in which a ten-meter round is already
+    // small. Rock anywhere near that range is BIGGER than the subject and
+    // brighter, and two cuts of this frame came back as a picture of boulders
+    // with ordnance in the gaps. Three kilometres out the same rock is thirty
+    // pixels. SPARSE as well as far: a shell dense enough to always have rock
+    // in the cell puts a bright clump in the same corner of all twenty of them,
+    // which reads as a photograph rather than as a loop.
+    let shell = kit::NearField {
+        id_prefix: "types_rock_",
+        count: 14,
+        seed: 40511,
+        center: Meters3::ZERO,
+        distance: (Meters(3_200.0), Meters(5_200.0)),
+        radius: (Meters(40.0), Meters(100.0)),
+        y_spread: Meters(2_400.0),
+    };
+
+    ScenarioConfig {
+        description: "The rock hollow with one boat of each torpedo in it.".to_string(),
+        events: vec![ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![],
+            actions: [
+                vec![shell.action(game_assets), player, raider, weaver, straight],
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
+            ]
+            .concat(),
+        }],
+        ..ScenarioConfig::new(
+            "rock_hollow_types".to_string(),
+            "Rock Hollow - Torpedo Types".to_string(),
+            game_assets.cubemap.clone().into(),
+        )
+    }
+}
+
+/// The same design with every Serpent bay on it swapped for a Lance bay.
+///
+/// By PROTOTYPE rather than by patching the loaded torpedo: the two bays are
+/// both shipped catalog sections, so a swapped id gives the boat the ordnance a
+/// player would actually have fitted, tint and cruise cap and weave together,
+/// with nothing authored example-side that the game does not already ship.
+#[cfg(feature = "debug")]
+fn lance_loaded(mut design: ShipDesign) -> ShipDesign {
+    let mut swapped = 0usize;
+    for section in &mut design.sections {
+        let SectionSource::Prototype { id, .. } = &section.source else {
+            continue;
+        };
+        if id != SERPENT_BAY_SECTION {
+            continue;
+        }
+        section.source = SectionSource::prototype(LANCE_BAY_SECTION);
+        swapped += 1;
+    }
+    assert_eq!(
+        swapped, EXPECTED_TORPEDO_COUNT,
+        "the cleanup leader carries exactly the bays this swap was written for"
+    );
+    design
 }
 
 /// The SOLO set: the player's hull alone in a thinned rock shell.
@@ -1106,18 +1305,29 @@ pub fn under(world: &World, entity: Entity, root: Entity) -> bool {
 /// is the production path.
 #[cfg(feature = "debug")]
 pub fn loose_torpedoes(world: &mut World) {
-    let Some(lance) = ship_by_id(world, LANCE_ID) else {
-        warn!("hollow: no torpedo boat to fire");
+    loose_torpedoes_from(world, LANCE_ID);
+}
+
+/// The same trigger, on a boat named by its scenario id.
+///
+/// The two-type set fires two boats in the SAME beat, so each one is pulled by
+/// id: a salvo that left one tube a beat before the other is a picture of two
+/// rounds at different points of the same run, which is the one reading this
+/// frame must not give.
+#[cfg(feature = "debug")]
+pub fn loose_torpedoes_from(world: &mut World, id: &str) {
+    let Some(boat) = ship_by_id(world, id) else {
+        warn!("hollow: no torpedo boat `{id}` to fire");
         return;
     };
     let bays: Vec<Entity> = world
         .query_filtered::<(Entity, &ChildOf), With<TorpedoSectionMarker>>()
         .iter(world)
-        .filter(|(_, parent)| parent.parent() == lance)
+        .filter(|(_, parent)| parent.parent() == boat)
         .map(|(bay, _)| bay)
         .collect();
     if bays.is_empty() {
-        warn!("hollow: the torpedo boat has no bays");
+        warn!("hollow: the torpedo boat `{id}` has no bays");
         return;
     }
     for bay in &bays {
@@ -1125,7 +1335,7 @@ pub fn loose_torpedoes(world: &mut World) {
             **input = true;
         }
     }
-    info!("hollow: {} torpedo bay(s) firing", bays.len());
+    info!("hollow: {} torpedo bay(s) firing on `{id}`", bays.len());
 }
 
 /// Commit the salvo to the raider and drop the trigger.
@@ -1140,6 +1350,12 @@ pub fn loose_torpedoes(world: &mut World) {
 /// fire-rate clock.
 #[cfg(feature = "debug")]
 pub fn commit_torpedoes(world: &mut World) {
+    commit_torpedo_salvo(world, EXPECTED_TORPEDO_COUNT);
+}
+
+/// The same commit, for a set whose salvo is not one round.
+#[cfg(feature = "debug")]
+pub fn commit_torpedo_salvo(world: &mut World, expected: usize) {
     let Some(raider) = raider_root(world) else {
         warn!("hollow: no raider to commit the salvo to");
         return;
@@ -1159,7 +1375,7 @@ pub fn commit_torpedoes(world: &mut World) {
         .collect();
     assert_eq!(
         torpedoes.len(),
-        EXPECTED_TORPEDO_COUNT,
+        expected,
         "hollow: the ordnance set must commit the complete salvo"
     );
     for torpedo in &torpedoes {

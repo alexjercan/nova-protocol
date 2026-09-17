@@ -729,6 +729,10 @@ name = "lesson_combat_moves"
 path = "examples/screenshots/lesson_combat_moves.rs"
 
 [[example]]
+name = "lesson_combat_torpedo_types"
+path = "examples/screenshots/lesson_combat_torpedo_types.rs"
+
+[[example]]
 name = "lesson_combat_torpedoes"
 path = "examples/screenshots/lesson_combat_torpedoes.rs"
 

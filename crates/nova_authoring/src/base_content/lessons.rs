@@ -706,9 +706,9 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Serpent and Lance",
             looping(
                 "combat_torpedo_types",
-                "two torpedoes running in side by side on the same gunship: the Serpent \
-                 corkscrewing around its guidance line while the Lance holds a dead straight track \
-                 and pulls ahead",
+                "two torpedoes on the same run, filmed from beside the straight one: the pale \
+                 Lance holds its guidance line dead still in frame while the orange Serpent swings \
+                 down and away from it on the corkscrew and drops further behind every frame",
             ),
             "Two normal bays ship, and only the run-in differs. A Serpent weaves, so one defending \
              mount spends 390 rounds and only kills it 400 m out. A Lance flies straight and \
