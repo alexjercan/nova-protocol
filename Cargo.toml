@@ -777,6 +777,14 @@ name = "lesson_menu_mouse"
 path = "examples/screenshots/lesson_menu_mouse.rs"
 
 [[example]]
+name = "lesson_menu_quality"
+path = "examples/screenshots/lesson_menu_quality.rs"
+
+[[example]]
+name = "lesson_readouts"
+path = "examples/screenshots/lesson_readouts.rs"
+
+[[example]]
 name = "lesson_flight_limits"
 path = "examples/screenshots/lesson_flight_limits.rs"
 

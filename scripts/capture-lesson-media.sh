@@ -78,6 +78,7 @@ PRODUCERS=(
     "lesson_flight_limits|flight_speedcap:loop,flight_cancel:loop"
     "lesson_flight_well|flight_gravity:loop,flight_arrival:loop"
     "lesson_combat_radar|combat_radar:loop"
+    "lesson_readouts|start_units:still,combat_lock_ranges:still"
     "lesson_combat_moves|combat_stance:loop,combat_components:loop,combat_turrets:still"
     "lesson_combat_field|combat_allegiance:still,combat_cover:loop"
     "lesson_combat_rounds|combat_damage_types:loop"
@@ -95,6 +96,7 @@ PRODUCERS=(
     "lesson_novaos_ship|novaos_service:loop,novaos_rebind_section:loop"
     "lesson_menu_advanced|advanced_scenarios:still,advanced_mods:still,advanced_bindings:still"
     "lesson_menu_mouse|advanced_mouse:loop"
+    "lesson_menu_quality|advanced_audio:still,advanced_graphics:still"
 )
 
 # What the authored lessons cut a sheet on
