@@ -231,6 +231,26 @@ pub(crate) const APPROACH: Mark = Mark {
     area: Meters(700.0),
 };
 
+/// A second ring inside the first, on the same place: where the crew stop
+/// looking at the wreck and start talking about docking with it.
+///
+/// Two rings rather than one, because the two things that used to happen at
+/// 700 m want different distances. ARRIVING is a milestone and belongs where
+/// the hull fills the canopy - the card comes down, the marker comes off, and
+/// somebody says they can see it. TALKING about the collar is four cards' worth
+/// of reading, and at 700 m the player is still braking out of a course change
+/// while they land. Inside this ring the approach is nearly over: the ship is
+/// slow, the flying left is the last hundred metres of it, and the dialogue has
+/// somebody's attention.
+///
+/// A gate and nothing else, like the ring outside it.
+pub(crate) const STANDOFF: Mark = Mark {
+    id: "gantry_standoff",
+    label: GANTRY_NAME,
+    position: GANTRY_POSITION,
+    area: Meters(450.0),
+};
+
 /// The rock the lane runs through: one box of small bodies around the whole
 /// run, seeded, so the field is the same field every time the chapter is
 /// flown and a route that worked once works again.

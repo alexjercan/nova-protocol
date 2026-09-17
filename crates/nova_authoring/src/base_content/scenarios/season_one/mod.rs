@@ -102,6 +102,14 @@ const BEAT_WON: f64 = 13.0;
 // --- timings -----------------------------------------------------------------
 //
 // Authored timings, not physics: nudge them after playtest.
+//
+// The gaps below are all at least the six seconds the 2026-09-17 playtest
+// asked for, and they are gaps between ARRIVALS rather than holds. The comms
+// panel keeps a card for eight seconds and shows three at once, so it was
+// never the panel rushing the reader: a four-second gap simply put a new card
+// on the stack while the two before it were still worth reading, and the
+// newest one shunted them upward as it landed. At six or seven the card being
+// read is usually the only one moving.
 
 /// The opening scene, and how long its card stays up.
 const SCENE_OPEN: &str = "open";
@@ -112,9 +120,10 @@ const OPEN_OFFSET: Meters3 = Meters3::new(120.0, 45.0, 150.0);
 /// First line of the scene, after the card has been on screen a beat.
 const OPEN_FIRST_AT: f64 = 2.5;
 /// Between two crew lines.
-const OPEN_GAP: f64 = 4.5;
-/// Around the captain's answer: short, because it is an answer.
-const OPEN_REPLY_GAP: f64 = 3.0;
+const OPEN_GAP: f64 = 6.5;
+/// Around an answer, or a second card from the same voice: shorter, because it
+/// is the same thought continuing.
+const OPEN_REPLY_GAP: f64 = 5.0;
 
 /// A mark's arrival line -> the next mark. Short: the ship is still moving,
 /// and the lane is one continuous run rather than seven separate lessons.
@@ -142,18 +151,31 @@ const CALL_OFFSET: Meters3 = Meters3::new(150.0, 45.0, -120.0);
 /// LANE-4 -> the traffic. Long enough that the lane feels finished first.
 const CALL_OPEN_AT: f64 = 6.0;
 /// Between two lines of the call.
-const CALL_GAP: f64 = 4.5;
-/// Around a short answer.
-const CALL_REPLY_GAP: f64 = 3.0;
-/// The captain's order -> the course change on the HUD.
-const CALL_ORDER_GAP: f64 = 3.5;
+const CALL_GAP: f64 = 6.5;
+/// Around a short answer, or the second half of a line somebody split in two.
+const CALL_REPLY_GAP: f64 = 5.0;
+/// The captain's order -> the course change on the HUD. Long enough that the
+/// order is still on screen, and read, when the objective chip pops under it.
+const CALL_ORDER_GAP: f64 = 4.5;
 
-/// The approach chain: the port check, and the commitment.
+/// The approach chain: the port check, and the commitment. It runs from the
+/// INNER ring (`STANDOFF`), not from the arrival gate - see that mark.
 const SEQ_APPROACH: &str = "approach";
-const NEAR_FIRST_AT: f64 = 1.5;
-const NEAR_GAP: f64 = 4.0;
-/// "We come to you" -> the docking card. The line commits, the card says how.
-const NEAR_DOCK_GAP: f64 = 3.5;
+const NEAR_FIRST_AT: f64 = 2.0;
+const NEAR_GAP: f64 = 6.0;
+/// "We come to you" -> the docking card. The line commits, the card names the
+/// goal, and the DOCK chip under it carries the key.
+const NEAR_DOCK_GAP: f64 = 5.0;
+
+/// The timer the docking card is posted on, rather than the last step of the
+/// approach sequence itself.
+///
+/// The card has to be able to NOT arrive. A captain who is already on the
+/// collar when this lands has moved the beat past `BEAT_REACH`, and a pending
+/// timer whose beat has moved fires into a handler that no longer matches - the
+/// same device the evacuation is written on. A sequence step would have run
+/// regardless and posted a card for a dock that had already happened.
+const TIMER_DOCK: &str = "dock_card";
 
 /// The evacuation's beats, in order, as timer keys. Each one is armed by the
 /// beat before it and gated on the clamp still being on.
@@ -166,8 +188,10 @@ const TRANSFER_KEYS: [&str; 5] = [
 ];
 /// The clamp -> the hold card.
 const TRANSFER_CARD_AFTER: f64 = 4.0;
-/// Between two beats of people crossing.
-const TRANSFER_GAP: f64 = 5.0;
+/// Between two beats of people crossing. The helm is dead while the clamp is
+/// on, so this is the one stretch where reading costs nothing - but it is read
+/// against a static picture, which is its own kind of slow.
+const TRANSFER_GAP: f64 = 6.0;
 /// The last head count -> the release card.
 const TRANSFER_DONE_AFTER: f64 = 4.0;
 
@@ -364,8 +388,10 @@ pub(crate) fn chapter_one(
                 ),
                 crew_line(OPEN_FIRST_AT, script::RINA, script::OPEN_LOAD),
                 crew_line(OPEN_GAP, script::TOMAS, script::OPEN_LANE),
+                crew_line(OPEN_REPLY_GAP, script::TOMAS, script::OPEN_CHOICE),
                 crew_line(OPEN_GAP, script::LEILA, script::OPEN_COST),
                 crew_line(OPEN_REPLY_GAP, script::JONAH, script::OPEN_ORDER),
+                crew_line(OPEN_GAP, script::TOMAS, script::OPEN_MARKS),
                 crew_line(OPEN_REPLY_GAP, script::TOMAS, script::OPEN_HANDOVER),
             ],
         ),
@@ -475,8 +501,10 @@ pub(crate) fn chapter_one(
                             crew_line(CALL_REPLY_GAP, script::JONAH, script::CALL_ANSWER),
                             radio_line(CALL_GAP, script::NADIA, script::CALL_THREE),
                             crew_line(CALL_GAP, script::TOMAS, script::CALL_COST),
+                            crew_line(CALL_REPLY_GAP, script::TOMAS, script::CALL_PRICE),
                             crew_line(CALL_GAP, script::RINA, script::CALL_RINA),
                             radio_line(CALL_GAP, script::ELENA, script::CALL_REFUSAL),
+                            radio_line(CALL_REPLY_GAP, script::ELENA, script::CALL_REED),
                             radio_line(CALL_GAP, script::ELENA, script::CALL_BACKING),
                             crew_line(CALL_REPLY_GAP, script::JONAH, script::CALL_DECISION),
                             // The hold: the captain's order lands, and the
@@ -508,31 +536,72 @@ pub(crate) fn chapter_one(
                 show_hint_emphasis(HINT_RADAR),
             ],
         ),
-        // Standing off Gantry: the port check, and then the collar.
+        // Arriving. The card comes down, the marker comes off the hull, and
+        // somebody says they can see it: one line for a moment that is worth
+        // one line. The conversation about docking waits for the ring inside
+        // this one, where the ship is slow enough to be read to.
         once(
             EventConfig::OnEnter,
             vec![APPROACH.entered_by(ID_KAVERI), in_beat(BEAT_REACH)],
             vec![
                 complete_objective(OBJ_REACH),
                 despawn_object(APPROACH.gate_id()),
+                crew(script::TOMAS, script::NEAR_SIGHT),
+                STANDOFF.raise_gate(),
+            ],
+        ),
+        // Inside the standoff ring: the port check, the answer, and the order.
+        // The card itself is not the last STEP of this chain but a timer the
+        // last step arms - see `TIMER_DOCK`.
+        once(
+            EventConfig::OnEnter,
+            vec![STANDOFF.entered_by(ID_KAVERI), in_beat(BEAT_REACH)],
+            vec![
+                despawn_object(STANDOFF.gate_id()),
                 sequence(
                     SEQ_APPROACH,
                     vec![
-                        crew_line(NEAR_FIRST_AT, script::TOMAS, script::NEAR_SIGHT),
-                        crew_line(NEAR_GAP, script::LEILA, script::NEAR_PORT_CHECK),
+                        crew_line(NEAR_FIRST_AT, script::LEILA, script::NEAR_PORT_CHECK),
                         radio_line(NEAR_GAP, script::NADIA, script::NEAR_PORT_SOUND),
-                        crew_line(NEAR_GAP, script::JONAH, script::NEAR_COMMIT),
                         step(
-                            NEAR_DOCK_GAP,
+                            NEAR_GAP,
                             vec![
-                                advance(BEAT_DOCK),
-                                post_objective(OBJ_DOCK, script::OBJ_TEXT_DOCK),
-                                show_hint_emphasis(HINT_DOCK),
-                                show_hint_emphasis(HINT_RCS),
+                                crew(script::JONAH, script::NEAR_COMMIT),
+                                start_timer(TIMER_DOCK, NEAR_DOCK_GAP),
                             ],
                         ),
                     ],
                 ),
+            ],
+        ),
+        // The docking card, a breath behind the order that commits to it, and
+        // only while the collar is still empty.
+        once(
+            EventConfig::OnTimerEnd,
+            vec![timer(TIMER_DOCK), in_beat(BEAT_REACH)],
+            vec![
+                advance(BEAT_DOCK),
+                post_objective(OBJ_DOCK, script::OBJ_TEXT_DOCK),
+                show_hint_emphasis(HINT_DOCK),
+                show_hint_emphasis(HINT_RCS),
+            ],
+        ),
+        // A captain already on the collar when the card would have arrived.
+        // DOCK is in the player's hands from the first frame of the chapter, so
+        // this is reachable - and without it the clamp lands in a beat nothing
+        // listens to, the card posts behind it, and the chapter has no way
+        // forward but letting go again. The pending `TIMER_DOCK` fires into a
+        // beat that has moved and says nothing, which is the whole reason the
+        // card is a timer.
+        once(
+            EventConfig::OnDocked,
+            vec![clamp(), in_beat(BEAT_REACH)],
+            vec![
+                clear_hint_emphasis(HINT_RADAR),
+                detach_objective_marker(ID_GANTRY),
+                advance(BEAT_HOLD),
+                comms(script::LEILA, script::DOCK_SEAL),
+                start_timer(TRANSFER_KEYS[0], TRANSFER_CARD_AFTER),
             ],
         ),
         // The clamp. Repeatable on purpose: a captain who lets go and comes

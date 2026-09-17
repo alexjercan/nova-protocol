@@ -472,11 +472,11 @@
                                 ],
                             ),
                             (
-                                after: Some(4.5),
+                                after: Some(6.5),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Tomas",
-                                        text: "Rock is thick on the direct line. I can take us around it, or thread it and save us the hour.",
+                                        text: "Rock is thick on the direct line.",
                                         icon: Some("self://portraits/tomas.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
@@ -488,7 +488,23 @@
                                 ],
                             ),
                             (
-                                after: Some(4.5),
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Tomas",
+                                        text: "I can take us around it, or thread it and save us the hour.",
+                                        icon: Some("self://portraits/tomas.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Leila",
@@ -504,7 +520,7 @@
                                 ],
                             ),
                             (
-                                after: Some(3.0),
+                                after: Some(5.0),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Jonah",
@@ -520,11 +536,27 @@
                                 ],
                             ),
                             (
-                                after: Some(3.0),
+                                after: Some(6.5),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Tomas",
-                                        text: "Marks are up. She is carrying something today, so slide her across with the thrusters - [SHIFT] and the mouse. Do not swing her.",
+                                        text: "Marks are up. She is carrying something today.",
+                                        icon: Some("self://portraits/tomas.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Tomas",
+                                        text: "Slide her across with the thrusters - [SHIFT] and the mouse. Do not swing her.",
                                         icon: Some("self://portraits/tomas.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
@@ -556,7 +588,7 @@
                     )),
                     Objective((
                         id: "lane",
-                        message: "Thread the lane home - hold [SHIFT] and the mouse to slide between the marks.",
+                        message: "Thread the lane home.",
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -984,7 +1016,7 @@
                                 ],
                             ),
                             (
-                                after: Some(4.5),
+                                after: Some(6.5),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Nadia - Gantry",
@@ -994,7 +1026,7 @@
                                 ],
                             ),
                             (
-                                after: Some(3.0),
+                                after: Some(5.0),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Samir",
@@ -1010,7 +1042,7 @@
                                 ],
                             ),
                             (
-                                after: Some(3.0),
+                                after: Some(5.0),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Jonah",
@@ -1026,7 +1058,7 @@
                                 ],
                             ),
                             (
-                                after: Some(4.5),
+                                after: Some(6.5),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Nadia - Gantry",
@@ -1036,11 +1068,11 @@
                                 ],
                             ),
                             (
-                                after: Some(4.5),
+                                after: Some(6.5),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Tomas",
-                                        text: "We can reach them before their reserves run out. The scheduled recovery can\'t. It costs us the repair plan - Ebro\'s load won\'t be ready.",
+                                        text: "We can reach them before their reserves run out. The scheduled recovery can\'t.",
                                         icon: Some("self://portraits/tomas.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
@@ -1052,7 +1084,23 @@
                                 ],
                             ),
                             (
-                                after: Some(4.5),
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Tomas",
+                                        text: "It costs us the repair plan. Ebro\'s load won\'t be ready.",
+                                        icon: Some("self://portraits/tomas.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Rina",
@@ -1068,17 +1116,27 @@
                                 ],
                             ),
                             (
-                                after: Some(4.5),
+                                after: Some(6.5),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Elena - Baikal",
-                                        text: "Kaveri, Baikal. I asked EarthWorks to cover the diversion. Reed has three of his own people on that hull, and the answer was no.",
+                                        text: "Kaveri, Baikal. I asked EarthWorks to cover the diversion.",
                                         icon: Some("self://portraits/elena.png"),
                                     )),
                                 ],
                             ),
                             (
-                                after: Some(4.5),
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Elena - Baikal",
+                                        text: "Reed has three of his own people on that hull, and the answer was no.",
+                                        icon: Some("self://portraits/elena.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Elena - Baikal",
@@ -1088,7 +1146,7 @@
                                 ],
                             ),
                             (
-                                after: Some(3.0),
+                                after: Some(5.0),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Jonah",
@@ -1104,7 +1162,7 @@
                                 ],
                             ),
                             (
-                                after: Some(3.5),
+                                after: Some(4.5),
                             ),
                         ],
                     )),
@@ -1174,27 +1232,57 @@
                     DespawnScenarioObject((
                         id: "gantry_approach_gate",
                     )),
+                    NarrativeCue((
+                        speaker: "Tomas",
+                        text: "Gantry in sight. Matching their motion.",
+                        icon: Some("self://portraits/tomas.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    CreateScenarioArea((
+                        id: "gantry_standoff_gate",
+                        name: "Gantry Gate",
+                        position: (
+                            2400.0,
+                            0.0,
+                            -6000.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 450.0,
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("gantry_standoff_gate"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                ],
+                actions: [
+                    DespawnScenarioObject((
+                        id: "gantry_standoff_gate",
+                    )),
                     Sequence((
                         key: "approach",
                         steps: [
                             (
-                                after: Some(1.5),
-                                actions: [
-                                    NarrativeCue((
-                                        speaker: "Tomas",
-                                        text: "Gantry in sight. Matching their motion.",
-                                        icon: Some("self://portraits/tomas.png"),
-                                        accent: Srgba((
-                                            red: 0.21176471,
-                                            green: 1.0,
-                                            blue: 0.4745098,
-                                            alpha: 1.0,
-                                        )),
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(4.0),
+                                after: Some(2.0),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Leila",
@@ -1210,7 +1298,7 @@
                                 ],
                             ),
                             (
-                                after: Some(4.0),
+                                after: Some(6.0),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Nadia - Gantry",
@@ -1220,11 +1308,11 @@
                                 ],
                             ),
                             (
-                                after: Some(4.0),
+                                after: Some(6.0),
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Jonah",
-                                        text: "Understood. We come to you.",
+                                        text: "Understood, we come to you. Tomas - hold her on the radar.",
                                         icon: Some("self://portraits/jonah.png"),
                                         accent: Srgba((
                                             red: 0.21176471,
@@ -1233,28 +1321,77 @@
                                             alpha: 1.0,
                                         )),
                                     )),
-                                ],
-                            ),
-                            (
-                                after: Some(3.5),
-                                actions: [
-                                    VariableSet((
-                                        key: "beat",
-                                        expression: Term(Factor(Literal(Number(8.0)))),
-                                    )),
-                                    Objective((
-                                        id: "dock",
-                                        message: "Hold Gantry on the radar, bring Kaveri\'s collar onto her port side slowly, and press [D].",
-                                    )),
-                                    HintEmphasisSet((
-                                        verb: "DOCK",
-                                    )),
-                                    HintEmphasisSet((
-                                        verb: "RCS",
+                                    TimerStart((
+                                        key: "dock_card",
+                                        seconds: Term(Factor(Literal(Number(5.0)))),
                                     )),
                                 ],
                             ),
                         ],
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                once: true,
+                filters: [
+                    Timer((
+                        key: "dock_card",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(8.0)))),
+                    )),
+                    Objective((
+                        id: "dock",
+                        message: "Bring Kaveri\'s collar onto Gantry\'s port side.",
+                    )),
+                    HintEmphasisSet((
+                        verb: "DOCK",
+                    )),
+                    HintEmphasisSet((
+                        verb: "RCS",
+                    )),
+                ],
+            ),
+            (
+                name: OnDocked,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("gantry"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "RADAR",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gantry",
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(9.0)))),
+                    )),
+                    NarrativeCue((
+                        speaker: "Leila",
+                        text: "Connection secure. Checking the seal.",
+                        icon: Some("self://portraits/leila.png"),
+                    )),
+                    TimerStart((
+                        key: "transfer_start",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
                     )),
                 ],
             ),
@@ -1323,7 +1460,7 @@
                     )),
                     TimerStart((
                         key: "transfer_owen",
-                        seconds: Term(Factor(Literal(Number(5.0)))),
+                        seconds: Term(Factor(Literal(Number(6.0)))),
                     )),
                 ],
             ),
@@ -1352,7 +1489,7 @@
                     )),
                     TimerStart((
                         key: "transfer_aboard",
-                        seconds: Term(Factor(Literal(Number(5.0)))),
+                        seconds: Term(Factor(Literal(Number(6.0)))),
                     )),
                 ],
             ),
@@ -1381,7 +1518,7 @@
                     )),
                     TimerStart((
                         key: "transfer_all",
-                        seconds: Term(Factor(Literal(Number(5.0)))),
+                        seconds: Term(Factor(Literal(Number(6.0)))),
                     )),
                 ],
             ),
@@ -1429,7 +1566,7 @@
                     )),
                     Objective((
                         id: "release",
-                        message: "Release the clamp ([D]) and take them home.",
+                        message: "Let go and take them home.",
                     )),
                     HintEmphasisSet((
                         verb: "DOCK",
@@ -1525,7 +1662,7 @@
                     )),
                     Objective((
                         id: "dock",
-                        message: "Get back on Gantry\'s collar and press [D].",
+                        message: "Get back on Gantry\'s collar.",
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "gantry",
@@ -1601,7 +1738,7 @@
                                 actions: [
                                     NarrativeCue((
                                         speaker: "Elena - Baikal",
-                                        text: "Mara has already called from Foundation. The load is late, the penalty stands, and that one is mine to answer. Come home.",
+                                        text: "The load is late and Foundation has already called. That one is mine. Come home.",
                                         icon: Some("self://portraits/elena.png"),
                                     )),
                                 ],

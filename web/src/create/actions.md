@@ -349,6 +349,15 @@ Two lines the player must tell apart should differ by more than a shade. The
 useful distance is being CALLED versus OVERHEARING, and blue against amber reads
 at a glance where two blues do not.
 
+**Pacing is yours, not the panel's.** A card holds its full time whatever is
+waiting behind it - the panel never takes reading time back to catch up - so
+the gap between two POSTS is what sets the reading rate. Post a line every 3-4
+seconds and the reader has three cards up, the newest shoving the others
+upward as it lands; six to seven seconds leaves the card being read as the only
+one moving. Budget more where the player is flying and less where a cut has
+taken the helm, and keep a line to one thought: a card that needs longer than
+its hold is two lines, not one line held open.
+
 Scenario-scoped: teardown clears the log.
 
 Two story lines in one handler is a lint Warn (unreadable); a story line

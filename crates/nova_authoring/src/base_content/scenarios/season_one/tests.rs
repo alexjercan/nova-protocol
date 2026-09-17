@@ -11,6 +11,8 @@ use std::collections::BTreeSet;
 
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{Allegiance, GravitySettings, GravityWell};
+#[cfg(doc)]
+use nova_hud::prelude::COMMS_DWELL_SECS;
 
 use super::*;
 use crate::base_content::{scenarios::marks::Mark, ships};
@@ -429,23 +431,173 @@ fn the_docking_card_and_the_docking_beat_arrive_together() {
     }
 }
 
+/// Every beat a clamp can land in has a handler.
+///
+/// DOCK is in the player's hands from the first frame, so the chapter does not
+/// get to decide when the collar is taken - only what happens when it is. The
+/// three beats are: before the card was ever posted, on the card, and inside
+/// the breath after a release. A beat with no handler is a clamp that does
+/// nothing and a chapter with no way forward.
+/// The approach is two rings, and the talking belongs to the inner one.
+///
+/// Arriving is a milestone and happens where the hull fills the canopy; the
+/// four cards' worth of docking talk happens 250 m further in, where the ship
+/// is nearly stopped. A pass that moved the conversation back out to the
+/// arrival gate would hand it to a captain who is still braking.
 #[test]
-fn a_clamp_inside_the_regrip_breath_is_heard() {
+fn the_approach_talks_from_the_inner_ring() {
+    let config = config();
+    let handler = |mark: &Mark| {
+        config
+            .events
+            .iter()
+            .find(|event| has_filter(event, &mark.entered_by(ID_KAVERI)))
+            .unwrap_or_else(|| panic!("'{}' has an arrival handler", mark.id))
+    };
+    let lines = |event: &ScenarioEventConfig| {
+        event
+            .action_groups()
+            .into_iter()
+            .flatten()
+            .filter(|action| matches!(action, EventActionConfig::NarrativeCue(_)))
+            .count()
+    };
+
+    assert!(
+        STANDOFF.area.0 < APPROACH.area.0 && STANDOFF.position == APPROACH.position,
+        "the standoff ring is inside the arrival gate, on the same place"
+    );
+
+    let outer = handler(&APPROACH);
+    assert_eq!(
+        lines(outer),
+        1,
+        "arriving says one thing: they can see the ship"
+    );
+    assert!(
+        has_action(&outer.actions, &complete_objective(OBJ_REACH))
+            && has_action(&outer.actions, &STANDOFF.raise_gate()),
+        "arriving takes the course-change card down and arms the ring inside it"
+    );
+
+    let inner = handler(&STANDOFF);
+    assert!(
+        lines(inner) > 1,
+        "the docking conversation runs from the inner ring"
+    );
+    assert!(
+        !inner
+            .action_groups()
+            .into_iter()
+            .flatten()
+            .any(|action| matches!(action, EventActionConfig::Objective(_))),
+        "the card is armed on a timer behind the conversation, not posted inside it"
+    );
+    assert_eq!(
+        gated_beat(inner),
+        Some(BEAT_REACH),
+        "the ring is only heard while the chapter is still on its way in"
+    );
+}
+
+/// Nothing the chapter puts on screen asks for more than one thought.
+///
+/// The 2026-09-17 playtest: cards were landing on top of each other while the
+/// ship was being flown, and the two worst offenders were a comms line long
+/// enough to need two cards' worth of reading and an objective carrying three
+/// separate instructions. The comms panel holds a card for
+/// [`COMMS_DWELL_SECS`] and shows three at once, which is the budget these two
+/// ceilings are drawn from - an objective is read at a glance, a line is read
+/// once.
+#[test]
+fn no_card_asks_for_more_than_one_thought() {
+    const LINE_CEILING: usize = 90;
+    const OBJECTIVE_CEILING: usize = 60;
+
+    let config = config();
+    for action in all_actions(&config) {
+        match action {
+            EventActionConfig::NarrativeCue(cue) => assert!(
+                cue.text.chars().count() <= LINE_CEILING,
+                "'{}' says {} characters - split it at the full stop it already has",
+                cue.speaker,
+                cue.text.chars().count(),
+            ),
+            EventActionConfig::Objective(objective) => assert!(
+                objective.message.chars().count() <= OBJECTIVE_CEILING,
+                "the '{}' card is {} characters - an objective is the goal, and how \
+                 to do it belongs to a crew line or the keybind chip",
+                objective.id,
+                objective.message.chars().count(),
+            ),
+            _ => {}
+        }
+    }
+}
+
+#[test]
+fn every_beat_a_clamp_can_land_in_is_heard() {
     let config = config();
     let clamps: Vec<&ScenarioEventConfig> = config
         .events
         .iter()
         .filter(|event| matches!(event.name, EventConfig::OnDocked))
         .collect();
+    let heard: BTreeSet<String> = clamps
+        .iter()
+        .map(|event| format!("{:?}", gated_beat(event)))
+        .collect();
+    let wanted: BTreeSet<String> = [BEAT_REACH, BEAT_DOCK, BEAT_REGRIP]
+        .into_iter()
+        .map(|beat| format!("{:?}", Some(beat)))
+        .collect();
     assert_eq!(
-        clamps.len(),
-        2,
-        "a clamp lands either on the ask or inside the breath after a release"
+        heard, wanted,
+        "a clamp lands before the card, on the card, or inside the breath after \
+         a release - and each is heard"
     );
+    for event in &clamps {
+        assert!(
+            has_filter(event, &clamp()),
+            "a clamp is heard only from Kaveri taking Gantry's collar"
+        );
+    }
+
+    // The early one starts the evacuation without posting or completing a card:
+    // none was ever up, and the pending docking timer lands in a beat that has
+    // moved and says nothing.
+    let early = clamps
+        .iter()
+        .find(|event| gated_beat(event) == Some(BEAT_REACH))
+        .expect("a clamp before the card is heard");
+    assert!(
+        !early
+            .action_groups()
+            .into_iter()
+            .flatten()
+            .any(|action| matches!(
+                action,
+                EventActionConfig::Objective(_) | EventActionConfig::ObjectiveComplete(_)
+            )),
+        "no docking card existed yet, so none is posted or taken down"
+    );
+    assert!(
+        has_action(&early.actions, &advance(BEAT_HOLD))
+            && has_action(
+                &early.actions,
+                &start_timer(TRANSFER_KEYS[0], TRANSFER_CARD_AFTER)
+            ),
+        "an early clamp starts the evacuation rather than dead-ending the chapter"
+    );
+
     let fast = clamps
         .iter()
         .find(|event| gated_beat(event) == Some(BEAT_REGRIP))
         .expect("the regrip beat hears a clamp of its own");
+    assert!(
+        !fast.once,
+        "a captain may let go and come back more than once"
+    );
     assert!(
         !fast
             .action_groups()

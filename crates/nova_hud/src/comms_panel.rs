@@ -5,10 +5,12 @@
 //! story log (nova_scenario), whose sync copies it into [`StoryFeed`] here
 //! (write-on-diff). The panel presents that feed as a bottom-left chat stack:
 //! several lines can be visible at once, newest at the bottom, older cards
-//! pushed up and fading. Per-line dwell still defaults
-//! to [`COMMS_DWELL_SECS`] and clamps to
-//! [`COMMS_DWELL_MIN_SECS`]..[`COMMS_DWELL_MAX_SECS`]. A bounded visible
-//! window paces bursts, and a backlog bounded by [`COMMS_PENDING_CAP`] holds
+//! pushed up and fading. A line holds for [`COMMS_DWELL_SECS`] whatever else
+//! is waiting - an authored per-line dwell overrides that and clamps to
+//! [`COMMS_DWELL_MIN_SECS`]..[`COMMS_DWELL_MAX_SECS`] - so a burst is paced by
+//! how fast the SCENARIO posts, not by the panel taking reading time back. A
+//! bounded visible window paces bursts, and a backlog bounded by
+//! [`COMMS_PENDING_CAP`] holds
 //! what is waiting: past that the OLDEST waiting cue goes, because a line the
 //! panel could only reach half a minute of dialogue later is answering a beat
 //! the player has already flown past. The story log keeps every line either
@@ -36,7 +38,7 @@ use super::{HudSelfDrivenVisibility, HudTier};
 pub mod prelude {
     pub use super::{
         StoryFeed, StoryLine, COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS, COMMS_DWELL_SECS,
-        COMMS_FADE_OUT_SECS, COMMS_MIN_SECS,
+        COMMS_FADE_OUT_SECS,
     };
 }
 
@@ -72,11 +74,6 @@ pub struct StoryFeed(pub Vec<StoryLine>);
 /// a conversation line and the objective it introduces from this value - the
 /// objective must post as the line finishes, not before it.
 pub const COMMS_DWELL_SECS: f32 = 8.0;
-/// The floor a showing line holds even with lines waiting: readable, but a
-/// burst still flows. `pub` because the scenario pacing layer derives its
-/// mid-read INSTRUCTION gap from it - an instructional objective posts once the
-/// reader has had this floor with the coaching line.
-pub const COMMS_MIN_SECS: f32 = 4.0;
 /// Authored per-line dwell clamp (documented author-facing; pub so
 /// content_lint warns against the same numbers it clamps to).
 pub const COMMS_DWELL_MIN_SECS: f32 = 3.0;

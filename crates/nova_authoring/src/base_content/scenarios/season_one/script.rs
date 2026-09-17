@@ -16,6 +16,19 @@
 //! anybody who would already know it. A player who has read the book should
 //! recognise the hour; a player who has not should be able to fly the whole
 //! chapter as a rescue and miss nothing they need.
+//!
+//! Two rules the playtest put here, both about reading while flying:
+//!
+//! - A LINE is one thought. The comms card holds for eight seconds and three
+//!   of them can be on screen at once, so a line that needs longer than that
+//!   is two lines, not one card held open. Nothing below runs past about
+//!   ninety characters, and the long ones are split at the full stop the
+//!   thought already has.
+//! - An OBJECTIVE is the goal and nothing else. How to do it belongs to
+//!   whoever says it out loud, and the key belongs to the keybind chip the
+//!   handler spotlights in the same breath - a scenario spotlight draws that
+//!   chip even for a verb that is not available yet, so the card never has to
+//!   spell a key the HUD is already showing.
 
 // --- the voices --------------------------------------------------------------
 
@@ -63,18 +76,22 @@ pub(super) const OPEN_CARD_WHEN: &str = "2078";
 pub(super) const OPEN_CARD_NOTE: &str = "Kaveri, homebound for Baikal with a pump assembly.";
 
 pub(super) const OPEN_LOAD: &str = "Load's secured, covers on. Passage is clear.";
-pub(super) const OPEN_LANE: &str =
-    "Rock is thick on the direct line. I can take us around it, or thread it and save us \
-     the hour.";
+pub(super) const OPEN_LANE: &str = "Rock is thick on the direct line.";
+pub(super) const OPEN_CHOICE: &str = "I can take us around it, or thread it and save us the hour.";
 pub(super) const OPEN_COST: &str =
     "Baikal loses production for every hour that assembly is out here. Thread it.";
 pub(super) const OPEN_ORDER: &str = "Thread it. Slowly - there is only the one assembly.";
+/// The handover, in two cards: what the ship is, and then how to fly it.
+///
+/// One card carried both and ran to 128 characters, which is a card nobody
+/// finishes before the next one lands on top of it.
+pub(super) const OPEN_MARKS: &str = "Marks are up. She is carrying something today.";
 pub(super) const OPEN_HANDOVER: &str =
-    "Marks are up. She is carrying something today, so slide her across with the \
-     thrusters - [SHIFT] and the mouse. Do not swing her.";
+    "Slide her across with the thrusters - [SHIFT] and the mouse. Do not swing her.";
 
-pub(super) const OBJ_TEXT_LANE: &str =
-    "Thread the lane home - hold [SHIFT] and the mouse to slide between the marks.";
+/// The goal. The thrusters are Tomas's line above, and [SHIFT] is on the RCS
+/// chip the same handler spotlights.
+pub(super) const OBJ_TEXT_LANE: &str = "Thread the lane home.";
 
 // --- the lane ----------------------------------------------------------------
 
@@ -93,12 +110,14 @@ pub(super) const CALL_ANSWER: &str = "Gantry, Kaveri. We hear you. How many aboa
 pub(super) const CALL_THREE: &str =
     "Three. All alive. Owen's hurt. We've isolated the damaged spaces.";
 pub(super) const CALL_COST: &str =
-    "We can reach them before their reserves run out. The scheduled recovery can't. It \
-     costs us the repair plan - Ebro's load won't be ready.";
+    "We can reach them before their reserves run out. The scheduled recovery can't.";
+pub(super) const CALL_PRICE: &str = "It costs us the repair plan. Ebro's load won't be ready.";
 pub(super) const CALL_RINA: &str = "Then let's get them off it.";
-pub(super) const CALL_REFUSAL: &str =
-    "Kaveri, Baikal. I asked EarthWorks to cover the diversion. Reed has three of his own \
-     people on that hull, and the answer was no.";
+/// Elena's refusal, split at its own full stop - the comic's wording either
+/// way, because the approved script is the approved script.
+pub(super) const CALL_REFUSAL: &str = "Kaveri, Baikal. I asked EarthWorks to cover the diversion.";
+pub(super) const CALL_REED: &str =
+    "Reed has three of his own people on that hull, and the answer was no.";
 pub(super) const CALL_BACKING: &str = "Clearwell will cover it. Bring them home.";
 pub(super) const CALL_DECISION: &str = "Tomas. Take the intercept.";
 
@@ -110,16 +129,17 @@ pub(super) const NEAR_SIGHT: &str = "Gantry in sight. Matching their motion.";
 pub(super) const NEAR_PORT_CHECK: &str = "Gantry, did the fault reach your docking equipment?";
 pub(super) const NEAR_PORT_SOUND: &str =
     "Not that branch. The collar on our port side is sound, and we can hold attitude.";
-pub(super) const NEAR_COMMIT: &str = "Understood. We come to you.";
+/// The commitment, and the one thing the card cannot leave to the HUD: the
+/// docking verb reads the radar lock, so a captain who never locks Gantry can
+/// follow every other instruction exactly and have nothing happen. The captain
+/// gives it as the order it is, rather than the card carrying a third clause.
+pub(super) const NEAR_COMMIT: &str = "Understood, we come to you. Tomas - hold her on the radar.";
 
-/// The whole of the docking ask, in the order it has to be done: the verb
-/// reads the radar lock, so a card that says only "press [D]" is a card a
-/// captain can follow exactly and have nothing happen.
-pub(super) const OBJ_TEXT_DOCK: &str =
-    "Hold Gantry on the radar, bring Kaveri's collar onto her port side slowly, \
-     and press [D].";
+/// The goal. The lock is the line above and [D] is the DOCK chip, lit by the
+/// same handler that posts this.
+pub(super) const OBJ_TEXT_DOCK: &str = "Bring Kaveri's collar onto Gantry's port side.";
 /// The same ask, for a captain who let go early.
-pub(super) const OBJ_TEXT_DOCK_AGAIN: &str = "Get back on Gantry's collar and press [D].";
+pub(super) const OBJ_TEXT_DOCK_AGAIN: &str = "Get back on Gantry's collar.";
 
 // --- the transfer ------------------------------------------------------------
 
@@ -132,14 +152,15 @@ pub(super) const HOLD_ALL_THREE: &str = "That's everyone. Three aboard Kaveri.";
 /// A captain who released the clamp with people still on the other hull.
 pub(super) const HOLD_EARLY_RELEASE: &str = "We have not got them all. Get back on that collar.";
 
-pub(super) const OBJ_TEXT_RELEASE: &str = "Release the clamp ([D]) and take them home.";
+pub(super) const OBJ_TEXT_RELEASE: &str = "Let go and take them home.";
 
 // --- the homecoming ----------------------------------------------------------
 
 pub(super) const WON_LINE: &str = "Baikal, Kaveri. We have all three. Coming home.";
+/// Trimmed rather than split: the outro chain is the shared pacing helper's,
+/// and it carries one tease line between the win and the banner.
 pub(super) const OUTRO_TEASE: &str =
-    "Mara has already called from Foundation. The load is late, the penalty stands, and \
-     that one is mine to answer. Come home.";
+    "The load is late and Foundation has already called. That one is mine. Come home.";
 pub(super) const OUTRO_BANNER: &str =
     "Three people are coming home. Ebro's load is not, and Clearwell carries the cost.";
 
