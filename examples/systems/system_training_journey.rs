@@ -170,8 +170,8 @@ fn shipped_app_on(root: &std::path::Path) -> App {
         })
         .build();
     // Headless has no winit, so the UI needs a window to lay out in. TALL: the
-    // handbook lists 24 lessons, and a row below the pane's fold has no box a
-    // pointer can be put in.
+    // handbook lists every lesson it holds, and a row below the pane's fold has
+    // no box a pointer can be put in.
     app.world_mut().spawn((
         Window {
             resolution: (1280, 1600).into(),

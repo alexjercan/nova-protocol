@@ -12,6 +12,18 @@
         wiki_path: "wiki/getting-started",
     )),
     Lesson((
+        id: "start_units",
+        category: StartHere,
+        order: 15,
+        title: "Distances and speeds",
+        media: Image(
+            image: "self://training/start_units.webp",
+            alt: "the HUD in a quiet cruise with a target range reading in kilometers beside a speed chip reading in meters a second",
+        ),
+        body: "Ranges read in meters below a kilometer and in kilometers above it; speeds read in m/s. Health reads in hp, and every section and torpedo carries its own. Every readout on the HUD and in NOVA OS uses those units.",
+        wiki_path: "wiki/glossary#units",
+    )),
+    Lesson((
         id: "start_hud",
         category: StartHere,
         order: 20,
@@ -70,6 +82,21 @@
         ],
     )),
     Lesson((
+        id: "start_markers",
+        category: StartHere,
+        order: 35,
+        title: "Who is who",
+        media: Image(
+            image: "self://training/start_markers.webp",
+            alt: "three ships across one view with their markers up: a green triangle over a wingman, a red one over a raider and a grey one over an unaligned hauler",
+        ),
+        body: "A small triangle floats over every ship in view, pointing down at it: green ally, red hostile, grey neutral. Your own ship shows none. It hides when a ship leaves the screen, and a neutral provoked into a threat flips red on the spot.",
+        wiki_path: "wiki/hud#allegiance-markers",
+        field_notes: [
+            "A triangle rides over every ship in view: green ally, red hostile, grey neutral.",
+        ],
+    )),
+    Lesson((
         id: "start_cinematic",
         category: StartHere,
         order: 40,
@@ -90,6 +117,18 @@
         field_notes: [
             "Cinematic is the HUD\'s second level: a clean screen with every instrument and chip gone.",
         ],
+    )),
+    Lesson((
+        id: "start_pause",
+        category: StartHere,
+        order: 45,
+        title: "Pausing and retrying",
+        media: Image(
+            image: "self://training/start_pause.webp",
+            alt: "the pause overlay over a live flight, its Resume, Retry, Settings, Back to Main Menu and Exit rows stacked on the frozen world",
+        ),
+        body: "Pause holds any scenario and offers Resume, Retry, Settings, Back to Main Menu and Exit. Retry restarts the scenario you are on from the beginning. Settings is the same panel the main menu opens, so you can rebind without leaving the flight.",
+        wiki_path: "wiki/getting-started#launch-and-start",
     )),
     Lesson((
         id: "flight_aim",
@@ -342,6 +381,28 @@
         ],
     )),
     Lesson((
+        id: "flight_dock",
+        category: Flight,
+        order: 65,
+        title: "DOCK",
+        media: Loop(
+            sheet: "self://training/flight_dock.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a tender on the last stretch of an approach: the two port crosses square up and the ticked line between them shortens tick by tick until the DOCK chip lights",
+        ),
+        body: "DOCK clamps your hull to the ship you hold a travel lock on, port face to port face, and both hulls need a docking port. Inside 80 m the docking sight draws a cross on each port face and a ticked line between them.",
+        actions: [
+            "dock",
+        ],
+        wiki_path: "wiki/hud#docking-sight",
+        field_notes: [
+            "DOCK clamps port face to port face, and both hulls need a docking port.",
+        ],
+    )),
+    Lesson((
         id: "combat_radar",
         category: Combat,
         order: 10,
@@ -367,6 +428,24 @@
         ],
         field_notes: [
             "There are two lock slots. Lowered writes the white travel lock, raised the red combat lock.",
+        ],
+    )),
+    Lesson((
+        id: "combat_lock_ranges",
+        category: Combat,
+        order: 12,
+        title: "How far you can lock",
+        media: Image(
+            image: "self://training/combat_lock_ranges.webp",
+            alt: "the radar reticle on a distant gunship with its range printed under the bracket, and a second hull further out still unlocked",
+        ),
+        body: "How far you can lock is what the target IS: thirty times its radar signature, under a 200 km scanner ceiling. A bare one-cell hull is a contact at about 9 km, a light skiff at 22 km, the largest carrier at 60 km.",
+        actions: [
+            "radar_hold",
+        ],
+        wiki_path: "wiki/targeting-radar#lock-ranges",
+        field_notes: [
+            "You can lock a target at thirty times its radar signature, under a 200 km ceiling.",
         ],
     )),
     Lesson((
@@ -535,6 +614,25 @@
         ],
     )),
     Lesson((
+        id: "combat_torpedo_types",
+        category: Combat,
+        order: 55,
+        title: "Serpent and Lance",
+        media: Loop(
+            sheet: "self://training/combat_torpedo_types.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "two torpedoes running in side by side on the same gunship: the Serpent corkscrewing around its guidance line while the Lance holds a dead straight track and pulls ahead",
+        ),
+        body: "Two normal bays ship, and only the run-in differs. A Serpent weaves, so one defending mount spends 390 rounds and only kills it 400 m out. A Lance flies straight and faster, and the same mount kills it 1.14 km short of you.",
+        wiki_path: "wiki/sections/torpedo-bay#the-two-run-ins",
+        field_notes: [
+            "A Serpent weaves and costs a defending mount 390 rounds; a Lance flies straight and faster.",
+        ],
+    )),
+    Lesson((
         id: "combat_point_defense",
         category: Combat,
         order: 60,
@@ -569,6 +667,25 @@
         wiki_path: "wiki/sections/railgun#committing-the-shot",
         field_notes: [
             "A railgun fires down its own axis. The face you bolted it to is the line it shoots.",
+        ],
+    )),
+    Lesson((
+        id: "combat_bore_sight",
+        category: Combat,
+        order: 80,
+        title: "The bore sight",
+        media: Loop(
+            sheet: "self://training/combat_bore_sight.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "the sight line out of a spinal railgun and across the gap onto a gunship\'s long axis, a ring on each section the shot would destroy, and the line fattening as the charge runs",
+        ),
+        body: "A blue line runs from the muzzle to where the slug would stop, with a ring on every section that shot would destroy. Aiming down a ship\'s long axis reads differently from catching its shoulder. The line thickens as the charge runs.",
+        wiki_path: "wiki/sections/railgun#the-bore-sight",
+        field_notes: [
+            "The bore sight rings every section your shot would destroy, and thickens as the charge runs.",
         ],
     )),
     Lesson((
@@ -622,6 +739,18 @@
         ],
     )),
     Lesson((
+        id: "build_readout",
+        category: Shipbuilding,
+        order: 25,
+        title: "The build readout",
+        media: Image(
+            image: "self://training/build_readout.webp",
+            alt: "the editor rail\'s stat block on a half-built hull: Turn, Mass, Thrust, HP and Parts down one column with the limit note under them",
+        ),
+        body: "The rail prints the turn rate and four sums: mass, thrust, health and part count. Mass is the volume of the parts, so a part that lands moves them. Under the block, one line names the limit holding the turn rate down.",
+        wiki_path: "wiki/keybinds#the-build-readout",
+    )),
+    Lesson((
         id: "build_balance",
         category: Shipbuilding,
         order: 30,
@@ -666,6 +795,21 @@
         ),
         body: "Test a new ship before you use it. Take it out, run the drive up to speed, then STOP. That shows you how quickly it accelerates and how long it needs to stop.",
         wiki_path: "wiki/flight-autopilot#the-hull-decides-the-handling",
+    )),
+    Lesson((
+        id: "build_stacking",
+        category: Shipbuilding,
+        order: 50,
+        title: "A second flight computer",
+        media: Image(
+            image: "self://training/build_stacking.webp",
+            alt: "two flight computers mounted on one spine in the editor, the rail\'s turn ceiling unmoved beside the structure-limited note",
+        ),
+        body: "A second flight computer adds no turn rate to a hull already held by its structure, which is every base hull but the carrier. It buys precision - the turn stops on the heading - and redundancy, since only the last computer is the brain.",
+        wiki_path: "wiki/sections/controller#stacking-controllers",
+        field_notes: [
+            "A second flight computer buys precision and redundancy, not turn rate, on most hulls.",
+        ],
     )),
     Lesson((
         id: "build_weapon_mounts",
@@ -718,6 +862,22 @@
         field_notes: [
             "A dock needs 10 m of gap, 15 degrees of facing, and both hulls almost still.",
         ],
+    )),
+    Lesson((
+        id: "build_skin",
+        category: Shipbuilding,
+        order: 80,
+        title: "Ship skin",
+        media: Loop(
+            sheet: "self://training/build_skin.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a bare section hull in the editor with Ship Skin switched on: the plating closes over the structure, and closes again around the next part as it is dragged into place",
+        ),
+        body: "Ship Skin dresses the build in the cladding it would fly with. Nothing places a plate: the skin is derived from the structure, and re-derived as you build, including around the part in hand. A refused placement stays bare. The toggle carries into Play.",
+        wiki_path: "wiki/keybinds#the-inspector",
     )),
     Lesson((
         id: "build_generate",
@@ -884,6 +1044,21 @@
         ],
     )),
     Lesson((
+        id: "novaos_shell",
+        category: NovaOs,
+        order: 55,
+        title: "The command shell",
+        media: Image(
+            image: "self://training/novaos_shell.webp",
+            alt: "the same monitor on its cmd> prompt over the main menu, with a run of `status` answered under it",
+        ),
+        body: "A second language runs on the same monitor. It opens with no ship, over the menu or the editor, and reads the run: status, ships, bindings, settings. Cheat commands are refused until you arm them, and arming marks the run for good.",
+        wiki_path: "wiki/commands#the-commands",
+        field_notes: [
+            "Arming cheats marks the run for good, and nothing unmarks it.",
+        ],
+    )),
+    Lesson((
         id: "advanced_scenarios",
         category: Advanced,
         order: 10,
@@ -908,6 +1083,28 @@
         wiki_path: "create/mod-files",
         field_notes: [
             "The base game is itself a mod, and you can read every file in it.",
+        ],
+    )),
+    Lesson((
+        id: "advanced_ai_flight",
+        category: Advanced,
+        order: 25,
+        title: "How an enemy flies",
+        media: Loop(
+            sheet: "self://training/advanced_ai_flight.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a raider holding its standoff off the player\'s beam, crossing the bow with its nose kept on the camera while the rock field slides past behind it",
+        ),
+        body: "An enemy flies the same flight computer you do: closing while it is outside its standoff, circling once inside, nose on you throughout. The standoff is clear space between the two hulls, and its speeds come off its own live drive.",
+        wiki_path: "wiki/factions#what-allegiance-drives",
+        proven_by: [
+            "tutorial",
+        ],
+        field_notes: [
+            "An enemy flies the same flight computer you do, and holds its standoff hull to hull.",
         ],
     )),
     Lesson((
@@ -942,6 +1139,33 @@
         wiki_path: "wiki/settings#mouse",
         field_notes: [
             "The MOUSE group is three sliders, not bindings, and each 100% is its own baseline.",
+        ],
+    )),
+    Lesson((
+        id: "advanced_graphics",
+        category: Advanced,
+        order: 40,
+        title: "Graphics presets",
+        media: Image(
+            image: "self://training/advanced_graphics.webp",
+            alt: "the settings screen on its graphics row with the Low, Medium and High preset picked out",
+        ),
+        body: "One Low, Medium or High preset trades richness for framerate. High adds camera shake; Medium drops it and keeps hit flashes; Low drops both, spawns no particle bursts at all, and renders the world at a reduced resolution upscaled to the window.",
+        wiki_path: "wiki/settings#graphics-quality",
+    )),
+    Lesson((
+        id: "advanced_audio",
+        category: Advanced,
+        order: 45,
+        title: "Audio mix",
+        media: Image(
+            image: "self://training/advanced_audio.webp",
+            alt: "the settings screen on its audio tab: the Master, Interface, World and Music sliders with their levels as whole percents",
+        ),
+        body: "Four sliders: Master, Interface, World and Music. Interface is the cockpit - menu clicks, HUD ticks, the flight computer. World is everything out there, heard at the distance it happens. Master multiplies the other three. Music is reserved; the game ships none yet.",
+        wiki_path: "wiki/settings#audio",
+        field_notes: [
+            "Master multiplies the other three channels, so a channel you turned down stays down.",
         ],
     )),
 ]

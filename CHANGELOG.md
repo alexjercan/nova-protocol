@@ -192,7 +192,7 @@ does NOT get an entry - and it is the only place they are written down.
   enabled.
 
 ### Interface & HUD
-- The main menu opens a training handbook: 47 lessons in six categories, one
+- The main menu opens a training handbook: 61 lessons in six categories, one
   screen each with a demonstration - a still or a two-second loop - your own
   bindings, a wiki link, and a Practice button that flies a range.
 - A first launch is offered Basic Training from the menu's corner. Taking it or

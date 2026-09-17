@@ -462,6 +462,32 @@ are inside, and finally the pause menu. <kbd>Bksp</kbd> is the shortcut past all
 of that - it leaves the ship from wherever you are, unless a text field has the
 caret, where it deletes a character instead.
 
+### The build readout
+
+The left rail prints what the hull on the stage would fly like, repainted as you
+place. Five lines, values aligned:
+
+| line | what it is |
+| --- | --- |
+| `Turn` | the attitude ceiling in `rad/s2`, or `no computer` on a hull that has none |
+| `Mass` | the hull's mass, which is the volume of the parts - a section is solid ship at one density, so its box IS its mass |
+| `Thrust` | every thruster's magnitude, summed |
+| `HP` | every section's health, summed |
+| `Parts` | how many sections are on the hull |
+
+A hull with nothing on it reads `no parts yet` rather than `-` down the column,
+because nothing has failed - nothing has been built. The numbers are measured
+off the parts as they are POSED, through the same arithmetic the flown ship
+spawns with, so the rail and the hull cannot disagree; a design that mounts its
+engine at half health is counted at half health here too.
+
+Under the block sits one line naming the limit that holds `Turn` down, and the
+one thing that raises it: **`torque-limited - fit another computer`** or
+**`structure-limited - shorten the hull`**. The two ceilings want opposite
+answers - more computers do nothing against the metal, and shorter metal does
+nothing against the computers - so the remedy is printed rather than left to be
+guessed. See [What sets how hard a ship turns](../sections/controller/).
+
 ### The inspector
 
 The right-hand panel shows the selected node's own fields, read off the thing

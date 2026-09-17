@@ -144,6 +144,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[],
         ),
         lesson(
+            "start_units",
+            StartHere,
+            15,
+            "Distances and speeds",
+            still(
+                "start_units",
+                "the HUD in a quiet cruise with a target range reading in kilometers beside a \
+                 speed chip reading in meters a second",
+            ),
+            "Ranges read in meters below a kilometer and in kilometers above it; speeds read in \
+             m/s. Health reads in hp, and every section and torpedo carries its own. Every readout \
+             on the HUD and in NOVA OS uses those units.",
+            &[],
+            "wiki/glossary#units",
+            None,
+            &[],
+            &[],
+        ),
+        lesson(
             "start_hud",
             StartHere,
             20,
@@ -201,6 +220,27 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &["The mouse is the helm. Hold free look to turn the camera without turning the ship."],
         ),
         lesson(
+            "start_markers",
+            StartHere,
+            35,
+            "Who is who",
+            still(
+                "start_markers",
+                "three ships across one view with their markers up: a green triangle over a \
+                 wingman, a red one over a raider and a grey one over an unaligned hauler",
+            ),
+            "A small triangle floats over every ship in view, pointing down at it: green ally, red \
+             hostile, grey neutral. Your own ship shows none. It hides when a ship leaves the \
+             screen, and a neutral provoked into a threat flips red on the spot.",
+            &[],
+            "wiki/hud#allegiance-markers",
+            None,
+            &[],
+            &[
+                "A triangle rides over every ship in view: green ally, red hostile, grey neutral.",
+            ],
+        ),
+        lesson(
             "start_cinematic",
             StartHere,
             40,
@@ -220,6 +260,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[
                 "Cinematic is the HUD's second level: a clean screen with every instrument and chip gone.",
             ],
+        ),
+        lesson(
+            "start_pause",
+            StartHere,
+            45,
+            "Pausing and retrying",
+            still(
+                "start_pause",
+                "the pause overlay over a live flight, its Resume, Retry, Settings, Back to Main \
+                 Menu and Exit rows stacked on the frozen world",
+            ),
+            "Pause holds any scenario and offers Resume, Retry, Settings, Back to Main Menu and \
+             Exit. Retry restarts the scenario you are on from the beginning. Settings is the same \
+             panel the main menu opens, so you can rebind without leaving the flight.",
+            &[],
+            "wiki/getting-started#launch-and-start",
+            None,
+            &[],
+            &[],
         ),
         lesson(
             "flight_aim",
@@ -416,6 +475,27 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &["ORBIT circles the gravity well you are inside, not the contact you marked."],
         ),
         lesson(
+            "flight_dock",
+            Flight,
+            65,
+            "DOCK",
+            looping(
+                "flight_dock",
+                "a tender on the last stretch of an approach: the two port crosses square up and \
+                 the ticked line between them shortens tick by tick until the DOCK chip lights",
+            ),
+            "DOCK clamps your hull to the ship you hold a travel lock on, port face to port face, \
+             and both hulls need a docking port. Inside 80 m the docking sight draws a cross on \
+             each port face and a ticked line between them.",
+            &["dock"],
+            "wiki/hud#docking-sight",
+            None,
+            &[],
+            &[
+                "DOCK clamps port face to port face, and both hulls need a docking port.",
+            ],
+        ),
+        lesson(
             "combat_radar",
             Combat,
             10,
@@ -434,6 +514,27 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[TUTORIAL_SCENARIO_ID, DRILL_GUNNERY_ID],
             &[
                 "There are two lock slots. Lowered writes the white travel lock, raised the red combat lock.",
+            ],
+        ),
+        lesson(
+            "combat_lock_ranges",
+            Combat,
+            12,
+            "How far you can lock",
+            still(
+                "combat_lock_ranges",
+                "the radar reticle on a distant gunship with its range printed under the bracket, \
+                 and a second hull further out still unlocked",
+            ),
+            "How far you can lock is what the target IS: thirty times its radar signature, under a \
+             200 km scanner ceiling. A bare one-cell hull is a contact at about 9 km, a light \
+             skiff at 22 km, the largest carrier at 60 km.",
+            &["radar_hold"],
+            "wiki/targeting-radar#lock-ranges",
+            None,
+            &[],
+            &[
+                "You can lock a target at thirty times its radar signature, under a 200 km ceiling.",
             ],
         ),
         lesson(
@@ -597,6 +698,28 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             ],
         ),
         lesson(
+            "combat_torpedo_types",
+            Combat,
+            55,
+            "Serpent and Lance",
+            looping(
+                "combat_torpedo_types",
+                "two torpedoes running in side by side on the same gunship: the Serpent \
+                 corkscrewing around its guidance line while the Lance holds a dead straight track \
+                 and pulls ahead",
+            ),
+            "Two normal bays ship, and only the run-in differs. A Serpent weaves, so one defending \
+             mount spends 390 rounds and only kills it 400 m out. A Lance flies straight and \
+             faster, and the same mount kills it 1.14 km short of you.",
+            &[],
+            "wiki/sections/torpedo-bay#the-two-run-ins",
+            None,
+            &[],
+            &[
+                "A Serpent weaves and costs a defending mount 390 rounds; a Lance flies straight and faster.",
+            ],
+        ),
+        lesson(
             "combat_point_defense",
             Combat,
             60,
@@ -638,6 +761,28 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[],
             &[
                 "A railgun fires down its own axis. The face you bolted it to is the line it shoots.",
+            ],
+        ),
+        lesson(
+            "combat_bore_sight",
+            Combat,
+            80,
+            "The bore sight",
+            looping(
+                "combat_bore_sight",
+                "the sight line out of a spinal railgun and across the gap onto a gunship's long \
+                 axis, a ring on each section the shot would destroy, and the line fattening as \
+                 the charge runs",
+            ),
+            "A blue line runs from the muzzle to where the slug would stop, with a ring on every \
+             section that shot would destroy. Aiming down a ship's long axis reads differently \
+             from catching its shoulder. The line thickens as the charge runs.",
+            &[],
+            "wiki/sections/railgun#the-bore-sight",
+            None,
+            &[],
+            &[
+                "The bore sight rings every section your shot would destroy, and thickens as the charge runs.",
             ],
         ),
         lesson(
@@ -703,6 +848,25 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             ],
         ),
         lesson(
+            "build_readout",
+            Shipbuilding,
+            25,
+            "The build readout",
+            still(
+                "build_readout",
+                "the editor rail's stat block on a half-built hull: Turn, Mass, Thrust, HP and \
+                 Parts down one column with the limit note under them",
+            ),
+            "The rail prints the turn rate and four sums: mass, thrust, health and part count. \
+             Mass is the volume of the parts, so a part that lands moves them. Under the block, \
+             one line names the limit holding the turn rate down.",
+            &[],
+            "wiki/keybinds#the-build-readout",
+            None,
+            &[],
+            &[],
+        ),
+        lesson(
             "build_balance",
             Shipbuilding,
             30,
@@ -764,6 +928,27 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[],
         ),
         lesson(
+            "build_stacking",
+            Shipbuilding,
+            50,
+            "A second flight computer",
+            still(
+                "build_stacking",
+                "two flight computers mounted on one spine in the editor, the rail's turn ceiling \
+                 unmoved beside the structure-limited note",
+            ),
+            "A second flight computer adds no turn rate to a hull already held by its structure, \
+             which is every base hull but the carrier. It buys precision - the turn stops on the \
+             heading - and redundancy, since only the last computer is the brain.",
+            &[],
+            "wiki/sections/controller#stacking-controllers",
+            None,
+            &[],
+            &[
+                "A second flight computer buys precision and redundancy, not turn rate, on most hulls.",
+            ],
+        ),
+        lesson(
             "build_weapon_mounts",
             Shipbuilding,
             60,
@@ -822,6 +1007,27 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &["A dock needs 10 m of gap, 15 degrees of facing, and both hulls almost still."],
+        ),
+        lesson(
+            "build_skin",
+            Shipbuilding,
+            80,
+            "Ship skin",
+            looping(
+                "build_skin",
+                "a bare section hull in the editor with Ship Skin switched on: the plating closes \
+                 over the structure, and closes again around the next part as it is dragged into \
+                 place",
+            ),
+            "Ship Skin dresses the build in the cladding it would fly with. Nothing places a \
+             plate: the skin is derived from the structure, and re-derived as you build, including \
+             around the part in hand. A refused placement stays bare. The toggle carries into \
+             Play.",
+            &[],
+            "wiki/keybinds#the-inspector",
+            None,
+            &[],
+            &[],
         ),
         lesson(
             "build_generate",
@@ -985,6 +1191,27 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &["A section's trigger is per ship, not in Settings. Rebind it in the SHIP app."],
         ),
         lesson(
+            "novaos_shell",
+            NovaOs,
+            55,
+            "The command shell",
+            still(
+                "novaos_shell",
+                "the same monitor on its cmd> prompt over the main menu, with a run of `status` \
+                 answered under it",
+            ),
+            "A second language runs on the same monitor. It opens with no ship, over the menu or \
+             the editor, and reads the run: status, ships, bindings, settings. Cheat commands are \
+             refused until you arm them, and arming marks the run for good.",
+            &[],
+            "wiki/commands#the-commands",
+            None,
+            &[],
+            &[
+                "Arming cheats marks the run for good, and nothing unmarks it.",
+            ],
+        ),
+        lesson(
             "advanced_scenarios",
             Advanced,
             10,
@@ -1020,6 +1247,27 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &["The base game is itself a mod, and you can read every file in it."],
+        ),
+        lesson(
+            "advanced_ai_flight",
+            Advanced,
+            25,
+            "How an enemy flies",
+            looping(
+                "advanced_ai_flight",
+                "a raider holding its standoff off the player's beam, crossing the bow with its \
+                 nose kept on the camera while the rock field slides past behind it",
+            ),
+            "An enemy flies the same flight computer you do: closing while it is outside its \
+             standoff, circling once inside, nose on you throughout. The standoff is clear space \
+             between the two hulls, and its speeds come off its own live drive.",
+            &[],
+            "wiki/factions#what-allegiance-drives",
+            None,
+            &[TUTORIAL_SCENARIO_ID],
+            &[
+                "An enemy flies the same flight computer you do, and holds its standoff hull to hull.",
+            ],
         ),
         lesson(
             "advanced_bindings",
@@ -1059,6 +1307,47 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &["The MOUSE group is three sliders, not bindings, and each 100% is its own baseline."],
+        ),
+        lesson(
+            "advanced_graphics",
+            Advanced,
+            40,
+            "Graphics presets",
+            still(
+                "advanced_graphics",
+                "the settings screen on its graphics row with the Low, Medium and High preset \
+                 picked out",
+            ),
+            "One Low, Medium or High preset trades richness for framerate. High adds camera shake; \
+             Medium drops it and keeps hit flashes; Low drops both, spawns no particle bursts at \
+             all, and renders the world at a reduced resolution upscaled to the window.",
+            &[],
+            "wiki/settings#graphics-quality",
+            None,
+            &[],
+            &[],
+        ),
+        lesson(
+            "advanced_audio",
+            Advanced,
+            45,
+            "Audio mix",
+            still(
+                "advanced_audio",
+                "the settings screen on its audio tab: the Master, Interface, World and Music \
+                 sliders with their levels as whole percents",
+            ),
+            "Four sliders: Master, Interface, World and Music. Interface is the cockpit - menu \
+             clicks, HUD ticks, the flight computer. World is everything out there, heard at the \
+             distance it happens. Master multiplies the other three. Music is reserved; the game \
+             ships none yet.",
+            &[],
+            "wiki/settings#audio",
+            None,
+            &[],
+            &[
+                "Master multiplies the other three channels, so a channel you turned down stays down.",
+            ],
         ),
     ]
 }
