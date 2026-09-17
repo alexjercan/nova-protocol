@@ -1,6 +1,6 @@
 # Player training handbook, first-run guidance, and loading facts
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.14.0, ui, tutorial, menu, content, persistence
 

@@ -1,6 +1,6 @@
 # Chapter one of season one: the Gantry rescue as a playable scenario
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.14.0, content, scenario, story
 
