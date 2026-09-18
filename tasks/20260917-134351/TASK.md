@@ -96,11 +96,46 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
   help and exiting 0. Clap offers no did-you-mean tip for these names; the
   refusal is the usage line only. No changelog entry, no new permanent test.
 
-- [ ] **02 - Delete the legacy probe baseline-root fallback.**
+- [x] **02 - Delete the legacy probe baseline-root fallback.**
   Owner: `crates/nova_probe_cli/src/native/paths.rs:78-91,191-210`.
   Caller: `crates/nova_probe_cli/src/native/sweep.rs:79`.
   Remove `allow_compat_root` and support for old non-hash `probe-runs` roots.
   Verify explicit and automatic resolution both require a commit directory.
+
+  Done. `crates/nova_probe_cli/src/native/paths.rs` and
+  `crates/nova_probe_cli/src/native/sweep.rs`. Deleted `resolve_baseline_root`
+  with its `allow_compat_root` parameter and the arm that returned the named
+  base itself, promoted `discover_baseline_root` to the single `pub(crate)`
+  resolver, and repointed the one caller. Explicit `--baseline` and
+  auto-discovery are now the same resolution, so both require a commit dir.
+
+  Also deleted, by decision during this item: the old-direct-run-dir branch in
+  `baseline_for`. It was reachable only through the compat arm above, so this
+  item orphaned it. Its doc clause went with it; the missing-example skip
+  stayed.
+
+  Proof: `cargo test -p nova_probe_cli --lib native::` is 47 passed, 0 failed
+  after `sprout sync`, covering the repointed `sweep` caller. Both deletions
+  carry a negative control rather than a green run. Restoring the compat arm
+  fails `an_old_run_root_without_a_commit_dir_is_not_a_baseline` with
+  `left: Some(<base>) right: None`; restoring the direct-dir branch fails
+  `baseline_for_resolves_present_and_skips_missing` with
+  `left: Some(<base>) right: Some(<base>/playable)`. `cargo check` reports no
+  dead-code or unused-import warning; `cargo fmt -- --check` is clean.
+  `baseline_for_accepts_new_child_dirs_and_old_direct_dirs` was folded into
+  `baseline_for_resolves_present_and_skips_missing`, which now writes a
+  `frametime.csv` at the root so it observes the deleted branch; the surviving
+  half asserted nothing the other test did not already assert.
+
+  Retained limit: `probe run <spec> --baseline probe-runs/<short-sha>`, naming
+  a commit dir directly, resolved only through the compat arm and now returns
+  `None`, printing `probe: no baseline commit dir found in <dir>; skipping fps
+  comparison`. This is the intended consequence of requiring a commit dir.
+  Pinned single-run comparison remains on `probe report <after> --baseline
+  <before>`, a separate path. Kept as deliberate runtime behavior:
+  `baseline_for` returning `None` for a missing example, and sweep's
+  `(None, None)` skip. No doc edit and no changelog entry;
+  `docs/development.md:849-853` already describes this behavior.
 
 - [ ] **03 - Require the current probe-run manifest.**
   Owner: `crates/nova_probe_cli/src/evaluation/manifest.rs:57-119,153-181`.

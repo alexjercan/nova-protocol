@@ -15,14 +15,10 @@ pub(crate) fn repo_root() -> PathBuf {
         .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
 }
 
-/// Resolve an example's baseline against a baseline root: the old direct
-/// run dir when it holds `frametime.csv`, or the new child run dir
-/// `<root>/<example>` when that holds one. Missing examples skip the
-/// comparison rather than erroring.
+/// Resolve an example's baseline against a baseline root: the run dir
+/// `<root>/<example>` when that holds a `frametime.csv`. Missing examples
+/// skip the comparison rather than erroring.
 pub(crate) fn baseline_for(root: &Path, example: &str) -> Option<PathBuf> {
-    if root.join("frametime.csv").is_file() {
-        return Some(root.to_path_buf());
-    }
     let dir = root.join(example);
     dir.join("frametime.csv").is_file().then_some(dir)
 }
@@ -43,7 +39,11 @@ fn is_hash_dir_name(name: &str) -> bool {
     (7..=40).contains(&name.len()) && name.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
-fn discover_baseline_root(base: &Path, current_sha: &str, history: &[String]) -> Option<PathBuf> {
+pub(crate) fn discover_baseline_root(
+    base: &Path,
+    current_sha: &str,
+    history: &[String],
+) -> Option<PathBuf> {
     for sha in history {
         if sha == current_sha || !is_hash_dir_name(sha) {
             continue;
@@ -75,19 +75,6 @@ pub(crate) fn git_history_short(root: &Path) -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub(crate) fn resolve_baseline_root(
-    base: &Path,
-    current_sha: &str,
-    history: &[String],
-    allow_compat_root: bool,
-) -> Option<PathBuf> {
-    discover_baseline_root(base, current_sha, history).or_else(|| {
-        allow_compat_root
-            .then(|| base.to_path_buf())
-            .filter(|root| root.is_dir())
-    })
-}
-
 pub(crate) fn resolve_full_git_sha(root: &Path) -> String {
     Command::new("git")
         .current_dir(root)
@@ -116,6 +103,9 @@ mod tests {
         std::fs::write(base.join("playable").join("frametime.csv"), "x").unwrap();
         // dir exists but no csv - still a miss.
         std::fs::create_dir_all(base.join("scenario")).unwrap();
+        // A csv at the root itself is no example's baseline: a root IS a
+        // commit dir, and every run under it lives in its own example dir.
+        std::fs::write(base.join("frametime.csv"), "x").unwrap();
 
         assert_eq!(baseline_for(&base, "playable"), Some(base.join("playable")));
         assert_eq!(baseline_for(&base, "scenario"), None);
@@ -135,31 +125,6 @@ mod tests {
             PathBuf::from("custom/out/61675034"),
             "explicit --out is the storage base, not the exact run dir"
         );
-    }
-
-    #[test]
-    fn baseline_for_accepts_new_child_dirs_and_old_direct_dirs() {
-        let base =
-            std::env::temp_dir().join(format!("nova_probe_baseline_shape_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
-        std::fs::create_dir_all(base.join("61675034").join("playable")).unwrap();
-        std::fs::write(
-            base.join("61675034").join("playable").join("frametime.csv"),
-            "x",
-        )
-        .unwrap();
-        std::fs::create_dir_all(base.join("old-direct")).unwrap();
-        std::fs::write(base.join("old-direct").join("frametime.csv"), "x").unwrap();
-
-        assert_eq!(
-            baseline_for(&base.join("61675034"), "playable"),
-            Some(base.join("61675034").join("playable"))
-        );
-        assert_eq!(
-            baseline_for(&base.join("old-direct"), "playable"),
-            Some(base.join("old-direct"))
-        );
-        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]
@@ -188,23 +153,24 @@ mod tests {
     }
 
     #[test]
-    fn explicit_baseline_can_fall_back_to_compat_root_but_auto_does_not() {
+    fn an_old_run_root_without_a_commit_dir_is_not_a_baseline() {
+        // Explicit --baseline and auto-discovery share one resolver, so a root
+        // that holds <example>/frametime.csv but no commit dir is a baseline
+        // for neither. Only a hash dir named by history resolves.
         let base =
-            std::env::temp_dir().join(format!("nova_probe_baseline_compat_{}", std::process::id()));
+            std::env::temp_dir().join(format!("nova_probe_baseline_root_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(base.join("playable")).unwrap();
         std::fs::write(base.join("playable").join("frametime.csv"), "x").unwrap();
-        let history = s(&["61675034"]);
 
+        let history = s(&["61675034"]);
+        assert_eq!(discover_baseline_root(&base, "61675034", &history), None);
+
+        std::fs::create_dir_all(base.join("aaaa1111").join("playable")).unwrap();
+        let history = s(&["61675034", "aaaa1111"]);
         assert_eq!(
-            resolve_baseline_root(&base, "61675034", &history, true),
-            Some(base.clone()),
-            "explicit --baseline may name an old probe-runs-shaped root"
-        );
-        assert_eq!(
-            resolve_baseline_root(&base, "61675034", &history, false),
-            None,
-            "auto-discovery ignores non-hash compatibility roots"
+            discover_baseline_root(&base, "61675034", &history),
+            Some(base.join("aaaa1111"))
         );
         let _ = std::fs::remove_dir_all(&base);
     }

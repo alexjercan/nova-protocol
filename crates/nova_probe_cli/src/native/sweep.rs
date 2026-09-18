@@ -5,8 +5,8 @@ use std::{path::Path, process::ExitCode, time::Instant};
 use super::{
     cli::{Platform, RunOptions},
     paths::{
-        baseline_for, default_output_base, default_output_root, git_history_short, repo_root,
-        resolve_baseline_root, resolve_full_git_sha,
+        baseline_for, default_output_base, default_output_root, discover_baseline_root,
+        git_history_short, repo_root, resolve_full_git_sha,
     },
     run::run,
     spec::{resolve_spec, Resolved},
@@ -75,14 +75,7 @@ fn run_many(
         .map_err(|e| format!("could not resolve out root: {e}"))?;
     let baseline_base = base.baseline.clone().unwrap_or_else(|| out_base.clone());
     let baseline_root = (!base.correctness_only)
-        .then(|| {
-            resolve_baseline_root(
-                &baseline_base,
-                &git_sha,
-                &git_history_short(&root),
-                base.baseline.is_some(),
-            )
-        })
+        .then(|| discover_baseline_root(&baseline_base, &git_sha, &git_history_short(&root)))
         .flatten();
     if !base.correctness_only {
         match (&base.baseline, &baseline_root) {
