@@ -144,7 +144,7 @@ ScatterObjects((
 | variant | fields | meaning |
 |---|---|---|
 | `Box(min: (..), max: (..))` | both required | uniform per axis in `[min, max]` |
-| `Ring(center: (..), inner: .., outer: .., y_min: .., y_max: ..)` | `center` defaults to the origin | horizontal annulus: uniform angle, radius in `[inner, outer]`, y in `[y_min, y_max]` |
+| `Ring(center: (..), inner: .., outer: .., y_min: .., y_max: ..)` | all required | horizontal annulus: uniform angle, radius in `[inner, outer]`, y in `[y_min, y_max]` |
 
 `asteroid_kinds` is drawn from the scatter's OWN seed, on a stream of its own:
 adding a kind to a field that already ships moves no rock and changes no

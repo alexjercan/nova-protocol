@@ -212,8 +212,7 @@ pub enum ScatterRegion {
     /// `[inner, outer]`, height in `[y_min, y_max]`, all relative to that
     /// centre.
     Ring {
-        /// The annulus centre in world space. Omitted in RON, it is the origin.
-        #[cfg_attr(feature = "serde", serde(default))]
+        /// The annulus centre in world space.
         center: Meters3,
         /// The annulus inner radius.
         inner: Meters,
@@ -1236,18 +1235,19 @@ mod tests {
         assert!(event_world.scatter_placements().is_empty());
     }
 
-    /// `center` is `serde(default)`, so mod RON written before the field
-    /// deserializes unchanged - as an origin-centred ring.
+    /// `center` is required: a ring that omits it is refused at the parse, so
+    /// an origin-centred belt is authored, not inferred.
     #[cfg(feature = "serde")]
     #[test]
-    fn scatter_region_ring_center_defaults_to_zero_in_ron() {
-        let region: ScatterRegion =
-            ron::from_str("Ring(inner: 100.0, outer: 200.0, y_min: -10.0, y_max: 10.0)")
-                .expect("deserialize a ring without a centre");
-        match region {
-            ScatterRegion::Ring { center, .. } => assert_eq!(center, Meters3::ZERO),
-            other => panic!("expected a ring: {other:?}"),
-        }
+    fn a_ring_without_a_center_does_not_deserialize() {
+        let err = ron::from_str::<ScatterRegion>(
+            "Ring(inner: 100.0, outer: 200.0, y_min: -10.0, y_max: 10.0)",
+        )
+        .expect_err("a ring without a centre is refused");
+        assert!(
+            err.to_string().contains("center"),
+            "the refusal must name the missing field: {err}"
+        );
     }
 
     #[cfg(feature = "serde")]

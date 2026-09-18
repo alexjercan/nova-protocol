@@ -187,6 +187,8 @@ does NOT get an entry - and it is the only place they are written down.
   `min_separation` is now spacing ON TOP of that.
 - A planet is meshed at a 20 m facet whatever its size: a 200 m planetoid stops
   spending a big world's triangles, and a kilometre-wide one is round.
+- **(breaking)** A scatter `Ring` names its `center`. The field is no longer
+  optional, and a scenario file omitting it is refused.
 
 ### Modding & Mod Portal
 - A mod can ship a LOOK: a `UiTheme` content item is a complete UI theme - a

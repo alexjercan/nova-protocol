@@ -368,12 +368,63 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
   `nova_mod_format` to a `docs/modding.md` that does not exist. Both
   pre-existing, neither invalidated by this item.
 
-- [ ] **07 - Require an explicit scatter-ring center.**
+- [x] **07 - Require an explicit scatter-ring center.**
   Owner: `crates/nova_scenario/src/actions/spawn.rs:214-222`.
   Delete `serde(default)` and the omitted-center compatibility proof. Update all
   `ScatterRegion::Ring` builders in the editor, lint fixtures, examples, and
   base authoring. Regenerate base RON. Verify omitted `center` fails to
   deserialize, then run generated-content parity and content lint.
+
+  Done. Three files: `crates/nova_scenario/src/actions/spawn.rs`,
+  `web/src/create/actions.md`, `CHANGELOG.md`. Deleted the
+  `#[cfg_attr(feature = "serde", serde(default))]` on `center` and the doc
+  sentence "Omitted in RON, it is the origin.", and rewrote the compatibility
+  proof in place as `a_ring_without_a_center_does_not_deserialize`.
+
+  The item's "update all builders" clause had NOTHING to do, and no edits were
+  manufactured to fill it. `center: Meters3` is a plain enum-variant field, so
+  all nine Rust construction sites already name it, and all four generated
+  Rings already write it in full, zeros included. `content gen` rewrote all 16
+  base files and produced zero diff; `git status --porcelain assets` is empty
+  and the commit touches no asset. This item was deserialize-only plus doc,
+  test and changelog cleanup.
+
+  Proof: `cargo test -p nova_scenario --lib actions::spawn` is 18 passed, 0
+  failed with `a_ring_without_a_center_does_not_deserialize` present BY NAME in
+  the output, confirming the `#[cfg(feature = "serde")]` gate did not silently
+  skip it. `content_ron_parity` 2 passed and `content_lint_gate` 3 passed, both
+  re-run after `sprout sync`. `content lint` is `0 error(s), 0 warning(s), 0
+  finding(s), 14 scenario(s) balance-audited`. The refusal was captured from a
+  real run, matching the prediction exactly:
+  `1:59: Unexpected missing field named `center` in `Ring``.
+
+  Unlike item 06 there IS a lint layer: `lint_walk.rs:107` deserializes every
+  content file and panics on parse failure, so this fails at lint and again at
+  load. Control B proved it at the content layer rather than in Rust - stripping
+  the `center:` block from a generated scenario produced
+  `parse .../menu_weave.content.ron: 356:25: Unexpected missing field named
+  `center` in `Ring`` and exit 101. The file was restored from a scratchpad
+  backup, verified byte-identical with `cmp`, and never committed modified.
+
+  The compiler named no consumer, and that is reported as silence rather than
+  discovery: deleting a serde attribute changes no type or signature, so
+  item 06's two-round downstream effect cannot occur here. The consumer set is
+  RON files, found by search and by control B.
+  `scatter_objects_config_round_trips_through_ron`, `content_ron_parity` and
+  `content_lint_gate` pass identically before and after - they are regression
+  checks that the deletion broke nothing, explicitly not the load-bearing
+  proof, which is the rejection test plus both controls.
+
+  Retained limit: the optional `center` shipped in 0.10.0, so a hand-written
+  third-party scenario RON authored against 0.10.0-0.13.2 that omits `center`
+  now fails to load. Nothing in this repo is affected and no save carries a
+  `ScatterRegion`. One **(breaking)** changelog entry in `[Unreleased]` under
+  `### Scenarios & Objectives` - the section where 0.10.0 announced the field -
+  with `CHANGELOG.md:2070` and `web/src/news/0.10.0.md` left as archives. Kept
+  as deliberate runtime behavior: `random_in`'s `a >= b` guard in
+  `ScatterRegion::sample`, a panic guard on degenerate geometry rather than a
+  missing-field fallback. The editor needs no change - it has no region-variant
+  UI and cannot author a centre-less Ring.
 
 - [ ] **08 - Resolve `RenderMeshTransform` compatibility defaults.**
   Owner: `crates/nova_ship/src/sections/base_section.rs:277-309`.
