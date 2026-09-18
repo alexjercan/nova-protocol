@@ -11,7 +11,7 @@ Scope: this script only cuts. It parses the obj, slices it on the grid, and
 emits the cube meshes - nothing else (no section classification, no mod
 scaffold). Turning the cubes into game sections is done elsewhere.
 
-Design (see tasks/20260717-220919/SPIKE.md, option A2 + B1):
+Design:
 
 - Grid clipping is a true partition: total fragment area equals the original,
   so placing every cube back at its grid position reproduces the ship exactly.

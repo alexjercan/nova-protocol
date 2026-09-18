@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate section-model CANDIDATES (.glb) from JSON recipes.
 
-Recipe-generated candidates for the section remodel (task 20260831-083625):
+Recipe-generated candidates for the section remodel:
 torpedo bays, PDC turret assemblies, and the hull/controller cores, all in
 the one cross-faction mechanical voice the thruster shells set. Judged in
 the `screenshot_section_gallery` example; selected candidates get promoted

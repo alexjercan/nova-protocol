@@ -1,11 +1,11 @@
-//! system_headless_novaos: spike 2 for `nova_channel` - NOVA OS off-screen.
+//! system_headless_novaos: `nova_channel` headless parity - NOVA OS off-screen.
 //!
-//! The `nova_channel` design record calls the render gate on `NovaHudPlugin` /
-//! `NovaOsUiPlugin` the one real parity gate: a headless run registered 15 of
-//! the 33 named actions and had no monitor to type into. This range boots the
-//! app with that gate REMOVED (see the render-gate note in
-//! `nova_core/src/lib.rs`) plus the virtual window, and then does the thing the
-//! gate made impossible:
+//! The render gate on `NovaHudPlugin` / `NovaOsUiPlugin` was the one real
+//! parity gate: under it a headless run registered 15 of the 33 named actions
+//! and had no monitor to type into. Both plugins are now added unconditionally
+//! (see the render-gate note in `nova_core/src/lib.rs`), so this range boots
+//! headless with the full registry plus the virtual window, and then does the
+//! thing the gate made impossible:
 //!
 //!   - assert the FULL registry is present headless (`novaos_toggle` resolves,
 //!     and the table holds every group);
@@ -15,10 +15,10 @@
 //!     `NovaOsTerminal` RESOURCE (the model the CRT merely projects) take the
 //!     characters, and Enter into the map app.
 //!
-//! The point the spike proves is the design's central claim: the terminal's
-//! backend is a plain resource and the screen is only its projection, so with
-//! the plugins present the whole monitor works with no GPU behind it - the
-//! CRT material and the render-to-texture camera are bevy-guarded no-ops.
+//! The central claim this range proves: the terminal's backend is a plain
+//! resource and the screen is only its projection, so with the plugins present
+//! the whole monitor works with no GPU behind it - the CRT material and the
+//! render-to-texture camera are bevy-guarded no-ops.
 //!
 //! Run (no display needed):
 //! ```text

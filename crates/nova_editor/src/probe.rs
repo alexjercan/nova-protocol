@@ -363,7 +363,7 @@ fn snapshot(
         // than the solve - Escape putting the part down, the gallery arming a
         // different one on its way out. Publishing a solve for a part nobody is
         // holding would let `editor_placement_solved()` advance on a build that
-        // cannot happen (review a4a6 R1).
+        // cannot happen.
         placement: match (&tool, preview.placement.as_ref()) {
             (EditorTool::Place(armed), Some(placement)) if *armed == placement.prototype => {
                 match placement.solve.refusal {
@@ -916,7 +916,7 @@ mod tests {
     /// disagree in exactly one way: something changed the tool later in the same
     /// `Update` than the solve - Escape putting the part down, or the gallery
     /// arming a different one on its way out. Publishing that would let a beat
-    /// advance on a build that cannot happen (review a4a6 R1).
+    /// advance on a build that cannot happen.
     #[test]
     fn a_placement_for_a_part_nobody_is_holding_is_not_published() {
         let mut world = world(ExampleStates::Editor);
@@ -1017,7 +1017,7 @@ mod tests {
     /// keyboard arms a part and takes the overlay down after it. Left alone, the
     /// snapshot then republishes the build view's answer from before the gallery
     /// went up: a different pointer position, a different camera, possibly a
-    /// different part (review a4a6 R1).
+    /// different part.
     ///
     /// Driven through the real `gallery_keyboard` in the real order, not by
     /// hand-setting the state.

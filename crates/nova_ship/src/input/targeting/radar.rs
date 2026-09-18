@@ -22,17 +22,16 @@ const TARGETING_CONE_HALF_ANGLE_DEG: f32 = 18.0;
 /// the candidate and the release commits a coin flip.
 const RADAR_PICK_HYSTERESIS: f32 = 0.75;
 
-/// The radar search AND the live lock (strand A1): while a [`RadarState`]
-/// exists (the hold gesture is active), live-retarget the candidate to the
-/// best body on the look ray, with incumbent hysteresis so two
-/// near-collinear bodies do not strobe the pick. Once the hold crosses its
-/// threshold (the action reports `Fired`), the destination slot is latched
-/// from the CURRENT raised stance (Q1a) and written with the candidate every
-/// frame it resolves - the lock is LIVE under the sweep; releasing merely
-/// stops the retargeting. A `None` candidate never writes (keep-last, Q2a),
-/// so the tap window (pre-Fired) and an empty sweep both leave the slots
-/// alone. Runs inside the pause-gated input set, so a pause freezes the
-/// writes while the release observers still tear the search down.
+/// The radar search AND the live lock: while a [`RadarState`] exists (the hold
+/// gesture is active), live-retarget the candidate to the best body on the look
+/// ray, with incumbent hysteresis so two near-collinear bodies do not strobe
+/// the pick. Once the hold crosses its threshold (the action reports `Fired`),
+/// the destination slot is latched from the CURRENT raised stance and written
+/// with the candidate every frame it resolves - the lock is LIVE under the
+/// sweep; releasing merely stops the retargeting. A `None` candidate never
+/// writes (keep-last), so the tap window (pre-Fired) and an empty sweep both
+/// leave the slots alone. Runs inside the pause-gated input set, so a pause
+/// freezes the writes while the release observers still tear the search down.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per radar search input"
@@ -161,7 +160,7 @@ pub(super) fn update_radar_search(
 /// holds unless the challenger is DECISIVELY nearer the ray - its angular
 /// distance (as `1 - cos`) under [`RADAR_PICK_HYSTERESIS`] of the
 /// incumbent's. Leaving the cone entirely drops the candidate (a release
-/// then commits nothing - the abort gesture, decision D1).
+/// then commits nothing - the abort gesture).
 ///
 /// Pure so the hysteresis rule is unit-testable.
 fn radar_pick(

@@ -1,11 +1,11 @@
 //! End-to-end proof of the catalog-driven modding pipeline on a headless asset
-//! server (on 134119/134127). The real `mods.catalog.ron` loads through
-//! `nova_modding`'s `CatalogLoader`, which loads the MANDATORY `base` bundle
-//! and, through it, its `*.content.ron` files; an optional entry (example) is
-//! only declared there, and is loaded here the way the game loads it - through
-//! the asset server, as its own root. Then the real `register_bundles` system
-//! merges only the ENABLED subset (`EnabledMods`) into `GameSections` /
-//! `GameScenarios`, base first.
+//! server. The real `mods.catalog.ron` loads through `nova_modding`'s
+//! `CatalogLoader`, which loads the MANDATORY `base` bundle and, through it,
+//! its `*.content.ron` files; an optional entry (example) is only declared
+//! there, and is loaded here the way the game loads it - through the asset
+//! server, as its own root. Then the real `register_bundles` system merges only
+//! the ENABLED subset (`EnabledMods`) into `GameSections` / `GameScenarios`,
+//! base first.
 //!
 //! The asset IO reads the real workspace `assets/` dir (tests run with the crate root
 //! as cwd).
@@ -517,7 +517,7 @@ fn enabling_example_overrides_a_section_and_adds_a_scenario() {
 
 /// Toggling `EnabledMods` re-runs the merge LIVE (the production wiring: the same
 /// `register_bundles` system gated on `resource_changed::<EnabledMods>`). This is the
-/// mechanism the mods menu (174126) drives - proven across real frames, not a single
+/// mechanism the mods menu drives - proven across real frames, not a single
 /// `run_system_once` (per the change-detection lesson).
 #[test]
 fn toggling_enabled_mods_remerges_live() {

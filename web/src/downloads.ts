@@ -5,7 +5,7 @@
 // disabled and survive any failure here. When JS runs we query the GitHub API
 // for the newest release and rewrite each button's href to the exact per-OS
 // asset, giving a one-click, correct-platform download that always tracks
-// latest without a per-release edit to the page (see the task's DECISION.md).
+// latest without a per-release edit to the page.
 //
 // Asset matching is coupled to the filename convention in
 // .github/workflows/release.yaml: `nova-protocol_v<VERSION>_<platform>.<ext>`.

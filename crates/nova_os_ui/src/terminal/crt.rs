@@ -272,8 +272,8 @@ pub(crate) fn forward_nova_os_pointer(
     // so a half-collapsed raster is clicked where it is actually drawn. Read it
     // exactly as that system does - `iter().next()`, not `single()`, which would
     // fall back to a full raster on the very frame a second shell entity makes
-    // the shader pick the first one's openness (review R1.2). Absent on rigs
-    // without the shell entity: treat that as a full raster.
+    // the shader pick the first one's openness. Absent on rigs without the
+    // shell entity: treat that as a full raster.
     let power = q_openness.iter().next().map(|o| o.0).unwrap_or(1.0);
 
     let cursor = windows.single().ok().and_then(|w| w.cursor_position());

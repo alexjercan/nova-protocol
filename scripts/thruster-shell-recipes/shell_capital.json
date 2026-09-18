@@ -1,5 +1,5 @@
 {
-  "_comment": "SHELL CANDIDATE, LARGE: the 5x5x3 capital drive - the vector candidate grown to the capital block the owner named, per 'especially vector, bigger'. One colossal bell inside a deep faceted shroud drum, ringed by eight heavy vectoring petals and four actuator housings on the shroud flats; heat ring and dark throat at the exit. ART ONLY: a display candidate at 5x5x3 proportions; multi-cell sections stay parked in THRUSTERS.md 4.3.",
+  "_comment": "SHELL CANDIDATE, LARGE: the 5x5x3 capital drive - the vector candidate grown to the capital block the owner named, per 'especially vector, bigger'. One colossal bell inside a deep faceted shroud drum, ringed by eight heavy vectoring petals and four actuator housings on the shroud flats; heat ring and dark throat at the exit. ART ONLY: a display candidate at 5x5x3 proportions; multi-cell sections are not shipped.",
   "cells": [5, 5, 3],
   "materials": {
     "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },

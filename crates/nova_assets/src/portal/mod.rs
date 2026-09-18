@@ -1,6 +1,6 @@
 //! The PORTAL CLIENT: fetch the static mod portal's `catalog.json` and
 //! install/uninstall portal mods over the wire, on native and wasm - the
-//! network half that fills the local mod cache (142906).
+//! network half that fills the local mod cache.
 //!
 //! No UI lives here. The mods menu binds to the EVENT/RESOURCE API only:
 //! trigger [`FetchPortalCatalog`] / [`InstallPortalMod`] /

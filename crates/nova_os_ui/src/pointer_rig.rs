@@ -79,7 +79,7 @@ pub(super) fn shader_sample_uv_reference(uv: Vec2, warp: f32, overscan: f32, pow
 /// rgb = (rgb + analog_add + rim_add) * in_bounds * (1.0 - collapsed);
 /// ```
 ///
-/// These are two SEPARATE tests and neither implies the other (review R2.1):
+/// These are two SEPARATE tests and neither implies the other:
 /// barrel-then-overscan is a net contraction here (0.93 against a barrel factor
 /// under 1.06), so a `cx` just past 1 still lands inside `[0,1]` after warping.
 /// A reference that checked only `in_bounds` disagreed with the (correct)
@@ -93,10 +93,10 @@ pub(super) fn shader_draws_at(uv: Vec2, warp: f32, overscan: f32, power: f32) ->
     (!collapsed && in_bounds).then_some(warped)
 }
 
-/// The shader's power-collapse remap, transcribed ONCE (review R3.1) - both the
-/// sample-UV reference and the draws-here reference read it, so a future shader
-/// change to an edge or the epsilon cannot update one copy and leave the other
-/// stale while the pair still looks self-consistent.
+/// The shader's power-collapse remap, transcribed ONCE - both the sample-UV
+/// reference and the draws-here reference read it, so a future shader change to
+/// an edge or the epsilon cannot update one copy and leave the other stale
+/// while the pair still looks self-consistent.
 ///
 /// ```wgsl
 /// let open_h = smoothstep(0.0, 0.65, material.power);
@@ -120,9 +120,9 @@ fn shader_collapse_remap(uv: Vec2, power: f32) -> Vec2 {
 /// A grid of screen-local UVs covering centre, edges and corners.
 ///
 /// Fine enough to land inside the narrow band where the shader's `collapsed` and
-/// `in_bounds` gates disagree (review R2.1): a 17x17 grid missed it entirely at
-/// every swept power, which is exactly how a reference that modelled only one of
-/// the two gates passed.
+/// `in_bounds` gates disagree: a 17x17 grid missed it entirely at every swept
+/// power, which is exactly how a reference that modelled only one of the two
+/// gates passed.
 pub(super) fn crt_uv_grid() -> Vec<Vec2> {
     let mut grid = Vec::new();
     const STEPS: usize = 200;

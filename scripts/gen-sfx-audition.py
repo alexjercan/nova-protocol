@@ -3,8 +3,8 @@
 
 Reads every rendered WAV, measures it, and writes a self-contained page with
 the clips embedded so the owner can listen, look at the anatomy, and check the
-numbers against the style spec in one place. Committed with the task because
-the page IS the reasoning - `TASK.md` only summarises the verdict.
+numbers against the style spec in one place. The page IS the reasoning behind
+the audio direction, not a summary of it.
 
 Cues are grouped by FAMILY, and a family is auditioned together on purpose:
 what matters about `pdc_twin_fire` is not how it sounds but how it sounds NEXT
@@ -930,7 +930,7 @@ ul.rules b { color: var(--text); font-weight: 500; }
 </style>
 
 <div class="page">
-  <p class="eyebrow">Nova Protocol / Audio direction / 20260824-125955 / the full set</p>
+  <p class="eyebrow">Nova Protocol / Audio direction / the full set</p>
   <h1>Nova Sound Bench</h1>
   <p class="thesis">Combat in a vacuum would be silent, and a silent fight is a boring fight. Nova's guns sound the way a film's guns sound - <b>present, bright and physical</b> - and the game does not apologise for it.</p>
   <p class="lede">Round three settled the language on five cues. This is the rest of it: <b>44 files</b> in that language, every one rendered from first principles by two Python scripts. Five are marked <b>accepted</b> and are here for comparison, not for judgement - per-cue seeding means a round spent retuning the guns cannot reach their bytes.</p>
@@ -966,7 +966,7 @@ ul.rules b { color: var(--text); font-weight: 500; }
     <div><p class="n">11</p><p class="l">NOVA OS files kept as the interface standard</p></div>
     <div><p class="n">6</p><p class="l">shared voices retired</p></div>
   </div>
-  <p class="lede">The full inventory - what exists, what is silent, and which cue each file is authored on - is in <b>tasks/20260824-125955/INVENTORY.md</b>. The renderers are <b>scripts/gen-world-sfx.py</b> and <b>scripts/gen-ui-sfx.py</b> over the shared toolkit in <b>scripts/nova_sfx.py</b>.</p>
+  <p class="lede">The renderers are <b>scripts/gen-world-sfx.py</b> and <b>scripts/gen-ui-sfx.py</b> over the shared toolkit in <b>scripts/nova_sfx.py</b>.</p>
 </div>
 
 <script>

@@ -207,7 +207,7 @@ THUMBNAILS = [
 # alias, a distinct capture staged for the composite name wins over the build.
 # Empty: the devlog-5 stance comparison was built here from two shots, and both
 # it and `devlog5-target-viewfinder` were deleted without a replacement - the
-# site references neither (task 20260805-105154).
+# site references neither.
 COMPOSITES = [
     (
         "news-0110-collider-before-after.png",
@@ -1049,7 +1049,7 @@ def scenario_thumbnail_rows():
     """[(scenario id, path)] for every picker thumbnail still on generated art.
 
     The GAME's half of the same worklist. Scenario thumbnails are `manual` -
-    real per-scenario art is authored, never captured (task 20260715-220011) -
+    real per-scenario art is authored, never captured -
     so until it lands `scripts/gen-scenario-thumbnails.py` writes a deterministic
     placeholder at the path. That determinism is also how the two are told
     apart with no marker file: a file that still matches a fresh render is a

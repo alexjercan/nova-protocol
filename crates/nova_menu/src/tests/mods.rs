@@ -200,9 +200,8 @@ fn details_action_button_toggles_and_relabels() {
 /// fetch state (in this portal-less rig: the fetching note - the same
 /// rendering a real Idle/Fetching shows), moves the tab highlight, and
 /// repairs the selection against the (empty) remote entries so no live
-/// Enable/Disable survives next to portal content (review 142911 R1.2);
-/// switching back restores the installed rows and re-runs the default
-/// selection.
+/// Enable/Disable survives next to portal content; switching back restores
+/// the installed rows and re-runs the default selection.
 #[test]
 fn tab_switch_swaps_list_to_the_explore_states() {
     let mut app = mods_app();
@@ -213,7 +212,7 @@ fn tab_switch_swaps_list_to_the_explore_states() {
         "Installed is the default tab"
     );
     // Select demo first, so the Explore switch has a live details action
-    // to clear (the 142911 reviewer's exact scenario).
+    // to clear.
     let demo_row = mod_row(&mut app, "demo").expect("demo row exists");
     app.world_mut().trigger(Activate { entity: demo_row });
     app.update();

@@ -212,11 +212,11 @@ fn outcome_menu_button_exits_to_main_menu() {
     );
 }
 
-/// Review R1.1 regression: a live outcome (Victory keeps the player ship
-/// alive) now holds the app in Paused of its own accord, and ESC is inert over it - so
-/// no ESC cycle can strand the cursor by re-grabbing it. The cursor stays free the
-/// whole time the overlay is up; only clearing the outcome (and a real ESC pause after)
-/// re-grabs, which is the delivery guard.
+/// Regression: a live outcome (Victory keeps the player ship alive) now holds
+/// the app in Paused of its own accord, and ESC is inert over it - so no ESC
+/// cycle can strand the cursor by re-grabbing it. The cursor stays free the
+/// whole time the overlay is up; only clearing the outcome (and a real ESC
+/// pause after) re-grabs, which is the delivery guard.
 #[test]
 fn a_shown_outcome_keeps_the_cursor_free_and_esc_cannot_regrab_it() {
     let mut app = app_with_outcome();
@@ -391,11 +391,12 @@ fn the_outcome_pause_does_not_spawn_the_pause_menu_panel() {
     );
 }
 
-/// Supersedes review R1.7's stack-order pin: the outcome frame and the pause menu are
-/// now mutually exclusive rather than stacked. The outcome enters Paused of its own
-/// accord and ESC is inert over it, so ESC can never raise the pause overlay on top of
-/// a shown outcome - the case R1.7's z relation was guarding no longer occurs. The
-/// outcome overlay keeps its explicit GlobalZIndex (above the HUD chrome).
+/// Supersedes the earlier stack-order pin: the outcome frame and the pause menu
+/// are now mutually exclusive rather than stacked. The outcome enters Paused of
+/// its own accord and ESC is inert over it, so ESC can never raise the pause
+/// overlay on top of a shown outcome - the case that z relation was guarding no
+/// longer occurs. The outcome overlay keeps its explicit GlobalZIndex (above the
+/// HUD chrome).
 #[test]
 fn esc_over_a_shown_outcome_never_raises_the_pause_overlay() {
     let mut app = app_with_outcome();
@@ -433,9 +434,9 @@ fn esc_over_a_shown_outcome_never_raises_the_pause_overlay() {
     );
 }
 
-/// Review R1.3: a NextScenario queued by a LATER event than the Outcome
-/// still reaches the overlay - the sync rebuilds when the queued-switch
-/// snapshot goes stale, so the Continue button appears.
+/// A NextScenario queued by a LATER event than the Outcome still reaches the
+/// overlay - the sync rebuilds when the queued-switch snapshot goes stale, so
+/// the Continue button appears.
 #[test]
 fn outcome_overlay_rebuilds_when_a_switch_is_queued_later() {
     let mut app = app_with_outcome();

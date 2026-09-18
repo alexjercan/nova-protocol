@@ -1,10 +1,9 @@
-//! system_headless_replay: spike 3 for `nova_channel` - the seed and the clock.
+//! system_headless_replay: `nova_channel` headless parity - the seed and the clock.
 //!
-//! The `nova_channel` design record names the two determinism gaps between "a
-//! driven run" and "a replayable run": the gameplay RNG seeds from the OS, and
-//! a free-running headless app takes its frame delta from the wall clock. This
-//! range closes both the way the channel will - `NOVA_SEED` (the new knob in
-//! `nova_gameplay::settings`) plus bevy's own
+//! Two things stand between "a driven run" and "a replayable run": the gameplay
+//! RNG seeds from the OS, and a free-running headless app takes its frame delta
+//! from the wall clock. This range closes both the way the channel will -
+//! `NOVA_SEED` (the new knob in `nova_gameplay::settings`) plus bevy's own
 //! `TimeUpdateStrategy::ManualDuration`, the step clock - and prints a digest
 //! that two runs can be diffed on:
 //!

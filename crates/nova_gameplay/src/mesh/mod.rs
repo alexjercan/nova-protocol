@@ -7,8 +7,8 @@
 //! ever cuts geometry is a carve, and a carve works on a field.
 //!
 //! A grid is only ever ANALYTIC now - an asteroid's own noise. Reading one out
-//! of authored glTF art was how ship sections carved, and that came out costing
-//! more than it drew: see the epic's Phase 4e.
+//! of authored glTF art was how ship sections carved, and it was removed: it
+//! cost more than it drew.
 //!
 //! Nova owns these because the asteroids, the thruster exhausts and the velocity
 //! indicator are all built here - their subdivision depths are art decisions,

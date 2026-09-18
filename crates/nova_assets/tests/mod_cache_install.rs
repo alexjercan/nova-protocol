@@ -575,11 +575,11 @@ fn loaded_event_flags_downloaded_mods_changed() {
     );
 }
 
-/// Review (a): the on-disk index is DOWNLOADED input - a record whose id or
-/// bundle path could escape the cache (a `..` component, a nested id) is
-/// skipped with a warning before any `mods:/` path is built from it. The
-/// poisoned index is written BY HAND (the real attack shape; the public write
-/// path validates and would refuse to produce it).
+/// The on-disk index is DOWNLOADED input - a record whose id or bundle path
+/// could escape the cache (a `..` component, a nested id) is skipped with a
+/// warning before any `mods:/` path is built from it. The poisoned index is
+/// written BY HAND (the real attack shape; the public write path validates and
+/// would refuse to produce it).
 #[test]
 fn unsafe_index_records_are_skipped_at_load() {
     let guard = cache_root_guard();
@@ -608,13 +608,13 @@ fn unsafe_index_records_are_skipped_at_load() {
     assert_eq!(downloaded.0[0].record.id, "good");
 }
 
-/// Review (b): a malicious bundle MANIFEST can request an escaping content path
-/// without touching the index (`AssetPath::resolve` preserves an underflowing
-/// `..`), so record validation alone cannot stop it - the SANDBOXED native
-/// source must. A decoy content file sits OUTSIDE the mods root (at the data
-/// root, exactly where `../../` from the mod dir lands): the bundle load must
-/// FAIL (the sandbox answers not-found), and the decoy's scenario must never
-/// register even with the mod enabled.
+/// A malicious bundle MANIFEST can request an escaping content path without
+/// touching the index (`AssetPath::resolve` preserves an underflowing `..`), so
+/// record validation alone cannot stop it - the SANDBOXED native source must. A
+/// decoy content file sits OUTSIDE the mods root (at the data root, exactly
+/// where `../../` from the mod dir lands): the bundle load must FAIL (the
+/// sandbox answers not-found), and the decoy's scenario must never register
+/// even with the mod enabled.
 #[test]
 fn escaping_bundle_manifest_cannot_read_outside_the_mods_root() {
     let guard = cache_root_guard();
@@ -700,12 +700,12 @@ fn escaping_bundle_manifest_cannot_read_outside_the_mods_root() {
     );
 }
 
-/// Review: a downloaded record whose id matches a SHIPPED catalog entry is
-/// skipped with a warning (the portal generator's no-shadowing rule,
-/// re-enforced at the consumers because the index is downloaded input) - one
-/// toggle must never drive two bundles or two rows. The downloaded copy here is
-/// the fixture content installed under the shipped id "example", so the
-/// assertions can tell the two bundles apart by their scenarios and meta.
+/// A downloaded record whose id matches a SHIPPED catalog entry is skipped with
+/// a warning (the portal generator's no-shadowing rule, re-enforced at the
+/// consumers because the index is downloaded input) - one toggle must never
+/// drive two bundles or two rows. The downloaded copy here is the fixture
+/// content installed under the shipped id "example", so the assertions can tell
+/// the two bundles apart by their scenarios and meta.
 #[test]
 fn downloaded_id_shadowing_a_shipped_mod_is_skipped() {
     let _guard = cache_root_guard();

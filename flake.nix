@@ -204,8 +204,8 @@
             pkg-config
             llvmPackages.bintools
             nodejs_22 # for the web/ landing site (matches the CI setup-node version)
-            samply # sampling profiler for the scenario-dispatch benchmarks (task 20260714-083331)
-            sccache # RUSTC_WRAPPER: content-hash compile cache shared safely across worktrees (task 20260721-000229)
+            samply # sampling profiler for the scenario-dispatch benchmarks
+            sccache # RUSTC_WRAPPER: content-hash compile cache shared safely across worktrees
             watchexec # file-watch driver for scripts/serve-mods.sh (the mod portal has no watch mode of its own)
             xvfb-run
             ffmpeg # webm loop encoder (nova_autopilot::loops) + ffprobe for scripts/capture-web-media.sh
@@ -224,7 +224,7 @@
           RUST_BACKTRACE = 1;
 
           # sccache: safe fast worktree builds - content-hash compile cache shared
-          # across worktrees, each keeping its own target/ (task 20260721-000229).
+          # across worktrees, each keeping its own target/.
           # sccache requires incremental off.
           RUSTC_WRAPPER = "sccache";
           CARGO_INCREMENTAL = "0";

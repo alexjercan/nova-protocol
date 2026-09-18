@@ -32,7 +32,7 @@ fn generates_default_metas_for_every_loader() {
         // The UI/NOVA OS font is a `.ttf` claimed by Bevy's built-in
         // `FontLoader`. It MUST get a sidecar too, or the web build serves the
         // missing `...ttf.meta` as 200-OK HTML and the font never loads,
-        // leaving every NOVA OS glyph invisible (task 20260727-172205).
+        // leaving every NOVA OS glyph invisible.
         ("fonts/term.ttf", "not-a-real-ttf"),
         // No loader claims `.md`; must be skipped, not errored.
         ("wiki/page.md", "# hello"),

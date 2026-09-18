@@ -434,8 +434,8 @@ fn a_destructive_verb_asks_before_it_runs() {
     );
 }
 
-/// R2.20: the picker is right-anchored off the Inspector, and at a narrow
-/// window that put it on the rail.
+/// The picker is right-anchored off the Inspector, and at a narrow window that
+/// put it on the rail.
 #[test]
 fn a_fresh_window_stands_clear_of_the_rail() {
     assert_eq!(

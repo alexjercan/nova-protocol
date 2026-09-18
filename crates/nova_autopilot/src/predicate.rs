@@ -408,8 +408,7 @@ fn pointer_reports(world: &World, position: Vec2) -> bool {
 /// its own - and a second pointer sitting in the opposite state would otherwise
 /// answer for the one the beat actually moved: its parked "released" would let a
 /// release beat through while the mouse press was still unprocessed, and its
-/// mirrored "pressed" would ack a press the window pointer never saw (review
-/// a4a6 R3).
+/// mirrored "pressed" would ack a press the window pointer never saw.
 ///
 /// False while no mouse pointer exists at all, which is why the RELEASED case
 /// asks for a pointer that reports not-pressed rather than for the absence of
@@ -689,7 +688,7 @@ mod tests {
     /// through `ui_layout_system` carries a zero-size `ComputedNode::default()`,
     /// and a beat that advanced on that would hand `click_named` a degenerate
     /// rect at the window corner and lose the gesture silently, which is the
-    /// race the settles this replaced existed for (review a4a6 R2).
+    /// race the settles this replaced existed for.
     #[test]
     fn ui_node_present_waits_for_a_laid_out_visible_node() {
         let mut world = World::new();
@@ -758,8 +757,7 @@ mod tests {
     /// The acks answer for the WINDOW MOUSE, which is the pointer the gestures
     /// drive. Another pointer in the world - Nova's terminal parks a forwarded
     /// one - must not answer in its place: its parked "released" would let a
-    /// release beat through while the mouse press was still unprocessed (review
-    /// a4a6 R3).
+    /// release beat through while the mouse press was still unprocessed.
     #[test]
     fn another_pointer_does_not_answer_for_the_mouse() {
         use bevy::picking::pointer::{PointerId, PointerPress};

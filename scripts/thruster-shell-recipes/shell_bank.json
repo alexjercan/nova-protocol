@@ -1,5 +1,5 @@
 {
-  "_comment": "SHELL CANDIDATE, LARGE: the 3x3x1 bank - the owner's invitation to go bigger, in the bell language. Nine full ringed bells (cone, heat ring, dark throat each) proud of a plated base, separated by a gunmetal rib lattice on the cell lines, inside a flat perimeter frame that keeps the flanks claddable. ART ONLY: a display candidate at 3x3x1 proportions; multi-cell sections stay parked in THRUSTERS.md 4.3.",
+  "_comment": "SHELL CANDIDATE, LARGE: the 3x3x1 bank - the owner's invitation to go bigger, in the bell language. Nine full ringed bells (cone, heat ring, dark throat each) proud of a plated base, separated by a gunmetal rib lattice on the cell lines, inside a flat perimeter frame that keeps the flanks claddable. ART ONLY: a display candidate at 3x3x1 proportions; multi-cell sections are not shipped.",
   "cells": [3, 3, 1],
   "materials": {
     "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },

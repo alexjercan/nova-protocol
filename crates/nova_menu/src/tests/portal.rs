@@ -185,9 +185,9 @@ fn opening_explore_fetches_only_from_idle() {
 
 /// A failed fetch renders the error + Retry; a surviving last-good
 /// catalog renders below an offline note, browsable and selectable.
-/// Retry force-resets the state to Idle BEFORE re-triggering (the 163508
-/// R1.3 wedge recovery: the fetch observer refuses re-triggers while
-/// Fetching, so a reset-less retry could be refused forever).
+/// Retry force-resets the state to Idle BEFORE re-triggering (the wedge
+/// recovery: the fetch observer refuses re-triggers while Fetching, so a
+/// reset-less retry could be refused forever).
 #[test]
 fn catalog_error_renders_retry_and_the_stale_fallback() {
     let mut app = explore_app(
@@ -339,8 +339,8 @@ fn explore_actions_trigger_the_right_events_with_the_right_ids() {
     );
 
     // The uninstall lands: the deferred install fires, once, right id;
-    // the request then waits for the new record (the R1.4 enablement
-    // stage) and clears when it lands.
+    // the request then waits for the new record (the enablement stage) and
+    // clears when it lands.
     app.world_mut()
         .resource_mut::<DownloadedMods>()
         .0
@@ -387,9 +387,9 @@ fn request_update(app: &mut App, id: &str, since: Instant, re_enable: bool) {
 }
 
 /// The choreography guards, focused: the install half fires only after
-/// the id has left BOTH DownloadedMods AND PendingRemovals (the 163508
-/// race guard - a wasm uninstall's async file removal must not race the
-/// reinstall's writes), and it fires exactly once.
+/// the id has left BOTH DownloadedMods AND PendingRemovals (the removal race
+/// guard - a wasm uninstall's async file removal must not race the reinstall's
+/// writes), and it fires exactly once.
 #[test]
 fn update_choreography_fires_only_after_both_guards_clear() {
     let mut app = app();
@@ -410,7 +410,7 @@ fn update_choreography_fires_only_after_both_guards_clear() {
     app.update();
     assert!(
         app.world().resource::<PortalCaptures>().installs.is_empty(),
-        "removal still pending: the install must not fire (the 163508 race guard)"
+        "removal still pending: the install must not fire (the removal race guard)"
     );
 
     app.world_mut().resource_mut::<PendingRemovals>().0.clear();
@@ -457,11 +457,10 @@ fn update_request_times_out_and_stays_dead() {
     );
 }
 
-/// Review 142916 R1.4: updating an ENABLED mod restores its enabled bit
-/// once the new record lands (the uninstall strips EnabledMods and a
-/// fresh install commits disabled - without this, Update silently
-/// disables the mod); a DISABLED mod stays disabled through the same
-/// choreography.
+/// Updating an ENABLED mod restores its enabled bit once the new record lands
+/// (the uninstall strips EnabledMods and a fresh install commits disabled -
+/// without this, Update silently disables the mod); a DISABLED mod stays
+/// disabled through the same choreography.
 #[test]
 fn update_preserves_the_enabled_bit() {
     let mut app = explore_app(
@@ -518,12 +517,12 @@ fn update_preserves_the_enabled_bit() {
     // charlie was disabled there and stays disabled after the update.
 }
 
-/// Review 142916 R1.1: entries rendered from the STALE last-good fallback
-/// must not offer Install or Update - an offline install can only fail,
-/// and an offline Update would uninstall a working mod it cannot replace.
-/// Uninstall stays (purely local), under the muted offline note; and the
-/// action handler itself refuses Install/Update without a Ready catalog
-/// (defense in depth), so even a stale button cannot destroy an install.
+/// Entries rendered from the STALE last-good fallback must not offer Install
+/// or Update - an offline install can only fail, and an offline Update would
+/// uninstall a working mod it cannot replace. Uninstall stays (purely local),
+/// under the muted offline note; and the action handler itself refuses
+/// Install/Update without a Ready catalog (defense in depth), so even a stale
+/// button cannot destroy an install.
 #[test]
 fn stale_entries_offer_no_install_or_update() {
     // An update-available installed entry, rendered from last_good.
@@ -618,9 +617,8 @@ fn stale_entries_offer_no_install_or_update() {
 }
 
 /// A Failed job renders its error with Retry + Dismiss: Retry re-triggers
-/// the install with the right id; Dismiss clears the InstallJobs entry
-/// (the 163508 R1.3 recovery affordance) and the pane recovers to the
-/// plain Install action.
+/// the install with the right id; Dismiss clears the InstallJobs entry - the
+/// recovery affordance - and the pane recovers to the plain Install action.
 #[test]
 fn failed_job_renders_error_retry_and_dismiss() {
     let mut app = explore_app(

@@ -632,7 +632,7 @@ mod backend {
     // The `*_at` functions below are the pure (root in) halves the unit tests
     // drive under a temp root. They RE-CHECK ids/paths at the fs boundary even
     // though the module-level public API already validated them: these are
-    // callable directly (tests, the 163508 installer), so the fs layer must
+    // callable directly (tests, the network installer), so the fs layer must
     // not rely on the caller having gone through the wrappers.
 
     pub fn index_path(root: &Path) -> PathBuf {

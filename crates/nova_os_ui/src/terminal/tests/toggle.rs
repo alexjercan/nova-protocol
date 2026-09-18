@@ -221,7 +221,7 @@ fn nova_os_block_caret_is_absolute_and_tracks_measured_text_width() {
         .expect("one before-cursor prompt text");
     // A width deliberately NOT a multiple of the old `chars * 0.6em` cell
     // (16 * 0.6 = 9.6px), so the asserted number itself proves the caret is
-    // measure-derived rather than char-derived (review R2.1).
+    // measure-derived rather than char-derived.
     app.world_mut()
         .entity_mut(before_entity)
         .insert(ComputedNode {

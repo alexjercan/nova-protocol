@@ -652,7 +652,7 @@ mod line_of_fire_tests {
     fn sensor_volumes_are_not_cover() {
         // A scenario trigger area / blast shell: rounds fly through
         // sensors (resolve_bullet_hit skips them), so the gate must
-        // not read one as cover - the R1.1 beacon lesson, ray edition.
+        // not read one as cover - the beacon lesson, ray edition.
         let (mut app, _, turret, _) = los_app(Vec3::new(0.0, 0.0, -100.0), 1.0);
         app.world_mut().spawn((
             RigidBody::Static,

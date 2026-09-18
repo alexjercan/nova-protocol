@@ -1,4 +1,4 @@
-//! system_headless_pointer: spike 1 for `nova_channel` - the virtual window.
+//! system_headless_pointer: `nova_channel` headless parity - the virtual window.
 //!
 //! Boots the EXACT app `--norender --scenario tutorial` runs - backendless
 //! wgpu, no winit, no display server - then spawns the one thing that run lacks:

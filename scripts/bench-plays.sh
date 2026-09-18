@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The agent bench's named plays: one goal each, run and recorded the way the
-# footage in the task records was made.
+# The agent bench's named plays: one goal each, run and recorded the same way
+# every time.
 #
 #     nix develop -c scripts/bench-plays.sh --list
 #     nix develop -c scripts/bench-plays.sh sommelier shell cheat

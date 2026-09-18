@@ -174,7 +174,7 @@ body {
     /* Mono sets a wider average glyph and a taller x-height than the retired
        proportional body face, so the leading goes up to keep long prose open.
        This (with the measures on .prose/.news__body) is the whole mitigation
-       for the denser mono reading accepted in DECISION.md. */
+       for the denser mono reading. */
     line-height: 1.7;
     background-color: var(--site-field);
     /* One restrained terminal field on every site page: a low phosphor bloom,

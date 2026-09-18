@@ -185,17 +185,20 @@ impl ModInfo {
 /// see nor switch off is not a thing the catalog can express: dev-only content
 /// belongs in its owning example or test fixture instead.
 ///
-/// Built once from the loaded catalog at `OnEnter(Processing)` by
-/// [`build_mod_catalog`]. The mods menu reads this (plus [`EnabledMods`]) to render
-/// its list without touching the asset machinery. Empty until the catalog loads.
+/// Built by [`build_mod_catalog`] in `Update`, once the optional loads settle,
+/// and rebuilt whenever the installed bundles change. The mods menu reads this
+/// (plus [`EnabledMods`]) to render its list without touching the asset
+/// machinery. Empty until the catalog loads.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct ModCatalog(pub Vec<ModInfo>);
 
 /// Fill [`ModCatalog`] from the loaded [`InstalledCatalog`] asset, composing each
 /// declaration with its bundle's [`ModMeta`], in catalog order, then
 /// append one per DOWNLOADED mod ([`DownloadedMods`], cache-index order).
-/// Runs at `OnEnter(Processing)`, before `seed_enabled_mods`, and re-runs when
-/// `DownloadedMods` changes (install/uninstall, or a downloaded bundle's async
+/// Runs in `Update` while in `Processing`, after `quarantine_failed_mods` and
+/// once the optional loads have settled - so AFTER `seed_enabled_mods`, which
+/// is an `OnEnter(Processing)` system. Re-runs when the downloaded or the
+/// optional bundles change (install/uninstall, or a downloaded bundle's async
 /// load completing) so the rows track the cache. A missing/unloaded bundle is
 /// logged and degrades to a decl-only row (name = id), never a panic.
 pub fn build_mod_catalog(

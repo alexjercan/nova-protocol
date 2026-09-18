@@ -328,7 +328,6 @@ mod tests {
         app
     }
 
-    /// The Phase 3 claim end to end: what one run learned, the next run knows.
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn what_one_run_learned_the_next_run_loads() {

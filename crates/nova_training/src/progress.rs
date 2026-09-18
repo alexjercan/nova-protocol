@@ -28,8 +28,8 @@ pub enum LessonStatus {
 ///
 /// Sets are `BTreeSet<LessonId>`: an explicit id list, ordered, so a persisted
 /// record round-trips byte-for-byte and an unknown id is a value somebody can
-/// look at rather than a bit position. Phase 3 decides the persistence OWNER;
-/// nothing here writes a file.
+/// look at rather than a bit position. `nova_menu`'s `TrainingProgressPlugin`
+/// owns persistence; nothing here writes a file.
 ///
 /// What the player ANSWERED is not in here. Whether the menu still offers
 /// Basic Training is a menu setting (`nova_menu`'s `TrainingPromptSetting`),

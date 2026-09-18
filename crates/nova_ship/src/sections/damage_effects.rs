@@ -32,9 +32,9 @@
 //! The rule the vocabulary is kept honest by: NO SECTION LOSES GEOMETRY. Every
 //! effect here is a material or a particle, and the only thing that changes a
 //! ship's shape is a whole PIECE leaving - a plate shot off, a section
-//! destroyed. Carving authored art was built and then removed: see the epic's
-//! Phase 4e for what it cost against what it drew. A rock still carves, because
-//! a rock's solid is analytic and its collider IS its mesh.
+//! destroyed. Carving authored art was built and then removed - it cost more
+//! than it drew. A rock still carves, because a rock's solid is analytic and
+//! its collider IS its mesh.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::SectionMarker;

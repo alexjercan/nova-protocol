@@ -528,11 +528,11 @@ pub(crate) fn scroll_nova_os_panels(
 /// The input surface a NOVA OS app reads: the activity gate, pointer and action
 /// state, and the frame clock.
 ///
-/// F81: `map_input` and `ship_input` each declared this same seven-parameter
+/// `map_input` and `ship_input` each declared this same seven-parameter
 /// cluster behind `#[allow(clippy::too_many_arguments)]`. Bundling it also
 /// makes the Control guard non-optional - [`Self::pressed`] and
 /// [`Self::just_pressed`] withhold every key while Control is down, because
-/// Control is the app-exit chord (F34). Reading `ButtonInput` directly is what
+/// Control is the app-exit chord. Reading `ButtonInput` directly is what
 /// let Ctrl+`[` both leave the app and cycle its selection.
 ///
 /// The apps name ACTIONS, not keys: the two viewers were the last cluster of

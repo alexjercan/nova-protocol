@@ -232,7 +232,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // nothing is armed OR when nothing is under the pointer - so a missed
         // Escape would sail through it the moment the pointer reached empty
         // space, with the part still in hand and its link-point clutter still
-        // in the figure (review a4a6 R4).
+        // in the figure.
         .step("press Escape to put the part down")
         .on_enter(press_key(KeyCode::Escape))
         .until(editor_tool_is(EditorTool::Select))

@@ -351,7 +351,7 @@ fn campaign_member_rows_are_indented_under_their_header() {
         );
         // INSET, not shifted: a `list_row`'s `percent(100)` plus an outside
         // margin would make the row wider than the pane and overhang the
-        // details divider (review R1.1 - it did, visibly).
+        // details divider (it did, visibly).
         assert_eq!(
             node.width,
             Val::Auto,

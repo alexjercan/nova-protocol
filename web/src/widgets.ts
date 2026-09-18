@@ -6946,7 +6946,7 @@ function initStyleExplorer(host: HTMLElement): void {
 }
 
 function initBattlefieldLoad(host: HTMLElement): void {
-    // Paired census: tasks/20260818-220812/DECISIONS.md:1172-1175.
+    // Paired census of the same battlefield, before and after.
     const oldScene = { rounds: 1000, bodies: 1035, colliders: 1046 };
     const newScene = { rounds: 400, bodies: 35, colliders: 46 };
     header(
@@ -11441,10 +11441,9 @@ function initCommandCatalog(host: HTMLElement): void {
 // chips to a wide crater puts the frame's metal ceiling at 448.
 //
 // The walk's cost is the stress_hull_collapse range's record: 55.18 ms for
-// the 1088 sections of one siege salvo before, 0.87 ms for 1063 after
-// (tasks/20260904-155338/TASK.md:139-140), scaled here per section. The
-// stress hull is 1296 cells (tasks/20260904-173517/TASK.md:45), and its
-// 720-piece collapse is the activation queue's record (:75,:219).
+// the 1088 sections of one siege salvo before, 0.87 ms for 1063 after, scaled
+// here per section. The stress hull is 1296 cells, and its 720-piece collapse
+// is the activation queue's record.
 export const SHARD_EMITTERS = 64;
 export const CHUNK_ACTIVATIONS_PER_FRAME = 24;
 export const CHIPS_PER_WIDE_CRATER = 7;

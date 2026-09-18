@@ -349,11 +349,11 @@ fn back_to_menu_unpauses_and_reloads_the_ambience() {
     );
 }
 
-/// Review R1.1: both full-screen overlay roots must carry an explicit
-/// GlobalZIndex above the default 0, so they stack over the bottom-right
-/// menu card deterministically (sibling z-order otherwise falls back to
-/// Entity ordering, whose ids the despawned ambience scene recycles). The
-/// RENDERED order is only visually verifiable; this pins the component.
+/// Both full-screen overlay roots must carry an explicit GlobalZIndex above
+/// the default 0, so they stack over the bottom-right menu card
+/// deterministically (sibling z-order otherwise falls back to Entity ordering,
+/// whose ids the despawned ambience scene recycles). The RENDERED order is only
+/// visually verifiable; this pins the component.
 #[test]
 fn overlay_roots_carry_an_explicit_z_index() {
     let mut app = mods_app();

@@ -240,8 +240,8 @@ pub struct RepeatCapture {
 /// produces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RefreshCap {
-    /// No capture carried a cluster shape: pre-schema-v4 rows, or a run that
-    /// asked for a mode allowed to block on refresh. Unmeasured, not clean.
+    /// No capture carried a cluster shape: a run that asked for a mode allowed
+    /// to block on refresh. Unmeasured, not clean.
     Unmeasured,
     /// Shapes were measured and none cleared both bars ([`REFRESH_CAP_SHARE`]
     /// and [`REFRESH_CAP_MIN_MS`]).
@@ -919,9 +919,9 @@ mod tests {
         assert_eq!(read.admitted(), 3);
     }
 
-    /// A pre-v4 row, or a run that asked for a mode allowed to block on
-    /// refresh, carries no shape. That is UNMEASURED and must not read as
-    /// "not clustered" - the same distinction SKIPPED draws in the checks.
+    /// A run that asked for a mode allowed to block on refresh carries no
+    /// shape. That is UNMEASURED and must not read as "not clustered" - the
+    /// same distinction SKIPPED draws in the checks.
     #[test]
     fn a_set_carrying_no_cluster_shape_reads_unmeasured_not_clean() {
         let runs = vec![

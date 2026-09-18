@@ -16,7 +16,7 @@
 //!
 //! Every synthesized keyboard event gets its Released twin, and a key-lane tap
 //! releases on the NEXT frame - a held key never re-arms `just_pressed`, which
-//! is the trap the spike round found and this module exists to not repeat.
+//! is the trap this module exists to not repeat.
 
 use bevy::{
     input::{

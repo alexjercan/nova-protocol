@@ -1,10 +1,10 @@
-//! system_headless_crt: spike 6 for `nova_channel` - click a map blip through
+//! system_headless_crt: `nova_channel` headless parity - click a map blip through
 //! the CRT glass, with no GPU anywhere.
 //!
-//! The `nova_channel` design row this proves:
+//! The claim this range proves:
 //! "Click a map blip through the CRT glass - pointer to + press; the shipped
-//! forwarded pointer does the warp math". The open question the row carried
-//! was whether the glass EXISTS headless: `setup_nova_os` falls back to
+//! forwarded pointer does the warp math". The open question was whether the
+//! glass EXISTS headless: `setup_nova_os` falls back to
 //! terminal-directly-on-screen when the image or material assets are absent.
 //! They are not absent in `--norender` - `UiMaterialPlugin` registers
 //! `Assets<NovaOsCrtMaterial>` BEFORE its render-app check (bevy
@@ -693,8 +693,8 @@ fn hovered_through_the_glass(world: &World) -> String {
 /// picture does not include even zoomed out.
 ///
 /// The window mouse is asserted HERE because no beat waits on it: the aim gate
-/// proved the FORWARDED pointer arrived, and the claim this spike exists for is
-/// that the same blip is unreachable from window space.
+/// proved the FORWARDED pointer arrived, and the point of this range is that
+/// the same blip is unreachable from window space.
 #[cfg(feature = "debug")]
 fn census_the_glass(world: &mut World) {
     let census: Vec<serde_json::Value> = plotted_contacts(world)

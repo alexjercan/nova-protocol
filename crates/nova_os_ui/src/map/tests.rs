@@ -695,7 +695,7 @@ fn map_orbit_drag_is_rmb_only() {
 /// while it is held - otherwise Ctrl+T both leaves the app and re-frames the
 /// view behind it. `map_input` read `ButtonInput` directly and had no guard at
 /// all; routing it through `NovaOsAppInput` is what supplies one. The `ship`
-/// app carried the same bug (F34) and was fixed on its own.
+/// app carried the same bug and was fixed on its own.
 #[test]
 fn control_withholds_map_keys_because_it_is_the_exit_chord() {
     let mut app = map_input_app();

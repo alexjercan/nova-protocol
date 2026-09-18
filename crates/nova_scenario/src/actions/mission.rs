@@ -138,8 +138,8 @@ impl From<HudReadoutFormatConfig> for HudReadoutFormat {
 /// the DISPLAY half of the scenario-variable vocabulary. The timekeeping half
 /// already exists: `scenario_elapsed` (and any authored variable) lives on the
 /// event world; this action is what finally puts one on the HUD. Generic on
-/// purpose (per the spike): any mod can surface any variable (a score, a
-/// countdown, a lap time), not just a run clock.
+/// purpose: any mod can surface any variable (a score, a countdown, a lap
+/// time), not just a run clock.
 ///
 /// A readout is identified by its `slot`. Firing the action with `visible:
 /// true` shows or updates that slot; the HUD then tracks the bound variable's

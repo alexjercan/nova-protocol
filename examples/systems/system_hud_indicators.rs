@@ -614,7 +614,7 @@ fn readout_value(line: &str) -> f32 {
 ///
 /// Raise first, radar a beat later - the natural human order. (The old
 /// press-time latch made a SAME-frame RMB+CTRL press a recorded sharp edge;
-/// the threshold latch retired it, Q1a.)
+/// the threshold latch retired it.)
 #[cfg(feature = "debug")]
 fn raise_stance(world: &mut World) {
     press_action("combat_stance")(world);
@@ -681,8 +681,8 @@ fn commit_lock(world: &mut World) {
         Visibility::Visible,
         "hud range: the inset panel must show at lock time, not after the dwell"
     );
-    // The frame carries the safety state (Q5a): hot right now (raised +
-    // lock), so the armed ticks are on.
+    // The frame carries the safety state: hot right now (raised + lock), so the
+    // armed ticks are on.
     let tick_visibility = *world
         .query_filtered::<&Visibility, With<TargetInsetArmedTickMarker>>()
         .iter(world)

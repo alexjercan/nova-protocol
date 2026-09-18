@@ -421,5 +421,4 @@ tapped Stop at 1.96 km, settled 1.1 km off and broke the hauler up in
 
 A `--ui tui` renderer on the same event bus, and `bench run`, a sweep of plays
 over a scenario set with an `index.json`, an HTML report and a `--baseline`
-diff release over release. The run design record is
-`tasks/20260824-125933/ARCHITECTURE.md`.
+diff release over release.

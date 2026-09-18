@@ -26,7 +26,7 @@
 //! The binary installs [`NovaChannelPlugin`] LAST, after `editor_app`, under
 //! `--channel <mode>` (debug-only, requires `--norender`): its runner replaces
 //! the `ScheduleRunnerPlugin` one the headless builder set, and its writer
-//! systems pin to the slots the design record fixed.
+//! systems pin to fixed schedule slots.
 #![warn(missing_docs)]
 
 pub mod apply;

@@ -22,9 +22,9 @@ use crate::{
 
 /// Marker for the outcome overlay root (see `sync_outcome_overlay`). Carries
 /// the queued-switch snapshot the overlay was built against, so the sync can
-/// rebuild when a LATER event queues a NextScenario under a shown outcome
-/// (outcome review R1.3) - otherwise the buttons/hint would say Main Menu
-/// while Enter actually releases the queued switch.
+/// rebuild when a LATER event queues a NextScenario under a shown outcome -
+/// otherwise the buttons/hint would say Main Menu while Enter actually
+/// releases the queued switch.
 #[derive(Component)]
 pub(crate) struct OutcomeOverlay {
     pub(crate) queued: bool,
@@ -247,8 +247,7 @@ pub(crate) fn auto_advance_outcome(
         return;
     }
     // Finite-check and cap before Timer::from_seconds: an authored 1e300
-    // parses fine and `as f32` is inf, which panics Duration construction
-    // (review R1.1).
+    // parses fine and `as f32` is inf, which panics Duration construction.
     if !secs.is_finite() {
         *clock = None;
         return;
@@ -487,10 +486,9 @@ pub(crate) fn regrab_cursor_on_player_spawn(
     if *game_state.get() != GameStates::Playing || pause.get().is_frozen() {
         return;
     }
-    // Symmetric with restore_cursor (outcome review R1.1): never grab out
-    // from under a live outcome overlay. Teardown clears the outcome before
-    // a Retry's ship respawns, so this is a belt-and-braces guard, not the
-    // normal path.
+    // Symmetric with restore_cursor: never grab out from under a live outcome
+    // overlay. Teardown clears the outcome before a Retry's ship respawns, so
+    // this is a belt-and-braces guard, not the normal path.
     if outcome.is_some_and(|outcome| outcome.0.is_some()) {
         return;
     }

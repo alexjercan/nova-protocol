@@ -1,5 +1,5 @@
 {
-  "_comment": "PDC CANDIDATE: armored casemate. Yaw: a wide flat ring with visible ring gear, a junction box and a cable run. Pitch: a slab-sided cowl - casemate box, slanted glacis plate over the brow, roof plate, side skirts - with a glow sensor pip on the roof. Barrel: one heavy tube in a recoil sleeve behind a mantlet disc, boxy muzzle brake, copper gas tube underneath. The stow argument: a turret this shape reads as something that could sink flush into a mount recess, which is what task 20260831-083622 wants room for.",
+  "_comment": "PDC CANDIDATE: armored casemate. Yaw: a wide flat ring with visible ring gear, a junction box and a cable run. Pitch: a slab-sided cowl - casemate box, slanted glacis plate over the brow, roof plate, side skirts - with a glow sensor pip on the roof. Barrel: one heavy tube in a recoil sleeve behind a mantlet disc, boxy muzzle brake, copper gas tube underneath. The stow argument: a turret this shape reads as something that could sink flush into a mount recess, which is what the stow housing wants room for.",
   "frame": "turret",
   "materials": {
     "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },

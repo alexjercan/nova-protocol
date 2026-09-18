@@ -1,5 +1,5 @@
 //! End-to-end proof of the PORTAL CLIENT: the game fetches a portal catalog and
-//! installs/uninstalls mods over the wire, committing through the 142906 local
+//! installs/uninstalls mods over the wire, committing through the local mod
 //! cache and registering into the live installed set.
 //!
 //! Two rigs, both driving the PRODUCTION wiring (`PortalPlugin` - the real
@@ -764,8 +764,8 @@ fn unknown_schema_version_is_rejected_not_misparsed() {
     );
 }
 
-/// Review: an install whose file fetch NEVER calls back (the pathological
-/// transport 163508 documented) is failed by the stall timeout instead of
+/// An install whose file fetch NEVER calls back (a transport that accepts the
+/// request and then goes silent) is failed by the stall timeout instead of
 /// wedging in `Fetching` forever, landing on the standard Failed surface (the
 /// menu's Retry/Dismiss) with nothing committed. The tiny injected
 /// `PortalFetchTimeout` drives the REAL timeout system across frames; deleting

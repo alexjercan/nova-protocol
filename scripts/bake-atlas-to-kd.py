@@ -3,8 +3,8 @@
 
 Palette-atlas packs (Quaternius, KayKit, newer Kenney kits) export ONE grey
 `Kd` and keep every colour in a UV texture - `cut-obj-into-parts.py` reads
-colours from `Kd` only, so cutting such a pack yields colourless parts (the
-trap recorded in tasks/20260812-100256/SPIKE.md). This script closes that gap:
+colours from `Kd` only, so cutting such a pack yields colourless parts. This
+script closes that gap:
 it samples the atlas under each face, quantizes the samples into a small
 palette, and writes a new OBJ+MTL whose materials carry those colours as flat
 `Kd` values - the same shape as a born-flat pack like the Fertile Soil blocks,

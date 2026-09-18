@@ -250,7 +250,7 @@ fn mirror_hover_serves_content_but_never_clobbers_window_ui() {
     // ONLY on entities rendered through the image (descendants of the content
     // root). It must NOT touch window-space UI - otherwise it force-writes
     // `Hovered(false)` on the real cursor's targets every frame (regressing the
-    // chin knobs, menus, any Button). Regression pin for review finding M1.
+    // chin knobs, menus, any Button).
     use bevy::{
         ecs::entity::EntityHashMap, picking::backend::HitData, platform::collections::HashMap,
     };
@@ -318,10 +318,10 @@ fn mirror_hover_serves_content_but_never_clobbers_window_ui() {
 /// viewport were unclickable while the ship app's centre-clustered ones were
 /// not.
 ///
-/// Swept at several power levels, not just a full raster (review R1.1): at a
-/// settled raster the collapse remap is exactly the identity, so a grid run
-/// only at full power leaves that whole half of the mapping unexercised - a
-/// divide flipped to a multiply there passed the entire suite.
+/// Swept at several power levels, not just a full raster: at a settled raster
+/// the collapse remap is exactly the identity, so a grid run only at full power
+/// leaves that whole half of the mapping unexercised - a divide flipped to a
+/// multiply there passed the entire suite.
 #[test]
 fn nova_os_pointer_mapping_matches_the_crt_shader_across_the_screen() {
     use crate::pointer_rig::{crt_uv_grid, shader_draws_at, CRT_MAP_BUDGET_PX};
@@ -400,7 +400,7 @@ fn nova_os_pointer_mapping_matches_the_crt_shader_across_the_screen() {
         powers_that_collapsed += usize::from(collapsed);
     }
     // ...and the sweep as a whole must actually reach the collapsed regime,
-    // or the divide in the remap is still never exercised (review R1.1).
+    // or the divide in the remap is still never exercised.
     assert!(
         powers_that_collapsed >= 2,
         "only {powers_that_collapsed} of the swept powers collapsed the raster \

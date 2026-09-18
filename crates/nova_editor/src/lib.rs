@@ -1083,7 +1083,7 @@ mod tests {
     }
 
     /// Counts LoadScenario triggers so the NewGame test can prove the editor
-    /// stayed out of the menu's scenario load (review R1.1).
+    /// stayed out of the menu's scenario load.
     #[derive(Resource, Default)]
     struct EditorScenarioLoads(usize);
 

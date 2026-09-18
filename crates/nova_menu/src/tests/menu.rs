@@ -105,7 +105,7 @@ fn sandbox_button_sets_mode_and_loads_no_scenario() {
     assert_eq!(*app.world().resource::<HudVisibility>(), HudVisibility::On);
 }
 
-/// Review R1.3: exercise the REAL New Game button, not just the handler fn.
+/// Exercise the REAL New Game button, not just the handler fn.
 /// Builds the actual menu UI headless, finds the button by Name, and clicks
 /// it - so dropping the observe(on_new_game) wiring from setup_menu_ui fails
 /// this test.

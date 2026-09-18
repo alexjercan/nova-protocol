@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Offline renderer for Nova Protocol's WORLD sound effects.
 
-The world voice, as specified in `tasks/20260824-125955/INVENTORY.md`: ORDINARY
-game sounds. Combat in a vacuum would be silent and a silent fight is a boring
+The world voice: ORDINARY game sounds. Combat in a vacuum would be silent and a
+silent fight is a boring
 fight, so Nova's guns sound the way a film's guns sound - present, bright and
 physical - and the game does not apologise for it.
 

@@ -396,6 +396,15 @@ does NOT get an entry - and it is the only place they are written down.
 - A probe check that was armed for a capability and wrote nothing now reads
   `armed and silent` in every row that grades it a failure. `invariants_held`
   used one word for that and for a run with no manifest at all.
+- `frametime.csv` is read at one schema only. A capture written before the run
+  metadata, build profile and cluster-shape columns is refused with
+  `unexpected CSV header` instead of half-read.
+- `probe sweep --baseline <dir>` resolves a commit directory under `<dir>`, the
+  same way an automatic baseline does; an explicit path no longer falls back to
+  `<dir>` itself. A run directory named directly now prints `no baseline commit
+  dir found in <dir>; skipping fps comparison` and the FPS comparison does not
+  run. `probe run --baseline <dir>` is unchanged and still takes the capture
+  directory itself.
 - Agent work defaults to Pair, with code-backed proposals and a required Verify
   workflow for bugs and features. Claude shares the same instructions and skills.
 - The retired code-navigation benchmark tools are removed. The gameplay agent

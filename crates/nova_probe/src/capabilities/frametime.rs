@@ -467,10 +467,10 @@ impl RunMeta {
             quality: probe_param(QUALITY_PARAM).unwrap_or_else(|| "default".to_string()),
             git_sha: resolve_git_sha(),
             host: resolve_host(),
-            // The CAPTURE binary's own build profile (schema v3): dev
-            // numbers are not baselines, and every row must say which it
-            // is. cfg! resolves at the capture's compile time - exactly the
-            // binary that produced the frames.
+            // The CAPTURE binary's own build profile: dev numbers are not
+            // baselines, and every row must say which it is. cfg! resolves at
+            // the capture's compile time - exactly the binary that produced
+            // the frames.
             profile: if cfg!(debug_assertions) {
                 "dev".to_string()
             } else {
@@ -828,7 +828,7 @@ fn perf_force_max_delta(config: Res<PerfConfig>, mut virtual_time: ResMut<Time<V
 
 /// Advance the capture state machine one frame: wait for the scene to be
 /// ready, discard warm-up frames, record deltas, then compute + emit stats and
-/// exit. The adapter resource feeds the run metadata (schema v2) at emit time.
+/// exit. The adapter resource feeds the run metadata at emit time.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system owns the whole capture state machine; splitting it would \

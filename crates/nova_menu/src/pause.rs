@@ -294,15 +294,15 @@ pub(crate) fn restore_cursor(
 ) {
     // The Back path exits Paused and Playing in the same transition batch
     // (GameStates applies first, it is init'd first): never re-grab when the
-    // destination is the menu (review R1.4).
+    // destination is the menu.
     if *game_state.get() != GameStates::Playing {
         return;
     }
-    // A live outcome overlay owns the cursor (outcome review R1.1): on Victory the ship
-    // survives, so without this guard exiting Paused with the overlay still up would
-    // re-lock the mouse and strand its buttons - sync_outcome_cursor only frees on
-    // outcome CHANGE. The outcome now drives the pause itself and ESC is inert over
-    // it, so this is a defensive guard rather than the normal path.
+    // A live outcome overlay owns the cursor: on Victory the ship survives, so
+    // without this guard exiting Paused with the overlay still up would re-lock
+    // the mouse and strand its buttons - sync_outcome_cursor only frees on
+    // outcome CHANGE. The outcome now drives the pause itself and ESC is inert
+    // over it, so this is a defensive guard rather than the normal path.
     if outcome.is_some_and(|outcome| outcome.0.is_some()) {
         return;
     }
@@ -385,7 +385,7 @@ pub(crate) fn reconcile_pause_overlay(
             Name::new("Pause Overlay"),
             // A modal blocker, unlike the main menu root: the editor's
             // buttons and section-picking live beneath this overlay and must
-            // not receive clicks through it (review R1.2).
+            // not receive clicks through it.
             Pickable {
                 should_block_lower: true,
                 is_hoverable: false,
@@ -607,9 +607,9 @@ pub(crate) fn on_retry(
 
 /// Back out to the front door. Unpauses in the same transition batch (a
 /// force_unpause on OnExit(Playing) alone would apply one frame late,
-/// leaving the overlay over the menu for a frame - review R1.4); entering
-/// MainMenu loads the ambience backdrop (tearing the gameplay scenario down)
-/// and the editor resets its own inner state on OnExit(Playing).
+/// leaving the overlay over the menu for a frame); entering MainMenu loads the
+/// ambience backdrop (tearing the gameplay scenario down) and the editor resets
+/// its own inner state on OnExit(Playing).
 pub(crate) fn on_back_to_menu(
     _activate: On<Activate>,
     mut state: ResMut<NextState<GameStates>>,

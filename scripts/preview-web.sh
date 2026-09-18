@@ -47,7 +47,7 @@ echo ">> generating the mod portal…"
 # at /mods/ - see .github/workflows/deploy-page.yaml). The wasm build derives its
 # portal base by stepping out of /play/ and appending /mods, so it fetches
 # <root>/mods same-origin with no ?portal= override and no CORS. Without this the
-# Explore tab 404s on /mods/catalog.json (task 20260715-214540).
+# Explore tab 404s on /mods/catalog.json.
 rm -rf web/dist/mods
 python3 scripts/gen-portal.py \
     --source webmods \

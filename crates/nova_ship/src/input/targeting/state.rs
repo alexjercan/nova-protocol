@@ -128,10 +128,10 @@ pub struct RadarState {
     pub engaged: Option<RadarSlot>,
     /// The current best candidate under the look ray (with hysteresis).
     /// `None` = searching empty space; the engaged slot keeps its last
-    /// target (keep-last, Q2a).
+    /// target (keep-last).
     pub candidate: Option<Entity>,
     /// Whether this gesture has acquired yet - first-write bookkeeping for
-    /// the once-per-gesture [`RadarLockAcquired`] cue (Q3a).
+    /// the once-per-gesture [`RadarLockAcquired`] cue.
     pub acquired: bool,
     /// The candidate the acquisition dwell is currently charging on. The
     /// engaged slot is written only once the dwell completes, so this is the
@@ -219,9 +219,8 @@ pub fn targeting_state() -> impl Bundle {
 /// One radar gesture acquired its first target - fired the first frame the
 /// engaged slot RESOLVES a candidate (re-acquiring the target the slot
 /// already held is still an acquisition; the slot write itself is an
-/// equality-skip then), once per gesture (acquire-only, Q3a of), never on the
-/// live retargets that follow. The LockOn cue reads this (consumer lands
-/// with).
+/// equality-skip then), once per gesture (acquire-only), never on the live
+/// retargets that follow. The LockOn cue reads this.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RadarLockAcquired {
     /// True when the combat slot acquired (red), false for travel (white).
@@ -241,7 +240,7 @@ pub struct RadarRetargeted {
 
 /// A tap-clear just cleared a lock. The HUD's unlatch ghost (the crosshair
 /// visibly popping off the target - the wordless replacement for the old text
-/// toast, Q7a of) and the LockOff cue read this.
+/// toast) and the LockOff cue read this.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LockClearedToast {
     /// True: the combat lock was cleared; false: the travel lock (and any
@@ -253,8 +252,8 @@ pub struct LockClearedToast {
 }
 
 /// A radar hold was denied because the ship's computer grants no Lock
-/// capability (F7 - previously a silent no-op). The deny buzz + the radar
-/// adornment flash read this (Q8a).
+/// capability (previously a silent no-op). The deny buzz + the radar
+/// adornment flash read this.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RadarDenied;
 

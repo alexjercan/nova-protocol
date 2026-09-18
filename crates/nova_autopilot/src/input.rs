@@ -343,12 +343,11 @@ pub fn ui_node_diagnosis(name: impl Into<String>) -> impl Fn(&World) -> String +
 /// so does a `Display::None` one. Having the components is not having a BOX, and
 /// a zero-size rect at the window corner is not somewhere a pointer can be put.
 /// Both are rejected here, so a beat that waits on this waits for a target that
-/// exists rather than for an entity that has been spawned (review a4a6 R2).
+/// exists rather than for an entity that has been spawned.
 ///
 /// A name two laid-out nodes share resolves to whichever the query yields
 /// first, which is arbitrary - so it WARNS. A driven run silently clicking a
-/// ghost is the exact failure naming targets exists to make visible (review
-/// R1.5).
+/// ghost is the exact failure naming targets exists to make visible.
 ///
 /// `&World`, so the same resolve backs both the gestures (which hold `&mut
 /// World`, and reborrow into this) and
@@ -844,13 +843,13 @@ mod tests {
 
     /// Two laid-out nodes sharing a name resolve to ONE of them and SAY SO - the
     /// resolve must not pick silently, because a click on a ghost leaves the run
-    /// green (review R1.5). Which one is arbitrary; that it is one of the two,
-    /// that the beat survives, and that the ambiguity is logged once naming the
-    /// count, is the contract.
+    /// green. Which one is arbitrary; that it is one of the two, that the beat
+    /// survives, and that the ambiguity is logged once naming the count, is the
+    /// contract.
     ///
     /// The log is captured rather than assumed: the warn has no return value, so
     /// without capture this test passes with the warn deleted and covers nothing
-    /// the fix added (review R2.4).
+    /// the fix added.
     #[test]
     fn a_duplicated_name_warns_and_resolves_to_one_of_them() {
         let mut app = app();
@@ -896,7 +895,7 @@ mod tests {
     ///
     /// Spawned at scale factor 2 ON PURPOSE: at scale 1 the size conversion is
     /// the identity, so the test passed with `* scale` deleted from the size
-    /// term and covered nothing (review R3.1).
+    /// term and covered nothing.
     #[test]
     fn a_named_node_resolves_to_its_logical_rect() {
         let mut app = app();

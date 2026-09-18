@@ -138,7 +138,7 @@ impl BiomeSlot {
 /// Every figure is a fraction or a frequency in cycles per unit of DIRECTION,
 /// so none of them scales with the planet: a dust world reads the same at a
 /// 200 m planetoid and a 2 km one, which is the failure the shipped rock
-/// texture has (see the round record).
+/// texture has.
 #[derive(Clone, Copy, Debug)]
 pub struct PlanetDetail {
     /// How far the shader may move the elevation a band threshold reads, as a
@@ -1010,7 +1010,7 @@ mod tests {
     }
 
     /// The authored RON shape, pinned: this is the config a scenario would
-    /// carry, and the round record quotes it.
+    /// carry.
     #[cfg(feature = "serde")]
     #[test]
     fn a_planet_config_round_trips_through_ron() {

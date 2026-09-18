@@ -1,6 +1,6 @@
-//! system_headless_drag: spike 5 for `nova_channel` - drag a slider by wire.
+//! system_headless_drag: `nova_channel` headless parity - drag a slider by wire.
 //!
-//! The `nova_channel` design row this proves:
+//! The claim this range proves:
 //! "Drag a slider, scrub a numeric grip - `Pointer<Drag>` observers on the
 //! widget; the pointer lane fires them". The one slider in the settings UI is
 //! the master volume (`"Volume Slider Track"`, Audio tab); the drive is the

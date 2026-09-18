@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The static mod-portal generator (the deploy workflow + preview script run this).
 
-Interim build-time tool (task 20260718-152247): a hosted mods API will eventually
+Interim build-time tool: a hosted mods API will eventually
 replace it wholesale. It scans a SOURCE directory of mod folders (`webmods/` in
 the repo: each subdirectory is one mod, the directory name is its id), runs the
 manifest-level PUBLISH gates, and writes a deterministic portal tree:
@@ -9,9 +9,9 @@ manifest-level PUBLISH gates, and writes a deterministic portal tree:
     <out>/catalog.json                  # PortalCatalog (JSON, schema-versioned)
     <out>/<id>/<version>/<files...>     # every file of the mod, verbatim copy
 
-Originally a byte-for-byte port of the now-removed Rust `nova_portal_gen` crate
-(task 20260720-230924 retired the crate once this was proven at parity). Stdlib
-only. Its publish gates are exercised by
+Originally a byte-for-byte port of the now-removed Rust `nova_portal_gen` crate,
+retired once this was proven at parity. Stdlib only. Its publish gates are
+exercised by
 `crates/nova_assets/tests/gen_portal_gate.rs`.
 
 The PUBLISH gates (each rejects with a non-zero exit):

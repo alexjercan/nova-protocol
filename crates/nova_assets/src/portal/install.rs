@@ -764,11 +764,11 @@ mod tests {
         );
         assert!(
             validate_entry(&duplicate).is_err(),
-            "duplicate file paths are rejected (review 163508 R1.6)"
+            "duplicate file paths are rejected"
         );
     }
 
-    /// Review: the local `Path`-component gates are NOT URL containment - a
+    /// The local `Path`-component gates are NOT URL containment - a
     /// WHATWG-conformant fetcher percent-decodes segments, so `%2e%2e` is a
     /// dot-dot on the wire while being a plain `Normal` component locally. The
     /// charset gate must reject any segment outside the generator's published
@@ -815,9 +815,9 @@ mod tests {
         assert!(validate_entry(&mixed_file).is_ok());
     }
 
-    /// Review: the anti-absurdity caps - a catalog cannot make the client stage
-    /// absurd amounts of memory (or requests). One entry per cap: per-file
-    /// size, file count, summed declared size.
+    /// The anti-absurdity caps - a catalog cannot make the client stage absurd
+    /// amounts of memory (or requests). One entry per cap: per-file size, file
+    /// count, summed declared size.
     #[test]
     fn validate_entry_enforces_the_staging_caps() {
         let mut oversized_file = entry("pack", "1.0.0", "pack.bundle.ron", &["pack.bundle.ron"]);
@@ -853,9 +853,9 @@ mod tests {
         );
     }
 
-    /// Review: an install for an id whose uninstall file-removal is still in
-    /// flight (wasm's is a detached task) is rejected before anything else - a
-    /// fresh write could be deleted under it. The guard and resource are
+    /// An install for an id whose uninstall file-removal is still in flight
+    /// (wasm's is a detached task) is rejected before anything else - a fresh
+    /// write could be deleted under it. The guard and resource are
     /// cfg-independent (only wasm ever fills the set), so this native test pins
     /// the exact production observer.
     #[test]

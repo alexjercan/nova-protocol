@@ -1,6 +1,6 @@
 # Delete compatibility machinery and low-value verification
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.14.0, refactor, verification
 
@@ -838,12 +838,84 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
     `screenshot_section_gallery.rs:190,192` (`Third round`, `this round's` -
     labels for what the stand shows).
 
-- [ ] **12 - Reconcile cleanup documentation and close the epic.**
+- [x] **12 - Reconcile cleanup documentation and close the epic.**
   After items 01-11, rerun the compatibility, task-citation, stale-comment, and
   weak-test inventories. Update only invalidated docs and describe actual
   breaking changes in the v0.14.0 changelog. Record deliberately retained
   runtime fallbacks and shipped persistence migrations. Compare the result to
   every `Done when` condition before closing this task.
+
+  Changed 90 files: `CHANGELOG.md` (two `### Internals & Tooling` entries),
+  `docs/keeping-docs-in-sync.md` (two dead Player-wiki routes emptied),
+  `docs/agent-bench.md`, `art/README.md`, `Cargo.toml`, `flake.nix`,
+  `.github/workflows/ci.yaml`, `scripts/**` (9 files + 4 recipe JSON),
+  `tools/nova_meta_gen/**`, `web/src/{downloads,webgpu,widgets}.ts`,
+  `web/src/style.css`, `webmods/gauntlet/*.ron`, `assets/shaders/*.wgsl`,
+  and comment-only edits across 15 crates and 8 examples.
+
+  Compatibility inventory: `#[deprecated]` = 0; every symbol items 01-08
+  deleted confirmed absent. No dual path survives. Weak-test inventory: no
+  vacuous test found; no test added or deleted in this item.
+
+  Task citations: **13 forms** swept repo-wide with `--hidden`. Forms 11-13
+  (bare `HHMMSS` ids, `assets/shaders/**` which earlier globs missed, and
+  sentence-initial `Review:`) were each found AFTER a sweep that had been
+  called clean, so the verdict below is bounded by the forms enumerated, not
+  by proof of exhaustion. A structural pass over 114,569 extracted comment
+  lines (bare-label parentheticals, article + document noun, ordinal + document
+  noun) returned 0 further citations against 1,208 classified false positives.
+  Permitted residuals: `TODO(20260908-161328)` and `TODO(20260901-104359)`,
+  both verified open. Untouched by design: `web/src/news/*.md` release
+  archives, `CHANGELOG.md` below `[Unreleased]`, docs describing the task
+  system, `content_lint_gate.rs`'s `ack_task` schema field (data), and
+  `scripts/gen-sfx-audition.py:28`'s `OUT` path (code, not a comment).
+
+  Stale comments corrected (6): `frametime.rs:470,831` schema labels;
+  `mod_set.rs:188,197` (false on schedule, order and "once"); `frames.rs:243`
+  and `:922` (a pre-v4 row cannot reach either - `nova_probe/src/stats.rs:842`
+  refuses any non-v4 header, and `:838` makes that total: "Shared by every
+  frametime consumer"); `system_headless_novaos.rs:3-8` (gate gone from
+  `nova_core`, not "removed by this range").
+
+  Pre-existing defects repaired, not introduced here: 4 dangling prepositions
+  from `95b97a76f` (2026-08-01, ancestor of this queue) at
+  `targeting/state.rs:131,134,222-224,244` and `targeting/gesture.rs:733`.
+
+  Observed proof: `cargo fmt --all -- --check` clean; `cargo check
+  --all-targets` over 15 packages clean; `cargo check --features debug` on all
+  6 headless examples clean; `gen_portal_gate` 4 passed 0 failed
+  (`synthetic_valid_mod_publishes`, `generation_is_deterministic`,
+  `a_multi_mod_source_publishes_and_lists_every_mod`,
+  `rejection_gates_all_fail_nonzero`); `catalog_drift` 2 passed 0 failed
+  (`catalog_matches_disk`, `systems_ranges_assert_their_invariant_roster`).
+  Orchestrator token diff over all 194 hunks: 194 substantive, **0
+  reflow-only**. Non-comment Rust changes: 8 assertion message strings, none
+  altering what is asserted.
+
+  Retained runtime fallbacks (each states its condition at its own site):
+  `mod_set.rs` degrades a missing or unloaded bundle to a decl-only row with a
+  warning; `portal.rs` renders the stale last-good catalog with Install and
+  Update refused; `crt.rs` treats an absent shell entity as a full raster.
+  Persistence stores: settings, training, enabled_mods, ui_skin. Shipped
+  persistence migrations in this range: none - `frametime.csv` is v4-only by
+  refusal, which is why it takes a changelog entry instead.
+
+  Limits carried at close, none closed by this task:
+  - `RenderMeshTransform` has no `deny_unknown_fields`, so an authored `scal:`
+    is silently dropped and a 2x resize becomes no resize (item 08, spiked).
+  - `enabled_by_default` catalog keys fail at LOAD only; `lint_walk` never
+    reads `assets/mods.catalog.ron`.
+  - 6 of 209 `serde(default)` sites were audited - those whose prose invoked
+    compatibility. The other ~203 are unread.
+  - `examples/screenshots/screenshot_comms.rs:131` does not compile: it passes
+    `channel:` to `NarrativeCueActionConfig`, whose fields are `speaker, text,
+    dwell, icon, accent`. Cause is the already-shipped `**(breaking)**` entry
+    at `CHANGELOG.md:200-202` ("a cue an `accent`"); the example was never
+    migrated with it. Pre-existing, unrelated to this task, not fixed here.
+  - `probe sweep`'s skip path also grades `fps_within_baseline` not-applicable
+    (`sweep.rs:111` clears `opts.baseline`, `fps_within_baseline.rs:57-62`
+    grades it). The changelog entry states the printed message and that the
+    comparison does not run; it does not name the grade.
 
 ## Done when
 

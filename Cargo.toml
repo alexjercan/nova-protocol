@@ -17,7 +17,7 @@ publish = false
 # catalog below the SINGLE source of truth: a stray file can never become a
 # phantom target, and a missing block means the example does not build at all
 # (the catalog_matches_disk test in crates/nova_probe_cli/tests/catalog_drift.rs
-# pins catalog == disk). Task 20260719-193728.
+# pins catalog == disk).
 autoexamples = false
 
 [lib]
@@ -31,7 +31,7 @@ path = "src/lib.rs"
 # opt-out from claim grading, no skip list - but it is still spawned by
 # `probe run --all`, so it MUST exit cleanly under NOVA_AUTOPILOT within the
 # deadline with a clean log (a hang or panic is a FAIL, opted out or not).
-# THREE categories, split by AUDIENCE (task 20260818-221103):
+# THREE categories, split by AUDIENCE:
 #
 #   playable/    A HUMAN. Somebody loads it and does the thing it demonstrates
 #                - flies the hull, works the gallery, drags the widget. The
@@ -107,14 +107,14 @@ path = "examples/playable/wfc_ships.rs"
 
 # A fixed roster of hand-placed structures - the owner's L, runs, a T, a cross,
 # a fitted hull - clad, named and held still, with the skin report printed per
-# subject so a render is judged next to its numbers (task 20260816-142330).
+# subject so a render is judged next to its numbers.
 [[example]]
 name = "shape_bench"
 path = "examples/playable/shape_bench.rs"
 
 # The shape bench at ship scale: a roster of hand-placed BUILDING BLOCK ships
 # - destroyer wedge, spine freighter, carrier deck - clad, named and held
-# still, judged against "this can be an actual ship" (task 20260816-203837).
+# still, judged against "this can be an actual ship".
 [[example]]
 name = "block_bench"
 path = "examples/playable/block_bench.rs"
@@ -134,16 +134,15 @@ path = "examples/playable/first_shift_map.rs"
 
 # The railgun slug's ionized wake at three speeds (2.5, 7.5 and the shipped
 # 15 km/s) under three lifetime policies, with dark hull plates for the moving
-# light and every knob live. Task 20260902-143732's tuning bench: it fires the
-# production slug and slides the weapon's own wake tuning.
+# light and every knob live. A tuning bench: it fires the production slug and
+# slides the weapon's own wake tuning.
 [[example]]
 name = "railgun_wake_bench"
 path = "examples/playable/railgun_wake_bench.rs"
 
 # Every fixture model the merged styles own, stood in named rows grouped by
 # style on pedestal plates, with an idle orbit and a focus turntable - the
-# catalog a greeble is judged on as an object before placement rules touch it
-# (task 20260816-203846).
+# catalog a greeble is judged on as an object before placement rules touch it.
 [[example]]
 name = "greeble_catalog"
 path = "examples/playable/greeble_catalog.rs"
@@ -162,17 +161,17 @@ path = "examples/playable/parts_viewer.rs"
 name = "widget_zoo"
 path = "examples/playable/widget_zoo.rs"
 
-# The asteroid KIND lineup (task 20260815-231945): five kinds across three
-# silhouette seeds, every rock spawned through the real scenario path, with the
-# `plain` control column standing in as the before picture.
+# The asteroid KIND lineup: five kinds across three silhouette seeds, every
+# rock spawned through the real scenario path, with the `plain` control column
+# standing in as the before picture.
 [[example]]
 name = "asteroid_kinds"
 path = "examples/playable/asteroid_kinds.rs"
 
-# The compare_* rigs frame art candidates for human judgment (task
-# 20260812-100256), with the owner's eyes on them rather than the website's:
-# number keys re-dress the focus subject and the arrows cycle. Under
-# NOVA_AUTOPILOT they walk the same swaps, capture and exit.
+# The compare_* rigs frame art candidates for human judgment, with the owner's
+# eyes on them rather than the website's: number keys re-dress the focus
+# subject and the arrows cycle. Under NOVA_AUTOPILOT they walk the same swaps,
+# capture and exit.
 [[example]]
 name = "compare_asteroids"
 path = "examples/playable/compare_asteroids.rs"
@@ -181,9 +180,9 @@ path = "examples/playable/compare_asteroids.rs"
 name = "compare_planets"
 path = "examples/playable/compare_planets.rs"
 
-# The planetoid-look lineup (task 20260815-231945): seeded planet types and
-# seeds over two rows, a focus planet the keys re-draw from a type and a seed,
-# and today's textured planetoid at the same framing for contrast.
+# The planetoid-look lineup: seeded planet types and seeds over two rows, a
+# focus planet the keys re-draw from a type and a seed, and today's textured
+# planetoid at the same framing for contrast.
 [[example]]
 name = "planet_types"
 path = "examples/playable/planet_types.rs"
@@ -621,23 +620,21 @@ path = "examples/screenshots/screenshot_flip_burn.rs"
 #
 # A named row of thruster looks - the shipped drive, the proposed shell size
 # family, and the CC0 candidate models under art/part-candidates - the
-# showcase half of the thruster-shell spike (task 20260816-200255).
+# showcase half of the thruster-shell spike.
 [[example]]
 name = "screenshot_thruster_gallery"
 path = "examples/screenshots/screenshot_thruster_gallery.rs"
 
 # A named grid of section model candidates - torpedo bays, PDC mounts, hull
 # and controller cores under art/part-candidates/sections, each row led by
-# the shipped art it would replace - the showcase half of the section remodel
-# (task 20260831-083625).
+# the shipped art it would replace - the showcase half of the section remodel.
 [[example]]
 name = "screenshot_section_gallery"
 path = "examples/screenshots/screenshot_section_gallery.rs"
 
 # The remodel's acceptance range: both PDC mounts and the two-cell bay under
 # live scripted fire at columns built from the new hull/controller models,
-# with the walk failing unless every weapon demonstrably lands its damage
-# (task 20260831-083625).
+# with the walk failing unless every weapon demonstrably lands its damage.
 [[example]]
 name = "screenshot_section_trials"
 path = "examples/screenshots/screenshot_section_trials.rs"
@@ -862,11 +859,11 @@ workspace = true
 clap = { version = "4.5.48", features = ["derive"] }
 nova_core = { path = "crates/nova_core" }
 
-# The dev-tool subcommands of the game binary (task record: this session,
-# 2026-08-11): `cargo run content ...` is the authoring CLI, `cargo run
-# --features debug probe ...` the run-harness host. Both are target-gated off
-# wasm - the trunk bundle ships neither, and nova_probe_cli has no wasm build
-# at all (it spawns child processes; CI's wasm job keeps excluding it).
+# The dev-tool subcommands of the game binary: `cargo run content ...` is the
+# authoring CLI, `cargo run --features debug probe ...` the run-harness host.
+# Both are target-gated off wasm - the trunk bundle ships neither, and
+# nova_probe_cli has no wasm build at all (it spawns child processes; CI's wasm
+# job keeps excluding it).
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 nova_authoring = { path = "crates/nova_authoring" }
 # Optional: only the `debug` feature links the probe host into the game
@@ -888,8 +885,8 @@ nova_channel = { path = "crates/nova_channel", optional = true }
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
-# The headless replay spike (task 20260820-174148) draws one sample from the
-# global entropy to prove `NOVA_SEED` reaches the stream the game plays from.
+# The headless replay spike draws one sample from the global entropy to prove
+# `NOVA_SEED` reaches the stream the game plays from.
 bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
 # The stress ranges and the baseline use the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
@@ -1096,12 +1093,11 @@ members = [
   "crates/nova_authoring",
   "crates/nova_autopilot",
   "crates/nova_bench",
-  # The process channel: named inputs on stdin, snapshots on stdout
-  # (task 20260820-174148).
+  # The process channel: named inputs on stdin, snapshots on stdout.
   "crates/nova_channel",
   # The Command shell's dispatcher. Sits ABOVE gameplay, scenario, settings and
   # menu on purpose: `nova_os` owns the command language and stays a leaf, this
-  # crate owns running one against the live world (task 20260827-120347).
+  # crate owns running one against the live world.
   "crates/nova_console",
   "crates/nova_core",
   "crates/nova_debug",
@@ -1144,14 +1140,14 @@ members = [
   # game's), but lives under tools/. It is never a game dependency, so a bare
   # `cargo build`/`run` of the root package does not compile it; it is reached
   # explicitly by `cargo run -p nova_meta_gen` (Trunk post_build) and by CI's
-  # `--workspace`. See tasks/20260718-152255/SPIKE.md (round 2).
+  # `--workspace`.
   #
   # NB: no `default-members` here on purpose. The root Cargo.toml is a PACKAGE
   # (nova-protocol, the game), so a bare `cargo run`/`build` at the repo root
   # targets the game binary. Setting `default-members` to the crate list broke
   # that - it made bare `cargo run` resolve across all members and launch the
-  # `probe` bin instead of the game (task 20260721-151934). meta_gen is already
-  # skipped by bare builds (not a game dep), so default-members bought nothing.
+  # `probe` bin instead of the game. meta_gen is already skipped by bare builds
+  # (not a game dep), so default-members bought nothing.
   "tools/nova_meta_gen",
 ]
 resolver = "2"

@@ -1253,8 +1253,8 @@ fn spawn_binding_row(
     let binding = bindings.and_then(|bindings| bindings.get(action));
     let label = binding.map_or_else(
         // An action the registry does not know is an authoring error, and it
-        // says so on the screen rather than drawing a blank row. Phase 2 makes
-        // it a lint failure before it can get this far.
+        // says so on the screen rather than drawing a blank row. Nothing
+        // rejects it earlier: the screen is the only thing that catches it.
         || format!("unknown action `{action}`"),
         |binding| binding.label.to_string(),
     );

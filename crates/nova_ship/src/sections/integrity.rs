@@ -2501,7 +2501,7 @@ mod ghost_ship_tests {
         assert_eq!(
             destroy_events(&app),
             1,
-            "the root's OnDestroyed fires exactly once (review R1.2)"
+            "the root's OnDestroyed fires exactly once"
         );
     }
 
@@ -2814,15 +2814,14 @@ mod ghost_ship_tests {
         assert_eq!(
             destroy_events(&app),
             1,
-            "the backstop kills the root exactly once, not zero, not twice \
-             (review R1.2)"
+            "the backstop kills the root exactly once, not zero, not twice"
         );
     }
 
     /// Damage landing on the ROOT body directly is overwritten by the next
     /// recompute (the aggregate mirrors sections, nothing else); the ship
-    /// must still die exactly once when its sections then go - the
-    /// interleave the plan promised (review R1.2 restored it).
+    /// must still die exactly once when its sections then go, with the direct
+    /// hit and the recompute interleaved.
     #[test]
     fn direct_root_damage_interleaved_with_the_recompute_still_kills_cleanly() {
         let mut app = ghost_app();

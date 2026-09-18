@@ -43,7 +43,7 @@ pub(crate) enum PortalActionKind {
     Update,
     /// Clear the id's [`InstallJobs`] entry - the recovery affordance for a
     /// Failed job (including one the portal client's fetch-stall timeout
-    /// failed, the 163508 R1.3 pair).
+    /// failed).
     Dismiss,
 }
 
@@ -54,9 +54,9 @@ pub(crate) struct UpdateRequest {
     /// its own window.
     pub(crate) since: Instant,
     /// The mod was ENABLED when the update started; re-enable it once the
-    /// new version's record lands (review 142916 R1.4 - the uninstall strips
-    /// EnabledMods per 142906 R1.7, and a fresh install commits disabled, so
-    /// an update would otherwise silently disable a mod the player had on).
+    /// new version's record lands: the uninstall strips EnabledMods and a
+    /// fresh install commits disabled, so an update would otherwise silently
+    /// disable a mod the player had on.
     pub(crate) re_enable: bool,
     /// The install half was fired; the request now only waits for the new
     /// record to land in [`DownloadedMods`] to restore the enabled bit.
@@ -66,12 +66,12 @@ pub(crate) struct UpdateRequest {
 /// UPDATE = uninstall-then-install choreography: the ids whose Update button
 /// was clicked. [`drive_update_choreography`] fires [`InstallPortalMod`] only
 /// once the id has left BOTH [`DownloadedMods`] and [`PendingRemovals`] (the
-/// 163508 race guard: a wasm uninstall's file removal is async, and an
+/// removal race guard: a wasm uninstall's file removal is async, and an
 /// install admitted while it runs could have its fresh writes deleted under
 /// it), then holds the request until the new record lands to restore the
 /// enabled bit; a stage older than [`UPDATE_TIMEOUT`] drops the request with
 /// a warn - a wedged uninstall (or a failed install) must not hold a phantom
-/// request forever (review 163508 R1.3).
+/// request forever.
 #[derive(Resource, Default)]
 pub(crate) struct UpdateRequested(pub(crate) HashMap<String, UpdateRequest>);
 
@@ -142,11 +142,11 @@ pub(crate) fn drive_update_choreography(
 
 /// Fire the clicked action button's portal command (see [`PortalActionKind`]).
 ///
-/// Install and Update require a READY remote catalog (review 142916 R1.1,
-/// defense in depth with the UI gate in [`spawn_portal_actions`]): entries
-/// rendered from the stale last-good fallback must not start an install (it
-/// can only fail - the portal observer requires Ready) and an offline Update
-/// must not uninstall a working mod it cannot replace.
+/// Install and Update require a READY remote catalog (defense in depth with
+/// the UI gate in [`spawn_portal_actions`]): entries rendered from the stale
+/// last-good fallback must not start an install (it can only fail - the portal
+/// observer requires Ready) and an offline Update must not uninstall a working
+/// mod it cannot replace.
 pub(crate) fn on_portal_action(
     activate: On<Activate>,
     buttons: Query<&PortalAction>,
@@ -210,8 +210,8 @@ pub(crate) fn on_portal_action(
 
 /// The catalog Error state's Retry: force-reset the state to Idle FIRST - the
 /// fetch observer refuses re-triggers while `Fetching`, so a wedged fetch
-/// (transport callback never fired, review 163508 R1.3) would otherwise
-/// refuse recovery forever - then re-trigger the fetch.
+/// (transport callback never fired) would otherwise refuse recovery forever -
+/// then re-trigger the fetch.
 pub(crate) fn on_catalog_retry(
     _activate: On<Activate>,
     remote: Option<ResMut<RemoteCatalog>>,
@@ -239,7 +239,7 @@ pub(crate) fn explore_entries(remote: &RemoteCatalog) -> Option<&[PortalEntry]> 
 /// An Explore row's right-aligned install-state tag: "installed" when the id
 /// is downloaded at the catalog's exact version string, "update" when it is
 /// downloaded at a DIFFERENT one (v1: exact string compare; semver ordering
-/// is deferred per the spike), none otherwise.
+/// is deferred), none otherwise.
 pub(crate) fn portal_status_tag(
     entry: &PortalEntry,
     downloaded: Option<&DownloadedMods>,
@@ -442,16 +442,16 @@ pub(crate) fn spawn_action_text(
     ));
 }
 
-/// The Explore details' action area, by install state (the R1.3 recovery
-/// surface lives here): a live job renders progress text and NO buttons; a
-/// Failed job renders the error + Retry (re-trigger) + Dismiss (clear the
-/// job entry); a pending update renders "Updating..."; otherwise Install, or
-/// Uninstall (+ Update when the installed version string differs).
+/// The Explore details' action area, by install state (the recovery surface
+/// lives here): a live job renders progress text and NO buttons; a Failed job
+/// renders the error + Retry (re-trigger) + Dismiss (clear the job entry); a
+/// pending update renders "Updating..."; otherwise Install, or Uninstall (+
+/// Update when the installed version string differs).
 ///
 /// `catalog_ready` is false when the entry renders from the stale last-good
-/// fallback (review 142916 R1.1): Install/Update need the READY catalog to
-/// succeed, and an offline Update would uninstall a working mod it cannot
-/// replace - so only Uninstall renders, under a muted offline note.
+/// fallback: Install/Update need the READY catalog to succeed, and an offline
+/// Update would uninstall a working mod it cannot replace - so only Uninstall
+/// renders, under a muted offline note.
 pub(crate) fn spawn_portal_actions(
     actions: &mut ChildSpawnerCommands,
     id: &str,

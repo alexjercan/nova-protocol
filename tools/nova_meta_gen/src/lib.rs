@@ -89,14 +89,14 @@ pub fn build_app(assets_dir: &str) -> App {
     app.register_asset_loader(ShaderLoader);
     app.register_asset_loader(AudioLoader);
 
-    // The UI/NOVA OS font is a `.ttf` (the single Iosevka Term Regular face,
-    // task 20260729-000956), claimed by Bevy's built-in `FontLoader`. Register
-    // it so this tool writes a `...ttf.meta` naming it - otherwise the font is
-    // skipped (`NoLoader`), ships with no sidecar, and the web build
-    // (`AssetMetaCheck::Always`) fails the missing-meta fetch, leaving every
-    // NOVA OS glyph invisible (task 20260727-172205). Like `AudioLoader` above,
-    // `write_default_loader_meta_file_for_path` only needs the loader in the
-    // registry (it reads `Settings::default()`), so no `init_asset` is required.
+    // The UI/NOVA OS font is a `.ttf` (the single Iosevka Term Regular face),
+    // claimed by Bevy's built-in `FontLoader`. Register it so this tool writes
+    // a `...ttf.meta` naming it - otherwise the font is skipped (`NoLoader`),
+    // ships with no sidecar, and the web build (`AssetMetaCheck::Always`) fails
+    // the missing-meta fetch, leaving every NOVA OS glyph invisible. Like
+    // `AudioLoader` above, `write_default_loader_meta_file_for_path` only needs
+    // the loader in the registry (it reads `Settings::default()`), so no
+    // `init_asset` is required.
     app.register_asset_loader(bevy::text::FontLoader);
 
     // GltfPlugin registers the `gltf`/`glb` loader in its `finish()`, falling

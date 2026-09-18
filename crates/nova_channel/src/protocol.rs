@@ -1,6 +1,6 @@
 //! The wire's envelope: one JSON object per line, `tick` plus at most one
-//! payload key, parsed into a typed [`Lane`] or refused with the message the
-//! design record fixed.
+//! payload key, parsed into a typed [`Lane`] or refused with a message naming
+//! what is wrong with the line.
 //!
 //! Parsing is pure and worldless - whether a NAME resolves (an action, a
 //! section, a UI target) is the applier's question, answered against the live

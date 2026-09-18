@@ -534,10 +534,10 @@ mod float {
         assert_eq!(at, Some(Vec2::ZERO));
     }
 
-    /// R2.4: `Camera::world_to_viewport` has no x/y range check, so a node in
-    /// front of the camera but BESIDE the frame answers `Ok` with a point that
-    /// is not on screen. Clamping it pins a label to the border for something
-    /// nobody can see.
+    /// `Camera::world_to_viewport` has no x/y range check, so a node in front
+    /// of the camera but BESIDE the frame answers `Ok` with a point that is not
+    /// on screen. Clamping it pins a label to the border for something nobody
+    /// can see.
     #[test]
     fn an_anchor_off_the_screen_has_nowhere_to_hang() {
         let viewport = Vec2::new(1024.0, 768.0);
@@ -597,8 +597,9 @@ mod float {
         assert_eq!(spot, Vec2::new(700.0, 300.0));
     }
 
-    /// R2.4's second half: lifting past the top edge put every chip in the pile
-    /// on `y = 0`, which is the one outcome the de-collision exists to prevent.
+    /// The other half of the same problem: lifting past the top edge put every
+    /// chip in the pile on `y = 0`, which is the one outcome the de-collision
+    /// exists to prevent.
     /// With no room above, the column turns around and falls instead.
     #[test]
     fn a_pile_against_the_top_edge_falls_instead_of_stacking_off_screen() {

@@ -29,8 +29,8 @@ const AI_THREAT_DAMAGE_MEMORY_SECS: f32 = 3.0;
 pub(super) const AI_THREAT_AIM_RANGE: f32 = 200.0;
 /// Aim cone (cos) for the aiming-at-me signal: the hostile's hull forward
 /// against the bearing to my anchor. A cheap proxy - turrets can aim off
-/// the hull axis - accepted per the spike; true incoming-projectile
-/// detection is the follow-up if evasion feels blind.
+/// the hull axis - accepted as such; true incoming-projectile detection is
+/// the follow-up if evasion feels blind.
 pub(super) const AI_THREAT_AIM_COS: f32 = 0.95;
 /// Jink legs in one evade cycle.
 ///

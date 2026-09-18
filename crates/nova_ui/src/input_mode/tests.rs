@@ -88,9 +88,9 @@ fn a_verb_answers_in_normal_alone() {
     ));
 }
 
-/// R2.8: a save is not a key the gallery reads, and a gallery that covers the
-/// whole screen also covers the line a refusal would be written on - so gating
-/// Ctrl+S on Normal alone spent it in silence.
+/// A save is not a key the gallery reads, and a gallery that covers the whole
+/// screen also covers the line a refusal would be written on - so gating Ctrl+S
+/// on Normal alone spent it in silence.
 #[test]
 fn a_verb_no_mode_reads_answers_under_the_quieter_ones() {
     for mode in [InputMode::Normal, InputMode::Browse] {

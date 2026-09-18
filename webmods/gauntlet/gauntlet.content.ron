@@ -446,13 +446,13 @@
                         key: "crash",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    // The RUN TIMER (task 20260716-174729): show the engine
-                    // scenario clock on the HUD from the START gate, formatted
-                    // mm:ss.s. One fire is enough - the readout tracks
-                    // `scenario_elapsed` live every frame, freezes on pause and
-                    // behind the Victory overlay (the clock stops there), so the
-                    // FINAL time simply holds on screen at FINISH. `scenario_elapsed`
-                    // resets on retry (v0.7.0 semantics), so the clock restarts too.
+                    // The RUN TIMER: show the engine scenario clock on the HUD
+                    // from the START gate, formatted mm:ss.s. One fire is
+                    // enough - the readout tracks `scenario_elapsed` live every
+                    // frame, freezes on pause and behind the Victory overlay
+                    // (the clock stops there), so the FINAL time simply holds on
+                    // screen at FINISH. `scenario_elapsed` resets on retry
+                    // (v0.7.0 semantics), so the clock restarts too.
                     HudReadout((
                         slot: "run_timer",
                         variable: "scenario_elapsed",

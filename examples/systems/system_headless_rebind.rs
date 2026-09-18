@@ -1,6 +1,6 @@
-//! system_headless_rebind: spike 4 for `nova_channel` - rebind a key by wire.
+//! system_headless_rebind: `nova_channel` headless parity - rebind a key by wire.
 //!
-//! The `nova_channel` design row this proves:
+//! The claim this range proves:
 //! "Rebind a key from Settings - the capture polls `ButtonInput`, which the
 //! lanes already write". The whole flow is driven with the events a channel
 //! client would send, headless: ESC to pause, click through Settings ->

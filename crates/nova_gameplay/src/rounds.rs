@@ -1645,12 +1645,11 @@ mod tests {
         }
     }
 
-    /// The two blind spots review R1.1/R1.2 caught when rounds became sensors,
-    /// re-asserted against the sweep. A round crossing a pure trigger volume (a
-    /// beacon sphere) must SURVIVE, or the pirate goes un-hittable while
-    /// patrolling near a beacon; and a round into a health-less solid (an
-    /// invulnerable planetoid) must still expend instead of passing through
-    /// cover.
+    /// The two blind spots that opened when rounds became sensors, re-asserted
+    /// against the sweep. A round crossing a pure trigger volume (a beacon
+    /// sphere) must SURVIVE, or the pirate goes un-hittable while patrolling
+    /// near a beacon; and a round into a health-less solid (an invulnerable
+    /// planetoid) must still expend instead of passing through cover.
     ///
     /// The second half used to hinge on collision events: a solid with no
     /// Health never got `CollisionEventsEnabled`, so the round carried its own
@@ -1684,7 +1683,7 @@ mod tests {
         }
         assert!(
             app.world().get_entity(round).is_ok(),
-            "a round crossing a trigger volume must fly on (review R1.1)"
+            "a round crossing a trigger volume must fly on"
         );
 
         for _ in 0..12 {
@@ -1693,7 +1692,7 @@ mod tests {
         assert!(
             app.world().get_entity(round).is_err(),
             "a round must stop at a health-less solid instead of passing through \
-             cover (review R1.2)"
+             cover"
         );
     }
 

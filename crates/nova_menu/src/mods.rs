@@ -368,8 +368,8 @@ pub(crate) fn refresh_mods_list(
                 .unwrap_or_default();
             // Selection repair against the visible REMOTE entries (the
             // Installed-branch discipline): no live installed-mod action can
-            // survive next to Explore content (review 142911 R1.2), and the
-            // details pane keys the id into the remote catalog.
+            // survive next to Explore content, and the details pane keys the
+            // id into the remote catalog.
             if !entries
                 .iter()
                 .any(|e| selected.0.as_deref() == Some(e.id.as_str()))
@@ -729,7 +729,7 @@ pub(crate) fn refresh_mod_details(
                 let installed_version = installed_version_of(&entry.id);
                 let updating = updates.0.contains_key(&entry.id);
                 // False when the entry renders from the stale last-good
-                // fallback: Install/Update are withheld there (R1.1).
+                // fallback: Install/Update are withheld there.
                 let catalog_ready = remote
                     .as_ref()
                     .is_some_and(|r| matches!(r.state, RemoteCatalogState::Ready(_)));

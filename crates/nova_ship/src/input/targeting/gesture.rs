@@ -30,9 +30,9 @@ pub(crate) struct RadarHoldInput;
 pub(crate) struct RadarClearInput;
 
 /// Start of the radar hold: open the search. The destination slot is NOT
-/// decided here - it latches at the hold threshold, in the live search
-/// (Q1a). Gated on the computer's Lock capability and, like every intent
-/// observer, on the pause overlay.
+/// decided here - it latches at the hold threshold, in the live search. Gated
+/// on the computer's Lock capability and, like every intent observer, on the
+/// pause overlay.
 pub(super) fn on_radar_start(
     _: On<Start<RadarHoldInput>>,
     mut commands: Commands,
@@ -53,7 +53,7 @@ pub(super) fn on_radar_start(
     for ship in &q_ship {
         if !ship_capabilities(ship, &q_capabilities).lock_enabled {
             // No LOCK capability on this ship: the radar does not come
-            // on - and says so (deny buzz + adornment flash, F7/Q8a).
+            // on - and says so (deny buzz + adornment flash).
             denied.write(RadarDenied);
             continue;
         }
@@ -62,9 +62,9 @@ pub(super) fn on_radar_start(
 }
 
 /// Radar teardown, shared by both release paths: with the lock written live
-/// under the sweep (strand A1), a release has nothing to commit - it only
-/// closes the search. Deliberately not pause-gated: state cleanup must
-/// always run, like the release observers elsewhere.
+/// under the sweep, a release has nothing to commit - it only closes the
+/// search. Deliberately not pause-gated: state cleanup must always run, like
+/// the release observers elsewhere.
 fn close_radar_search(
     commands: &mut Commands,
     q_ship: &Query<
@@ -467,11 +467,11 @@ mod tests {
 
     #[test]
     fn raising_inside_the_tap_window_latches_the_combat_slot() {
-        // Q1a (threshold latch): CTRL pressed lowered, RMB raised 100 ms
-        // later - by the threshold the stance is combat, so the COMBAT slot
-        // engages. Under the retired press-time latch this gesture wrote the
-        // TRAVEL lock (the recorded same-frame RMB+CTRL sharp edge); this
-        // test fails against that model by construction.
+        // Threshold latch: CTRL pressed lowered, RMB raised 100 ms later - by
+        // the threshold the stance is combat, so the COMBAT slot engages. Under
+        // the retired press-time latch this gesture wrote the TRAVEL lock (the
+        // recorded same-frame RMB+CTRL sharp edge); this test fails against
+        // that model by construction.
         let (mut app, ship) = gesture_app();
         let enemy = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
 
@@ -485,7 +485,7 @@ mod tests {
         assert_eq!(
             app.world().get::<RadarState>(ship).unwrap().engaged,
             Some(RadarSlot::Combat),
-            "the threshold latches the CURRENT stance (Q1a)"
+            "the threshold latches the CURRENT stance"
         );
         assert_eq!(combat_of(&app, ship), Some(enemy));
         assert_eq!(
@@ -500,8 +500,8 @@ mod tests {
 
     #[test]
     fn an_empty_sweep_keeps_the_last_target() {
-        // Q2a (keep-last): once acquired, sweeping over empty space never
-        // drops the lock - tap is the only clear.
+        // Keep-last: once acquired, sweeping over empty space never drops the
+        // lock - tap is the only clear.
         let (mut app, ship) = gesture_app();
         let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
 
@@ -690,8 +690,8 @@ mod tests {
 
     #[test]
     fn the_acquired_cue_fires_once_per_gesture() {
-        // Q3a (acquire-only): one cue at the first write, silence across the
-        // live retargets; a new gesture earns a new cue.
+        // Acquire-only: one cue at the first write, silence across the live
+        // retargets; a new gesture earns a new cue.
         let (mut app, ship) = gesture_app();
         spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
         let left = spawn_ship(&mut app, Vec3::new(-100.0, 0.0, 0.0));
@@ -715,7 +715,7 @@ mod tests {
         assert_eq!(
             app.world().resource::<AcquiredCueCount>().0,
             1,
-            "retargets are silent (Q3a)"
+            "retargets are silent"
         );
 
         // Release, re-hold: the next gesture cues again.
@@ -730,9 +730,9 @@ mod tests {
 
     #[test]
     fn a_retarget_within_a_held_gesture_ticks_but_the_acquire_does_not() {
-        // Q3a keeps the ACQUIRE cue once-per-gesture adds the subtle retarget
-        // tick for the re-designations that follow. The acquire must NOT
-        // count as a retarget, and the first sweep to a new body must tick.
+        // The ACQUIRE cue stays once-per-gesture, and the subtle retarget tick
+        // covers the re-designations that follow. The acquire must NOT count as
+        // a retarget, and the first sweep to a new body must tick.
         let (mut app, ship) = gesture_app();
         app.init_resource::<RetargetCueCount>();
         app.add_systems(

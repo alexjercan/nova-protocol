@@ -895,7 +895,7 @@ mod tests {
     /// A stand-in for the real projection: writes Visible on every indicator
     /// node each frame, in the real ScreenIndicatorSystems set, so the tests
     /// exercise the actual schedule contract (enforcement must win the same
-    /// frame, downstream of this producer). Review R1.3.
+    /// frame, downstream of this producer).
     fn fake_widget_drive(mut q: Query<&mut Visibility, With<ScreenIndicatorMarker>>) {
         for mut visibility in &mut q {
             visibility.set_if_neq(Visibility::Visible);
@@ -1364,9 +1364,9 @@ mod tests {
         );
     }
 
-    /// Review R1.2: self-driving widgets opt out of the level-change restore
-    /// (their own Update driver holds the correct state), but the Hidden
-    /// enforcement still applies while their tier is off.
+    /// Self-driving widgets opt out of the level-change restore (their own
+    /// Update driver holds the correct state), but the Hidden enforcement still
+    /// applies while their tier is off.
     #[test]
     fn self_driven_roots_skip_the_restore_but_not_the_hide() {
         let mut app = app();

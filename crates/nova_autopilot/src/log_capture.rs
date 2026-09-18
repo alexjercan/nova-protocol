@@ -2,7 +2,7 @@
 //!
 //! A warn-and-continue path has no return value to assert against: the whole
 //! contract is the line it emits. Without capture such a test passes with the
-//! warn deleted, which is coverage that is not there (review R2.4).
+//! warn deleted, which is coverage that is not there.
 
 use std::sync::{Arc, Mutex};
 

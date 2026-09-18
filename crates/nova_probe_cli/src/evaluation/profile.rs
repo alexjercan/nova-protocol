@@ -24,7 +24,7 @@
 //! per-frame figures would be fabricated - the FPS pass (the clean,
 //! untraced run) owns frame-time truth. Tracing overhead inflates every
 //! number here; use them to RANK systems, not to compare against the clean
-//! pass (the two-pass rule, spike review M2).
+//! pass (the two-pass rule).
 //!
 //! **The trace is read as a STREAM and never held.** A traced pass writes
 //! about 28 MB per second for as long as it runs, so the file the host is
