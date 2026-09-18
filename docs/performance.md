@@ -358,12 +358,13 @@ reads on the native side; on `--platform web` it is load-bearing, because
 `nova_perf_web` takes the scenario id from the URL.
 
 Every capture records run metadata (wgpu backend + GPU adapter, resolution,
-graphics preset, git SHA, host and - schema v3 - the BUILD PROFILE) so a
-results file names its own renderer (pre-v3 files, like the v0.7.0
-baseline, still load; their profile reads `unknown`). The report badges
-each row `dev` or `release`: dev numbers are NOT baselines, and because the
-capture is wired by default, the badge is what keeps ad-hoc dev captures from
-being mistaken for comparable measurements. The web platform
+graphics preset, git SHA, host and the BUILD PROFILE) so a results file names
+its own renderer. That metadata is required, not optional: the reader accepts
+one header only, and a results file from an older schema is refused with
+`unexpected CSV header` rather than loaded with values it never carried. The
+report badges each row `dev` or `release`: dev numbers are NOT baselines, and
+because the capture is wired by default, the badge is what keeps ad-hoc dev
+captures from being mistaken for comparable measurements. The web platform
 builds the perf_web wasm app through Trunk, serves it from an embedded static
 server, drives headless Chromium with the calibrated WebGPU flags, and
 scrapes the summary line into a labeled CSV row (no fs in the browser).

@@ -400,8 +400,9 @@ pub(crate) fn render_table(
         table.push_str(&format!("<td class=\"scene\">{}</td>", escape(&scene)));
         table.push_str(&format!("<td>{}</td>", escape(&preset)));
         // The adapter name rides as a hover title so the cell stays narrow.
-        // The build-profile badge (schema v3) flags dev rows - dev numbers
-        // are NOT baselines; unknown (pre-v3 rows) shows nothing.
+        // The build-profile badge flags dev rows - dev numbers are NOT
+        // baselines. The cell is free-form text, so anything the capture did
+        // not write badges nothing rather than guessing at a build.
         let profile_badge = match run.meta.profile.as_str() {
             "dev" => " <span class=\"profile dev\" title=\"dev build - not a baseline\">dev</span>",
             "release" => " <span class=\"profile release\">release</span>",

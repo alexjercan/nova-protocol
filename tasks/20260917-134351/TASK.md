@@ -236,12 +236,67 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
   frametime CSV at all, and CI writes to a fresh `$RUNNER_TEMP/probe-runs` and
   passes no `--baseline`. No doc edit, no changelog entry.
 
-- [ ] **05 - Delete frametime CSV v2 and v3 support.**
+- [x] **05 - Delete frametime CSV v2 and v3 support.**
   Owners: `crates/nova_probe/src/stats.rs` and current-schema consumers in
   `crates/nova_probe_cli`.
   Make v4 the only accepted header and row shape. Remove dead unknown-metadata,
   pre-profile, and pre-cluster paths. Verify v2 and v3 fail clearly and v4
   parsing and reporting retain their stable behavior.
+
+  Done. `crates/nova_probe/src/stats.rs`,
+  `crates/nova_probe_cli/tests/fixtures/run-mini/frametime.csv`,
+  `crates/nova_probe_cli/src/evaluation/mod.rs`,
+  `crates/nova_probe_cli/src/report/mod.rs`, `docs/performance.md`. Deleted
+  `CSV_HEADER_V2`, `CSV_HEADER_V3`, `V2_COLS`, `V3_COLS`, their prelude
+  re-exports, the schema-version doc bullets, and both ladder arms. The header
+  check is now one equality and `expected_cols` folded into `V4_COLS`. The
+  pre-profile path (`cols.get(17)` defaulting to `unknown`) and the
+  pre-cluster path (the `None` arm of the `shape` closure) are gone;
+  `from_csv_row` accepts exactly 20 columns.
+
+  The committed `run-mini` fixture was v2 and had to migrate: its header is now
+  `CSV_HEADER` verbatim and its row keeps all 17 cells byte-for-byte plus
+  `,release,,`. `release` rather than `unknown`, because after this item no
+  writer can produce `unknown` - authoring it would encode an impossible
+  capture. The two empty cluster cells are exactly what the v2 row parsed to.
+
+  Proof: `cargo test -p nova_probe --lib stats` is 23 passed, 0 failed (was 25)
+  and `cargo test -p nova_probe_cli --lib` is 148 passed, 0 failed, both re-run
+  after `sprout sync`. The fixture's consumers were discovered, not asserted: a
+  deliberate red run with `stats.rs` done and the fixture still v2 named the 7
+  failing tests and showed the rejection string reaching a check row as
+  `first: frametime.csv: unexpected CSV header`. Deleting the constants
+  produced 11 compiler errors, all inside `stats.rs`; nothing errored outside
+  it and nothing could, because the prelude is glob-imported and the only
+  external consumer is a data file the compiler cannot see. Five negative
+  controls. Control D is the sharpest: restoring the 17/18 accept set alone,
+  with indexing left exact, panics `index out of bounds: the len is 17 but the
+  index is 17`, proving the `unwrap_or_else("unknown")` was never an
+  independent feature - it existed only to stop `cols[17]` panicking on a short
+  row. Control E is reported as proving nothing: with the width guard exact the
+  pre-cluster `None` arm is unreachable, so its removal has no observable
+  behavior.
+
+  Three tests became one. `the_v1_schema_is_rejected_at_the_header_and_at_the_row`
+  from item 04 asserted `!err.contains("or (v1)")`, which could never fail once
+  the ladder collapsed to a single equality. It merged with the two dying v2/v3
+  tests into `the_pre_v4_schemas_are_rejected_at_the_header_and_at_the_row`,
+  asserting `!err.contains("or (")` - live again, and exercised by controls A
+  and B.
+
+  Retained limit: the five v3 measurement archives under
+  `tasks/20260819-173219/measurements/` no longer load, alongside item 04's
+  four v1 files. All are closed-task archives with zero references, left in
+  place. No live baseline is affected - `probe-runs/` holds no frametime CSV at
+  all - and CI writes to a fresh `$RUNNER_TEMP/probe-runs` with no `--baseline`
+  while `scripts/probe-summary.py` reads `checks.json`, never the CSV.
+  `RunMeta::unknown()` survives: its two consumers are `#[cfg(test)]` row
+  builders, one of which item 04's renderer test grades. Both are noted for
+  item 12's inventory rather than acted on here. No changelog entry.
+
+  For item 12: `crates/nova_probe/src/capabilities/frametime.rs:470,831` still
+  carry stale `(schema v3)` and `(schema v2)` labels on the writer side. Not
+  false claims about behavior, and outside this item's file list.
 
 - [ ] **06 - Delete unused `enabled_by_default` mod machinery.**
   Owner: `crates/nova_mod_format/src/lib.rs:125-152`.
