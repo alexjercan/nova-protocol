@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 46 at a glance:
+never panics a scenario). All 51 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -26,7 +26,6 @@ never panics a scenario). All 46 at a glance:
 | [`CinematicTitle`](#cinematictitle) | [pacing](#pacing) | post the shot's title card: where, when, and one line about it |
 | [`Outcome`](#outcome) | [flow](#flow-outcomes-transitions) | show the VICTORY / DEFEAT banner and freeze the sim behind it |
 | [`NextScenario`](#nextscenario) | [flow](#flow-outcomes-transitions) | queue a switch to another scenario by id |
-| [`SetSpeedCap`](#setspeedcap) | [ship state](#ship-state) | install, update or remove the soft manual-speed governor |
 | [`SetShipCapabilityStop`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold STOP on a ship |
 | [`SetShipCapabilityGoto`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold GOTO on a ship |
 | [`SetShipCapabilityOrbit`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold ORBIT on a ship |
@@ -779,32 +778,6 @@ one and resets its clock.
 </details>
 
 ## Ship state
-
-### SetSpeedCap
-
-Install, update or remove the soft manual-speed governor on a scoped ship.
-
-```ron
-SetSpeedCap((id: "player_spaceship", cap: Some(250.0))),
-SetSpeedCap((id: "player_spaceship"))              // release the governor
-```
-
-<details class="explain">
-<summary>Show explanation</summary>
-
-| field | type | default | meaning |
-|---|---|---|---|
-| `id` | string | required | scoped ship root |
-| `cap` | `Option` number | `None` | `Some(250.0)` installs/updates the cap, in m/s; `None` or omitted REMOVES it |
-
-The governor limits the ship's TOTAL speed, not the speed along whatever
-heading it points: a pilot who turns and burns again spends the same one
-allowance. It is soft - the manual burn tapers off over the last stretch below
-the cap - and it never blocks a burn that slows the ship, so a ship carried
-past the cap by a well or a maneuver can always brake back inside it. Only the
-MANUAL burn reads it; the autopilot plans its own deceleration.
-
-</details>
 
 ### Ship capabilities
 

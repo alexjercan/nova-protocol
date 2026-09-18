@@ -50,7 +50,7 @@ That is the whole core loop: burn, lock, GOTO, shoot. Basic Training covers all 
 
 ## Basic Training, beat by beat
 
-You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an armed picket held on the line, while Range Control reads the qualification card: fly the pattern, take the flight computer out to the planetoid and back, put five target hulks on the scrap list, then deal with two live drones. The camera comes back with the helm, each objective arrives as a short amber notification, and one gold marker at a time keeps the current target in view. A 150 m/s manual-flight cap stays on for the whole card.
+You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an armed picket held on the line, while Range Control reads the qualification card: fly the pattern, take the flight computer out to the planetoid and back, put five target hulks on the scrap list, then deal with two live drones. The camera comes back with the helm, each objective arrives as a short amber notification, and one gold marker at a time keeps the current target in view.
 
 ### Part 1 - The pattern
 

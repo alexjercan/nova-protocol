@@ -286,9 +286,10 @@ const LANCE_TORPEDO_CRUISE = 350; // torpedo_bay.rs (MetersPerSecond)
 // Rounds one stock PDC spends to stop each type (torpedo_bay.rs).
 const ROUNDS_PER_LANCE_TORPEDO = 116;
 const ROUNDS_PER_SERPENT = 390;
-// The starter ship's soft manual-speed cap: what a torpedo has to catch when
-// the target is running (tutorial.rs:38 `speed_cap`, `MetersPerSecond`).
-const PLAYER_SPEED_CAP = 150;
+// The reference runner speed this closing comparison is quoted against - what
+// a torpedo has to catch when the target is running, not a limit the game puts
+// on a ship (base_content/sections/torpedo_bay.rs:25-28).
+const RUNNER_SPEED = 150;
 
 // ---- pure models (mirror the Rust rules) ----------------------------------
 
@@ -6198,10 +6199,7 @@ function initTorpedoRun(host: HTMLElement): void {
 
     const stats = el("div", "widget__stats");
     const arrivalStat = stat(stats, "arrives");
-    const runnerStat = stat(
-        stats,
-        `closes on a ${PLAYER_SPEED_CAP} m/s runner`
-    );
+    const runnerStat = stat(stats, `closes on a ${RUNNER_SPEED} m/s runner`);
     const costStat = stat(stats, "rounds one PDC spends");
     const readout = el("p", "widget__readout");
 
@@ -6274,7 +6272,7 @@ function initTorpedoRun(host: HTMLElement): void {
             (t) => `${t.name.toLowerCase()} ${t.runSecs.toFixed(2)} s`
         ).join(", ");
         runnerStat.textContent = TORPEDO_TYPES.map(
-            (t) => `${metersPerSec(t.lineSpeed - PLAYER_SPEED_CAP)}`
+            (t) => `${metersPerSec(t.lineSpeed - RUNNER_SPEED)}`
         ).join(" / ");
         costStat.textContent = on
             ? TORPEDO_TYPES.map((t) => `${t.rounds}`).join(" / ")
@@ -10413,14 +10411,14 @@ function initSoundMap(host: HTMLElement): void {
 // ---- v0.13.0: RCS is a speed budget --------------------------------------
 
 // RCS reaches a cap of 100 m/s at 5 G whatever the ship weighs
-// (nova_ship/src/flight/state.rs:455-456: `rcs_speed_cap`, `rcs_accel`,
+// (nova_ship/src/flight/state.rs:475-476: `rcs_speed_cap`, `rcs_accel`,
 // converted at the physics boundary). The rule that holds the cap is
-// `budgeted_rcs_delta_v` (flight/manual.rs:98-120): a push that slows the
+// `budgeted_rcs_delta_v` (flight/manual.rs:75-97): a push that slows the
 // hull is free, a push that grows the speed is tapered over the last fifth
-// of the cap (SPEED_CAP_TAPER_FRACTION, manual.rs:37, applied :335), and a
+// of the cap (SPEED_CAP_TAPER_FRACTION, manual.rs:41, applied :276), and a
 // push that would leave the sphere is clamped to its surface - so at the cap
 // the stick TURNS the velocity instead of adding to it. The impulse is
-// scaled by mass so the hull gets exactly that delta-v (manual.rs:355-361).
+// scaled by mass so the hull gets exactly that delta-v (manual.rs:300-303).
 const RCS_CAP_M = RCS_SPEED_CAP * METERS_PER_UNIT;
 const RCS_ACCEL_M = RCS_ACCEL * METERS_PER_UNIT;
 const RCS_TAPER_FRACTION = 0.2;
@@ -11091,7 +11089,7 @@ function initArrivalStandoff(host: HTMLElement): void {
     update();
 }
 
-// ---- v0.13.0: 27 commands in four classes --------------------------------
+// ---- v0.13.0: 26 commands in four classes --------------------------------
 
 // The four classes (nova_os/src/commands.rs:32-42) and what each may do
 // (`CommandClass::summary`, :64-71). The arming gate is one check in the dispatcher
@@ -11167,7 +11165,7 @@ export const COMMAND_ROWS: CommandRow[] = [
         name: "ship",
         usage: "ship <id>",
         cls: "ReadOnly",
-        what: "one ship: side, hull, sections, speed cap, magazines",
+        what: "one ship: side, hull, sections, magazines",
     },
     {
         name: "sections",
@@ -11270,12 +11268,6 @@ export const COMMAND_ROWS: CommandRow[] = [
         usage: "ammo refill section <ship-id> <section-id>",
         cls: "Cheat",
         what: "top up one magazine",
-    },
-    {
-        name: "speed-cap",
-        usage: "speed-cap <ship-id> <m/s|off>",
-        cls: "Cheat",
-        what: "change or remove a ship's manual speed cap",
     },
 ];
 

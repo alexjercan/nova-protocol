@@ -16,6 +16,9 @@ does NOT get an entry - and it is the only place they are written down.
 ## [Unreleased]
 
 ### Gameplay & Flight
+- **(breaking)** Manual flight is Newtonian: no speed cap, so the drive always
+  answers and a held throttle keeps building. `speed_cap` and `SetSpeedCap` are
+  gone and a file using either is refused.
 - **(breaking)** What a ship may do belongs to the SHIP: a spawn's
   `capabilities` block replaces the controller section's `DisableVerb`, so a
   hull that loses every flight computer keeps its radar, its point defence and

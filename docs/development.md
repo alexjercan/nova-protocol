@@ -909,8 +909,8 @@ var. It is the correctness half of the run-harness whose performance half is
 Continuous INVARIANTS ride the same stream: set `NOVA_PROBE_INVARIANTS=1` (or
 `=strict` to panic on the first violation) on a wired example and every frame
 asserts what the engine guarantees - health within `0..=max` and finite,
-velocities finite (plus an absurd-speed bound at 10x a ship's soft
-`FlightSpeedCap`), scenario Number variables finite, registered monotonic
+velocities finite and nothing more (manual flight is Newtonian, so no speed is
+absurd), scenario Number variables finite, registered monotonic
 variables never decreasing (opt-in per example: `system_player_path` registers
 `target_down`/`leg`, `system_scenario_grammar` seven counters and latches,
 `system_cinematic` eight scene latches, `system_outcomes` `hostile_down`), and a

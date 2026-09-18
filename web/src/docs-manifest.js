@@ -772,7 +772,6 @@ const CREATE_PAGES = [
             "CinematicTitle",
             "Outcome",
             "NextScenario",
-            "SetSpeedCap",
             "Ship capabilities",
             "SetAllegiance",
             "Helm orders",

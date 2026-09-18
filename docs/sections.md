@@ -373,8 +373,8 @@ that is not a distance: it is a BUILD-GRID CELL, so it stays a bare `Vec3` of
 engine world units and sections stack by whole cells of 10 m. It comes with a
 `source` (`Inline`, or `Prototype` with its own `SectionConfigPatch`). The
 player config carries the input mapping (section id -> key/gamepad bindings)
-plus `speed_cap`; the AI config carries
-`patrol`/`orbit`/`leash`/`engage_delay`.
+and nothing else, and refuses an unknown key rather than dropping it; the AI
+config carries `patrol`/`orbit`/`leash`/`engage_delay`.
 
 Spawning: the base scenario bundle gives the root `RigidBody::Dynamic`; the
 spaceship object adds `SpaceshipRootMarker`, and an observer

@@ -49,7 +49,7 @@ Opened over the game, the command shell freezes it exactly as NOVA OS does: the 
 NOVA OS v0.13.0 // COMMANDS
 POST ......... command shell / ok
 CORE ......... local game runtime / attached
-REGISTRY ..... 27 commands / ready
+REGISTRY ..... 26 commands / ready
 WORLD ........ tutorial / paused
 CHEATS ....... disabled / run clean
 Hint: type `help` and press Enter.
@@ -85,7 +85,7 @@ Every command belongs to one of four classes, and the class is the whole permiss
 | `status` | a compact run and world summary |
 | `scenario` | the current scenario, its state and its outcome |
 | `ships` | live ships by id |
-| `ship <id>` | one ship: side, hull, sections, speed cap, magazines |
+| `ship <id>` | one ship: side, hull, sections, magazines |
 | `sections <ship-id>` | that ship's sections, with health and ammunition |
 | `section <ship-id> <section-id>` | one section of one ship |
 | `objectives` | the open objectives |
@@ -117,7 +117,6 @@ Every one of these is refused until you run `cheats enable`. That command is the
 | `ammo infinite <ship-id> <on\|off>` | unlimited ammunition on one ship's weapons |
 | `ammo refill <ship-id>` | top up every finite magazine on a ship |
 | `ammo refill section <ship-id> <section-id>` | top up one magazine |
-| `speed-cap <ship-id> <m/s\|off>` | change or remove a ship's manual speed cap |
 
 <details class="explain">
 <summary>Show explanation</summary>

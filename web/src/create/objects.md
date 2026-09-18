@@ -352,7 +352,9 @@ crashing, so a missing dependency is visible instead of fatal.
 | field | type | default | meaning |
 |---|---|---|---|
 | `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
-| `speed_cap` | `Option` number | `None` | soft manual-speed cap in m/s (Basic Training flies the whole range at `Some(150.0)`); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
+
+`Player((..))` is STRICT: a key that is not in that table is a load error
+naming the key, not a key quietly dropped.
 
 `AI((..))` fields:
 
