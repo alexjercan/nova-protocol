@@ -83,7 +83,7 @@ pub mod prelude {
             editor_tool_is, force_capture_resolution, freeze_bodies, hide_dev_overlays, hide_hud,
             hide_status_bar, loop_end, loop_start, nova_autopilot, nova_os_app_owns_the_screen,
             nova_os_command_line_reads, nova_os_raster_open, nova_screenshot, player_ship_present,
-            pose_camera, press_action, release_action, scenario_camera_present,
+            pose_camera, press_action, release_action, scenario_camera_present, scenario_is_built,
             scenario_variable_is, script_reports_done, section_gone, sheet_start, shoot,
             CaptureLog, LoopCapturePlugin, LoopProfile, SheetGrid, BEAT_DEADLINE_SECS,
             NOVA_AUTOPILOT_STEP, SETTLE_FRAMES, SHOT_DEADLINE_SECS, STEP_DEADLINE_SECS,

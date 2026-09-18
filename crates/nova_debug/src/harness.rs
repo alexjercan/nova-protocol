@@ -140,8 +140,8 @@ use nova_os_ui::{
     prelude::nova_os_openness,
 };
 use nova_scenario::prelude::{
-    NovaEventWorld, ScenarioCameraMarker, ScenarioId, ScenarioLoaded, ScriptedCameraPose,
-    VariableLiteral,
+    NovaEventWorld, ScenarioCameraMarker, ScenarioId, ScenarioLoadGate, ScenarioLoaded,
+    ScriptedCameraPose, VariableLiteral,
 };
 use nova_ship::prelude::WASDCameraController;
 
@@ -639,6 +639,30 @@ pub fn drive_action(world: &mut World, name: &str, phase: InputPhase) {
 /// before it exists poses nothing (see [`pose_camera`]).
 pub fn scenario_camera_present() -> Arc<Predicate> {
     any_entity::<With<ScenarioCameraMarker>>()
+}
+
+/// Advance once the scenario the run loaded is BUILT and the world is running
+/// again.
+///
+/// Not [`scenario_camera_present`], and a load beat that commands the scene
+/// wants BOTH: the camera is spawned partway through the build, while the
+/// loader still holds the simulation (`ScenarioLoadGate::Loading`) for the
+/// spawns and the art that have not landed. Real time keeps running through
+/// that hold - it is what animates the loading panel - so a following beat held
+/// on a FRAME COUNT passes inside it, and a walk that lays a gun, puts a
+/// trigger down or reads a section writes to entities that do not exist yet.
+/// The failure is host-dependent, which is the worst kind: a slow renderer
+/// spends the same frame budget waiting and never sees it.
+///
+/// A build that FAILED never releases the hold, so this never holds either and
+/// the beat stalls into its own deadline rather than walking a half-built
+/// scene.
+///
+/// The gate alone is not enough: it reads `Idle` before the load has started as
+/// readily as after it finished, so pair it with a presence predicate that says
+/// the scenario's own actions have run.
+pub fn scenario_is_built() -> Arc<Predicate> {
+    resource_where::<ScenarioLoadGate>(|gate| !gate.is_held())
 }
 
 /// Force the primary window to the capture size and pin it there, so every
