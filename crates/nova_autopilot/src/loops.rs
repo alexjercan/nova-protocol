@@ -233,7 +233,11 @@ pub struct SheetGrid {
 impl SheetGrid {
     /// How many frames fill the grid - the loop's length, and the frame count
     /// the sheet closes itself at.
-    pub fn frames(&self) -> u32 {
+    ///
+    /// `const` so a caller can derive a sheet's playback DURATION from its own
+    /// grid and cadence at compile time, rather than restating the product as
+    /// a literal that the grid can then drift away from.
+    pub const fn frames(&self) -> u32 {
         self.columns * self.rows
     }
 
@@ -259,21 +263,16 @@ impl SheetGrid {
 /// One recorder, one drain, one frame cap: the only thing that differs between
 /// a documentation loop and a sprite sheet is what the staged frames are
 /// encoded into at the end, so it is the only thing this splits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum LoopOutput {
     /// A VP9 webm at the profile's output resolution - what the docs fleet
     /// captures. Closed by [`loop_end`].
+    #[default]
     Webm,
     /// One PNG sprite sheet on this grid. Closes itself at the grid's frame
     /// count; [`LoopProfile::output_resolution`] plays no part, because the
     /// grid's own cell size is the scale.
     Sheet(SheetGrid),
-}
-
-impl Default for LoopOutput {
-    fn default() -> Self {
-        Self::Webm
-    }
 }
 
 /// The webm file name a loop acks and writes: `<name>.webm`.

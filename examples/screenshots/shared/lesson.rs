@@ -75,6 +75,33 @@ pub const LESSON_GRID: SheetGrid = SheetGrid {
 /// smoothness the last two frames a second would add.
 pub const LESSON_FPS: u32 = 10;
 
+/// How long ONE cell of a lesson sheet lasts, in ship seconds: the handbook's
+/// cadence, inverted.
+pub const LESSON_CELL_SECS: f32 = 1.0 / LESSON_FPS as f32;
+
+/// How long a whole lesson sheet lasts, in ship seconds - two, by
+/// [`LESSON_GRID`]'s cells at [`LESSON_CELL_SECS`] each.
+///
+/// What a recording beat waits out when it has a demonstration to hold and no
+/// other reading of "the act landed" to wait on. `sheet_written` is true the
+/// instant it is asked on a run with nothing recording, so a beat held on the
+/// sheet alone ends one frame in and the thing it was recording - a mount
+/// rising, a magazine emptying - never happens at all.
+pub const LESSON_SECS: f32 = LESSON_GRID.frames() as f32 * LESSON_CELL_SECS;
+
+/// Which cell of a sheet a beat is `elapsed` seconds into.
+///
+/// The cell index a producer should drive a recorded demonstration off, rather
+/// than the rendered frame. The two agree while the recorder holds the clock at
+/// [`LESSON_FPS`] - that is what makes one frame one cell - and part company
+/// everywhere else: on a run with nothing recording twenty frames go by in a
+/// few tens of milliseconds of ship time, so a frame-indexed demonstration
+/// plays out faster than the guns, thrusters and hinges it is demonstrating can
+/// respond, and any guard over it reads a game that did nothing.
+pub fn lesson_cell(elapsed: f32) -> u32 {
+    (elapsed / LESSON_CELL_SECS) as u32
+}
+
 /// The pixel size of a still lesson's demonstration: the capture window
 /// itself, kept whole. A still has no grid to pay for, so there is nothing to
 /// gain by shrinking it - `scripts/capture-lesson-media.sh` only changes the
