@@ -548,11 +548,18 @@ fn the_fragment_is_bleeding() -> std::sync::Arc<nova_protocol::nova_debug::harne
 /// Runs every frame of the trigger beat: the verdict is made against this
 /// rather than against a fresh read, so a plate that is destroyed the frame
 /// after it bleeds still reports what the round spent on it.
+///
+/// A section that has GONE reads as zero rather than as no reading at all. It
+/// is off the query because the tick its health reached zero despawned it
+/// (`despawn_destroyed_that_does_not_detach`), and being shot to pieces is the
+/// strongest evidence there is that the gun reached the fragment. Skipping it
+/// stalls the beat on a slow host, where one frame carries a quarter second of
+/// world and the first burst can take the plate out before any partial reading
+/// is ever taken: CI run 35358724924 sat on this step for 240 s while the log
+/// showed the section destroyed one second in.
 #[cfg(feature = "debug")]
 fn watch_the_fragment_bleed(world: &mut World, _elapsed: f32, _frame: u32) {
-    let Some(now) = section_health(world, PINNED_SECTION) else {
-        return;
-    };
+    let now = section_health(world, PINNED_SECTION).unwrap_or(0.0);
     let mut log = world.resource_mut::<WreckLog>();
     if log.health_while_firing.is_none_or(|lowest| now < lowest) {
         log.health_while_firing = Some(now);

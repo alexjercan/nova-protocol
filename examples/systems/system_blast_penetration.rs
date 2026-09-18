@@ -49,7 +49,7 @@ enum ProbePart {
 
 #[derive(Resource, Default)]
 struct DamageSeen {
-    amounts: std::collections::HashMap<ProbePart, f32>,
+    spent: std::collections::HashMap<ProbePart, f32>,
     verified: bool,
     exit_delay: u32,
 }
@@ -246,18 +246,34 @@ fn setup_range(
     spawn_blast(&mut commands, plate_origin, BLAST_DAMAGE);
 }
 
+/// Accumulate the hit points each probe part actually SPENDS, capped at its
+/// pool.
+///
+/// The cap is what makes the reading independent of observer order, and it has
+/// to be. `HealthApplyDamage.amount` carries the raw pressure until the health
+/// store clamps it IN PLACE to what the target had left, and Bevy 0.19 orders
+/// two observers of one event arbitrarily - so this one reads 225 or 200 on the
+/// 200 hp `LayerOuter` depending on registration order alone, and CI read 225
+/// where the range was authored against 200. A pool cannot spend more than it
+/// has under either order, so the capped total is the delivered figure both
+/// ways, and every other part reads the same number regardless.
+///
+/// Accumulated here rather than sampled off the pools because a section that
+/// dies is despawned in the tick that kills it
+/// (`despawn_destroyed_that_does_not_detach`), taking its `Health` with it.
 fn record_probe_damage(
     damage: On<HealthApplyDamage>,
-    q_probe: Query<&ProbePart>,
+    q_probe: Query<(&ProbePart, &Health)>,
     mut seen: ResMut<DamageSeen>,
 ) {
     if damage.entity != damage.original_event_target() {
         return;
     }
-    let Ok(part) = q_probe.get(damage.entity) else {
+    let Ok((part, health)) = q_probe.get(damage.entity) else {
         return;
     };
-    *seen.amounts.entry(*part).or_default() += damage.amount;
+    let spent = seen.spent.entry(*part).or_default();
+    *spent = (*spent + damage.amount).min(health.max);
 }
 
 fn near(actual: f32, expected: f32) -> bool {
@@ -279,24 +295,29 @@ fn verify_range(world: &mut World) {
         return;
     }
 
-    let ready = {
-        let seen = world.resource::<DamageSeen>();
-        seen.amounts.contains_key(&ProbePart::LayerOuter)
-            && seen.amounts.contains_key(&ProbePart::LayerMiddle)
-            && seen.amounts.contains_key(&ProbePart::SalvoBlocker)
-            && seen.amounts.contains_key(&ProbePart::Plate)
-            && seen.amounts.contains_key(&ProbePart::PlateRear)
-    };
+    let spent_on_part = world.resource::<DamageSeen>().spent.clone();
+    let amount = |part| spent_on_part.get(&part).copied().unwrap_or(0.0);
+
+    // A part gains its entry on the first hit that lands on it, and a first
+    // hit always carries something, so a non-zero reading is the wait for
+    // pressure to have reached every lane.
+    let ready = amount(ProbePart::LayerOuter) > 0.0
+        && amount(ProbePart::LayerMiddle) > 0.0
+        && amount(ProbePart::SalvoBlocker) > 0.0
+        && amount(ProbePart::Plate) > 0.0
+        && amount(ProbePart::PlateRear) > 0.0;
     if !ready {
         return;
     }
 
-    let amounts = world.resource::<DamageSeen>().amounts.clone();
-    let amount = |part| amounts.get(&part).copied().unwrap_or(0.0);
-
+    // 200 is LayerOuter's WHOLE pool, not the pressure that reached it: 225
+    // arrived at 1 m and a pool cannot spend more than it has. The falloff
+    // figure itself is pinned by the plate lane below, where the same 1 m lands
+    // on 500 hp and the whole 225 shows. 97.5 is 150 of free pressure at 2 m
+    // through the one layer that died.
     assert!(
         near(amount(ProbePart::LayerOuter), 200.0) && near(amount(ProbePart::LayerMiddle), 97.5),
-        "blast_penetration: section-centre falloff and 65% transmission drifted: {amounts:?}"
+        "blast_penetration: section-centre falloff and 65% transmission drifted: {spent_on_part:?}"
     );
     nova_probe::probe_marker(
         world,
@@ -309,7 +330,7 @@ fn verify_range(world: &mut World) {
 
     assert!(
         near(amount(ProbePart::LayerRear), 0.0),
-        "blast_penetration: the surviving middle section did not shield the rear: {amounts:?}"
+        "blast_penetration: the surviving middle section did not shield the rear: {spent_on_part:?}"
     );
     nova_probe::probe_marker(
         world,
@@ -319,7 +340,7 @@ fn verify_range(world: &mut World) {
 
     assert!(
         near(amount(ProbePart::SalvoBlocker), 300.0) && near(amount(ProbePart::SalvoRear), 0.0),
-        "blast_penetration: same-tick blasts tunneled through their shared blocker: {amounts:?}"
+        "blast_penetration: same-tick blasts tunneled through their shared blocker: {spent_on_part:?}"
     );
     nova_probe::probe_marker(
         world,
@@ -332,7 +353,7 @@ fn verify_range(world: &mut World) {
 
     assert!(
         near(amount(ProbePart::Plate), 225.0) && near(amount(ProbePart::PlateRear), 150.0),
-        "blast_penetration: a non-structural plate consumed penetration: {amounts:?}"
+        "blast_penetration: a non-structural plate consumed penetration: {spent_on_part:?}"
     );
     nova_probe::probe_marker(
         world,
@@ -345,7 +366,7 @@ fn verify_range(world: &mut World) {
 
     assert!(
         near(amount(ProbePart::PlateFar), 0.0),
-        "blast_penetration: pressure travelled around the section into a rear fixture: {amounts:?}"
+        "blast_penetration: pressure travelled around the section into a rear fixture: {spent_on_part:?}"
     );
     nova_probe::probe_marker(
         world,
