@@ -1,0 +1,66 @@
+Before artifact: the manual speed governor kills a cross-nose burn
+=================================================================
+
+Captured 2026-09-18 against the unmodified tree at cf35fe2a7.
+
+Rig: the shared `flight_app` / `spawn_ship` harness in
+`crates/nova_ship/src/flight/tests/support.rs`. Nose on -Z, single centered
+rear main drive. The ship is given `LinearVelocity(Vec3::X * 20.0)` - pure
+crossing velocity, the state a pilot is in after building speed and turning -
+plus a held `FlightIntent { burn: 1.0 }`. It runs 600 fixed frames (10 s).
+The capped leg carries `FlightSpeedCap(20.0)`; the uncapped leg is the same
+rig with the component left off, as the delivery guard.
+
+The temporary test used for this capture was removed after the run. The
+permanent inverted proof is D3a in the implementation plan.
+
+Command
+-------
+
+nix develop --command cargo test -p nova_ship --lib tmp_before_artifact_cross_velocity_at_the_cap -- --nocapture
+
+Output (verbatim)
+-----------------
+
+warning: Git tree '/home/alex/personal/nova-protocol' is dirty
+   Compiling nova_ship v0.13.2 (/home/alex/personal/nova-protocol/crates/nova_ship)
+    Finished `test` profile [optimized] target(s) in 45.10s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src/lib.rs (target/debug/deps/nova_ship-01d3c972f08a67c3)
+
+running 1 test
+held full burn for 600 frames, cross velocity +X * 20
+--- capped at 20 ---
+  nose            : -Z (velocity along nose = -v.z)
+  initial velocity: Vec3(20.0, 0.0, 0.0)
+  final velocity  : Vec3(20.0, 0.0, 0.0)
+  initial speed   : 20
+  final speed     : 20
+  along-nose before: -0
+  along-nose after : -0
+  along-nose delta : 0
+--- uncapped ---
+  nose            : -Z (velocity along nose = -v.z)
+  initial velocity: Vec3(20.0, 0.0, 0.0)
+  final velocity  : Vec3(20.0, 0.0, -209.94101)
+  initial speed   : 20
+  final speed     : 210.89151
+  along-nose before: -0
+  along-nose after : 209.94101
+  along-nose delta : 209.94101
+test flight::tests::manual::tmp_before_artifact_cross_velocity_at_the_cap ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1012 filtered out; finished in 0.40s
+
+Reading
+-------
+
+At the cap the held full burn delivers EXACTLY zero delta-v along the nose over
+ten seconds - the velocity vector is bit-identical before and after - because
+`speed_budget_scale` in `crates/nova_ship/src/flight/manual.rs` shrinks a step
+that is purely tangential to the budget sphere down to nothing, so the main
+drive is dead until the pilot first brakes along the axis they came in on. The
+same rig with no `FlightSpeedCap` gains 209.94 u/s along its nose over the same
+600 frames, which proves the harness, the drive and the burn intent all work
+and isolates the governor as the cause.
