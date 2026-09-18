@@ -203,4 +203,14 @@ fn training_script(
         .until(shot_written(name("training-lesson-visual")))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
+        // Out through the handbook's OWN hand-off rather than the menu's New
+        // Game, because the row this walk selected is the one that offers it.
+        // A harnessed example owes the smoke contract either way: a run that
+        // ends in the menu cannot tell a clean walk from an app that died while
+        // still loading, which is what `reached_playing` is there to catch.
+        .click("fly the lesson's practice range", "Lesson Practice Button")
+        .step("reach the practice range")
+        .until(state_is(GameStates::Playing))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
 }

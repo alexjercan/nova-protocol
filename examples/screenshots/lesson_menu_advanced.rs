@@ -27,6 +27,7 @@
 //!   cargo run --example lesson_menu_advanced --features debug
 //! ```
 
+#[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -188,5 +189,15 @@ fn menu_advanced_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         .on_enter(shot(BINDINGS_SHOT))
         .until(shot_written(BINDINGS_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        // Out through the menu's own front door. A harnessed example owes the
+        // smoke contract either way: a run that ends in a settings modal cannot
+        // be told from an app that died while still loading, which is what
+        // `reached_playing` is there to catch.
+        .click("close Settings", "Settings Back Button")
+        .click("start a new game", "New Game Button")
+        .step("reach the first flight")
+        .until(state_is(GameStates::Playing))
+        .deadline(STEP_DEADLINE_SECS)
         .add()
 }

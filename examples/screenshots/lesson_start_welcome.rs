@@ -24,6 +24,7 @@
 //!   cargo run --example lesson_start_welcome --features debug
 //! ```
 
+#[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -121,5 +122,14 @@ fn welcome_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         })
         .until(shot_written(SHOT))
         .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        // Out through the handbook's OWN hand-off, since the row this walk
+        // selected is the one that offers it. A harnessed example owes the
+        // smoke contract either way: a run that ends in the menu cannot be told
+        // from an app that died while still loading (`reached_playing`).
+        .click("fly the lesson's practice range", "Lesson Practice Button")
+        .step("reach the practice range")
+        .until(state_is(GameStates::Playing))
+        .deadline(STEP_DEADLINE_SECS)
         .add()
 }
