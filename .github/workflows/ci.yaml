@@ -323,15 +323,57 @@ jobs:
               system_flight_legs system_gravity_wells system_helm_orders
               system_turn_limit system_thrust_and_plume system_player_path
               system_cinematic system_scenario_grammar system_outcomes
-              system_ship_audio first_shift_map
-          # The training handbook: the screens a new player is sent to first,
-          # the journey through them, and the producers that record the
-          # lessons' own demonstrations. Not yet measured.
+              system_chapter_one system_ship_audio first_shift_map
+          # The training handbook itself: the screens a new player is sent to
+          # first and the journey through them. The lesson PRODUCERS that
+          # record the demonstrations those screens show are four shards of
+          # their own below - all 33 joined the catalog over 2026-09-16..18 and
+          # they do not fit here. 285 s, and the handbook walk is most of it.
           - shard: training
             examples: >-
               screenshot_training screenshot_loading_fact
-              system_training_journey lesson_flight_aim lesson_combat_radar
-              lesson_build_sections
+              system_training_journey
+          # The four lesson shards are split on the chapter prefix the lesson
+          # ids themselves carry (`start_`, `flight_`, `combat_`, `build_`), so
+          # a red shard names a chapter of the handbook rather than a
+          # directory. Each producer boots the game, walks it under the
+          # autopilot and records a still or a 4x5 sheet; the three that had
+          # been measured cost 29 s, 44 s and 116 s, so these are sized by
+          # count until a green sweep gives them real times.
+          #
+          # Everything the reader meets before leaving the menu: the opening
+          # lessons, the NOVA OS screens, the settings tabs and the HUD
+          # readouts. Not yet measured.
+          - shard: lessons-start
+            examples: >-
+              lesson_start_welcome lesson_start_scene lesson_start_dock
+              lesson_start_pause lesson_readouts lesson_novaos
+              lesson_novaos_contacts lesson_novaos_prompt lesson_novaos_ship
+              lesson_menu_advanced lesson_menu_mouse lesson_menu_quality
+          # Moving the ship: the flight chapter, the docking envelope, and the
+          # one advanced lesson that is a flight demonstration. Not yet
+          # measured.
+          - shard: lessons-flight
+            examples: >-
+              lesson_flight_aim lesson_flight_basics lesson_flight_orders
+              lesson_flight_cancel lesson_flight_well lesson_dock_envelope
+              lesson_advanced_ai_flight
+          # The combat chapter: the radar, the guns, the rounds and both
+          # torpedo run-ins. Not yet measured.
+          - shard: lessons-combat
+            examples: >-
+              lesson_combat_radar lesson_combat_moves lesson_combat_rounds
+              lesson_combat_battery lesson_combat_reach lesson_combat_field
+              lesson_combat_lance lesson_combat_torpedoes
+              lesson_combat_torpedo_types
+          # The build chapter, which runs the ship editor - `lesson_build_
+          # sections` measured 116 s, the most expensive lesson so far, so
+          # expect this shard to cost more per example than its count says.
+          # Not yet measured.
+          - shard: lessons-build
+            examples: >-
+              lesson_build_sections lesson_build_geometry lesson_build_generate
+              lesson_build_rail lesson_build_flight_test
           # Everything a generator makes before a scenario picks it up:
           # asteroids, planets, greebles, WFC ships, thrusters. 867 s.
           - shard: worldgen
