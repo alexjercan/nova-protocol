@@ -13,10 +13,9 @@
 //! uses lightweight probe collections rather than the shipped `BootAssets` /
 //! `GameAssets` because the full `GameAssets` (glTF `WorldAsset`s, audio, the
 //! recursive mod catalog) has no headless loader set in the test suite - that
-//! full walk is exercised by the render-based screenshot/probe harness and this
-//! task's native-run verification. What is NEW and unit-pinnable here is the
-//! chaining mechanism, which is independent of which assets the collections
-//! hold.
+//! full walk is exercised by the render-based screenshot/probe harness. What
+//! is NEW and unit-pinnable here is the chaining mechanism, which is
+//! independent of which assets the collections hold.
 //!
 //! Asset IO reads the real workspace `assets/` (tests run with the crate root as
 //! cwd), matching `tests/example_scenario.rs` and `skybox_swap_e2e.rs`.

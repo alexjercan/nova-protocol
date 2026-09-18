@@ -22,8 +22,7 @@
 //!
 //! The PNGs stitch into a real-time movie regardless of how slowly the driver
 //! stepped: `ffmpeg -framerate 60 -i <DIR>/frame_%06d.png -pix_fmt yuv420p
-//! out.mp4` (one tick is 1/60 s of simulated time). The poc client
-//! (`tasks/20260820-174148/poc/channel.py`) runs that automatically on close.
+//! out.mp4` (one tick is 1/60 s of simulated time).
 
 use std::path::PathBuf;
 

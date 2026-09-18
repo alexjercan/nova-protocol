@@ -503,8 +503,7 @@ fn a_nested_dep_ref_is_rewritten() {
 fn a_dep_ref_to_base_resolves_against_base_folder_without_declaring_base() {
     // `base` is the implicit universal dependency: a consumer references
     // `dep://base/X` WITHOUT listing base in meta.dependencies, and it resolves
-    // against base's own folder. (Synthetic base bundle; the real base art moves
-    // under assets/base/ in the migration task.)
+    // against base's own folder. (Synthetic base bundle.)
     let mut app = headless_app();
     let base_bundle = app
         .world_mut()

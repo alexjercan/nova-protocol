@@ -6,9 +6,10 @@
 //! composed onto each node's authored rest pose), and how fast. The cue
 //! ([`SectionAnimationCue`]) is the contract between art and mechanics:
 //! content owns WHAT moves, the section kind's own systems own WHEN by
-//! steering the cue's target through [`SectionAnimations::set_cue`]. See
-//! `tasks/20260831-083625/animation-research.md` for why this is procedural
-//! data rather than glTF clips.
+//! steering the cue's target through [`SectionAnimations::set_cue`].
+//! Procedural data rather than glTF clips: nothing in the workspace drives
+//! `AnimationPlayer`, and the shipped section art comes from
+//! `scripts/nova_glb.py`, which writes no animation samplers.
 //!
 //! This module owns the generic half only - rig resolution against spawned
 //! scenes and the progress driver. It knows nothing about torpedoes or

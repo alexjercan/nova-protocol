@@ -104,10 +104,9 @@ pub mod prelude {
     // Re-export BY NAME, never by glob. A glob over a vendored engine prelude
     // used to stand here, and it dragged in the retired harness twins -
     // `AutopilotPlugin`, `AutopilotLoop`, `HarnessCompletion` - which shadow
-    // nova's harness
-    // at every example's `use nova_protocol::prelude::*` and boot the example
-    // INERT (task 20260802-183403). The glob is gone with the dependency, but
-    // the lesson outlives it: adding a name below is a decision.
+    // nova's harness at every example's `use nova_protocol::prelude::*` and
+    // boot the example INERT. The glob is gone with the dependency, but the
+    // lesson outlives it: adding a name below is a decision.
     pub use super::{
         asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, bounds::prelude::*,
         cheats::prelude::*, cooldown::prelude::*, damage::prelude::*, freeze::prelude::*,

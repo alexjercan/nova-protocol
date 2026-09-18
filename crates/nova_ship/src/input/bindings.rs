@@ -159,7 +159,7 @@ mod tests {
         assert_eq!(before, names.len(), "duplicate action name in {names:?}");
     }
 
-    /// The fixed rigs this task names: 12 flight and targeting, 3 camera.
+    /// The fixed rigs: 12 flight and targeting, 3 camera.
     #[test]
     fn the_fixed_rigs_name_fifteen_actions() {
         assert_eq!(flight_bindings().len(), 12);

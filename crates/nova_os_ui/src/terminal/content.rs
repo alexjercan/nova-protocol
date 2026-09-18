@@ -15,7 +15,7 @@ use super::components::*;
 use crate::ship::prelude::SectionCode;
 
 // Order and summaries mirror `nova_os_terminal_poc.html`'s command list. `map`
-// and `ship viewer` from the PoC stay out until their stretch app tasks land.
+// and `ship viewer` from the PoC stay out until those apps exist.
 
 pub(crate) fn nova_os_ship_name(name: Option<&Name>) -> String {
     name.map(|name| name.as_str().to_uppercase())

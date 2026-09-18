@@ -79,7 +79,7 @@ impl Plugin for NovaGameplayPlugin {
         app.init_resource::<crate::objectives::GameObjectives>();
 
         // Random number generator: OS entropy for play, one seed for a
-        // replayable run (`NOVA_SEED`, task 20260820-174148).
+        // replayable run (`NOVA_SEED`).
         match crate::settings::seed_from_env() {
             Some(seed) => app.add_plugins(EntropyPlugin::<WyRand>::with_seed(seed.to_le_bytes())),
             None => app.add_plugins(EntropyPlugin::<WyRand>::default()),

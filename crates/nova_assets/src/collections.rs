@@ -439,7 +439,6 @@ pub(crate) fn register_sounds(mut commands: Commands, assets: Res<AssetServer>) 
     commands.insert_resource(SoundBank::load(&assets, UI_SFX_FILES));
 }
 
-// TODO(20260525-133028): Probably need to refactor this somehow
 pub(crate) fn update_nova_hud_assets(
     // OPTIONAL because `NovaHudAssets` belongs to `nova_hud::NovaHudPlugin`,
     // which a headless app does not add at all. A required `ResMut` here fails
@@ -591,14 +590,13 @@ mod tests {
     /// startup. It runs in `OnEnter(GameAssetsStates::Processing)`, before any
     /// camera spawns, so the `SkyboxPlugin` observer - which sets the view
     /// only on its single-layer fallback branch - sees a ready 6-layer + Cube
-    /// image and just attaches `Skybox`. Task suspected the editor was missing
-    /// this view; the investigation found this system already covers it. This
-    /// pins that coverage: an arrayed cubemap gets its Cube view, a
-    /// single-layer one is left for the fallback. If someone drops or breaks
-    /// `prepare_cubemap_view`, this fails before the editor sky silently
-    /// disappears - bevy's `sanity_check_skybox_image_and_warn` withholds the
-    /// skybox bind group for a non-Cube view on EVERY GPU, not only where the
-    /// stack is over the texture limit.
+    /// image and just attaches `Skybox`. This pins that coverage: an arrayed
+    /// cubemap gets its Cube view, a single-layer one is left for the
+    /// fallback. If someone drops or breaks `prepare_cubemap_view`, this
+    /// fails before the editor sky silently disappears - bevy's
+    /// `sanity_check_skybox_image_and_warn` withholds the skybox bind group
+    /// for a non-Cube view on EVERY GPU, not only where the stack is over the
+    /// texture limit.
     #[test]
     fn prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap() {
         use bevy::{

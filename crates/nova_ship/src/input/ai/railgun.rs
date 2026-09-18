@@ -5,8 +5,10 @@
 //! shot - it commits when its orbit happens to sweep the bore across a target
 //! it is already fighting. A raider therefore lands the occasional lance hit
 //! and never sets one up, which is the honest half of "the AI may use it".
-//! The lance run - break the orbit, roll onto the line, commit, peel off - is
-//! task `20260901-104359`, and this module is what that task replaces.
+//! TODO(20260901-104359): the AI never sets the shot up, only takes the one
+//! its orbit hands it. That task builds the lance run - break the orbit,
+//! roll onto the line, commit, peel off - and replaces this module; delete
+//! it when that lands.
 //!
 //! The alignment gate is TIGHT where the torpedo's is loose, and the reason is
 //! the difference between the two weapons: a torpedo turns after launch, so a

@@ -795,8 +795,7 @@ const BLAST_TICKS: u8 = 8;
 
 /// Wall-clock backstop on a blast volume, and the component nova_scenario
 /// scopes it to its own scenario by (`register_scenario_scoping`: a blast that
-/// outlived a Retry once destroyed the reloaded scenario's asteroid, task
-/// 20260816-103226).
+/// outlived a Retry once destroyed the reloaded scenario's asteroid).
 ///
 /// An order of magnitude above the [`BLAST_TICKS`] window, so the tick counter
 /// is always what retires a blast and this only ever catches a volume the fixed

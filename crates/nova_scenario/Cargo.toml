@@ -38,7 +38,7 @@ nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
 # Serialize/Deserialize on ScenarioConfig). Dev-dependencies unify into the
 # test build, forcing the feature ON for `cargo test` with no extra flags.
 # Not `required-features` on the test targets - that would SKIP the tests when
-# the feature is off, silently running nothing (task 20260721-000249).
+# the feature is off, silently running nothing.
 nova_scenario = { path = ".", features = ["serde"] }
 
 [lints]
@@ -54,9 +54,9 @@ serde = ["dep:serde", "bevy/serialize", "nova_gameplay/serde"]
 # release build; enable it as a dev-dependency feature only.
 test-support = []
 
-# Baseline + regression benchmark for the scenario dispatch hot path (task
-# 20260714-083331): synthetic many-handler scenario, filter/condition micro
-# groups, and the full event-dispatch loop. `cargo bench -p nova_scenario`.
+# Baseline + regression benchmark for the scenario dispatch hot path:
+# synthetic many-handler scenario, filter/condition micro groups, and the
+# full event-dispatch loop. `cargo bench -p nova_scenario`.
 [[bench]]
 name = "scenario_dispatch"
 harness = false

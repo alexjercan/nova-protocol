@@ -732,7 +732,7 @@ fn entity_named(id: &str) -> EventFilterConfig {
     })
 }
 
-/// DESTROY X, REACH Y, SURVIVE T - the three objectives of the task, written in
+/// DESTROY X, REACH Y, SURVIVE T - the three worked objectives, written in
 /// the vocabulary the editor already offers and nothing else.
 ///
 /// One handler posts them and starts the clock; one completes on the hulk
@@ -845,9 +845,9 @@ fn standing(app: &App) -> Vec<String> {
         .collect()
 }
 
-/// The whole claim of the folded-in objectives task: destroy X, reach Y,
-/// survive T is authorable in the vocabulary the editor already holds, survives
-/// the tree, and completes its player path.
+/// The whole claim: destroy X, reach Y, survive T is authorable in the
+/// vocabulary the editor already holds, survives the tree, and completes its
+/// player path.
 ///
 /// The timer END is fired here rather than waited for - the clock that fires it
 /// is `nova_scenario`'s and has its own tests - so what this drives is the

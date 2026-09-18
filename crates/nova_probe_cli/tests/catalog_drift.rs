@@ -84,10 +84,10 @@ fn catalog_matches_disk() {
 /// in that example's source as a `nova_probe::probe_marker` literal
 /// `"outcome: <slug>"` beside the `assert!` it belongs to.
 ///
-/// EVERY `systems/` range is on it, not only the former section curriculum
-/// (task 20260817-013618). That is the doctrine made executable: a bug becomes
-/// a range here, the fix turns it green, and the roster is what makes a later
-/// deletion of the assertion fail a test rather than quietly pass.
+/// EVERY `systems/` range is on it, not only the former section curriculum.
+/// That is the doctrine made executable: a bug becomes a range here, the fix
+/// turns it green, and the roster is what makes a later deletion of the
+/// assertion fail a test rather than quietly pass.
 ///
 /// Some slugs are ROUND-COMPLETION invariants - "the whole set held again on a
 /// reloaded rig / in a second scene" - and have no assert of their own to sit
@@ -124,10 +124,9 @@ fn catalog_matches_disk() {
 /// which a single process cannot see. The range prints; the runner diffs. The
 /// slugs keep the printing on the roster.
 ///
-/// The six `system_headless_*` ranges are `nova_channel` spikes (task
-/// 20260820-174148) rather than probe ranges, and they landed without markers.
-/// They are held to the same rule as everything else in `systems/`: whatever a
-/// range claims, it names.
+/// The six `system_headless_*` ranges are `nova_channel` spikes rather than
+/// probe ranges, and they landed without markers. They are held to the same
+/// rule as everything else in `systems/`: whatever a range claims, it names.
 ///
 /// What this test bounds is that every invariant is NAMED. That the invariants
 /// HOLD is what the runs themselves prove, by panicking.

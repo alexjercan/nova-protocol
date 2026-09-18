@@ -417,16 +417,13 @@ impl AppBuilder {
         // HUD goes first, because the monitor orders its own sets against
         // `NovaHudSystems`.
         //
-        // SPIKE (task 20260820-174148, not landed): previously render-gated. A
-        // headless run kept only 15 of the 33 registry actions because both
-        // plugins register their bindings inside `build`, and NOVA OS did not
-        // exist at all off-screen. Everything GPU-side in them is already
-        // guarded by bevy (`UiMaterialPlugin` and friends no-op without a
-        // render sub-app), so the spike adds them unconditionally and lets a
-        // headless boot prove - or refute - that the gate was never load-
-        // bearing. The probe-noise question (headless measurement runs now
-        // carry HUD/monitor CPU systems) is recorded in TASK.md as the open
-        // owner call.
+        // Added unconditionally, not render-gated: under the gate a headless
+        // run kept only 15 of the 33 registry actions, because both plugins
+        // register their bindings inside `build` and NOVA OS did not exist
+        // off-screen. Everything GPU-side in them is already guarded by bevy
+        // (`UiMaterialPlugin` and friends no-op without a render sub-app).
+        // The cost is that headless measurement runs carry HUD/monitor CPU
+        // systems.
         self.app.add_plugins(nova_hud::NovaHudPlugin);
         self.app.add_plugins(nova_os_ui::NovaOsUiPlugin);
 
@@ -755,14 +752,13 @@ fn render_plugin(assembly: Assembly) -> RenderPlugin {
     }
     RenderPlugin {
         render_creation: wgpu.into(),
-        // Do not flip this back to bevy's async default (task
-        // 20260805-111329). An async pipeline-compile task still in flight at
-        // exit drops the last `Arc<Device>` from an `AsyncComputeTaskPool`
-        // thread while the main thread tears the same Vulkan device down,
-        // which SIGSEGVs inside the driver - one run in five for the
-        // self-ending `menu_scenarios` example. Compiling synchronously means
-        // no compile task ever owns a device reference, so the race cannot
-        // occur.
+        // Do not flip this back to bevy's async default. An async
+        // pipeline-compile task still in flight at exit drops the last
+        // `Arc<Device>` from an `AsyncComputeTaskPool` thread while the main
+        // thread tears the same Vulkan device down, which SIGSEGVs inside the
+        // driver - one run in five for the self-ending `menu_scenarios`
+        // example. Compiling synchronously means no compile task ever owns a
+        // device reference, so the race cannot occur.
         synchronous_pipeline_compilation: true,
         ..default()
     }
@@ -913,7 +909,7 @@ pub fn assets_plugin() -> AssetPlugin {
 ///
 /// General tuning, NOT the fix for any one regression: v0.13.2 gained MORE
 /// from this same cap than the current build does, so the cap and the
-/// post-v0.13.2 arena regression are separate problems (task 20260913-090620).
+/// post-v0.13.2 arena regression are separate problems.
 pub const MAX_COMPUTE_WORKERS: usize = 8;
 
 /// The app's task pool policy: [`MAX_COMPUTE_WORKERS`] for compute, bevy's

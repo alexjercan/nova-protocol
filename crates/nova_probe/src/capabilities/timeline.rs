@@ -258,11 +258,11 @@ impl ProbeTimeline {
         // SINGLETON GUARD, then truncate - never the other way round. A plain
         // `File::create` truncates to offset 0 while an earlier recorder's
         // `BufWriter` keeps writing at its own offset, splicing two streams
-        // into one line (`20260804-174231`). The lock is advisory but
-        // process-wide AND cross-process on both unix (flock) and windows
-        // (LockFileEx), and it lives as long as the `File` inside the sink -
-        // so it releases when the recorder drops and probe can reuse a run
-        // directory on the next invocation.
+        // into one line. The lock is advisory but process-wide AND
+        // cross-process on both unix (flock) and windows (LockFileEx), and it
+        // lives as long as the `File` inside the sink - so it releases when
+        // the recorder drops and probe can reuse a run directory on the next
+        // invocation.
         let file = OpenOptions::new()
             .write(true)
             .create(true)

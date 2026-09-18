@@ -16,8 +16,7 @@
 //! - `ui` - the screen a GUI player sees, as data: the pause rung, the NOVA OS
 //!   terminal model while it owns the screen, every named visible UI rect with
 //!   a button flag, and the CRT glass slice (map contact code -> window px).
-//!   What the process channel's pointer lane resolves against
-//!   (task 20260820-174148).
+//!   What the process channel's pointer lane resolves against.
 //! - `ships` - every [`SpaceshipRootMarker`]: identity, transform, velocity,
 //!   aggregate health, mass, the collapse/defeat/neutralize flags, weapon
 //!   locks, its `capabilities`, its `skin`, and its `sections`.
@@ -55,7 +54,7 @@
 //!   in order - what NOVA OS's `log` command prints), the `cinematic` playing
 //!   over the top and whether it may be skipped, and the run's `cheats` mark.
 //!   What an external pilot reads its goal from, and what a referee scores a
-//!   driven run against (task 20260824-125933).
+//!   driven run against.
 //!
 //! ## Why the skin, and why in this much detail
 //!
@@ -780,7 +779,7 @@ fn docking_record(world: &World, entity: Entity, pair: Option<&DockingPair>) -> 
 /// The screen a GUI player sees, as data: the pause rung, the terminal model
 /// while NOVA OS owns the screen, every named clickable rect, and the CRT
 /// glass slice. This is what makes a driven `pointer to "Resume"` honest -
-/// the driver clicks what it was told exists (task 20260820-174148).
+/// the driver clicks what it was told exists.
 fn ui_block(world: &mut World) -> serde_json::Value {
     let pause = world
         .get_resource::<State<PauseStates>>()

@@ -78,8 +78,8 @@ pub(super) fn on_autopilot_disengaged(
     for (rig, output, active) in &q_rig {
         // Bridge the camera only when this rig is the one it follows (in
         // FreeLook/Turret the normal rig is dormant, so its re-seed only shows
-        // on the later switch back to Normal - a pre-existing transition this
-        // task does not change). A re-disengage mid-blend restarts from the
+        // on the later switch back to Normal - a pre-existing transition,
+        // left as it is). A re-disengage mid-blend restarts from the
         // rig's pre-reseed output, not the mid-blend display value - a small
         // pop in a rare double-handback, accepted for a stateless observer.
         if active {

@@ -575,13 +575,13 @@ mod tests {
 
     #[test]
     fn a_low_framerate_turret_tracking_a_crosser_reaches_the_gate_and_fires() {
-        // THE BUG (task 20260816-184718), end to end: the per-frame aim damp
-        // left ~1.8 deg of tracking lag at 14 fps - above the 0.92 deg bearing
-        // gate - so a PDC on a struggling machine refused to fire at a crosser
-        // it was tracking fine at 60 fps. With the dt-based decay the lag at
-        // 1/14 stays inside the gate and the turret shoots. Full production
-        // chain on a 1/14 clock: lead solve + joint CCD + controller sync +
-        // the gated fire path.
+        // THE BUG, end to end: the per-frame aim damp left ~1.8 deg of
+        // tracking lag at 14 fps - above the 0.92 deg bearing gate - so a PDC
+        // on a struggling machine refused to fire at a crosser it was tracking
+        // fine at 60 fps. With the dt-based decay the lag at 1/14 stays inside
+        // the gate and the turret shoots. Full production chain on a 1/14
+        // clock: lead solve + joint CCD + controller sync + the gated fire
+        // path.
         use nova_gameplay::transform::prelude::SmoothLookRotationPlugin;
 
         let dt = 1.0 / 14.0;

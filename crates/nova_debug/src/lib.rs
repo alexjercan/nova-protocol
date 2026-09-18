@@ -300,8 +300,8 @@ mod tests {
     }
 
     /// The fix: with the inspector down, flying holds the cursor hidden+locked
-    /// even in a debug build (before this task the whole grab was compiled out
-    /// under `feature = "debug"`).
+    /// even in a debug build (the grab must not be compiled out under
+    /// `feature = "debug"`).
     #[test]
     fn inspector_off_while_flying_hides_the_cursor() {
         let mut app = app(false, true, true);

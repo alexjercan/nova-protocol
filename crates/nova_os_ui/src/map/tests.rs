@@ -1027,10 +1027,10 @@ fn rig_inset_map_viewport(rig: &mut NovaOsPointerRig, inset: Rect) -> Entity {
     viewport
 }
 
-/// Step 5 of the task: a warp fix that still loses edge contacts to clipping
-/// is not a fix. The map viewport is `Overflow::clip()`, and bevy's UI picking
-/// respects clip rects, so a blip straddling the viewport edge is pickable
-/// over its UNCLIPPED part and dead over the clipped part.
+/// A warp fix that still loses edge contacts to clipping is not a fix. The
+/// map viewport is `Overflow::clip()`, and bevy's UI picking respects clip
+/// rects, so a blip straddling the viewport edge is pickable over its
+/// UNCLIPPED part and dead over the clipped part.
 ///
 /// Both halves are asserted: the visible half must select (that is the bug
 /// this guards), and the clipped half must NOT (otherwise the test would pass
@@ -1086,8 +1086,8 @@ fn map_contacts_straddling_the_viewport_edge_are_pickable_over_their_visible_hal
 /// The overlap path: map contacts drift, so a label routinely lies over a
 /// neighbouring dot. UI picking resolves that by stacking order, and the
 /// TOPMOST node wins - deterministically, not by accident. Pinned so the
-/// bigger label pill this task introduced cannot quietly start swallowing its
-/// neighbours' clicks in some other order.
+/// bigger label pill cannot quietly start swallowing its neighbours' clicks
+/// in some other order.
 #[test]
 fn overlapping_map_contacts_select_the_topmost() {
     let aim_uv = Vec2::new(0.45, 0.5);

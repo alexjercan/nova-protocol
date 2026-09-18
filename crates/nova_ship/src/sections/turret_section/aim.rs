@@ -419,9 +419,8 @@ fn signed_angle_about(from: Vec3, to: Vec3, axis: Vec3) -> f32 {
 /// - FRAMERATE INVARIANCE. A flat per-frame gain decays the error per FRAME,
 ///   so residual tracking lag scaled with frame time (~0.43 deg at 60 fps vs
 ///   ~1.8 deg at 14 fps on a crossing target) and sat above the then-fixed
-///   0.92 deg fire gate exactly when the machine struggled
-///   (task 20260816-184718). The exponential form decays the same error
-///   fraction per unit TIME at any frame rate.
+///   0.92 deg fire gate exactly when the machine struggled. The exponential
+///   form decays the same error fraction per unit TIME at any frame rate.
 ///
 /// DERIVED from the shipped per-frame gain, not retuned: the damp shipped as
 /// a flat 0.35 of the error per frame, tuned at 60 fps (playtest-lowered from
@@ -1538,12 +1537,12 @@ mod tests {
 
     #[test]
     fn aim_tracking_lag_is_framerate_invariant() {
-        // THE BUG (task 20260816-184718): the correction gain damped the aim
-        // error per FRAME, so residual tracking lag scaled with frame time -
-        // ~0.43 deg at 60 fps vs ~1.8 deg at 14 fps on a crossing target,
-        // above the 0.92 deg fire gate exactly when the machine struggled.
-        // With the dt-based decay, the same SIM time against the same crosser
-        // must land the same residual at any frame rate.
+        // THE BUG: the correction gain damped the aim error per FRAME, so
+        // residual tracking lag scaled with frame time - ~0.43 deg at 60 fps
+        // vs ~1.8 deg at 14 fps on a crossing target, above the 0.92 deg fire
+        // gate exactly when the machine struggled. With the dt-based decay,
+        // the same SIM time against the same crosser must land the same
+        // residual at any frame rate.
         //
         // Tolerance: the decay itself is exactly framerate-invariant; what
         // remains is sampling - the target moves w * dt between corrections,

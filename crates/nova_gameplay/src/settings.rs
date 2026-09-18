@@ -96,9 +96,9 @@ pub const MUTE_ENV: &str = "NOVA_MUTE";
 /// Unset, the entropy plugin seeds from the OS and no two runs agree - the
 /// right default for play. Set to a `u64` (decimal), every `bevy_rand` fork in
 /// the session derives from that one seed, which is what lets a driven run
-/// (task 20260820-174148: `nova_channel`, and any scripted harness run) be
-/// replayed byte for byte. It lives here because the entropy plugin is
-/// gameplay's, the way the mute knob lives with the audio output.
+/// (`nova_channel`, and any scripted harness run) be replayed byte for byte.
+/// It lives here because the entropy plugin is gameplay's, the way the mute
+/// knob lives with the audio output.
 ///
 /// A value that does not parse is REFUSED at boot (panic naming the variable),
 /// never silently ignored: a replay that quietly ran unseeded is the exact
@@ -181,8 +181,8 @@ fn harness_muted_from(nova_mute: Option<&str>, harness_env_active: bool) -> bool
 #[reflect(Resource)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum GraphicsQuality {
-    /// Cheapest: all combat juice off (no camera shake, no impact sparks). The
-    /// low-end task extends this to also skip particles.
+    /// Cheapest: all combat juice off (no camera shake, no impact sparks) and
+    /// no particles.
     Low,
     /// Middle: impact sparks stay, camera shake off.
     Medium,
@@ -226,8 +226,7 @@ impl GraphicsQuality {
 #[reflect(Resource)]
 pub struct GraphicsBudget {
     /// Whether hanabi particle effects spawn at all. Off on `Low` - the "spawn-less"
-    /// in the task name; particle spawns are the biggest per-event cost the
-    /// baseline flags.
+    /// tier; particle spawns are the biggest per-event cost the baseline flags.
     pub particles: bool,
     /// Internal render-resolution fraction (`0.0..=1.0`) the scenario view is
     /// drawn at before being upscaled to the window for presentation. `1.0` is

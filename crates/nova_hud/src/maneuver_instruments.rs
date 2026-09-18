@@ -78,8 +78,8 @@ pub struct RadiusSpokeMarker {
     pub ship: Entity,
 }
 
-/// The world-space holo ring of an engaged ORBIT plan. Public so tests and
-/// the future holo-expansion task can find it.
+/// The world-space holo ring of an engaged ORBIT plan. Public so tests and a
+/// future holo expansion can find it.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct OrbitRingMarker {
     /// The ship whose plan this ring renders.

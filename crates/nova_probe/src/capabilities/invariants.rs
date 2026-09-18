@@ -223,9 +223,9 @@ pub struct InvariantState {
     ///
     /// A DELIVERY GUARD, not an invariant. "0 violations" is equally true of a
     /// bound that held and of a query that matched nothing, and the second is
-    /// not hypothetical: this check ran over zero entities for a whole task
-    /// after `Health` moved crates and the import here kept naming the old
-    /// path. Both types compiled, so nothing failed. A subject count of 0 on a
+    /// not hypothetical: this check silently ran over zero entities after
+    /// `Health` moved crates and the import here kept naming the old path.
+    /// Both types compiled, so nothing failed. A subject count of 0 on a
     /// run that has ships is the symptom.
     pub health_subjects: u64,
     /// Most entities the velocity-sanity query examined in a single frame. Same
@@ -450,7 +450,7 @@ mod tests {
 
     /// The delivery guard for `healthy_world_records_zero_violations`: that
     /// test's "0 violations" is equally true of a query that matched nothing,
-    /// which is how a wrong `Health` import hid for a whole task. The subject
+    /// which is how a wrong `Health` import once hid unnoticed. The subject
     /// peaks separate the two, and an empty world reads 0 rather than looking
     /// like a clean pass.
     #[test]

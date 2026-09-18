@@ -736,7 +736,7 @@ fn editing_a_design_leaves_its_instances_untouched() {
     );
 }
 
-/// The objective set of the task's own example, as the editor holds it: a
+/// The objective set of the worked example, as the editor holds it: a
 /// handler that retires, scoped to the ship the document flies, that posts an
 /// objective and declares the outcome.
 ///

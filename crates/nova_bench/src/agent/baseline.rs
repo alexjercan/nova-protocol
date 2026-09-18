@@ -1,4 +1,4 @@
-//! The baseline: the channel task's `agent_loop.py` hunter, in process.
+//! The baseline: a scripted hunter, in process.
 //! Close, raise, lock, fire. It speaks the referee protocol like any other
 //! client, so its audit reads the same as pi's.
 

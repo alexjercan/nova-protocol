@@ -383,7 +383,7 @@ pub(super) fn step(axis: usize, sign: i32) -> IVec3 {
 ///   Holding a rim corner up IN PROPORTION to how many of its cells are clad
 ///   was tried and reverted: it makes every edge LIVE, so the dead-edge vote
 ///   below never fires, and a one-cell run flattens from a ridge into a low
-///   strip. See the task notes.
+///   strip.
 /// - a MIDPOINT belongs to the two cells across the edge, and on a LIVE edge is
 ///   simply the mean of its two corners - the height the straight line between
 ///   them passes the middle at. Quarter cells are in the alphabet so that mean

@@ -849,8 +849,8 @@ mod tests {
     /// `shoot` on an UNARMED run captures nothing: no `Screenshot` request is
     /// spawned, so the smoke path of a capturing example walks the identical
     /// steps and writes no PNG. (The armed branch spawns a bare `Screenshot`
-    /// that only a real render app resolves, so it is proved by the capture
-    /// run in the task's manual proof.)
+    /// that only a real render app resolves, so only a capturing run can
+    /// observe it.)
     #[test]
     fn shoot_captures_nothing_when_the_run_is_not_armed() {
         // The test binary never sets `NOVA_CAPTURE`, and `capturing()` reads

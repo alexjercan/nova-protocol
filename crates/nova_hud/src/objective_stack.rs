@@ -807,9 +807,9 @@ mod tests {
             .collect()
     }
 
-    /// A posting puts the objective's own TEXT on screen - the whole point of
-    /// the task (the retired hint showed a count) - on the SAME frame, like a
-    /// chat notification.
+    /// A posting puts the objective's own TEXT on screen - not a count, which
+    /// is what the retired hint showed - on the SAME frame, like a chat
+    /// notification.
     #[test]
     fn a_posting_shows_the_objective_text_not_a_count() {
         let mut app = stack_app();

@@ -8,10 +8,8 @@
 //!
 //! Screen-space, positioned from the node's own bounds every frame - the same
 //! rig [`crate::ui::callout`] hangs the placement verdict on. What earns a
-//! plate and what does not is argued in the spike page for this editor pass,
-//! `tasks/20260825-221015/diegetic-surfaces.html`; the short of it is that a
-//! surface earns an anchor when the reader has to be LOOKING at the thing
-//! while they read it.
+//! plate and what does not comes down to one rule: a surface earns an anchor
+//! when the reader has to be LOOKING at the thing while they read it.
 
 use bevy::{color::Mix, picking::Pickable, prelude::*};
 use nova_gameplay::prelude::subtree_collider_aabb;

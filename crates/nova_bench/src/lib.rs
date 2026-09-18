@@ -26,8 +26,6 @@
 //! cargo run --features debug bench replay <run-dir>/audit.jsonl
 //! cargo run --features debug bench movie <run-dir>/audit.jsonl --frames <dir>
 //! ```
-//!
-//! The design record is `tasks/20260824-125933/ARCHITECTURE.md`.
 #![warn(missing_docs)]
 
 pub mod agent;

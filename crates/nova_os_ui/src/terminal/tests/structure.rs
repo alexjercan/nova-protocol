@@ -50,8 +50,8 @@ fn nova_os_renders_above_the_hud() {
     );
 }
 
-/// The shell builds one inset physical monitor with the CRT layers the
-/// follow-up terminal tasks can fill, not two permanent side panels.
+/// The shell builds one inset physical monitor with fillable CRT layers,
+/// not two permanent side panels.
 #[test]
 fn nova_os_spawns_single_nova_os_monitor() {
     let mut app = App::new();
@@ -164,8 +164,8 @@ fn nova_os_monitor_has_physical_casing_details() {
 
     // The screen edge is a dark recess line, NOT the old flat bright-phosphor
     // frame: the crisp glowing edge now comes from the shader's barrel-bowed
-    // rim (feedback item 2 / DECISION.md). This pins the demotion so the flat
-    // straight frame cannot silently return.
+    // rim. This pins the demotion so the flat straight frame cannot silently
+    // return.
     let screen_border = app
         .world_mut()
         .query_filtered::<&BorderColor, With<NovaOsScreenMarker>>()
@@ -347,8 +347,8 @@ fn nova_os_matches_nova_os_terminal_poc_structure() {
 
     let texts = all_texts(&mut app);
     for expected in [
-        // The header brand shows the SHELL breadcrumb at the prompt (this
-        // task); an open app swaps it for `APPS / <ID>`.
+        // The header brand shows the SHELL breadcrumb at the prompt; an open
+        // app swaps it for `APPS / <ID>`.
         format!("NOVA OS {} // SHELL", nova_os_version_label()),
         // The header carries the ship/link head plus a live FPS segment; it
         // spawns with a fixed-width `--` placeholder before the diagnostic has
@@ -429,7 +429,7 @@ fn topbar_status_line_carries_a_live_fps_segment() {
 fn nova_os_header_breadcrumb_tracks_the_active_surface() {
     // The terminal surface reads `// SHELL`; a launched app reads
     // `// APPS / <ID>` with the launch word upper-cased (owner-confirmed
-    // wording, this task's DECISION.md).
+    // wording).
     let ver = nova_os_version_label();
     assert_eq!(
         nova_os_header_breadcrumb(ShellKind::NovaOs, TerminalMode::Prompt),

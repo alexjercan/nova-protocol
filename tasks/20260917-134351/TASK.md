@@ -511,12 +511,98 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
   adding `deny_unknown_fields` is an error-policy decision outside the approved
   scope, and it is compatible with keeping all three defaults.
 
-- [ ] **09 - Remove task citations from production sources.**
+- [x] **09 - Remove task citations from production sources.**
   Scope: production Rust and Cargo files under `crates/**` that cite a completed
   task. Preserve concrete reasons, constraints, owners, and failure rules;
   delete historical narration. Keep an active `TODO(<task-id>)` only when it
   states the problem and removal rule. Verify the citation search is empty for
   production sources and run affected formatting and compile checks.
+
+  Done. 58 files across 16 crates, 198 insertions / 223 deletions, all comments
+  except one approved string literal. Buckets: 8 `Cargo.toml`, 44 `src/**`
+  non-test, 30 `src/**` `#[cfg(test)]`, 4 `crates/*/tests/**`.
+  Classifications applied: REWRITE 82, DELETE 2, KEEP 1, CODE 1.
+
+  The default was REWRITE, not DELETE: only 2 of 86 citations were pure
+  narration with nothing to save (`nova_assets/src/collections.rs`, a
+  `TODO` on a closed task stating neither problem nor removal rule, and
+  `nova_bench/src/lib.rs`, a line that was only a pointer into a closed task's
+  archive). Every other comment carried a reason, constraint, owner or failure
+  rule, so the provenance died and the substance stayed.
+
+  Five searches, because no single pattern finds every citation form. The
+  id-shape search found 46. A `tasks/` path search and a `TODO(|FIXME(|XXX(|WTF(`
+  search added nothing new. Two more earned their place: a "task" word search
+  restricted to comment lines found the only two hits using the truncated id
+  `214617`, which no id-shaped pattern can match; and a task-artifact search
+  (`DECISION.md`, `TASK.md`, `REVIEW.md`, `SPIKE.md`, `ARCHITECTURE.md`) found
+  four citations carrying no id and not the word "task" at all. Union 131
+  candidate lines, 86 real citations in 84 comment blocks.
+
+  45 false positives, and they are the reason a pattern sweep would have been
+  wrong. 41 are `task` meaning a CONCURRENCY JOB - `IoTaskPool`,
+  `AsyncComputeTaskPool`, the IndexedDB hydration and portal-install tasks, the
+  async carve jobs, the asset-loader task, and one `#[expect(..., reason =
+  "...task, field, parent...")]` attribute. Four are `task` as a FIELD NAME:
+  `BalanceAck.task` and `ContentReport.ack_task` hold the task id a content
+  author records in their own `balance_acks.ron`. That is a shipped feature of
+  the game, not provenance, and it is asserted on at
+  `nova_authoring/tests/content_lint_gate.rs:119,166`.
+
+  End state of the searches, re-run by the orchestrator after `sprout sync`:
+  id-shape returns 3 lines, `TODO(` returns 1, `tasks/` returns 1, artifacts
+  returns 0. Not zero, and deliberately so. The three id-shape hits are the two
+  `BalanceAck` fixture lines above plus the one permitted `TODO`; the `tasks/`
+  hit is `nova_bench/src/game.rs:360`, a synthetic parser input
+  (`"tasks/x/poc/acceptance.content.ron"`, where `x` is not an id).
+
+  One citation was KEPT, and it is the only task id left in a `crates/**`
+  comment. `20260901-104359` is `- STATUS: OPEN` (verified against
+  `tasks/20260901-104359/TASK.md` and `tatr ls -f '(:status eq OPEN)'`). This
+  item's scope is citations of a COMPLETED task, so deleting a live pointer to
+  open work was never in scope, and AGENTS.md permits exactly one durable
+  citation form. `nova_ship/src/input/ai/railgun.rs:8-11` was therefore
+  converted from prose into that form - an active `TODO(<id>)` stating the
+  problem (the AI only takes the shot its orbit hands it) and the removal rule
+  (delete the module when the lance run lands).
+
+  Proof, stated as what it is: a comment deletion has no behavior, no test was
+  written, and nothing observable changed at runtime. Three artifacts carry it.
+  (a) The searches above. (b) `cargo check --all-targets` over all 16 affected
+  crates (plus `nova_scenario/serde`) - `Finished` with zero errors and zero
+  first-party warnings, re-run after sync; `--all-targets` specifically because
+  34 of the 86 lines are in test code that a plain `cargo check` never compiles,
+  so a doc comment broken inside a `#[cfg(test)]` module would pass silently.
+  `cargo fmt -p <crate> -- --check` clean for all 16. (c) The non-comment diff,
+  filtered with
+  `git diff -U0 | grep -E '^[-+]' | grep -vE '^[-+]\s*(//|#)'`, contains
+  exactly ONE line pair: dropping `(20260709-125640)` from an assert MESSAGE at
+  `nova_ship/src/input/ai/maneuver.rs:1054`. That was approved separately as the
+  item's only code change; it is the failure text of a passing assert.
+
+  The worker also performed 32 comment reflows beyond the approved rows,
+  rewrapping paragraphs the rewrites left ragged, and claimed the word sequence
+  was unchanged. That claim was NOT taken on trust. The orchestrator extracted
+  the comment token stream of all 58 files before and after, whitespace
+  normalized so that rewrapping is invisible, and diffed them: 110 change sites,
+  every one traceable to an approved row, and no site that was reflow-only. A
+  reflow that dropped or reordered a word would have appeared as an extra site.
+  All 58 files carry a semantic change, so no file was touched for reflow alone.
+
+  Retained limits: the three residual search hits above are permanent and
+  correct, so item 12 must not treat "citation search returns zero" as the
+  acceptance condition for `crates/**` - the condition is "no citation of a
+  COMPLETED task". Two facts that existed only inside closed-task artifacts were
+  folded into the code rather than lost: `nova_core/src/lib.rs:419-425` now
+  states what the headless measurement showed (15 of 33 registry actions kept
+  under the render gate) instead of citing a spike labelled "not landed" that in
+  fact landed, and `nova_ship/src/sections/section_animation.rs:10-12` states
+  the two verified reasons the animation data is procedural (nothing in the
+  workspace drives `AnimationPlayer`; `scripts/nova_glb.py` writes no animation
+  samplers - both confirmed by the orchestrator with empty `rg` runs over
+  `crates/` and `examples/`). Deliberately untouched, as non-citations:
+  `nova_probe/src/capabilities/frametime.rs:470,831` and
+  `nova_assets/src/mod_set.rs:198`, both still item 12 carry-forwards.
 
 - [ ] **10 - Remove task citations from system examples.**
   Scope: `examples/systems/**`. Preserve fixture contracts, assertions, and

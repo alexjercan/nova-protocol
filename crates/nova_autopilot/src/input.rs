@@ -34,7 +34,7 @@
 //! a scrolling pane instead of measuring only what the first layout happened to
 //! put on screen. Without them a list taller than its box costs the run every
 //! row past the fold, and the gap reads as a property of the UI rather than of
-//! the harness (task 20260804-190142).
+//! the harness.
 //!
 //! ## The driven pointer is authoritative
 //!

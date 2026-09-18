@@ -21,8 +21,8 @@ use crate::prelude::*;
 /// system gates its behavior on it.
 ///
 /// `Engage`, `Patrol`, `Idle` and `Evade` have real behavior today. `Retreat`
-/// exists so its task slots into a stable enum instead of reshaping it: low-
-/// integrity disengage (stubs to `Engage`).
+/// exists so the low-integrity disengage slots into a stable enum instead of
+/// reshaping it (stubs to `Engage` today).
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub enum AIBehaviorState {
@@ -51,7 +51,7 @@ impl AIBehaviorState {
     /// Whether this state runs the engage-style chase/aim/fire pipeline.
     /// `Evade` fights it too - the jink only swaps the flight direction,
     /// the guns stay on target. `Retreat` deliberately stubs to Engage
-    /// behavior until its task lands (see the variant docs).
+    /// behavior until it is built (see the variant docs).
     pub(crate) fn engages(&self) -> bool {
         matches!(self, Self::Engage | Self::Evade | Self::Retreat)
     }
@@ -252,8 +252,8 @@ fn next_behavior_state(
         AIBehaviorState::Evade if threat.evade_expired || !threat.can_evade => {
             AIBehaviorState::Engage
         }
-        // The remaining combat states hold; their exit triggers are their
-        // tasks' scope.
+        // The remaining combat states hold; their exit triggers are not this
+        // function's.
         state => state,
     }
 }
@@ -707,7 +707,7 @@ mod behavior_state_tests {
             );
         }
         // Hostile inside detection range: passive states engage, combat
-        // states hold (their exit triggers belong to their own tasks).
+        // states hold (their exit triggers are elsewhere).
         let near = Some(AI_ENGAGE_RANGE * 0.5);
         assert_eq!(
             next_behavior_state(

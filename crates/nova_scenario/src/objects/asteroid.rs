@@ -175,7 +175,7 @@ fn rock_lock_signature(body_radius: f32) -> f32 {
 /// spent a whole extra command hop in between, and any physics tick that landed
 /// in that hop saw a dynamic body with no mass - which is exactly what avian's
 /// "has no mass or inertia" warning reports, and it is what the arena logged
-/// for a handful of its rocks every run (task 20260817-091716).
+/// for a handful of its rocks every run.
 ///
 /// The seed is resolved by the CALLER because the mesh is generated here: an
 /// authored seed wins, and an unseeded rock derives one from its id through
@@ -889,8 +889,7 @@ mod tests {
 
     /// Every rock, root AND collider node, in ONE command batch - the whole
     /// point of the builder taking `EntityCommands`. A body that reached a
-    /// physics tick before its node landed spent that tick massless
-    /// (task 20260817-091716).
+    /// physics tick before its node landed spent that tick massless.
     #[test]
     fn the_collider_node_lands_in_the_same_batch_as_the_body() {
         let mut app = App::new();

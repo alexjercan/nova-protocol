@@ -729,8 +729,8 @@ mod tests {
             });
     }
 
-    /// A cue that names its own colour - the distress orange of the task's
-    /// worked example. Any accent that is not the comms blue would do; this one
+    /// A cue that names its own colour - the distress orange of the worked
+    /// example. Any accent that is not the comms blue would do; this one
     /// is far enough from it that a card drawn in the wrong one is obvious.
     const DISTRESS: Color = Color::srgb(1.0, 0.55, 0.2);
 

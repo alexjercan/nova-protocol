@@ -247,7 +247,7 @@ pub(crate) fn ensure_nova_os_spawned(
                             // A dark recess line, not a bright straight phosphor
                             // frame: the glass sits recessed in the bezel and the
                             // crisp glowing edge now comes from the shader's
-                            // barrel-bowed rim (see DECISION.md / feedback item 2).
+                            // barrel-bowed rim.
                             BorderColor::all(NOVA_OS_CASE_EDGE.with_alpha(0.85)),
                             BackgroundColor(NOVA_OS_SCREEN),
                         ))

@@ -1347,7 +1347,7 @@ mod patrol_physics_tests {
     // The full patrol loop on the physics harness: no hostile -> Patrol ->
     // GotoPos engaged -> the real autopilot swings the hull and burns the
     // real thruster -> the ship physically reaches its first waypoint and
-    // turns onto the next leg. Pins the task's acceptance: an AI ship placed
+    // turns onto the next leg. The acceptance: an AI ship placed
     // in a scenario flies its route before combat starts.
     use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 

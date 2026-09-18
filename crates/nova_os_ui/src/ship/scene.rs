@@ -432,7 +432,7 @@ pub(crate) fn ship_input(
             // Reset re-frames the whole ship: restore the default angles and
             // retarget the center home. Consuming the current selection
             // (centered_on = selected) makes the reframe STICK - the change check
-            // below will not chase the still-selected section back (DECISION.md).
+            // below will not chase the still-selected section back.
             orbit.theta = SHIP_THETA_DEFAULT;
             orbit.phi = SHIP_PHI_DEFAULT;
             orbit.center_target = orbit.center_home;

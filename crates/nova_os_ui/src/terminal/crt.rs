@@ -65,8 +65,8 @@ pub(crate) struct NovaOsCrtUniform {
     /// Power level 0..1 fed from [`NovaOsOpenness`]: 1 full raster, 0 collapsed to
     /// a dying line/dot. Drives the CRT power-on/off collapse.
     pub(crate) power: f32,
-    /// Extra brightness multiply (1.0 neutral). Reserved for task 214617's BRIGHT
-    /// knob. Appended last so the field order still matches the WGSL struct.
+    /// Extra brightness multiply (1.0 neutral), not yet driven by any control.
+    /// Appended last so the field order still matches the WGSL struct.
     pub(crate) brightness: f32,
     /// Degauss envelope 0..1: pulsed to 1 on an app
     /// launch/exit/switch by [`super::shell::sync_nova_os_app_ui`] via [`NovaOsDegauss`] and
@@ -247,8 +247,7 @@ pub(crate) fn reconcile_nova_os_target(
 /// `bevy_winit` also writes a concrete `MouseButtonInput` twin for every real
 /// click, which is close enough to be tempting and wrong: a SYNTHESIZED click
 /// writes only the half picking reads, so a forwarder reading the twin went
-/// dead under every driven run while looking perfectly correct by hand
-/// (task 20260804-134347).
+/// dead under every driven run while looking perfectly correct by hand.
 pub(crate) fn forward_nova_os_pointer(
     rtt: Option<Res<NovaOsRtt>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
@@ -505,8 +504,7 @@ fn nova_os_glass_rect(node: &ComputedNode, xf: &UiGlobalTransform) -> (Vec2, Vec
 /// before a caller can point at it. Without this, a driven run can only click
 /// what happens to sit in window space, and the whole terminal - every widget
 /// past the glass - is unreachable except by triggering its observer directly,
-/// which is precisely the shortcut that lets the pointer chain rot untested
-/// (task 20260804-134347).
+/// which is precisely the shortcut that lets the pointer chain rot untested.
 ///
 /// `None` when there is no live monitor to aim at, or when the CRT displays that
 /// image point nowhere: off the picture, or swallowed by the raster collapse
@@ -569,8 +567,8 @@ pub(crate) const NOVA_OS_CRT_POWER_EPSILON: f32 = 0.0008;
 /// terminal's `Hovered`-gated wheel scroll would go dead through the image.
 ///
 /// CRUCIALLY, this only manages `Hovered` on entities rendered THROUGH the image
-/// (descendants of the content root). Window-space UI - the chin knobs
-/// (task 214617), menus, any `Button` - keep the `Hovered` the MOUSE pointer's
+/// (descendants of the content root). Window-space UI - the chin knobs,
+/// menus, any `Button` - keep the `Hovered` the MOUSE pointer's
 /// `update_is_hovered` owns; touching them here would force `Hovered(false)` every
 /// frame the NOVA OS is open (the forwarded pointer's HoverMap targets the image,
 /// never the window), fighting the real cursor.

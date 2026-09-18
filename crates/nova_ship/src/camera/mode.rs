@@ -323,7 +323,7 @@ mod tests {
     /// EnhancedInput + the production action bindings) and FAITHFUL SPLIT
     /// RIGS - one entity per mode, only one holding the active marker, each
     /// with its own distinct PointRotationOutput (a single both-marker rig
-    /// masks exactly the frozen-ray/seeding bug class this task fixes).
+    /// masks exactly the frozen-ray/seeding bug class these tests guard).
     /// Returns (app, normal, freelook, turret, ship).
     fn mode_app() -> (App, Entity, Entity, Entity, Entity) {
         let mut app = App::new();

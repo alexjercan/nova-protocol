@@ -22,9 +22,9 @@ serde = { version = "1", features = ["derive"], optional = true }
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
 # The interpolation crate behind avian's TransformInterpolation. Direct dep
 # only for the easing-state components (avian re-exports the markers but not
-# the states), which the turret spawn seeds so a bullet's first rendered
-# frame sits on the render clock (task 20260711-121839). Version must stay
-# in lockstep with the one avian3d resolves.
+# the states), which the turret spawn seeds so a bullet's first rendered frame
+# sits on the render clock. Version must stay in lockstep with the one avian3d
+# resolves.
 bevy_transform_interpolation = { version = "0.5.0" }
 nova_events = { path = "../nova_events" }
 nova_ui = { path = "../nova_ui" }

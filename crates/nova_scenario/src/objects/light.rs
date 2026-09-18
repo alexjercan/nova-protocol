@@ -106,10 +106,9 @@ pub fn aimed_light_base(
     }
 }
 
-/// The key/rim/fill offsets, colors and illuminances the screenshot set was
-/// shot with (`examples/screenshots/shared/kit.rs`, before this task moved the
-/// rig into authored content). Offsets are the rig's SHAPE in meters at scale
-/// 1: a scene multiplies them by [`ThreePointRig::scale`].
+/// The key/rim/fill offsets, colors and illuminances the screenshot set is
+/// shot with. Offsets are the rig's SHAPE in meters at scale 1: a scene
+/// multiplies them by [`ThreePointRig::scale`].
 ///
 /// Key is warm, high and camera-left, carrying the subject's main form, and is
 /// the ONLY shadow caster - a second on a blocky hull reads as dirt rather than

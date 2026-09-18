@@ -892,12 +892,12 @@ mod tests {
     }
 
     /// The blast is a TRANSIENT and must SAY so. `TempEntity` is not just its
-    /// self-cleanup: the scenario loader scopes transients on that component, so
-    /// a blast spawned without one belongs to nothing, survives a Retry teardown
-    /// and lands its damage in the NEXT scenario (task 20260816-103226). nova_ship
-    /// cannot see the loader that depends on this, so the contract is pinned at
-    /// the spawn. `nova_blast` supplies the component; this asserts the
-    /// detonation path really does go through that bundle.
+    /// self-cleanup: the scenario loader scopes transients on that component,
+    /// so a blast spawned without one belongs to nothing, survives a Retry
+    /// teardown and lands its damage in the NEXT scenario. nova_ship cannot
+    /// see the loader that depends on this, so the contract is pinned at the
+    /// spawn. `nova_blast` supplies the component; this asserts the detonation
+    /// path really does go through that bundle.
     #[test]
     fn the_detonation_blast_is_a_transient() {
         let mut app = App::new();

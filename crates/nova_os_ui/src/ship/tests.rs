@@ -837,7 +837,7 @@ fn kind_glyph_distinct_per_kind() {
 
 #[test]
 fn blocks_stay_uniform_green_regardless_of_status() {
-    // Regression pin on DECISION.md: the block FILL colour no longer encodes
+    // Regression pin: the block FILL colour no longer encodes
     // status, so a critically-damaged section and a healthy one share the same
     // uniform-green fill material handle.
     let mut app = App::new();

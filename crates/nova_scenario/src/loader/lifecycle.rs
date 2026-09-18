@@ -483,13 +483,13 @@ pub(super) fn on_load_scenario(
 /// transient the game spawns already rides - torpedoes and their detonation
 /// blasts, turret rounds, debris, the blast cosmetics - and it is precisely
 /// the set that has no other owner: a projectile is parented to nothing, so
-/// nothing else can delete it. Scoping on
-/// the LIFETIME rather than on a list of markers is what makes the leak class
-/// impossible instead of one-off closed. The list it replaced named three
-/// projectile/debris markers and missed the torpedo blast, which then outlived a
-/// Retry and destroyed the reloaded scenario's asteroid (task 20260816-103226);
-/// a leaked lifetime is not even bounded by its own timer, because the outcome
-/// overlay pauses the clock that would have expired it.
+/// nothing else can delete it. Scoping on the LIFETIME rather than on a list
+/// of markers is what makes the leak class impossible instead of one-off
+/// closed. The list it replaced named three projectile/debris markers and
+/// missed the torpedo blast, which then outlived a Retry and destroyed the
+/// reloaded scenario's asteroid; a leaked lifetime is not even bounded by its
+/// own timer, because the outcome overlay pauses the clock that would have
+/// expired it.
 ///
 /// [`ShipWreckFragmentMarker`] is the persistent counterpart: a severed hull
 /// has no timer but still belongs to the scenario whose ship produced it.
@@ -1434,8 +1434,8 @@ mod tests {
         );
     }
 
-    /// THE reported bug (task 20260816-103226): a torpedo blast that kills the
-    /// player outlives Retry and applies its damage into the FRESH scenario.
+    /// THE reported bug: a torpedo blast that kills the player outlives Retry
+    /// and applies its damage into the FRESH scenario.
     ///
     /// The whole chain runs on production pieces. The torpedo section plugin's
     /// own fuze spawns the blast - a Static sensor sphere carrying a short
@@ -1682,7 +1682,7 @@ mod tests {
     /// sweep. Sweep-style queue [despawn(ship), despawn(camera)]: the ship's
     /// despawn fires `on_player_spaceship_destroyed` while the camera is still
     /// live, and bevy applies the observer's remove+insert BEFORE the camera's
-    /// pending despawn - probed by sabotage during the task: the plain commands
+    /// pending despawn - probed by sabotage: the plain commands
     /// produced NO warn in this exact rig, refuting the assumed race (and when
     /// the camera despawns first, the `Single` fails and the observer skips).
     /// The plain commands in the observer are therefore correct; if bevy ever

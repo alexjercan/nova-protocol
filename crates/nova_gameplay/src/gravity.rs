@@ -484,7 +484,7 @@ mod tests {
     /// sweep. Sweep-style queue [despawn(well), despawn(holder)]: the well's
     /// despawn fires `remove_dominant_well_on_well_removed` while the holder is
     /// still visible, and bevy applies the observer's strip BEFORE the holder's
-    /// pending despawn - probed by sabotage during the task: the plain `remove`
+    /// pending despawn - probed by sabotage: the plain `remove`
     /// produced NO warn in this exact rig, refuting the assumed race. The plain
     /// command in the observer is therefore correct; if bevy ever moves
     /// observer commands behind the pending queue (breadth-first), this test

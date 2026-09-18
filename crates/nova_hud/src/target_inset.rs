@@ -587,12 +587,12 @@ fn zoomable_framing_radius(
 /// its tonemapping/bloom look matches the main view (thruster glow, explosions);
 /// no skybox (see [`INSET_CLEAR_COLOR`]).
 ///
-/// The bloom was shot with and without at the panel's own resolution
-/// (`tasks/20260830-195931/target-inset-512-256-bloom.png`) and kept. It buys
-/// no damage readability - the unbloomed frame is if anything crisper - but it
-/// is what makes a burning hull look the same in the inset as it does in the
-/// view the inset sits on, and on a texture this size it costs almost nothing.
-/// The saving that mattered was the texture, not the chain run over it.
+/// The bloom was shot with and without at the panel's own resolution and kept.
+/// It buys no damage readability - the unbloomed frame is if anything crisper
+/// - but it is what makes a burning hull look the same in the inset as it does
+/// in the view the inset sits on, and on a texture this size it costs almost
+/// nothing. The saving that mattered was the texture, not the chain run over
+/// it.
 fn inset_camera_bundle(image: Handle<Image>, pose: Transform) -> impl Bundle {
     (
         Name::new("Target Inset Camera"),

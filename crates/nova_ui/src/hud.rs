@@ -454,7 +454,7 @@ mod tests {
     }
 
     /// The geometry is a bordered, rounded slab - a chip that lost its border
-    /// is just floating text again (the look this task replaced).
+    /// is just floating text again.
     #[test]
     fn chip_geometry_carries_a_hairline_border() {
         let node = chip_node();

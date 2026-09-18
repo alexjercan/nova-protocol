@@ -79,7 +79,7 @@
 // No outer docs here: every module below carries its own `//!` docs, and an
 // outer `///` would concatenate ahead of them and re-resolve their intra-doc
 // links (`AppExit`, `AUTOPILOT_ENV`, `CAPTURE_ENV`) in THIS module's scope,
-// where they do not exist. See 20260802-183340 REVIEW.md R1.3.
+// where they do not exist.
 pub mod autopilot;
 pub mod capture;
 pub mod completion;

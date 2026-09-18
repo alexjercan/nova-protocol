@@ -1257,8 +1257,7 @@ mod tests {
 
     /// A shot-down torpedo stops being simulated the moment it is marked. Its
     /// sections carried every collider it had, so a dynamic root in the
-    /// removal gap is a massless body avian warns about, once per kill
-    /// (task 20260817-091716).
+    /// removal gap is a massless body avian warns about, once per kill.
     #[test]
     fn a_shot_down_torpedo_is_on_rails_before_the_reaper_runs() {
         let mut app = App::new();

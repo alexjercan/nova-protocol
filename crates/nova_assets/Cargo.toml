@@ -13,10 +13,10 @@ bevy_asset_loader = { version = "0.27.0" }
 ron = { version = "0.12" }
 # The mod_cache InstalledModRecord derives its RON serde directly.
 serde = { version = "1", features = ["derive"] }
-# The portal client (task 20260715-163508): ehttp is the one HTTP surface for
-# native (ureq worker thread) and wasm (browser fetch); serde_json decodes the
-# portal's catalog.json; sha2 verifies each downloaded file (0.10, the same pin
-# the deploy-time generator scripts/gen-portal.py hashes these files with).
+# The portal client: ehttp is the one HTTP surface for native (ureq worker
+# thread) and wasm (browser fetch); serde_json decodes the portal's
+# catalog.json; sha2 verifies each downloaded file (0.10, the same pin the
+# deploy-time generator scripts/gen-portal.py hashes these files with).
 ehttp = { version = "0.7" }
 serde_json = { version = "1" }
 sha2 = { version = "0.10" }
@@ -35,11 +35,10 @@ nova_training = { path = "../nova_training" }
 # with the generator.
 nova_mod_format = { path = "../nova_mod_format" }
 
-# Cross-platform persistence of the enabled-mods set (task 20260714-174131)
-# and of the downloaded-mods cache (task 20260715-142906).
-# Native: RON files under the user config/data dirs. Web: window.localStorage
-# for the small sync stores, IndexedDB (hand-rolled web-sys wrapper in
-# mod_cache) for the downloaded mods' file bytes.
+# Cross-platform persistence of the enabled-mods set and of the downloaded-mods
+# cache. Native: RON files under the user config/data dirs. Web:
+# window.localStorage for the small sync stores, IndexedDB (hand-rolled web-sys
+# wrapper in mod_cache) for the downloaded mods' file bytes.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dirs = "6"
 

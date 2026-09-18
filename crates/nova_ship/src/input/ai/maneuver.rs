@@ -219,7 +219,7 @@ fn ai_desired_velocity(
     let range_error = distance - standoff;
     // Orbit tangent with a stable handedness; the X fallback covers a
     // dead-polar line of sight. Global handedness (every ship circles the
-    // same way) is fine for one archetype - see task Notes.
+    // same way) is fine for one archetype.
     let tangent = los
         .cross(Vec3::Y)
         .try_normalize()
@@ -306,10 +306,10 @@ fn ai_standoff_centre_distance(mover_arm: f32, target_arm: f32, clearance: f32) 
 /// weave off the pursuit vector. Each leg is mostly lateral (the four
 /// tangent quadrants around the line of sight in turn) with a small
 /// alternating along-LOS bias, so consecutive legs swing the heading hard
-/// off the pursuit vector AND vary the closure rate - the "timed jink"
-/// the task asks for. Deterministic by design: unit-testable, and one
-/// archetype does not need unpredictability yet (playtest knob). Falls
-/// back to zero on a degenerate line of sight. Pure for unit testing.
+/// off the pursuit vector AND vary the closure rate - a timed jink.
+/// Deterministic by design: unit-testable, and one archetype does not need
+/// unpredictability yet (playtest knob). Falls back to zero on a degenerate
+/// line of sight. Pure for unit testing.
 pub(super) fn ai_evade_direction(to_target: Vec3, leg: u32) -> Vec3 {
     let Some(los) = to_target.try_normalize() else {
         return Vec3::ZERO;
@@ -1051,7 +1051,7 @@ mod physics_tests {
         // was ~0.23 rad/s).
         assert!(
             max_roll < 0.05,
-            "residual roll must stay damped (20260709-125640), \
+            "residual roll must stay damped, \
              got {max_roll} rad/s"
         );
     }
