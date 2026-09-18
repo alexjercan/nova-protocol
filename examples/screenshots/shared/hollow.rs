@@ -720,24 +720,42 @@ pub fn hunter_hollow(
         dev_fixtures::raider(),
     );
 
-    // ITS OWN SHELL, pushed out and scaled up, and this is the one thing in
-    // the set that is not the standard pocket. The fighting sets' wall starts
-    // at 480 m, which is a pocket a run-in crosses in four seconds - and worse,
-    // a camera standing far enough back to hold a 500 m run-in stands INSIDE
-    // that wall and photographs one rock. This wall starts at 1.1 km, so both
-    // the run-in and the eye that watches it are in clear space, with the
-    // field where a field belongs: behind them.
+    // ITS OWN SHELL, pushed well out, and this is the one thing in the set
+    // that is not the standard pocket. The fighting sets' wall starts at 480 m,
+    // which is a pocket a run-in crosses in four seconds - and worse, a camera
+    // standing far enough back to hold a 500 m run-in stands INSIDE that wall
+    // and photographs one rock. The whole maneuver and the eye that watches it
+    // have to be in clear space, with the field where a field belongs: behind
+    // them.
     //
-    // FEWER rocks as well as farther ones. The first cut of this pocket kept
-    // the standard count at the new distance, and sixty-four boulders across
-    // the far wall is a busy enough picture that the two ships in front of it
-    // stop being the subject.
+    // WHERE "clear" IS, measured rather than assumed. A scattered rock's
+    // authored radius is NOMINAL: the noise-displaced mesh reaches
+    // `ASTEROID_GEOMETRIC_FACTOR_MIN..MAX` (3.5x to 6x,
+    // `nova_scenario::objects::asteroid`) past it, and the collider is the
+    // mesh. A 60 m rock is a 360 m rock to fly into. The first cut of this
+    // pocket put the wall's CENTRES at 1.1 km - a real inner surface of 740 m -
+    // and started the raider 1.46 km out, which is inside the field rather than
+    // outside it. The raider flew its jink legs and wedged itself on
+    // `hunter_rock_32`, 211 m from that rock's centre, and sat there with its
+    // computer holding full attitude and full throttle against a static body
+    // for the rest of the run. Nothing in the AI avoids scenery - the only
+    // clearance it keeps is from its TARGET's hull
+    // (`nova_ship::input::ai::maneuver::AIStandoffClearance`) - so the lane has
+    // to be authored clear.
+    //
+    // 2.8 km of centre distance leaves a 2.44 km inner surface against a
+    // maneuver that reaches 1.46 km of start plus the ~320 m the jink legs
+    // wander: 650 m of margin. The count is the same 36 - the number of rocks
+    // the camera holds is set by its cone, not by the wall's radius, so pushing
+    // the wall out changes how big each boulder reads and not how many there
+    // are, and sixty-four across the near wall was already a busy enough
+    // picture that the two ships in front of it stopped being the subject.
     let shell = kit::NearField {
         id_prefix: "hunter_rock_",
         count: 36,
         seed: 40507,
         center: Meters3::ZERO,
-        distance: (Meters(1_100.0), Meters(2_400.0)),
+        distance: (Meters(2_800.0), Meters(4_400.0)),
         radius: (Meters(22.0), Meters(60.0)),
         y_spread: Meters(800.0),
     };
@@ -807,18 +825,63 @@ pub fn the_hunter_has_closed() -> std::sync::Arc<nova_protocol::nova_debug::harn
     })
 }
 
-/// What to print when the close never happened: the gap itself, so a stall
-/// says whether the hostile was still coming, parked wide, or gone.
+/// What to print when the close never happened: the gap, what the hostile is
+/// doing about it, and what is in the way.
+///
+/// The gap alone cannot tell the two stalls apart. A hostile still under way is
+/// one whose run-in simply needs longer; a hostile sitting at a dead stop with
+/// its computer at full attitude is one WEDGED on scenery, and the only thing
+/// that says so is its speed and the rock beside it. Nothing in the AI avoids
+/// terrain, so a lane authored through the field parks the ship against the
+/// first boulder it meets and the walk then stalls a kilometre out with no
+/// other sign - which is exactly how the 2.8 km shell in [`hunter_hollow`] came
+/// to be measured.
 #[cfg(feature = "debug")]
 pub fn hunter_diagnosis(world: &World) -> String {
-    match hunter_gap(world) {
-        Some(gap) => format!(
-            "the hostile is {:.0} m from the player, and the sheet opens at {:.0} m",
-            gap.get(),
-            HUNTER_SHEET_GAP.get()
-        ),
-        None => "one of the two hulls is no longer in the pocket".to_string(),
-    }
+    let Some(gap) = hunter_gap(world) else {
+        return "one of the two hulls is no longer in the pocket".to_string();
+    };
+    format!(
+        "the hostile is {:.0} m from the player, and the sheet opens at {:.0} m{}{}",
+        gap.get(),
+        HUNTER_SHEET_GAP.get(),
+        raider_speed(world).map_or_else(String::new, |speed| format!(
+            "; it is making {:.0} m/s",
+            Meters::from_engine(speed).get()
+        )),
+        nearest_rock(world).map_or_else(String::new, |(id, range)| format!(
+            "; the nearest rock is {id}, {:.0} m off its centre - and a scattered rock's hull \
+             reaches 3.5x to 6x its authored radius",
+            range.get()
+        )),
+    )
+}
+
+/// How fast the hunter set's raider is going, in engine units per second.
+#[cfg(feature = "debug")]
+fn raider_speed(world: &World) -> Option<f32> {
+    let mut ships = world.try_query::<(&EntityId, &avian3d::prelude::LinearVelocity)>()?;
+    ships
+        .iter(world)
+        .find(|(id, _)| id.0 == RAIDER_ID)
+        .map(|(_, velocity)| velocity.length())
+}
+
+/// The scattered rock whose CENTRE is closest to the raider, and how far off it
+/// is.
+#[cfg(feature = "debug")]
+fn nearest_rock(world: &World) -> Option<(String, Meters)> {
+    let mut bodies = world.try_query::<(&EntityId, &GlobalTransform)>()?;
+    let raider = bodies
+        .iter(world)
+        .find(|(id, _)| id.0 == RAIDER_ID)
+        .map(|(_, at)| at.translation())?;
+    bodies
+        .iter(world)
+        .filter(|(id, _)| id.0.starts_with("hunter_rock_"))
+        .map(|(id, at)| (id.0.clone(), at.translation().distance(raider)))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(id, range)| (id, Meters::from_engine(range)))
 }
 
 /// The FLYING set: the player's hull alone in the standard shell, for the
