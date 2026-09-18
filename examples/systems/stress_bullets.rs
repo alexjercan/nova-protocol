@@ -252,7 +252,6 @@ fn battery(sections: &GameSections) -> SpaceshipConfig {
                     )
                 })
                 .collect::<BTreeMap<_, _>>(),
-            speed_cap: None,
         }),
         &specs,
     )

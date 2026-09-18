@@ -232,7 +232,6 @@ fn lance_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
             // NOT infinite: invariant 5 is about the magazine, and an
             // unlimited one would make it unfalsifiable.
         }),

@@ -51,13 +51,18 @@ pub enum SpaceshipController {
     AI(AIControllerConfig),
 }
 
-/// Player-driver settings for a [`SpaceshipController::Player`] ship:
-/// per-section input bindings and an optional soft speed cap.
-/// Authored in the scenario RON and consumed at spawn by
-/// `insert_spaceship_sections`, which inserts the derived components on the ship
-/// root (see the per-field docs).
+/// Player-driver settings for a [`SpaceshipController::Player`] ship: its
+/// per-section input bindings. Authored in the scenario RON and consumed at
+/// spawn by `insert_spaceship_sections`, which inserts the derived components
+/// on the ship root (see the per-field docs).
+///
+/// STRICT: an unknown key is a load error, not a key quietly dropped. A file
+/// still carrying the removed `speed_cap:` is asking for a governor the flight
+/// code no longer has; the author gets a refusal naming the key rather than a
+/// run that flies uncapped without saying so.
 #[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct PlayerControllerConfig {
     #[cfg_attr(
         feature = "serde",
@@ -76,15 +81,6 @@ pub struct PlayerControllerConfig {
     /// `assets/base/**/*.content.ron`, and a hash-ordered map makes
     /// `content -- gen` produce a different file every run.
     pub input_mapping: BTreeMap<SectionId, Vec<InputSource>>,
-    /// Soft manual-speed cap, inserted as [`FlightSpeedCap`] on the
-    /// ship root: the manual burn tapers off approaching it (the starter
-    /// scenario's don't-sail-into-the-void guard; playtest 2026-07-12
-    /// finding 1). None = unbounded Newtonian burn, the default.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub speed_cap: Option<MetersPerSecond>,
 }
 
 /// AI-driver settings for a [`SpaceshipController::AI`] ship: its passive
@@ -685,15 +681,8 @@ fn insert_spaceship_sections(
 
     match controller_config {
         SpaceshipController::None => {}
-        SpaceshipController::Player(config) => {
+        SpaceshipController::Player(_) => {
             commands.entity(entity).insert(PlayerSpaceshipMarker);
-            if let Some(cap) = config.speed_cap {
-                // Engine boundary: the flight code compares the cap against an
-                // avian velocity every tick, so it crosses once, here.
-                commands
-                    .entity(entity)
-                    .insert(FlightSpeedCap(cap.to_engine()));
-            }
         }
         SpaceshipController::AI(config) => {
             commands.entity(entity).insert(AISpaceshipMarker);
@@ -1553,5 +1542,33 @@ mod tests {
             panic!("AI variant");
         };
         assert_eq!(config.engage_delay, None);
+    }
+
+    /// Both syntaxes that used to install the manual speed governor are gone
+    /// from the format, and a file still carrying either has to be REFUSED. A
+    /// key that parses and does nothing is a scenario that authors a cap and
+    /// plays without one, which is the failure the strict struct exists to
+    /// prevent.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn removed_governor_syntax_is_refused_not_ignored() {
+        use crate::actions::prelude::EventActionConfig;
+
+        // The same RON without the key, so a broken struct fails this test
+        // loudly instead of passing it for the wrong reason.
+        ron::from_str::<PlayerControllerConfig>(r#"(input_mapping: {})"#)
+            .expect("the surviving player config still parses");
+
+        let err = ron::from_str::<PlayerControllerConfig>(
+            r#"(input_mapping: {}, speed_cap: Some(150.0))"#,
+        )
+        .expect_err("a leftover speed_cap is an unknown key");
+        assert!(
+            err.to_string().contains("speed_cap"),
+            "the refusal has to name the key the author has to delete: {err}"
+        );
+
+        ron::from_str::<EventActionConfig>(r#"SetSpeedCap((id: "player_spaceship"))"#)
+            .expect_err("SetSpeedCap is no longer an action tag");
     }
 }

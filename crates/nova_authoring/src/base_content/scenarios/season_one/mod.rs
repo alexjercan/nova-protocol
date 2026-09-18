@@ -458,8 +458,8 @@ pub(crate) fn chapter_one(
                     // The helm, the ship's speed and the camera, in that
                     // order and all in the same frame. The cut is what makes
                     // the stop free: the player never watches a loaded
-                    // workship lose 120 m/s in one tick, they are already
-                    // looking at Gantry when it happens.
+                    // workship drop to a dead stop in one tick, they are
+                    // already looking at Gantry when it happens.
                     EventActionConfig::SuspendPlayerControl(SuspendPlayerControlActionConfig),
                     EventActionConfig::ZeroShipMotion(ZeroShipMotionActionConfig {
                         id: ID_KAVERI.to_string(),

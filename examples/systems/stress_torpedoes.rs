@@ -286,7 +286,6 @@ fn rack(sections: &GameSections) -> SpaceshipConfig {
                     )
                 })
                 .collect::<BTreeMap<_, _>>(),
-            speed_cap: None,
         }),
         &specs,
     )

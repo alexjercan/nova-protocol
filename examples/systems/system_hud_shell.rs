@@ -263,7 +263,6 @@ fn shell_range(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: BTreeMap::new(),
-                speed_cap: None,
             }),
             allegiance: None,
             design: ShipDesignSource::Inline(hull),

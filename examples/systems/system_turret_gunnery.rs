@@ -303,7 +303,6 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 "turret".to_string(),
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),
-            speed_cap: None,
         }),
         design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![

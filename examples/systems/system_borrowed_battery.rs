@@ -211,7 +211,6 @@ fn defender(sections: &GameSections) -> SpaceshipConfig {
                     GamepadButton::RightTrigger2.into(),
                 ],
             )]),
-            speed_cap: None,
         }),
         &[
             SectionSpec::new("defender_hull", "reinforced_hull_section", Vec3::ZERO),

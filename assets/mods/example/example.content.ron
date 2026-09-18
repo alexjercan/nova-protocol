@@ -332,7 +332,6 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                speed_cap: Some(250.0),
                             )),
                             design: Inline((
                                 sections: [

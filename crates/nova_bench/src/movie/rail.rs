@@ -264,8 +264,8 @@ pub fn film(events: &[BenchEvent], frames: u64) -> Film {
             } => {
                 tick = *at;
                 // The world declares the mark, not the shape of a command:
-                // `speed-cap player off` is an ordinary shell line until the
-                // game says the run is marked.
+                // `ammo infinite player_spaceship on` is an ordinary shell
+                // line until the game says the run is marked.
                 if marked.is_none() && observation["cheats_marked"] == true {
                     marked = Some(tick);
                     rows.push((

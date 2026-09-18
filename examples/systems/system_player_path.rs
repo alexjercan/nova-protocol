@@ -220,7 +220,6 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     GamepadButton::RightTrigger2.into(),
                 ],
             )]),
-            speed_cap: None,
         }),
         &[
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),

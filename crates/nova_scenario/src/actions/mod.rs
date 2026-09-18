@@ -54,8 +54,8 @@ pub mod prelude {
 ///
 /// Load-bearing, not decoration. Spaceship SECTIONS also carry [`EntityId`] -
 /// their per-ship section ids like "controller" - and an unscoped match on such
-/// an id would rip that section out of every ship in the scene, or answer a
-/// speed query with whichever unrelated hull the iterator reached first.
+/// an id would rip that section out of every ship in the scene, or retune
+/// whichever unrelated hull the iterator reached first.
 ///
 /// Every authored-id lookup in this crate goes through this ONE filter: the
 /// three `World` resolutions below, and the sampler's system `Query`. A tenth
@@ -95,10 +95,9 @@ pub fn scoped_entity(world: &mut World, id: &str) -> Option<Entity> {
 /// The live spaceship ROOT an authored scenario id addresses.
 ///
 /// Narrower than [`scoped_entity`], and deliberately: the ship actions retune a
-/// HULL - a speed cap, an allegiance, a helm order, a magazine - so a scoped
-/// beacon or salvage crate that happens to share the id is not an answer to the
-/// question they ask. Their warnings say "no scoped SHIP with id" for the same
-/// reason.
+/// HULL - an allegiance, a helm order, a magazine - so a scoped beacon or
+/// salvage crate that happens to share the id is not an answer to the question
+/// they ask. Their warnings say "no scoped SHIP with id" for the same reason.
 pub fn scoped_ship(world: &mut World, id: &str) -> Option<Entity> {
     let mut query = world
         .query_filtered::<(Entity, &EntityId), (ScenarioAddressable, With<SpaceshipRootMarker>)>();
@@ -250,13 +249,6 @@ registry::scenario_actions! {
         label: "Screenshot",
         stem: "shot",
         effect: Bookkeeping,
-        inspect: Reflect,
-    },
-    /// Install or remove the manual flight speed cap on a scoped ship by id.
-    SetSpeedCap(SetSpeedCapActionConfig) {
-        label: "Set Speed Cap",
-        stem: "cap",
-        effect: Injection,
         inspect: Reflect,
     },
     /// Enable or disable the STOP maneuver on a scoped ship by id.
@@ -620,8 +612,8 @@ pub enum ActionEffect {
     /// Scenario state and presentation: objectives, variables, timers, story,
     /// camera, outcome. Nothing the ship can feel.
     Bookkeeping,
-    /// Reaches into the simulation: spawns, despawns, allegiance, speed caps,
-    /// magazines, forced launches, sensor areas.
+    /// Reaches into the simulation: spawns, despawns, allegiance, magazines,
+    /// forced launches, sensor areas.
     Injection,
 }
 
@@ -654,7 +646,7 @@ impl EventActionConfig {
 #[cfg(test)]
 mod effect_tests {
 
-    use nova_gameplay::prelude::default_comms_accent;
+    use nova_gameplay::prelude::{default_comms_accent, Allegiance};
 
     use super::*;
 
@@ -717,10 +709,10 @@ mod effect_tests {
         let EventActionConfig::Sequence(mut loud) = quiet else {
             unreachable!("built as a sequence")
         };
-        loud.steps.push(step(vec![EventActionConfig::SetSpeedCap(
-            SetSpeedCapActionConfig {
+        loud.steps.push(step(vec![EventActionConfig::SetAllegiance(
+            SetAllegianceActionConfig {
                 id: "player".to_string(),
-                cap: Some(MetersPerSecond(50.0)),
+                allegiance: Allegiance::Enemy,
             },
         )]));
         assert_eq!(
@@ -733,6 +725,8 @@ mod effect_tests {
 #[cfg(test)]
 mod table_tests {
     use std::collections::BTreeSet;
+
+    use nova_gameplay::prelude::Allegiance;
 
     use super::*;
 
@@ -785,9 +779,9 @@ mod table_tests {
                 key: "run".to_string(),
                 steps: Vec::new(),
             }),
-            EventActionConfig::SetSpeedCap(SetSpeedCapActionConfig {
+            EventActionConfig::SetAllegiance(SetAllegianceActionConfig {
                 id: "player".to_string(),
-                cap: None,
+                allegiance: Allegiance::Enemy,
             }),
             EventActionConfig::ReleaseCamera(ReleaseCameraActionConfig),
         ];
@@ -922,6 +916,8 @@ mod scope_tests {
 
 #[cfg(test)]
 mod walk_tests {
+    use nova_gameplay::prelude::Allegiance;
+
     use super::*;
     use crate::events::EventConfig;
 
@@ -1017,9 +1013,9 @@ mod walk_tests {
     /// The buried action every reader below has to find: an injection, so the
     /// creative-map class is checked by the same fixture as the walkers.
     fn buried() -> EventActionConfig {
-        EventActionConfig::SetSpeedCap(SetSpeedCapActionConfig {
+        EventActionConfig::SetAllegiance(SetAllegianceActionConfig {
             id: "player".to_string(),
-            cap: None,
+            allegiance: Allegiance::Enemy,
         })
     }
 
@@ -1072,7 +1068,7 @@ mod walk_tests {
             outer.walk_mut(&mut |action| written.push(action.tag()));
             assert_eq!(
                 written,
-                vec![tag, ActionTag::SetSpeedCap],
+                vec![tag, ActionTag::SetAllegiance],
                 "{tag:?} does not offer its own beats for editing"
             );
 
@@ -1080,7 +1076,7 @@ mod walk_tests {
             outer.walk(&mut |action| seen.push(action.tag()));
             assert_eq!(
                 seen,
-                vec![tag, ActionTag::SetSpeedCap],
+                vec![tag, ActionTag::SetAllegiance],
                 "{tag:?} does not walk its own beats"
             );
 
@@ -1099,7 +1095,7 @@ mod walk_tests {
             let mut names = BTreeSet::new();
             outer.collect_injections(&mut names);
             assert!(
-                names.contains("SetSpeedCap"),
+                names.contains("SetAllegiance"),
                 "{tag:?} launders a buried injection into bookkeeping"
             );
             assert_eq!(outer.effect(), ActionEffect::Injection);

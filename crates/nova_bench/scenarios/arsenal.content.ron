@@ -147,7 +147,6 @@
                                     "pdc_dorsal": [Keyboard(KeyA)],
                                     "pdc_ventral": [Keyboard(KeyS)],
                                 },
-                                speed_cap: None,
                             )),
                         )),
                     )),

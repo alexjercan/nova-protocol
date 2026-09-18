@@ -49,7 +49,6 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                speed_cap: Some(150.0),
                             )),
                             capabilities: (
                                 stop_enabled: false,

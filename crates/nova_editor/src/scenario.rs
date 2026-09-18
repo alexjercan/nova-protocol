@@ -909,8 +909,6 @@ fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
             allegiance: player.allegiance,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: player.inputs.iter().cloned().collect(),
-
-                speed_cap: None,
                 // The editor sandbox keeps normal finite magazines. Safe even
                 // on a range built for shooting: weapons auto-reload, so a dry
                 // gun is a cadence beat rather than a permanent disarm.

@@ -3,8 +3,8 @@
 //! writes no controller or thruster input of its own.
 //!
 //! Engine units, as everywhere under `ai/`. The AUTHORED fields the envelope
-//! is bounded by - a turret's `muzzle_speed`, the player's speed cap - are
-//! quoted in the meters a creator reads in the content file.
+//! is bounded by - a turret's `muzzle_speed` - are quoted in the meters a
+//! creator reads in the content file.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;

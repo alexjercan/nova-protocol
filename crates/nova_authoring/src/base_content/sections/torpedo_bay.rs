@@ -22,9 +22,11 @@
 //! | reach at the bay's 100 s lifetime | 31.3 km | 29.1 km |
 //!
 //! So the Lance is the torpedo you fire at something that will not shoot back:
-//! it arrives ~7% sooner, and against a target RUNNING at the player's 150 m/s
-//! speed cap it closes at 163 m/s where a Serpent manages 141 - ~16% faster.
-//! And a defender meeting Lances is a defender whose point defense WORKS.
+//! it arrives ~7% sooner, and against a target RUNNING at 150 m/s - the
+//! reference runner speed this closing comparison is quoted against, not a
+//! limit the game puts on a ship - it closes at 163 m/s where a Serpent
+//! manages 141 - ~16% faster. And a defender meeting Lances is a defender
+//! whose point defense WORKS.
 //!
 //! **The cruise cap is AUTHORED as that price, because path length alone does
 //! not make the weave slower.** Measured on the real body, the path stretch is

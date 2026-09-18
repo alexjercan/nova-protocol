@@ -247,36 +247,6 @@ fn every_map_contains_a_dense_reproducible_field_planets_and_moving_traffic() {
 }
 
 #[test]
-fn every_player_ship_uses_the_raised_speed_governor() {
-    let content = content();
-    for scenario in activities(&content) {
-        let player = actions(scenario)
-            .into_iter()
-            .find_map(|action| match action {
-                EventActionConfig::SpawnScenarioObject(object)
-                    if object.base.id == "player_spaceship" =>
-                {
-                    let ScenarioObjectKind::Spaceship(ship) = &object.kind else {
-                        panic!("player ship")
-                    };
-                    Some(ship)
-                }
-                _ => None,
-            })
-            .unwrap();
-        let SpaceshipController::Player(controller) = &player.controller else {
-            panic!("player driver")
-        };
-        assert_eq!(
-            controller.speed_cap,
-            Some(nova_events::prelude::MetersPerSecond(500.0)),
-            "{} uses the campaign governor",
-            scenario.id
-        );
-    }
-}
-
-#[test]
 fn the_racer_course_arms_only_the_next_gate_and_freezes_its_clock_at_finish() {
     let content = content();
     let scenario = activities(&content)[0];

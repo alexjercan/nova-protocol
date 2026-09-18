@@ -356,7 +356,6 @@ fn range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         design: ShipDesignSource::Inline(ShipDesign {
             sections: sections_line("player"),

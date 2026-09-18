@@ -16,8 +16,12 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
 ### Balance
 
 - Retune the same fleet with twice-1.x sections, protected player gun
-  connections, mod-owned PDCs and 500 m/s player governors. Reduce platform
-  durability, stage reinforcements, and remove gravity from cover rocks.
+  connections and mod-owned PDCs. Reduce platform durability, stage
+  reinforcements, and remove gravity from cover rocks.
+- **(breaking)** Drop the manual speed governor every player ship carried since
+  1.0.0. Required: the base game has no manual speed cap any more, and a file
+  still authoring `speed_cap` is refused at load. Expect a held burn to keep
+  building speed; STOP is the way to shed it.
 
 ## 1.28.0
 

@@ -1107,7 +1107,6 @@ fn combatant(
                 // real magazines - the AI ships fight with theirs.
                 SpaceshipController::Player(PlayerControllerConfig {
                     input_mapping: player_bindings(&hull, slot, binding_overrides),
-                    speed_cap: None,
                 })
             } else {
                 SpaceshipController::AI(AIControllerConfig {

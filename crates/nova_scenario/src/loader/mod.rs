@@ -831,10 +831,7 @@ mod tests {
         input_mapping.insert("thruster".to_string(), bindings.clone());
 
         let ship = SpaceshipConfig {
-            controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping,
-                speed_cap: Some(MetersPerSecond(1_000.0)),
-            }),
+            controller: SpaceshipController::Player(PlayerControllerConfig { input_mapping }),
             design: ShipDesignSource::Inline(ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
                     id: "thruster".to_string(),
@@ -944,7 +941,6 @@ mod tests {
         let SpaceshipController::Player(player_config) = &ship_kind.controller else {
             panic!("the ship is player-controlled");
         };
-        assert_eq!(player_config.speed_cap, Some(MetersPerSecond(1_000.0)));
         assert_eq!(
             player_config.input_mapping.get("thruster"),
             Some(&bindings),

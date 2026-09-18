@@ -65,8 +65,8 @@ pub use self::{
     },
     state::{
         resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
-        FlightArrivalStandoff, FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry,
-        OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
+        FlightArrivalStandoff, FlightIntent, FlightSettings, ManeuverTelemetry, OrbitPlan,
+        PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
     },
 };
 use self::{
@@ -84,16 +84,16 @@ pub(crate) use self::{
     manual::accumulate_rcs_axis,
 };
 
-/// The flight intent, settings, authority and speed caps, the autopilot and orbit plan, RCS
-/// state, leg navigation, maneuver telemetry, and `NovaFlightPlugin` with
-/// `NovaFlightSystems`.
+/// The flight intent, settings, authority and the RCS speed cap, the autopilot
+/// and orbit plan, RCS state, leg navigation, maneuver telemetry, and
+/// `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
         cancel_ship_order, capability::prelude::*, interrupt_ship_order, orbit_radius_band,
         plan_leg, resolved_arrival_standoff, resume_ship_order, retire_ship_order_execution,
         AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy,
-        FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightSettings, FlightSpeedCap,
-        LegPlan, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
+        FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightSettings, LegPlan,
+        ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
         PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
         ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
         ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
@@ -133,7 +133,6 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<PlayerAutopilotCompleted>()
             .register_type::<BodyRadius>()
             .register_type::<FlightAuthority>()
-            .register_type::<FlightSpeedCap>()
             .register_type::<FlightArrivalStandoff>()
             .register_type::<RcsIntent>()
             .register_type::<RcsSpeedCap>()

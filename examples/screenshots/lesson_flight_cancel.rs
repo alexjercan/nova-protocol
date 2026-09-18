@@ -120,7 +120,6 @@ fn cancel_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
                 // No turret bindings: nothing here fires, and an empty map is
                 // what every flight set spawns with.
                 input_mapping: BTreeMap::new(),
-                speed_cap: None,
             }),
             allegiance: None,
             design: ShipDesignSource::Inline(kit::catalog_ship(ships, "block_gunship")),

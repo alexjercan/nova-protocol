@@ -421,9 +421,6 @@ fn hull_range(round: Round, game_assets: &GameAssets, sections: &GameSections) -
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            // None, not a cap: a capped hull would have its recoil clipped,
-            // which is the one number claim 2 is reading.
-            speed_cap: None,
         }),
         design: ShipDesignSource::Inline(hull_with_lance(&round)),
         ..default()

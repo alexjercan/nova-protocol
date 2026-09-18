@@ -2016,8 +2016,9 @@ mod tests {
         assert!(errs[1].message.contains("ghost_mark"));
     }
 
-    /// SetAllegiance references a ship by id like SetSpeedCap does, so a typo'd
-    /// id must lint as a dangling target, not silently no-op at runtime.
+    /// SetAllegiance references a ship by id like DespawnScenarioObject does,
+    /// so a typo'd id must lint as a dangling target, not silently no-op at
+    /// runtime.
     #[test]
     fn dangling_set_allegiance_target_is_an_error() {
         use nova_gameplay::prelude::Allegiance;

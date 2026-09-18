@@ -3,6 +3,14 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.13.0
+
+- Drops the cutter's 250 m/s manual speed governor. Required: the base game has
+  no manual speed cap any more, and a file still authoring `speed_cap` is
+  refused at load. The course layout is unchanged; nothing holds the cutter
+  back now, so a held burn keeps building speed down the straights and the
+  gates arrive sooner.
+
 ## 1.12.0
 
 - The course is now flown in the base game's `block_cutter`, not the Racer.

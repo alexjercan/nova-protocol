@@ -691,10 +691,6 @@ impl ActionChoiceExt for ActionChoice {
             ActionChoice::Screenshot => EventActionConfig::Screenshot(ScreenshotActionConfig {
                 path: "shot.png".to_string(),
             }),
-            ActionChoice::SetSpeedCap => EventActionConfig::SetSpeedCap(SetSpeedCapActionConfig {
-                id: String::new(),
-                cap: None,
-            }),
             ActionChoice::SetShipCapabilityStop => {
                 EventActionConfig::SetShipCapabilityStop(SetShipCapabilityStopActionConfig {
                     id: String::new(),

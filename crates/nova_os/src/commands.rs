@@ -452,19 +452,6 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         ],
         examples: &["ammo refill section player_spaceship turret_port"],
     },
-    CommandSpec {
-        name: "speed-cap",
-        usage: "speed-cap <ship-id> <m/s|off>",
-        summary: "Change or remove a ship's manual speed cap, in metres per second",
-        class: CommandClass::Cheat,
-        arity: CommandArity::Between(2, 2),
-        arg_hint: Some("<ship-id> <m/s|off>"),
-        args: &[CommandArg::Live(live::SHIP), CommandArg::Words(&["off"])],
-        examples: &[
-            "speed-cap player_spaceship 400",
-            "speed-cap player_spaceship off",
-        ],
-    },
 ];
 
 /// The catalog as the shared matcher sees it - one [`TerminalCommandSpec`] per

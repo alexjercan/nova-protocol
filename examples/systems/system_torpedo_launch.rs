@@ -417,7 +417,6 @@ fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
                 ("torpedo".to_string(), trigger()),
                 ("lance".to_string(), trigger()),
             ]),
-            speed_cap: None,
         }),
         &[
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),

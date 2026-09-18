@@ -13,7 +13,6 @@ use nova_ship::prelude::*;
 use crate::{
     lookup::{self, Resolved},
     surface::world_line,
-    units::cap_label,
 };
 
 const CLASS: CommandClass = CommandClass::ReadOnly;
@@ -79,14 +78,10 @@ pub fn ships(world: &mut World) -> CommandResult {
     CommandResult::ok("ships", CLASS, format!("{} live", ships.len())).with_rows(rows)
 }
 
-/// `ship <id>`: one ship's identity, allegiance, hull and cap.
+/// `ship <id>`: one ship's identity, allegiance, hull and magazines.
 pub fn ship(world: &mut World, id: &str) -> Resolved {
     let entity = lookup::ship(world, id).or_error("ship", CLASS)?;
     let sections = lookup::sections(world, entity).len();
-    let cap = world
-        .entity(entity)
-        .get::<FlightSpeedCap>()
-        .map(|cap| cap.0);
     let entity_ref = world.entity(entity);
     let name = entity_ref
         .get::<Name>()
@@ -102,7 +97,6 @@ pub fn ship(world: &mut World, id: &str) -> Resolved {
             )),
             TerminalRow::output(format!("HULL ......... {}", health_line(health.as_ref()))),
             TerminalRow::output(format!("SECTIONS ..... {sections}")),
-            TerminalRow::output(format!("SPEED CAP .... {}", speed_cap_line(cap))),
             TerminalRow::output(format!("AMMO ......... {}", ammo_line(world, entity))),
         ]),
     )
@@ -376,13 +370,6 @@ fn reload_line(reload: Option<SectionReload>) -> String {
             "{:.1}s / {} rounds ({:.1}s elapsed)",
             reload.delay, reload.amount, reload.elapsed
         ),
-        None => "none".to_string(),
-    }
-}
-
-fn speed_cap_line(cap: Option<f32>) -> String {
-    match cap {
-        Some(cap) => cap_label(cap),
         None => "none".to_string(),
     }
 }

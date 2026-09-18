@@ -132,7 +132,6 @@
                                 // No guns on the course: the cutter flies the
                                 // gauntlet unarmed, so there is nothing to bind.
                                 input_mapping: {},
-                                speed_cap: Some(250.0),
                             )),
                             design: Prototype(id: "block_cutter"),
                         )),

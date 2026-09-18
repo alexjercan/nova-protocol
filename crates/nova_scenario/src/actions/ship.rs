@@ -1,6 +1,6 @@
 //! Actions that drive or retune a live scenario ship: the helm-order family,
-//! the two force-fire verbs, the AI constraints, and the older speed cap and
-//! allegiance levers, plus the six root capability switches.
+//! the two force-fire verbs, the AI constraints, and the allegiance lever,
+//! plus the six root capability switches.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity};
 use bevy::prelude::*;
@@ -10,57 +10,12 @@ use nova_ship::prelude::*;
 
 use crate::prelude::*;
 
-/// Set or clear the manual [`FlightSpeedCap`] on a scenario ship by id
-/// (the shakedown training governor releases at beacon 1; playtest round
-/// 2 finding 3). Scoped-only lookup, same rule as DespawnScenarioObject.
-#[derive(Clone, Debug, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SetSpeedCapActionConfig {
-    /// The `EntityId` of the scoped ship to cap.
-    #[reflect(@Names::Object)]
-    pub id: String,
-    /// `Some(cap)` installs/updates the cap; `None` removes it.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub cap: Option<MetersPerSecond>,
-}
-
-impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
-    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
-        let id = self.id.clone();
-        let cap = self.cap;
-        debug!("SetSpeedCap: '{}' -> {:?}", id, cap);
-
-        world.push_command(move |commands| {
-            commands.queue(move |world: &mut World| {
-                let Some(ship) = scoped_ship(world, &id) else {
-                    warn!("SetSpeedCap: no scoped ship with id '{}'", id);
-                    return;
-                };
-                match cap {
-                    Some(cap) => {
-                        // Engine boundary: the flight code measures against an
-                        // avian velocity, so the authored cap crosses here.
-                        world
-                            .entity_mut(ship)
-                            .insert(FlightSpeedCap(cap.to_engine()));
-                    }
-                    None => {
-                        world.entity_mut(ship).remove::<FlightSpeedCap>();
-                    }
-                }
-            });
-        });
-    }
-}
-
 /// Overwrite a scenario ship's [`Allegiance`] by id at runtime, flipping it
 /// between Player/Enemy/Neutral. Allegiance is otherwise written only at spawn
 /// and never changed; this is the missing primitive for "neutral until
 /// provoked" encounters (a Neutral ship stays a bystander until a trigger fires
-/// this action to make it Enemy). Scoped-only lookup, same rule as SetSpeedCap.
+/// this action to make it Enemy). Scoped-only lookup, same rule as
+/// DespawnScenarioObject.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetAllegianceActionConfig {
@@ -132,10 +87,10 @@ macro_rules! ship_capability_action {
     ($config:ident, $name:literal, $field:ident, $doc:literal) => {
         #[doc = $doc]
         ///
-        /// Scoped-only lookup, same rule as SetSpeedCap. Writes the ship
-        /// ROOT: a capability is a decision about the SHIP, so losing a
-        /// controller section cannot take it away and gaining one cannot hand
-        /// it back.
+        /// Scoped-only lookup, same rule as DespawnScenarioObject. Writes
+        /// the ship ROOT: a capability is a decision about the SHIP, so losing
+        /// a controller section cannot take it away and gaining one cannot
+        /// hand it back.
         #[derive(Clone, Debug, Reflect)]
         #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         pub struct $config {
@@ -550,7 +505,7 @@ impl EventAction<NovaEventWorld> for ClearShipOrderActionConfig {
 /// done.
 ///
 /// `Some` installs or replaces the tether; `None` removes it and lets the
-/// ship chase freely, the same `Option` shape `SetSpeedCap` uses.
+/// ship chase freely.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetAILeashActionConfig {

@@ -5,16 +5,11 @@
 //! fresh attempt.
 
 use bevy::prelude::*;
-use nova_events::prelude::MetersPerSecond;
 use nova_gameplay::prelude::*;
 use nova_os::prelude::*;
 use nova_scenario::prelude::*;
-use nova_ship::prelude::FlightSpeedCap;
 
-use crate::{
-    lookup::{self, Resolved},
-    units::cap_label,
-};
+use crate::lookup::{self, Resolved};
 
 const CLASS: CommandClass = CommandClass::Cheat;
 
@@ -136,53 +131,6 @@ pub fn ammo_refill_section(world: &mut World, ship_id: &str, section_id: &str) -
     )
 }
 
-/// `speed-cap <ship-id> <number|off>`.
-pub fn speed_cap(world: &mut World, ship_id: &str, value: &str) -> Resolved {
-    // Engine boundary in: the player says meters per second. The way back out
-    // is `cap_label`.
-    let cap = if value.eq_ignore_ascii_case("off") {
-        None
-    } else {
-        match value.parse::<f32>() {
-            // `inf` parses and is greater than zero, and a cap that can never
-            // be reached is not a cap; `nan` fails the comparison already.
-            Ok(meters) if meters > 0.0 && meters.is_finite() => {
-                Some(MetersPerSecond(meters).to_engine())
-            }
-            Ok(_) => {
-                return Err(CommandResult::error(
-                    "speed-cap",
-                    Some(CLASS),
-                    "speed-cap: a cap must be a real speed greater than zero, or 'off'",
-                ))
-            }
-            Err(_) => {
-                return Err(CommandResult::error(
-                    "speed-cap",
-                    Some(CLASS),
-                    format!("speed-cap: '{value}' is not a number or 'off'"),
-                ))
-            }
-        }
-    };
-    let ship = lookup::ship(world, ship_id).or_error("speed-cap", CLASS)?;
-    let mut entity = world.entity_mut(ship);
-    match cap {
-        Some(cap) => {
-            entity.insert(FlightSpeedCap(cap));
-        }
-        None => {
-            entity.remove::<FlightSpeedCap>();
-        }
-    }
-    let detail = match cap {
-        Some(cap) => format!("{ship_id}: cap {}", cap_label(cap)),
-        None => format!("{ship_id}: cap removed"),
-    };
-    Ok(CommandResult::ok("speed-cap", CLASS, detail.clone())
-        .with_rows(vec![TerminalRow::warn(detail)]))
-}
-
 /// `scenario load <id>`: abandon the attempt and start a fresh one.
 ///
 /// Utility, not Cheat: it decides nothing about how the abandoned attempt ended.
@@ -294,17 +242,5 @@ mod tests {
         let result = scenario_load(&mut world, "nope");
         assert_eq!(result.status, CommandStatus::Error);
         assert!(result.detail.contains("shakedown_run"), "{}", result.detail);
-    }
-
-    /// A cap that can never be reached is not a cap.
-    #[test]
-    fn a_speed_cap_has_to_be_a_real_speed() {
-        let mut world = World::new();
-        for value in ["inf", "-inf", "nan", "0", "-5"] {
-            let Err(refusal) = speed_cap(&mut world, "block_gunship", value) else {
-                panic!("'{value}' is not a speed cap");
-            };
-            assert_eq!(refusal.status, CommandStatus::Error, "{value}");
-        }
     }
 }

@@ -403,10 +403,7 @@ fn controller_for(pilot: Pilot, ship: Pilot) -> SpaceshipController {
         BTreeMap::new()
     };
 
-    SpaceshipController::Player(PlayerControllerConfig {
-        input_mapping,
-        speed_cap: None,
-    })
+    SpaceshipController::Player(PlayerControllerConfig { input_mapping })
 }
 
 fn facing(from: Meters3, target: Meters3) -> Quat {

@@ -68,7 +68,6 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
                     InputSource::Gamepad(GamepadButton::RightTrigger2),
                 ],
             )]),
-            speed_cap: None,
         }),
         design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![

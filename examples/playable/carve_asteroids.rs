@@ -869,7 +869,6 @@ fn firing_ship() -> ScenarioObjectConfig {
                     "pdc".to_string(),
                     vec![MouseButton::Left.into()],
                 )]),
-                speed_cap: None,
             }),
             ..default()
         }),

@@ -25,7 +25,6 @@ mod inspect;
 mod lookup;
 mod settings;
 mod surface;
-mod units;
 
 /// Glob-import surface: `use nova_console::prelude::*`.
 pub mod prelude {

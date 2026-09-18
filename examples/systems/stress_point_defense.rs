@@ -531,7 +531,6 @@ fn battery(sections: &GameSections) -> SpaceshipConfig {
                 // locked and nothing raised every mount falls to the Flight
                 // Computer, which is the subject.
                 input_mapping: default(),
-                speed_cap: None,
             }),
             &specs,
         )

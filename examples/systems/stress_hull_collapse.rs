@@ -549,7 +549,6 @@ fn collapse_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![

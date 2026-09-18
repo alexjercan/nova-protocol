@@ -30,7 +30,7 @@
                                     "engine_starboard": (config: (health: Some(300.0))),
                                 },
                             ),
-                            controller: Player((input_mapping: {}, speed_cap: Some(500.0))),
+                            controller: Player((input_mapping: {})),
                             allegiance: Some(Player),
                         )),
                     )),

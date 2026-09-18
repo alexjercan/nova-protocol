@@ -48,7 +48,8 @@ a site resets that scan, not sites already completed.
   meshes and section layouts. Freighter variants reuse the same hulls.
 - CargoA has two PDCs. CargoB adds two torpedo pods. Guns use left mouse;
   torpedoes use **R**. The Racer is unarmed.
-- Player ships have a 500 m/s manual-speed governor.
+- Player ships have no speed limit. Thrust builds speed and holds it; STOP is
+  the way to shed it.
 - Modelled structural sections have twice their 1.x health. Player computers
   and engines have extra protection. The player's CargoA nose, which connects
   both guns, also has stronger plating. Raiders remain weaker.

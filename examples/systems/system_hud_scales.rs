@@ -205,7 +205,6 @@ fn scales_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     let player = SpaceshipConfig {
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![

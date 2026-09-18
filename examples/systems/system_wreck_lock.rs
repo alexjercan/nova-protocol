@@ -205,7 +205,6 @@ fn gunner(sections: &GameSections) -> SpaceshipConfig {
             sections,
             SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: BTreeMap::new(),
-                speed_cap: None,
             }),
             &[
                 SectionSpec::new(GUNNER_HULL, "reinforced_hull_section", Vec3::ZERO),

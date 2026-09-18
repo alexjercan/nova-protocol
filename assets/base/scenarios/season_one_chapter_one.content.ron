@@ -42,9 +42,7 @@
                                     ),
                                 },
                             ),
-                            controller: Player((
-                                speed_cap: Some(120.0),
-                            )),
+                            controller: Player(()),
                             allegiance: Some(Player),
                         )),
                     )),

@@ -106,7 +106,6 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         None,
         kit::catalog_ship(ships, "block_gunship"),

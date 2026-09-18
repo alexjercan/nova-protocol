@@ -73,10 +73,6 @@ pub(crate) const ID_TRAINER: &str = "trainer";
 /// Its callsign, used in objective and banner text.
 pub(crate) const TRAINER_NAME: &str = "Trainer Seven";
 
-/// Soft manual-speed cap for the whole card: a player on a first flight stays
-/// controllable inside the range, and the pattern is a few hundred metres.
-pub(crate) const TRAINER_SPEED_CAP: MetersPerSecond = MetersPerSecond(150.0);
-
 /// The trainer's one gun: the picket's nose mount, by the section id the
 /// catalog entry gives it. The input mapping and the range's fire lesson both
 /// name it.
@@ -127,10 +123,7 @@ pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConf
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: None,
-            controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping,
-                speed_cap: Some(TRAINER_SPEED_CAP),
-            }),
+            controller: SpaceshipController::Player(PlayerControllerConfig { input_mapping }),
             capabilities,
             design: ships::patched_design(
                 ships::BLOCK_PICKET_SHIP_ID,

@@ -21,11 +21,9 @@
 //!   `0 <= current <= max` - nova's `on_damage` clamps to exactly this, so a
 //!   violation means some code path bypassed the clamp.
 //! - **Velocity sanity**: every avian [`LinearVelocity`] is finite (NaN =
-//!   the physics exploded). When the entity carries [`FlightSpeedCap`], the
-//!   speed must stay under `cap * `[`SPEED_SANITY_MULTIPLIER`] - the cap
-//!   itself is a SOFT taper gate (manual burns taper toward it; autopilot
-//!   maneuvers and gravity wells legitimately exceed it), so this is
-//!   absurdity detection, not cap enforcement.
+//!   the physics exploded). Magnitude is not checked: manual flight is
+//!   Newtonian and nothing in the engine states a speed a ship may not
+//!   legitimately reach.
 //! - **Scenario variables**: every Number variable is finite, and variables
 //!   REGISTERED as monotonic never decrease. Monotonicity is scenario-script
 //!   discipline, not a type guarantee, so it is opt-in via
@@ -41,7 +39,6 @@
 pub mod prelude {
     pub use super::{
         nova_invariants, InvariantState, InvariantsPlugin, ENTITY_SANITY_CAP, INVARIANTS_PARAM,
-        SPEED_SANITY_MULTIPLIER,
     };
 }
 
@@ -51,7 +48,6 @@ use avian3d::prelude::LinearVelocity;
 use bevy::{diagnostic::FrameCount, prelude::*};
 use nova_gameplay::prelude::Health;
 use nova_scenario::{loader::ScenarioLoaded, variables::VariableLiteral, world::NovaEventWorld};
-use nova_ship::flight::prelude::FlightSpeedCap;
 
 use super::{
     frametime::probe_param,
@@ -61,12 +57,6 @@ use super::{
 /// Env value (via [`probe_param`], so `NOVA_PROBE_INVARIANTS` on native) that
 /// arms the checks; the value `strict` also panics on the first violation.
 pub const INVARIANTS_PARAM: &str = "invariants";
-
-/// A [`FlightSpeedCap`] is a soft taper gate, not a clamp: autopilot
-/// maneuvers, gravity wells and collisions all legitimately exceed it.
-/// The invariant only flags ABSURD speeds - beyond this multiple of the cap
-/// nothing in the engine can honestly produce the value.
-pub const SPEED_SANITY_MULTIPLIER: f32 = 10.0;
 
 /// Leak detector: no shipped scene approaches this entity count (heavy
 /// combat scenes run in the low thousands); crossing it means something is
@@ -269,11 +259,12 @@ fn check_invariants(world: &mut World) {
         state.health_subjects = state.health_subjects.max(seen);
     }
 
-    // (b) Velocity sanity: finite always; absurd-speed vs a soft cap.
+    // (b) Velocity sanity: finite, and nothing else. Newtonian flight states
+    // no speed a ship may not reach.
     {
-        let mut velocities = world.query::<(Entity, &LinearVelocity, Option<&FlightSpeedCap>)>();
+        let mut velocities = world.query::<(Entity, &LinearVelocity)>();
         let mut seen: u64 = 0;
-        for (entity, velocity, cap) in velocities.iter(world) {
+        for (entity, velocity) in velocities.iter(world) {
             seen += 1;
             if !velocity.0.is_finite() {
                 violations.push(Violation {
@@ -283,22 +274,6 @@ fn check_invariants(world: &mut World) {
                         "velocity": format!("{:?}", velocity.0),
                     }),
                 });
-                continue;
-            }
-            if let Some(cap) = cap {
-                let speed = velocity.0.length();
-                let bound = cap.0 * SPEED_SANITY_MULTIPLIER;
-                if cap.0 > 0.0 && speed > bound {
-                    violations.push(Violation {
-                        name: "speed_sanity",
-                        data: serde_json::json!({
-                            "entity": format!("{entity:?}"),
-                            "speed": speed,
-                            "cap": cap.0,
-                            "bound": bound,
-                        }),
-                    });
-                }
             }
         }
         let mut state = world.resource_mut::<InvariantState>();
@@ -502,22 +477,16 @@ mod tests {
     }
 
     #[test]
-    fn nan_velocity_and_absurd_speed_violate() {
+    fn only_a_non_finite_velocity_violates() {
         let mut app = rig();
         app.world_mut()
             .spawn(LinearVelocity(Vec3::new(f32::NAN, 0.0, 0.0)));
-        // `FlightSpeedCap` is an engine number: 25 world units per second, or
-        // 250 m/s. The 10x bound is 250; 300 is absurd, 100 is fine.
-        app.world_mut().spawn((
-            LinearVelocity(Vec3::new(300.0, 0.0, 0.0)),
-            FlightSpeedCap(25.0),
-        ));
-        app.world_mut().spawn((
-            LinearVelocity(Vec3::new(100.0, 0.0, 0.0)),
-            FlightSpeedCap(25.0),
-        ));
+        // Fast but finite: Newtonian flight states no ceiling, so 300 world
+        // units per second (3000 m/s) is a legitimate velocity.
+        app.world_mut()
+            .spawn(LinearVelocity(Vec3::new(300.0, 0.0, 0.0)));
         app.update();
-        assert_eq!(violations(&app), 2, "NaN + absurd violate; 4x cap does not");
+        assert_eq!(violations(&app), 1, "only the NaN velocity violates");
     }
 
     #[test]

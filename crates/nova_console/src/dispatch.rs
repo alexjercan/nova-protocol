@@ -57,7 +57,6 @@ pub fn execute(world: &mut World, invocation: &CommandInvocation) -> CommandResu
         "ammo infinite" => answered(cheats::ammo_infinite(world, arg(0), arg(1))),
         "ammo refill" => answered(cheats::ammo_refill(world, arg(0))),
         "ammo refill section" => answered(cheats::ammo_refill_section(world, arg(0), arg(1))),
-        "speed-cap" => answered(cheats::speed_cap(world, arg(0), arg(1))),
 
         name => CommandResult::error(
             name,

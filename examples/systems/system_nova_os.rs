@@ -501,7 +501,6 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         design: ShipDesignSource::Inline(ShipDesign {
             sections: vec![

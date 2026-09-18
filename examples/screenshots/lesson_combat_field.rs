@@ -339,7 +339,6 @@ fn the_field(
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: hollow::turret_bindings(sections, &player_hull.sections),
-            speed_cap: None,
         }),
         None,
         // The trigger is held for the whole cover sheet; a reload inside the

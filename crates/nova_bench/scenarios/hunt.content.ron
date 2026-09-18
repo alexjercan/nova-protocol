@@ -39,7 +39,6 @@
                                     "pdc_ventral_port": [Keyboard(KeyN)],
                                     "pdc_ventral_starboard": [Keyboard(KeyM)],
                                 },
-                                speed_cap: None,
                             )),
                         )),
                     )),

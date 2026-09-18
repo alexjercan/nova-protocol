@@ -47,24 +47,6 @@ pub fn speed(speed: MetersPerSecond) -> String {
     format!("{:.1} m/s", speed.get())
 }
 
-/// Format a speed against the rating it is flown against - a manual burn cap,
-/// say - as one readout under one unit.
-///
-/// Two `speed` calls side by side would print the unit twice; the pair is one
-/// number with a ceiling on it, not two numbers.
-///
-/// ```
-/// # use nova_ui::units::speed_rated;
-/// # use nova_events::prelude::MetersPerSecond;
-/// assert_eq!(
-///     speed_rated(MetersPerSecond(50.0), MetersPerSecond(80.0)),
-///     "50.0 / 80.0 m/s"
-/// );
-/// ```
-pub fn speed_rated(flown: MetersPerSecond, rated: MetersPerSecond) -> String {
-    format!("{:.1} / {}", flown.get(), speed(rated))
-}
-
 /// Format a closing speed as signed meters per second to one decimal -
 /// positive when the range is shrinking (approaching).
 ///

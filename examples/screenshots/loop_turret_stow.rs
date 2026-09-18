@@ -146,7 +146,6 @@ fn bench(sections: &GameSections) -> SpaceshipConfig {
             sections,
             SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: default(),
-                speed_cap: None,
             }),
             &specs,
         )

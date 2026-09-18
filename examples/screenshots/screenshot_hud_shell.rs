@@ -141,7 +141,6 @@ fn hud_shell_set(game_assets: &GameAssets) -> ScenarioConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: BTreeMap::new(),
-                speed_cap: None,
             }),
             allegiance: None,
             design: ShipDesignSource::Inline(dev_fixtures::carrier()),

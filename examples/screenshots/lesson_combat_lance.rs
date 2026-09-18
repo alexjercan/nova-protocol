@@ -556,7 +556,6 @@ fn lance_range(
             // out of a framing that was posed frames earlier.
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: std::collections::BTreeMap::new(),
-                speed_cap: None,
             }),
             design: ShipDesignSource::Inline(ShipDesign {
                 sections: boat_hull(sections),

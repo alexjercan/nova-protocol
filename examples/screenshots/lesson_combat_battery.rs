@@ -299,7 +299,6 @@ fn the_battery(
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: hollow::turret_bindings(sections, &player_hull.sections),
-            speed_cap: None,
         }),
         // An explicit allegiance, unlike the other lesson sets. The assignment
         // pass requires a defender to HAVE one - it reads `&Allegiance` and

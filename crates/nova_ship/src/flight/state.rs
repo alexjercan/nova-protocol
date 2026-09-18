@@ -39,19 +39,6 @@ pub struct FlightIntent {
     pub burn: f32,
 }
 
-/// Soft cap (u/s) on the MANUAL main-drive burn, on the ship root:
-/// scenario-authored for ships whose pilot should not be able to sail off into
-/// the void (the shakedown starter ship). `manual_burn_system` tapers the
-/// commanded burn to zero as the ship's TOTAL speed approaches the cap - a held
-/// W levels off instead of accelerating forever, and turning to a fresh heading
-/// buys no fresh budget. Deliberately narrow: only the manual burn reads it
-/// (the autopilot plans its own decel), a burn that would slow the ship is
-/// never blocked, and ships without the component keep unbounded Newtonian
-/// burn.
-#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
-#[reflect(Component)]
-pub struct FlightSpeedCap(pub f32);
-
 /// Per-ship override (world units) of [`FlightSettings::arrival_standoff`]
 /// for translation legs, on the ship root: the navigation MARGIN this ship's
 /// computer leaves between its own hull and whatever it parks at. A scenario
@@ -107,12 +94,12 @@ pub struct RcsIntent(pub Vec3);
 pub struct RcsActive;
 
 /// Per-ship override of the RCS fine-adjust speed cap (u/s), on the ship root.
-/// Unlike [`FlightSpeedCap`], RCS is ALWAYS capped - that is the whole point of
-/// a fine-adjust mode - so a ship without this component still gets the default
-/// [`FlightSettings::rcs_speed_cap`]; the component only lets a scenario tune
-/// the ceiling per hull. `rcs_burn_system` spends it as one VECTOR budget, the
-/// same rule the main-burn taper flies: straight and diagonal nudges share the
-/// one ceiling on `|velocity - reference|`.
+/// RCS is the ONE capped drive - that is what a fine-adjust mode is, while the
+/// main drive is plain Newtonian - so a ship without this component still gets
+/// the default [`FlightSettings::rcs_speed_cap`]; the component only lets a
+/// scenario tune the ceiling per hull. `rcs_burn_system` spends it as one
+/// VECTOR budget: straight and diagonal nudges share the one ceiling on
+/// `|velocity - reference|`.
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct RcsSpeedCap(pub f32);

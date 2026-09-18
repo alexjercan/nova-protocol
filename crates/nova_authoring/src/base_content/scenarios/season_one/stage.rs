@@ -24,12 +24,6 @@ pub(crate) const ID_GANTRY: &str = "gantry";
 pub(crate) const KAVERI_NAME: &str = "Kaveri";
 pub(crate) const GANTRY_NAME: &str = "Gantry";
 
-/// Soft manual-speed cap for the whole chapter.
-///
-/// The lane is a few kilometres of rock, and the cap is what makes threading
-/// it a matter of placing the hull rather than of reflexes.
-pub(crate) const KAVERI_SPEED_CAP: MetersPerSecond = MetersPerSecond(120.0);
-
 /// Health for the player ship's required controller and docking collar.
 ///
 /// Both survive incidental rock collisions so the scenario cannot remain
@@ -61,7 +55,6 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
             allegiance: Some(Allegiance::Player),
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: Default::default(),
-                speed_cap: Some(KAVERI_SPEED_CAP),
             }),
             // Every verb is in the player's hands from the first frame: what
             // the chapter teaches, it teaches by asking for it.

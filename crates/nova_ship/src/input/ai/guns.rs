@@ -55,8 +55,8 @@ use crate::{input::point_defense::mount_may_shoot, prelude::*};
 ///   change is a balance-audit change; re-run `balance_audit_gate`.
 ///
 /// The factor stays at 0.9 rather than tightening to the ~0.85 that would be
-/// strictly safe against a target fleeing at the player's authored 150 m/s
-/// speed cap.
+/// strictly safe against a target fleeing at 150 m/s, the reference runner
+/// speed the balance audit is quoted against.
 /// The gate is computed in the SHOOTER's frame while true reach is
 /// `closing_speed * lifetime`, so it over-reads against a runner and
 /// under-reads against a charger. That error scales with reach, and the

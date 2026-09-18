@@ -237,7 +237,6 @@ fn mission(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig 
         sections,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         &[
             SectionSpec::new("helm", "basic_controller_section", Vec3::ZERO),

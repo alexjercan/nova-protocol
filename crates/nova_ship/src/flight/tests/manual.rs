@@ -1,5 +1,5 @@
 //! The manual burn: thrust balancing on an off-center or damage-shifted
-//! hull, the soft speed cap, and the impulse-frame regressions.
+//! hull, the Newtonian response at speed, and the impulse-frame regressions.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -250,62 +250,6 @@ fn autopilot_burn_recruits_a_lateral_on_a_shifted_hull() {
     );
 }
 
-/// The soft manual speed cap: a held full burn levels off just past the cap -
-/// the overshoot is the spool-down tail, bounded by accel / spool_down_rate -
-/// while the SAME ship uncapped blows straight past it. The uncapped leg is the
-/// delivery guard proving the burn itself works AND the measured acceleration
-/// the overshoot bound derives from (this rig is deliberately over-powered; the
-/// physics-derived bound keeps the assertion honest instead of hardcoding a
-/// slack constant).
-#[test]
-fn manual_burn_levels_off_at_the_speed_cap() {
-    const CAP: f32 = 3.0;
-    const FRAMES: usize = 1200;
-
-    let run_ship = |cap: Option<f32>| -> (f32, f32) {
-        let mut app = flight_app();
-        let (ship, ..) = spawn_ship(&mut app);
-        app.world_mut()
-            .entity_mut(ship)
-            .insert(FlightIntent { burn: 1.0 });
-        if let Some(cap) = cap {
-            app.world_mut().entity_mut(ship).insert(FlightSpeedCap(cap));
-        }
-        run(&mut app, FRAMES / 2);
-        let mid = velocity_of(&app, ship).length();
-        run(&mut app, FRAMES / 2);
-        (mid, velocity_of(&app, ship).length())
-    };
-
-    let (uncapped_mid, uncapped) = run_ship(None);
-    assert!(
-        uncapped > CAP + 2.0,
-        "delivery guard: the uncapped burn must sail past the cap, got {uncapped}"
-    );
-    // Measured acceleration of THIS rig, from the uncapped leg.
-    let accel = uncapped_mid / (FRAMES as f32 / 2.0 / 60.0);
-
-    let (capped_mid, capped) = run_ship(Some(CAP));
-    // Overshoot bound: the spool-down tail keeps pushing for ~1/spool_down_rate
-    // after the taper cuts the command, plus a couple of ticks of
-    // taper-crossing.
-    let settings = FlightSettings::default();
-    let bound = CAP + accel * (1.0 / settings.spool_down_rate + 2.0 / 60.0) + 0.2;
-    assert!(
-        capped <= bound,
-        "a capped ship levels off near the cap: got {capped}, bound {bound} \
-         (cap {CAP}, measured accel {accel})"
-    );
-    assert!(
-        capped >= CAP * 0.5,
-        "the cap is a ceiling, not a parking brake: got {capped} vs cap {CAP}"
-    );
-    assert!(
-        (capped - capped_mid).abs() < 0.05,
-        "the capped ship has PLATEAUED, not still accelerating: {capped_mid} -> {capped}"
-    );
-}
-
 /// Regression: the shipped 5-section player geometry (all sections on the z
 /// axis, unit masses, single rear drive at z = +2, PD at the shipped 4/4/40)
 /// holding the reverse direction from 300 u/s - the exact "wobbles when
@@ -530,91 +474,98 @@ fn manual_burn_accelerates_and_is_ignored_while_engaged() {
     assert!(app.world().get::<Autopilot>(ship).is_none());
 }
 
-/// The manual cap is one TOTAL-speed budget, not a budget per heading: a ship
-/// already crossing at the cap gets nothing more from a full burn, and one
-/// crossing at half the cap levels off at the cap rather than adding a second
-/// cap's worth along the nose. Under the old along-burn gate the crossing
-/// component was invisible to the taper, so turning and burning again reached
-/// `sqrt(2) * cap`.
+/// The manual drive is Newtonian: a held burn accelerates the hull along its
+/// nose at ANY velocity, on any heading. The rig is the case the old manual
+/// speed governor killed - nose on -Z, the whole velocity on +X, so every bit
+/// of the burn is across the travel. Under that governor the along-nose gain
+/// over ten seconds of held full burn was EXACTLY zero (the velocity vector
+/// came back bit-identical), because the burn was purely tangential to the
+/// budget sphere; that was the reported control failure.
+///
+/// The same run pins the two properties that make an uncapped drive flyable:
+/// a centered drive adds no spin at speed, and releasing the burn PRESERVES
+/// the velocity it ended with instead of bleeding it off.
 #[test]
-fn manual_burn_spends_one_total_speed_budget_whatever_the_heading() {
-    const CAP: f32 = 20.0;
+fn manual_burn_accelerates_along_the_nose_at_any_speed() {
+    const FRAMES: usize = 600;
+    const CROSSING: f32 = 20.0;
 
-    // The nose points -Z, so a +X velocity is pure crossing speed - exactly
-    // what a pilot carries after building speed and then turning.
-    let speed_after_burn = |crossing: f32| -> f32 {
-        let mut app = flight_app();
-        let (ship, ..) = spawn_ship(&mut app);
-        settle(&mut app);
-        app.world_mut().entity_mut(ship).insert((
-            FlightSpeedCap(CAP),
-            FlightIntent { burn: 1.0 },
-            LinearVelocity(Vec3::X * crossing),
-        ));
-        run(&mut app, 900);
-        velocity_of(&app, ship).length()
+    let mut app = flight_app();
+    let (ship, thruster, _) = spawn_ship(&mut app);
+    settle(&mut app);
+    app.world_mut().entity_mut(ship).insert((
+        FlightIntent { burn: 1.0 },
+        LinearVelocity(Vec3::X * CROSSING),
+    ));
+
+    // THIS rig's full-throttle authority: a ThrusterSectionMagnitude is an
+    // impulse per fixed tick, so magnitude / mass is the delta-v one tick of
+    // full burn adds. The growth bound below is derived from it instead of a
+    // hardcoded slack constant.
+    let per_tick = **app
+        .world()
+        .get::<ThrusterSectionMagnitude>(thruster)
+        .unwrap()
+        / app.world().get::<ComputedMass>(ship).unwrap().value();
+
+    let along_nose = |app: &App| -velocity_of(app, ship).z;
+    let mut max_spin = 0.0f32;
+    let burn_frames = |app: &mut App, frames: usize, max_spin: &mut f32| {
+        for _ in 0..frames {
+            app.update();
+            *max_spin = max_spin.max(angular_speed_of(app, ship));
+        }
     };
 
-    let at_the_cap = speed_after_burn(CAP);
-    assert!(
-        at_the_cap <= CAP + 0.05,
-        "a full burn across a ship already at the cap buys nothing \
-         (got {at_the_cap}, cap {CAP})"
-    );
-    let half = speed_after_burn(0.5 * CAP);
-    assert!(
-        half > 0.5 * CAP + 1.0,
-        "delivery guard: the burn must actually fire below the budget \
-         (got {half})"
-    );
-    // The spool-down tail keeps pushing after the gate closes; the old
-    // per-heading gate reached sqrt(0.25 + 1) * CAP = 22.4 and kept going.
-    assert!(
-        half <= CAP + 1.0,
-        "and it must level off at the ONE budget, not add a fresh cap along \
-         the nose (got {half}, cap {CAP})"
-    );
-}
+    burn_frames(&mut app, FRAMES / 2, &mut max_spin);
+    let mid = along_nose(&app);
+    burn_frames(&mut app, FRAMES - FRAMES / 2, &mut max_spin);
+    let end = along_nose(&app);
 
-/// Recovery: a ship carried past the cap can always burn its way back inside
-/// it. The budget never blocks a burn that slows the ship down, at the cap or
-/// far above it.
-#[test]
-fn manual_burn_brakes_a_ship_from_above_the_cap_back_inside_it() {
-    const CAP: f32 = 20.0;
-    let mut app = flight_app();
-    let (ship, ..) = spawn_ship(&mut app);
-    settle(&mut app);
-    // Travelling +Z with the nose on -Z: a held burn is pure retro.
-    app.world_mut().entity_mut(ship).insert((
-        FlightSpeedCap(CAP),
-        FlightIntent { burn: 1.0 },
-        LinearVelocity(Vec3::Z * 3.0 * CAP),
-    ));
-    let mut slowest = f32::MAX;
-    let mut fastest = 0.0f32;
-    for _ in 0..900 {
-        app.update();
-        let speed = velocity_of(&app, ship).length();
-        slowest = slowest.min(speed);
-        fastest = fastest.max(speed);
-    }
+    // Half the ideal impulse sum, which leaves the spool-up ramp room. The
+    // governor delivered 0.0 into this same rig.
+    let floor = 0.5 * per_tick * FRAMES as f32;
     assert!(
-        slowest < 1.0,
-        "an overspeed ship must be able to brake all the way back to rest \
-         (slowest {slowest}, cap {CAP})"
+        end > floor,
+        "a held burn must accelerate the hull along its nose while it crosses \
+         at {CROSSING} u/s: got {end} u/s, floor {floor} ({per_tick} u/s per \
+         tick over {FRAMES} frames)"
     );
-    // Past rest the held burn is prograde again, and the budget catches it at
-    // the cap - never at the speed it started overspeed with.
+    // And the answer must not FADE as the speed grows: the fully spooled
+    // second half adds at least what the ramping first half did.
     assert!(
-        fastest <= 3.0 * CAP + 0.05,
-        "braking must not be answered with a bigger budget (fastest {fastest})"
+        end - mid >= mid,
+        "the drive must answer the same fast as slow: first half +{mid}, \
+         second half +{}",
+        end - mid
     );
-    let speed = velocity_of(&app, ship).length();
     assert!(
-        speed <= CAP + 1.0,
-        "and it settles on the one budget once it is back inside it \
-         (got {speed}, cap {CAP})"
+        max_spin < 0.05,
+        "a centered drive must add no spin at speed, max {max_spin} rad/s"
+    );
+    // Thrust is the only force in the rig, so the crossing component is
+    // untouched: turning and burning never spends the speed already carried.
+    let crossing = velocity_of(&app, ship).x;
+    assert!(
+        (crossing - CROSSING).abs() < 1e-3,
+        "the crossing component must survive the burn, got {crossing}"
+    );
+
+    // Release: the spool-down tail runs out and the hull COASTS.
+    app.world_mut().get_mut::<FlightIntent>(ship).unwrap().burn = 0.0;
+    run(&mut app, 120);
+    let coasting = velocity_of(&app, ship);
+    assert!(
+        -coasting.z >= end,
+        "the spool-down tail only ever adds, got {} vs {end}",
+        -coasting.z
+    );
+    run(&mut app, 600);
+    let later = velocity_of(&app, ship);
+    assert!(
+        (later - coasting).length() < 1e-3,
+        "releasing the burn must preserve the velocity, not decay it: \
+         {coasting:?} -> {later:?}"
     );
 }
 

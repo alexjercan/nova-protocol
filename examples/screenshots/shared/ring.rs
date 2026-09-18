@@ -147,7 +147,6 @@ pub fn the_ring_with_hull(
         start_rotation(),
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         None,
         kit::catalog_ship(ships, hull),

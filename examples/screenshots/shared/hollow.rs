@@ -166,7 +166,6 @@ pub fn ambush_hollow(
             // (`nova_scenario/src/objects/spaceship.rs`), so an empty map is a
             // ship whose guns no button reaches.
             input_mapping: turret_bindings(sections, &player_hull.sections),
-            speed_cap: None,
         }),
         None,
         // The player holds fire through several beats; running dry mid-capture
@@ -311,7 +310,6 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         None,
         kit::catalog_ship(ships, "block_gunship"),
@@ -443,7 +441,6 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         None,
         kit::catalog_ship(ships, "block_gunship"),
@@ -537,7 +534,6 @@ pub fn solo_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scenari
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         None,
         kit::catalog_ship(ships, "block_gunship"),
@@ -599,7 +595,6 @@ pub fn duel_hollow(
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: turret_bindings(sections, &player_hull.sections),
-            speed_cap: None,
         }),
         None,
         unlimited_turrets(sections, player_hull.clone()),
@@ -692,7 +687,6 @@ pub fn hunter_hollow(
             // OTHER ship does, and a player trigger bound to live guns is a
             // second thing in the pocket that can shoot.
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         None,
         player_hull,
@@ -845,7 +839,6 @@ pub fn flight_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scena
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
-            speed_cap: None,
         }),
         None,
         kit::catalog_ship(ships, "block_gunship"),

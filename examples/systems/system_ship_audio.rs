@@ -263,7 +263,6 @@ fn audio_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             // it would be flying the ship at the same time and the throttle
             // act below would be reading a burn the trigger left behind.
             input_mapping: BTreeMap::from([(PILOT_GUN.to_string(), vec![TRIGGER_KEY.into()])]),
-            speed_cap: None,
         }),
         &[
             SectionSpec::new(PILOT_HELM, "basic_controller_section", Vec3::ZERO),
