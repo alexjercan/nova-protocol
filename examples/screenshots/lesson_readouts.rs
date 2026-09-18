@@ -78,9 +78,9 @@ const RANGES_SHOT: &str = "combat_lock_ranges.png";
 
 /// How fast the player is written to be going.
 ///
-/// A round number a reader can match to the chip, and inside the 150 m/s cap
-/// Basic Training flies under, so the figure in the picture is one the game
-/// would actually let a new player reach.
+/// A round number a reader can match to the chip, and an ordinary cruising
+/// speed for a new player's first flight, so the figure in the picture is one
+/// the game actually puts in front of them.
 #[cfg(feature = "debug")]
 const DRIFT_SPEED: MetersPerSecond = MetersPerSecond(120.0);
 

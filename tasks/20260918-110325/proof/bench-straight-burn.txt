@@ -1,0 +1,36 @@
+start          t=   0.02s speed=    0.00 along_nose=     0.00 vel_bearing=None pos=[0 0 0]
+withheld: []
+burn           t=   1.03s speed=   70.80 along_nose=    70.80 vel_bearing=[0.0, -0.1] pos=[0 0 -31]
+    near: Asteroid surface=1537 m closing=70 m/s
+burn           t=   2.03s speed=  153.30 along_nose=   153.30 vel_bearing=[0.0, -0.1] pos=[0 0 -143]
+    near: Planet surface=6224 m closing=153 m/s
+    near: Asteroid surface=1427 m closing=150 m/s
+burn           t=   3.03s speed=  235.90 along_nose=   235.90 vel_bearing=[0.0, -0.1] pos=[0 1 -337]
+    near: Planet surface=6030 m closing=236 m/s
+    near: Asteroid surface=1238 m closing=230 m/s
+burn           t=   4.03s speed=  318.40 along_nose=   318.40 vel_bearing=[0.0, -0.1] pos=[0 2 -614]
+    near: Planet surface=5753 m closing=318 m/s
+    near: Asteroid surface=970 m closing=305 m/s
+burn           t=   5.03s speed=  401.00 along_nose=   401.00 vel_bearing=[0.0, 0.0] pos=[0 4 -974]
+    near: Planet surface=5394 m closing=401 m/s
+    near: Asteroid surface=634 m closing=362 m/s
+burn           t=   6.03s speed=  483.50 along_nose=   483.50 vel_bearing=[0.0, 0.0] pos=[0 6 -1415]
+    near: Planet surface=4952 m closing=484 m/s
+    near: Asteroid surface=292 m closing=253 m/s
+burn           t=   7.03s speed=  566.10 along_nose=   566.10 vel_bearing=[0.0, 0.0] pos=[0 9 -1940]
+    near: Planet surface=4427 m closing=566 m/s
+    near: Asteroid surface=393 m closing=-424 m/s
+burn           t=   8.03s speed=  648.70 along_nose=   648.70 vel_bearing=[0.0, 0.0] pos=[0 12 -2547]
+    near: Planet surface=3820 m closing=649 m/s
+    near: Asteroid surface=933 m closing=-618 m/s
+burn           t=   9.03s speed=  731.40 along_nose=   731.40 vel_bearing=[0.0, 0.0] pos=[0 15 -3237]
+    near: Planet surface=3130 m closing=731 m/s
+    near: Asteroid surface=1604 m closing=-719 m/s
+burn           t=  10.03s speed=  817.10 along_nose=   817.10 vel_bearing=[0.0, 0.0] pos=[0 19 -4010]
+    near: Planet surface=2357 m closing=817 m/s
+burn           t=  11.03s speed=  905.90 along_nose=   905.90 vel_bearing=[0.0, 0.0] pos=[0 23 -4871]
+    near: Planet surface=1496 m closing=906 m/s
+burn           t=  12.03s speed= 1004.40 along_nose=  1004.40 vel_bearing=[0.0, 0.0] pos=[0 28 -5824]
+    near: Planet surface=543 m closing=1004 m/s
+after          t=  13.03s speed=  118.20 along_nose=   -70.76 vel_bearing=[-133.3, 29.2] pos=[-38 64 -6327]
+hull_plates: {'total': 44, 'damaged': 0, 'lost': 0} health: {'current': 10260.0, 'max': 10260.0}

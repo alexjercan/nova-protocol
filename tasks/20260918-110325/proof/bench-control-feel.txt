@@ -1,0 +1,57 @@
+start          t=   0.02s speed=    0.00 along_nose=     0.00 vel_bearing=None pos=[0 0 0]
+withheld: []
+turn-off-line  t=   1.52s speed=    0.00 along_nose=     0.00 vel_bearing=None pos=[7 0 3]
+turn-off-line  t=   2.52s speed=    0.00 along_nose=     0.00 vel_bearing=None pos=[9 0 8]
+turn-off-line  t=   3.52s speed=    0.00 along_nose=     0.00 vel_bearing=None pos=[9 0 9]
+turn-off-line  t=   4.52s speed=    0.00 along_nose=     0.00 vel_bearing=None pos=[9 0 9]
+turn-off-line  t=   5.52s speed=    0.00 along_nose=     0.00 vel_bearing=None pos=[9 0 9]
+accelerate     t=   6.53s speed=   70.80 along_nose=    70.80 vel_bearing=[0.0, -0.1] pos=[40 0 11]
+accelerate     t=   7.53s speed=  153.30 along_nose=   153.30 vel_bearing=[0.0, -0.1] pos=[153 0 16]
+accelerate     t=   8.53s speed=  235.90 along_nose=   235.90 vel_bearing=[0.0, -0.1] pos=[347 1 26]
+accelerate     t=   9.53s speed=  318.40 along_nose=   318.40 vel_bearing=[0.0, 0.0] pos=[624 2 40]
+accelerate     t=  10.53s speed=  401.00 along_nose=   401.00 vel_bearing=[0.0, 0.0] pos=[984 4 57]
+accelerate     t=  11.53s speed=  483.50 along_nose=   483.50 vel_bearing=[0.0, 0.0] pos=[1426 6 79]
+coast-5s       t=  16.55s speed=  491.20 along_nose=   491.19 vel_bearing=[0.0, 0.3] pos=[3886 18 200]
+turn           t=  18.05s speed=  491.20 along_nose=   322.25 vel_bearing=[-49.0, 0.3] pos=[4619 21 242]
+turn           t=  19.05s speed=  491.20 along_nose=    55.60 vel_bearing=[-83.5, 0.3] pos=[5105 24 268]
+turn           t=  20.05s speed=  491.20 along_nose=    -8.57 vel_bearing=[-91.0, 0.3] pos=[5594 26 292]
+turn           t=  21.05s speed=  491.20 along_nose=   -21.43 vel_bearing=[-92.5, 0.3] pos=[6084 28 317]
+turn           t=  22.05s speed=  491.20 along_nose=   -23.99 vel_bearing=[-92.8, 0.3] pos=[6575 31 341]
+cross-burn     t=  23.07s speed=  492.80 along_nose=    46.38 vel_bearing=[-84.6, 0.3] pos=[7071 33 397]
+cross-burn     t=  24.07s speed=  507.30 along_nose=   128.73 vel_bearing=[-75.3, 0.2] pos=[7550 36 533]
+cross-burn     t=  25.07s speed=  534.30 along_nose=   211.34 vel_bearing=[-66.7, 0.2] pos=[8022 39 751]
+cross-burn     t=  26.07s speed=  572.10 along_nose=   293.80 vel_bearing=[-59.1, 0.2] pos=[8485 42 1052]
+cross-burn     t=  27.07s speed=  618.60 along_nose=   376.58 vel_bearing=[-52.5, 0.2] pos=[8940 46 1434]
+cross-burn     t=  28.07s speed=  672.10 along_nose=   459.23 vel_bearing=[-46.9, 0.2] pos=[9388 51 1899]
+cross-burn     t=  29.07s speed=  731.00 along_nose=   541.52 vel_bearing=[-42.2, 0.2] pos=[9826 56 2446]
+cross-burn     t=  30.07s speed=  794.20 along_nose=   624.12 vel_bearing=[-38.2, 0.2] pos=[10257 61 3075]
+cross-burn     t=  31.07s speed=  860.60 along_nose=   706.68 vel_bearing=[-34.8, 0.1] pos=[10680 67 3786]
+cross-burn     t=  32.07s speed=  929.60 along_nose=   789.20 vel_bearing=[-31.9, 0.1] pos=[11095 73 4580]
+release        t=  32.57s speed=  936.10 along_nose=   797.29 vel_bearing=[-31.6, 0.3] pos=[11300 76 5000]
+stop           t=  33.60s speed=  936.10 along_nose=   456.66 vel_bearing=[-60.8, 0.6] pos=[11719 82 5868]
+stop           t=  34.60s speed=  936.10 along_nose=  -300.10 vel_bearing=[-108.7, 0.7] pos=[12126 89 6703]
+stop           t=  35.60s speed=  936.10 along_nose=  -864.83 vel_bearing=[-157.5, 0.3] pos=[12538 95 7538]
+stop           t=  36.60s speed=  877.70 along_nose=  -874.74 vel_bearing=[-175.3, 0.3] pos=[12937 102 8360]
+stop           t=  37.60s speed=  795.30 along_nose=  -795.17 vel_bearing=[-179.0, 0.3] pos=[13294 108 9117]
+stop           t=  38.60s speed=  712.70 along_nose=  -712.69 vel_bearing=[-179.8, 0.3] pos=[13615 113 9800]
+stop           t=  39.60s speed=  630.20 along_nose=  -630.18 vel_bearing=[-179.9, 0.4] pos=[13900 119 10409]
+stop           t=  40.60s speed=  547.60 along_nose=  -547.59 vel_bearing=[-180.0, 0.4] pos=[14150 124 10943]
+stop           t=  41.60s speed=  465.10 along_nose=  -465.09 vel_bearing=[-180.0, 0.4] pos=[14365 129 11402]
+stop           t=  42.60s speed=  382.50 along_nose=  -382.49 vel_bearing=[-180.0, 0.4] pos=[14545 134 11786]
+stop           t=  43.60s speed=  299.90 along_nose=  -299.89 vel_bearing=[180.0, 0.4] pos=[14690 138 12096]
+stop           t=  44.60s speed=  217.40 along_nose=  -217.39 vel_bearing=[180.0, 0.4] pos=[14799 142 12330]
+stop           t=  45.60s speed=  134.80 along_nose=  -134.79 vel_bearing=[-180.0, 0.5] pos=[14874 145 12490]
+stop           t=  46.60s speed=   64.10 along_nose=   -64.10 vel_bearing=[-180.0, -0.1] pos=[14915 147 12577]
+stop           t=  47.60s speed=   15.00 along_nose=   -15.00 vel_bearing=[180.0, 0.0] pos=[14932 148 12614]
+stop           t=  48.60s speed=    0.40 along_nose=    -0.40 vel_bearing=[-179.9, -0.1] pos=[14933 148 12616]
+
+SUMMARY
+  speed after a 6 s burn from rest  : 484.60 m/s
+  speed 5 s after releasing the burn: 491.20 m/s
+  speed after the 90 deg turn       : 491.20 m/s
+  velocity bearing after the turn   : [-92.8, 0.3]
+  along-nose before the cross-burn  : -23.99 m/s
+  along-nose after the cross-burn   : 797.29 m/s
+  along-nose delta-v while crossing : 821.29 m/s
+  speed at the end of the cross-burn: 936.10 m/s
+  STOP converged in                 : 16.03 s, final speed 0.400 m/s

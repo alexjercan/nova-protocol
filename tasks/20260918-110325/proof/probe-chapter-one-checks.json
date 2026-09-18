@@ -1,0 +1,130 @@
+{
+  "verdict": "OK",
+  "measured": "6/8",
+  "reviewer_confirmation_required": true,
+  "run": {
+    "example": "system_chapter_one",
+    "started_unix": 1789741976,
+    "git_sha": "30b9b8220",
+    "full_git_sha": "30b9b82206673d98bbcc40f4e64d8d278d868bf0",
+    "host": "nixos",
+    "armed": {
+      "timeline": true,
+      "invariants": true,
+      "fps": false
+    },
+    "passes": [
+      {
+        "name": "clean",
+        "success": true,
+        "timed_out": false
+      }
+    ]
+  },
+  "frames": {
+    "graded": false,
+    "smooth_fps": 60.0,
+    "smooth_frame_ms": 16.666666666666668,
+    "note": "reported for a reader, never graded - no check passes or fails on a frame-time number",
+    "captures": []
+  },
+  "repeats": {
+    "graded": false,
+    "tolerance": 0.2,
+    "cluster_share_threshold": 0.72,
+    "cluster_band": 0.05,
+    "cluster_agreement": 0.01,
+    "note": "the mean and median gate which captures COUNT; the tail is read only across the admitted ones. Make a claim on p99_ms and check it against p99_spread; worst_ms is a diagnostic beside it. refresh_cap is the set's call on whether it measured the DISPLAY rather than the game: a period is a constant, so it takes agreeing cluster medians across captures, never one clustered window. Nothing here passes or fails.",
+    "sets": []
+  },
+  "fixed_steps": {
+    "graded": false,
+    "note": "how many fixed steps ran inside each captured frame. Frames with none mean the simulation was stopped inside the window; frames at the top of the range are where Time<Virtual>::max_delta is discarding time. Reported, never graded.",
+    "captures": []
+  },
+  "checks": [
+    {
+      "name": "process_exit",
+      "status": "PASS",
+      "value": "1 pass(es), all clean exits",
+      "threshold": "every primary pass exits success, untimed",
+      "detail": "every run's own assertions held",
+      "data": {
+        "primary_passes": 1,
+        "failed": []
+      }
+    },
+    {
+      "name": "run_completed",
+      "status": "PASS",
+      "value": "run_end at frame 9883",
+      "threshold": "run_end present + AppExit Success + entry count consistent",
+      "detail": "the run closed its bracket cleanly",
+      "data": {
+        "end_frame": 9883,
+        "entries": 71
+      }
+    },
+    {
+      "name": "reached_playing",
+      "status": "PASS",
+      "value": "Playing at frame 51",
+      "threshold": "a GameStates transition entered Playing",
+      "detail": "the run reached gameplay",
+      "data": {
+        "frame": 51
+      }
+    },
+    {
+      "name": "invariants_held",
+      "status": "PASS",
+      "value": "0 violations over 9883 checked frames",
+      "threshold": "0 violations",
+      "detail": "every engine-guaranteed bound held; peak subjects: 653 health, 135 velocity",
+      "data": {
+        "violations": 0,
+        "checked_frames": 9883,
+        "by_name": {},
+        "health_subjects": 653,
+        "velocity_subjects": 135
+      }
+    },
+    {
+      "name": "capture_simulated",
+      "status": "N/A",
+      "value": "not claimed",
+      "threshold": "every captured frame simulated",
+      "detail": "the example wires no nova_probe::nova_frametime() - there is no capture window to refuse",
+      "data": null
+    },
+    {
+      "name": "fps_within_baseline",
+      "status": "N/A",
+      "value": "not claimed",
+      "threshold": "regression <= 10%",
+      "detail": "the example wires no nova_probe::nova_frametime() - it makes no frame-cost assertion, so there is nothing to compare",
+      "data": null
+    },
+    {
+      "name": "log_clean",
+      "status": "PASS",
+      "value": "0 offending lines",
+      "threshold": "no panics / ERROR lines / command errors",
+      "detail": "log scanned clean",
+      "data": {
+        "offending": 0
+      }
+    },
+    {
+      "name": "artifacts_loadable",
+      "status": "PASS",
+      "value": "0 unloadable",
+      "threshold": "every present artifact parses",
+      "detail": "every artifact present in the run dir parsed",
+      "data": {
+        "unloadable": 0
+      }
+    }
+  ],
+  "generated_by": "nova_probe run_report"
+}

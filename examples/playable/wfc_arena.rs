@@ -1103,8 +1103,8 @@ fn combatant(
             allegiance: Some(team.allegiance),
             controller: if ship.player {
                 // The game's REAL player controller, bindings derived off the
-                // drafted hull. No speed cap (the arena is open space) and
-                // real magazines - the AI ships fight with theirs.
+                // drafted hull, and real magazines - the AI ships fight with
+                // theirs.
                 SpaceshipController::Player(PlayerControllerConfig {
                     input_mapping: player_bindings(&hull, slot, binding_overrides),
                 })
