@@ -132,11 +132,18 @@ mod tests {
         fixtures::*,
     };
 
-    const HEADER: &str =
-        "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps";
+    /// The metadata, profile and (empty) cluster cells every row needs to be
+    /// a current v4 row. These tests grade mean_ms, so the tail is constant
+    /// and the row literals below stay readable.
+    const META_TAIL: &str = "vulkan,RTX,1280x720,high,abc123,devbox,release,,";
 
+    /// `row` is the eleven numeric columns; the tail makes it schema v4.
     fn write_csv(dir: &std::path::Path, row: &str) {
-        std::fs::write(dir.join("frametime.csv"), format!("{HEADER}\n{row}\n")).unwrap();
+        std::fs::write(
+            dir.join("frametime.csv"),
+            format!("{CSV_HEADER}{row},{META_TAIL}\n"),
+        )
+        .unwrap();
     }
 
     /// Baseline mean 100 ms, so a row's mean_ms IS its delta in percent.

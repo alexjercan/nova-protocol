@@ -7,10 +7,9 @@
 //! frame-time chart and table) over parsed [`PerfRun`]s; the standalone FPS
 //! renderer they once served retired with the perf_report bin.
 //!
-//! Renderer identity: schema-v2 rows carry their own metadata (backend,
-//! adapter, git SHA - see [`nova_probe::stats::RunMeta`]), which this renderer
-//! prefers; v1 rows (the v0.7.0 baseline) fall back to the results
-//! directory's name, the old convention (`gpu` / `sw` / `xgpu` / `web`).
+//! Renderer identity: every row carries its own metadata (backend, adapter,
+//! git SHA - see [`nova_probe::stats::RunMeta`]), and the report shows what
+//! the row recorded, `unknown` included.
 
 pub mod aggregate;
 pub mod html;
@@ -27,16 +26,6 @@ pub mod prelude {
 }
 
 pub use prelude::*;
-
-/// The renderer string shown for one run: its own metadata when known
-/// (schema v2), else the dir-derived fallback (v1 rows).
-fn run_renderer(run: &PerfRun, fallback: &str) -> String {
-    if run.meta.backend != "unknown" {
-        run.meta.backend.clone()
-    } else {
-        fallback.to_string()
-    }
-}
 
 /// Split a run label into `(scene, preset)`. The sweep names runs
 /// `<scene>-<preset>` where preset is one of the graphics tiers; when the
@@ -383,13 +372,12 @@ pub(crate) fn render_chart(runs: &[PerfRun]) -> String {
     svg
 }
 
-/// The per-run table. The Renderer column shows each run's own metadata
-/// (v2) or the dir-derived fallback (v1). When `has_baseline`, two delta
-/// columns (mean, p99) show the percentage change against the baseline row of
-/// the same label; a missing baseline row renders as an em dash.
+/// The per-run table. The Renderer column shows each run's own recorded
+/// backend. When `has_baseline`, two delta columns (mean, p99) show the
+/// percentage change against the baseline row of the same label; a missing
+/// baseline row renders as an em dash.
 pub(crate) fn render_table(
     runs: &[PerfRun],
-    fallback_renderer: &str,
     baseline: &HashMap<&str, &PerfRun>,
     has_baseline: bool,
 ) -> String {
@@ -422,7 +410,7 @@ pub(crate) fn render_table(
         table.push_str(&format!(
             "<td title=\"{}\">{}{profile_badge}</td>",
             escape(&run.meta.adapter),
-            escape(&run_renderer(run, fallback_renderer))
+            escape(&run.meta.backend)
         ));
         table.push_str(&format!("<td class=\"num\">{}</td>", s.frames));
         table.push_str(&format!(
@@ -703,6 +691,21 @@ reason=simulation_stopped phase=capture frame=345 warmup=60 frames=360 - stopped
         assert!(html.contains("simulation_stopped"), "{html}");
         // A clean run renders nothing rather than an empty box.
         assert!(render_refused_captures("nothing to see").is_empty());
+    }
+
+    /// The Renderer column is the row's OWN recorded backend, `unknown`
+    /// included: a capture that could not name its adapter (`--norender`, no
+    /// `RenderAdapterInfo`) must read as unresolved, never as some word the
+    /// report substituted that a real renderer could also be called.
+    #[test]
+    fn the_renderer_column_shows_the_rows_own_backend() {
+        let mut named = run("named", 8.0, 12.0);
+        named.meta.backend = "vulkan".to_string();
+        let unresolved = run("unresolved", 8.0, 12.0);
+        let html = render_table(&[named, unresolved], &HashMap::new(), false);
+        assert!(html.contains(">vulkan</td>"), "{html}");
+        assert!(html.contains(">unknown</td>"), "{html}");
+        assert!(!html.contains(">run</td>"), "{html}");
     }
 
     #[test]

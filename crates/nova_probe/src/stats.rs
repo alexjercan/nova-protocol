@@ -2,15 +2,12 @@
 //! metadata ([`RunMeta`]), and the CSV/JSON writers + parsers both the capture
 //! harness and the report/probe consumers share, so the schema is defined once.
 //!
-//! Four CSV schema versions exist:
+//! Three CSV schema versions are accepted:
 //!
-//! - **v1** ([`CSV_HEADER_V1`]): the numeric columns only. The v0.7.0 baseline
-//!   sweeps are v1 and must keep parsing - the reader accepts it and fills
-//!   [`RunMeta::unknown`].
-//! - **v2** ([`CSV_HEADER_V2`]): v1 plus the run-metadata columns
-//!   (backend, adapter, resolution, quality, git_sha, host), so a results
-//!   file is self-describing instead of leaning on its directory name.
-//!   Rows parse with `profile = "unknown"`.
+//! - **v2** ([`CSV_HEADER_V2`]): the numeric columns plus the run-metadata
+//!   columns (backend, adapter, resolution, quality, git_sha, host), so a
+//!   results file is self-describing instead of leaning on its directory
+//!   name. Rows parse with `profile = "unknown"`.
 //! - **v3** ([`CSV_HEADER_V3`]): v2 plus the build `profile` column (`dev` or
 //!   `release`) - dev-profile numbers are not baselines, and the report
 //!   labels them.
@@ -23,9 +20,8 @@ pub mod prelude {
     pub use super::{
         append_frametime_row, cluster_shape, parse_capture_abort_line, parse_fixed_steps_line,
         parse_frametime_csv, parse_summary_line, CaptureAbort, FixedStepBucket, FixedStepStats,
-        FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V1, CSV_HEADER_V2, CSV_HEADER_V3,
-        REFRESH_CAPPED, REFRESH_CAP_AGREEMENT, REFRESH_CAP_BAND, REFRESH_CAP_MIN_MS,
-        REFRESH_CAP_SHARE,
+        FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V2, CSV_HEADER_V3, REFRESH_CAPPED,
+        REFRESH_CAP_AGREEMENT, REFRESH_CAP_BAND, REFRESH_CAP_MIN_MS, REFRESH_CAP_SHARE,
     };
 }
 
@@ -444,8 +440,8 @@ pub struct RunMeta {
 }
 
 impl RunMeta {
-    /// The all-`unknown` metadata: what a v1 CSV row (pre-metadata schema)
-    /// parses to, and the safe default when a source cannot be resolved.
+    /// The all-`unknown` metadata: the safe default when a source cannot be
+    /// resolved (a `--norender` capture has no adapter to name).
     pub fn unknown() -> Self {
         let unknown = || "unknown".to_string();
         Self {
@@ -457,11 +453,6 @@ impl RunMeta {
             host: unknown(),
             profile: unknown(),
         }
-    }
-
-    /// True when every field is still `"unknown"` (i.e. v1 data).
-    pub fn is_unknown(&self) -> bool {
-        self == &Self::unknown()
     }
 
     /// The metadata columns in [`CSV_HEADER`] order, comma-sanitized.
@@ -493,7 +484,7 @@ pub struct PerfRun {
     pub label: String,
     /// The percentile frame-time statistics for the run.
     pub stats: FrameStats,
-    /// The run metadata ([`RunMeta::unknown`] for v1 data).
+    /// The run metadata as the row recorded it.
     pub meta: RunMeta,
 }
 
@@ -517,15 +508,8 @@ pub const CSV_HEADER_V3: &str = "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_m
 pub const CSV_HEADER_V2: &str = "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,\
      mean_fps,one_pct_low_fps,backend,adapter,resolution,quality,git_sha,host\n";
 
-/// The pre-metadata schema v1 header. Still accepted by the parser so the
-/// v0.7.0 baseline results keep loading (their rows parse with
-/// [`RunMeta::unknown`]).
-pub const CSV_HEADER_V1: &str =
-    "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps\n";
-
-/// Column counts for the four schema versions (label + numerics [+ meta
-/// [+ profile [+ cluster shape]]]).
-const V1_COLS: usize = 11;
+/// Column counts for the three accepted schema versions (label + numerics +
+/// meta [+ profile [+ cluster shape]]).
 const V2_COLS: usize = 17;
 const V3_COLS: usize = 18;
 const V4_COLS: usize = 20;
@@ -708,8 +692,7 @@ fn json_safe(value: &str) -> String {
 
 impl PerfRun {
     /// Parse one aggregated-CSV data row (no header) - the inverse of
-    /// `FrameStats::to_csv_row`. Accepts a v1 row (11 columns; metadata
-    /// becomes [`RunMeta::unknown`]), a v2 row (17 columns; profile
+    /// `FrameStats::to_csv_row`. Accepts a v2 row (17 columns; profile
     /// `unknown`), a v3 row (18 columns; no cluster shape) or a v4 row (20
     /// columns). The CSV omits `total_ms` (JSON-only), so it is reconstructed
     /// exactly as `mean_ms * frames` (mean is defined as `total / frames`).
@@ -718,7 +701,7 @@ impl PerfRun {
     /// silently mis-read.
     pub fn from_csv_row(row: &str) -> Option<Self> {
         let cols: Vec<&str> = row.split(',').collect();
-        if !matches!(cols.len(), V1_COLS | V2_COLS | V3_COLS | V4_COLS) {
+        if !matches!(cols.len(), V2_COLS | V3_COLS | V4_COLS) {
             return None;
         }
         // "NaN"/"inf" parse as f64 but poison every downstream stat; a row
@@ -735,21 +718,17 @@ impl PerfRun {
         let p999_ms: f64 = finite(cols[8])?;
         let mean_fps: f64 = finite(cols[9])?;
         let one_pct_low_fps: f64 = finite(cols[10])?;
-        let meta = if cols.len() >= V2_COLS {
-            RunMeta {
-                backend: cols[11].trim().to_string(),
-                adapter: cols[12].trim().to_string(),
-                resolution: cols[13].trim().to_string(),
-                quality: cols[14].trim().to_string(),
-                git_sha: cols[15].trim().to_string(),
-                host: cols[16].trim().to_string(),
-                profile: cols
-                    .get(17)
-                    .map(|cell| cell.trim().to_string())
-                    .unwrap_or_else(|| "unknown".to_string()),
-            }
-        } else {
-            RunMeta::unknown()
+        let meta = RunMeta {
+            backend: cols[11].trim().to_string(),
+            adapter: cols[12].trim().to_string(),
+            resolution: cols[13].trim().to_string(),
+            quality: cols[14].trim().to_string(),
+            git_sha: cols[15].trim().to_string(),
+            host: cols[16].trim().to_string(),
+            profile: cols
+                .get(17)
+                .map(|cell| cell.trim().to_string())
+                .unwrap_or_else(|| "unknown".to_string()),
         };
         // An EMPTY cell is the writer saying there was nothing to measure the
         // clustering against, so it reads as absent rather than failing the
@@ -875,8 +854,8 @@ pub fn append_frametime_row(
 
 /// Parse a whole aggregated `frametime.csv` (header + one row per run) into a
 /// list of runs, preserving file order. The first line must match
-/// [`CSV_HEADER`] (v4), [`CSV_HEADER_V3`], [`CSV_HEADER_V2`] or
-/// [`CSV_HEADER_V1`] (trimmed) or the file is rejected as
+/// [`CSV_HEADER`] (v4), [`CSV_HEADER_V3`] or [`CSV_HEADER_V2`] (trimmed) or
+/// the file is rejected as
 /// not-a-frametime-CSV; every data row must then carry that version's column
 /// count. Blank lines are skipped and any row that fails to parse is an error
 /// naming its line, so a corrupt sweep is caught instead of silently dropping
@@ -890,16 +869,13 @@ pub fn parse_frametime_csv(contents: &str) -> Result<Vec<PerfRun>, String> {
         V3_COLS
     } else if header.trim() == CSV_HEADER_V2.trim() {
         V2_COLS
-    } else if header.trim() == CSV_HEADER_V1.trim() {
-        V1_COLS
     } else {
         return Err(format!(
             "unexpected CSV header\n  expected: {}\n  or (v3):  {}\n  or (v2):  {}\n  \
-             or (v1):  {}\n  found:    {}",
+             found:    {}",
             CSV_HEADER.trim(),
             CSV_HEADER_V3.trim(),
             CSV_HEADER_V2.trim(),
-            CSV_HEADER_V1.trim(),
             header.trim()
         ));
     };
@@ -1037,28 +1013,6 @@ mod tests {
     }
 
     #[test]
-    fn v1_row_reads_a_known_literal_with_unknown_meta() {
-        // A real row from the v0.7.0 sw baseline (broadside-high). Assert the
-        // literal values, not just a round-trip, so a shared writer/reader bug
-        // cannot pass this (roundtrip-hides-shared-bug). v1 back-compat pin:
-        // 11 columns must keep parsing, with all-unknown metadata.
-        let row =
-            "broadside-high,120,115.0519,82.7471,168.3229,111.4533,140.7148,166.7084,168.3229,8.69,6.00";
-        let run = PerfRun::from_csv_row(row).expect("valid v1 row parses");
-        assert_eq!(run.label, "broadside-high");
-        assert_eq!(run.stats.frames, 120);
-        assert!((run.stats.mean_ms - 115.0519).abs() < 1e-9);
-        assert!((run.stats.min_ms - 82.7471).abs() < 1e-9);
-        assert!((run.stats.max_ms - 168.3229).abs() < 1e-9);
-        assert!((run.stats.p99_ms - 166.7084).abs() < 1e-9);
-        assert!((run.stats.mean_fps - 8.69).abs() < 1e-9);
-        assert!((run.stats.one_pct_low_fps - 6.00).abs() < 1e-9);
-        // total_ms is reconstructed as mean * frames (CSV omits it).
-        assert!((run.stats.total_ms - 115.0519 * 120.0).abs() < 1e-6);
-        assert!(run.meta.is_unknown());
-    }
-
-    #[test]
     fn a_written_row_reads_back_with_its_stats_and_meta() {
         // Forward (to_csv_row) then back (from_csv_row) preserves every field
         // the CSV carries, metadata included. total_ms is CSV-omitted, so
@@ -1090,11 +1044,19 @@ mod tests {
 
     #[test]
     fn non_finite_numerics_reject_the_row() {
+        // Full-width v4 rows: the row has to reach the numeric parse, or the
+        // column-count guard would reject it and prove nothing about NaN.
+        let tail = "vulkan,RTX,1280x720,high,abc123,devbox,release,,";
+        let row = format!(
+            "broadside-high,120,NaN,82.7471,168.3229,111.4533,140.7148,166.7084,168.3229,8.69,\
+             6.00,{tail}"
+        );
+        assert_eq!(row.split(',').count(), 20, "{row}");
+        assert!(PerfRun::from_csv_row(&row).is_none(), "NaN mean rejected");
         let row =
-            "broadside-high,120,NaN,82.7471,168.3229,111.4533,140.7148,166.7084,168.3229,8.69,6.00";
-        assert!(PerfRun::from_csv_row(row).is_none(), "NaN mean rejected");
-        let row = "broadside-high,120,115.0,82.7,inf,111.4,140.7,166.7,168.3,8.69,6.00";
-        assert!(PerfRun::from_csv_row(row).is_none(), "inf max rejected");
+            format!("broadside-high,120,115.0,82.7,inf,111.4,140.7,166.7,168.3,8.69,6.00,{tail}");
+        assert_eq!(row.split(',').count(), 20, "{row}");
+        assert!(PerfRun::from_csv_row(&row).is_none(), "inf max rejected");
     }
 
     #[test]
@@ -1103,25 +1065,29 @@ mod tests {
         assert!(err.contains("unexpected CSV header"), "{err}");
     }
 
+    /// The v0.7.0 baseline schema is gone: a real v1 file is refused at the
+    /// header, and a bare 11-column row is refused by the row parser, so
+    /// pre-metadata numbers can never reach a reader as all-`unknown` rows.
     #[test]
-    fn parse_frametime_csv_reads_a_v1_file_in_order() {
-        let csv = format!(
-            "{}asteroid_field-high,120,126.5503,96.6889,166.1786,125.4380,152.8573,164.2634,166.1786,7.90,6.09\n\
-             broadside-low,120,98.8898,72.3828,133.8965,98.2504,118.7390,133.2727,133.8965,10.11,7.50\n",
-            CSV_HEADER_V1
+    fn the_v1_schema_is_rejected_at_the_header_and_at_the_row() {
+        let v1_header =
+            "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps\n";
+        let row =
+            "asteroid_field-high,120,126.5503,96.6889,166.1786,125.4380,152.8573,164.2634,166.1786,7.90,6.09";
+        let csv = format!("{v1_header}{row}\n");
+        let err = parse_frametime_csv(&csv).expect_err("a v1 file is rejected");
+        assert!(err.contains("unexpected CSV header"), "{err}");
+        assert!(
+            !err.contains("or (v1)"),
+            "v1 is not an offered schema: {err}"
         );
-        let runs = parse_frametime_csv(&csv).expect("v1 file parses");
-        assert_eq!(runs.len(), 2);
-        assert_eq!(runs[0].label, "asteroid_field-high");
-        assert_eq!(runs[1].label, "broadside-low");
-        assert!((runs[0].stats.p99_ms - 164.2634).abs() < 1e-9);
-        assert!(runs.iter().all(|run| run.meta.is_unknown()));
+        assert!(PerfRun::from_csv_row(row).is_none(), "11 columns rejected");
     }
 
     #[test]
     fn parse_frametime_csv_rejects_a_row_width_mismatch() {
-        // A v4 header promises 20 columns; an 11-column (v1-shaped) row under
-        // it is a corrupt file, not a silent meta-default.
+        // A v4 header promises 20 columns; an 11-column row under it is a
+        // corrupt file, not a silent meta-default.
         let csv = format!(
             "{}broadside-high,120,115.0519,82.7471,168.3229,111.4533,140.7148,166.7084,168.3229,8.69,6.00\n",
             CSV_HEADER
@@ -1132,7 +1098,7 @@ mod tests {
 
     #[test]
     fn parse_frametime_csv_errors_on_a_truncated_row() {
-        let csv = format!("{}broadside-high,120,115.05\n", CSV_HEADER_V1);
+        let csv = format!("{}broadside-high,120,115.05\n", CSV_HEADER);
         let err = parse_frametime_csv(&csv).expect_err("short row rejected");
         assert!(err.contains("header promises"), "{err}");
     }

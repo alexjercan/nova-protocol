@@ -219,7 +219,6 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
                 .unwrap_or_default();
             html.push_str(&render_table(
                 runs,
-                "run",
                 &baseline_map,
                 artifacts.baseline.is_some(),
             ));
