@@ -1,8 +1,8 @@
-//! compare_asteroids: the asteroid-texture lineup for art round 2 (task
-//! 20260812-100256) - the shipped `asteroid.png` next to the ambientCG and
-//! Poly Haven candidates, every subject the SAME fixed-seed rock from the
-//! game's real mesh pipeline (`TriangleMeshBuilder` + `RockHeight`), so the
-//! only thing that differs between subjects is the texture.
+//! compare_asteroids: the asteroid-texture lineup - the shipped `asteroid.png`
+//! next to the ambientCG and Poly Haven candidates, every subject the SAME
+//! fixed-seed rock from the game's real mesh pipeline (`TriangleMeshBuilder` +
+//! `RockHeight`), so the only thing that differs between subjects is the
+//! texture.
 //!
 //! SUPERSEDED in part (2026-08-17). This row was built when a rock was textured
 //! through its mesh UVs, which are planar PER TRIANGLE - so macro features

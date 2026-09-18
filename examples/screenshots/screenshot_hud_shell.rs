@@ -1,11 +1,10 @@
 //! screenshot_hud_shell: the directional-HUD shells around the biggest hull the
 //! examples build.
 //!
-//! The visual fixture for task 20260909-212917. The velocity sphere and the
-//! gravity sphere have to ENCLOSE the hull they belong to, whatever its size,
-//! so the set stages the 33-cell industrial carrier fixture - 2 081 sections,
-//! 360 m stem to stern - under way inside a real well, and films both shells
-//! around it from one pinned broadside.
+//! The velocity sphere and the gravity sphere have to ENCLOSE the hull they
+//! belong to, whatever its size, so the set stages the 33-cell industrial
+//! carrier fixture - 2 081 sections, 360 m stem to stern - under way inside a
+//! real well, and films both shells around it from one pinned broadside.
 //!
 //! Everything the frame shows is live: the player's own carrier flying the
 //! production HUD, a planetoid whose SOI the ship is really inside (so the

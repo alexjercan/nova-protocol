@@ -17,9 +17,7 @@ The split is not UI against SFX. It is **where the variation lives**:
   differ - belongs in `assets/base/sounds/` behind an `AssetRef`.
 
 That is why the cockpit is not here: locking is a CAPABILITY of a controller
-section, so two controllers are allowed to sound different. See
-`tasks/20260717-101524/SPIKE.md` for the original ownership split and
-`tasks/20260824-125955/` for the voices.
+section, so two controllers are allowed to sound different.
 
 ## The voice
 

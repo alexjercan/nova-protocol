@@ -1,6 +1,6 @@
 //! screenshot_damage_levels: the same ship at all eight crack levels, side by side.
 //!
-//! THE GATE for the erosion epic (task 20260813-224826, phase 2). Damage is now
+//! THE GATE for erosion. Damage is now
 //! one number - the share of a body's own health that is gone - and every
 //! damage EFFECT is a component turning that number into its own look. Whether
 //! those looks are any good is not a question a test can answer, so this stands
@@ -22,7 +22,7 @@
 //!   health and comes off, opening a hole onto the hull underneath. That is the
 //!   ONLY thing that changes a ship's shape now: sections carved their drawn
 //!   geometry for one release and it was removed for costing a two-second frame
-//!   on a ship's first hit (Phase 4e). Does a hull that is cracked and missing
+//!   on a ship's first hit. Does a hull that is cracked and missing
 //!   plates read as BROKEN without the crater?
 //! - SCORCH, on the section materials. Reddening, darkening, then a burnt
 //!   endpoint. It has lost its allegiance split, so an enemy now shows this

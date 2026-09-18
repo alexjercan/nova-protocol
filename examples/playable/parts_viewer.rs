@@ -1,5 +1,5 @@
 //! parts_viewer: a browsable gallery of the generated part-candidate meshes
-//! under `art/part-candidates/**` (task 20260812-100246), so a human can judge
+//! under `art/part-candidates/**`, so a human can judge
 //! silhouettes, colours and cut quality BEFORE any part is promoted into game
 //! content. Nothing here touches `assets/` - the candidates load through a
 //! dedicated `part-candidates://` asset source rooted in `art/`, which ships in

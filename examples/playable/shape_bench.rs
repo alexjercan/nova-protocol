@@ -15,8 +15,7 @@
 //! `shell_skin`), so the render and the report are both evidence about the
 //! derivation rather than about this file.
 //!
-//! The report answers the two questions task 20260816-112429 closed into this
-//! bench, per subject and in one run:
+//! The report answers the two questions, per subject and in one run:
 //!
 //! 1. CREASES: the count of creased plates by relief class (`Spur`, `Step`,
 //!    ...), so a render of the worst subjects - the small hand-built shapes

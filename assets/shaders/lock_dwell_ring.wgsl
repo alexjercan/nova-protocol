@@ -1,4 +1,4 @@
-// Radial "lock-on dwell" ring (task 20260717-004302): a thin annulus that
+// Radial "lock-on dwell" ring: a thin annulus that
 // fills clockwise from the top as `progress` goes 0 -> 1, drawn on a UI node
 // via bevy's UiMaterial pipeline. Deliberately trivial maths (no textures, no
 // derivatives) so it is safe on the WebGL2 wasm target.

@@ -45,8 +45,7 @@ example/
     rock.png             # self:// asteroid texture
 ```
 
-The textures are PLACEHOLDERS (debug-colored); real art replaces them under
-task 20260716-205214, keeping the same paths.
+The textures are PLACEHOLDERS (debug-colored).
 
 ## How to enable
 

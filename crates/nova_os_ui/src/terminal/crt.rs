@@ -65,7 +65,7 @@ pub(crate) struct NovaOsCrtUniform {
     /// Power level 0..1 fed from [`NovaOsOpenness`]: 1 full raster, 0 collapsed to
     /// a dying line/dot. Drives the CRT power-on/off collapse.
     pub(crate) power: f32,
-    /// Extra brightness multiply (1.0 neutral), not yet driven by any control.
+    /// Extra brightness multiply (1.0 neutral), driven by the chin BRIGHT knob.
     /// Appended last so the field order still matches the WGSL struct.
     pub(crate) brightness: f32,
     /// Degauss envelope 0..1: pulsed to 1 on an app

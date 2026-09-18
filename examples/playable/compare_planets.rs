@@ -1,7 +1,7 @@
-//! compare_planets: the planet-texture lineup for art round 2 (task
-//! 20260812-100256) - six Screaming Brain Studios equirect surface maps
-//! wrapped on UV spheres (bevy's `Sphere` `.uv()` mesh), previewing the
-//! recommended planet route before the planet scenario object exists.
+//! compare_planets: the planet-texture lineup - six Screaming Brain Studios
+//! equirect surface maps wrapped on UV spheres (bevy's `Sphere` `.uv()` mesh),
+//! previewing the recommended planet route before the planet scenario object
+//! exists.
 //!
 //! UV spheres, NOT the asteroid `TriangleMeshBuilder`: its planar per-triangle
 //! UVs cannot wrap an equirect map - which is exactly why the planned planet

@@ -1193,11 +1193,10 @@ fn rock_ring(
 ///
 /// This used to claim a second reason - that a `SpaceshipController::None`
 /// hull spawns MASSLESS and NaN-poisons the spatial queries combat aims
-/// through. That was investigated and is not true (task 20260817-091716): a
-/// controller-less hull composes its mass from its sections like any other,
-/// no fragment was ever massless across five instrumented runs, and unfrozen
-/// runs fight exactly like frozen ones. The pin stays for the framing, not
-/// for the physics.
+/// through. That was investigated and is not true: a controller-less hull
+/// composes its mass from its sections like any other, no fragment was ever
+/// massless across five instrumented runs, and unfrozen runs fight exactly
+/// like frozen ones. The pin stays for the framing, not for the physics.
 fn freeze_junk(
     mut commands: Commands,
     q_junk: Query<(Entity, &RigidBody, &EntityId), With<SpaceshipRootMarker>>,

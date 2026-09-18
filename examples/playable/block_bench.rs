@@ -3,10 +3,10 @@
 //!
 //! `shape_bench` holds the DIAGNOSTIC cases: primitive neighbourhoods up to
 //! 5x2x2, the smallest structure each plate reading can stand in. This bench
-//! holds the other end of the question (task 20260816-203837, GREEBLES.md
-//! section 7): larger hand-placed shapes with real silhouettes - a destroyer
-//! bow, a spine freighter, a carrier deck - judged against the owner's bar of
-//! "this thing looks nice, it can be used for an actual ship". The subjects
+//! holds the other end of the question: larger hand-placed shapes with real
+//! silhouettes - a destroyer bow, a spine freighter, a carrier deck - judged
+//! against the owner's bar of "this thing looks nice, it can be used for an
+//! actual ship". The subjects
 //! are big enough to grow the Flat fields and Brink runs the signature rules
 //! want, so this is where a style shows what it does on a ship rather than on
 //! a probe.
@@ -220,8 +220,7 @@ fn union(parts: Vec<Vec<IVec3>>) -> Vec<IVec3> {
 /// Quarter-cell offset of the half-size PDC mount along its mounting axis.
 const PDC_SEAT: f32 = 0.25;
 
-/// The fixed roster, GREEBLES.md section 7 cell for cell. Every case is a
-/// candidate SHIP rather than a probe:
+/// The fixed roster. Every case is a candidate SHIP rather than a probe:
 ///
 /// - `wedge_8` is the destroyer bow: a thick body whose last three cells step
 ///   down to a one-wide nose, so Brink runs meet a taper.

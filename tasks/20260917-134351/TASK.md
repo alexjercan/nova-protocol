@@ -706,12 +706,137 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
     appeared 3 times in this scope and was caught only incidentally by the
     `tasks/` search. Added to the set for items 11 and 12.
 
-- [ ] **11 - Remove task citations from playable, screenshot, and asset fixtures.**
+- [x] **11 - Remove task citations from playable, screenshot, and asset fixtures.**
   Scope: affected files under `examples/playable/**`,
   `examples/screenshots/**`, and `assets/**`. Preserve visual acceptance rules
   without historical references. Edit Rust builders and regenerate owned base
   content instead of hand-editing generated RON. Verify the citation search,
   example catalog, generated-content parity, and any affected visual proof.
+
+  Done. 25 files, 47 edits: 45 gated comment rows, one approved `crates/**`
+  correction (below), one approved code string, plus one orchestrator fix.
+  REWRITE 43, DELETE 2, KEEP 0, GENERATED 0. All nine search forms return
+  ZERO real citations in all three roots (from 21 / 19 / 18), re-run by the
+  orchestrator per root after sync. The 23 false positives are unchanged.
+
+  NO generated RON was hand-edited, and that is proven rather than promised.
+  The generated set was derived from `content_files()` at
+  `crates/nova_authoring/src/generation.rs:191-227` - 17 paths, all
+  `base/**/*.content.ron` - and a citation search restricted to every one of
+  them returns zero: the generated files carry no comments at all. So no
+  builder under `base_content/**` was touched and no second pass over
+  `crates/**` happened. `base.bundle.ron` IS hand-authored: it is absent from
+  `content_files()` and only ever read (`content_ron_parity.rs:55,76`,
+  `lesson_media.rs:109`). `cargo run -- content gen` rewrote all 16 generated
+  files and left `git status --short assets/` EMPTY.
+
+  The worker added three search forms beyond the six specified, and two earned
+  NINE citations that the specified forms return zero hits for: task-folder
+  artifacts with custom names (`GREEBLES.md`, `THRUSTERS.md`, `DECISION D3`,
+  "the task record", "the task folder"), task-PLAN labels carrying no id and
+  not the word "task" (`phase 4c`, `Phase 4e`, `Phase A`, `art round 2`), a
+  git-history pointer ("live in this branch's history"), and a dated research
+  round ("the 2026-08-15 research round"). Item 09's truncated-id trap recurred
+  verbatim: `assets/shaders/nova_os_crt.wgsl:32` cited `task 214617`, reachable
+  only by the plain "task"-word search. Item 10's `(review Rx.y)` vocabulary
+  returned zero here, so the forms do not transfer between scopes - each root
+  needs its own reading, not a reused pattern list.
+
+  A DEFECT THIS TASK INTRODUCED, found here and fixed here. Item 09 rewrote
+  `crates/nova_os_ui/src/terminal/crt.rs:68` to "Extra brightness multiply
+  (1.0 neutral), not yet driven by any control." That is FALSE:
+  `crt.rs:639-648` sets `material.data.brightness` from the BRIGHT/SCAN chin
+  knobs and `terminal/tests/chin.rs:57` asserts "the CRT brightness uniform
+  follows the BRIGHT detent". The original read "Reserved for task 214617's
+  BRIGHT knob"; the orchestrator approved stripping the provenance while
+  keeping its false implication, without checking whether the knob had since
+  been built. Both sides now state the verified truth - `crt.rs:68` and
+  `nova_os_crt.wgsl:32` say the multiply is driven by the chin BRIGHT knob.
+  One line in `crates/**`, explicitly scoped, not a second pass. Leaving a
+  knowingly false comment for lane purity would have been the worse error.
+
+  Visual acceptance rules survived verbatim, which is the point of the item:
+  `screenshot_hud_shell.rs` keeps "the spheres must ENCLOSE the hull whatever
+  its size", `screenshot_thruster_gallery.rs` keeps "these mocks exist to judge
+  silhouette and scale only", `screenshot_section_trials.rs` keeps "a single
+  round fired before full deployment fails the walk". `wfc_arena.rs:1194` keeps
+  a verified NEGATIVE result in full - five instrumented runs showing no
+  fragment was ever massless, plus the standing instruction not to re-add the
+  claim - with only the id removed.
+
+  One code row, approved separately, so the non-comment diff is ONE line pair
+  and not empty: `screenshot_thruster_gallery.rs:404` is a
+  `ScenarioConfig::description` rendered to players in the scenario picker, and
+  it read "A named row of thruster looks for the shell spike" - internal
+  design-spike jargon in player-visible text. Now "A named row of thruster
+  looks". Verified before editing that nothing asserts the literal.
+
+  Orchestrator correction, recorded because it changed the worker's output.
+  `screenshot_thruster_gallery.rs:21` carried an orphan `)`. The worker
+  balanced it by INSERTING a `(`, inventing a parenthetical. `git show
+  89091f2e6~1` shows the author's original was
+  "the PROPOSED SHELLS (recipe-generated drive shells, ... task 20260817-013639)"
+  and that commit deleted the phrase carrying the opening paren, leaving the
+  closer behind. The rewritten sentence is a plain comma list, so the `)` is
+  vestigial: it was DELETED instead, paren balance 5/5, and the sentence is the
+  author's own structure.
+
+  Proof: `content_ron_parity` 2 passed (including the live `ron::de` parse of
+  the edited `base.bundle.ron`), `content_lint_gate` 3 passed, `lesson_media`
+  3 passed (the substring reader of that bundle), `catalog_drift` 2 passed -
+  all re-run by the orchestrator after sync, all by name. 17 named example
+  targets under `--features debug`: 0 errors, 0 first-party warnings.
+  `nova_os_ui --lib terminal::tests::crt` 12 passed including the test that
+  reads the edited WGSL; `terminal::tests::chin` 4 passed, carrying the
+  assertion that proves the corrected brightness claim. `cargo fmt -- --check`
+  clean. Token-stream check by the orchestrator: 49 change sites, tokens
+  -229/+46, matching the worker's own count, every site traceable to an
+  approved row, no reflow-only site.
+
+  Negative controls: a stray `//!` in `widget_zoo.rs` gave `error[E0753]`; a
+  corrupted `lock_dwell_ring.wgsl` gave `failed to process shader error:
+  expected ';', found "~"`. Both restored by `cp` + `cmp`, never `git checkout`.
+
+  VISUAL PROOF, with two caveats stated rather than smoothed over.
+  `screenshot_nova_os_terminal` and `screenshot_radar_lock` both ran under
+  `Xvfb :99`, serialised, to "cycle complete, no panic" with zero ERROR lines
+  and zero naga/shader/pipeline lines, and produced real frames; the CRT frame
+  visibly shows bloom, barrel warp, scanlines, vignette and the rounded-corner
+  mask. Caveat 1: the adapter was the discrete NVIDIA RTX 3060 Ti over Vulkan,
+  NOT lavapipe - `DISPLAY=:99` already had a real driver and it was not forced.
+  naga's WGSL front end validates before any backend, so a malformed shader
+  fails identically, but the run is not the lavapipe run that was asked for.
+  Caveat 2: the lock dwell ring was never actually DRAWN - the dwell never
+  charged in that beat, so `progress` stayed 0 and the ring rendered nothing.
+  For `lock_dwell_ring.wgsl` the claim therefore rests on the negative control,
+  not on pixels. That control also established why the clean log is worth
+  anything: A SHADER THAT FAILS TO COMPILE STILL EXITS 0, so the silence in the
+  log is the evidence, and an exit code here would have proven nothing.
+
+  Retained limits and carry-forwards for item 12:
+  - `examples/screenshots/screenshot_comms.rs:131` still FAILS TO COMPILE -
+    `error[E0560]: struct NarrativeCueActionConfig has no field named channel`
+    (its fields are `speaker, text, dwell, icon` at
+    `crates/nova_scenario/src/actions/mission.rs:53-73`). Pre-existing, carries
+    no citation, never entered a compile target set here, deliberately not
+    fixed. It is the one known broken target in the tree.
+  - AN UNCOVERED REGION belonging to NO item's scope, ~30 citation lines:
+    `Cargo.toml` (`:20,34,110,117,137,146,165,172-173,184,624,632,640,865,891,
+    1100,1104,1147,1153` - THIRTEEN are `[[example]]` blocks citing the same
+    closed tasks this item just cleaned, and `:1147` names
+    `tasks/20260718-152255/SPIKE.md`), `flake.nix:207,208,227`,
+    `art/README.md:39,46,57,60`, `scripts/gen-section-parts.py:4`,
+    `scripts/gen-sfx-audition.py:28,933,969`,
+    `tools/nova_meta_gen/Cargo.toml:20,25`. Item 09 owned Cargo files under
+    `crates/**`, item 10 `examples/systems/**`, item 11 three fixture roots -
+    the repo root and `tools/**` fall between them. Ruled OUT of item 11
+    because TASK.md names three directories and taking it would be scope
+    expansion; item 12 is the reconciliation item and the right owner.
+  - Left as non-citations: `compare_asteroids.rs:7` ("SUPERSEDED in part
+    (2026-08-17)" - a date naming no task), `screenshot_hud_shell.rs:15,18-19`
+    ("the fix" - names nothing citable, stale-ish prose),
+    `screenshot_section_gallery.rs:190,192` (`Third round`, `this round's` -
+    labels for what the stand shows).
 
 - [ ] **12 - Reconcile cleanup documentation and close the epic.**
   After items 01-11, rerun the compatibility, task-citation, stale-comment, and

@@ -1,6 +1,6 @@
 //! carve_asteroids: shipped weapons against a shipped-size carvable rock.
 //!
-//! THE GATE for phase 4c of the erosion epic (task 20260813-224826). The old
+//! THE GATE for erosion. The old
 //! row used 600-damage synthetic hits against a 12 m rock. It proved the
 //! mesher and hid the player path: a 4-damage PDC round was sub-cell, repeated
 //! rounds in one spot were discarded, and a shipped rock died before a visible

@@ -1,7 +1,6 @@
 //! greeble_catalog: every fixture model the merged styles own, stood in named
 //! rows grouped by style - the catalog a greeble is judged on as an OBJECT
-//! before placement rules ever touch it (task 20260816-203846, spec in
-//! tasks/20260816-194637/GREEBLES.md section 6).
+//! before placement rules ever touch it.
 //!
 //! The roster is RESOLVED, never listed: the example reads the merged
 //! `GameStyles` after load and lays out every `StyleFixtureConfig` it finds,

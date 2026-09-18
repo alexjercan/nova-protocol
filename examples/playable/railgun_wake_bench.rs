@@ -1,13 +1,12 @@
 //! railgun_wake_bench: the lance slug's ionized wake, three speeds side by
 //! side, every knob live.
 //!
-//! The visual bench for `tasks/20260902-143732` (the railgun slug's ionized
-//! wake). The slug is the production slug - the real marker, the real sweep,
-//! and the weapon's own observer dressing it with the dart, the tracer, the
-//! wake and the riding light - and what the bench adds is the range and the
-//! knobs: it writes its sliders into every live [`RailgunWakeEmitter`] and
-//! [`RailgunSlugLight`] each frame, so a hand-run turns the same values the
-//! weapon ships as constants.
+//! The visual bench for the railgun slug's ionized wake. The slug is the
+//! production slug - the real marker, the real sweep, and the weapon's own
+//! observer dressing it with the dart, the tracer, the wake and the riding
+//! light - and what the bench adds is the range and the knobs: it writes its
+//! sliders into every live [`RailgunWakeEmitter`] and [`RailgunSlugLight`] each
+//! frame, so a hand-run turns the same values the weapon ships as constants.
 //!
 //! Three lanes fire the same slug at 2.5, 7.5 and the shipped 15 km/s, so the
 //! one question a constant cannot answer is on screen at once: a wake that

@@ -1,5 +1,5 @@
 //! screenshot_section_gallery: a named grid of SECTION model candidates for
-//! the section remodel (task 20260831-083625) - the torpedo bay, the PDC
+//! the section remodel - the torpedo bay, the PDC
 //! mount, and the hull/controller cores, each row led by what ships TODAY.
 //!
 //! Everything here is VISUAL ONLY - nothing is a section prototype, carries a
@@ -39,10 +39,9 @@
 //! alone, and the wide shot keeps the names but drops the notes, which run
 //! wider than a column at that distance. A hand-run shows every plate.
 //!
-//! The railgun row shows the SETTLED lance design (task 20260824-125947,
-//! picked at diameter 0.60 of the cell), now promoted into the catalog and
-//! read from there like every other keeper. The pick rounds that led here
-//! live in this branch's history.
+//! The railgun row shows the SETTLED lance design (picked at diameter 0.60 of
+//! the cell), now promoted into the catalog and read from there like every
+//! other keeper.
 
 use std::path::{Path, PathBuf};
 
@@ -86,7 +85,7 @@ const DOCK_EXTENSION: f32 = 0.5;
 
 /// Where the generated keeper glbs live, relative to the crate root. The
 /// picked parts promoted out of `art/part-candidates/sections/` into the
-/// asset tree; the dropped candidates stay behind as the task record.
+/// asset tree; the dropped candidates stay behind.
 const PARTS_DIR: &str = "assets/base/gltf";
 
 fn main() -> bevy::app::AppExit {
@@ -188,10 +187,10 @@ struct Row {
 
 /// The gallery, row by row. Every row leads with TODAY so each candidate is
 /// judged against the thing it would replace. Third round: only the keepers -
-/// dropped candidates left the stand (their recipes and glbs stay on disk as
-/// the task record). PICKED promotes as-is; NEW is this round's rework - the
-/// hull and controller cells now repeat the same pattern on every face so
-/// section rotation never shows.
+/// dropped candidates left the stand (their recipes and glbs stay on disk).
+/// PICKED promotes as-is; NEW is this round's rework - the hull and controller
+/// cells now repeat the same pattern on every face so section rotation never
+/// shows.
 fn gallery_rows() -> Vec<Row> {
     vec![
         Row {

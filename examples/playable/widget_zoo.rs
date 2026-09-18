@@ -7,8 +7,8 @@
 //! the segmented selects, the checkboxes/toggles flip, and the slider drags
 //! (its phosphor block-meter tracks the value).
 //!
-//! It doubles as the render eyeball for tasks 20260728-175734/-175738: phosphor
-//! reads as flat CLI elements, hardware as light-3D moulded controls.
+//! It doubles as the render eyeball: phosphor reads as flat CLI elements,
+//! hardware as light-3D moulded controls.
 //!
 //! Interactive run:  `cargo run --example widget_zoo`  (drag the slider, click
 //! the Theme control / checks / toggles; `S` also flips the theme).
@@ -25,11 +25,11 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //!
-//! The zoo carries `GameStates` and reaches `Playing` in `Startup` (task
-//! 20260804-094021, DECISION D3) purely so the shared harness can drive it. It
-//! is NOT a gameplay app: "reached Playing" here means "the widget library is
-//! up", nothing more. The transition is unconditional so an interactive run and
-//! a harnessed one take the identical path.
+//! The zoo carries `GameStates` and reaches `Playing` in `Startup` purely so
+//! the shared harness can drive it. It is NOT a gameplay app: "reached Playing"
+//! here means "the widget library is up", nothing more. The transition is
+//! unconditional so an interactive run and a harnessed one take the identical
+//! path.
 
 use bevy::{
     picking::hover::Hovered,
@@ -58,7 +58,7 @@ struct Cli;
 
 // The `Name`s the harness clicks by. Resolving a target by name rather than by
 // coordinates is what makes a run survive a layout move: only a RENAME breaks a
-// beat (task 20260804-094021).
+// beat.
 const IDLE_BUTTON: &str = "Zoo Idle Button";
 const THEME_HARDWARE: &str = "Zoo Theme Hardware";
 const THEME_PHOSPHOR: &str = "Zoo Theme Phosphor";
@@ -97,8 +97,8 @@ fn main() -> AppExit {
     #[cfg(feature = "debug")]
     app.init_resource::<Capture>();
     // The state machine the shared harness drives, and the one-shot transition
-    // that satisfies it (DECISION D3). Unconditional: the interactive run must
-    // not sit in a `Loading` it never leaves.
+    // that satisfies it. Unconditional: the interactive run must not sit in a
+    // `Loading` it never leaves.
     app.init_state::<GameStates>();
     app.add_systems(Startup, (setup, reach_playing));
     app.add_systems(
@@ -679,9 +679,9 @@ fn shoot(name: &str, commands: &mut Commands) {
 
 //
 // The zoo DRIVES its own widgets with synthesized pointer input and checks the
-// live tree afterwards (task 20260804-094021). Every beat is a real gesture at
-// a real screen position, resolved from the widget's `Name`; nothing reaches a
-// widget by triggering its observer or inserting its state component.
+// live tree afterwards. Every beat is a real gesture at a real screen position,
+// resolved from the widget's `Name`; nothing reaches a widget by triggering its
+// observer or inserting its state component.
 
 /// What a beat measured, so the beat after it can say whether the gesture
 /// actually changed anything. Comparing against a RECORDED value keeps the

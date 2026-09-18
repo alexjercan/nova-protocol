@@ -1,8 +1,8 @@
 //! loop_vfx_range: every combat effect the game draws, fired in one fixed
 //! cycle against a target that survives it.
 //!
-//! The bench for `tasks/20260822-204201` (make particle effects credible in
-//! vacuum) and, since `tasks/20260902-143732`, for the railgun slug's wake.
+//! The bench for making particle effects credible in vacuum, and for the
+//! railgun slug's wake.
 //! Five effects live in four files and are otherwise only ever seen inside a
 //! real fight, where no two runs show the same thing: the turret muzzle
 //! flash, the round impact, the torpedo launch, the detonation, and the slug's

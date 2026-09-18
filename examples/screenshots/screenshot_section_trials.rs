@@ -1,7 +1,7 @@
 //! screenshot_section_trials: the remodelled sections under LIVE fire, with
 //! the walk failing unless every weapon demonstrably works.
 //!
-//! The acceptance range for the section remodel (task 20260831-083625). The
+//! The acceptance range for the section remodel. The
 //! gallery example shows the promoted MODELS; this range is the other half of
 //! the proof: the same prototypes doing their jobs on production paths - the
 //! turret assemblies standing joint by joint over their new art, the twin
@@ -33,7 +33,7 @@
 //! killed). A gun that never fires or a bay that launches into its own roof
 //! fails the walk by deadline.
 //!
-//! The walk opens with the STOW round (task 20260831-083622): managed cold,
+//! The walk opens with the STOW round: managed cold,
 //! both mounts must fold into their housings behind shut lids; weapons hot,
 //! they must rise again - with the trigger HELD and the safety passing the
 //! whole way up, so a single round fired before full deployment fails the
@@ -301,7 +301,7 @@ fn trials_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(and(range_standing(), scenario_camera_present()))
         .deadline(30.0)
         .add()
-        // THE STOW ROUND (task 20260831-083622). Managing the stands and
+        // THE STOW ROUND. Managing the stands and
         // going weapons-cold makes both mounts fold up, sink and shut their
         // lids; weapons-hot brings them back. The trigger is HELD through
         // the whole deploy with the safety passing (hot) and no aim point

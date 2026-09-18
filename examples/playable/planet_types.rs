@@ -1,7 +1,6 @@
-//! planet_types: the planetoid-look lineup for the 2026-08-15 research round
-//! (task 20260815-231945) - six seeded planet TYPES over a row of one type at
-//! four seeds, a focus planet the keys re-draw, and today's planetoid standing
-//! beside them at the same framing for contrast.
+//! planet_types: the planetoid-look lineup - six seeded planet TYPES over a row
+//! of one type at four seeds, a focus planet the keys re-draw, and today's
+//! planetoid standing beside them at the same framing for contrast.
 //!
 //! What the row is FOR: a big body today is an asteroid with a big radius, so
 //! it wears the rock material - one photo tiled hundreds of times across a

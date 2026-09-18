@@ -1,4 +1,4 @@
-// NOVA OS CRT: the SAMPLING shader (task 20260726-193233). Unlike the earlier
+// NOVA OS CRT: the SAMPLING shader. Unlike the earlier
 // overlay film, this material SAMPLES the offscreen image that holds the rendered
 // terminal content, so it can do what an overlay never could: bloom the bright
 // green glyphs into a soft halo and barrel-warp the CONTENT itself. It also
@@ -29,17 +29,17 @@ struct NovaOsCrtMaterial {
     // Power level 0..1 (from DrawerOpenness): 1 = full raster, 0 = collapsed to a
     // dying line/dot. Drives the CRT on/off collapse.
     power: f32,
-    // Extra brightness multiply (>1 blooms hotter). Reserved for task 214617's
-    // BRIGHT knob; 1.0 is neutral.
+    // Extra brightness multiply (>1 blooms hotter), driven by the chin BRIGHT
+    // knob; 1.0 is neutral.
     brightness: f32,
-    // Degauss envelope 0..1 (task 20260727-014148): pulsed to 1 on an app
+    // Degauss envelope 0..1: pulsed to 1 on an app
     // launch/exit/switch and decayed back to 0 by `animate_nova_os_crt`. Drives a
     // brief horizontal wobble + white flash; every term it feeds is multiplied by
     // it, so at 0 the degauss is an exact no-op (readability preserved).
     degauss: f32,
     // Overscan: how far the barrel-warped sample UV is pulled back toward centre
     // so the bowed corners land under the bezel instead of sampling past the
-    // picture (task 20260730-123039). A UNIFORM, not a WGSL constant, because the
+    // picture. A UNIFORM, not a WGSL constant, because the
     // Rust side maps the forwarded mouse pointer through this same chain and a
     // second definition here is exactly how clicks drifted off their targets.
     overscan: f32,
@@ -54,7 +54,7 @@ const SCANLINE_PITCH_PX: f32 = 3.0;
 const SLOT_PITCH_PX: f32 = 3.0;
 const SLOT_STRENGTH: f32 = 0.03;
 
-// Degauss (task 20260727-014148): the coil settling on an app launch/exit is a
+// Degauss: the coil settling on an app launch/exit is a
 // decaying horizontal shear plus a brief white lift. Both scale with the
 // `degauss` envelope (envelope^2) so they vanish to an exact no-op at rest.
 const DEGAUSS_WOBBLE_PX: f32 = 6.0; // peak horizontal shear at full envelope
@@ -188,7 +188,7 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     // Phosphor kick: a brightness overshoot while the raster is mid-collapse.
     let kick = 1.0 + 2.2 * material.power * (1.0 - material.power);
 
-    // Always-on analog micro-effects (task 20260727-014148). The mains-hum bar is
+    // Always-on analog micro-effects. The mains-hum bar is
     // a soft bright band drifting slowly down the tube; the retrace beam is a
     // faster, rarer thin line falling once per period; the mains flicker is a
     // gentle brightness breathing. Hum + retrace lift the green phosphor; the

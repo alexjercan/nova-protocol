@@ -1,7 +1,6 @@
-//! screenshot_thruster_gallery: a named row of thruster LOOKS for the thruster-shell
-//! spike (task 20260816-200255) - the current drive, the proposed shell size
-//! family, and the CC0 candidate models already imported under
-//! `art/part-candidates/`.
+//! screenshot_thruster_gallery: a named row of thruster LOOKS - the current
+//! drive, the proposed shell size family, and the CC0 candidate models already
+//! imported under `art/part-candidates/`.
 //!
 //! Three kinds of subject, VISUAL ONLY - nothing here is a section prototype,
 //! carries a socket or spawns a ship:
@@ -13,12 +12,12 @@
 //! - SHELLS: the proposed size family (1x1x1 up through 5x5x3, plus the flat
 //!   and long variants) mocked from the SAME two primitives, one bell per
 //!   exhaust cell, so the row reads as "the drive, grown" rather than as new
-//!   art. The real parts would be recipe-generated (see THRUSTERS.md in the
-//!   task folder); these mocks exist to judge silhouette and scale only.
+//!   art. The real parts would be recipe-generated; these mocks exist to judge
+//!   silhouette and scale only.
 //! - CANDIDATES: the committed part-candidate `.glb` files, decoded straight
 //!   off disk: the selected recipe-generated shell family and rejected shell
 //!   studies, in the cross-faction mechanical voice,
-//!   `scripts/gen-thruster-shells.py`, task 20260817-013639) and the pack
+//!   `scripts/gen-thruster-shells.py` and the pack
 //!   conversions with an engine or thruster silhouette (Fertile Soil blocks
 //!   pack, Kenney cast cuts, Quaternius cuts - all CC0, provenance in
 //!   `art/README.md`). Not through the asset server: every candidate glb
@@ -401,7 +400,7 @@ fn stand_position(row: usize, rows: usize, column: usize, in_row: usize) -> Vec3
 /// with NO ships - every subject is a display entity this example owns.
 fn gallery_stage(game_assets: &GameAssets) -> ScenarioConfig {
     ScenarioConfig {
-        description: "A named row of thruster looks for the shell spike".to_string(),
+        description: "A named row of thruster looks".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
