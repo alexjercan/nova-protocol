@@ -1,6 +1,6 @@
 # Remove the manual flight speed governor
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.14.0, gameplay, flight, breaking
 
