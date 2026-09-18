@@ -69,14 +69,17 @@ struct Cli;
 const PICKET: &str = "block_picket";
 
 /// The escort fight's target: the unarmed salvage needle fixture.
+#[cfg(feature = "debug")]
 const SKIFF: &str = "fixture_skiff";
 
 /// The capital fight's mover: the capital warship fixture, the only hull in
 /// the set that carries a capital battery.
+#[cfg(feature = "debug")]
 const WARSHIP: &str = "fixture_warship";
 
 /// The capital fight's target: the industrial carrier fixture, the largest
 /// hull in the set.
+#[cfg(feature = "debug")]
 const CARRIER: &str = "fixture_carrier";
 
 /// The escort mover's scenario id.

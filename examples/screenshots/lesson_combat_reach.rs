@@ -111,12 +111,9 @@
 //!   cargo run --example lesson_combat_reach --features debug
 //! ```
 
-#[path = "../shared/dev_fixtures/mod.rs"]
-mod dev_fixtures;
 #[path = "shared/hollow.rs"]
 mod hollow;
-#[path = "shared/kit.rs"]
-mod kit;
+use hollow::{dev_fixtures, kit};
 #[cfg(feature = "debug")]
 #[path = "shared/lesson.rs"]
 mod lesson;
@@ -148,6 +145,7 @@ const BOAT_ID: &str = "reach_boat";
 /// How far a PDC round gets: 1,000 m/s for a 2.0 s lifetime
 /// (`base_content/sections/turret.rs`). Not authored anywhere as a range -
 /// this is the product, and the frame exists to show it as a place.
+#[cfg(feature = "debug")]
 const PDC_REACH: Meters = Meters(2_000.0);
 
 /// Where the hostile stands: square down the lane, 700 m past the end of the

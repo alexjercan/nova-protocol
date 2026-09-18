@@ -120,7 +120,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
-            Content::UiTheme(theme) => ui_themes.push(theme.clone()),
+            Content::UiTheme(theme) => ui_themes.push(theme.as_ref().clone()),
             // A style has no cross-content references of its own - it
             // names asset paths and nothing else - so it is walked for its
             // resource refs (below) and needs no bucket here.
@@ -891,7 +891,7 @@ mod tests {
         let ui_themes = content
             .iter()
             .filter_map(|c| match c {
-                Content::UiTheme(theme) => Some(theme.clone()),
+                Content::UiTheme(theme) => Some(theme.as_ref().clone()),
                 _ => None,
             })
             .collect();

@@ -82,6 +82,7 @@ const PICKET: &str = "block_picket";
 /// engagement. The carrier is staged as the thing an AI ship fights
 /// (`system_ai_combat`) and as an arm to read (`system_hull_scaling`); the
 /// jink belongs to the largest hull that can fly one.
+#[cfg(feature = "debug")]
 const WARSHIP: &str = "fixture_warship";
 
 /// The escort mover's scenario id.

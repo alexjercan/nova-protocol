@@ -226,7 +226,6 @@ fn hull_action(sections: &GameSections, id: &str, name: &str, y: Meters) -> Even
                     style: Some("industrial".to_string()),
                     ..ShipPresentationConfig::base_voice()
                 },
-                ..default()
             }),
             ..default()
         }),

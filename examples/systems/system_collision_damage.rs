@@ -84,12 +84,14 @@ const SAFE_CONTACT_SPEED: MetersPerSecond = MetersPerSecond(5.0);
 
 /// The large reference hull: the largest hull the fixtures build.
 const CARRIER: Side = Side::Hull {
+    #[cfg(feature = "debug")]
     label: "carrier",
     design: dev_fixtures::carrier,
 };
 
 /// The small reference hull: the unarmed needle.
 const SKIFF: Side = Side::Hull {
+    #[cfg(feature = "debug")]
     label: "skiff",
     design: dev_fixtures::skiff,
 };
@@ -101,6 +103,7 @@ enum Side {
     /// health pools under its root.
     Hull {
         /// What the log and the census call this hull.
+        #[cfg(feature = "debug")]
         label: &'static str,
         /// How the hull is built.
         design: fn() -> ShipDesign,

@@ -582,10 +582,10 @@ fn fly_the_approach(
 /// turn rate and the PD loop flies it, so the spin in the footage is the
 /// ship's, it eases in and out the way a real correction does, and it stops
 /// when the hull has actually arrived. The first cut wrote an angular velocity
-/// straight onto the body instead and spent the whole sheet fighting this helm
-/// - the facing error stalled five degrees out with the hull still swinging at
-/// ten degrees a second, because the mouse rig was still pointed where the
-/// walk had left it.
+/// straight onto the body instead and spent the whole sheet fighting this
+/// helm - the facing error stalled five degrees out with the hull still
+/// swinging at ten degrees a second, because the mouse rig was still pointed
+/// where the walk had left it.
 #[cfg(feature = "debug")]
 fn aim_the_helm(world: &mut World) {
     let opposed = world.resource::<Approach>().opposed;

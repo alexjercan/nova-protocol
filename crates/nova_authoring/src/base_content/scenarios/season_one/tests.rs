@@ -417,7 +417,7 @@ fn the_docking_card_and_the_docking_beat_arrive_together() {
     let config = config();
     for (idx, event) in config.events.iter().enumerate() {
         for group in event.action_groups() {
-            let sets_beat = group.iter().any(|action| same(action, &advance(BEAT_DOCK)));
+            let sets_beat = group.iter().any(|action| same(action, advance(BEAT_DOCK)));
             let posts_card = group.iter().any(|action| {
                 matches!(action, EventActionConfig::Objective(objective) if objective.id == OBJ_DOCK)
             });

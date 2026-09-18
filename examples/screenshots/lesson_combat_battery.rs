@@ -106,12 +106,9 @@
 //!   cargo run --example lesson_combat_battery --features debug
 //! ```
 
-#[path = "../shared/dev_fixtures/mod.rs"]
-mod dev_fixtures;
 #[path = "shared/hollow.rs"]
 mod hollow;
-#[path = "shared/kit.rs"]
-mod kit;
+use hollow::{dev_fixtures, kit};
 #[cfg(feature = "debug")]
 #[path = "shared/lesson.rs"]
 mod lesson;

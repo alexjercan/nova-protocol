@@ -204,8 +204,7 @@ pub fn read_glb_posed(path: &Path, pose: &dyn Fn(&str) -> Vec3) -> Vec<GlbPrimit
             node_floats(node, "translation", 3).map_or(Vec3::ZERO, |t| Vec3::new(t[0], t[1], t[2]));
         let rotation = node_floats(node, "rotation", 4)
             .map_or(Quat::IDENTITY, |r| Quat::from_xyzw(r[0], r[1], r[2], r[3]));
-        let translation =
-            translation + rotation * node["name"].as_str().map_or(Vec3::ZERO, |name| pose(name));
+        let translation = translation + rotation * node["name"].as_str().map_or(Vec3::ZERO, pose);
 
         for primitive in doc["meshes"][mesh as usize]["primitives"]
             .as_array()

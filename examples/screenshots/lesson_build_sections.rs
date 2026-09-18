@@ -32,6 +32,7 @@
 //!   cargo run --example lesson_build_sections --features debug
 //! ```
 
+#[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -123,12 +124,6 @@ const POSE_EPSILON: f32 = 1e-2;
 #[cfg(feature = "debug")]
 fn shot_eye_on(look: Meters3, close_in: f32) -> Meters3 {
     look + Meters3((EDITOR_EYE - EDITOR_LOOK).0 * close_in)
-}
-
-/// Where the sections shot stands.
-#[cfg(feature = "debug")]
-fn shot_eye() -> Meters3 {
-    shot_eye_on(SHOT_LOOK, SHOT_CLOSE_IN)
 }
 
 /// Pin the shot pose. The editor camera is a free-fly WASD camera whose

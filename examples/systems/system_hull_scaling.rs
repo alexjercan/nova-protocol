@@ -58,9 +58,11 @@ use nova_protocol::prelude::*;
 struct Cli;
 
 /// What the readings call the small reference hull: the unarmed needle.
+#[cfg(feature = "debug")]
 const SKIFF: &str = "fixture_skiff";
 
 /// What the readings call the large reference hull, the largest one built here.
+#[cfg(feature = "debug")]
 const CARRIER: &str = "fixture_carrier";
 
 /// The skiff's scenario id.

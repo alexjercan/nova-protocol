@@ -31,6 +31,7 @@
 //!   cargo run --example lesson_build_flight_test --features debug
 //! ```
 
+#[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -62,9 +63,9 @@ struct Cli;
 const LESSON: &str = "build_flight_test";
 
 /// What the gestures leave on the frame: a controller, two hulls and a
-/// thruster. The same short ship the sections lesson photographs, deliberately
-/// - a reader meets it in the editor two lessons earlier and then watches it
-/// fly.
+/// thruster. The same short ship the sections lesson photographs,
+/// deliberately - a reader meets it in the editor two lessons earlier and then
+/// watches it fly.
 #[cfg(feature = "debug")]
 const BUILT_SECTIONS: usize = 4;
 

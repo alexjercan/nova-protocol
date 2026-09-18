@@ -267,6 +267,10 @@ pub struct ShipDesignPrototype {
 // it cannot compile here because the enum derives Reflect and bevy_reflect 0.19
 // has no Reflect impl for Box<T>. Spawn-time config data, not per-frame state -
 // the same trade `SectionSource` makes.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "spawn-time config, and bevy_reflect 0.19 cannot box the variant"
+)]
 pub enum ShipDesignSource {
     /// The design, authored inline. The right shape for a one-off - a scripted
     /// battery that is one torpedo tube, an example's two-section test rig.

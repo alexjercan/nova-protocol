@@ -28,6 +28,7 @@
 //!   cargo run --example lesson_start_pause --features debug
 //! ```
 
+#[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;

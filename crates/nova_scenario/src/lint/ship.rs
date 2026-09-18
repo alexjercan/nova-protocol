@@ -296,11 +296,11 @@ fn check_railgun_numbers(
 /// A docking port's capture envelope, and the two shape facts the mechanic
 /// assumes about the section it is authored on.
 ///
-/// The port face is HALF A CELL along local -Z, so a port authored bigger
-/// than one cell measures its gap from a face that is not where its mouth is
-/// - the capture would fire early on one side of the hull and late on the
-/// other. That is a content error, not a tuning choice, which is why it is
-/// graded here rather than clamped at spawn.
+/// The port face is HALF A CELL along local -Z, so a port authored bigger than
+/// one cell measures its gap from a face that is not where its mouth is - the
+/// capture would fire early on one side of the hull and late on the other.
+/// That is a content error, not a tuning choice, which is why it is graded
+/// here rather than clamped at spawn.
 ///
 /// The missing sleeve track is a WARNING: a port with no authored animation
 /// docks correctly and simply never moves, which is exactly what a headless

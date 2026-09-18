@@ -593,8 +593,8 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
         // order: a mod that restyles `base/phosphor` must leave the default
         // where the player expects to find it.
         Content::UiTheme(cfg) => match into.ui_themes.iter_mut().find(|t| t.id == cfg.id) {
-            Some(existing) => *existing = cfg.clone(),
-            None => into.ui_themes.push(cfg.clone()),
+            Some(existing) => *existing = cfg.as_ref().clone(),
+            None => into.ui_themes.push(cfg.as_ref().clone()),
         },
     }
 }

@@ -148,7 +148,7 @@ pub fn lint_lesson(
                 ),
             ));
         }
-        if !(*frames_per_second > 0.0) {
+        if frames_per_second.is_nan() || *frames_per_second <= 0.0 {
             issues.push(LessonIssue::error(
                 id,
                 format!(

@@ -115,7 +115,12 @@ pub enum Content {
     /// declaring a new one. The player's choice is persisted as that id, so an
     /// id is a promise: renaming one drops every player who had it back to
     /// `base/phosphor`.
-    UiTheme(UiThemeConfig),
+    ///
+    /// Boxed for the same reason [`Content::Section`] is: a whole theme is
+    /// ~8 KB of palette, metrics and per-role paint, and an unboxed variant
+    /// would size every `Content` in every content file by it. `Box<T>`
+    /// serializes exactly like `T`, so the RON wire shape is unchanged.
+    UiTheme(Box<UiThemeConfig>),
 }
 
 impl Content {

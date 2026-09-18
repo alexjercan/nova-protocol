@@ -116,6 +116,14 @@ pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
 /// Which kind of scenario object to spawn, carrying that kind's config.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+// Spaceship carries the whole ship config next to Anchor's two fields. Boxing
+// it (clippy's suggestion) cannot compile here because the enum derives Reflect
+// and bevy_reflect 0.19 has no Reflect impl for Box<T> - the same trade
+// `SectionSource` and `ShipDesignSource` make.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "spawn-time config, and bevy_reflect 0.19 cannot box the variant"
+)]
 pub enum ScenarioObjectKind {
     /// An invisible authored point publishing a deterministic gravity well
     /// (camera framing, orbit targets) with no mesh, collider, or BodyRadius.

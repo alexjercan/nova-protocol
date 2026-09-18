@@ -25,9 +25,9 @@
 )]
 
 #[path = "../../shared/dev_fixtures/mod.rs"]
-mod dev_fixtures;
+pub(crate) mod dev_fixtures;
 #[path = "kit.rs"]
-mod kit;
+pub(crate) mod kit;
 
 use std::collections::BTreeMap;
 
@@ -496,7 +496,6 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
 /// both shipped catalog sections, so a swapped id gives the boat the ordnance a
 /// player would actually have fitted, tint and cruise cap and weave together,
 /// with nothing authored example-side that the game does not already ship.
-#[cfg(feature = "debug")]
 fn lance_loaded(mut design: ShipDesign) -> ShipDesign {
     let mut swapped = 0usize;
     for section in &mut design.sections {

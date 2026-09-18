@@ -70,18 +70,9 @@
 //!   cargo run --example lesson_combat_field --features debug
 //! ```
 
-#[path = "../shared/dev_fixtures/mod.rs"]
-mod dev_fixtures;
 #[path = "shared/hollow.rs"]
 mod hollow;
-// The kit is included here as well as inside `shared/hollow.rs`, which that
-// module warns against - two path copies are two distinct modules, so a
-// `kit::NearField` built here is NOT the type hollow's own copy takes. Nothing
-// crosses: every value this file hands to `hollow::` is a prelude type
-// (`ShipDesign`, `EventActionConfig`), and the scatter this copy builds goes
-// straight into the scenario.
-#[path = "shared/kit.rs"]
-mod kit;
+use hollow::{dev_fixtures, kit};
 #[cfg(feature = "debug")]
 #[path = "shared/lesson.rs"]
 mod lesson;
@@ -165,9 +156,11 @@ const DRIFTER_POSITION: Meters3 = Meters3::new(100.0, -85.0, -300.0);
 /// spread over 1.2 km, and it recorded the player's own hull cut off in a
 /// corner, the cover rock filling the middle and three triangles floating in
 /// black a hundred pixels from the ships they belonged to.
+#[cfg(feature = "debug")]
 const ALLEGIANCE_EYE: Meters3 = Meters3::new(430.0, 70.0, -240.0);
 /// What the allegiance still aims at: the middle of the line, so the shooter
 /// and the covered hostile sit at opposite edges of the same frame.
+#[cfg(feature = "debug")]
 const ALLEGIANCE_AIM: Meters3 = Meters3::new(0.0, -5.0, -245.0);
 
 /// Where the cast stands for the markers still, and where it is watched from.

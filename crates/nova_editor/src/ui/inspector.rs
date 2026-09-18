@@ -1153,10 +1153,6 @@ fn spawn_pick_row(
 
 /// A wide choice: the name on its own line and the options under it, across
 /// the panel rather than squeezed into the value column.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the row says what to draw, the field says where it writes"
-)]
 fn spawn_choice_row(
     list: &mut RelatedSpawnerCommands<ChildOf>,
     row: &InspectorRow,

@@ -240,7 +240,7 @@ fn fresh_app(root: &std::path::Path) -> App {
             .click_named(
                 "training journey: open the lesson",
                 &lesson_row(),
-                ui_node_present(&lesson_badge()),
+                ui_node_present(lesson_badge()),
                 BEAT_DEADLINE_SECS,
             )
             .step("training journey: opening a lesson reads it and proves nothing")
@@ -522,7 +522,7 @@ fn relaunch_app(root: &std::path::Path) -> App {
                 BEAT_DEADLINE_SECS,
             )
             .step("training journey: the loaded record reaches the screen")
-            .until(ui_node_present(&lesson_badge()))
+            .until(ui_node_present(lesson_badge()))
             .diagnose(ui_node_diagnosis(lesson_badge()))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
@@ -702,7 +702,7 @@ fn again_app(root: &std::path::Path) -> App {
                 BEAT_DEADLINE_SECS,
             )
             .step("training journey: the handbook still draws the record")
-            .until(ui_node_present(&lesson_badge()))
+            .until(ui_node_present(lesson_badge()))
             .diagnose(ui_node_diagnosis(lesson_badge()))
             .deadline(BEAT_DEADLINE_SECS)
             .add()

@@ -157,7 +157,7 @@ pub fn build_ui_themes() -> Vec<UiThemeConfig> {
 pub fn build_ui_theme_content() -> Vec<Content> {
     build_ui_themes()
         .into_iter()
-        .map(Content::UiTheme)
+        .map(|theme| Content::UiTheme(Box::new(theme)))
         .collect()
 }
 

@@ -191,9 +191,9 @@ impl DockingSightAssets {
 /// The two in-plane directions of a plate: `reference` flattened onto the face
 /// and the axis crossed with it.
 ///
-/// `None` when the reference lies along the axis and leaves nothing to flatten
-/// - the caller tries the other reference rather than drawing a cross with an
-/// arbitrary clocking.
+/// `None` when the reference lies along the axis and leaves nothing to
+/// flatten - the caller tries the other reference rather than drawing a cross
+/// with an arbitrary clocking.
 fn plate_arms(axis: Vec3, reference: Vec3) -> Option<(Vec3, Vec3)> {
     let flattened = (reference - axis * reference.dot(axis)).try_normalize()?;
     Some((flattened, axis.cross(flattened)))

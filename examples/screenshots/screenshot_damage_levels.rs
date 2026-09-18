@@ -583,7 +583,6 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
                 skin: CLAD[level_index],
                 ..ShipPresentationConfig::base_voice()
             },
-            ..default()
         }),
         ..default()
     };

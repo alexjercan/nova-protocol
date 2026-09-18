@@ -59,6 +59,7 @@
 //!   cargo run --example lesson_build_geometry --features debug
 //! ```
 
+#[cfg(feature = "debug")]
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
