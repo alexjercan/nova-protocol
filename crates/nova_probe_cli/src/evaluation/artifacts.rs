@@ -313,8 +313,7 @@ pub enum Input<'a, T> {
     /// nothing to hold it to.
     NotDeclared(Capability),
     /// Wired, but this run did not arm it. Current frame-time runs do not
-    /// produce this state; old manifests and deliberately stripped recorder
-    /// surfaces can.
+    /// produce this state; deliberately stripped recorder surfaces can.
     NotArmed(Capability),
     /// Claimed, armed, and silent. The one state that is a failure.
     ArmedButAbsent(Capability),

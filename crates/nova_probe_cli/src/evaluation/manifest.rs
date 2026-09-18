@@ -11,10 +11,10 @@ use nova_probe::prelude::*;
 
 /// The manifest `probe run` writes (`probe-run.json`): what was executed,
 /// with what outcome, producing which artifacts. The report treats it as
-/// the run's identity - `process_exit` reads it, skip details use its
-/// `armed` flags are one half of the coverage handshake (the other is the
-/// example's own `probe-contract.json`), and `probe report` refuses dirs
-/// without one.
+/// the run's identity, `process_exit` reads its pass records, its `armed`
+/// flags are probe's half of the coverage handshake (the example's half is
+/// its own `probe-contract.json`), and `probe report` refuses dirs without
+/// one.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunManifest {
     /// The example that was run.
@@ -75,8 +75,9 @@ impl RunManifest {
         })
     }
 
-    /// Parse `probe-run.json`. Loud on malformed content - a corrupt
-    /// manifest must not read as "no manifest".
+    /// Parse `probe-run.json`. Every field `to_json` writes is required:
+    /// probe is the only writer, so an incomplete manifest is corruption,
+    /// and a corrupt manifest must not read as "no manifest".
     pub fn from_json(contents: &str) -> Result<Self, String> {
         let v: serde_json::Value =
             serde_json::from_str(contents).map_err(|e| format!("probe-run.json: {e}"))?;
@@ -86,7 +87,22 @@ impl RunManifest {
                 .map(str::to_string)
                 .ok_or_else(|| format!("probe-run.json: missing {k}"))
         };
-        let armed = |k: &str| v["armed"].get(k).and_then(|x| x.as_bool()).unwrap_or(false);
+        let u = |k: &str| -> Result<u64, String> {
+            v.get(k)
+                .and_then(|x| x.as_u64())
+                .ok_or_else(|| format!("probe-run.json: missing {k}"))
+        };
+        let armed = |k: &str| -> Result<bool, String> {
+            v.get("armed")
+                .and_then(|a| a.get(k))
+                .and_then(|x| x.as_bool())
+                .ok_or_else(|| format!("probe-run.json: missing armed.{k}"))
+        };
+        let flag = |p: &serde_json::Value, k: &str| -> Result<bool, String> {
+            p.get(k)
+                .and_then(|x| x.as_bool())
+                .ok_or_else(|| format!("probe-run.json: pass missing {k}"))
+        };
         let passes = v
             .get("passes")
             .and_then(|p| p.as_array())
@@ -99,27 +115,20 @@ impl RunManifest {
                         .and_then(|x| x.as_str())
                         .ok_or("probe-run.json: pass missing name")?
                         .to_string(),
-                    success: p.get("success").and_then(|x| x.as_bool()).unwrap_or(false),
-                    timed_out: p
-                        .get("timed_out")
-                        .and_then(|x| x.as_bool())
-                        .unwrap_or(false),
+                    success: flag(p, "success")?,
+                    timed_out: flag(p, "timed_out")?,
                 })
             })
             .collect::<Result<Vec<_>, String>>()?;
         Ok(Self {
             example: s("example")?,
-            started_unix: v.get("started_unix").and_then(|x| x.as_u64()).unwrap_or(0),
+            started_unix: u("started_unix")?,
             git_sha: s("git_sha")?,
-            full_git_sha: v
-                .get("full_git_sha")
-                .and_then(|x| x.as_str())
-                .unwrap_or_else(|| v.get("git_sha").and_then(|x| x.as_str()).unwrap_or(""))
-                .to_string(),
+            full_git_sha: s("full_git_sha")?,
             host: s("host")?,
-            armed_timeline: armed("timeline"),
-            armed_invariants: armed("invariants"),
-            armed_fps: armed("fps"),
+            armed_timeline: armed("timeline")?,
+            armed_invariants: armed("invariants")?,
+            armed_fps: armed("fps")?,
             passes,
         })
     }
@@ -157,27 +166,46 @@ mod tests {
         assert_eq!(parsed, manifest);
     }
 
+    /// Probe writes every field, so an absent one is corruption and the
+    /// error has to name it. `armed.fps` and `timed_out` are the sharp
+    /// cases: their old defaults matched the fixture's own values, so a
+    /// silently completed manifest was indistinguishable from a real one.
     #[test]
-    fn legacy_armed_fps_manifest_loads() {
-        let json = serde_json::json!({
-            "example": "player_path",
-            "started_unix": 1,
-            "git_sha": "abc123",
-            "host": "devbox",
-            "armed": {
-                "timeline": true,
-                "invariants": true,
-                "fps": false
-            },
-            "passes": [{
-                "name": "clean",
-                "success": true,
-                "timed_out": false
-            }]
-        });
+    fn an_incomplete_manifest_fails_naming_the_missing_field() {
+        let full = || crate::evaluation::fixtures::manifest_ok().to_json();
 
-        let manifest = RunManifest::from_json(&json.to_string()).expect("legacy manifest loads");
-        assert_eq!(manifest.full_git_sha, "abc123");
-        assert!(!manifest.armed_fps);
+        for key in [
+            "example",
+            "started_unix",
+            "git_sha",
+            "full_git_sha",
+            "host",
+            "passes",
+        ] {
+            let mut json = full();
+            json.as_object_mut().unwrap().remove(key);
+            assert_eq!(
+                RunManifest::from_json(&json.to_string()).unwrap_err(),
+                format!("probe-run.json: missing {key}"),
+            );
+        }
+
+        for key in ["timeline", "invariants", "fps"] {
+            let mut json = full();
+            json["armed"].as_object_mut().unwrap().remove(key);
+            assert_eq!(
+                RunManifest::from_json(&json.to_string()).unwrap_err(),
+                format!("probe-run.json: missing armed.{key}"),
+            );
+        }
+
+        for key in ["name", "success", "timed_out"] {
+            let mut json = full();
+            json["passes"][0].as_object_mut().unwrap().remove(key);
+            assert_eq!(
+                RunManifest::from_json(&json.to_string()).unwrap_err(),
+                format!("probe-run.json: pass missing {key}"),
+            );
+        }
     }
 }
