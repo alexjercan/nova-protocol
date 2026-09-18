@@ -5,27 +5,26 @@
 //! [`editor_app`]), enables the example mod so the picker lists more than the
 //! base game's single scenario, clicks Scenarios, then selects every scenario
 //! row in turn - including the ones past the fold, which it reaches with the
-//! wheel the way a player does (task 20260804-190142). The run FAILS if fewer
-//! than two rows were reached, because the split it measures is only testable
-//! ACROSS selections. Every gesture is a REAL one: the pointer is moved to the
-//! widget's own screen position, resolved from its `Name`, and pressed and
-//! released there (task 20260804-094021) - nothing is reached by triggering its
-//! observer. After each selection settles it logs the laid-out width of the two
-//! panes ("Scenarios List" and "Scenario Details Panel") and, at the end, a
-//! verdict line saying whether those widths held constant across selections.
+//! wheel the way a player does. The run FAILS if fewer than two rows were
+//! reached, because the split it measures is only testable ACROSS selections.
+//! Every gesture is a REAL one: the pointer is moved to the widget's own screen
+//! position, resolved from its `Name`, and pressed and released there - nothing
+//! is reached by triggering its observer. After each selection settles it logs
+//! the laid-out width of the two panes ("Scenarios List" and "Scenario Details
+//! Panel") and, at the end, a verdict line saying whether those widths held
+//! constant across selections.
 //!
 //! It then finishes as a player does: it leaves a row that is NOT the one the
-//! picker opened on selected, clicks Play, waits for the atomic load gate
-//! (task 20260909-213559) to release, and asserts the live `CurrentScenario` is
-//! exactly that row. A picker that lays out perfectly and starts the wrong
-//! scenario is still broken, and nothing else in the tree drives that delivery
-//! through real input.
+//! picker opened on selected, clicks Play, waits for the atomic load gate to
+//! release, and asserts the live `CurrentScenario` is exactly that row. A
+//! picker that lays out perfectly and starts the wrong scenario is still
+//! broken, and nothing else in the tree drives that delivery through real
+//! input.
 //!
-//! This range covers the rig for task 20260729-211150: the picker's split must
-//! NOT depend on which scenario is selected (a long description or a thumbnail
-//! must not resize the list). Real fonts, real text measure, real taffy - a
-//! headless unit rig measures every text node as zero-width and cannot see this
-//! at all.
+//! The property this rig exists for: the picker's split must NOT depend on
+//! which scenario is selected (a long description or a thumbnail must not
+//! resize the list). Real fonts, real text measure, real taffy - a headless
+//! unit rig measures every text node as zero-width and cannot see this at all.
 //!
 //! Run (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -61,7 +60,7 @@ struct Cli;
 /// growing, and kept UNDER the harness completion deadline
 /// (`NOVA_AUTOPILOT_DEADLINE`, default 120 s) so the step deadline is what
 /// expires first and the stall is named rather than reported as a generic
-/// deadline (review R2.1/R2.3).
+/// deadline.
 #[cfg(feature = "debug")]
 const SCENARIOS_AUTOPILOT_SECS: f32 = 100.0;
 
@@ -111,7 +110,7 @@ fn main() -> bevy::app::AppExit {
                 // ends where the walk reports done, and a deadline that
                 // expires first means the script STALLED - which is an error
                 // exit naming this step, not an ordinary "cycle complete" over
-                // an unfinished walk (review R2.1).
+                // an unfinished walk.
                 .step("walk the scenarios picker")
                 .each(scenarios_autopilot)
                 .until(nova_protocol::nova_debug::harness::script_reports_done())
@@ -175,9 +174,9 @@ struct ScenariosAutopilot {
 /// Every selection REBUILDS the list, so on the frames right after a rebuild
 /// the list - or the row - has no rect at all. A single-frame look read that as
 /// "below the fold" and skipped the row for good, which is why the measured
-/// count varied run to run (review R2.1). A row is only skipped once it has
-/// failed for this many consecutive attempts, which is also what bounds the
-/// scroll: a row the wheel cannot bring in is dropped instead of chased.
+/// count varied run to run. A row is only skipped once it has failed for this
+/// many consecutive attempts, which is also what bounds the scroll: a row the
+/// wheel cannot bring in is dropped instead of chased.
 #[cfg(feature = "debug")]
 const ROW_SETTLE_FRAMES: u32 = 10;
 
@@ -294,12 +293,12 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32, _frame: u32) {
     // point into a panic, so a walk that outran the window fails loudly as a
     // stall rather than silently as "never reached Playing".
     if playing {
-        // Loading is ATOMIC (task 20260909-213559): `GameStates::Playing` is
-        // entered while the world is still HELD behind the loading panel, and
-        // `CurrentScenario` is only the delivered scenario once the gate lets
-        // go. So the delivery claim waits on the GATE - a condition the loader
-        // owns - and never on a frame count, which would only be a guess at how
-        // long a software renderer takes to warm the scene's art.
+        // Loading is ATOMIC: `GameStates::Playing` is entered while the world
+        // is still HELD behind the loading panel, and `CurrentScenario` is only
+        // the delivered scenario once the gate lets go. So the delivery claim
+        // waits on the GATE - a condition the loader owns - and never on a
+        // frame count, which would only be a guess at how long a software
+        // renderer takes to warm the scene's art.
         match world.get_resource::<ScenarioLoadGate>().copied() {
             Some(ScenarioLoadGate::Failed) => panic!(
                 "the picker's Play never delivered `{}`: the scenario load FAILED, and a                  failed load holds the world for good",
@@ -360,7 +359,7 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32, _frame: u32) {
 
     if !state.opened {
         // Resolved once and clicked at the bound centre: `click_named` would
-        // resolve the same node a second time (review R1.7).
+        // resolve the same node a second time.
         if let Some(centre) = ui_node_centre(world, "Scenarios Button") {
             click_at(centre, MouseButton::Left)(world);
             state.opened = true;
@@ -377,7 +376,7 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32, _frame: u32) {
         // gesture can miss where triggering the observer directly could not (a
         // row scrolled out, occluded, or hit-tested to another node), and a
         // missed click leaves both panes untouched - so the widths would "hold"
-        // across selections that never happened (review R1.1).
+        // across selections that never happened.
         assert_selection_landed(world, &last);
         let list = ui_node_rect(world, "Scenarios List").map(|rect| rect.width());
         let details = ui_node_rect(world, "Scenario Details Panel").map(|rect| rect.width());
@@ -394,7 +393,7 @@ fn scenarios_autopilot(world: &mut World, _elapsed: f32, _frame: u32) {
             // this selection cannot be measured. It is recorded as SKIPPED, not
             // merely warned about: a row in neither `measured` nor `skipped`
             // would make `report()` state a coverage the run never had, which
-            // is the one thing that string exists to prevent (review R3.2).
+            // is the one thing that string exists to prevent.
             // `pending_measure` is cleared with it, so the row is accounted
             // ONCE rather than once per frame until the next click overwrites
             // it.
@@ -689,13 +688,13 @@ fn assert_selection_landed(world: &mut World, name: &str) {
 /// Under `NOVA_AUTOPILOT` this is an in-example ASSERTION, not just a log line:
 /// the probe sweep only grades reach-Playing, a clean exit and the invariant
 /// set, so a rig that merely logged `CHANGED` would let the exact
-/// regression this example exists to catch pass CI green (review R1.3).
+/// regression this example exists to catch pass CI green.
 ///
 /// A thin run fails the same way. The property is a COMPARISON across
 /// selections, so one measurement makes both spreads `max - min` over a single
-/// value - zero - and prints `HELD` having proven nothing (review R2.3). Two is
-/// the floor, and falling under it names the rows that were skipped, since a
-/// skip is the only way to get there.
+/// value - zero - and prints `HELD` having proven nothing. Two is the floor,
+/// and falling under it names the rows that were skipped, since a skip is the
+/// only way to get there.
 #[cfg(feature = "debug")]
 fn report(world: &mut World, state: &ScenariosAutopilot) {
     let harnessed = std::env::var_os("NOVA_AUTOPILOT").is_some();

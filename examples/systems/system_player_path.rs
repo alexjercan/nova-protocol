@@ -83,9 +83,9 @@ fn main() -> bevy::app::AppExit {
             // The ship is spawned by an OnStart handler, and that same
             // handler seeds `target_down` - so waiting for BOTH is also
             // the gate a looped scene reload needs, since the old cycle's
-            // variables outlive the load replacing them (20260720-014142:
-            // ScenarioLoaded fires BEFORE OnStart runs, and the first real
-            // loop crashed in that gap).
+            // variables outlive the load replacing them (ScenarioLoaded
+            // fires BEFORE OnStart runs, and the first real loop crashed
+            // in that gap).
             .step(LOAD_STEP)
             .enter(GameStates::Loading)
             .until(and(
@@ -172,10 +172,9 @@ fn main() -> bevy::app::AppExit {
 
         app.add_plugins(nova_screenshot(
             script
-                // Enrolled in capture looping (task 20260720-000616): when a
-                // frame capture outlives the script, the scene reloads and the
-                // rounds replay, so the capture measures ACTIVITY rather than
-                // an idle tail.
+                // Enrolled in capture looping: when a frame capture outlives
+                // the script, the scene reloads and the rounds replay, so the
+                // capture measures ACTIVITY rather than an idle tail.
                 .loop_from(LOAD_STEP)
                 .on_loop(reload_the_run),
         ));
@@ -213,7 +212,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             // LMB / RightTrigger2). NOT Space/RightTrigger: both also bind
             // FlightBurnInput in the flight rig, so a held fire key would
             // burn the main drive too and coast the ship past the beacon,
-            // out of the radar cone (task 20260718-235837).
+            // out of the radar cone.
             input_mapping: BTreeMap::from([(
                 "guns".to_string(),
                 vec![
@@ -388,9 +387,8 @@ fn release_all_held_keys(world: &mut World) {
 }
 
 /// Restart the cycle on an autopilot loop: release the held inputs, mark the
-/// reload interval and re-trigger the same run (task 20260720-000616). The
-/// step that follows the reload closes the interval once the scenario has
-/// re-seeded itself.
+/// reload interval and re-trigger the same run. The step that follows the
+/// reload closes the interval once the scenario has re-seeded itself.
 ///
 /// Silently does nothing before the loader has inserted the asset resources -
 /// a loop cannot happen that early, but reading them unguarded would panic.
@@ -466,9 +464,9 @@ fn closing_speed(world: &World) -> Option<f32> {
 ///
 /// The stance stays raised through the burst, so the safety cannot interrupt
 /// it. LMB is the shipped fire binding: the fire key must not overlap the
-/// flight rig, or the burst would also burn the ship off its mark
-/// (20260718-235837). One press holds until the release beat - Bevy's input
-/// collection only clears the `just_*` edges.
+/// flight rig, or the burst would also burn the ship off its mark. One press
+/// holds until the release beat - Bevy's input collection only clears the
+/// `just_*` edges.
 #[cfg(feature = "debug")]
 fn open_fire(world: &mut World) {
     let combat = player_lock::<CombatLock>(world, |lock| lock.0)

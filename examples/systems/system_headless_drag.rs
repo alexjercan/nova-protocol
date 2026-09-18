@@ -1,6 +1,6 @@
 //! system_headless_drag: spike 5 for `nova_channel` - drag a slider by wire.
 //!
-//! The ledger row this proves (task 20260820-174148, nova-channel.html):
+//! The `nova_channel` design row this proves:
 //! "Drag a slider, scrub a numeric grip - `Pointer<Drag>` observers on the
 //! widget; the pointer lane fires them". The one slider in the settings UI is
 //! the master volume (`"Volume Slider Track"`, Audio tab); the drive is the
@@ -24,10 +24,10 @@
 //! the live `Scale` on the flight rig - because a wire client that moved the
 //! slider and never reached the rig would look identical at the first two.
 //!
-//! This range also prints the `ui` census the design record proposes for the
-//! snapshot's `ui` block: with the settings modal open, one JSON object that
-//! says which named widgets are on the screen, where, and which of them are
-//! buttons - what a channel client would read before deciding where to click.
+//! This range also prints the `ui` census for the snapshot's `ui` block: with
+//! the settings modal open, one JSON object that says which named widgets are
+//! on the screen, where, and which of them are buttons - what a channel client
+//! would read before deciding where to click.
 //!
 //! The store is INERT under `NOVA_AUTOPILOT`, which is what keeps the STARTING
 //! volume deterministic and stops the drag debounce-saving into the developer's
@@ -411,10 +411,10 @@ fn assert_the_look_drag_landed(world: &mut World) {
     );
 }
 
-/// The `ui` block the design record proposes for the snapshot: what the screen
-/// says right now - which named widgets are laid out and visible, where their
-/// rects are (logical px), which are buttons, plus the mode rungs and the
-/// terminal model. A channel client reads this to know where it can click.
+/// The `ui` block for the snapshot: what the screen says right now - which
+/// named widgets are laid out and visible, where their rects are (logical px),
+/// which are buttons, plus the mode rungs and the terminal model. A channel
+/// client reads this to know where it can click.
 #[cfg(feature = "debug")]
 fn ui_census(world: &mut World) -> serde_json::Value {
     let mut screen = Vec::new();

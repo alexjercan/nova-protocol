@@ -1,7 +1,7 @@
 //! system_headless_crt: spike 6 for `nova_channel` - click a map blip through
 //! the CRT glass, with no GPU anywhere.
 //!
-//! The ledger row this proves (task 20260820-174148, nova-channel.html):
+//! The `nova_channel` design row this proves:
 //! "Click a map blip through the CRT glass - pointer to + press; the shipped
 //! forwarded pointer does the warp math". The open question the row carried
 //! was whether the glass EXISTS headless: `setup_nova_os` falls back to

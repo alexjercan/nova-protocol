@@ -1,12 +1,12 @@
 //! system_ai_evade: what an AI ship does when a gun is held on it, staged on
 //! two hull scales at once.
 //!
-//! Task `20260909-213708` re-derives the jink from the hull that flies it: a
-//! leg is a DISPLACEMENT - it runs until the ship has carried its whole hull
-//! plus 10 m off the line the gun was holding - and the speed and the length
-//! of the leg follow from that and from the drive. The figure it replaced was
-//! a flat 1.2 s leg, which let a capital turn a sixth of the way onto its new
-//! heading and never thrust at all. This range is where the weave is read.
+//! The jink is derived from the hull that flies it: a leg is a DISPLACEMENT -
+//! it runs until the ship has carried its whole hull plus 10 m off the line
+//! the gun was holding - and the speed and the length of the leg follow from
+//! that and from the drive. The figure it replaced was a flat 1.2 s leg, which
+//! let a capital turn a sixth of the way onto its new heading and never thrust
+//! at all. This range is where the weave is read.
 //!
 //! Two weaves run side by side, far enough apart that neither scanner can hear
 //! the other: an escort weave (`block_picket`) and a capital weave (the

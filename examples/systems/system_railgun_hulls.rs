@@ -1,11 +1,11 @@
 //! system_railgun_hulls: one shipped lance, bolted off the axis of a light hull
 //! and of a heavy one, and judged against what each hull actually weighs.
 //!
-//! Task 20260909-213623. `system_railgun_lance` already owns the weapon: the
-//! commit, the charge bolt, the rake, the one-shell magazine, and the SIGN of
-//! the recoil. What it cannot say is whether any of that scales, because it
-//! flies one three-section rig. A recoil figure tuned on that rig is a figure
-//! nobody has ever checked against a capital.
+//! `system_railgun_lance` already owns the weapon: the commit, the charge bolt,
+//! the rake, the one-shell magazine, and the SIGN of the recoil. What it cannot
+//! say is whether any of that scales, because it flies one three-section rig. A
+//! recoil figure tuned on that rig is a figure nobody has ever checked against a
+//! capital.
 //!
 //! So this range fires the SAME shipped `railgun_lance_section`, from the SAME
 //! ship-local station, off two example fixture hulls an order of magnitude

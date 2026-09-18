@@ -1,14 +1,13 @@
 //! system_hud_indicators: the screen-projected HUD indicators, verified live.
 //!
-//! Tasks 20260708-165700/165701/165702: the torpedo-lock reticle, the
-//! locked-target readout, the autopilot destination marker and the turret
-//! lead pips are consumers of the generic screen-indicator widget
-//! (`hud/screen_indicator.rs`). This range checks the whole wiring in the
-//! real app: the camera glue observer tags the chase camera, the aim-assist
-//! lock drives the reticle anchor and fills the readout (distance, closing
-//! speed, health bar), the engaged GOTO drives the destination marker, the
-//! turret's computed intercept point drives its pip, and every indicator
-//! hides again when its anchor dies.
+//! The torpedo-lock reticle, the locked-target readout, the autopilot
+//! destination marker and the turret lead pips are consumers of the generic
+//! screen-indicator widget (`hud/screen_indicator.rs`). This range checks the
+//! whole wiring in the real app: the camera glue observer tags the chase
+//! camera, the aim-assist lock drives the reticle anchor and fills the readout
+//! (distance, closing speed, health bar), the engaged GOTO drives the
+//! destination marker, the turret's computed intercept point drives its pip,
+//! and every indicator hides again when its anchor dies.
 //!
 //! One player ship at the origin facing -Z (with one turret, so exactly one
 //! lead pip exists), one uncontrolled target ship parked dead ahead at
@@ -97,9 +96,9 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<LayoutProbe>();
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
+        // run timeline + engine-bound invariants + frame-time capture, so
+        // `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         // Not the stock nova_autopilot(): the script is its own beat list. The
         // first beat waits for the ship to EXIST rather than for a guessed
@@ -117,12 +116,12 @@ fn main() -> bevy::app::AppExit {
                 .until(player_ship_present())
                 .deadline(30.0)
                 .add()
-                // The deliberate-radar model, live-lock revision (spike
-                // 20260713-110039): NOTHING locks passively, so the next three
-                // beats perform the REAL gesture through the live input
-                // pipeline. Raise first, radar a beat later - the natural human
-                // order; at the hold threshold the radar latches the COMBAT
-                // slot and the lock goes live under the sweep.
+                // The deliberate-radar model, live-lock revision: NOTHING
+                // locks passively, so the next three beats perform the REAL
+                // gesture through the live input pipeline. Raise first, radar a
+                // beat later - the natural human order; at the hold threshold
+                // the radar latches the COMBAT slot and the lock goes live
+                // under the sweep.
                 .step("raise the stance")
                 .on_enter(raise_stance)
                 .until(elapsed(0.3))
@@ -216,11 +215,10 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn custom_plugin(app: &mut App) {
-    // Deterministic acquisition dwell for the scripted run (20260708-165703):
-    // a short, distance-flat 0.2 s so the live gesture commits the lock at a
-    // predictable time (~+1.0 s) that the downstream stages are timed against,
-    // rather than the distance-scaled default. The interactive run keeps the
-    // real feel.
+    // Deterministic acquisition dwell for the scripted run: a short,
+    // distance-flat 0.2 s so the live gesture commits the lock at a predictable
+    // time (~+1.0 s) that the downstream stages are timed against, rather than
+    // the distance-scaled default. The interactive run keeps the real feel.
     #[cfg(feature = "debug")]
     app.insert_resource(TargetingSettings {
         lock_dwell_base: 0.2,
@@ -591,10 +589,9 @@ fn readout_line(world: &mut World, which: TorpedoTargetReadoutLine) -> String {
 /// Parse a readout line like `DST 1.50 km` or `CLS +12.3 m/s` back into BASE SI
 /// (meters, meters per second) so it can be compared against the world.
 ///
-/// The readouts route through `nova_ui::units` since task 20260728-175731, so
-/// they auto-scale to km / km/s: a unit-naive digit scrape reads `1.50 km` as
-/// `1.5` and every distance assertion below it becomes a lie. The suffix is
-/// part of the value - read it.
+/// The readouts route through `nova_ui::units`, so they auto-scale to km /
+/// km/s: a unit-naive digit scrape reads `1.50 km` as `1.5` and every distance
+/// assertion below it becomes a lie. The suffix is part of the value - read it.
 #[cfg(feature = "debug")]
 fn readout_value(line: &str) -> f32 {
     let number: String = line
@@ -658,15 +655,14 @@ fn commit_lock(world: &mut World) {
         "hud range: the live radar did not find the ship dead ahead"
     );
     // The live-lock pin: the combat lock is ALREADY written while CTRL
-    // is still held - releasing only sticks it (strand A1).
+    // is still held - releasing only sticks it.
     assert_eq!(
         world.entity(player).get::<CombatLock>().unwrap().0,
         Some(target),
         "hud range: the lock must be live under the sweep, before release"
     );
-    // Inset-on-lock (spike 20260713-110039 B1): the viewfinder is up
-    // RIGHT NOW, mid-sweep, long before the 1.5 s focus dwell - one RTT
-    // camera and a visible panel.
+    // Inset-on-lock: the viewfinder is up RIGHT NOW, mid-sweep, long before
+    // the 1.5 s focus dwell - one RTT camera and a visible panel.
     let inset_cameras = world
         .query_filtered::<(), With<TargetInsetCameraMarker>>()
         .iter(world)
@@ -753,10 +749,9 @@ fn assert_focus_meter(world: &mut World) {
         markers, 0,
         "hud range: component markers appeared before the dwell completed"
     );
-    // The acquisition dwell ring (20260717-004302) only shows while a
-    // gesture is CHARGING a lock; the lock committed and the gesture
-    // released back at ~+1.1, so the ring must be hidden now, not lingering
-    // over the settled lock.
+    // The acquisition dwell ring only shows while a gesture is CHARGING a
+    // lock; the lock committed and the gesture released back at ~+1.1, so the
+    // ring must be hidden now, not lingering over the settled lock.
     let ring_visibility = *world
         .query_filtered::<&Visibility, With<LockDwellRingMarker>>()
         .iter(world)
@@ -775,12 +770,12 @@ fn assert_focus_meter(world: &mut World) {
     info!("hud range: focus meter OK (fill {fill_percent:.0}%), dwell ring hidden");
 }
 
-/// Acquisition ring, injected check (20260717-004302). The gesture released
-/// two beats ago, so there is no live `RadarState` to catch mid-charge; drive
-/// one directly - a dwell half-charged on the still-on-screen target. The hold
-/// is NOT fired, so `update_radar_search` leaves the injected dwell fields
-/// untouched, and the ring driver + screen-indicator widget project and fill
-/// the real `UiMaterial` ring.
+/// Acquisition ring, injected check. The gesture released two beats ago, so
+/// there is no live `RadarState` to catch mid-charge; drive one directly - a
+/// dwell half-charged on the still-on-screen target. The hold is NOT fired, so
+/// `update_radar_search` leaves the injected dwell fields untouched, and the
+/// ring driver + screen-indicator widget project and fill the real
+/// `UiMaterial` ring.
 #[cfg(feature = "debug")]
 fn inject_dwell(world: &mut World) {
     let player = player_root(world);
@@ -811,8 +806,7 @@ fn inject_dwell(world: &mut World) {
 /// PNG, so the RTT inset can be eyeballed headlessly. Inert unless
 /// `NOVA_CAPTURE` is set, like every other shot in the fleet. Injected MID-RUN
 /// from the settled script: this frame is the one worth having, and a shot
-/// taken before async asset loading has a scene would be black (task
-/// 20260710-104421 verify note).
+/// taken before async asset loading has a scene would be black.
 #[cfg(feature = "debug")]
 fn request_inset_shot(world: &mut World) {
     // `shoot`, not a bare `Screenshot` + `save_to_disk`: the shared idiom is
@@ -970,9 +964,8 @@ fn assert_lock_indicators(world: &mut World) {
         .expect("hud range: the turret has no aim point component"))
     .expect("hud range: the turret never computed an intercept point");
     // The three-tier feed must aim the turret at the LOCKED SHIP's live
-    // structure, not the camera-ray point 1 km out (task 20260709-173700):
-    // dead ahead both project to the screen center, so discriminate in
-    // world space instead.
+    // structure, not the camera-ray point 1 km out: dead ahead both project
+    // to the screen center, so discriminate in world space instead.
     let (target_transform, target_com) = world
         .entity(target)
         .get_components::<(&Transform, Option<&ComputedCenterOfMass>)>()
@@ -1070,7 +1063,7 @@ fn assert_lock_indicators(world: &mut World) {
     info!("hud range: target inset OK (1 camera, panel visible)");
 
     // The weapons safety is OFF while the combat lock exists (lowered
-    // stance - the lock alone keeps the guns hot, task 20260713-082337).
+    // stance - the lock alone keeps the guns hot).
     assert!(
         world.entity(player).get::<WeaponsHot>().unwrap().0,
         "hud range: a combat lock must keep the weapons hot"
@@ -1162,10 +1155,10 @@ fn assert_goto_indicators(world: &mut World) {
     );
     info!("hud range: GOTO destination marker OK (drift {drift:.1} px, '{closing_text}')");
 
-    // Velocity sphere (folded in from the retired 05_directional, task
-    // 20260712-211352): under the same approach burn, the sphere widget
-    // the production HUD mounted on the player must point its orbit
-    // output along the ship's actual velocity.
+    // Velocity sphere (folded in from the retired 05_directional range):
+    // under the same approach burn, the sphere widget the production HUD
+    // mounted on the player must point its orbit output along the ship's
+    // actual velocity.
     let player = player_root(world);
     let ship_velocity = world
         .entity(player)
@@ -1294,11 +1287,10 @@ fn assert_indicators_hid(world: &mut World) {
         "hud range: component markers survived their target's death"
     );
 
-    // The KILL CAM (spike 20260713-154023): the target died while
-    // framed, so the panel and camera HOLD the frozen final shot for
-    // KILL_CAM_SECS - this assert runs ~0.4s after the kill, inside
-    // the linger (expiry-closes is unit-tested; the 6s autopilot
-    // window ends before the linger does).
+    // The KILL CAM: the target died while framed, so the panel and camera
+    // HOLD the frozen final shot for KILL_CAM_SECS - this assert runs ~0.4s
+    // after the kill, inside the linger (expiry-closes is unit-tested; the
+    // 6s autopilot window ends before the linger does).
     let inset_cameras = world
         .query_filtered::<(), With<TargetInsetCameraMarker>>()
         .iter(world)

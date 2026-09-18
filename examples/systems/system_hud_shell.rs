@@ -1,11 +1,11 @@
 //! system_hud_shell: the directional-HUD shells around the live hull, verified
 //! on the smallest and the largest ship in the fleet.
 //!
-//! Task 20260909-212917. The velocity sphere and the gravity sphere used to be
-//! authored at 50 m and 56 m, which is a promise only a small hull keeps: the
-//! industrial carrier is 360 m stem to stern and wore both shells buried inside
-//! itself. They are now derived from the hull's own `HullEnvelopeRadius` about
-//! its live centre of mass, and the flight chips park off the outer one.
+//! The velocity sphere and the gravity sphere used to be authored at 50 m and
+//! 56 m, which is a promise only a small hull keeps: the industrial carrier is
+//! 360 m stem to stern and wore both shells buried inside itself. They are now
+//! derived from the hull's own `HullEnvelopeRadius` about its live centre of
+//! mass, and the flight chips park off the outer one.
 //!
 //! The range runs the same round twice - the carrier fixture as the player
 //! hull, then the skiff - because the whole defect was a number that worked at
@@ -25,13 +25,13 @@
 //! | 5 | `outcome: every camera mode clears the live hull` | in Normal, FreeLook and Turret the camera stands outside the envelope plus its authored clearance |
 //! | 6 | `outcome: the world-anchored chips clear their target` | the allegiance triangle, the objective chip and the beacon chip each sit outside the silhouette they label, past the fixed offset each used to float at |
 //!
-//! Invariants 5 and 6 are task `20260909-213350`, the rest of the same sweep:
-//! a camera rig and a chip offset are promises about how big the thing
-//! underneath looks. The scene carries a consort cutter and a 50 m nav beacon
-//! parked 250 m ahead and off the burn axis, close enough that their
-//! silhouettes are a hundred pixels across - which is the picture a fixed
-//! pixel offset was never a promise about, and far enough to one side that the
-//! GOTO leg flies past rather than through them.
+//! Invariants 5 and 6 are the rest of the same sweep: a camera rig and a chip
+//! offset are promises about how big the thing underneath looks. The scene
+//! carries a consort cutter and a 50 m nav beacon parked 250 m ahead and off
+//! the burn axis, close enough that their silhouettes are a hundred pixels
+//! across - which is the picture a fixed pixel offset was never a promise
+//! about, and far enough to one side that the GOTO leg flies past rather than
+//! through them.
 //!
 //! Controls: none needed; the run drives itself.
 //!
@@ -671,8 +671,8 @@ fn assert_shells_enclose(world: &mut World, hull: &str) {
 /// Asserted on the PLACEMENT, not on the drawn node: a chip whose anchor
 /// projects off the viewport is hidden by the widget's own off-screen rule, and
 /// on the biggest hull in the fleet the outer shell reaches the edge of the
-/// frame under the stock chase rig. Where the chip was PUT is the contract this
-/// task changed.
+/// frame under the stock chase rig. Where the chip was PUT is the contract
+/// this invariant pins.
 #[cfg(feature = "debug")]
 fn assert_chips_clear(world: &mut World, hull: &str) {
     let ship = player_root(world);

@@ -607,8 +607,7 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("scale: the chip hangs the same narrow")
         .on_enter(read_the_chip_held("760x600"))
         .add()
-        // The width this task's own Done-when nominates, and the one the bar
-        // came apart at.
+        // The width the bar came apart at.
         .step("scale: the bar reads narrow")
         .on_enter(read_the_bar("760x600"))
         .add()

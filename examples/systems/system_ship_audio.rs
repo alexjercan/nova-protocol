@@ -1,11 +1,11 @@
 //! system_ship_audio: what the ship's soundtrack ASKS the engine for, read off
 //! the live voices while the run is muted.
 //!
-//! Task 20260909-213623. The audio layer has focused unit coverage for routing,
-//! the rolloff, the pan law, the throttle and the hum curve, and every one of
-//! those tests builds its own two-entity `World`. None of them asks what a real
-//! hull, a real camera and a real magazine produce together. This range asks
-//! exactly that and nothing else.
+//! The audio layer has focused unit coverage for routing, the rolloff, the pan
+//! law, the throttle and the hum curve, and every one of those tests builds its
+//! own two-entity `World`. None of them asks what a real hull, a real camera
+//! and a real magazine produce together. This range asks exactly that and
+//! nothing else.
 //!
 //! The subject is the REQUEST, not the sound. A probe run is
 //! [`HarnessMute`]d, and mute masks the output gain only - it changes no route,

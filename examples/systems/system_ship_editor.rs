@@ -11,9 +11,9 @@
 //! 1. click Sandbox in the main menu, which is also the smoke coverage for the menu itself;
 //! 2. click Add Ship - a BLANK ship, entered - then arm a controller and FOUND it with a click
 //!    on empty space, which lands the first section at the ship's own origin. The founded
-//!    controller also keeps the editor-preview controller fix (task 20260706-212909) honest: a
-//!    live controller on the non-physics preview root used to flood the log every frame, so this
-//!    run staying quiet is the regression check;
+//!    controller also keeps the editor-preview controller fix honest: a live controller on the
+//!    non-physics preview root used to flood the log every frame, so this run staying quiet is
+//!    the regression check;
 //! 3. arm a hull through the parts gallery - the editor's only parts picker;
 //! 4. place TWO sections by clicking the ship through the real picking pipeline (avian's
 //!    physics-picking backend raycasts the pointer to a hit, and the editor's own

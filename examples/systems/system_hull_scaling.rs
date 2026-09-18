@@ -1,13 +1,13 @@
 //! system_hull_scaling: the two reference hulls of the derived-figure sweep,
 //! measured side by side.
 //!
-//! Task `20260909-213708` asserts that every flight, AI, weapon and destruction
-//! figure which is fixed in world units, seconds or counts really depends on
-//! the hull, the target or the round. Each of its items is a BALANCE change as
-//! well as a fix, so each one is measured on the salvage skiff fixture (the
-//! smallest reference hull) and on the industrial carrier fixture (the largest)
-//! before and after. This range is where those measurements are taken, so a
-//! "before" figure in the ledger is a reading rather than a recollection.
+//! Every flight, AI, weapon and destruction figure which is fixed in world
+//! units, seconds or counts really depends on the hull, the target or the
+//! round. Each item of that sweep is a BALANCE change as well as a fix, so
+//! each one is measured on the salvage skiff fixture (the smallest reference
+//! hull) and on the industrial carrier fixture (the largest) before and after.
+//! This range is where those measurements are taken, so a "before" figure in
+//! the ledger is a reading rather than a recollection.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -21,9 +21,8 @@
 //! Claim 6 is the last beat because it ENDS both hulls: the death is read one
 //! frame after the kill, and nothing is measured on either hull afterwards.
 //!
-//! Claim 5 asserts NOTHING. It is the table the ledger quotes, read against the
-//! figures in `tasks/20260909-213118/FEEDBACK.md` and never against a
-//! threshold.
+//! Claim 5 asserts NOTHING. It is the balance table, read against a named
+//! before/after reference and never against a threshold.
 //!
 //! The hulls are parked far apart and given no controller demand and no AI, so
 //! nothing here is a statement about flying: the subject is the geometry every
@@ -93,7 +92,7 @@ const SETTLE_SECS: f32 = 4.0;
 /// The size ratio the sweep's premise needs the two hulls to actually have.
 ///
 /// A DELIVERY GUARD against the catalog, not an authored number: every item in
-/// the task argues that a constant tuned on one of these hulls is wrong on the
+/// the sweep argues that a constant tuned on one of these hulls is wrong on the
 /// other, and that argument is only worth making while the two really are this
 /// far apart. Re-tune the fleet so the carrier is four times the skiff rather
 /// than an order of magnitude over it, and this fails and says so.

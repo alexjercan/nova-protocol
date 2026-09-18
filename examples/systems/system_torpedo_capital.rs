@@ -1,10 +1,10 @@
 //! system_torpedo_capital: one shipped warhead delivered onto the two ends of
 //! the hull scale.
 //!
-//! Task 20260909-213623. `system_torpedo_launch` already owns the launch chain:
-//! clearance, arming, guidance, cruise and detonation against asteroid gates and
-//! one crossing target. None of it asks what the ordnance does when the thing it
-//! is closing on is a SHIP - a compound body whose skin is two thousand separate
+//! `system_torpedo_launch` already owns the launch chain: clearance, arming,
+//! guidance, cruise and detonation against asteroid gates and one crossing
+//! target. None of it asks what the ordnance does when the thing it is closing
+//! on is a SHIP - a compound body whose skin is two thousand separate
 //! colliders - or when it is the smallest ship there is. This range asks only
 //! that, and it asks it as a matched pair fired from one bay.
 //!

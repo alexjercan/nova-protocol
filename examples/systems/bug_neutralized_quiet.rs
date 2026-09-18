@@ -442,10 +442,10 @@ fn torpedoes_in_the_envelope(world: &World) -> Vec<(Entity, f32)> {
 /// frames and false on others while the raider is defending perfectly well.
 /// A step that advanced on the live reading and a hook that re-read it a frame
 /// later disagreed on most runs (the run failed 2/2 on this box, 4/4 on the
-/// box that found it, task 20260816-114054): the step advanced, the trigger
-/// dropped, the hook found nothing and panicked. Both the gate and the report
-/// now read this, which is monotonic: once the range has shown its point
-/// defence working, it has shown it.
+/// box that found it): the step advanced, the trigger dropped, the hook found
+/// nothing and panicked. Both the gate and the report now read this, which is
+/// monotonic: once the range has shown its point defence working, it has shown
+/// it.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct LiveIntercept(Option<(Entity, Entity)>);

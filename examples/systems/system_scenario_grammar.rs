@@ -105,7 +105,7 @@ fn main() -> bevy::app::AppExit {
             // OnStart seeds `round` and `rocks_destroyed`, so waiting for both
             // is also the gate a looped scene reload needs: the old cycle's
             // variables outlive the load replacing them (ScenarioLoaded fires
-            // BEFORE OnStart runs, task 20260720-014142).
+            // BEFORE OnStart runs).
             .step(LOAD_STEP)
             .enter(GameStates::Loading)
             .until(and(
@@ -183,9 +183,9 @@ fn main() -> bevy::app::AppExit {
                 .step("report the whole grammar")
                 .on_enter(report_grammar)
                 .add()
-                // Enrolled in capture looping (task 20260720-000616): when a
-                // frame capture outlives the script, the scene reloads and the
-                // rounds replay, so the capture measures ACTIVITY.
+                // Enrolled in capture looping: when a frame capture outlives
+                // the script, the scene reloads and the rounds replay, so the
+                // capture measures ACTIVITY.
                 .loop_from(LOAD_STEP)
                 .on_loop(reload_the_showcase),
         ));
@@ -501,9 +501,8 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
 }
 
 /// Restart the cycle on an autopilot loop: mark the reload interval and
-/// re-trigger the SAME showcase scenario (task 20260720-000616). The step
-/// after the loop point closes the interval once the fixture has re-seeded
-/// itself.
+/// re-trigger the SAME showcase scenario. The step after the loop point closes
+/// the interval once the fixture has re-seeded itself.
 ///
 /// Silently does nothing before the loader has inserted the asset resources -
 /// a loop cannot happen that early, but reading them unguarded would panic.

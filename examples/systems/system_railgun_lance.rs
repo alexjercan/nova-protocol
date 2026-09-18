@@ -777,8 +777,8 @@ const LINE_HALF: i32 = 1;
 /// what stops the rake is the power budget and never the edge of the target.
 const WALL_HALF: i32 = 2;
 
-/// The rake radius this task refused to assume, kept as a MEASURED comparison
-/// rather than an argument. It is the seed a blast design left behind.
+/// A rake radius kept as a MEASURED comparison rather than an assumed one. It
+/// is the seed a blast design left behind.
 const WIDE_SEED_RADIUS: f32 = 4.0;
 
 /// Where the first stand stands, and how far apart they are, in ENGINE world

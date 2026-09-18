@@ -6,8 +6,7 @@
 //! one command flush, every one of them a wreck piece born kinematic inside the
 //! body it came off, and every carve along the way throws its chips. Those
 //! populations are created on ONE frame and then all become physical together,
-//! which is the frame cost `tasks/20260904-155338` attributed to avian rather
-//! than to nova.
+//! which is the frame cost that belongs to avian rather than to nova.
 //!
 //! EIGHT named claims - six asserted, two recorded:
 //!
@@ -43,9 +42,9 @@
 //! grid it replaced threw 25 in this one frame.
 //!
 //! Claims 7 and 8 assert NOTHING. Milliseconds are a statement about the host:
-//! this range's numbers are read against a named reference in a task's
-//! before/after, never against a threshold. Same reading as `bug_sandbox_soak`
-//! and as the probe's own `fps_within_baseline`. Do not turn them into asserts.
+//! this range's numbers are read against a named before/after reference, never
+//! against a threshold. Same reading as `bug_sandbox_soak` and as the probe's
+//! own `fps_within_baseline`. Do not turn them into asserts.
 //!
 //! # The content here is PINNED
 //!

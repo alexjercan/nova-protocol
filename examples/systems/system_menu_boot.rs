@@ -8,8 +8,8 @@
 //! ONE SUBJECT: the boot flow. The run asserts that clicking New Game tears the
 //! menu down and reaches gameplay state, and NOTHING about what the training
 //! range (`tutorial`) then contains - the range is covered by its own tests,
-//! the story by the `story/` examples. An assertion here that grew into scenario content would
-//! mean this run had drifted (task 20260804-094021).
+//! the story by the `story/` examples. An assertion here that grew into
+//! scenario content would mean this run had drifted.
 //!
 //! No `NOVA_MENU_PATH=editorplay` branch: `examples/ui/editor.rs` owns the
 //! create-a-ship-and-Play sequence end to end, and two runs covering one
@@ -19,13 +19,13 @@
 //! so an UNHANDLED command error (e.g. a plain `insert` on an entity the
 //! menu/scenario teardown already despawned) aborts the smoke run. (Bevy
 //! 0.19's default severity already panics these; the explicit swap pins the
-//! contract against upstream default changes.) Coverage caveat (task 20260713-203709):
+//! contract against upstream default changes.) Coverage caveat:
 //! `remove`/`despawn` bake in the WARN handler at queue time, so their errors
 //! never reach this handler - the smoke suite's stderr grep for "Encountered an
-//! error in command" is what gates that flavor. Together they pin the
-//! investigation of task 20260713-175352 (an "Entity despawned" command error
-//! on this transition in the v0.5.0 web build, not reproduced natively): if the
-//! race exists natively and ever fires, CI catches it.
+//! error in command" is what gates that flavor. Together they pin an "Entity
+//! despawned" command error seen on this transition in the v0.5.0 web build and
+//! never reproduced natively: if the race exists natively and ever fires, CI
+//! catches it.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -63,9 +63,9 @@ fn main() -> bevy::app::AppExit {
                 bevy::ecs::error::panic,
             ));
         }
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
+        // run timeline + engine-bound invariants + frame-time capture, so
+        // `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         app.add_plugins(menu_script());
     }

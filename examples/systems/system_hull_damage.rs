@@ -4,10 +4,11 @@
 //! One player ship of five sections - a spine along +Z (controller, hull1,
 //! hull2, thruster) with hull3 mounted beside hull2 - takes scripted damage.
 //! The side mount is load-bearing, not decoration. This range keeps its focused
-//! leaf-removal and COM checks; `system_section_severing` covers interior destruction
-//! and physical graph splits. This run absorbed the former COM range (task 20260709-140620): the per-section
-//! damage slice and the ship-wide "does avian's centre of mass follow a lost
-//! section?" deep-dive are the same rig, walked in one script.
+//! leaf-removal and COM checks; `system_section_severing` covers interior
+//! destruction and physical graph splits. This run absorbed the former COM
+//! range: the per-section damage slice and the ship-wide "does avian's centre
+//! of mass follow a lost section?" deep-dive are the same rig, walked in one
+//! script.
 //!
 //! EIGHT named invariants across three rounds:
 //!
@@ -129,9 +130,9 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<HullProbe>();
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
+        // run timeline + engine-bound invariants + frame-time capture, so
+        // `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         app.add_plugins(nova_screenshot(hull_script()));
     }
@@ -874,7 +875,7 @@ fn assert_com_follows_sections(world: &mut World, round: &str) {
     );
 
     // The ship must interpolate its Transform between fixed ticks, or it
-    // stair-steps under the smoothed camera (task 20260709-160753).
+    // stair-steps under the smoothed camera.
     let root = player_root(world).expect("hull probe: player root exists at assert time");
     assert!(
         world.entity(root).contains::<TransformInterpolation>(),

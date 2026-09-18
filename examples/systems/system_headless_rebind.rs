@@ -1,6 +1,6 @@
 //! system_headless_rebind: spike 4 for `nova_channel` - rebind a key by wire.
 //!
-//! The ledger row this proves (task 20260820-174148, nova-channel.html):
+//! The `nova_channel` design row this proves:
 //! "Rebind a key from Settings - the capture polls `ButtonInput`, which the
 //! lanes already write". The whole flow is driven with the events a channel
 //! client would send, headless: ESC to pause, click through Settings ->

@@ -8,8 +8,8 @@
 //! 3.16 m/s over damage that was linear in mass, and a carrier pair closing at
 //! 3.2 m/s - a docking approach - traded about 49 hit points per contact over
 //! hundreds of contacts a frame, which shredded both ships while they were
-//! parking. Task `20260909-213708` replaced it with a universal 5 m/s safe
-//! contact speed above which only the EXCESS is spent.
+//! parking. It is now a universal 5 m/s safe contact speed above which only
+//! the EXCESS is spent.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -21,8 +21,8 @@
 //! | 6 | `outcome: a destructive ram leaves a wreck` | a contact hard enough to destroy structure leaves detached wreck bodies in its own lane |
 //! | 7 | `outcome: the contact census is recorded` | RECORD: closing speed, fixed steps spent touching, peak contacts held in one step, and what each side paid, per pair |
 //!
-//! Claim 7 asserts NOTHING. It is the table `tasks/20260909-213118/FEEDBACK.md`
-//! quotes, read against the figures there and never against a threshold.
+//! Claim 7 asserts NOTHING. It is the balance table, read against a named
+//! before/after reference and never against a threshold.
 //!
 //! # A rock does not keep hit points
 //!
@@ -163,7 +163,7 @@ const PAIRS: [RamPair; 6] = [
         right: CARRIER,
         left_id: "dock_carrier_left",
         right_id: "dock_carrier_right",
-        // The task's own case: 0.32 u/s, well inside what a docking clamp
+        // The defect's own case: 0.32 u/s, well inside what a docking clamp
         // takes, and the approach that used to cost both ships their hulls.
         #[cfg(feature = "debug")]
         closing: MetersPerSecond(3.2),

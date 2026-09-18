@@ -7,7 +7,7 @@
 //! shader, the hover mirror, and that the RTT element renders its subtree. What
 //! no test asserted before this range is the whole chain AT ONCE, in a real app:
 //! press Tab, the computer opens, and a pointer landing on the glass reaches a
-//! widget that lives behind an image camera (task 20260804-134347).
+//! widget that lives behind an image camera.
 //!
 //! That chain is the one place the monitor can fail invisibly. Every unit test
 //! along it can pass while the live composite still puts a click somewhere the

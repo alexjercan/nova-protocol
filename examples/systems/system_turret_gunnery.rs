@@ -14,7 +14,6 @@
 //!   cross its sphere of influence downward toward it. The shooter's own
 //!   gravity is stripped so it stays a fixed frame; only the rounds curve, so
 //!   the straight-line lead pip visibly misses low as a round nears the rock.
-//!   Spike: docs/spikes/20260712-112113-bullets-affected-by-gravity.md.
 //! - Aim gizmos: a line down the barrel (green when it is on target, yellow while
 //!   it lags) and a red line + sphere at the point the turret is aiming for. The
 //!   gap between the barrel line and the target line is the tracking lag - the
@@ -112,11 +111,10 @@ fn main() -> bevy::app::AppExit {
 
     // Headless smoke-test harness: inert in a normal run. Under NOVA_AUTOPILOT
     // it holds the fire key and asserts the range's PURPOSE: rounds left the
-    // barrel, a range target actually took hits (task 20260712-211352 -
-    // reach-Playing alone let a turret that never connects pass), and the
-    // barrel converged
-    // on a MOVING target. Scene is built on `GameAssetsStates::Loaded` so the
-    // screenshot's forced Playing does not re-run setup.
+    // barrel, a range target actually took hits (reach-Playing alone let a
+    // turret that never connects pass), and the barrel converged on a MOVING
+    // target. Scene is built on `GameAssetsStates::Loaded` so the screenshot's
+    // forced Playing does not re-run setup.
     #[cfg(feature = "debug")]
     {
         app.init_resource::<RangeOutcome>();
@@ -169,9 +167,9 @@ fn main() -> bevy::app::AppExit {
                 }
             },
         );
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
+        // run timeline + engine-bound invariants + frame-time capture, so
+        // `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         app.add_plugins(nova_screenshot(turret_script()));
     }
@@ -377,11 +375,11 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     objects.push(
         // A gravity planetoid slung below the firing lane so rounds crossing
         // its sphere of influence curve downward toward it - the range is where
-        // you eyeball bullet gravity (docs/spikes/20260712-112113). It is
-        // authored heavy (mass 30 000 -> SOI ~3.5 km, and 33-96 m/s^2 at the
-        // geometric surface), which is why the shooter's own gravity is
-        // stripped below: otherwise the ship, sitting inside that SOI, would
-        // fall out of frame instead of holding still as a reference.
+        // you eyeball bullet gravity. It is authored heavy (mass 30 000 -> SOI
+        // ~3.5 km, and 33-96 m/s^2 at the geometric surface), which is why the
+        // shooter's own gravity is stripped below: otherwise the ship, sitting
+        // inside that SOI, would fall out of frame instead of holding still as
+        // a reference.
         ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "gravity_rock".to_string(),
@@ -758,9 +756,9 @@ fn track_stow_cycle(
 
 /// The inputs the script holds down. A resource re-applied every frame rather
 /// than a one-shot press: `ButtonInput` is a live map the game's own systems
-/// read every frame, and the weapons safety (task 20260713-082337) derives
-/// `WeaponsHot` from the HELD combat input - a press applied once on a step's
-/// entry would be a press, not a hold.
+/// read every frame, and the weapons safety derives `WeaponsHot` from the HELD
+/// combat input - a press applied once on a step's entry would be a press, not
+/// a hold.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct HeldInput {
@@ -1188,7 +1186,7 @@ fn fire_round(script: Script, round: &'static str) -> Script {
         // DENIES a press that arrives while cold, and a held key produces no
         // fresh Start edge once hot. The outcome assertions below caught
         // exactly that - both ranges fired nothing for a while after the
-        // safety landed (task 20260712-211352).
+        // safety landed.
         .step("raise the weapons")
         .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().combat = true)
         .until(weapons_are_hot())
@@ -1358,10 +1356,9 @@ fn gate_travel(world: &World) -> Option<Meters> {
 /// Invariant 2 is "a target took hits", not "a GATE took hits": the well bends
 /// the rounds down, so a barrel converged to 0.5 deg still lands most of them on
 /// the planetoid, and 11s of continuous fire over a full sweep period reaches a
-/// gate only about half the time. What the invariant is for (task
-/// 20260712-211352 - reach-Playing alone let a turret that never connects pass)
-/// is answered either way: rounds are hitting the range rather than flying
-/// through it.
+/// gate only about half the time. What the invariant is for (reach-Playing
+/// alone let a turret that never connects pass) is answered either way: rounds
+/// are hitting the range rather than flying through it.
 #[cfg(feature = "debug")]
 fn assert_fired_and_connected(world: &mut World, round: &str) {
     let outcome = world.resource::<RangeOutcome>();
@@ -1541,11 +1538,11 @@ fn assert_aim_tracks_mover(world: &mut World, round: &str) {
 // --- Live tuning sliders -----------------------------------------------------
 //
 // A small panel of sliders bound to the turret's tuning knobs, so they can be
-// adjusted while watching the aim-error readout (task 20260707-150002). Each
-// slider writes the live `TurretSectionConfigHelper`; the turret section keeps
-// its child rotators/fire-timer in sync (`apply_turret_config_to_children`),
-// and `muzzle_speed` is read live by the aim/shoot systems. Under autopilot
-// there is no pointer to drag the sliders, so they stay inert. The slider widget
+// adjusted while watching the aim-error readout. Each slider writes the live
+// `TurretSectionConfigHelper`; the turret section keeps its child
+// rotators/fire-timer in sync (`apply_turret_config_to_children`), and
+// `muzzle_speed` is read live by the aim/shoot systems. Under autopilot there
+// is no pointer to drag the sliders, so they stay inert. The slider widget
 // itself lives in the sibling `slider` module.
 
 /// One tunable turret knob, and the mapping between its config field and the

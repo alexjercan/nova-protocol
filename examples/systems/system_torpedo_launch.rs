@@ -8,17 +8,16 @@
 //! is the case proportional navigation has to solve by LEADING it and the
 //! proximity fuze must beat to contact; the range measures how far ahead of the
 //! line of sight the torpedo steers and asserts that the warhead detonates.
-//! This is the interactive harness for the torpedo work (arming
-//! `20260707-100003`, target loss `20260707-100004`, PN guidance
-//! `20260525-133021`, blast tuning `20260706-162913`).
+//! This is the interactive harness for the torpedo work: arming, target loss,
+//! PN guidance and blast tuning.
 //!
 //! What it shows:
 //! - Guidance gizmos: each torpedo draws a red line to the point it is steering
 //!   toward, a red sphere at that target point, a sphere on the torpedo that is
 //!   yellow while un-armed and green once armed (so you can see the arming
-//!   delay from `20260707-100003` directly), and a blue TRAIL of the path it
-//!   has flown - the only way to see the terminal weave, a corkscrew being
-//!   invisible in any single frame.
+//!   delay directly), and a blue TRAIL of the path it has flown - the only way
+//!   to see the terminal weave, a corkscrew being invisible in any single
+//!   frame.
 //! - Lifecycle logging: `range: torpedo fired`, `range: torpedo ... armed`, and
 //!   `range: torpedo detonated` trace one shot from launch to blast. The fired
 //!   line also reports the SAFETY DISTANCE the shot launched under - the hull
@@ -115,11 +114,11 @@ fn main() -> bevy::app::AppExit {
 
     // Headless smoke-test harness: inert in a normal run. Under NOVA_AUTOPILOT
     // it walks the two scenes and asserts the range's PURPOSE rather than its
-    // survival (task 20260712-211352 - reach-Playing alone let a silently dud
-    // torpedo pass): a torpedo fired, armed, detonated and damaged a gate, the
-    // scene switch took every transient the first scene left in the air, the
-    // guidance LED a fast crosser, and the whole launch chain repeated in the
-    // second scene. Under NOVA_CAPTURE it captures a PNG. The scene is built on
+    // survival (reach-Playing alone let a silently dud torpedo pass): a torpedo
+    // fired, armed, detonated and damaged a gate, the scene switch took every
+    // transient the first scene left in the air, the guidance LED a fast
+    // crosser, and the whole launch chain repeated in the second scene. Under
+    // NOVA_CAPTURE it captures a PNG. The scene is built on
     // `GameAssetsStates::Loaded` (below) so the screenshot's forced Playing
     // does not re-run setup.
     #[cfg(feature = "debug")]
@@ -173,9 +172,9 @@ fn main() -> bevy::app::AppExit {
             Update,
             (watch_arming_safety, watch_cruise_fraction).after(SpaceshipSectionSystems),
         );
-        // Probe wiring (task 20260719-210443; each plugin is inert without
-        // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
-        // frame-time capture, so `probe run` can measure this example.
+        // Probe wiring (each plugin is inert without its NOVA_PROBE_* env):
+        // run timeline + engine-bound invariants + frame-time capture, so
+        // `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
         app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_plugins(nova_screenshot(torpedo_script()));
@@ -949,9 +948,9 @@ fn log_torpedo_detonated(add: On<Add, NovaBlast>) {
 }
 
 /// Fail the range loudly if a torpedo section and a ship section ever exchange
-/// contact damage - the launch self-damage bug (task 20260709-131502). In this
-/// range every torpedo is fired by the only ship, so any such pair is a
-/// projectile hitting its owner, which the owner collision filter must prevent.
+/// contact damage - the launch self-damage bug. In this range every torpedo is
+/// fired by the only ship, so any such pair is a projectile hitting its owner,
+/// which the owner collision filter must prevent.
 /// Blast damage does not trip this: its source is the standalone blast entity,
 /// not a child of a torpedo or ship root. Under the headless autopilot the
 /// panic fails the smoke run, so the filter wiring (the FILTER_PAIRS flag on
@@ -1000,9 +999,9 @@ fn assert_no_owner_pair_damage(
 
 /// The inputs the script holds down. A resource re-applied every frame rather
 /// than a one-shot press: `ButtonInput` is a live map the game's own systems
-/// read every frame, and the weapons safety (task 20260713-082337) derives
-/// `WeaponsHot` from the HELD combat input - a press applied once on a step's
-/// entry would be a press, not a hold.
+/// read every frame, and the weapons safety derives `WeaponsHot` from the HELD
+/// combat input - a press applied once on a step's entry would be a press, not
+/// a hold.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct HeldInput {
@@ -1493,7 +1492,7 @@ fn fire_round(script: Script, round: &'static str) -> Script {
         // DENIES a press that arrives while cold, and a held key produces no
         // fresh Start edge once hot. The outcome assertions below caught
         // exactly that - both ranges fired nothing for a while after the
-        // safety landed (task 20260712-211352).
+        // safety landed.
         .step("raise the weapons")
         .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().combat = true)
         .until(weapons_are_hot())
@@ -1559,9 +1558,9 @@ fn load_crossing_range(world: &mut World) {
 /// the ONLY thing that can delete them. A torpedo blast that outlives the
 /// teardown is a live damage volume in the next scene, and it applies to
 /// whatever spawns inside it - the reported Retry bug, where the blast that
-/// killed the player destroyed the RELOADED scenario's asteroid (task
-/// 20260816-103226). Checked here because this is the only harness that both
-/// detonates warheads and switches scenes.
+/// killed the player destroyed the RELOADED scenario's asteroid. Checked here
+/// because this is the only harness that both detonates warheads and switches
+/// scenes.
 #[cfg(feature = "debug")]
 fn assert_the_switch_took_the_ordnance(world: &mut World) {
     let at_switch = std::mem::take(&mut world.resource_mut::<TransientsAtSwitch>().0);

@@ -1,13 +1,13 @@
 //! system_hud_scales: the HUD read at the two ends of the hull scale, in two
 //! window shapes.
 //!
-//! Task 20260909-213623. `system_hud_indicators` proves the indicator chain
-//! exists and tracks, and `system_hud_shell` proves the shells enclose both
-//! reference hulls. Neither asks what happens when the thing the HUD is drawn
-//! OVER changes size by three orders of magnitude, or when the window it is
-//! drawn IN changes shape. This range asks only that, and it asks it as a cross
-//! product: the smallest possible hull and the largest fixture one, each read
-//! at a tall 4:3 window and at a wide one.
+//! `system_hud_indicators` proves the indicator chain exists and tracks, and
+//! `system_hud_shell` proves the shells enclose both reference hulls. Neither
+//! asks what happens when the thing the HUD is drawn OVER changes size by three
+//! orders of magnitude, or when the window it is drawn IN changes shape. This
+//! range asks only that, and it asks it as a cross product: the smallest
+//! possible hull and the largest fixture one, each read at a tall 4:3 window
+//! and at a wide one.
 //!
 //! One gunship flies. Two things are locked in turn: a one-section drone - the
 //! minimum a ship can be - and the carrier fixture, 2 081 sections and 194 m of

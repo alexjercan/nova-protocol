@@ -3,9 +3,8 @@
 //! Boots the EXACT app `--norender --scenario tutorial` runs - backendless
 //! wgpu, no winit, no display server - then spawns the one thing that run lacks:
 //! an ordinary `Window` + `PrimaryWindow` ENTITY. Nothing renders it; it is a
-//! size record. The claim under test (task 20260820-174148, nova-channel.html)
-//! is that this record alone brings the whole GUI interaction stack back up
-//! with no GPU behind it:
+//! size record. The claim under test is that this record alone brings the whole
+//! GUI interaction stack back up with no GPU behind it:
 //!
 //!   - cameras resolve `target_info` from `Window::physical_size`, so `bevy_ui`
 //!     lays out against a real viewport instead of collapsing to 0 x 0;

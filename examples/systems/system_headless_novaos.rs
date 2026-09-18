@@ -1,11 +1,11 @@
 //! system_headless_novaos: spike 2 for `nova_channel` - NOVA OS off-screen.
 //!
-//! The design record (task 20260820-174148, nova-channel.html) calls the
-//! render gate on `NovaHudPlugin` / `NovaOsUiPlugin` the one real parity gate:
-//! a headless run registered 15 of the 33 named actions and had no monitor to
-//! type into. This range boots the app with that gate REMOVED (see the spike
-//! note in `nova_core/src/lib.rs`) plus the virtual window, and then does the
-//! thing the gate made impossible:
+//! The `nova_channel` design record calls the render gate on `NovaHudPlugin` /
+//! `NovaOsUiPlugin` the one real parity gate: a headless run registered 15 of
+//! the 33 named actions and had no monitor to type into. This range boots the
+//! app with that gate REMOVED (see the render-gate note in
+//! `nova_core/src/lib.rs`) plus the virtual window, and then does the thing the
+//! gate made impossible:
 //!
 //!   - assert the FULL registry is present headless (`novaos_toggle` resolves,
 //!     and the table holds every group);

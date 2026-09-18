@@ -1,11 +1,11 @@
 //! system_ai_combat: what an AI ship actually does when it fights, staged on
 //! the fleet's two scales at once.
 //!
-//! Task `20260909-213708` re-derives the AI's flight figures - the standoff it
-//! settles at, the speed it circles at, the length of a jink leg - from the
-//! hulls in the fight instead of from a constant tuned on one ship. Each of
-//! those items is a BALANCE change, so each needs a reading of the fight
-//! BEFORE it lands and a reading after. This range is where the fight is read.
+//! The AI's flight figures - the standoff it settles at, the speed it circles
+//! at, the length of a jink leg - are derived from the hulls in the fight
+//! instead of from a constant tuned on one ship. Each of those is a BALANCE
+//! change, so each needs a reading of the fight BEFORE it lands and a reading
+//! after. This range is where the fight is read.
 //!
 //! Two engagements run side by side, far enough apart that neither scanner can
 //! hear the other: an escort fight (the shipped `block_picket` against a
@@ -29,12 +29,12 @@
 //! | 2 | `outcome: an engaged hull holds its standoff instead of closing` | both movers finish the settle circling their target rather than still flying at it |
 //! | 3 | `outcome: the engagement geometry is recorded` | RECORD: per fight, the centre gap, the face gap, both live hull radii, the speed and closing speed, the asked-for and achieved nose angles, and the largest live throttle |
 //!
-//! Claim 3 asserts NOTHING. It is the table `tasks/20260909-213118/FEEDBACK.md`
-//! quotes for the standoff, orbit-speed and jink items, read against the
-//! ledger and never against a threshold. The hull's ACHIEVED nose angle lives
-//! there rather than under claim 1 on purpose: the facing is a request the
-//! hull settles onto at its own turn rate, so on a capital hull it lags an
-//! orbit by tens of degrees and a snapshot of it is a sample of that lag.
+//! Claim 3 asserts NOTHING. It is the balance table for the standoff,
+//! orbit-speed and jink items, read against a named before/after reference
+//! and never against a threshold. The hull's ACHIEVED nose angle lives there
+//! rather than under claim 1 on purpose: the facing is a request the hull
+//! settles onto at its own turn rate, so on a capital hull it lags an orbit by
+//! tens of degrees and a snapshot of it is a sample of that lag.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text

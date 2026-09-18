@@ -604,11 +604,107 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
   `nova_probe/src/capabilities/frametime.rs:470,831` and
   `nova_assets/src/mod_set.rs:198`, both still item 12 carry-forwards.
 
-- [ ] **10 - Remove task citations from system examples.**
+- [x] **10 - Remove task citations from system examples.**
   Scope: `examples/systems/**`. Preserve fixture contracts, assertions, and
   failure conditions without task provenance. Delete comments that only narrate
   implementation history. Verify the citation search is empty for this scope
   and run the example catalog check plus checks for directly changed examples.
+
+  Done. 33 files, 292 insertions / 312 deletions, ALL comments - the
+  non-comment diff is empty, zero lines, verified by the orchestrator with
+  `git diff -U0 | grep -E '^[-+]' | grep -vE '^[-+]\s*(//|/\*|\*)'`. Unlike
+  item 09 this scope had no code citation to approve.
+  93 rows: REWRITE 92, DELETE 1, KEEP 0, CODE 0.
+
+  Item 09's 45 false positives do NOT transfer, and that was checked rather
+  than assumed: `rg 'TaskPool|IoTask|AsyncCompute|ack_task|BalanceAck'
+  examples/systems/` is empty, and every id-shape and "task"-word hit sits on a
+  comment line. So this scope has no legitimate residual and its acceptance
+  condition really is zero. All five searches return 0 after the edit, re-run
+  by the orchestrator post-sync, with `FEEDBACK.md` added to the artifact set.
+
+  81 primary blocks plus 12 supplementary. The supplementary 12 are the find
+  of this item: citations that carry NO id and not the word "task", invisible
+  to every search item 09 used. Eight `(review R1.1/R1.3/R1.7/R2.1/R2.3/R3.2)`
+  tags and one `(strand A1)` name findings inside a closed task's `REVIEW.md`;
+  one `(see the spike note in ...)` names an artifact type; two name "the
+  design record". Ruled IN scope rather than deferred, because deferring would
+  hand item 12 file-level editing in a lane meant for inventory reconciliation,
+  needing a search nobody had written. Each was read before ruling: every tag
+  is clause-final, so removal leaves its sentence whole, and both "design
+  record" attributions carry nothing because the definition follows the colon.
+
+  The single DELETE is `system_turret_gunnery.rs:17`, a pointer to
+  `docs/spikes/...md`. That directory does not exist in this repo - confirmed
+  absent, not inferred - so the line was dead, and the four lines above it
+  already state the behavior in full.
+
+  Substance preserved on purpose, not by accident. The three "Claim N asserts
+  NOTHING" blocks keep AGENTS.md's own rule - never assert timing, compare
+  matched repeat sets to a NAMED reference - and their two named peers
+  (`bug_sandbox_soak`, `fps_within_baseline`); only the `FEEDBACK.md` path
+  died. `bug_neutralized_quiet.rs:444` keeps the 2/2 and 4/4 reproduction
+  counts. `system_collision_damage.rs:166` keeps `0.32 u/s` and the
+  docking-clamp contract. The 7 byte-identical probe-wiring blocks were
+  7 separate judgments and 7 separate edits, not one substitution.
+
+  Safety proof for the catalog, which is the sharpest evidence in this item:
+  `catalog_drift`'s `systems_ranges_assert_their_invariant_roster` reads these
+  files as RAW SOURCE and extracts invariant slugs by scanning for the literal
+  `"outcome: ` WITH a leading double quote, comparing against a 419-entry
+  roster. Comment tables write slugs in backticks, so no comment can reach the
+  roster - established by grep, then held as a constraint on every replacement.
+  Verified after the edits: 0 comment lines contain that sequence.
+
+  Proof: `cargo test -p nova_probe_cli --test catalog_drift` is 2 passed, 0
+  failed with `catalog_matches_disk` and
+  `systems_ranges_assert_their_invariant_roster` both present BY NAME - re-run
+  by the orchestrator AFTER `sprout sync`, which matters because two external
+  commits landed on master mid-item (`bf5278de4`, `4833419a8`) and changed
+  `Cargo.toml`'s example list, added `examples/screenshots/lesson_flight_cancel.rs`
+  and deleted `lesson_flight_limits.rs` - exactly the inputs `catalog_matches_disk`
+  reads. `cargo check --features debug --keep-going` over all 65 systems
+  targets: 0 errors, 0 first-party warnings. `cargo fmt -- --check` clean.
+  Negative control, because a 2.5 s incremental re-check proves nothing:
+  appending a stray `//!` after the items in `system_nova_os.rs` produced
+  `error[E0753]: expected outer doc comment` plus `expected item after doc
+  comment` and failed the target; restored by `cp` from a scratchpad copy,
+  `cmp` byte-identical, no `git checkout` on an uncommitted file.
+
+  Reflow was declared up front and verified independently. Most of this diff
+  IS rewrapping, because nearly every rewrite shortens a line. The orchestrator
+  diffed the whitespace-normalized comment token stream of all 33 files before
+  and after: 116 change sites, tokens -311/+122, every site traceable to an
+  approved row and NO reflow-only site. A rewrap that dropped or reordered a
+  word would have appeared as an untraceable site. The worker's own count and
+  token delta matched exactly.
+
+  Two self-corrections by the worker, both recorded rather than buried: it had
+  miscounted its own gate (82 primary blocks, actually 81 - one two-line pair
+  described in prose was not subtracted), and its first `system_hull_scaling.rs:96`
+  replacement duplicated a line, which it caught by reading the result, repaired,
+  and kept out of the commit. One deviation from the orchestrator's specified
+  text, and the orchestrator was wrong: the approved replacement for
+  `system_headless_drag.rs:414` would have read "- what the named widgets are
+  laid out", which is ungrammatical; `- which` was used and every other word is
+  untouched.
+
+  Retained limits and carry-forwards for item 12:
+  - `examples/screenshots/screenshot_comms.rs:131` FAILS TO COMPILE on master -
+    `error[E0560]: struct NarrativeCueActionConfig has no field named channel`.
+    Pre-existing, not ours: proven by an empty
+    `git diff --stat c1559a999 -- examples/screenshots/ crates/ Cargo.toml` for
+    the failing pair, and reproduced by the orchestrator in the untouched main
+    checkout. It sits in ITEM 11's lane, so item 11 must not mistake it for its
+    own breakage and must not silently absorb fixing it.
+  - `system_headless_novaos.rs:6` still claims the range "boots the app with
+    that gate REMOVED". The gate is gone from production entirely - `nova_core`
+    adds both plugins unconditionally - so the range removes nothing and simply
+    boots. Stale, NOT a citation, predates item 09 (which only rewrote the
+    comment describing the gate). Deliberately not fixed here.
+  - `FEEDBACK.md` was missing from the artifact-filename search vocabulary. It
+    appeared 3 times in this scope and was caught only incidentally by the
+    `tasks/` search. Added to the set for items 11 and 12.
 
 - [ ] **11 - Remove task citations from playable, screenshot, and asset fixtures.**
   Scope: affected files under `examples/playable/**`,

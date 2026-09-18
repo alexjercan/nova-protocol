@@ -1,13 +1,12 @@
 //! system_mission_hud: the mission a scenario AUTHORS, read back off the
 //! pixels it reaches.
 //!
-//! Task 20260909-213623. Every surface a beat writes to has a live widget on
-//! the other side of it, and nothing in the tree checks that the two halves
-//! meet. `system_scenario_grammar` proves the objective STATE transitions -
-//! that `GameObjectives` gains and loses entries - and `objective_feedback`'s
-//! unit tests prove the completion chime. Neither looks at a chip. This range
-//! looks at nothing else: it authors one mission beat and reads the rendered
-//! result.
+//! Every surface a beat writes to has a live widget on the other side of it,
+//! and nothing in the tree checks that the two halves meet.
+//! `system_scenario_grammar` proves the objective STATE transitions - that
+//! `GameObjectives` gains and loses entries - and `objective_feedback`'s unit
+//! tests prove the completion chime. Neither looks at a chip. This range looks
+//! at nothing else: it authors one mission beat and reads the rendered result.
 //!
 //! What one `OnStart` writes, and what this range reads back:
 //!

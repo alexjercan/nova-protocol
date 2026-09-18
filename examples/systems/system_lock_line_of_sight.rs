@@ -1,10 +1,10 @@
 //! system_lock_line_of_sight: a lock is a radio link, and rock stops radio.
 //!
-//! Task 20260905-114723. The radar picker used to see through anything: a
-//! hostile parked behind an asteroid was as lockable as one in open space, and
-//! a held lock rode through a rock that drifted across the line. The rule is
-//! now one ray, cast in `collect_lockable`, so the radar pick, lock validity
-//! and the threat set cannot disagree about what the ship can see.
+//! The radar picker used to see through anything: a hostile parked behind an
+//! asteroid was as lockable as one in open space, and a held lock rode through
+//! a rock that drifted across the line. The rule is now one ray, cast in
+//! `collect_lockable`, so the radar pick, lock validity and the threat set
+//! cannot disagree about what the ship can see.
 //!
 //! One player ship at the origin facing -Z, one uncontrolled target ship
 //! parked dead ahead at 1.5 km, and one rock that starts well off the line and
