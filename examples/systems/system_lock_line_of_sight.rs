@@ -227,8 +227,13 @@ fn keep_the_lock(world: &mut World) {
 #[cfg(feature = "debug")]
 fn sight_loop_script(script: Script) -> Script {
     script
+        .step("raise the weapons on the clear line")
+        .on_enter(raise_the_weapons)
+        .until(the_weapons_are_raised())
+        .deadline(30.0)
+        .add()
         .step("hold the radar on the clear line")
-        .on_enter(open_the_radar)
+        .on_enter(hold_the_radar)
         .until(elapsed(1.0))
         .add()
         .step("open the loop on the held lock")
@@ -486,11 +491,34 @@ fn the_lock_let_go() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predi
     })
 }
 
-/// Raise the stance and hold the radar: the live gesture, which is the only
-/// thing that locks anything in the deliberate-radar model.
+/// Raise the stance, on a beat of its own ahead of the radar hold.
+///
+/// The radar latches its slot at the hold threshold from the `WeaponsRaised`
+/// flag the camera chain derived the frame BEFORE, and a frame that carries
+/// the whole threshold fires the hold one frame after the press. Pressed in
+/// the same beat as the radar, the stance lands in that frame on a host that
+/// clamps its frames, the latch reads it still lowered, and the gesture writes
+/// a travel lock where the beat asserts a combat one (CI run 35378063995).
 #[cfg(feature = "debug")]
-fn open_the_radar(world: &mut World) {
+fn raise_the_weapons(world: &mut World) {
     press_action("combat_stance")(world);
+}
+
+/// The stance has reached the ship: the flag the radar latches its slot from.
+#[cfg(feature = "debug")]
+fn the_weapons_are_raised() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&WeaponsRaised, With<PlayerSpaceshipMarker>>()
+            .and_then(|mut query| query.iter(world).next().map(|raised| raised.0))
+            .unwrap_or(false)
+    })
+}
+
+/// Hold the radar: the live gesture, which is the only thing that locks
+/// anything in the deliberate-radar model.
+#[cfg(feature = "debug")]
+fn hold_the_radar(world: &mut World) {
     press_action("radar_hold")(world);
 }
 
@@ -877,8 +905,13 @@ fn sight_script() -> Script {
         return sight_loop_script(script);
     }
     script
+        .step("raise the weapons on an empty sky")
+        .on_enter(raise_the_weapons)
+        .until(the_weapons_are_raised())
+        .deadline(30.0)
+        .add()
         .step("hold the radar on an empty sky")
-        .on_enter(open_the_radar)
+        .on_enter(hold_the_radar)
         .until(elapsed(1.0))
         .add()
         .step("assert the clear line locks")
@@ -894,8 +927,13 @@ fn sight_script() -> Script {
         .on_enter(assert_the_cover_broke_the_lock)
         .until(elapsed(0.2))
         .add()
+        .step("raise the weapons behind the cover")
+        .on_enter(raise_the_weapons)
+        .until(the_weapons_are_raised())
+        .deadline(30.0)
+        .add()
         .step("hold the radar from behind the cover")
-        .on_enter(open_the_radar)
+        .on_enter(hold_the_radar)
         .until(elapsed(1.0))
         .add()
         .step("assert the cover refuses a new lock")
@@ -906,8 +944,13 @@ fn sight_script() -> Script {
         .on_enter(move_the_cover_off_the_line)
         .until(elapsed(0.5))
         .add()
+        .step("raise the weapons on a cleared sky")
+        .on_enter(raise_the_weapons)
+        .until(the_weapons_are_raised())
+        .deadline(30.0)
+        .add()
         .step("hold the radar on a cleared sky")
-        .on_enter(open_the_radar)
+        .on_enter(hold_the_radar)
         .until(elapsed(1.0))
         .add()
         .step("assert the cleared line locks again")

@@ -242,6 +242,15 @@ const DEFENSE_AIM: Meters3 = Meters3::new(0.0, 2.0, -90.0);
 #[cfg(feature = "debug")]
 const ENGAGED_MOUNTS: usize = 2;
 
+/// Ship seconds the mounts get to swing onto their picks before the still.
+///
+/// Half a second: what thirty frames were on the 60 Hz host the frame was
+/// composed on. Counted in frames, a host that clamps every frame at a quarter
+/// second spends seven and a half seconds of world in the beat, and the whole
+/// salvo is shot down before the still is taken (CI run 35378063995).
+#[cfg(feature = "debug")]
+const MOUNT_SWING_SECS: f32 = 0.5;
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -609,7 +618,7 @@ fn combat_battery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugi
         .deadline(300.0)
         .add()
         .step("let the mounts finish swinging")
-        .until(frames(SETTLE_FRAMES))
+        .until(elapsed(MOUNT_SWING_SECS))
         .add()
         .step("capture the point-defence still")
         .on_enter(|world: &mut World| {

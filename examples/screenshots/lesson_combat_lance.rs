@@ -148,7 +148,7 @@ mod kit;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use lesson::{lesson_profile, LESSON_FPS, LESSON_GRID};
+use lesson::{lesson_profile, LESSON_CELL_SECS, LESSON_FPS, LESSON_GRID};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -367,6 +367,25 @@ const BLOCK_EYE: Meters3 = Meters3::new(WRECK_LANE_X.get() + 125.0, 82.0, 9.0);
 #[cfg(feature = "debug")]
 const BLOCK_AIM: Meters3 = Meters3::new(WRECK_LANE_X.get(), 0.0, -85.0);
 
+/// How far the game clock may advance in one frame of a HARNESSED run of this
+/// set: one cell of the handbook's own sheet.
+///
+/// The bore-sight swing is indexed by FRAME, and between one frame's pose and
+/// the next the gunboat's own flight computer turns the hull back toward the
+/// heading it was commanded, for as much world as the frame carries. The
+/// recorder pins a frame at one cell; a software rasterizer left at Bevy's
+/// quarter-second clamp gives the computer two and a half cells of pull per
+/// frame, and the sight then prices 6 to 9 sections across a swing that reads
+/// 3 to 9 at one cell a frame (CI run 35378063995). Holding the smoke walk's
+/// frame at the cell reads the sight on the clock the sheet is recorded on.
+#[cfg(feature = "debug")]
+fn hold_the_lane_clock(mut time: ResMut<Time<Virtual>>) {
+    let cell = std::time::Duration::from_secs_f32(LESSON_CELL_SECS);
+    if time.max_delta() != cell {
+        time.set_max_delta(cell);
+    }
+}
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -377,6 +396,11 @@ fn main() -> bevy::app::AppExit {
         // no frame-time capture, for the reason `screenshot_railgun` gives -
         // a posed one-shot walk never fills the baseline window.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        // Held every frame, not set once: a scenario load hands `Time<Virtual>`
+        // back at its default.
+        if harness_env_active() {
+            app.add_systems(First, hold_the_lane_clock.before(bevy::time::TimeSystems));
+        }
         app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::new(
             lesson_profile(),
         ));
@@ -1175,7 +1199,8 @@ fn lance_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // The bore sight FIRST, on a whole hull: the railgun frame opens this
         // same gunship, and a sight drawn over a wreck prices what is left of
         // it. The swing and the wait are both counted in FRAMES so the sheet
-        // lands on the armed run and on the smoke walk alike.
+        // lands on the armed run and on the smoke walk alike, and
+        // `hold_the_lane_clock` keeps a smoke frame worth one cell of world.
         .step("swing the bore across the target and record it")
         .on_enter(|world: &mut World| {
             world.resource_mut::<LanceProbe>().sight_rings.clear();
