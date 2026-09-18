@@ -426,7 +426,7 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
   missing-field fallback. The editor needs no change - it has no region-variant
   UI and cannot author a centre-less Ring.
 
-- [ ] **08 - Resolve `RenderMeshTransform` compatibility defaults.**
+- [x] **08 - Resolve `RenderMeshTransform` compatibility defaults.**
   Owner: `crates/nova_ship/src/sections/base_section.rs:277-309`.
   Existing compatibility proof:
   `crates/nova_ship/src/sections/turret_section/config.rs:354-392`.
@@ -435,6 +435,81 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
   transforms as intentional authoring, but delete pre-field compatibility prose
   and tests that protect no shipped format. This item has an explicit decision
   stop if implementation would make any field required.
+
+  Done, as a classification with no behavior change. Two files:
+  `crates/nova_ship/src/sections/base_section.rs`,
+  `crates/nova_ship/src/sections/turret_section/config.rs`. All three
+  `serde(default)`, `unit_scale()`, `is_zero_translation`,
+  `is_identity_rotation`, `is_unit_scale` and the hand-written `impl Default`
+  SURVIVE. Deleted: the `config.rs:334` "must reproduce the old look" comment,
+  the "written before `scale` existed" comment, and the `legacy` binding.
+
+  Classification: (a) current-format partial authoring, for all three fields.
+  The decision stop was NOT triggered, and the reason is structural rather than
+  historical. Each field carries `skip_serializing_if`, so the type's own
+  serializer emits partial blocks; the defaults are what reads them back.
+  Making any field required would stop the type round-tripping its own output,
+  which holds even with zero legacy files in existence.
+
+  Census, run by the worker and reproduced independently by the orchestrator:
+  47 `render_mesh_transform` blocks, 16 in `assets/base/sections/base.content.ron`
+  and 31 in `webmods/the-ledger/ledger_sections.content.ron`. ZERO write all
+  three fields. `rotation` is omitted in 47/47. By shape: 23 position-only and
+  6 scale-only in the Ledger, 12 scale-only and 4 position+scale in base. The
+  18 scale-only blocks make `position`'s default load-bearing too, so the
+  finding is not limited to `rotation`.
+
+  Proof: the two spikes, not the round-trip test. Control A deleted
+  `default = "unit_scale"` and kept `skip_serializing_if`, producing
+  `MissingStructField { field: "scale", outer: Some("RenderMeshTransform") }`
+  at the newly re-pointed `config.rs:376` - rejecting the exact string the
+  serializer had produced three lines earlier. Control B deleted
+  `serde(default)` from `rotation` and ran the content lint walk over real repo
+  content: `repo_content_tree_has_no_lint_errors` FAILED with
+  `parse .../assets/base/sections/base.content.ron: 1196:25: Unexpected missing
+  field named `rotation` in `RenderMeshTransform``. That file is written by
+  `content gen` through the same `Serialize` impl, so one required field turns
+  the project's own generator output into content its own linter refuses. Both
+  spikes were reverted from scratchpad copies and confirmed byte-identical with
+  `cmp`; no `git checkout` was used on an uncommitted file.
+
+  The struct doc now records that constraint in four lines, because a count in
+  a task body does not stop the next reader trying it.
+
+  One find beyond the item's text. The string `"(position: (1.0, 0.0, 0.0))"`
+  bound to `legacy` was never legacy input - it is what the current serializer
+  emits for an unscaled mesh, retyped with spaces. The assertion was real and
+  stays, but the test serialized `unscaled` into `ron` and then ignored it,
+  parsing a frozen literal instead, so serializer and deserializer were never
+  checked against each other for the omitted-scale case. It now round-trips the
+  serializer's own output, which is what control A fails against. Only the name
+  and the comment were false; the fix strengthens the test rather than
+  replacing it.
+
+  Regression checks, reported as regression checks:
+  `cargo test -p nova_ship --features serde --lib sections::turret_section::config`
+  is 3 passed, 0 failed, identical before and after, with both
+  `#[cfg(feature = "serde")]` tests present BY NAME so neither was silently
+  skipped. `content_lint_gate` 3 passed. `cargo fmt -p nova_ship -- --check`
+  clean. All re-run after `sprout sync`. No content regeneration (nothing
+  serialized changed, `git status --porcelain assets` empty), no doc edit
+  (`docs/sections.md:342-346` and `web/src/create/sections.md:207-210` already
+  state current behavior), no changelog entry, no new permanent test.
+
+  Retained deliberately: all three serde defaults and the three skip helpers,
+  as current-format partial authoring.
+
+  Retained limit for item 12, observed not reasoned. `RenderMeshTransform` sets
+  no `deny_unknown_fields`, so partial authoring makes a misspelt field silently
+  absent rather than refused. A throwaway spike (inserted, run, reverted from a
+  scratchpad copy, `cmp` byte-identical) printed
+  `(rotatoin: (0.0, 0.0, 0.0, 1.0))` -> `Ok(... rotation: Quat(0,0,0,1) ...)`
+  and `(position: (9.0, 9.0, 9.0), scal: (2.0, 2.0, 2.0))` ->
+  `Ok(... position: Vec3(9,9,9), scale: Vec3(1,1,1) ...)`. An authored 2x
+  resize silently becomes no resize, and nothing in lint or load says so. This
+  is the real cost of partial authoring here and it is NOT fixed by this item:
+  adding `deny_unknown_fields` is an error-policy decision outside the approved
+  scope, and it is compatible with keeping all three defaults.
 
 - [ ] **09 - Remove task citations from production sources.**
   Scope: production Rust and Cargo files under `crates/**` that cite a completed

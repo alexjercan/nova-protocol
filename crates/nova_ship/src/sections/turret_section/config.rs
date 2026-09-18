@@ -331,7 +331,6 @@ mod tests {
 
     #[test]
     fn render_mesh_transform_type_defaults_and_round_trips() {
-        // Default is identity: an omitted field must reproduce the old look.
         assert_eq!(
             RenderMeshTransform::default().to_transform(),
             Transform::IDENTITY
@@ -364,17 +363,18 @@ mod tests {
         let back: RenderMeshTransform = ron::from_str(&ron).expect("deserialize");
         assert_eq!(back, xf);
 
-        // An unscaled mesh omits the field, and a file written before `scale`
-        // existed still reads as "as modelled" rather than as scaled away.
+        // Position-only authoring, the shape the shipped Ledger sections RON
+        // writes: unit scale and identity rotation are omitted, and the
+        // serializer's own output must read back as "as modelled", not scaled
+        // away.
         let unscaled = RenderMeshTransform {
             position: Vec3::X,
             ..default()
         };
         let ron = ron::ser::to_string(&unscaled).expect("serialize");
         assert!(!ron.contains("scale"), "unit scale must be omitted: {ron}");
-        let legacy: RenderMeshTransform =
-            ron::from_str("(position: (1.0, 0.0, 0.0))").expect("deserialize");
-        assert_eq!(legacy, unscaled);
+        let back: RenderMeshTransform = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back, unscaled);
 
         // Rotation-only authoring: the zero position is not serialized, and a
         // string with only `rotation` still deserializes (position defaults).

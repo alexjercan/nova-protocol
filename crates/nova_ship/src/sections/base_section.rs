@@ -263,9 +263,11 @@ fn unit_scale() -> Vec3 {
 /// section's physics/kinematic transform, so art can be nudged, reoriented or
 /// resized without moving the collider or (for turrets) disturbing the joint
 /// tree. Each field is authored independently and defaults out, so a mesh that
-/// only needs a small rotation writes just `rotation`. Shared by every section
-/// kind (turret joints carry it per-joint; hull/thruster/controller/torpedo
-/// carry it per-section).
+/// only needs a small rotation writes just `rotation`. No field can become
+/// required: each is `skip_serializing_if`-omitted at its identity value, so
+/// `content gen` would write base RON that `content lint` then rejects. Shared
+/// by every section kind (turret joints carry it per-joint;
+/// hull/thruster/controller/torpedo carry it per-section).
 ///
 /// `scale` resizes the ART, and only the art. A whole ASSEMBLY - a turret's
 /// joint tree - is resized by scaling every joint's mesh AND every joint offset
