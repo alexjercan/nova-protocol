@@ -1,10 +1,11 @@
 //! screenshot_comms: the comms stack with one card per channel.
 //!
 //! Ships `news-0130-comms-channels.png`: the HUD over the ship's shoulder in
-//! the Rock hollow with three cards up at once - a Range Control line on
-//! `comms` (transmission blue, with its portrait), an engineering line on
-//! `crew` (phosphor) and a guard-channel catch on `guard` (faint amber, tagged
-//! GUARD). The lines go into the live scenario's story log the way a
+//! the Rock hollow with three cards up at once - a Range Control line in the
+//! comms blue (with its portrait), an engineering line in the crew green, and
+//! what the guard receiver overheard in amber. The accent is the only
+//! presentation fact a cue carries, so the colour is what tells the three
+//! apart. The lines go into the live scenario's story log the way a
 //! `NarrativeCue` action would put them there, so the panel draws them through
 //! its own queue and nothing here paints a card.
 //!
@@ -95,25 +96,25 @@ const COMMS_PANEL_NAME: &str = "CommsPanelHUD";
 #[cfg(feature = "debug")]
 const RANGE_CONTROL_PORTRAIT: &str = "base/portraits/range-control.png";
 
-/// One line on each shipped channel, in the order the stack shows them: the
-/// range's traffic first, the crew answering it, and what the guard receiver
-/// picked up off the ridge underneath.
+/// One line in each of the three shipped accents, in the order the stack shows
+/// them: the range's traffic first, the crew answering it, and what the guard
+/// receiver picked up off the ridge underneath.
 #[cfg(feature = "debug")]
-const HAIL: [(&str, &str, &str, Option<&str>); 3] = [
+const HAIL: [(Color, &str, &str, Option<&str>); 3] = [
     (
-        "comms",
+        nova_ui::theme::semantic::COMMS,
         "Range Control",
         "Cutter, Range Control. You are cleared into the hollow. Keep the guns cold until I call the lane.",
         Some(RANGE_CONTROL_PORTRAIT),
     ),
     (
-        "crew",
+        nova_ui::theme::semantic::CREW,
         "Engineering",
         "Reactor is warm and the drive is yours. Say the word and we burn.",
         None,
     ),
     (
-        "guard",
+        nova_ui::theme::semantic::OVERHEARD,
         "Ridge Two",
         "...two hulls on the shelf, hold until they commit to the lane...",
         None,
@@ -126,9 +127,9 @@ const HAIL: [(&str, &str, &str, Option<&str>); 3] = [
 #[cfg(feature = "debug")]
 fn hail_on_three_channels(world: &mut World) {
     let mut events = world.resource_mut::<NovaEventWorld>();
-    for (channel, speaker, text, icon) in HAIL {
+    for (accent, speaker, text, icon) in HAIL {
         events.push_narrative_cue(NarrativeCueActionConfig {
-            channel: channel.to_string(),
+            accent,
             speaker: speaker.to_string(),
             text: text.to_string(),
             dwell: Some(COMMS_DWELL_MAX_SECS),
