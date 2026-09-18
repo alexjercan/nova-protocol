@@ -449,6 +449,9 @@ does NOT get an entry - and it is the only place they are written down.
   arsenal set taken before this is no longer a matched comparison.
 
 ### Fixes
+- The game starts while another application already owns fullscreen. A window
+  the desktop hands over reports no area for a frame or two, and laying the
+  menu out against it crashed the game on the way up.
 - A ship built in the editor flies with the cockpit's voice: the lock cues,
   the alarms and the RCS hiss. Only its collapse was authored, so a hull you
   drew or rolled flew a silent panel.

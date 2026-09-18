@@ -206,6 +206,12 @@ alone, because that is the pointer the gestures drive; an app may carry others
 (Nova's terminal parks a forwarded one), and a second pointer sitting in the
 opposite state would otherwise ack for the one the beat actually moved.
 
+A headless range that clicks UI must SPAWN A WINDOW, as
+`system_headless_drag` does. `nova_core` holds `UiSystems::Layout` while any UI
+root is aimed at a target with no area - a zero-size target makes taffy hand
+bevy a negative node size, which panics - so an app with no window at all never
+lays its UI out and no `ui_node_present` beat can ever advance.
+
 The aim beat re-hovers EVERY frame rather than holding the coordinate it first
 sent, so a reflow moves it along instead of stranding it; it carries
 `pointer_hover_diagnosis(name)`, which names the occluder that took the pick.

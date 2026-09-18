@@ -313,6 +313,11 @@ impl AppBuilder {
             app.add_plugins(bevy::render::sync_world::SyncWorldPlugin);
         }
 
+        app.configure_sets(
+            PostUpdate,
+            bevy::ui::UiSystems::Layout.run_if(every_ui_root_has_a_drawable_target),
+        );
+
         Self {
             app,
             use_default_plugins: true,
@@ -719,6 +724,50 @@ fn window_plugin(assembly: Assembly) -> WindowPlugin {
     }
 }
 
+/// Hold bevy's UI layout while any UI root is aimed at a target with no area.
+///
+/// taffy sizes a STRETCHED flex child as `line_cross_size - cross margins` and
+/// does not floor that at zero (taffy-0.10.1 `compute/flexbox.rs:1632`), so a
+/// root laid out against a 0 px viewport hands `BorderRadius::resolve` a
+/// negative node size and bevy's `radius.clamp(0., 0.5 * min_length)` panics
+/// (bevy_ui-0.19.0 `ui_node.rs:2749`). The Scenarios list reaches it on the
+/// first frame of every launch: a campaign row is indented by a 24 px left
+/// margin over `width: Auto` (`nova_menu`'s `CAMPAIGN_MEMBER_INDENT_PX`), which
+/// a zero-wide line sizes to `-24`.
+///
+/// A window manager reports a zero-area target for a frame while another
+/// application hands fullscreen over, and again across minimize; a headless app
+/// with no window reports it forever. The margin is not the bug - correct
+/// authoring that taffy refuses to floor - so the degenerate target is what is
+/// kept out.
+///
+/// Positive, not "wide enough": a target narrower than a node's own margins
+/// still goes negative. Native cannot reach that (`MIN_WINDOW_WIDTH` is handed
+/// to the window manager as a resize floor); a canvas embedded in a column
+/// narrower than 24 px can, and would need a pixel floor nothing else in the
+/// game has a number for.
+///
+/// The query is verbatim bevy's own `UiRootNodes` (`ghost_nodes` is off in this
+/// workspace), and `Node` requires `ComputedUiRenderTargetInfo`, so no root is
+/// missed.
+fn every_ui_root_has_a_drawable_target(
+    roots: Query<&bevy::ui::ComputedUiRenderTargetInfo, (With<Node>, Without<ChildOf>)>,
+    mut held: Local<bool>,
+) -> bool {
+    let drawable = roots.iter().all(|target| {
+        let size = target.physical_size();
+        size.x > 0 && size.y > 0
+    });
+    if !drawable && !*held {
+        debug!("UI layout held: a root UI target has no area");
+        *held = true;
+    } else if drawable && *held {
+        debug!("UI layout resumed: every root UI target has area");
+        *held = false;
+    }
+    drawable
+}
+
 /// Environment variable that asks the renderer for GPU timestamp queries, so
 /// `nova_probe`'s frame-cost capability can time each render pass on the
 /// device instead of inferring it from the wall clock.
@@ -1020,7 +1069,146 @@ fn teardown_status_ui(
 
 #[cfg(test)]
 mod tests {
+    use bevy::{
+        asset::AssetPlugin,
+        camera::{ComputedCameraValues, RenderTargetInfo},
+        image::TextureAtlasLayout,
+        text::TextPlugin,
+        ui::{BorderRadius, ComputedNode, UiPlugin},
+    };
+
     use super::*;
+
+    /// The reproduced tree, laid out by bevy's real taffy against a target this
+    /// test owns the size of.
+    ///
+    /// The shape is the Scenarios list's: a Column pane whose campaign row is
+    /// indented by a 24 px LEFT margin over `width: Auto`, carries a radius, and
+    /// has a child of its own - a leaf clamps its own size, a container does
+    /// not. `UiPlugin` runs `ui_focus_system` over the accessibility and picking
+    /// backends, so those plugins have to be present or every frame fails
+    /// parameter validation.
+    fn ui_layout_app(target: UVec2) -> (App, Entity, Entity) {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            AssetPlugin::default(),
+            TransformPlugin,
+            bevy::a11y::AccessibilityPlugin,
+            bevy::input::InputPlugin,
+            bevy::picking::PickingPlugin,
+            bevy::picking::InteractionPlugin,
+            TextPlugin,
+            UiPlugin,
+        ));
+        app.init_asset::<Image>().init_asset::<TextureAtlasLayout>();
+        app.configure_sets(
+            PostUpdate,
+            bevy::ui::UiSystems::Layout.run_if(every_ui_root_has_a_drawable_target),
+        );
+
+        let camera = app
+            .world_mut()
+            .spawn((
+                Camera2d,
+                Camera {
+                    computed: ComputedCameraValues {
+                        target_info: Some(RenderTargetInfo {
+                            physical_size: target,
+                            scale_factor: 1.0,
+                        }),
+                        ..default()
+                    },
+                    ..default()
+                },
+            ))
+            .id();
+
+        let row = app
+            .world_mut()
+            .spawn((
+                Node {
+                    margin: UiRect::left(Val::Px(24.0)),
+                    width: Val::Auto,
+                    padding: UiRect::all(Val::Px(13.0)),
+                    border: UiRect::all(Val::Px(1.0)),
+                    border_radius: BorderRadius::all(Val::Px(6.0)),
+                    ..default()
+                },
+                children![Node::default()],
+            ))
+            .id();
+        app.world_mut()
+            .spawn(Node {
+                flex_direction: FlexDirection::Column,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            })
+            .add_child(row);
+
+        (app, camera, row)
+    }
+
+    /// `propagate_ui_target_cameras` publishes the target through a `Propagate`
+    /// COMMAND, so a camera's new size reaches the roots a frame after it is
+    /// written and the gate answers on the size of the frame before.
+    fn settle(app: &mut App) {
+        for _ in 0..4 {
+            app.update();
+        }
+    }
+
+    fn row_size(app: &App, row: Entity) -> Vec2 {
+        app.world()
+            .entity(row)
+            .get::<ComputedNode>()
+            .unwrap()
+            .size()
+    }
+
+    /// The reported fullscreen-startup crash, as the panic bevy raises rather
+    /// than the window manager state behind it: a window handed over from
+    /// another fullscreen application reports no area for a frame, and a
+    /// windowless headless app reports none ever.
+    ///
+    /// Without the gate this test PANICS inside `ui_layout_system` -
+    /// `min > max, or either was NaN. min = 0.0, max = -12.0` - because taffy
+    /// sizes the stretched row to `0 - 24` and `BorderRadius::resolve` clamps a
+    /// radius against half of that.
+    #[test]
+    fn ui_layout_is_held_while_a_root_target_has_no_area() {
+        let (mut app, _, row) = ui_layout_app(UVec2::ZERO);
+        settle(&mut app);
+        assert_eq!(
+            row_size(&app, row),
+            Vec2::ZERO,
+            "a held layout leaves the untouched `ComputedNode::default`"
+        );
+    }
+
+    /// The other half: the hold is not a one-way latch. The player who took
+    /// fullscreen back, or restored a minimized window, gets their UI without
+    /// restarting the game.
+    #[test]
+    fn ui_layout_resumes_once_the_target_has_area() {
+        let (mut app, camera, row) = ui_layout_app(UVec2::ZERO);
+        settle(&mut app);
+
+        let mut camera_mut = app.world_mut().entity_mut(camera);
+        let mut values = camera_mut.get_mut::<Camera>().unwrap();
+        values.computed.target_info = Some(RenderTargetInfo {
+            physical_size: UVec2::new(1280, 720),
+            scale_factor: 1.0,
+        });
+        settle(&mut app);
+
+        assert_eq!(
+            row_size(&app, row),
+            Vec2::new(1280.0 - 24.0, 28.0),
+            "the row is the pane inset by its indent, and as tall as its own frame"
+        );
+    }
 
     /// The status bar's version item names the revision a debug build came
     /// from, which only happens if this crate's `debug` feature reaches
