@@ -122,16 +122,16 @@ pub struct BundleManifest {
 /// `id` is what `register_bundles` keys enable/disable on and the merge-overlay
 /// namespace. `bundle` is the mod's `*.bundle.ron` manifest path, RELATIVE to the
 /// asset root (the catalog lives at the root). `base` marks the base game's own
-/// entry - enabled by default and (in the UI) locked on. `enabled_by_default`
-/// marks a shipped mod a fresh install switches on and the player may switch
-/// off again; no shipped mod sets it today.
+/// entry - enabled by default and (in the UI) locked on. It is the only entry a
+/// fresh install enables; every other mod starts off and is the player's toggle.
 ///
 /// Every installed entry gets a player-facing row: there is no way to install
 /// content the player cannot see or switch off. Dev-only content belongs in its
 /// owning example or test fixture, not in the shipped catalog.
 ///
 /// STRICT: an unknown key is a load error rather than a key quietly dropped, so
-/// a catalog still declaring the removed `hidden` flag is refused by name.
+/// a catalog still declaring a removed flag - `hidden`, `enabled_by_default` -
+/// is refused by name.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModEntry {
@@ -142,14 +142,6 @@ pub struct ModEntry {
     /// True for the base game's entry: enabled by default, locked on in the UI.
     #[serde(default)]
     pub base: bool,
-    /// True for a shipped mod that a FRESH install enables - one with no saved
-    /// enabled-mods set yet. Unlike `base` it is a plain toggle afterwards:
-    /// the player's choice persists, and a later boot never re-enables it.
-    /// The story campaign shipped this way until the campaign was retired; no
-    /// entry in `assets/mods.catalog.ron` sets it now, and the semantics are
-    /// pinned by nova_assets' synthetic-catalog tests.
-    #[serde(default)]
-    pub enabled_by_default: bool,
 }
 
 /// The on-disk `mods.catalog.ron`: every INSTALLED mod, in load order (base first).
@@ -292,55 +284,51 @@ mod tests {
     }
 
     /// A `mods.catalog.ron` body decodes into a [`CatalogManifest`] carrying the
-    /// installed mods' thin declarations in order, with `base` and
-    /// `enabled_by_default` defaulting to false when omitted. (The actual load
-    /// of each bundle into an `InstalledCatalog` is exercised by the
-    /// `nova_assets` integration test on the real asset server.)
+    /// installed mods' thin declarations in order, with `base` defaulting to
+    /// false when omitted. (The actual load of each bundle into an
+    /// `InstalledCatalog` is exercised by the `nova_assets` integration test on
+    /// the real asset server.)
     #[test]
     fn catalog_manifest_ron_decodes() {
         let ron = r#"(mods: [
             (id: "base", bundle: "base/base.bundle.ron", base: true),
             (id: "demo", bundle: "mods/demo/demo.bundle.ron"),
-            (id: "shipped", bundle: "mods/shipped/shipped.bundle.ron", enabled_by_default: true),
         ])"#;
         let manifest: CatalogManifest =
             ron::de::from_bytes(ron.as_bytes()).expect("catalog should decode");
-        assert_eq!(manifest.mods.len(), 3);
+        assert_eq!(manifest.mods.len(), 2);
         assert_eq!(manifest.mods[0].id, "base");
         assert!(manifest.mods[0].base, "base flag decodes");
-        assert!(
-            !manifest.mods[0].enabled_by_default,
-            "enabled_by_default defaults to false"
-        );
         assert_eq!(manifest.mods[1].id, "demo");
         assert!(
             !manifest.mods[1].base,
             "base defaults to false when omitted"
         );
         assert_eq!(manifest.mods[1].bundle, "mods/demo/demo.bundle.ron");
-        assert!(
-            manifest.mods[2].enabled_by_default,
-            "enabled_by_default decodes"
-        );
-        assert!(!manifest.mods[2].base);
     }
 
-    /// The catalog `hidden` flag is GONE, and its removal is a format break
-    /// rather than a silently ignored key: every installed mod now has a
-    /// player-facing row, so a catalog still declaring an invisible one is
-    /// refused by name instead of installing content nobody can disable.
+    /// A removed catalog flag is a format BREAK, not a silently ignored key.
+    /// `hidden` went when every installed mod got a player-facing row, and
+    /// `enabled_by_default` went when base became the only thing a fresh
+    /// install enables. A catalog still declaring either is refused BY NAME, so
+    /// the mod author is told which key to delete rather than watching the flag
+    /// do nothing.
     #[test]
-    fn a_catalog_still_declaring_hidden_refuses_to_decode() {
-        let ron = r#"(mods: [
-            (id: "reel", bundle: "mods/reel/reel.bundle.ron", hidden: true),
-        ])"#;
-        let err = ron::de::from_bytes::<CatalogManifest>(ron.as_bytes())
-            .expect_err("a catalog declaring the removed `hidden` field must not decode");
-        let message = err.to_string();
-        assert!(
-            message.contains("hidden"),
-            "the refusal names the removed field: {message}"
-        );
+    fn a_catalog_declaring_a_removed_flag_refuses_to_decode() {
+        for field in ["hidden", "enabled_by_default"] {
+            let ron = format!(
+                r#"(mods: [
+                (id: "reel", bundle: "mods/reel/reel.bundle.ron", {field}: true),
+            ])"#
+            );
+            let err = ron::de::from_bytes::<CatalogManifest>(ron.as_bytes())
+                .expect_err("a catalog declaring a removed field must not decode");
+            let message = err.to_string();
+            assert!(
+                message.contains(field),
+                "the refusal names the removed field `{field}`: {message}"
+            );
+        }
     }
 
     /// The portal wire schema round-trips through JSON byte-identically enough

@@ -167,7 +167,6 @@ fn app_with_extra_catalog_entry() -> App {
                 id: "extra-fixture".to_string(),
                 bundle: "mods/example/example.bundle.ron".to_string(),
                 base: false,
-                enabled_by_default: false,
             },
             bundle: None,
         });
@@ -361,7 +360,6 @@ fn mod_info_falls_back_to_id_when_meta_is_missing() {
         id: "bare-mod".to_string(),
         bundle: "mods/bare/bare.bundle.ron".to_string(),
         base: false,
-        enabled_by_default: false,
     };
     let info = ModInfo::new(&decl, None);
     assert_eq!(info.meta.name, "bare-mod", "missing meta -> name = id");
@@ -398,14 +396,14 @@ fn seed_from(preset: &[&str]) -> std::collections::HashSet<String> {
     app.world().resource::<EnabledMods>().0.clone()
 }
 
-/// `seed_enabled_mods` unions the catalog's `base:true` ids in: from empty it yields
-/// the fresh-install default (base plus every `enabled_by_default` mod), and it
+/// `seed_enabled_mods` unions the catalog's `base:true` ids in: from empty it
+/// yields the fresh-install set, which is base and nothing else, and it
 /// preserves a restored non-base choice while still forcing base on (base is
 /// locked in the UI).
 #[test]
 fn seed_enabled_mods_unions_base_over_any_restored_set() {
-    // No restored prefs -> the fresh-install default. No shipped mod is on by
-    // default today, so that is base alone.
+    // No restored prefs -> the fresh install. Base is the only entry the
+    // catalog can switch on by itself, so that is base alone.
     let from_empty = seed_from(&[]);
     assert!(from_empty.contains("base"), "base is enabled by default");
     assert!(!from_empty.contains("example"), "example is off by default");
@@ -720,7 +718,6 @@ fn new_game_declaration_is_honored_only_from_base() {
                     id: "base".to_string(),
                     bundle: "base/base.bundle.ron".to_string(),
                     base: true,
-                    enabled_by_default: false,
                 },
                 bundle: Some(base_bundle),
             },
@@ -729,7 +726,6 @@ fn new_game_declaration_is_honored_only_from_base() {
                     id: "sneaky".to_string(),
                     bundle: "mods/sneaky/sneaky.bundle.ron".to_string(),
                     base: false,
-                    enabled_by_default: false,
                 },
                 bundle: Some(mod_bundle),
             },
@@ -830,7 +826,6 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
                 id: "base".to_string(),
                 bundle: "base/base.bundle.ron".to_string(),
                 base: true,
-                enabled_by_default: false,
             },
             bundle: Some(bundle),
         }],

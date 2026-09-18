@@ -2042,7 +2042,6 @@ mod tests {
                     id: "base".to_string(),
                     bundle: "base/base.bundle.ron".to_string(),
                     base: true,
-                    enabled_by_default: false,
                 },
                 bundle: Some(bundle),
             }],

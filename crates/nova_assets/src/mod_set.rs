@@ -251,24 +251,21 @@ pub fn build_mod_catalog(
             id: m.record.id.clone(),
             bundle: m.record.bundle.clone(),
             base: false,
-            enabled_by_default: false,
         };
         mod_catalog.0.push(ModInfo::new(&decl, meta));
     }
 }
 
-/// Reconcile [`EnabledMods`] with the catalog: union `base: true` ids in and
-/// seed `enabled_by_default` ids on a fresh install.
+/// Reconcile [`EnabledMods`] with the catalog: union the `base: true` ids in.
 ///
 /// The UNION keeps base enabled regardless of what `load_enabled_mods`
 /// restored - base is locked on in the UI, so it must always be active - while
-/// preserving any persisted or toggled non-base choices. The SEED runs only
-/// when nothing was restored: a saved set always carries base, so an EMPTY set
-/// here is a first boot, and that is the one moment a default-enabled mod is
-/// switched on. From then on it is the player's toggle, and a set saved
-/// without it stays without it. Nothing is stripped: every installed id has a
-/// menu row, so a persisted enablement is always one the player can undo. Runs
-/// at `OnEnter(Processing)`, after `load_enabled_mods` and before the merge.
+/// preserving any persisted or toggled non-base choices. A FRESH install
+/// (nothing restored, so an empty set here) therefore starts on base and
+/// nothing else; every other mod is the player's own toggle from its menu row.
+/// Nothing is stripped: every installed id has a menu row, so a persisted
+/// enablement is always one the player can undo. Runs at
+/// `OnEnter(Processing)`, after `load_enabled_mods` and before the merge.
 /// Idempotent.
 pub fn seed_enabled_mods(
     game_assets: Res<GameAssets>,
@@ -279,12 +276,10 @@ pub fn seed_enabled_mods(
         error!("seed_enabled_mods: the mods catalog was not loaded; nothing enabled by default");
         return;
     };
-    let fresh_install = enabled.0.is_empty();
     for entry in &catalog.entries {
-        // Two reasons, one action. Base is unioned in on EVERY boot because it
-        // is locked on; a default-enabled mod is switched on once, on the
-        // first boot, and is the player's toggle from then on.
-        if entry.decl.base || (entry.decl.enabled_by_default && fresh_install) {
+        // Unioned in on EVERY boot, not seeded once: base is locked on in the
+        // UI, so a restored set that lost it has to get it back.
+        if entry.decl.base {
             enabled.0.insert(entry.decl.id.clone());
         }
     }

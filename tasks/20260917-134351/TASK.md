@@ -298,13 +298,75 @@ blocked item stays unchecked. Record the blocker below it and stop the queue.
   carry stale `(schema v3)` and `(schema v2)` labels on the writer side. Not
   false claims about behavior, and outside this item's file list.
 
-- [ ] **06 - Delete unused `enabled_by_default` mod machinery.**
+- [x] **06 - Delete unused `enabled_by_default` mod machinery.**
   Owner: `crates/nova_mod_format/src/lib.rs:125-152`.
   Runtime consumer: `crates/nova_assets/src/mod_set.rs:261-288`.
   Update all constructors, fixtures, generated or authored content, modding
   docs, and the v0.14.0 changelog. A fresh install enables only the base mod;
   the removed catalog key must fail as unknown. Verify the fresh-install mod
   set and content lint.
+
+  Done. 11 files: `crates/nova_mod_format/src/lib.rs`,
+  `crates/nova_assets/src/{mod_set.rs,safe_mode.rs}`, `nova_assets` tests
+  `{example_scenario.rs,mod_binary_resources.rs}`, three `nova_editor` test
+  fixtures, `assets/mods.catalog.ron`, `web/src/create/mod-files.md`, and
+  `CHANGELOG.md`. Deleted the `enabled_by_default` field, its doc, and the
+  `fresh_install` disjunct in `seed_enabled_mods`, which now only unions
+  `base: true` ids. `seed_enabled_mods` keeps its name: the every-boot base
+  union is deliberate runtime behavior, and renaming it is a public-API change
+  this item did not ask for. Unknown-key rejection comes from the
+  `#[serde(deny_unknown_fields)]` already on `ModEntry`; nothing was added.
+
+  No content regeneration: `assets/mods.catalog.ron` is authored, not
+  generated, and no `.content.ron` can carry the key. No saved player state is
+  affected - `mod_prefs` persists a `Vec<String>` of ids, so no `ModEntry`
+  reaches player storage and existing saves still load. The mod menu is
+  unchanged; `ModInfo` never carried the flag. Ordering unchanged.
+
+  Proof: `nova_mod_format --lib` 12 passed, `nova_assets --lib` 80 passed,
+  `--test example_scenario` 14 passed, `--test mod_binary_resources` 7 passed,
+  all 0 failed and re-run after `sprout sync`. `content lint` is
+  `0 error(s), 0 warning(s), 0 finding(s), 14 scenario(s) balance-audited`.
+  Verbatim rejection, captured from a run rather than inferred:
+  `2:67-2:85: Unexpected field named `enabled_by_default` in `ModEntry`,
+  expected one of `id`, `bundle`, or `base` instead`, arriving through the
+  asset loader prefixed `failed to parse modding RON: `.
+
+  The consumer census needed two compiler rounds, not one: 13 of the 15
+  construction sites sit downstream of the `nova_assets` lib, which breaks
+  first and stops those targets compiling. Re-adding the field and checking
+  twice produced 2 then 13 sites, totalling the expected 15 - one production
+  (the downloaded-mod row) and 14 test fixtures.
+
+  Two things worth stating plainly. First, the fresh-install test
+  (`seed_enabled_mods_unions_base_over_any_restored_set`) passes IDENTICALLY
+  before and after, because no shipped entry ever set the flag; it pins the
+  required outcome but is not the load-bearing proof. The load-bearing proof is
+  `a_catalog_declaring_a_removed_flag_refuses_to_decode` plus its negative
+  control, which restores the field and prints the decoded entry the deletion
+  forbids. Second, content lint does not read `mods.catalog.ron` at all
+  (`lint_walk` walks `assets/base` and `assets/mods/<id>` bundles), so "fail at
+  lint, then load" collapses to LOAD-ONLY for this key. No lint layer was added
+  to close that gap.
+
+  Honest description of what was removed: the field had zero test coverage and
+  no shipped user, but a disposable spike restoring the field and the branch
+  with a synthetic `enabled_by_default: true` entry returned
+  `fresh install -> {"shipped-on", "base"}` and `returning player -> {"base"}`.
+  It was a real, working feature that nothing exercised - not inert code.
+
+  Changelog: one **(breaking)** entry in `[Unreleased]` under
+  `Modding & Mod Portal`, beside the `hidden` entry that removed the sibling
+  flag. The flag shipped in 0.13.0 and the last release is 0.13.2, so this
+  breaks a released format. `CHANGELOG.md:713` and `web/src/news/0.13.0.md`
+  were left untouched as release archives, following the `hidden` precedent in
+  `2deeb583d`.
+
+  For item 12: `mod_set.rs:198` claims `build_mod_catalog` runs at
+  `OnEnter(Processing)` before `seed_enabled_mods`, but `plugin.rs:184`
+  registers it in `Update`. `docs/keeping-docs-in-sync.md:78` routes
+  `nova_mod_format` to a `docs/modding.md` that does not exist. Both
+  pre-existing, neither invalidated by this item.
 
 - [ ] **07 - Require an explicit scatter-ring center.**
   Owner: `crates/nova_scenario/src/actions/spawn.rs:214-222`.

@@ -1747,7 +1747,6 @@ fn installed_bundle(app: &mut App, id: &str, resources: &[&str]) {
                 id: id.to_string(),
                 bundle: format!("mods/{id}/{id}.bundle.ron"),
                 base: true,
-                enabled_by_default: false,
             },
             bundle: Some(bundle),
         }],

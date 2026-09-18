@@ -210,6 +210,9 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** An installed mod's catalog `hidden` flag is gone. Every
   installed mod has a row in the Mods screen the player can switch off, and a
   catalog still declaring `hidden` is refused.
+- **(breaking)** An installed mod's catalog `enabled_by_default` flag is gone.
+  A fresh install enables the base game and nothing else, and a catalog still
+  declaring the flag is refused.
 - The editor offers the content the game will actually load. A sideloaded mod
   reusing a shipped bundle id had its files listed in every asset picker while
   the loader ignored them, so the reference never resolved in play.

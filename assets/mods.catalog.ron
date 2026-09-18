@@ -2,11 +2,11 @@
 // first, so mods overlay it). This is the wasm-safe index the loader loads -
 // never a directory scan. A THIN pointer list: each entry is id (enable key +
 // overlay namespace), bundle (the mod's `*.bundle.ron`, asset-root-relative),
-// base (true = the base game: enabled by default, locked on in the UI),
-// enabled_by_default (true = switched on by a fresh install with no saved
-// enabled set, and freely toggled from then on). EVERY entry here gets a
-// player-facing row in the Mods screen: dev-only content belongs in its owning
-// example or test fixture, never installed where nobody can see or disable it.
+// base (true = the base game: enabled by default, locked on in the UI, and the
+// only entry a fresh install switches on - every other mod starts off and is
+// the player's own toggle). EVERY entry here gets a player-facing row in the
+// Mods screen: dev-only content belongs in its owning example or test fixture,
+// never installed where nobody can see or disable it.
 // The mod's METADATA (name, description, author, version...) lives in its own
 // bundle's `meta` block; which entries are ENABLED is a runtime concern
 // (EnabledMods, persisted separately).

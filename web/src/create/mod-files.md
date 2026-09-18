@@ -88,11 +88,13 @@ metadata stays in its own bundle's `meta` block.
 | `id` | string | required | The enable key and overlay namespace, and the `<id>` in another mod's `dep://<id>/` refs. |
 | `bundle` | path | required | The mod's `*.bundle.ron`, relative to the assets root. |
 | `base` | bool | `false` | The base game: enabled by default and locked on in the Mods menu. |
-| `enabled_by_default` | bool | `false` | Switched on by a fresh install that has no saved enabled set, and freely toggled from then on. No shipped mod sets it today. |
 
 Every cataloged mod gets a row in the Mods menu: there is no way to install
 content the player can neither see nor switch off. A tooling or test rig
 belongs in the example or test that owns it, not in the catalog.
+
+A fresh install enables `base` and nothing else. Your mod ships installed and
+switched off, and the player turns it on from its own row.
 
 Only `base` is mandatory. The game loads every other cataloged mod on its own,
 beside the boot load: if one of them will not parse or its content will not

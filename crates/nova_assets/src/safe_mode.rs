@@ -363,7 +363,6 @@ mod tests {
                 id: "art".to_string(),
                 bundle: "mods/art/art.bundle.ron".to_string(),
                 base: false,
-                enabled_by_default: false,
             },
             bundle: Some(carried.clone()),
         };
