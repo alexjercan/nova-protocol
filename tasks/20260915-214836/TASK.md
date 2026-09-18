@@ -153,7 +153,7 @@ Start only after the Phase 1 owner review is recorded on this task.
       decodes every committed file with the crate `bevy_image` wraps - the same
       pure-Rust decoder on both targets. A browser re-run since the codec change
       is NOT done, and the handbook is 63 sheets now rather than the 24 that run
-      proved. ALL 63 lessons ship captured footage, from thirty-three
+      proved. ALL 62 lessons ship captured footage, from thirty-three
       producers: `scripts/gen-lesson-media.py --check` reports 63 captured and 0
       placeholders, so the generator is the fallback for a lesson authored
       without a producer rather than the source of the art. `flight_dock` was

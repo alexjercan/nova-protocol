@@ -247,7 +247,7 @@ does NOT get an entry - and it is the only place they are written down.
 - Picking a lesson or a scenario moves the highlight instead of redrawing the
   whole list, so the rows hold still, keep their scroll position, and a
   thumbnail still loading no longer rebuilds the picker every frame.
-- The main menu opens a training handbook: 63 lessons in six categories, one
+- The main menu opens a training handbook: 62 lessons in six categories, one
   screen each with a demonstration - a still or a two-second loop - your own
   bindings, a wiki link, and a Practice button that flies a range.
 - A first launch is offered Basic Training from the menu's corner. Taking it or

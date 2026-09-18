@@ -8,7 +8,7 @@
             image: "self://training/start_welcome.webp",
             alt: "the training screen with a lesson open",
         ),
-        body: "Each lesson is one screen: a picture or a short loop, a few lines of text, and the controls it uses. Some lessons open a practice flight. Every lesson links to a longer page on the wiki.",
+        body: "Welcome to Lessons! Each lesson is a bite-sized piece of information about the game. Some lessons include a short scenario where you can practice what they teach.",
         wiki_path: "wiki/getting-started",
     )),
     Lesson((
@@ -20,8 +20,11 @@
             image: "self://training/start_units.webp",
             alt: "the HUD in a quiet cruise with a target range reading in kilometers beside a speed chip reading in meters a second",
         ),
-        body: "Ranges read in meters below a kilometer and in kilometers above it; speeds read in m/s. Health reads in hp, and every section and torpedo carries its own. Every readout on the HUD and in NOVA OS uses those units.",
+        body: "Distances are shown in meters below one kilometer and in kilometers above it. Speeds are shown in meters per second.",
         wiki_path: "wiki/glossary#units",
+        field_notes: [
+            "One cube section is 10 meters on each side.",
+        ],
     )),
     Lesson((
         id: "start_hud",
@@ -32,10 +35,10 @@
             image: "self://training/start_hud.webp",
             alt: "the velocity sphere and speed readout drawn around a ship",
         ),
-        body: "The HUD only shows what you need right now. Your speed and a velocity sphere sit around your ship. The sphere points the way you are actually moving, which is not always where the nose points.",
+        body: "The velocity sphere shows the direction your ship is moving.",
         wiki_path: "wiki/hud",
         field_notes: [
-            "The velocity sphere points the way you are moving. That is not always where the nose points.",
+            "The velocity sphere shows the direction your ship is moving.",
         ],
     )),
     Lesson((
@@ -51,11 +54,11 @@
             frames_per_second: 10.0,
             alt: "the verb chips along the bottom of a cruising ship, then STOP engaged: its chip inverts and a CANCEL chip joins the row",
         ),
-        body: "The chip row along the bottom shows the verbs this ship can use right now: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS and DOCK. Each draws your own keycap; a verb the ship cannot use is off the row, and an engaged one inverts.",
+        body: "The labels at the bottom of the screen show the actions your ship can take right now.",
         wiki_path: "wiki/hud#flight-readouts",
         practice: Some("drill_autopilot"),
         field_notes: [
-            "The chip row draws only the verbs this ship can use now, each with your own keycap.",
+            "The labels at the bottom of the screen show the actions your ship can take right now.",
         ],
     )),
     Lesson((
@@ -71,14 +74,14 @@
             frames_per_second: 10.0,
             alt: "the camera orbiting a stationary ship",
         ),
-        body: "The mouse is the helm: in normal flight the camera and the ship turn together. Hold free look and the camera turns on its own while the hull holds its heading - that is how you find a contact before you commit to it.",
+        body: "The mouse controls the camera and normally turns the ship with it. Hold free look to turn the camera without turning the ship.",
         actions: [
             "camera_rotate",
             "free_look",
         ],
         wiki_path: "wiki/keybinds#targeting-and-camera",
         field_notes: [
-            "The mouse is the helm. Hold free look to turn the camera without turning the ship.",
+            "Hold free look to turn the camera without turning the ship.",
         ],
     )),
     Lesson((
@@ -90,10 +93,10 @@
             image: "self://training/start_markers.webp",
             alt: "four hulls in one row at the same range against black, three of them with their markers up: a green triangle over a wingman, a red one over a raider, a grey one over an unaligned hauler, and the nearest hull - the reader\'s own - wearing nothing",
         ),
-        body: "A small triangle floats over every ship in view, pointing down at it: green ally, red hostile, grey neutral. Your own ship shows none. It hides when a ship leaves the screen, and a neutral provoked into a threat flips red on the spot.",
+        body: "A small triangle above a ship shows its allegiance: green for allies, red for hostiles, and grey for neutral ships. Your own ship has no triangle.",
         wiki_path: "wiki/hud#allegiance-markers",
         field_notes: [
-            "A triangle rides over every ship in view: green ally, red hostile, grey neutral.",
+            "Triangles mark allegiance: green for allies, red for hostiles, and grey for neutral ships.",
         ],
     )),
     Lesson((
@@ -109,13 +112,13 @@
             frames_per_second: 10.0,
             alt: "a cruising ship with its velocity sphere, speed readout and verb chips drawn, then the HUD toggle clearing them to a bare view",
         ),
-        body: "The HUD is contextual: a quiet cruise draws the velocity sphere, your speed and the dock\'s live verbs, and everything else arrives with its moment. The HUD toggle cycles two levels: On, and Cinematic, a clean screen that clears every instrument and chip.",
+        body: "The HUD starts On. Toggle it to Cinematic for a clean screen, then toggle it again to restore the HUD.",
         actions: [
             "hud_cinematic",
         ],
         wiki_path: "wiki/hud#what-is-on-screen-and-when",
         field_notes: [
-            "Cinematic is the HUD\'s second level: a clean screen with every instrument and chip gone.",
+            "Cinematic hides the HUD for a clean view.",
         ],
     )),
     Lesson((
@@ -127,7 +130,7 @@
             image: "self://training/start_pause.webp",
             alt: "the pause overlay over a live flight, its Resume, Retry, Settings, Back to Main Menu and Exit rows stacked on the frozen world",
         ),
-        body: "Pause holds any scenario and offers Resume, Retry, Settings, Back to Main Menu and Exit. Retry restarts the scenario you are on from the beginning. Settings is the same panel the main menu opens, so you can rebind without leaving the flight.",
+        body: "Pausing freezes the world. From the pause menu, you can resume, retry, change settings, return to the main menu, or exit. Retry restarts the current scenario from the beginning.",
         wiki_path: "wiki/getting-started#launch-and-start",
     )),
     Lesson((
@@ -143,7 +146,7 @@
             frames_per_second: 10.0,
             alt: "a ship holding a heading with its main drive lit behind it",
         ),
-        body: "The main drive only pushes in the direction the nose points. Turn to face where you want to go, then thrust. Thrust while you are still turning and you push yourself onto a heading you are leaving.",
+        body: "Your main thrusters push your ship forward. Turn toward where you want to go, then thrust. To stop, turn around and thrust against your movement.",
         actions: [
             "main_drive",
         ],
@@ -154,7 +157,7 @@
             "drill_momentum",
         ],
         field_notes: [
-            "The drive only pushes where the nose points. Turn first, then thrust.",
+            "Main thrusters only push your ship forward.",
         ],
     )),
     Lesson((
@@ -170,7 +173,7 @@
             frames_per_second: 10.0,
             alt: "thrust released; the ship keeps its speed and heading",
         ),
-        body: "Releasing the drive does not slow you down. Nothing in space does. You keep your current speed and heading until something pushes you the other way.",
+        body: "Ships conserve momentum. Releasing the thrusters does not slow you down. Your ship keeps moving until another force changes its speed or direction.",
         actions: [
             "main_drive",
         ],
@@ -180,30 +183,7 @@
             "drill_momentum",
         ],
         field_notes: [
-            "Nothing slows you down in space. Release the drive and your speed stays the same.",
-        ],
-    )),
-    Lesson((
-        id: "flight_speedcap",
-        category: Flight,
-        order: 25,
-        title: "The speed cap",
-        media: Loop(
-            sheet: "self://training/flight_speedcap.webp",
-            columns: 4,
-            rows: 5,
-            frames: 20,
-            frames_per_second: 10.0,
-            alt: "a held burn climbing against the range\'s soft cap: the speed chip reads 138.7 / 150.0 m/s and settles on 150.0 with the drive still lit",
-        ),
-        body: "A scenario can put a soft cap on your manual burn: Basic Training flies under 150 m/s. It caps your TOTAL speed, not the heading you point, so a held throttle tapers off there instead of accelerating forever. A braking burn is never capped.",
-        actions: [
-            "main_drive",
-        ],
-        wiki_path: "wiki/flight-autopilot#manual-flight",
-        practice: Some("drill_momentum"),
-        field_notes: [
-            "A range can cap your manual speed. It caps your total speed, not the heading you point.",
+            "Releasing the thrusters does not slow your ship down.",
         ],
     )),
     Lesson((
@@ -219,7 +199,7 @@
             frames_per_second: 10.0,
             alt: "the flight computer turning the ship around and slowing it to zero",
         ),
-        body: "STOP flips the ship to retrograde and burns the speed off. At rest is a deadband, not a dead stop: a residual the drive already faces is braked to 2 m/s, and a sideways drift is handed back at up to 7.5 m/s.",
+        body: "STOP calculates the minimum action needed to bring your ship to rest. It uses thrusters that already face the right direction and turns the ship only when needed.",
         actions: [
             "autopilot_stop",
         ],
@@ -230,7 +210,7 @@
             "drill_stop",
         ],
         field_notes: [
-            "STOP settles into a deadband, not a dead stop: a sideways drift is handed back at up to 7.5 m/s.",
+            "STOP calculates the minimum action needed to bring your ship to rest.",
         ],
     )),
     Lesson((
@@ -246,7 +226,7 @@
             frames_per_second: 10.0,
             alt: "a braking order running, then the main drive lighting: the AP STOP chip goes out, the CANCEL chip leaves the dock and the shell turns from nav cyan to blue",
         ),
-        body: "CANCEL drops any engaged maneuver and hands the ship back already moving. So does a main-drive burn, a bound thruster key, entering RCS, or pressing the engaged verb again. Moving the mouse does not: while the computer flies, the mouse is camera only.",
+        body: "CANCEL ends the current autopilot maneuver and returns control to you. Manual flight input also cancels autopilot. Moving the mouse does not.",
         actions: [
             "autopilot_off",
             "main_drive",
@@ -255,7 +235,8 @@
         wiki_path: "wiki/flight-autopilot#the-autopilot-flies-the-hull",
         practice: Some("drill_stop"),
         field_notes: [
-            "Moving the mouse does not cancel a maneuver. CANCEL, a burn or a thruster key does.",
+            "Moving the mouse does not cancel an autopilot maneuver.",
+            "Manual flight input cancels autopilot.",
         ],
     )),
     Lesson((
@@ -271,7 +252,7 @@
             frames_per_second: 10.0,
             alt: "small thruster bursts moving a ship onto a mark",
         ),
-        body: "Hold the RCS modifier and the mouse drives the small thrusters. They move the ship sideways without turning it. Use them for small corrections the main drive would overshoot.",
+        body: "Hold the RCS modifier and move the mouse to push your ship sideways without turning it. Use the scroll wheel to move up or down. RCS is useful for small corrections.",
         actions: [
             "rcs_modifier",
             "rcs_aim",
@@ -281,6 +262,9 @@
         proven_by: [
             "tutorial",
             "drill_stop",
+        ],
+        field_notes: [
+            "RCS moves your ship sideways, up, or down without turning it.",
         ],
     )),
     Lesson((
@@ -296,11 +280,11 @@
             frames_per_second: 10.0,
             alt: "a hull coasting inside a sphere of influence with its drive out: the yellow pull shell and the blue velocity shell stand off in different directions while the speed chip climbs from 122 to 139 m/s",
         ),
-        body: "Gravity pulls you inward at a = mu / r^2. mu is the body\'s number, never your mass, so a laden hauler falls as fast as a stripped fighter. The pull ends at the sphere of influence, where it has decayed to 2.5 m/s2.",
+        body: "Gravity pulls your ship toward nearby planets and other large bodies. Heavy and light ships fall at the same rate. The pull ends when you leave the body\'s sphere of influence.",
         wiki_path: "wiki/gravity-wells#sphere-of-influence",
         practice: Some("drill_autopilot"),
         field_notes: [
-            "Gravity is an acceleration, so a laden hauler falls as fast as a stripped fighter.",
+            "Heavy and light ships fall at the same rate.",
         ],
     )),
     Lesson((
@@ -316,7 +300,7 @@
             frames_per_second: 10.0,
             alt: "a ship turning towards a marked contact and flying to it",
         ),
-        body: "GOTO flies the ship to your travel lock and parks a standoff short of it: 500 m of clear space, measured from your own hull face to the target\'s surface, rather than centre to centre. Mark a contact first, then give the order.",
+        body: "Mark a contact, then use GOTO to fly toward it automatically. Your ship stops 500 meters from the target\'s surface.",
         actions: [
             "autopilot_goto",
         ],
@@ -327,7 +311,7 @@
             "drill_autopilot",
         ],
         field_notes: [
-            "GOTO parks 500 m off the target\'s surface, measured from your own hull face.",
+            "GOTO stops 500 meters from the target\'s surface.",
         ],
     )),
     Lesson((
@@ -343,14 +327,14 @@
             frames_per_second: 10.0,
             alt: "a GOTO leg flipped retrograde on its braking ramp, drives firing up the track under an amber AP GOTO - BURN chip, swinging once through ALIGN and back as the speed falls",
         ),
-        body: "GOTO obeys one rule: at any distance it caps closing speed at what a flip-and-brake from there can still cancel. It flips one swing early, brakes at 85% of the drive\'s authority down to a 15 m/s floor, then settles on RCS.",
+        body: "GOTO starts braking early enough to stop near the target. Your ship turns around, uses its main thrusters to slow down, then uses RCS to settle into position.",
         actions: [
             "autopilot_goto",
         ],
         wiki_path: "wiki/flight-autopilot#the-autopilot-flies-the-hull",
         practice: Some("drill_autopilot"),
         field_notes: [
-            "GOTO never closes faster than a flip-and-brake from where it is can still cancel.",
+            "GOTO starts braking early enough to stop near its target.",
         ],
     )),
     Lesson((
@@ -366,7 +350,7 @@
             frames_per_second: 10.0,
             alt: "a ship settling into a circle around a planetoid",
         ),
-        body: "ORBIT parks the ship in a circle around the gravity well it is inside, never around your mark. The computer picks a stable ring, holds orbital speed with micro-burns, and never finishes on its own. Outside every sphere of influence the key does nothing.",
+        body: "ORBIT circles the gravity well your ship is inside, not the contact you marked. It only works inside a sphere of influence and continues until you cancel it.",
         actions: [
             "autopilot_orbit",
         ],
@@ -377,7 +361,7 @@
             "drill_autopilot",
         ],
         field_notes: [
-            "ORBIT circles the gravity well you are inside, not the contact you marked.",
+            "ORBIT circles the gravity well you are inside, not your marked contact.",
         ],
     )),
     Lesson((
@@ -393,13 +377,13 @@
             frames_per_second: 10.0,
             alt: "a tender creeping the last meters onto a moored spar, the last tick going off the ticked line between the two port crosses, then the dock taken - the sight goes out and the two hulls hold as one",
         ),
-        body: "DOCK clamps your hull to the ship you hold a travel lock on, port face to port face, and both hulls need a docking port. Inside 80 m the docking sight draws a cross on each port face and a ticked line between them.",
+        body: "DOCK connects your ship to the ship under your travel lock. Both ships need a docking port. When you are close enough, the docking sight helps you align the two ports.",
         actions: [
             "dock",
         ],
         wiki_path: "wiki/hud#docking-sight",
         field_notes: [
-            "DOCK clamps port face to port face, and both hulls need a docking port.",
+            "Both ships need a docking port before they can dock.",
         ],
     )),
     Lesson((
@@ -415,7 +399,7 @@
             frames_per_second: 10.0,
             alt: "the radar marking a contact ahead of the ship: the lock charges, then the bracket lands on it",
         ),
-        body: "Hold radar to sweep and mark what it settles on. There are two slots: lowered writes the white travel lock the autopilot flies, raised writes the red combat lock the guns use. A tap clears in stages; raised, it only drops the combat lock.",
+        body: "Hold radar to scan and lock a contact. With weapons lowered, it creates a white travel lock for the autopilot. With weapons raised, it creates a red combat lock for your weapons.",
         actions: [
             "radar_hold",
             "radar_clear",
@@ -427,7 +411,7 @@
             "drill_gunnery",
         ],
         field_notes: [
-            "There are two lock slots. Lowered writes the white travel lock, raised the red combat lock.",
+            "Lowered weapons create a travel lock. Raised weapons create a combat lock.",
         ],
     )),
     Lesson((
@@ -439,13 +423,13 @@
             image: "self://training/combat_lock_ranges.webp",
             alt: "the radar reticle on a distant gunship with its range printed under the bracket, and a second hull further out still unlocked",
         ),
-        body: "How far you can lock is what the target IS: thirty times its radar signature, under a 200 km scanner ceiling. A bare one-cell hull is a contact at about 9 km, a light skiff at 22 km, the largest carrier at 60 km.",
+        body: "Lock range depends on the target\'s radar signature. Large ships can be locked from farther away than small ships. No target can be locked beyond 200 kilometers.",
         actions: [
             "radar_hold",
         ],
         wiki_path: "wiki/targeting-radar#lock-ranges",
         field_notes: [
-            "You can lock a target at thirty times its radar signature, under a 200 km ceiling.",
+            "Larger ships can be locked from farther away than smaller ships.",
         ],
     )),
     Lesson((
@@ -457,10 +441,10 @@
             image: "self://training/combat_allegiance.webp",
             alt: "a gunship holding station in a rock pocket with a green triangle over a friendly gunship, a red one over a raider and a grey one over an unaligned salvage hull",
         ),
-        body: "Every ship is Player, Enemy or Neutral, and any pair resolves to Own, Hostile or Neutral. A round copies its shooter\'s side at launch and keeps it, so your own ordnance never hits you. A triangle over each ship reads green, red or grey.",
+        body: "Ships can be allied, hostile, or neutral to each other. A projectile keeps its shooter\'s allegiance after it is fired, so your own weapons cannot damage your ship.",
         wiki_path: "wiki/factions#the-relation-model",
         field_notes: [
-            "A round takes its shooter\'s side at launch, so your own ordnance never hits you.",
+            "A projectile keeps its shooter\'s allegiance after it is fired.",
         ],
     )),
     Lesson((
@@ -476,7 +460,7 @@
             frames_per_second: 10.0,
             alt: "a ship\'s gun mounts rising out of the deck as the weapons come up",
         ),
-        body: "Raising weapons is a held stance. It makes your radar write the red combat lock instead of the white travel lock, makes the guns hot, and moves the mouse off the helm onto turret aim - the hull holds its heading while you aim.",
+        body: "Hold combat stance to raise your weapons. Radar creates a combat lock, your weapons become active, and the mouse aims your turrets instead of turning the ship.",
         actions: [
             "combat_stance",
         ],
@@ -487,7 +471,7 @@
             "drill_gunnery",
         ],
         field_notes: [
-            "Raising weapons writes the red combat lock and moves the mouse from the helm to turret aim.",
+            "Raising weapons moves the mouse from steering the ship to aiming its turrets.",
         ],
     )),
     Lesson((
@@ -503,10 +487,10 @@
             frames_per_second: 10.0,
             alt: "a gunship\'s tracers crossing to a boulder and dying on it while the red-marked hostile beyond the stone sits untouched",
         ),
-        body: "Put a rock between you and a hostile and the rounds stop at it - and so does the radar, which needs the same clear line the guns do. A hostile that loses the line loses its pick and goes passive.",
+        body: "Asteroids and other obstacles block both weapons and radar. Put one between your ship and a hostile to break its line of fire and radar lock.",
         wiki_path: "wiki/combat-weapons#cover-line-of-fire",
         field_notes: [
-            "A rock on the line eats the round and the radar lock. Cover is a full disengage.",
+            "Cover blocks both weapons and radar.",
         ],
     )),
     Lesson((
@@ -522,7 +506,7 @@
             frames_per_second: 10.0,
             alt: "the fine lock stepping from one section of a marked ship to the next",
         ),
-        body: "Hold a combat lock steady and you can drill it into one section. Turrets and the viewfinder follow the one you pick. Killing a drive costs thrust, never speed; it is the last flight computer that leaves a hull drifting and tumbling.",
+        body: "Hold a combat lock steady, then select a section of the target. Your turrets aim at that section. Destroying drives removes thrust, while destroying the last flight computer leaves the ship drifting.",
         actions: [
             "component_next",
             "component_prev",
@@ -533,7 +517,7 @@
             "drill_gunnery",
         ],
         field_notes: [
-            "Killing a ship\'s drives costs it thrust, not speed. Its last flight computer leaves it drifting.",
+            "Destroying a ship\'s drives removes thrust, not its current speed.",
         ],
     )),
     Lesson((
@@ -545,10 +529,10 @@
             image: "self://training/combat_reaches.webp",
             alt: "a gunship firing its full battery down a long lane, the tracer streams ending in open space well short of the hostile hull they are laid on, and one of that hull\'s torpedoes already past the point the rounds stop",
         ),
-        body: "Reach is never authored. It is muzzle speed times how long the round lives. A PDC round reaches 2 km, a railgun slug 18 km and arrives in about a second, a torpedo 29 to 31 km over a minute and a half.",
+        body: "A weapon\'s reach comes from its projectile speed and lifetime. PDC rounds reach about 2 kilometers, railgun rounds reach 18 kilometers, and torpedoes reach about 30 kilometers.",
         wiki_path: "wiki/combat-weapons#three-reaches",
         field_notes: [
-            "Reach is muzzle speed times how long the round lives: 2 km, 18 km, about 30 km.",
+            "Projectile speed and lifetime determine how far a weapon reaches.",
         ],
     )),
     Lesson((
@@ -564,10 +548,10 @@
             frames_per_second: 10.0,
             alt: "two identical gun rigs firing down two spaced stacks of hull plates, the Kinetic lane chipping only the plate it cannot destroy and the Pierce lane chipping every plate in its stack",
         ),
-        body: "A damage type is not a multiplier: both hit a hull and a drive for the same number. What changes is travel. Kinetic carries on only through what it destroys; Pierce rakes every section it crosses, spending a power budget per layer.",
+        body: "Kinetic and Pierce deal the same damage, but travel through a ship differently. Kinetic continues only after destroying a section. Pierce can damage several sections as it passes through them.",
         wiki_path: "wiki/combat-weapons#damage-types",
         field_notes: [
-            "A damage type is not a multiplier. Kinetic stops at what it fails to kill; Pierce rakes.",
+            "Kinetic must destroy a section to continue. Pierce can pass through several sections.",
         ],
     )),
     Lesson((
@@ -579,14 +563,14 @@
             image: "self://training/combat_turrets.webp",
             alt: "a ship from above, its turrets swung onto one target and firing",
         ),
-        body: "A turret turns all the way round; its barrel stops 10 degrees below level, so each mount is blind in a cone under its own keel. Nothing else bounds it - your own hull is transparent to your rounds, which pass straight through it.",
+        body: "A turret can rotate all the way around but cannot aim below its mounting surface. Your own hull does not block its rounds.",
         wiki_path: "wiki/sections/turret#what-it-can-bear-on",
         proven_by: [
             "tutorial",
             "drill_gunnery",
         ],
         field_notes: [
-            "A turret\'s barrel stops 10 degrees below level, so each mount is blind under its own keel.",
+            "Turrets can rotate all the way around but cannot aim below their mounts.",
         ],
     )),
     Lesson((
@@ -602,17 +586,17 @@
             frames_per_second: 10.0,
             alt: "a gunship\'s dorsal mounts pouring rounds at one bearing, the streams cutting out the instant the aim swings across and the barrels chase it, and coming back the moment they settle",
         ),
-        body: "A gun fires only while its barrel is on what it is aimed at, and the tolerance is how big that thing looks from here: a carrier at 1 km is 11 degrees wide, a torpedo under one. Mounts hold while they slew.",
+        body: "A weapon fires only when its barrel is aimed closely enough at the target. It stops firing while the mount turns, preventing shots that would miss.",
         wiki_path: "wiki/sections/turret#barrel-discipline",
         field_notes: [
-            "A mount shoots while it tracks and holds while it slews. The rounds it saves would have missed.",
+            "Weapons stop firing while their mounts turn toward the target.",
         ],
     )),
     Lesson((
         id: "combat_magazines",
         category: Combat,
         order: 45,
-        title: "A magazine is a rate limit",
+        title: "Reloading magazines",
         media: Loop(
             sheet: "self://training/combat_magazines.webp",
             columns: 4,
@@ -621,11 +605,11 @@
             frames_per_second: 10.0,
             alt: "a gunship\'s dorsal mounts firing, the ammo ring beside each one losing pips through the burst and coming back full on one batch a few frames after the trigger comes up",
         ),
-        body: "No weapon runs out for good. A PDC holds 500 rounds at 100 a second and gets 200 back for every three quiet seconds, all at once. Every shot restarts that interval, so firing in batches sustains 40 rounds a second.",
+        body: "Weapons automatically refill their magazines after a short time without firing. Firing again restarts the wait. Long bursts can empty a magazine temporarily, but ammunition never runs out permanently.",
         wiki_path: "wiki/combat-weapons#magazines",
         practice: Some("drill_gunnery"),
         field_notes: [
-            "A magazine is a rate limit, not a budget. Nothing in the game runs out for good.",
+            "Weapon magazines refill after a short time without firing.",
         ],
     )),
     Lesson((
@@ -641,10 +625,10 @@
             frames_per_second: 10.0,
             alt: "a torpedo dropping clear of a ship, then homing on a locked target",
         ),
-        body: "A torpedo needs a combat lock. The bay drops it cold and the drive lights 0.6 seconds later. It arms only well clear of you: 324 m off a small boat, 494 m off a carrier. Inside that it bounces off as a dud.",
+        body: "Torpedoes require a combat lock. After launch, they drift clear before their engines start and only arm at a safe distance. A torpedo that hits too close to its launcher is a dud.",
         wiki_path: "wiki/sections/torpedo-bay",
         field_notes: [
-            "A torpedo arms 324 m off a small boat and 494 m off a carrier. Inside that it is a dud.",
+            "Torpedoes only arm after moving a safe distance from their launcher.",
         ],
     )),
     Lesson((
@@ -660,10 +644,10 @@
             frames_per_second: 10.0,
             alt: "two torpedoes on the same run, filmed from beside the straight one: the pale Lance holds its guidance line dead still in frame while the orange Serpent swings down and away from it on the corkscrew and drops further behind every frame",
         ),
-        body: "Two normal bays ship, and only the run-in differs. A Serpent weaves, so one defending mount spends 390 rounds and only kills it 400 m out. A Lance flies straight and faster, and the same mount kills it 1.14 km short of you.",
+        body: "Serpent torpedoes weave, making them harder for point defense to hit. Lance torpedoes fly straight and faster, making them easier to hit but giving defenders less time.",
         wiki_path: "wiki/sections/torpedo-bay#the-two-run-ins",
         field_notes: [
-            "A Serpent weaves and costs a defending mount 390 rounds; a Lance flies straight and faster.",
+            "Serpents weave. Lances fly straight and faster.",
         ],
     )),
     Lesson((
@@ -675,13 +659,13 @@
             image: "self://training/combat_point_defense.webp",
             alt: "a gunship with its weapons lowered working its own mounts against an inbound salvo, a thin line running from each engaged mount out to the torpedo it picked and its rounds streaming along that line",
         ),
-        body: "With no combat lock and your weapons lowered, the flight computer works your idle mounts against inbound torpedoes - no toggle and no key. A thin line runs from each mount to its pick. Lock or raise, and every mount is yours that instant.",
+        body: "With weapons lowered and no combat lock, idle turrets automatically fire at incoming torpedoes. Raise your weapons or take a combat lock to control every turret yourself.",
         actions: [
             "combat_stance",
         ],
         wiki_path: "wiki/combat-weapons#your-own-battery",
         field_notes: [
-            "Your idle mounts shoot torpedoes down on their own. Lock or raise and they are yours.",
+            "Idle turrets automatically defend your ship from incoming torpedoes.",
         ],
     )),
     Lesson((
@@ -697,10 +681,10 @@
             frames_per_second: 10.0,
             alt: "a gunboat committing its spinal railgun on a patrol gunship a hundred and fifty meters off, the bore sight thread thickening across the gap as the charge runs, and then the shell opening the target hull into tumbling plates",
         ),
-        body: "A railgun has no traverse: it fires down its own axis, so the face you bolt it to is the line. A tap starts a 1.5 second charge that only lowering your weapons aborts; it never re-checks the nose. One shell every 13.5 seconds.",
+        body: "A railgun cannot turn. It fires along the direction of the hull face where you mounted it, so you aim by turning the entire ship. Lowering your weapons cancels a charging shot.",
         wiki_path: "wiki/sections/railgun#committing-the-shot",
         field_notes: [
-            "A railgun fires down its own axis. The face you bolted it to is the line it shoots.",
+            "A railgun fires in the direction of the hull face where it is mounted.",
         ],
     )),
     Lesson((
@@ -716,10 +700,10 @@
             frames_per_second: 10.0,
             alt: "a railgun\'s sight line arriving over the frame edge and crossing a patrol gunship, with a blue ring on a section the shot would destroy, and the ring walking the length of the hull as the gun is aimed off the spine and back",
         ),
-        body: "A blue line runs from the muzzle to where the slug would stop, with a ring on every section that shot would destroy. Aiming down a ship\'s long axis reads differently from catching its shoulder. The line thickens as the charge runs.",
+        body: "The bore sight shows the railgun\'s path through its target. A ring marks each section the shot would destroy, and the line becomes thicker while the railgun charges.",
         wiki_path: "wiki/sections/railgun#the-bore-sight",
         field_notes: [
-            "The bore sight rings every section your shot would destroy, and thickens as the charge runs.",
+            "The bore sight marks every section the railgun shot would destroy.",
         ],
     )),
     Lesson((
@@ -735,11 +719,11 @@
             frames_per_second: 10.0,
             alt: "one siege railgun shell boring a corridor through a block of reinforced hull, and the block then letting go of every section it has left and opening into a drifting cloud of plates",
         ),
-        body: "You do not have to shoot every section off. A hull carrying less than a twentieth of the structure it was built with collapses. A ship that loses every weapon, or its last flight computer, is NEUTRALIZED: it keeps its hull and stops answering.",
+        body: "A ship collapses when less than one twentieth of its original structure remains. A ship is neutralized when it loses every weapon or its last flight computer.",
         wiki_path: "wiki/ships#taking-a-ship-apart",
         practice: Some("drill_gunnery"),
         field_notes: [
-            "A hull left under a twentieth of the structure it was built with collapses on its own.",
+            "A ship collapses when less than one twentieth of its original structure remains.",
         ],
     )),
     Lesson((
@@ -751,10 +735,10 @@
             image: "self://training/build_sections.webp",
             alt: "the editor with one section selected on the hull it mates to",
         ),
-        body: "A ship is sections mated socket to socket, and a socket is the only structural link a hull has. Each section does one job and weighs the volume of the box it is hit on. The build grid counts in 10 m cells.",
+        body: "Ships are built from sections connected socket to socket. These sockets are the only structural links between sections. The build grid uses cells that are 10 meters on each side.",
         wiki_path: "wiki/sections#what-every-section-shares",
         field_notes: [
-            "Sections mate socket to socket, and a socket is the only structural link a hull has.",
+            "Sections connect socket to socket.",
         ],
     )),
     Lesson((
@@ -766,10 +750,10 @@
             image: "self://training/build_mass.webp",
             alt: "the same hull with a heavier loadout, its numbers beside it",
         ),
-        body: "Every section you add is mass the drive has to move and stop. On the same two basic drives the 21.00-mass skiff pulls 61 m/s2 and the 41.00-mass tug pulls 31. More drives close the gap, but no stack passes 640 m/s2.",
+        body: "Every section adds mass that your thrusters must move and stop. With the same thrusters, a heavier ship accelerates more slowly. Adding more thrusters can increase its acceleration.",
         wiki_path: "wiki/sections/thruster",
         field_notes: [
-            "The 21.00-mass skiff pulls 61 m/s2 on two basic drives; the 41.00-mass tug pulls 31.",
+            "Heavier ships need more thrust to accelerate at the same rate.",
         ],
     )),
     Lesson((
@@ -781,8 +765,11 @@
             image: "self://training/build_readout.webp",
             alt: "the editor rail\'s stat block on a half-built hull: Turn, Mass, Thrust, HP and Parts down one column with the limit note under them",
         ),
-        body: "The rail prints the turn rate and four sums: mass, thrust, health and part count. Mass is the volume of the parts, so a part that lands moves them. Under the block, one line names the limit holding the turn rate down.",
+        body: "The editor shows your ship\'s turn rate, mass, thrust, health, and section count. A note below these values explains what currently limits its turn rate.",
         wiki_path: "wiki/keybinds#the-build-readout",
+        field_notes: [
+            "The build readout shows what limits your ship\'s turn rate.",
+        ],
     )),
     Lesson((
         id: "build_balance",
@@ -793,10 +780,10 @@
             image: "self://training/build_balance.webp",
             alt: "two thrusters on a lopsided hull in the editor, with the ship\'s turn and thrust figures beside it",
         ),
-        body: "Thrusters sit wherever you bolt them, so an off-centre burn would spin the ship. The flight computer sets each throttle to cancel that spin. A lopsided or damaged ship still flies straight, with less thrust.",
+        body: "The flight computer balances your thrusters to prevent them from spinning the ship. A lopsided or damaged ship can still fly straight, but it may have less available thrust.",
         wiki_path: "wiki/sections/thruster",
         field_notes: [
-            "The flight computer balances your thrusters, so a lopsided ship still flies straight.",
+            "The flight computer balances thrusters to keep your ship flying straight.",
         ],
     )),
     Lesson((
@@ -808,10 +795,10 @@
             image: "self://training/build_turning.webp",
             alt: "a long spine in the editor, the rail printing its turn ceiling with the structure-limited note under it",
         ),
-        body: "A hull turns at the lower of two ceilings: what its computers can twist against its mass, and what 8 G allows at the furthest section\'s face. The base gunship\'s 55.2 m arm caps it at 1.42 rad/s2, where its computers could push 8.74.",
+        body: "Turn rate is limited by your flight computers, the ship\'s mass, and the distance of its outermost sections. Long or heavy ships usually turn more slowly.",
         wiki_path: "wiki/sections/controller#what-sets-how-hard-a-ship-turns",
         field_notes: [
-            "A hull turns at the lower of two ceilings: computer torque, and 8 G at its furthest face.",
+            "Long or heavy ships usually turn more slowly.",
         ],
     )),
     Lesson((
@@ -827,8 +814,11 @@
             frames_per_second: 10.0,
             alt: "a newly built four-block ship running past a rock under its own drive",
         ),
-        body: "Test a new ship before you use it. Take it out, run the drive up to speed, then STOP. That shows you how quickly it accelerates and how long it needs to stop.",
+        body: "Test a new ship before using it in a scenario. Accelerate to speed, then use STOP. This shows how quickly the ship accelerates and how much room it needs to slow down.",
         wiki_path: "wiki/flight-autopilot#the-hull-decides-the-handling",
+        field_notes: [
+            "Test a new ship to learn how quickly it accelerates and stops.",
+        ],
     )),
     Lesson((
         id: "build_stacking",
@@ -839,10 +829,10 @@
             image: "self://training/build_stacking.webp",
             alt: "two flight computers on one spine in the editor, both of them listed in the scene tree, and the rail naming the structure as what holds the turn rate down",
         ),
-        body: "A second flight computer adds no turn rate to a hull already held by its structure, which is every base hull but the carrier. It buys precision - the turn stops on the heading - and redundancy, since only the last computer is the brain.",
+        body: "Most ships are already limited by their structure, so another flight computer does not make them turn faster. It improves turning precision and keeps the ship controllable if another computer is destroyed.",
         wiki_path: "wiki/sections/controller#stacking-controllers",
         field_notes: [
-            "A second flight computer buys precision and redundancy, not turn rate, on most hulls.",
+            "Extra flight computers improve precision and provide a backup.",
         ],
     )),
     Lesson((
@@ -854,10 +844,10 @@
             image: "self://training/build_weapon_mounts.webp",
             alt: "a turret bolted on a hull\'s top face and a railgun on its nose, the turret\'s card open in the inspector",
         ),
-        body: "Where you bolt a weapon decides what it points at. A turret traverses freely and owns 58.7 percent of the sky from wherever it sits, blind under its keel. A railgun does not traverse: the face it sits on is its line of fire.",
+        body: "A turret can aim in most directions but cannot aim below its mount. A railgun cannot turn and only fires outward from the hull face where it is mounted.",
         wiki_path: "wiki/sections/turret#what-it-can-bear-on",
         field_notes: [
-            "A turret owns 58.7 percent of the sky. A railgun only owns the face you bolted it to.",
+            "Weapon placement determines where the weapon can fire.",
         ],
     )),
     Lesson((
@@ -869,10 +859,10 @@
             image: "self://training/build_docking_port.webp",
             alt: "a docking port seated on a hull face in the editor, its capture envelope open in the inspector",
         ),
-        body: "No base hull carries a docking port, so a ship that can dock is one you built. The port carries 90 health, the lightest part on a hull, and takes neighbours on every face but the hatch it docks through.",
+        body: "Base ships do not include docking ports, so you must add one before a ship can dock. Keep the port\'s hatch facing outward and clear of other sections.",
         wiki_path: "wiki/sections/docking#variants",
         field_notes: [
-            "No base hull carries a docking port. A ship that can dock is one you built.",
+            "A ship needs a docking port before it can dock.",
         ],
     )),
     Lesson((
@@ -888,13 +878,13 @@
             frames_per_second: 10.0,
             alt: "a tender lining up on a moored spar: the docking sight\'s face plates square up and go green, then the gap line as the hull brakes inside the capture distance, and a DOCK chip joins the verb row",
         ),
-        body: "Four things at once: the port faces within 10 m, the ports within 15 degrees of opposed, under 5 m/s of closing rate, under 5 degrees a second of relative spin. Roll is ignored. Docked, your drive and helm are inert.",
+        body: "To dock, bring the ports within 10 meters, face them toward each other, and reduce the ships\' relative movement and spin. Once docked, your ship\'s steering and thrusters are disabled.",
         actions: [
             "dock",
         ],
         wiki_path: "wiki/sections/docking#flying-the-approach",
         field_notes: [
-            "A dock needs 10 m of gap, 15 degrees of facing, and both hulls almost still.",
+            "Docking requires two aligned ports and very little relative movement.",
         ],
     )),
     Lesson((
@@ -910,8 +900,11 @@
             frames_per_second: 10.0,
             alt: "a hull standing bare on the editor stage, and Ship Skin switched on: plating closes over the structure it was derived from, cell by cell",
         ),
-        body: "Ship Skin dresses the build in the cladding it would fly with. Nothing places a plate: the skin is derived from the structure, and re-derived as you build, including around the part in hand. A refused placement stays bare. The toggle carries into Play.",
+        body: "Ship Skin previews the plating generated from your ship\'s structure. It updates automatically while you build and does not place additional sections. The setting remains active when you enter Play.",
         wiki_path: "wiki/keybinds#the-inspector",
+        field_notes: [
+            "Ship Skin is generated automatically from your ship\'s structure.",
+        ],
     )),
     Lesson((
         id: "build_generate",
@@ -926,10 +919,10 @@
             frames_per_second: 10.0,
             alt: "a three-part stub in the editor with seed 2026 typed in the Generate block, then the hull Generate rolls in its place",
         ),
-        body: "Generate rolls a whole hull into the ship you are inside, from a seed you can type or reroll, drawing only the sections you ticked. It replaces what that ship holds. The result is ordinary section nodes, already bound to their kind\'s key.",
+        body: "Generate replaces the current ship with a hull built from a seed and the section types you selected. The result uses ordinary sections that you can continue editing.",
         wiki_path: "wiki/keybinds#generate-a-hull",
         field_notes: [
-            "Generate rolls a hull from a seed and REPLACES what the ship you are inside holds.",
+            "Generate replaces the current ship with a hull built from your selected seed.",
         ],
     )),
     Lesson((
@@ -945,13 +938,13 @@
             frames_per_second: 10.0,
             alt: "the NOVA OS screen coming up over the cockpit",
         ),
-        body: "Opening NOVA OS freezes the game: the clocks stop, so combat, physics and every projectile hold mid-frame while you read contacts, check your ship and give orders. Nothing moves until you close it.",
+        body: "Opening NOVA OS freezes the game. Combat, physics, and projectiles stop while you read information or give commands. The game resumes when you close it.",
         actions: [
             "novaos_toggle",
         ],
         wiki_path: "wiki/nova-os#opening-and-closing",
         field_notes: [
-            "Opening NOVA OS freezes the game. The clocks stop until you close the screen.",
+            "Opening NOVA OS freezes the game until you close it.",
         ],
     )),
     Lesson((
@@ -967,10 +960,10 @@
             frames_per_second: 10.0,
             alt: "the prompt completing a subcommand: `ship re` carries a dim `load` suffix, Tab prints the `ship reload` / `ship repair` row and takes the first, Tab again steps onto `ship repair`, and a space then Tab lists the hull\'s live section codes",
         ),
-        body: "NOVA OS has a prompt you type at, and it reads nova>. Completion fills in command names, subcommands and the live section or contact codes an argument wants. It keeps 200 lines of history and 500 rows of scrollback, and reddens an unknown word.",
+        body: "Type commands at the `nova>` prompt. Completion suggests commands, subcommands, section codes, and contact codes. An unknown command turns red so you can correct it before running it.",
         wiki_path: "wiki/nova-os#the-terminal",
         field_notes: [
-            "NOVA OS has a prompt you type at. Completion fills in commands and live section codes.",
+            "Prompt completion suggests commands and codes from the current game.",
         ],
     )),
     Lesson((
@@ -986,11 +979,14 @@
             frames_per_second: 10.0,
             alt: "the ship schematic turning on the NOVA OS screen, then snapping back to its framing",
         ),
-        body: "Drag to turn and pan the ship model, and use reframe to put it back where it started. Moving the model does not move the ship. The game is frozen while the computer is open, so you can look as long as you like.",
+        body: "Drag to rotate or pan the ship model. Use reframe to return it to its starting position. Moving the model does not move your ship.",
         actions: [
             "novaos_reframe",
         ],
         wiki_path: "wiki/nova-os#the-ship",
+        field_notes: [
+            "Moving the NOVA OS model does not move your ship.",
+        ],
     )),
     Lesson((
         id: "novaos_commands",
@@ -1005,10 +1001,10 @@
             frames_per_second: 10.0,
             alt: "`help` typed at a wiped prompt and run: the registered command list prints under it, `help` through `exit` and then `map`, `ship` and their subcommands, each with the line that says what it does",
         ),
-        body: "help lists everything. log prints the flight log, objectives the open objectives, clear wipes back to the boot report. map and ship hand the screen to an app; map view and ship view print the same data as a table. exit returns to flight.",
+        body: "`help` lists every command. `log` shows the flight log, `objectives` shows current objectives, and `clear` resets the prompt. `map` and `ship` open apps, while `exit` returns to flight.",
         wiki_path: "wiki/nova-os#command-reference",
         field_notes: [
-            "help lists every command. map and ship open an app; map view and ship view print a table.",
+            "Type `help` to list every available command.",
         ],
     )),
     Lesson((
@@ -1020,13 +1016,16 @@
             image: "self://training/novaos_contacts.webp",
             alt: "the local-space plot with one hostile picked and its range and bearing under it",
         ),
-        body: "The MAP app plots every contact around you as a labelled blip: SELF, ALLY-1, HOST-1, OBJ-1, AST-1. Pick one and the readout gives its kind, name, range and bearing. Setting GOTO from here engages the autopilot directly, without taking a radar lock.",
+        body: "The MAP app plots nearby contacts and gives each one a short code. Select a contact to see its name, type, range, and bearing. GOTO engages the autopilot without creating a radar lock.",
         actions: [
             "novaos_next",
             "novaos_prev",
             "map_goto",
         ],
         wiki_path: "wiki/nova-os#the-map",
+        field_notes: [
+            "MAP can send your ship toward a contact without creating a radar lock.",
+        ],
     )),
     Lesson((
         id: "novaos_service",
@@ -1041,7 +1040,7 @@
             frames_per_second: 10.0,
             alt: "the SHIP app\'s inspector on a damaged PDC-1: repair fills the integrity meter to `100% [##########]` and prints `repaired PDC-1`, then reload takes the magazine from `1/500` back to `500/500`",
         ),
-        body: "Sections carry short codes - HULL-1, THR-1, CTL-1, PDC-1, TRB-1 - stable for the session and shared by the app and the prompt. Select one and repair restores its integrity; reload refills a weapon\'s magazine. Both are instant, and a hull section refuses reload.",
+        body: "Ship sections use short codes such as `THR-1` and `PDC-1`. Select a section to repair its integrity or reload its magazine. Both actions happen immediately.",
         actions: [
             "novaos_next",
             "novaos_prev",
@@ -1050,7 +1049,7 @@
         ],
         wiki_path: "wiki/nova-os#the-ship",
         field_notes: [
-            "Sections carry short codes like THR-1. Select one and repair or reload acts on it.",
+            "Select a section in the SHIP app to repair or reload it.",
         ],
     )),
     Lesson((
@@ -1066,7 +1065,7 @@
             frames_per_second: 10.0,
             alt: "the SHIP app\'s inspector on PDC-1: arming the rebind puts `PRESS A KEY OR MOUSE BUTTON - ESC CANCELS` across the panel in amber, and the next key takes the trigger - the binding line turns from `LMB / Right Trigger 2` to `K / Right Trigger 2`",
         ),
-        body: "Your thrusters, turrets and tubes fire on per-ship triggers that Settings does not list. Select the section in the SHIP app and arm rebind; the next key or mouse button takes over its keyboard trigger. A reserved flight control is refused by name.",
+        body: "Thrusters, turrets, and torpedo bays have per-ship controls that do not appear in Settings. Select a section and start rebind, then press the new key or mouse button. Reserved flight controls cannot be used.",
         actions: [
             "ship_rebind",
             "novaos_next",
@@ -1074,7 +1073,7 @@
         ],
         wiki_path: "wiki/nova-os#rebinding-a-section",
         field_notes: [
-            "A section\'s trigger is per ship, not in Settings. Rebind it in the SHIP app.",
+            "Section controls are set per ship in the SHIP app.",
         ],
     )),
     Lesson((
@@ -1086,10 +1085,10 @@
             image: "self://training/novaos_shell.webp",
             alt: "the same monitor on its cmd> prompt over the main menu, with a run of `status` answered under it",
         ),
-        body: "A second language runs on the same monitor. It opens with no ship, over the menu or the editor, and reads the run: status, ships, bindings, settings. Cheat commands are refused until you arm them, and arming marks the run for good.",
+        body: "The command shell opens over the menu or editor without requiring a ship. It provides commands for the current run, ships, bindings, and settings. Cheat commands must be armed first, which permanently marks the run.",
         wiki_path: "wiki/commands#the-commands",
         field_notes: [
-            "Arming cheats marks the run for good, and nothing unmarks it.",
+            "Arming cheat commands permanently marks the current run.",
         ],
     )),
     Lesson((
@@ -1101,8 +1100,11 @@
             image: "self://training/advanced_scenarios.webp",
             alt: "the scenario picker with a scenario chosen and its briefing beside it",
         ),
-        body: "A scenario places a world and wires its objectives: rocks, planets, ships, nav beacons, salvage crates and lights. One scenario is one flight; a campaign is a set played in order. Both load from content files, so a mod can add or replace them.",
+        body: "A scenario creates one flight with its own world and objectives. A campaign is a group of scenarios played in order. Mods can add new scenarios and campaigns or replace existing ones.",
         wiki_path: "wiki/scenarios#what-a-scenario-places",
+        field_notes: [
+            "A scenario is one flight. A campaign is a group of scenarios played in order.",
+        ],
     )),
     Lesson((
         id: "advanced_mods",
@@ -1113,10 +1115,10 @@
             image: "self://training/advanced_mods.webp",
             alt: "the mods screen with one enabled mod selected",
         ),
-        body: "Ships, weapons and scenarios all come from content files. A mod adds or replaces those files. The base game is itself a mod, so you can open and read every file in it.",
+        body: "Ships, weapons, scenarios, and other game content come from files that mods can add or replace. The base game is also a mod, so you can inspect its files and learn from them.",
         wiki_path: "create/mod-files",
         field_notes: [
-            "The base game is itself a mod, and you can read every file in it.",
+            "The base game is a mod, and you can inspect all of its content files.",
         ],
     )),
     Lesson((
@@ -1132,13 +1134,13 @@
             frames_per_second: 10.0,
             alt: "a raider running in on a parked gunship across a rock field, nose already on it, closing across the frame from one cell to the next",
         ),
-        body: "An enemy flies the same flight computer you do: closing while it is outside its standoff, circling once inside, nose on you throughout. The standoff is clear space between the two hulls, and its speeds come off its own live drive.",
+        body: "Enemy ships use the same flight system as your ship. They approach until reaching their preferred distance, then circle while keeping their weapons pointed toward you.",
         wiki_path: "wiki/factions#what-allegiance-drives",
         proven_by: [
             "tutorial",
         ],
         field_notes: [
-            "An enemy flies the same flight computer you do, and holds its standoff hull to hull.",
+            "Enemy ships use the same flight system as your ship.",
         ],
     )),
     Lesson((
@@ -1150,11 +1152,14 @@
             image: "self://training/advanced_bindings.webp",
             alt: "the settings screen on its bindings tab",
         ),
-        body: "You can rebind the flight, targeting, camera and interface controls in Settings; the two rows that back out of a screen are fixed, and a section\'s weapon or thruster trigger is set per ship. Every lesson draws the binding you have now.",
+        body: "Settings lets you rebind flight, targeting, camera, and interface controls. Section controls are set separately for each ship. Lessons always show your current bindings.",
         actions: [
             "main_drive",
         ],
         wiki_path: "wiki/settings#controls",
+        field_notes: [
+            "Lessons show your current bindings, including any changes made in Settings.",
+        ],
     )),
     Lesson((
         id: "advanced_mouse",
@@ -1169,10 +1174,10 @@
             frames_per_second: 10.0,
             alt: "the settings screen on its MOUSE group: three sensitivity sliders and no bindings, with the Look handle dragged up to 300% and down to 100% as its readout counts",
         ),
-        body: "The MOUSE group in Settings holds three sliders: Look scales ship steering, free look and turret aim (100-300%, default 200%); RCS scales mouse translation (100-500%, default 100%); Free Camera scales the free camera. Each 100% is its own baseline; the gamepad is untouched.",
+        body: "Settings has separate sensitivity sliders for Look, RCS, and Free Camera. Look affects steering, free look, and turret aim. RCS affects mouse translation. These settings do not change gamepad sensitivity.",
         wiki_path: "wiki/settings#mouse",
         field_notes: [
-            "The MOUSE group is three sliders, not bindings, and each 100% is its own baseline.",
+            "Look, RCS, and Free Camera have separate mouse sensitivity settings.",
         ],
     )),
     Lesson((
@@ -1184,8 +1189,11 @@
             image: "self://training/advanced_graphics.webp",
             alt: "the settings screen on its graphics row with the Low, Medium and High preset picked out",
         ),
-        body: "One Low, Medium or High preset trades richness for framerate. High adds camera shake; Medium drops it and keeps hit flashes; Low drops both, spawns no particle bursts at all, and renders the world at a reduced resolution upscaled to the window.",
+        body: "Low, Medium, and High presets trade visual detail for performance. High includes camera shake and hit flashes. Medium removes camera shake. Low also removes hit flashes and particles and renders the world at a lower resolution.",
         wiki_path: "wiki/settings#graphics-quality",
+        field_notes: [
+            "Lower graphics presets remove visual effects to improve performance.",
+        ],
     )),
     Lesson((
         id: "advanced_audio",
@@ -1196,10 +1204,10 @@
             image: "self://training/advanced_audio.webp",
             alt: "the settings screen on its audio tab: the Master, Interface, World and Music sliders with their levels as whole percents",
         ),
-        body: "Four sliders: Master, Interface, World and Music. Interface is the cockpit - menu clicks, HUD ticks, the flight computer. World is everything out there, heard at the distance it happens. Master multiplies the other three. Music is reserved; the game ships none yet.",
+        body: "Master, Interface, World, and Music have separate volume controls. Interface covers menus, the HUD, and the flight computer. World covers sounds in the game world. Master changes the final volume of every channel.",
         wiki_path: "wiki/settings#audio",
         field_notes: [
-            "Master multiplies the other three channels, so a channel you turned down stays down.",
+            "Master volume changes every channel while preserving their individual levels.",
         ],
     )),
 ]

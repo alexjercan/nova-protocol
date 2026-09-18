@@ -128,7 +128,7 @@ use nova_protocol::prelude::*;
 #[command(about = "Record the handbook's magazine and point-defence demonstrations", long_about = None)]
 struct Cli;
 
-/// The sheet for "A magazine is a rate limit".
+/// The sheet for "Reloading magazines".
 #[cfg(feature = "debug")]
 const MAGAZINE_LESSON: &str = "combat_magazines";
 /// The still for "Your battery defends itself".

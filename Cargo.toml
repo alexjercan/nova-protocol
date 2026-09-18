@@ -808,8 +808,8 @@ name = "lesson_readouts"
 path = "examples/screenshots/lesson_readouts.rs"
 
 [[example]]
-name = "lesson_flight_limits"
-path = "examples/screenshots/lesson_flight_limits.rs"
+name = "lesson_flight_cancel"
+path = "examples/screenshots/lesson_flight_cancel.rs"
 
 [[example]]
 name = "lesson_flight_well"

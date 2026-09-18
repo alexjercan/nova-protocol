@@ -134,9 +134,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             10,
             "How training works",
             still("start_welcome", "the training screen with a lesson open"),
-            "Each lesson is one screen: a picture or a short loop, a few lines \
-             of text, and the controls it uses. Some lessons open a practice \
-             flight. Every lesson links to a longer page on the wiki.",
+            "Welcome to Lessons! Each lesson is a bite-sized piece of information about the \
+             game. Some lessons include a short scenario where you can practice what they teach.",
             &[],
             "wiki/getting-started",
             None,
@@ -153,14 +152,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the HUD in a quiet cruise with a target range reading in kilometers beside a \
                  speed chip reading in meters a second",
             ),
-            "Ranges read in meters below a kilometer and in kilometers above it; speeds read in \
-             m/s. Health reads in hp, and every section and torpedo carries its own. Every readout \
-             on the HUD and in NOVA OS uses those units.",
+            "Distances are shown in meters below one kilometer and in kilometers above it. Speeds \
+             are shown in meters per second.",
             &[],
             "wiki/glossary#units",
             None,
             &[],
-            &[],
+            &["One cube section is 10 meters on each side."],
         ),
         lesson(
             "start_hud",
@@ -171,17 +169,12 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "start_hud",
                 "the velocity sphere and speed readout drawn around a ship",
             ),
-            "The HUD only shows what you need right now. Your speed and a \
-             velocity sphere sit around your ship. The sphere points the way \
-             you are actually moving, which is not always where the nose \
-             points.",
+            "The velocity sphere shows the direction your ship is moving.",
             &[],
             "wiki/hud",
             None,
             &[],
-            &[
-                "The velocity sphere points the way you are moving. That is not always where the nose points.",
-            ],
+            &["The velocity sphere shows the direction your ship is moving."],
         ),
         lesson(
             "start_verbs",
@@ -193,15 +186,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the verb chips along the bottom of a cruising ship, then STOP engaged: its chip \
                  inverts and a CANCEL chip joins the row",
             ),
-            "The chip row along the bottom shows the verbs this ship can use right now: STOP, \
-             GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS and DOCK. Each draws your own keycap; a \
-             verb the ship cannot use is off the row, and an engaged one inverts.",
+            "The labels at the bottom of the screen show the actions your ship can take right now.",
             &[],
             "wiki/hud#flight-readouts",
             Some(DRILL_AUTOPILOT_ID),
             &[],
             &[
-                "The chip row draws only the verbs this ship can use now, each with your own keycap.",
+                "The labels at the bottom of the screen show the actions your ship can take right now.",
             ],
         ),
         lesson(
@@ -210,14 +201,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             30,
             "Looking around",
             looping("start_camera", "the camera orbiting a stationary ship"),
-            "The mouse is the helm: in normal flight the camera and the ship turn together. Hold \
-             free look and the camera turns on its own while the hull holds its heading - that is \
-             how you find a contact before you commit to it.",
+            "The mouse controls the camera and normally turns the ship with it. Hold free look to \
+             turn the camera without turning the ship.",
             &["camera_rotate", "free_look"],
             "wiki/keybinds#targeting-and-camera",
             None,
             &[],
-            &["The mouse is the helm. Hold free look to turn the camera without turning the ship."],
+            &["Hold free look to turn the camera without turning the ship."],
         ),
         lesson(
             "start_markers",
@@ -231,15 +221,15 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  grey one over an unaligned hauler, and the nearest hull - the reader's own - \
                  wearing nothing",
             ),
-            "A small triangle floats over every ship in view, pointing down at it: green ally, red \
-             hostile, grey neutral. Your own ship shows none. It hides when a ship leaves the \
-             screen, and a neutral provoked into a threat flips red on the spot.",
+            "A small triangle above a ship shows its allegiance: green for allies, red for \
+             hostiles, and grey for neutral ships. Your own ship has no triangle.",
             &[],
             "wiki/hud#allegiance-markers",
             None,
             &[],
             &[
-                "A triangle rides over every ship in view: green ally, red hostile, grey neutral.",
+                "Triangles mark allegiance: green for allies, red for hostiles, and grey for \
+                 neutral ships.",
             ],
         ),
         lesson(
@@ -252,16 +242,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a cruising ship with its velocity sphere, speed readout and verb chips drawn, \
                  then the HUD toggle clearing them to a bare view",
             ),
-            "The HUD is contextual: a quiet cruise draws the velocity sphere, your speed and the \
-             dock's live verbs, and everything else arrives with its moment. The HUD toggle cycles \
-             two levels: On, and Cinematic, a clean screen that clears every instrument and chip.",
+            "The HUD starts On. Toggle it to Cinematic for a clean screen, then toggle it again to \
+             restore the HUD.",
             &["hud_cinematic"],
             "wiki/hud#what-is-on-screen-and-when",
             None,
             &[],
-            &[
-                "Cinematic is the HUD's second level: a clean screen with every instrument and chip gone.",
-            ],
+            &["Cinematic hides the HUD for a clean view."],
         ),
         lesson(
             "start_pause",
@@ -273,9 +260,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the pause overlay over a live flight, its Resume, Retry, Settings, Back to Main \
                  Menu and Exit rows stacked on the frozen world",
             ),
-            "Pause holds any scenario and offers Resume, Retry, Settings, Back to Main Menu and \
-             Exit. Retry restarts the scenario you are on from the beginning. Settings is the same \
-             panel the main menu opens, so you can rebind without leaving the flight.",
+            "Pausing freezes the world. From the pause menu, you can resume, retry, change settings, \
+             return to the main menu, or exit. Retry restarts the current scenario from the beginning.",
             &[],
             "wiki/getting-started#launch-and-start",
             None,
@@ -291,15 +277,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "flight_aim",
                 "a ship holding a heading with its main drive lit behind it",
             ),
-            "The main drive only pushes in the direction the nose points. Turn \
-             to face where you want to go, then thrust. Thrust while you are \
-             still turning and you push yourself onto a heading you are \
-             leaving.",
+            "Your main thrusters push your ship forward. Turn toward where you want to go, then \
+             thrust. To stop, turn around and thrust against your movement.",
             &["main_drive"],
             "wiki/flight-autopilot#manual-flight",
             Some(DRILL_MOMENTUM_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_MOMENTUM_ID],
-            &["The drive only pushes where the nose points. Turn first, then thrust."],
+            &["Main thrusters only push your ship forward."],
         ),
         lesson(
             "flight_momentum",
@@ -310,35 +294,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "flight_momentum",
                 "thrust released; the ship keeps its speed and heading",
             ),
-            "Releasing the drive does not slow you down. Nothing in space does. \
-             You keep your current speed and heading until something pushes you \
-             the other way.",
+            "Ships conserve momentum. Releasing the thrusters does not slow you down. Your ship \
+             keeps moving until another force changes its speed or direction.",
             &["main_drive"],
             "wiki/flight-autopilot#manual-flight",
             Some(DRILL_MOMENTUM_ID),
             &[DRILL_MOMENTUM_ID],
-            &["Nothing slows you down in space. Release the drive and your speed stays the same."],
-        ),
-        lesson(
-            "flight_speedcap",
-            Flight,
-            25,
-            "The speed cap",
-            looping(
-                "flight_speedcap",
-                "a held burn climbing against the range's soft cap: the speed chip reads 138.7 / \
-                 150.0 m/s and settles on 150.0 with the drive still lit",
-            ),
-            "A scenario can put a soft cap on your manual burn: Basic Training flies under 150 \
-             m/s. It caps your TOTAL speed, not the heading you point, so a held throttle tapers \
-             off there instead of accelerating forever. A braking burn is never capped.",
-            &["main_drive"],
-            "wiki/flight-autopilot#manual-flight",
-            Some(DRILL_MOMENTUM_ID),
-            &[],
-            &[
-                "A range can cap your manual speed. It caps your total speed, not the heading you point.",
-            ],
+            &["Releasing the thrusters does not slow your ship down."],
         ),
         lesson(
             "flight_stop",
@@ -349,16 +311,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "flight_stop",
                 "the flight computer turning the ship around and slowing it to zero",
             ),
-            "STOP flips the ship to retrograde and burns the speed off. At rest is a deadband, not \
-             a dead stop: a residual the drive already faces is braked to 2 m/s, and a sideways \
-             drift is handed back at up to 7.5 m/s.",
+            "STOP calculates the minimum action needed to bring your ship to rest. It uses \
+             thrusters that already face the right direction and turns the ship only when needed.",
             &["autopilot_stop"],
             "wiki/flight-autopilot#the-autopilot-flies-the-hull",
             Some(DRILL_STOP_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_STOP_ID],
-            &[
-                "STOP settles into a deadband, not a dead stop: a sideways drift is handed back at up to 7.5 m/s.",
-            ],
+            &["STOP calculates the minimum action needed to bring your ship to rest."],
         ),
         lesson(
             "flight_cancel",
@@ -370,15 +329,15 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a braking order running, then the main drive lighting: the AP STOP chip goes \
                  out, the CANCEL chip leaves the dock and the shell turns from nav cyan to blue",
             ),
-            "CANCEL drops any engaged maneuver and hands the ship back already moving. So does a \
-             main-drive burn, a bound thruster key, entering RCS, or pressing the engaged verb \
-             again. Moving the mouse does not: while the computer flies, the mouse is camera only.",
+            "CANCEL ends the current autopilot maneuver and returns control to you. Manual flight \
+             input also cancels autopilot. Moving the mouse does not.",
             &["autopilot_off", "main_drive", "rcs_modifier"],
             "wiki/flight-autopilot#the-autopilot-flies-the-hull",
             Some(DRILL_STOP_ID),
             &[],
             &[
-                "Moving the mouse does not cancel a maneuver. CANCEL, a burn or a thruster key does.",
+                "Moving the mouse does not cancel an autopilot maneuver.",
+                "Manual flight input cancels autopilot.",
             ],
         ),
         lesson(
@@ -390,14 +349,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "flight_rcs",
                 "small thruster bursts moving a ship onto a mark",
             ),
-            "Hold the RCS modifier and the mouse drives the small thrusters. \
-             They move the ship sideways without turning it. Use them for small \
-             corrections the main drive would overshoot.",
+            "Hold the RCS modifier and move the mouse to push your ship sideways without turning \
+             it. Use the scroll wheel to move up or down. RCS is useful for small corrections.",
             &["rcs_modifier", "rcs_aim"],
             "wiki/flight-autopilot#rcs-fine-docking-thrusters",
             Some(DRILL_STOP_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_STOP_ID],
-            &[],
+            &["RCS moves your ship sideways, up, or down without turning it."],
         ),
         lesson(
             "flight_gravity",
@@ -410,14 +368,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  shell and the blue velocity shell stand off in different directions while the \
                  speed chip climbs from 122 to 139 m/s",
             ),
-            "Gravity pulls you inward at a = mu / r^2. mu is the body's number, never your mass, \
-             so a laden hauler falls as fast as a stripped fighter. The pull ends at the sphere of \
-             influence, where it has decayed to 2.5 m/s2.",
+            "Gravity pulls your ship toward nearby planets and other large bodies. Heavy and \
+             light ships fall at the same rate. The pull ends when you leave the body's sphere of \
+             influence.",
             &[],
             "wiki/gravity-wells#sphere-of-influence",
             Some(DRILL_AUTOPILOT_ID),
             &[],
-            &["Gravity is an acceleration, so a laden hauler falls as fast as a stripped fighter."],
+            &["Heavy and light ships fall at the same rate."],
         ),
         lesson(
             "flight_goto",
@@ -428,14 +386,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "flight_goto",
                 "a ship turning towards a marked contact and flying to it",
             ),
-            "GOTO flies the ship to your travel lock and parks a standoff short of it: 500 m of \
-             clear space, measured from your own hull face to the target's surface, rather than \
-             centre to centre. Mark a contact first, then give the order.",
+            "Mark a contact, then use GOTO to fly toward it automatically. Your ship stops 500 \
+             meters from the target's surface.",
             &["autopilot_goto"],
             "wiki/flight-autopilot#the-autopilot-flies-the-hull",
             Some(DRILL_AUTOPILOT_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_AUTOPILOT_ID],
-            &["GOTO parks 500 m off the target's surface, measured from your own hull face."],
+            &["GOTO stops 500 meters from the target's surface."],
         ),
         lesson(
             "flight_arrival",
@@ -448,14 +405,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  under an amber AP GOTO - BURN chip, swinging once through ALIGN and back as the \
                  speed falls",
             ),
-            "GOTO obeys one rule: at any distance it caps closing speed at what a flip-and-brake \
-             from there can still cancel. It flips one swing early, brakes at 85% of the drive's \
-             authority down to a 15 m/s floor, then settles on RCS.",
+            "GOTO starts braking early enough to stop near the target. Your ship turns around, \
+             uses its main thrusters to slow down, then uses RCS to settle into position.",
             &["autopilot_goto"],
             "wiki/flight-autopilot#the-autopilot-flies-the-hull",
             Some(DRILL_AUTOPILOT_ID),
             &[],
-            &["GOTO never closes faster than a flip-and-brake from where it is can still cancel."],
+            &["GOTO starts braking early enough to stop near its target."],
         ),
         lesson(
             "flight_orbit",
@@ -466,15 +422,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "flight_orbit",
                 "a ship settling into a circle around a planetoid",
             ),
-            "ORBIT parks the ship in a circle around the gravity well it is inside, never around \
-             your mark. The computer picks a stable ring, holds orbital speed with micro-burns, \
-             and never finishes on its own. Outside every sphere of influence the key does \
-             nothing.",
+            "ORBIT circles the gravity well your ship is inside, not the contact you marked. It \
+             only works inside a sphere of influence and continues until you cancel it.",
             &["autopilot_orbit"],
             "wiki/gravity-wells#the-dominant-well",
             Some(DRILL_AUTOPILOT_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_AUTOPILOT_ID],
-            &["ORBIT circles the gravity well you are inside, not the contact you marked."],
+            &["ORBIT circles the gravity well you are inside, not your marked contact."],
         ),
         lesson(
             "flight_dock",
@@ -487,16 +441,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  the ticked line between the two port crosses, then the dock taken - the sight \
                  goes out and the two hulls hold as one",
             ),
-            "DOCK clamps your hull to the ship you hold a travel lock on, port face to port face, \
-             and both hulls need a docking port. Inside 80 m the docking sight draws a cross on \
-             each port face and a ticked line between them.",
+            "DOCK connects your ship to the ship under your travel lock. Both ships need a docking \
+             port. When you are close enough, the docking sight helps you align the two ports.",
             &["dock"],
             "wiki/hud#docking-sight",
             None,
             &[],
-            &[
-                "DOCK clamps port face to port face, and both hulls need a docking port.",
-            ],
+            &["Both ships need a docking port before they can dock."],
         ),
         lesson(
             "combat_radar",
@@ -508,15 +459,15 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the radar marking a contact ahead of the ship: the lock charges, \
                  then the bracket lands on it",
             ),
-            "Hold radar to sweep and mark what it settles on. There are two slots: lowered writes \
-             the white travel lock the autopilot flies, raised writes the red combat lock the guns \
-             use. A tap clears in stages; raised, it only drops the combat lock.",
+            "Hold radar to scan and lock a contact. With weapons lowered, it creates a white travel \
+             lock for the autopilot. With weapons raised, it creates a red combat lock for your \
+             weapons.",
             &["radar_hold", "radar_clear"],
             "wiki/targeting-radar#holding-to-sweep",
             Some(DRILL_GUNNERY_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_GUNNERY_ID],
             &[
-                "There are two lock slots. Lowered writes the white travel lock, raised the red combat lock.",
+                "Lowered weapons create a travel lock. Raised weapons create a combat lock.",
             ],
         ),
         lesson(
@@ -529,16 +480,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the radar reticle on a distant gunship with its range printed under the bracket, \
                  and a second hull further out still unlocked",
             ),
-            "How far you can lock is what the target IS: thirty times its radar signature, under a \
-             200 km scanner ceiling. A bare one-cell hull is a contact at about 9 km, a light \
-             skiff at 22 km, the largest carrier at 60 km.",
+            "Lock range depends on the target's radar signature. Large ships can be locked from \
+             farther away than small ships. No target can be locked beyond 200 kilometers.",
             &["radar_hold"],
             "wiki/targeting-radar#lock-ranges",
             None,
             &[],
-            &[
-                "You can lock a target at thirty times its radar signature, under a 200 km ceiling.",
-            ],
+            &["Larger ships can be locked from farther away than smaller ships."],
         ),
         lesson(
             "combat_allegiance",
@@ -550,14 +498,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a gunship holding station in a rock pocket with a green triangle over a friendly \
                  gunship, a red one over a raider and a grey one over an unaligned salvage hull",
             ),
-            "Every ship is Player, Enemy or Neutral, and any pair resolves to Own, Hostile or \
-             Neutral. A round copies its shooter's side at launch and keeps it, so your own \
-             ordnance never hits you. A triangle over each ship reads green, red or grey.",
+            "Ships can be allied, hostile, or neutral to each other. A projectile keeps its \
+             shooter's allegiance after it is fired, so your own weapons cannot damage your ship.",
             &[],
             "wiki/factions#the-relation-model",
             None,
             &[],
-            &["A round takes its shooter's side at launch, so your own ordnance never hits you."],
+            &["A projectile keeps its shooter's allegiance after it is fired."],
         ),
         lesson(
             "combat_stance",
@@ -568,15 +515,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "combat_stance",
                 "a ship's gun mounts rising out of the deck as the weapons come up",
             ),
-            "Raising weapons is a held stance. It makes your radar write the red combat lock \
-             instead of the white travel lock, makes the guns hot, and moves the mouse off the \
-             helm onto turret aim - the hull holds its heading while you aim.",
+            "Hold combat stance to raise your weapons. Radar creates a combat lock, your weapons \
+             become active, and the mouse aims your turrets instead of turning the ship.",
             &["combat_stance"],
             "wiki/targeting-radar#stances-and-slots",
             Some(DRILL_GUNNERY_ID),
             &[TUTORIAL_SCENARIO_ID, DRILL_GUNNERY_ID],
             &[
-                "Raising weapons writes the red combat lock and moves the mouse from the helm to turret aim.",
+                "Raising weapons moves the mouse from steering the ship to aiming its turrets.",
             ],
         ),
         lesson(
@@ -589,14 +535,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a gunship's tracers crossing to a boulder and dying on it while the red-marked \
                  hostile beyond the stone sits untouched",
             ),
-            "Put a rock between you and a hostile and the rounds stop at it - and so does the \
-             radar, which needs the same clear line the guns do. A hostile that loses the line \
-             loses its pick and goes passive.",
+            "Asteroids and other obstacles block both weapons and radar. Put one between your ship \
+             and a hostile to break its line of fire and radar lock.",
             &[],
             "wiki/combat-weapons#cover-line-of-fire",
             None,
             &[],
-            &["A rock on the line eats the round and the radar lock. Cover is a full disengage."],
+            &["Cover blocks both weapons and radar."],
         ),
         lesson(
             "combat_components",
@@ -607,16 +552,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "combat_components",
                 "the fine lock stepping from one section of a marked ship to the next",
             ),
-            "Hold a combat lock steady and you can drill it into one section. Turrets and the \
-             viewfinder follow the one you pick. Killing a drive costs thrust, never speed; it is \
-             the last flight computer that leaves a hull drifting and tumbling.",
+            "Hold a combat lock steady, then select a section of the target. Your turrets aim at \
+             that section. Destroying drives removes thrust, while destroying the last flight \
+             computer leaves the ship drifting.",
             &["component_next", "component_prev"],
             "wiki/targeting-radar#per-section-fine-lock",
             Some(DRILL_GUNNERY_ID),
             &[DRILL_GUNNERY_ID],
-            &[
-                "Killing a ship's drives costs it thrust, not speed. Its last flight computer leaves it drifting.",
-            ],
+            &["Destroying a ship's drives removes thrust, not its current speed."],
         ),
         lesson(
             "combat_reaches",
@@ -629,16 +572,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  open space well short of the hostile hull they are laid on, and one of that \
                  hull's torpedoes already past the point the rounds stop",
             ),
-            "Reach is never authored. It is muzzle speed times how long the round lives. A PDC \
-             round reaches 2 km, a railgun slug 18 km and arrives in about a second, a torpedo 29 \
-             to 31 km over a minute and a half.",
+            "A weapon's reach comes from its projectile speed and lifetime. PDC rounds reach about \
+             2 kilometers, railgun rounds reach 18 kilometers, and torpedoes reach about 30 \
+             kilometers.",
             &[],
             "wiki/combat-weapons#three-reaches",
             None,
             &[],
-            &[
-                "Reach is muzzle speed times how long the round lives: 2 km, 18 km, about 30 km.",
-            ],
+            &["Projectile speed and lifetime determine how far a weapon reaches."],
         ),
         lesson(
             "combat_damage_types",
@@ -651,15 +592,16 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  Kinetic lane chipping only the plate it cannot destroy and the Pierce lane \
                  chipping every plate in its stack",
             ),
-            "A damage type is not a multiplier: both hit a hull and a drive for the same number. \
-             What changes is travel. Kinetic carries on only through what it destroys; Pierce rakes \
-             every section it crosses, spending a power budget per layer.",
+            "Kinetic and Pierce deal the same damage, but travel through a ship differently. \
+             Kinetic continues only after destroying a section. Pierce can damage several sections \
+             as it passes through them.",
             &[],
             "wiki/combat-weapons#damage-types",
             None,
             &[],
             &[
-                "A damage type is not a multiplier. Kinetic stops at what it fails to kill; Pierce rakes.",
+                "Kinetic must destroy a section to continue. Pierce can pass through several \
+                 sections.",
             ],
         ),
         lesson(
@@ -671,16 +613,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "combat_turrets",
                 "a ship from above, its turrets swung onto one target and firing",
             ),
-            "A turret turns all the way round; its barrel stops 10 degrees below level, so each \
-             mount is blind in a cone under its own keel. Nothing else bounds it - your own hull \
-             is transparent to your rounds, which pass straight through it.",
+            "A turret can rotate all the way around but cannot aim below its mounting surface. Your \
+             own hull does not block its rounds.",
             &[],
             "wiki/sections/turret#what-it-can-bear-on",
             None,
             &[TUTORIAL_SCENARIO_ID, DRILL_GUNNERY_ID],
-            &[
-                "A turret's barrel stops 10 degrees below level, so each mount is blind under its own keel.",
-            ],
+            &["Turrets can rotate all the way around but cannot aim below their mounts."],
         ),
         lesson(
             "combat_barrel_discipline",
@@ -693,36 +632,33 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  the instant the aim swings across and the barrels chase it, and coming back the \
                  moment they settle",
             ),
-            "A gun fires only while its barrel is on what it is aimed at, and the tolerance is \
-             how big that thing looks from here: a carrier at 1 km is 11 degrees wide, a torpedo \
-             under one. Mounts hold while they slew.",
+            "A weapon fires only when its barrel is aimed closely enough at the target. It stops \
+             firing while the mount turns, preventing shots that would miss.",
             &[],
             "wiki/sections/turret#barrel-discipline",
             None,
             &[],
-            &[
-                "A mount shoots while it tracks and holds while it slews. The rounds it saves would have missed.",
-            ],
+            &["Weapons stop firing while their mounts turn toward the target."],
         ),
         lesson(
             "combat_magazines",
             Combat,
             45,
-            "A magazine is a rate limit",
+            "Reloading magazines",
             looping(
                 "combat_magazines",
                 "a gunship's dorsal mounts firing, the ammo ring beside each one losing pips \
                  through the burst and coming back full on one batch a few frames after the \
                  trigger comes up",
             ),
-            "No weapon runs out for good. A PDC holds 500 rounds at 100 a second and gets 200 back \
-             for every three quiet seconds, all at once. Every shot restarts that interval, so \
-             firing in batches sustains 40 rounds a second.",
+            "Weapons automatically refill their magazines after a short time without firing. \
+             Firing again restarts the wait. Long bursts can empty a magazine temporarily, but \
+             ammunition never runs out permanently.",
             &[],
             "wiki/combat-weapons#magazines",
             Some(DRILL_GUNNERY_ID),
             &[],
-            &["A magazine is a rate limit, not a budget. Nothing in the game runs out for good."],
+            &["Weapon magazines refill after a short time without firing."],
         ),
         lesson(
             "combat_torpedoes",
@@ -733,16 +669,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "combat_torpedoes",
                 "a torpedo dropping clear of a ship, then homing on a locked target",
             ),
-            "A torpedo needs a combat lock. The bay drops it cold and the drive lights 0.6 seconds \
-             later. It arms only well clear of you: 324 m off a small boat, 494 m off a carrier. \
-             Inside that it bounces off as a dud.",
+            "Torpedoes require a combat lock. After launch, they drift clear before their engines \
+             start and only arm at a safe distance. A torpedo that hits too close to its launcher \
+             is a dud.",
             &[],
             "wiki/sections/torpedo-bay",
             None,
             &[],
-            &[
-                "A torpedo arms 324 m off a small boat and 494 m off a carrier. Inside that it is a dud.",
-            ],
+            &["Torpedoes only arm after moving a safe distance from their launcher."],
         ),
         lesson(
             "combat_torpedo_types",
@@ -755,16 +689,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  Lance holds its guidance line dead still in frame while the orange Serpent swings \
                  down and away from it on the corkscrew and drops further behind every frame",
             ),
-            "Two normal bays ship, and only the run-in differs. A Serpent weaves, so one defending \
-             mount spends 390 rounds and only kills it 400 m out. A Lance flies straight and \
-             faster, and the same mount kills it 1.14 km short of you.",
+            "Serpent torpedoes weave, making them harder for point defense to hit. Lance torpedoes \
+             fly straight and faster, making them easier to hit but giving defenders less time.",
             &[],
             "wiki/sections/torpedo-bay#the-two-run-ins",
             None,
             &[],
-            &[
-                "A Serpent weaves and costs a defending mount 390 rounds; a Lance flies straight and faster.",
-            ],
+            &["Serpents weave. Lances fly straight and faster."],
         ),
         lesson(
             "combat_point_defense",
@@ -777,16 +708,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  salvo, a thin line running from each engaged mount out to the torpedo it picked \
                  and its rounds streaming along that line",
             ),
-            "With no combat lock and your weapons lowered, the flight computer works your idle \
-             mounts against inbound torpedoes - no toggle and no key. A thin line runs from each \
-             mount to its pick. Lock or raise, and every mount is yours that instant.",
+            "With weapons lowered and no combat lock, idle turrets automatically fire at incoming \
+             torpedoes. Raise your weapons or take a combat lock to control every turret yourself.",
             &["combat_stance"],
             "wiki/combat-weapons#your-own-battery",
             None,
             &[],
-            &[
-                "Your idle mounts shoot torpedoes down on their own. Lock or raise and they are yours.",
-            ],
+            &["Idle turrets automatically defend your ship from incoming torpedoes."],
         ),
         lesson(
             "combat_railgun",
@@ -799,16 +727,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  meters off, the bore sight thread thickening across the gap as the charge runs, \
                  and then the shell opening the target hull into tumbling plates",
             ),
-            "A railgun has no traverse: it fires down its own axis, so the face you bolt it to is \
-             the line. A tap starts a 1.5 second charge that only lowering your weapons aborts; it \
-             never re-checks the nose. One shell every 13.5 seconds.",
+            "A railgun cannot turn. It fires along the direction of the hull face where you mounted \
+             it, so you aim by turning the entire ship. Lowering your weapons cancels a charging \
+             shot.",
             &[],
             "wiki/sections/railgun#committing-the-shot",
             None,
             &[],
-            &[
-                "A railgun fires down its own axis. The face you bolted it to is the line it shoots.",
-            ],
+            &["A railgun fires in the direction of the hull face where it is mounted."],
         ),
         lesson(
             "combat_bore_sight",
@@ -821,16 +747,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  gunship, with a blue ring on a section the shot would destroy, and the ring \
                  walking the length of the hull as the gun is aimed off the spine and back",
             ),
-            "A blue line runs from the muzzle to where the slug would stop, with a ring on every \
-             section that shot would destroy. Aiming down a ship's long axis reads differently \
-             from catching its shoulder. The line thickens as the charge runs.",
+            "The bore sight shows the railgun's path through its target. A ring marks each section \
+             the shot would destroy, and the line becomes thicker while the railgun charges.",
             &[],
             "wiki/sections/railgun#the-bore-sight",
             None,
             &[],
-            &[
-                "The bore sight rings every section your shot would destroy, and thickens as the charge runs.",
-            ],
+            &["The bore sight marks every section the railgun shot would destroy."],
         ),
         lesson(
             "combat_collapse",
@@ -843,15 +766,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  the block then letting go of every section it has left and opening into a \
                  drifting cloud of plates",
             ),
-            "You do not have to shoot every section off. A hull carrying less than a twentieth of \
-             the structure it was built with collapses. A ship that loses every weapon, or its last \
-             flight computer, is NEUTRALIZED: it keeps its hull and stops answering.",
+            "A ship collapses when less than one twentieth of its original structure remains. A \
+             ship is neutralized when it loses every weapon or its last flight computer.",
             &[],
             "wiki/ships#taking-a-ship-apart",
             Some(DRILL_GUNNERY_ID),
             &[],
             &[
-                "A hull left under a twentieth of the structure it was built with collapses on its own.",
+                "A ship collapses when less than one twentieth of its original structure remains.",
             ],
         ),
         lesson(
@@ -863,16 +785,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "build_sections",
                 "the editor with one section selected on the hull it mates to",
             ),
-            "A ship is sections mated socket to socket, and a socket is the only structural link a \
-             hull has. Each section does one job and weighs the volume of the box it is hit on. \
-             The build grid counts in 10 m cells.",
+            "Ships are built from sections connected socket to socket. These sockets are the only \
+             structural links between sections. The build grid uses cells that are 10 meters on \
+             each side.",
             &[],
             "wiki/sections#what-every-section-shares",
             None,
             &[],
-            &[
-                "Sections mate socket to socket, and a socket is the only structural link a hull has.",
-            ],
+            &["Sections connect socket to socket."],
         ),
         lesson(
             "build_mass",
@@ -883,16 +803,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "build_mass",
                 "the same hull with a heavier loadout, its numbers beside it",
             ),
-            "Every section you add is mass the drive has to move and stop. On the same two basic \
-             drives the 21.00-mass skiff pulls 61 m/s2 and the 41.00-mass tug pulls 31. More \
-             drives close the gap, but no stack passes 640 m/s2.",
+            "Every section adds mass that your thrusters must move and stop. With the same \
+             thrusters, a heavier ship accelerates more slowly. Adding more thrusters can increase \
+             its acceleration.",
             &[],
             "wiki/sections/thruster",
             None,
             &[],
-            &[
-                "The 21.00-mass skiff pulls 61 m/s2 on two basic drives; the 41.00-mass tug pulls 31.",
-            ],
+            &["Heavier ships need more thrust to accelerate at the same rate."],
         ),
         lesson(
             "build_readout",
@@ -904,14 +822,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the editor rail's stat block on a half-built hull: Turn, Mass, Thrust, HP and \
                  Parts down one column with the limit note under them",
             ),
-            "The rail prints the turn rate and four sums: mass, thrust, health and part count. \
-             Mass is the volume of the parts, so a part that lands moves them. Under the block, \
-             one line names the limit holding the turn rate down.",
+            "The editor shows your ship's turn rate, mass, thrust, health, and section count. A \
+             note below these values explains what currently limits its turn rate.",
             &[],
             "wiki/keybinds#the-build-readout",
             None,
             &[],
-            &[],
+            &["The build readout shows what limits your ship's turn rate."],
         ),
         lesson(
             "build_balance",
@@ -923,16 +840,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "two thrusters on a lopsided hull in the editor, with the ship's turn and \
                  thrust figures beside it",
             ),
-            "Thrusters sit wherever you bolt them, so an off-centre burn would \
-             spin the ship. The flight computer sets each throttle to cancel \
-             that spin. A lopsided or damaged ship still flies straight, with \
-             less thrust.",
+            "The flight computer balances your thrusters to prevent them from spinning the ship. A \
+             lopsided or damaged ship can still fly straight, but it may have less available thrust.",
             &[],
             "wiki/sections/thruster",
             None,
             &[],
             &[
-                "The flight computer balances your thrusters, so a lopsided ship still flies straight.",
+                "The flight computer balances thrusters to keep your ship flying straight.",
             ],
         ),
         lesson(
@@ -945,16 +860,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a long spine in the editor, the rail printing its turn ceiling with the \
                  structure-limited note under it",
             ),
-            "A hull turns at the lower of two ceilings: what its computers can twist against its \
-             mass, and what 8 G allows at the furthest section's face. The base gunship's 55.2 m \
-             arm caps it at 1.42 rad/s2, where its computers could push 8.74.",
+            "Turn rate is limited by your flight computers, the ship's mass, and the distance of \
+             its outermost sections. Long or heavy ships usually turn more slowly.",
             &[],
             "wiki/sections/controller#what-sets-how-hard-a-ship-turns",
             None,
             &[],
-            &[
-                "A hull turns at the lower of two ceilings: computer torque, and 8 G at its furthest face.",
-            ],
+            &["Long or heavy ships usually turn more slowly."],
         ),
         lesson(
             "build_flight_test",
@@ -965,14 +877,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "build_flight_test",
                 "a newly built four-block ship running past a rock under its own drive",
             ),
-            "Test a new ship before you use it. Take it out, run the drive up \
-             to speed, then STOP. That shows you how quickly it accelerates and \
-             how long it needs to stop.",
+            "Test a new ship before using it in a scenario. Accelerate to speed, then use STOP. \
+             This shows how quickly the ship accelerates and how much room it needs to slow down.",
             &[],
             "wiki/flight-autopilot#the-hull-decides-the-handling",
             None,
             &[],
-            &[],
+            &["Test a new ship to learn how quickly it accelerates and stops."],
         ),
         lesson(
             "build_stacking",
@@ -984,16 +895,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "two flight computers on one spine in the editor, both of them listed in the \
                  scene tree, and the rail naming the structure as what holds the turn rate down",
             ),
-            "A second flight computer adds no turn rate to a hull already held by its structure, \
-             which is every base hull but the carrier. It buys precision - the turn stops on the \
-             heading - and redundancy, since only the last computer is the brain.",
+            "Most ships are already limited by their structure, so another flight computer does \
+             not make them turn faster. It improves turning precision and keeps the ship \
+             controllable if another computer is destroyed.",
             &[],
             "wiki/sections/controller#stacking-controllers",
             None,
             &[],
-            &[
-                "A second flight computer buys precision and redundancy, not turn rate, on most hulls.",
-            ],
+            &["Extra flight computers improve precision and provide a backup."],
         ),
         lesson(
             "build_weapon_mounts",
@@ -1005,16 +914,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a turret bolted on a hull's top face and a railgun on its nose, the turret's \
                  card open in the inspector",
             ),
-            "Where you bolt a weapon decides what it points at. A turret traverses freely and owns \
-             58.7 percent of the sky from wherever it sits, blind under its keel. A railgun does \
-             not traverse: the face it sits on is its line of fire.",
+            "A turret can aim in most directions but cannot aim below its mount. A railgun cannot \
+             turn and only fires outward from the hull face where it is mounted.",
             &[],
             "wiki/sections/turret#what-it-can-bear-on",
             None,
             &[],
-            &[
-                "A turret owns 58.7 percent of the sky. A railgun only owns the face you bolted it to.",
-            ],
+            &["Weapon placement determines where the weapon can fire."],
         ),
         lesson(
             "build_docking_port",
@@ -1026,14 +932,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a docking port seated on a hull face in the editor, its capture envelope open \
                  in the inspector",
             ),
-            "No base hull carries a docking port, so a ship that can dock is one you built. The \
-             port carries 90 health, the lightest part on a hull, and takes neighbours on every \
-             face but the hatch it docks through.",
+            "Base ships do not include docking ports, so you must add one before a ship can dock. \
+             Keep the port's hatch facing outward and clear of other sections.",
             &[],
             "wiki/sections/docking#variants",
             None,
             &[],
-            &["No base hull carries a docking port. A ship that can dock is one you built."],
+            &["A ship needs a docking port before it can dock."],
         ),
         lesson(
             "build_dock_envelope",
@@ -1046,14 +951,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  and go green, then the gap line as the hull brakes inside the capture distance, \
                  and a DOCK chip joins the verb row",
             ),
-            "Four things at once: the port faces within 10 m, the ports within 15 degrees of \
-             opposed, under 5 m/s of closing rate, under 5 degrees a second of relative spin. Roll \
-             is ignored. Docked, your drive and helm are inert.",
+            "To dock, bring the ports within 10 meters, face them toward each other, and reduce the \
+             ships' relative movement and spin. Once docked, your ship's steering and thrusters are \
+             disabled.",
             &["dock"],
             "wiki/sections/docking#flying-the-approach",
             None,
             &[],
-            &["A dock needs 10 m of gap, 15 degrees of facing, and both hulls almost still."],
+            &["Docking requires two aligned ports and very little relative movement."],
         ),
         lesson(
             "build_skin",
@@ -1065,15 +970,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a hull standing bare on the editor stage, and Ship Skin switched on: plating \
                  closes over the structure it was derived from, cell by cell",
             ),
-            "Ship Skin dresses the build in the cladding it would fly with. Nothing places a \
-             plate: the skin is derived from the structure, and re-derived as you build, including \
-             around the part in hand. A refused placement stays bare. The toggle carries into \
-             Play.",
+            "Ship Skin previews the plating generated from your ship's structure. It updates \
+             automatically while you build and does not place additional sections. The setting \
+             remains active when you enter Play.",
             &[],
             "wiki/keybinds#the-inspector",
             None,
             &[],
-            &[],
+            &["Ship Skin is generated automatically from your ship's structure."],
         ),
         lesson(
             "build_generate",
@@ -1085,14 +989,15 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a three-part stub in the editor with seed 2026 typed in the Generate block, then \
                  the hull Generate rolls in its place",
             ),
-            "Generate rolls a whole hull into the ship you are inside, from a seed you can type or \
-             reroll, drawing only the sections you ticked. It replaces what that ship holds. The \
-             result is ordinary section nodes, already bound to their kind's key.",
+            "Generate replaces the current ship with a hull built from a seed and the section types \
+             you selected. The result uses ordinary sections that you can continue editing.",
             &[],
             "wiki/keybinds#generate-a-hull",
             None,
             &[],
-            &["Generate rolls a hull from a seed and REPLACES what the ship you are inside holds."],
+            &[
+                "Generate replaces the current ship with a hull built from your selected seed.",
+            ],
         ),
         lesson(
             "novaos_open",
@@ -1103,14 +1008,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "novaos_open",
                 "the NOVA OS screen coming up over the cockpit",
             ),
-            "Opening NOVA OS freezes the game: the clocks stop, so combat, physics and every \
-             projectile hold mid-frame while you read contacts, check your ship and give orders. \
-             Nothing moves until you close it.",
+            "Opening NOVA OS freezes the game. Combat, physics, and projectiles stop while you read \
+             information or give commands. The game resumes when you close it.",
             &["novaos_toggle"],
             "wiki/nova-os#opening-and-closing",
             None,
             &[],
-            &["Opening NOVA OS freezes the game. The clocks stop until you close the screen."],
+            &["Opening NOVA OS freezes the game until you close it."],
         ),
         lesson(
             "novaos_terminal",
@@ -1123,16 +1027,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  prints the `ship reload` / `ship repair` row and takes the first, Tab again steps \
                  onto `ship repair`, and a space then Tab lists the hull's live section codes",
             ),
-            "NOVA OS has a prompt you type at, and it reads nova>. Completion fills in command \
-             names, subcommands and the live section or contact codes an argument wants. It keeps \
-             200 lines of history and 500 rows of scrollback, and reddens an unknown word.",
+            "Type commands at the `nova>` prompt. Completion suggests commands, subcommands, section \
+             codes, and contact codes. An unknown command turns red so you can correct it before \
+             running it.",
             &[],
             "wiki/nova-os#the-terminal",
             None,
             &[],
-            &[
-                "NOVA OS has a prompt you type at. Completion fills in commands and live section codes.",
-            ],
+            &["Prompt completion suggests commands and codes from the current game."],
         ),
         lesson(
             "novaos_view",
@@ -1144,14 +1046,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the ship schematic turning on the NOVA OS screen, then snapping back to \
                  its framing",
             ),
-            "Drag to turn and pan the ship model, and use reframe to put it back where it started. \
-             Moving the model does not move the ship. The game is frozen while the computer is \
-             open, so you can look as long as you like.",
+            "Drag to rotate or pan the ship model. Use reframe to return it to its starting \
+             position. Moving the model does not move your ship.",
             &["novaos_reframe"],
             "wiki/nova-os#the-ship",
             None,
             &[],
-            &[],
+            &["Moving the NOVA OS model does not move your ship."],
         ),
         lesson(
             "novaos_commands",
@@ -1164,16 +1065,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  it, `help` through `exit` and then `map`, `ship` and their subcommands, each with \
                  the line that says what it does",
             ),
-            "help lists everything. log prints the flight log, objectives the open objectives, \
-             clear wipes back to the boot report. map and ship hand the screen to an app; map view \
-             and ship view print the same data as a table. exit returns to flight.",
+            "`help` lists every command. `log` shows the flight log, `objectives` shows current \
+             objectives, and `clear` resets the prompt. `map` and `ship` open apps, while `exit` \
+             returns to flight.",
             &[],
             "wiki/nova-os#command-reference",
             None,
             &[],
-            &[
-                "help lists every command. map and ship open an app; map view and ship view print a table.",
-            ],
+            &["Type `help` to list every available command."],
         ),
         lesson(
             "novaos_contacts",
@@ -1185,14 +1084,16 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the local-space plot with one hostile picked and its range and \
                  bearing under it",
             ),
-            "The MAP app plots every contact around you as a labelled blip: SELF, ALLY-1, HOST-1, \
-             OBJ-1, AST-1. Pick one and the readout gives its kind, name, range and bearing. \
-             Setting GOTO from here engages the autopilot directly, without taking a radar lock.",
+            "The MAP app plots nearby contacts and gives each one a short code. Select a contact to \
+             see its name, type, range, and bearing. GOTO engages the autopilot without creating a \
+             radar lock.",
             &["novaos_next", "novaos_prev", "map_goto"],
             "wiki/nova-os#the-map",
             None,
             &[],
-            &[],
+            &[
+                "MAP can send your ship toward a contact without creating a radar lock.",
+            ],
         ),
         lesson(
             "novaos_service",
@@ -1205,15 +1106,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  `100% [##########]` and prints `repaired PDC-1`, then reload takes the magazine \
                  from `1/500` back to `500/500`",
             ),
-            "Sections carry short codes - HULL-1, THR-1, CTL-1, PDC-1, TRB-1 - stable for the \
-             session and shared by the app and the prompt. Select one and repair restores its \
-             integrity; reload refills a weapon's magazine. Both are instant, and a hull section \
-             refuses reload.",
+            "Ship sections use short codes such as `THR-1` and `PDC-1`. Select a section to repair \
+             its integrity or reload its magazine. Both actions happen immediately.",
             &["novaos_next", "novaos_prev", "ship_repair", "ship_reload"],
             "wiki/nova-os#the-ship",
             None,
             &[],
-            &["Sections carry short codes like THR-1. Select one and repair or reload acts on it."],
+            &["Select a section in the SHIP app to repair or reload it."],
         ),
         lesson(
             "novaos_rebind_section",
@@ -1227,14 +1126,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  trigger - the binding line turns from `LMB / Right Trigger 2` to `K / Right \
                  Trigger 2`",
             ),
-            "Your thrusters, turrets and tubes fire on per-ship triggers that Settings does not \
-             list. Select the section in the SHIP app and arm rebind; the next key or mouse button \
-             takes over its keyboard trigger. A reserved flight control is refused by name.",
+            "Thrusters, turrets, and torpedo bays have per-ship controls that do not appear in \
+             Settings. Select a section and start rebind, then press the new key or mouse button. \
+             Reserved flight controls cannot be used.",
             &["ship_rebind", "novaos_next", "novaos_prev"],
             "wiki/nova-os#rebinding-a-section",
             None,
             &[],
-            &["A section's trigger is per ship, not in Settings. Rebind it in the SHIP app."],
+            &["Section controls are set per ship in the SHIP app."],
         ),
         lesson(
             "novaos_shell",
@@ -1246,16 +1145,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the same monitor on its cmd> prompt over the main menu, with a run of `status` \
                  answered under it",
             ),
-            "A second language runs on the same monitor. It opens with no ship, over the menu or \
-             the editor, and reads the run: status, ships, bindings, settings. Cheat commands are \
-             refused until you arm them, and arming marks the run for good.",
+            "The command shell opens over the menu or editor without requiring a ship. It provides \
+             commands for the current run, ships, bindings, and settings. Cheat commands must be \
+             armed first, which permanently marks the run.",
             &[],
             "wiki/commands#the-commands",
             None,
             &[],
-            &[
-                "Arming cheats marks the run for good, and nothing unmarks it.",
-            ],
+            &["Arming cheat commands permanently marks the current run."],
         ),
         lesson(
             "advanced_scenarios",
@@ -1267,14 +1164,16 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the scenario picker with a scenario chosen and its briefing \
                  beside it",
             ),
-            "A scenario places a world and wires its objectives: rocks, planets, ships, nav \
-             beacons, salvage crates and lights. One scenario is one flight; a campaign is a set \
-             played in order. Both load from content files, so a mod can add or replace them.",
+            "A scenario creates one flight with its own world and objectives. A campaign is a group \
+             of scenarios played in order. Mods can add new scenarios and campaigns or replace \
+             existing ones.",
             &[],
             "wiki/scenarios#what-a-scenario-places",
             None,
             &[],
-            &[],
+            &[
+                "A scenario is one flight. A campaign is a group of scenarios played in order.",
+            ],
         ),
         lesson(
             "advanced_mods",
@@ -1285,14 +1184,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "advanced_mods",
                 "the mods screen with one enabled mod selected",
             ),
-            "Ships, weapons and scenarios all come from content files. A mod \
-             adds or replaces those files. The base game is itself a mod, so \
-             you can open and read every file in it.",
+            "Ships, weapons, scenarios, and other game content come from files that mods can add or \
+             replace. The base game is also a mod, so you can inspect its files and learn from \
+             them.",
             &[],
             "create/mod-files",
             None,
             &[],
-            &["The base game is itself a mod, and you can read every file in it."],
+            &["The base game is a mod, and you can inspect all of its content files."],
         ),
         lesson(
             "advanced_ai_flight",
@@ -1304,16 +1203,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a raider running in on a parked gunship across a rock field, nose already on it, \
                  closing across the frame from one cell to the next",
             ),
-            "An enemy flies the same flight computer you do: closing while it is outside its \
-             standoff, circling once inside, nose on you throughout. The standoff is clear space \
-             between the two hulls, and its speeds come off its own live drive.",
+            "Enemy ships use the same flight system as your ship. They approach until reaching \
+             their preferred distance, then circle while keeping their weapons pointed toward you.",
             &[],
             "wiki/factions#what-allegiance-drives",
             None,
             &[TUTORIAL_SCENARIO_ID],
-            &[
-                "An enemy flies the same flight computer you do, and holds its standoff hull to hull.",
-            ],
+            &["Enemy ships use the same flight system as your ship."],
         ),
         lesson(
             "advanced_bindings",
@@ -1324,14 +1220,15 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "advanced_bindings",
                 "the settings screen on its bindings tab",
             ),
-            "You can rebind the flight, targeting, camera and interface controls in Settings; the \
-             two rows that back out of a screen are fixed, and a section's weapon or thruster \
-             trigger is set per ship. Every lesson draws the binding you have now.",
+            "Settings lets you rebind flight, targeting, camera, and interface controls. Section \
+             controls are set separately for each ship. Lessons always show your current bindings.",
             &["main_drive"],
             "wiki/settings#controls",
             None,
             &[],
-            &[],
+            &[
+                "Lessons show your current bindings, including any changes made in Settings.",
+            ],
         ),
         lesson(
             "advanced_mouse",
@@ -1344,15 +1241,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  bindings, with the Look handle dragged up to 300% and down to 100% as its \
                  readout counts",
             ),
-            "The MOUSE group in Settings holds three sliders: Look scales ship steering, free look \
-             and turret aim (100-300%, default 200%); RCS scales mouse translation (100-500%, \
-             default 100%); Free Camera scales the free camera. Each 100% is its own baseline; the \
-             gamepad is untouched.",
+            "Settings has separate sensitivity sliders for Look, RCS, and Free Camera. Look affects \
+             steering, free look, and turret aim. RCS affects mouse translation. These settings do \
+             not change gamepad sensitivity.",
             &[],
             "wiki/settings#mouse",
             None,
             &[],
-            &["The MOUSE group is three sliders, not bindings, and each 100% is its own baseline."],
+            &["Look, RCS, and Free Camera have separate mouse sensitivity settings."],
         ),
         lesson(
             "advanced_graphics",
@@ -1364,14 +1260,14 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the settings screen on its graphics row with the Low, Medium and High preset \
                  picked out",
             ),
-            "One Low, Medium or High preset trades richness for framerate. High adds camera shake; \
-             Medium drops it and keeps hit flashes; Low drops both, spawns no particle bursts at \
-             all, and renders the world at a reduced resolution upscaled to the window.",
+            "Low, Medium, and High presets trade visual detail for performance. High includes \
+             camera shake and hit flashes. Medium removes camera shake. Low also removes hit \
+             flashes and particles and renders the world at a lower resolution.",
             &[],
             "wiki/settings#graphics-quality",
             None,
             &[],
-            &[],
+            &["Lower graphics presets remove visual effects to improve performance."],
         ),
         lesson(
             "advanced_audio",
@@ -1383,16 +1279,15 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the settings screen on its audio tab: the Master, Interface, World and Music \
                  sliders with their levels as whole percents",
             ),
-            "Four sliders: Master, Interface, World and Music. Interface is the cockpit - menu \
-             clicks, HUD ticks, the flight computer. World is everything out there, heard at the \
-             distance it happens. Master multiplies the other three. Music is reserved; the game \
-             ships none yet.",
+            "Master, Interface, World, and Music have separate volume controls. Interface covers \
+             menus, the HUD, and the flight computer. World covers sounds in the game world. Master \
+             changes the final volume of every channel.",
             &[],
             "wiki/settings#audio",
             None,
             &[],
             &[
-                "Master multiplies the other three channels, so a channel you turned down stays down.",
+                "Master volume changes every channel while preserving their individual levels.",
             ],
         ),
     ]

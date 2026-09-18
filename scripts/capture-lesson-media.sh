@@ -76,7 +76,7 @@ PRODUCERS=(
     "lesson_flight_aim|flight_aim:loop"
     "lesson_flight_basics|flight_momentum:loop,flight_stop:loop,flight_rcs:loop"
     "lesson_flight_orders|flight_goto:loop,flight_orbit:loop"
-    "lesson_flight_limits|flight_speedcap:loop,flight_cancel:loop"
+    "lesson_flight_cancel|flight_cancel:loop"
     "lesson_flight_well|flight_gravity:loop,flight_arrival:loop"
     "lesson_combat_radar|combat_radar:loop"
     "lesson_readouts|start_units:still,combat_lock_ranges:still"
