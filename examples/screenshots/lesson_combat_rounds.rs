@@ -76,7 +76,7 @@ mod lesson;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use lesson::{lesson_profile, LESSON_GRID};
+use lesson::{lesson_profile, LESSON_CELL_SECS, LESSON_GRID};
 use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
@@ -150,6 +150,28 @@ const ROUND_STRIDE: Meters = Meters(5.0);
 /// out at all to where the gun's timer happened to be.
 #[cfg(feature = "debug")]
 const TRIGGER_FRAMES: u32 = 2;
+/// The same hold, in the ship seconds the WALK waits out.
+///
+/// [`TRIGGER_FRAMES`] is a count of RECORDED cells, and a cell is a frame only
+/// while the recorder pins the frame clock to the handbook's cadence. On a run
+/// with nothing recording two frames are a few milliseconds of real time, which
+/// at [`LESSON_SLOWDOWN`] is a few tenths of a millisecond of ship time - less
+/// than one 200 Hz step, so not a single physics tick falls inside the hold and
+/// the guns never get the chance to fire. Measured: the smoke pass died on the
+/// cease-fire beat's own assertion with an empty lane.
+///
+/// Sized off the cells rather than restated, so the two cannot drift: what the
+/// walk waits is what the sheet records, on any host.
+#[cfg(feature = "debug")]
+const TRIGGER_SECS: f32 = TRIGGER_FRAMES as f32 * LESSON_CELL_SECS * LESSON_SLOWDOWN;
+/// How long the rigs are given to arrive and the guns to swing, in ship
+/// seconds.
+///
+/// `SETTLE_FRAMES` read off the CLOCK, and before [`slow_the_world`], so it is
+/// the handbook's cadence at full speed. Frames would be counted through the
+/// scenario load's own hold, which stops the clock but not the renderer.
+#[cfg(feature = "debug")]
+const SETTLE_SECS: f32 = SETTLE_FRAMES as f32 * LESSON_CELL_SECS;
 
 /// The eye, standing off the beam.
 #[cfg(feature = "debug")]
@@ -367,7 +389,14 @@ fn rounds_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("load the range")
         .enter(GameStates::Loading)
-        .until(and(the_range_is_standing(), scenario_camera_present()))
+        // The BUILD as well as the roots: the camera is up and the rigs are
+        // spawned partway through the load, while the loader still holds the
+        // simulation for what has not landed. A beat that lays the guns inside
+        // that hold aims them on a clock that is not running.
+        .until(and(
+            the_range_is_standing(),
+            and(scenario_camera_present(), scenario_is_built()),
+        ))
         .deadline(30.0)
         .add()
         .step("stand off the beam and lay the guns")
@@ -379,7 +408,7 @@ fn rounds_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             pose_camera(world, ROUNDS_EYE, ROUNDS_AIM);
             lay_the_guns(world);
         })
-        .until(frames(SETTLE_FRAMES))
+        .until(elapsed(SETTLE_SECS))
         .add()
         // The slowdown goes on AFTER the settle: a rig that spawned into slow
         // motion would take twenty times as long to finish arriving.
@@ -395,7 +424,7 @@ fn rounds_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             sheet_start(world, ROUNDS_LESSON, LESSON_GRID);
             set_triggers(world, true);
         })
-        .until(frames(TRIGGER_FRAMES))
+        .until(elapsed(TRIGGER_SECS))
         .add()
         // A sheet of two empty lanes tiles just as cleanly as a sheet of the
         // demonstration, and is the one failure this frame cannot survive.
@@ -404,9 +433,9 @@ fn rounds_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             set_triggers(world, false);
             assert!(
                 rounds_in_flight(world) > 0,
-                "no rounds in flight after {TRIGGER_FRAMES} frames on the trigger, at {} m of \
-                 travel a frame: the sheet would be a picture of ten plates. Check the mounts \
-                 deployed and the aim point reached them.",
+                "no rounds in flight after {TRIGGER_SECS} s on the trigger, at {} m of travel \
+                 a cell: the sheet would be a picture of ten plates. Check the mounts deployed \
+                 and the aim point reached them.",
                 ROUND_STRIDE.get()
             );
         })

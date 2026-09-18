@@ -60,7 +60,7 @@ mod lesson;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use lesson::{lesson_profile, sweep_lesson_camera, LessonSweep, LESSON_GRID};
+use lesson::{lesson_profile, sweep_lesson_camera, LessonSweep, LESSON_GRID, LESSON_SECS};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -195,9 +195,14 @@ fn ai_flight_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .diagnose(hollow::hunter_diagnosis)
         .deadline(CLOSE_DEADLINE_SECS)
         .add()
+        // BOTH, and the clock is the half that matters: `sheet_written` holds
+        // the instant it is asked on a run with nothing recording, so a wait on
+        // the sheet alone ends this beat one frame in and the assertion below
+        // reads a run-in that has had no time to break off. The sheet's own
+        // length is what the recorded lesson shows.
         .step("record the last of the run-in")
         .on_enter(|world: &mut World| sheet_start(world, LESSON, LESSON_GRID))
-        .until(sheet_written(LESSON))
+        .until(and(sheet_written(LESSON), elapsed(LESSON_SECS)))
         .deadline(60.0)
         .add()
         // The gap only shrinks on a run-in, so a raider outside the gate at

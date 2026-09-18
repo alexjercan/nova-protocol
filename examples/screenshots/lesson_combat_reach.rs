@@ -121,7 +121,7 @@ mod lesson;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use lesson::{lesson_profile, LESSON_GRID};
+use lesson::{lesson_cell, lesson_profile, LESSON_CELL_SECS, LESSON_GRID, LESSON_SECS};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -263,6 +263,21 @@ const SWING_HEIGHT: Meters = Meters(20.0);
 #[cfg(feature = "debug")]
 const MIN_CELLS_EACH_WAY: usize = 3;
 
+/// How long each of the two settle beats before the sheet holds, in ship
+/// seconds.
+///
+/// [`SETTLE_FRAMES`] read off the CLOCK rather than off the rendered frames.
+/// The two are one thing while the recorder pins the frame clock to the
+/// handbook's cadence, and nothing alike anywhere else. On a host that renders
+/// quickly the thirty frames went by inside the scenario load, so the guns were
+/// laid and the trigger put down on a battery that did not exist yet and the
+/// sheet recorded a hull that never fired. Under software rendering the same
+/// thirty frames held the trigger down for five seconds and emptied the
+/// magazines the sheet is graded on. Three seconds is what the recorded lesson
+/// was made with, on both counts.
+#[cfg(feature = "debug")]
+const SETTLE_SECS: f32 = SETTLE_FRAMES as f32 * LESSON_CELL_SECS;
+
 /// How long the battery is held down before the reach still's lane is judged
 /// full, in seconds.
 ///
@@ -271,6 +286,32 @@ const MIN_CELLS_EACH_WAY: usize = 3;
 #[cfg(feature = "debug")]
 const FILL_SECS: f32 = 2.4;
 
+/// How far the game clock may advance in one frame of a HARNESSED run of this
+/// set: one cell of the handbook's own sheet.
+///
+/// The two frames here are graded on how long the STREAM of rounds is, and a
+/// round's life is ticked with the FRAME delta
+/// (`nova_gameplay::lifetime::TempEntity`) while its flight is integrated by
+/// the solver. So a round dies up to one frame of travel short of the reach it
+/// was authored with: 100 m at the recorder's ten cells a second, which is what
+/// [`REACH_TOLERANCE`] is sized to absorb, and 250 m on a software rasterizer
+/// left at Bevy's quarter-second clamp, which it is not - the lane there tops
+/// out at 1,750 m and never reads full, so the beat stalls on the host rather
+/// than on a change.
+///
+/// Holding the clock rather than widening the tolerance is what keeps the
+/// still's claim: an unarmed run measures the stream on the same clock the
+/// recorded one does. Nothing in this set reads a frame, so a frame that
+/// carries less world time runs fewer fixed steps of the same flight, not a
+/// different one.
+#[cfg(feature = "debug")]
+fn hold_the_lane_clock(mut time: ResMut<Time<Virtual>>) {
+    let cell = std::time::Duration::from_secs_f32(LESSON_CELL_SECS);
+    if time.max_delta() != cell {
+        time.set_max_delta(cell);
+    }
+}
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -278,6 +319,11 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        // Held every frame, not set once: a scenario load hands `Time<Virtual>`
+        // back at its default.
+        if harness_env_active() {
+            app.add_systems(First, hold_the_lane_clock.before(bevy::time::TimeSystems));
+        }
         app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::new(
             lesson_profile(),
         ));
@@ -424,22 +470,23 @@ fn set_triggers(world: &mut World, firing: bool) {
     }
 }
 
-/// Where the commanded point stands at `frame` of the sheet.
+/// Where the commanded point stands at `cell` of the sheet.
 ///
-/// A SQUARE wave on the frame index, not a curve on the clock: the point holds
-/// one bearing for the first half of the sheet and the other for the second,
-/// and the barrels spend the cells after each step chasing it. Two steps per
-/// loop, half a period apart, is also what makes the sheet WRAP without any
-/// arithmetic - frame twenty is frame zero of the next loop, so the barrels are
-/// in exactly the state there that they were in here, whatever the hinges turn
-/// out to cost.
+/// A SQUARE wave on the cell index, not a curve: the point holds one bearing
+/// for the first half of the sheet and the other for the second, and the
+/// barrels spend the cells after each step chasing it. Two steps per loop, half
+/// a period apart, is also what makes the sheet WRAP without any arithmetic -
+/// cell twenty is cell zero of the next loop, so the barrels are in exactly the
+/// state there that they were in here, whatever the hinges turn out to cost.
 ///
-/// Indexed on the FRAME rather than the clock so the smoke path walks the same
-/// two steps and the guard below means something unarmed.
+/// Indexed on the cell the CLOCK is in ([`lesson_cell`]) rather than on the
+/// rendered frame, so the smoke path walks the same two steps at the same
+/// speed and the guard below means something unarmed. The two readings agree
+/// while the recorder holds the clock at the handbook's cadence.
 #[cfg(feature = "debug")]
-fn swing_bearing(frame: u32) -> Meters3 {
+fn swing_bearing(cell: u32) -> Meters3 {
     let half = LESSON_GRID.frames() / 2;
-    let to_starboard = frame % LESSON_GRID.frames() < half;
+    let to_starboard = cell % LESSON_GRID.frames() < half;
     let bearing = if to_starboard {
         SWING_DEGREES.to_radians() * 0.5
     } else {
@@ -452,10 +499,10 @@ fn swing_bearing(frame: u32) -> Meters3 {
     )
 }
 
-/// Walk the commanded point to where `frame` of the sheet wants it.
+/// Walk the commanded point to where `cell` of the sheet wants it.
 #[cfg(feature = "debug")]
-fn swing_the_aim(world: &mut World, frame: u32) {
-    lay_the_guns(world, swing_bearing(frame));
+fn swing_the_aim(world: &mut World, cell: u32) {
+    lay_the_guns(world, swing_bearing(cell));
 }
 
 /// How many rounds the player's battery has left, across every magazine on it.
@@ -468,16 +515,23 @@ fn rounds_left(world: &mut World) -> u32 {
         .sum()
 }
 
-/// Take one sample of the battery's magazines.
+/// Take one sample of the battery's magazines, the first one taken inside each
+/// cell of the sheet.
+///
+/// One per CELL, not one per rendered frame: a frame is a cell only while the
+/// recorder holds the clock at the handbook's cadence, and on a run with
+/// nothing recording the whole twenty go by in a few tens of milliseconds of
+/// ship time - less than the interval between two rounds, so every cell reads
+/// as spending nothing and the guard below calls a working battery broken.
 ///
 /// Capped at the sheet's own length. The beat waits on the tiler as well as on
-/// the frame count, so it outlives the twenty cells by a frame or two, and a
-/// sample taken after the sheet closed is a cell nobody will ever see.
+/// the clock, so it outlives the twenty cells by a frame or two, and a sample
+/// taken after the sheet closed is a cell nobody will ever see.
 #[cfg(feature = "debug")]
-fn note_the_rounds(world: &mut World) {
+fn note_the_rounds(world: &mut World, cell: u32) {
     let left = rounds_left(world);
     let mut spent = world.resource_mut::<SpentRounds>();
-    if spent.samples.len() > LESSON_GRID.frames() as usize {
+    if spent.samples.len() > LESSON_GRID.frames() as usize || spent.samples.len() as u32 > cell {
         return;
     }
     spent.samples.push(left);
@@ -509,7 +563,11 @@ fn the_guns_held_and_came_back(world: &mut World) {
     let spent = spent_per_cell(&world.resource::<SpentRounds>().samples);
     let firing = spent.iter().filter(|rounds| **rounds > 0).count();
     let held = spent.iter().filter(|rounds| **rounds == 0).count();
-    info!("barrel discipline: {firing} firing cell(s), {held} held, cell by cell {spent:?}");
+    let samples = &world.resource::<SpentRounds>().samples;
+    info!(
+        "barrel discipline: {firing} firing cell(s), {held} held, cell by cell {spent:?}, \
+         magazines {samples:?}"
+    );
     assert!(
         firing >= MIN_CELLS_EACH_WAY,
         "the battery spent rounds in only {firing} cell(s) of the sheet: the loop would read as a \
@@ -675,9 +733,16 @@ fn commit_the_salvo(world: &mut World) {
 #[cfg(feature = "debug")]
 fn combat_reach_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+        // BOTH, and the build is the half that matters: the scenario camera is
+        // up while the loader is still spawning, and the settle beats below are
+        // counted in FRAMES, which keep coming through a hold that stops the
+        // clock. On a host that renders quickly all of them passed inside the
+        // build, so `lay_the_guns` and `set_triggers` wrote to a battery that
+        // did not exist yet - the trigger was never put down, and the sheet
+        // recorded a hull that fired nothing.
         .step("load the gun range")
         .enter(GameStates::Loading)
-        .until(scenario_camera_present())
+        .until(and(scenario_camera_present(), scenario_is_built()))
         .deadline(30.0)
         .add()
         // BARREL DISCIPLINE first, because it is the frame with a magazine
@@ -694,30 +759,31 @@ fn combat_reach_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
             swing_the_aim(world, LESSON_GRID.frames() - 1);
             pose_camera(world, DISCIPLINE_EYE, DISCIPLINE_AIM);
         })
-        .until(frames(SETTLE_FRAMES))
+        .until(elapsed(SETTLE_SECS))
         .add()
         // The trigger goes down BEFORE the sheet opens, so cell one is a gun
         // already firing rather than a gun starting - which is the state the
         // last cell hands back to.
         .step("open fire on that bearing")
         .on_enter(|world: &mut World| set_triggers(world, true))
-        .until(frames(SETTLE_FRAMES))
+        .until(elapsed(SETTLE_SECS))
         .add()
         .step("step the aim across the bow and record the chase")
         .on_enter(|world: &mut World| {
             world.resource_mut::<SpentRounds>().samples.clear();
             swing_the_aim(world, 0);
-            note_the_rounds(world);
+            note_the_rounds(world, 0);
             sheet_start(world, DISCIPLINE_LESSON, LESSON_GRID);
         })
-        .each(|world: &mut World, _, frame| {
-            swing_the_aim(world, frame);
-            note_the_rounds(world);
+        .each(|world: &mut World, elapsed, _| {
+            let cell = lesson_cell(elapsed);
+            swing_the_aim(world, cell);
+            note_the_rounds(world, cell);
         })
-        .until(and(
-            sheet_written(DISCIPLINE_LESSON),
-            frames(LESSON_GRID.frames()),
-        ))
+        // BOTH, and the swing is the half that matters: `sheet_written` holds
+        // the instant it is asked on the smoke path, so a wait on it alone
+        // would drive the unarmed run past the discipline it exists to prove.
+        .until(and(sheet_written(DISCIPLINE_LESSON), elapsed(LESSON_SECS)))
         .deadline(240.0)
         .diagnose(report_the_swing)
         .add()

@@ -468,9 +468,14 @@ fn combat_moves_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         // The stance is HELD from here to the end of the run: `WeaponsRaised`
         // mirrors the button every frame, so letting go would fold the mounts
         // back down and re-safe the guns the last beat has to fire.
+        // BOTH, and the mounts are the half that matters: `sheet_written` holds
+        // the instant it is asked on a run with nothing recording, so a wait on
+        // the sheet alone ended this beat one frame after the button went down
+        // and the next beat's assertion read housings that had not begun to
+        // open yet.
         .step("raise the weapons inside the recording")
         .on_enter(hollow::raise_stance)
-        .until(sheet_written(STANCE_LESSON))
+        .until(and(sheet_written(STANCE_LESSON), the_mounts_are_up()))
         .deadline(60.0)
         .add()
         // The deploy is about six tenths of a second of a two-second sheet. A
