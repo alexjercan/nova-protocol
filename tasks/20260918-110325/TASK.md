@@ -329,3 +329,55 @@ of a format migration); `webmods/the-ledger/README.md` names the governor too.
   true as a stated reference speed; the wording changes.
 - Any third-party mod RON carrying `speed_cap` stops loading once D1 lands.
   That is the intended break.
+
+## Delivered 2026-09-18
+
+Commits: `77785cab1` before artifact, `94a96a0f2` code and content,
+`30b9b8220` docs, `c50ec6f0a` flown evidence. Evidence in `proof/`.
+
+- No runtime system limits manual thrust by speed. `manual_burn_system` reads
+  `(Entity, &FlightIntent, Option<&ComputedCenterOfMass>)` and goes straight to
+  the balanced thruster path. `speed_budget_scale` and `step_inside_sphere` are
+  gone; RCS keeps its own budget unchanged.
+- The format break is loud. `PlayerControllerConfig` is `deny_unknown_fields`:
+  a stale `speed_cap:` is refused naming the key and the span, and
+  `SetSpeedCap(...)` is refused as an unknown variant. Proven by
+  `removed_governor_syntax_is_refused_not_ignored` and by the ledger campaign
+  failing 0/9 on the stale key before migration.
+- Shipped content migrated: six generated base scenarios, the example mod,
+  Gauntlet (1.12.0 -> 1.13.0), the six Ledger activities, five bench fixtures.
+  The two mods record the break in their own changelogs.
+- Action table 52 -> 51, console catalog 27 -> 26 commands. Both counts were
+  restated in the code-backed widgets and the creator reference.
+- Checks: `cargo check --workspace` green; `--all-targets` clean under
+  `--features debug` (the ~22 default-feature failures are the pre-existing
+  `hollow.rs` debug-gate mismatch, present at `cf35fe2a7`); `content gen` diff
+  is exactly the six scenarios; `content lint` 0 errors, 14 scenarios audited;
+  focused tests green in nova_ship (149), nova_scenario (436), nova_hud,
+  nova_probe, nova_console, nova_os, nova_ui, nova_authoring; `web npm run ci`
+  and `mdbook build` pass. Workspace tests and Clippy were NOT run locally, per
+  standing instruction; CI covers them.
+
+### Exposures found, not fixed
+
+1. **Basic Training's pattern beat overshoots.** The trainer tops out at
+   210 m/s (the 600 m to the gate is the real ceiling, not a tail) and the beat
+   ends at rest 1 890 m past mark ALPHA. The next card is an RCS slide to BRAVO
+   and RCS caps at 100 m/s, so the authored geometry no longer matches where
+   the ship stops. The card is still reachable. Evidence:
+   `proof/bench-tutorial.txt`.
+2. **High-speed collision is now reachable and the damage model does not
+   answer it.** Twelve seconds of held throttle reaches 1 004 m/s; the hull
+   strikes the planetoid at that speed and bounces with 44/44 plates and full
+   health. Evidence: `proof/bench-straight-burn.txt`.
+
+Both are consequences the task predicted and told the delivery to observe
+rather than hide. Neither is a reason to restore a governor.
+
+### Not measured
+
+- The full Basic Training card past BRAVO (radar, gun, five hulks, two drones).
+  Those beats read no ship speed.
+- Obstacle-lane bypass in season one. `system_chapter_one` teleports Kaveri
+  between gates rather than flying the rock lane, so nothing in the repo flies
+  that lane by hand.
