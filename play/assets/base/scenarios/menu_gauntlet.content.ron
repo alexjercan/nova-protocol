@@ -4,8 +4,7 @@
         name: "Torpedo Gauntlet",
         description: "A gunship\'s doomed point-defense stand against batteries on both flanks.",
         cubemap: "self://textures/cubemap.png",
-        hidden: true,
-        menu_backdrop: true,
+        role: Backdrop,
         events: [
             (
                 name: OnStart,
@@ -191,7 +190,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "bay",
@@ -206,9 +205,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("torpedo_section"),
+                                        source: Prototype(
+                                            id: "torpedo_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                             allegiance: Some(Enemy),
@@ -231,7 +234,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "bay",
@@ -246,9 +249,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("torpedo_section"),
+                                        source: Prototype(
+                                            id: "torpedo_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                             allegiance: Some(Enemy),
@@ -271,7 +278,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "bay",
@@ -286,9 +293,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("torpedo_section"),
+                                        source: Prototype(
+                                            id: "torpedo_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                             allegiance: Some(Enemy),
@@ -311,7 +322,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "bay",
@@ -326,9 +337,13 @@
                                             0.0,
                                             1.0,
                                         ),
-                                        source: Prototype("torpedo_section"),
+                                        source: Prototype(
+                                            id: "torpedo_section",
+                                        ),
                                     ),
                                 ],
+                                integrity: (),
+                                presentation: (),
                             )),
                             controller: r#None,
                             allegiance: Some(Enemy),
@@ -380,7 +395,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -421,7 +436,53 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_gunship"),
+                            design: Prototype(
+                                id: "block_gunship",
+                                section_patches: {
+                                    "pdc_aft_port": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                ammunition: Some(Limited(600)),
+                                            ))),
+                                        ),
+                                    ),
+                                    "pdc_aft_starboard": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                ammunition: Some(Limited(600)),
+                                            ))),
+                                        ),
+                                    ),
+                                    "pdc_forward_port": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                ammunition: Some(Limited(600)),
+                                            ))),
+                                        ),
+                                    ),
+                                    "pdc_forward_starboard": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                ammunition: Some(Limited(600)),
+                                            ))),
+                                        ),
+                                    ),
+                                    "pdc_ventral_port": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                ammunition: Some(Limited(600)),
+                                            ))),
+                                        ),
+                                    ),
+                                    "pdc_ventral_starboard": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                ammunition: Some(Limited(600)),
+                                            ))),
+                                        ),
+                                    ),
+                                },
+                            ),
                             controller: AI((
                                 patrol: [
                                     (
@@ -461,44 +522,6 @@
                                 pd_range: Some(1300.0),
                             )),
                             allegiance: Some(Player),
-                            modifications: [
-                                (
-                                    section: "pdc_forward_port",
-                                    modifications: [
-                                        SetAmmo(600),
-                                    ],
-                                ),
-                                (
-                                    section: "pdc_forward_starboard",
-                                    modifications: [
-                                        SetAmmo(600),
-                                    ],
-                                ),
-                                (
-                                    section: "pdc_aft_port",
-                                    modifications: [
-                                        SetAmmo(600),
-                                    ],
-                                ),
-                                (
-                                    section: "pdc_aft_starboard",
-                                    modifications: [
-                                        SetAmmo(600),
-                                    ],
-                                ),
-                                (
-                                    section: "pdc_ventral_port",
-                                    modifications: [
-                                        SetAmmo(600),
-                                    ],
-                                ),
-                                (
-                                    section: "pdc_ventral_starboard",
-                                    modifications: [
-                                        SetAmmo(600),
-                                    ],
-                                ),
-                            ],
                         )),
                     )),
                     TimerStart((

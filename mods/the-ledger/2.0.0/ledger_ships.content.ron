@@ -1,0 +1,1002 @@
+// The same Racer, CargoA, CargoB and cruciform station assets.
+// Patrol craft have weaker plating and guns; the freighter is an unarmed CargoA.
+// Ship-local ids and all mount geometry remain stable.
+[
+    Ship((
+        id: "racer",
+        name: "Racer Yacht",
+        design: (
+            sections: [
+                (
+                    id: "engine_starboard",
+                    position: (
+                        0.655,
+                        0.570945,
+                        1.512835,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "racer_engine_starboard"),
+                ),
+                (
+                    id: "engine_port",
+                    position: (
+                        -0.655,
+                        0.570945,
+                        1.512835,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "racer_engine_port"),
+                ),
+                (
+                    id: "wing_starboard",
+                    position: (
+                        0.805,
+                        0.5,
+                        0.11783552,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "racer_wing_starboard"),
+                ),
+                (
+                    id: "wing_port",
+                    position: (
+                        -0.805,
+                        0.5,
+                        0.11783552,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "racer_wing_port"),
+                ),
+                (
+                    id: "nose",
+                    position: (
+                        0.0,
+                        0.611325,
+                        -1.512835,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "racer_nose"),
+                ),
+                (
+                    id: "tail",
+                    position: (
+                        0.0,
+                        0.85,
+                        1.6128349,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "racer_tail"),
+                ),
+                (
+                    id: "fuselage",
+                    position: (
+                        0.0,
+                        0.7,
+                        0.100000024,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "racer_fuselage"),
+                ),
+            ],
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
+        ),
+    )),
+    Ship((
+        id: "cargob",
+        name: "CargoB Hauler",
+        design: (
+            sections: [
+                (
+                    id: "engine_starboard",
+                    position: (
+                        1.005,
+                        0.7,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_engine_starboard"),
+                ),
+                (
+                    id: "engine_port",
+                    position: (
+                        -1.005,
+                        0.7,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_engine_port"),
+                ),
+                (
+                    id: "pod_starboard",
+                    position: (
+                        1.0550001,
+                        0.7,
+                        -0.5,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_pod_starboard"),
+                ),
+                (
+                    id: "pod_port",
+                    position: (
+                        -1.0550001,
+                        0.7,
+                        -0.5,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_pod_port"),
+                ),
+                (
+                    id: "nose",
+                    position: (
+                        0.0,
+                        1.0,
+                        -1.75,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_nose"),
+                ),
+                (
+                    id: "tail",
+                    position: (
+                        0.0,
+                        0.65,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_tail"),
+                ),
+                (
+                    id: "fuselage",
+                    position: (
+                        0.0,
+                        0.9,
+                        0.25,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_fuselage"),
+                ),
+                (
+                    id: "turret_starboard",
+                    position: (
+                        1.55,
+                        1.2,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "ledger_pdc"),
+                ),
+                (
+                    id: "turret_port",
+                    position: (
+                        -1.55,
+                        1.2,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "ledger_pdc"),
+                ),
+            ],
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
+        ),
+    )),
+    Ship((
+        id: "cargob_lance",
+        name: "CargoB Hauler (Lance)",
+        design: (
+            sections: [
+                (
+                    id: "engine_starboard",
+                    position: (
+                        1.005,
+                        0.7,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_engine_starboard"),
+                ),
+                (
+                    id: "engine_port",
+                    position: (
+                        -1.005,
+                        0.7,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_engine_port"),
+                ),
+                (
+                    id: "pod_starboard",
+                    position: (
+                        1.0550001,
+                        0.7,
+                        -0.5,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_pod_starboard_lance"),
+                ),
+                (
+                    id: "pod_port",
+                    position: (
+                        -1.0550001,
+                        0.7,
+                        -0.5,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_pod_port_lance"),
+                ),
+                (
+                    id: "nose",
+                    position: (
+                        0.0,
+                        1.0,
+                        -1.75,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_nose"),
+                ),
+                (
+                    id: "tail",
+                    position: (
+                        0.0,
+                        0.65,
+                        2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_tail"),
+                ),
+                (
+                    id: "fuselage",
+                    position: (
+                        0.0,
+                        0.9,
+                        0.25,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargob_fuselage"),
+                ),
+                (
+                    id: "turret_starboard",
+                    position: (
+                        1.55,
+                        1.2,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "ledger_pdc"),
+                ),
+                (
+                    id: "turret_port",
+                    position: (
+                        -1.55,
+                        1.2,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "ledger_pdc"),
+                ),
+            ],
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
+        ),
+    )),
+    Ship((
+        id: "cargoa",
+        name: "CargoA Corvette",
+        design: (
+            sections: [
+                (
+                    id: "engine_starboard",
+                    position: (
+                        1.205,
+                        0.6,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_engine_starboard"),
+                ),
+                (
+                    id: "engine_port",
+                    position: (
+                        -1.205,
+                        0.6,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_engine_port"),
+                ),
+                (
+                    id: "pod_starboard",
+                    position: (
+                        1.205,
+                        0.7,
+                        0.47500002,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_pod_starboard"),
+                ),
+                (
+                    id: "pod_port",
+                    position: (
+                        -1.205,
+                        0.7,
+                        0.47500002,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_pod_port"),
+                ),
+                (
+                    id: "nose",
+                    position: (
+                        0.0,
+                        0.8,
+                        -1.8,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_nose"),
+                ),
+                (
+                    id: "tail",
+                    position: (
+                        0.0,
+                        0.5875,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_tail"),
+                ),
+                (
+                    id: "fuselage",
+                    position: (
+                        0.0,
+                        0.8,
+                        0.17500001,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_fuselage"),
+                ),
+                (
+                    id: "turret_starboard",
+                    position: (
+                        0.95,
+                        0.8,
+                        -1.8,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        -0.70710677,
+                        0.70710677,
+                    ),
+                    source: Prototype(id: "ledger_pdc"),
+                ),
+                (
+                    id: "turret_port",
+                    position: (
+                        -0.95,
+                        0.8,
+                        -1.8,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.70710677,
+                        0.70710677,
+                    ),
+                    source: Prototype(id: "ledger_pdc"),
+                ),
+            ],
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
+        ),
+    )),
+    Ship((
+        id: "cargoa_raider",
+        name: "CargoA Raider Corvette",
+        design: (
+            sections: [
+                (
+                    id: "engine_starboard",
+                    position: (
+                        1.205,
+                        0.6,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargoa_engine_starboard",
+                        patch: (
+                            health: Some(90.0),
+                        ),
+                    ),
+                ),
+                (
+                    id: "engine_port",
+                    position: (
+                        -1.205,
+                        0.6,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargoa_engine_port",
+                        patch: (
+                            health: Some(90.0),
+                        ),
+                    ),
+                ),
+                (
+                    id: "pod_starboard",
+                    position: (
+                        1.205,
+                        0.7,
+                        0.47500002,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargoa_pod_starboard",
+                        patch: (
+                            health: Some(250.0),
+                        ),
+                    ),
+                ),
+                (
+                    id: "pod_port",
+                    position: (
+                        -1.205,
+                        0.7,
+                        0.47500002,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargoa_pod_port",
+                        patch: (
+                            health: Some(250.0),
+                        ),
+                    ),
+                ),
+                (
+                    id: "nose",
+                    position: (
+                        0.0,
+                        0.8,
+                        -1.8,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargoa_nose",
+                        patch: (
+                            health: Some(200.0),
+                        ),
+                    ),
+                ),
+                (
+                    id: "tail",
+                    position: (
+                        0.0,
+                        0.5875,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargoa_tail",
+                        patch: (
+                            health: Some(160.0),
+                        ),
+                    ),
+                ),
+                (
+                    id: "fuselage",
+                    position: (
+                        0.0,
+                        0.8,
+                        0.17500001,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "cargoa_fuselage",
+                        patch: (
+                            health: Some(300.0),
+                        ),
+                    ),
+                ),
+                (
+                    id: "turret_starboard",
+                    position: (
+                        0.95,
+                        0.8,
+                        -1.8,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        -0.70710677,
+                        0.70710677,
+                    ),
+                    source: Prototype(
+                        id: "ledger_pdc_patrol",
+                        patch: (
+                            health: Some(120.0),
+                        ),
+                    ),
+                ),
+                (
+                    id: "turret_port",
+                    position: (
+                        -0.95,
+                        0.8,
+                        -1.8,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.70710677,
+                        0.70710677,
+                    ),
+                    source: Prototype(
+                        id: "ledger_pdc_patrol",
+                        patch: (
+                            health: Some(120.0),
+                        ),
+                    ),
+                ),
+            ],
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
+        ),
+    )),
+    Ship((
+        id: "ledger_freighter",
+        name: "Light Freighter",
+        design: (
+            sections: [
+                (
+                    id: "engine_starboard",
+                    position: (
+                        1.205,
+                        0.6,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_engine_starboard"),
+                ),
+                (
+                    id: "engine_port",
+                    position: (
+                        -1.205,
+                        0.6,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_engine_port"),
+                ),
+                (
+                    id: "pod_starboard",
+                    position: (
+                        1.205,
+                        0.7,
+                        0.47500002,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_pod_starboard"),
+                ),
+                (
+                    id: "pod_port",
+                    position: (
+                        -1.205,
+                        0.7,
+                        0.47500002,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_pod_port"),
+                ),
+                (
+                    id: "nose",
+                    position: (
+                        0.0,
+                        0.8,
+                        -1.8,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_nose"),
+                ),
+                (
+                    id: "tail",
+                    position: (
+                        0.0,
+                        0.5875,
+                        1.975,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_tail"),
+                ),
+                (
+                    id: "fuselage",
+                    position: (
+                        0.0,
+                        0.8,
+                        0.17500001,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(id: "cargoa_fuselage"),
+                ),
+            ],
+            presentation: (
+                collapse_sound: Some("dep://base/sounds/destroy_ship.wav"),
+                lock_on_sound: Some("dep://base/sounds/lock_on.wav"),
+                lock_off_sound: Some("dep://base/sounds/lock_off.wav"),
+                radar_deny_sound: Some("dep://base/sounds/radar_deny.wav"),
+                radar_retarget_sound: Some("dep://base/sounds/radar_retarget.wav"),
+                safety_on_sound: Some("dep://base/sounds/safety_on.wav"),
+                warn_lock_sound: Some("dep://base/sounds/warn_lock.wav"),
+                ammo_dry_sound: Some("dep://base/sounds/ammo_dry.wav"),
+                warn_hull_sound: Some("dep://base/sounds/warn_hull.wav"),
+                rcs_loop_sound: Some("dep://base/sounds/rcs_loop.wav"),
+            ),
+        ),
+    )),
+    Ship((id: "ledger_platform", name: "Platform", design: (
+                                sections: [
+                                    (
+                                        id: "core",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_controller_section", patch: (health: Some(600.0))),
+                                    ),
+                                    (
+                                        id: "spine_zp1",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "spine_zp2",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "spine_zm1",
+                                        position: (0.0, 0.0, -1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "spine_zm2",
+                                        position: (0.0, 0.0, -2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "arm_xp1",
+                                        position: (1.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "arm_xp2",
+                                        position: (2.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "arm_xm1",
+                                        position: (-1.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "arm_xm2",
+                                        position: (-2.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "cap_yp",
+                                        position: (0.0, 1.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "cap_ym",
+                                        position: (0.0, -1.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section", patch: (health: Some(240.0))),
+                                    ),
+                                    (
+                                        id: "turret_zp",
+                                        position: (0.0, 0.75, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "ledger_pdc_patrol", patch: (health: Some(100.0))),
+                                    ),
+                                    (
+                                        id: "turret_zm",
+                                        position: (0.0, 0.75, -2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "ledger_pdc_patrol", patch: (health: Some(100.0))),
+                                    ),
+                                ],
+                            ))),
+]

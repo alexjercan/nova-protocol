@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Actions - Nova Protocol Creator Docs</title><meta name="description" content="All 46 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Actions - Nova Protocol Creator Docs</title><meta name="description" content="All 51 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
@@ -17,10 +17,10 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#setspeedcap">SetSpeedCap</a></li><li><a href="#setcontrollerverb">SetControllerVerb</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#ship-capabilities">Ship capabilities</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#zeroshipmotion">ZeroShipMotion</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - <code>Name((field: value, ...))</code>, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 46 at a glance:</p>
+never panics a scenario). All 51 at a glance:</p>
 <table>
 <thead>
 <tr>
@@ -73,7 +73,7 @@ never panics a scenario). All 46 at a glance:</p>
 <tr>
 <td><a href="#narrativecue"><code>NarrativeCue</code></a></td>
 <td><a href="#mission-story">mission</a></td>
-<td>speak one line on an authored channel, named by id</td>
+<td>speak one line into the comms stack</td>
 </tr>
 <tr>
 <td><a href="#hudreadout"><code>HudReadout</code></a></td>
@@ -126,14 +126,34 @@ never panics a scenario). All 46 at a glance:</p>
 <td>queue a switch to another scenario by id</td>
 </tr>
 <tr>
-<td><a href="#setspeedcap"><code>SetSpeedCap</code></a></td>
+<td><a href="#ship-capabilities"><code>SetShipCapabilityStop</code></a></td>
 <td><a href="#ship-state">ship state</a></td>
-<td>install, update or remove the soft manual-speed governor</td>
+<td>grant or withhold STOP on a ship</td>
 </tr>
 <tr>
-<td><a href="#setcontrollerverb"><code>SetControllerVerb</code></a></td>
+<td><a href="#ship-capabilities"><code>SetShipCapabilityGoto</code></a></td>
 <td><a href="#ship-state">ship state</a></td>
-<td>grant or withhold one flight verb on a ship's controller</td>
+<td>grant or withhold GOTO on a ship</td>
+</tr>
+<tr>
+<td><a href="#ship-capabilities"><code>SetShipCapabilityOrbit</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>grant or withhold ORBIT on a ship</td>
+</tr>
+<tr>
+<td><a href="#ship-capabilities"><code>SetShipCapabilityLock</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>grant or withhold the radar LOCK on a ship</td>
+</tr>
+<tr>
+<td><a href="#ship-capabilities"><code>SetShipCapabilityRcs</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>grant or withhold RCS on a ship</td>
+</tr>
+<tr>
+<td><a href="#ship-capabilities"><code>SetShipCapabilityPointDefense</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>let a ship's turrets answer incoming ordnance, or stand them down</td>
 </tr>
 <tr>
 <td><a href="#setallegiance"><code>SetAllegiance</code></a></td>
@@ -153,7 +173,7 @@ never panics a scenario). All 46 at a glance:</p>
 <tr>
 <td><a href="#stopship"><code>StopShip</code></a></td>
 <td><a href="#ship-state">ship state</a></td>
-<td>bring an ordered ship to rest with the real STOP burn</td>
+<td>brake an ordered ship with the real STOP burn</td>
 </tr>
 <tr>
 <td><a href="#patrolship"><code>PatrolShip</code></a></td>
@@ -169,6 +189,11 @@ never panics a scenario). All 46 at a glance:</p>
 <td><a href="#clearshiporder"><code>ClearShipOrder</code></a></td>
 <td><a href="#ship-state">ship state</a></td>
 <td>cancel whatever helm order a ship is under</td>
+</tr>
+<tr>
+<td><a href="#zeroshipmotion"><code>ZeroShipMotion</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>take a ship's velocity away behind a cut, the player's included</td>
 </tr>
 <tr>
 <td><a href="#forcerailgunfire"><code>ForceRailgunFire</code></a></td>
@@ -275,7 +300,7 @@ object and carries its config - the seven kinds are the
 <a href="../objects/">Scenario objects reference</a>.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">SpawnScenarioObject</span><span class="ron-punct">((</span>
     <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock_1&quot;</span><span class="ron-punct">,</span> <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">100.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-400.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
-    <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">50.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">material</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
+    <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">50.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
@@ -354,7 +379,7 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
     <span class="ron-key">region</span><span class="ron-punct">:</span> <span class="ron-type">Box</span><span class="ron-punct">(</span><span class="ron-key">min</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">-1000.0</span><span class="ron-punct">,</span> <span class="ron-literal">-200.0</span><span class="ron-punct">,</span> <span class="ron-literal">-1000.0</span><span class="ron-punct">),</span> <span class="ron-key">max</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">1000.0</span><span class="ron-punct">,</span> <span class="ron-literal">200.0</span><span class="ron-punct">,</span> <span class="ron-literal">1000.0</span><span class="ron-punct">)),</span>
     <span class="ron-key">template</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
         <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;asteroid_&quot;</span><span class="ron-punct">,</span> <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Asteroid&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
-        <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">material</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
+        <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
     <span class="ron-punct">),</span>
     <span class="ron-key">asteroid_radius</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-literal">30.0</span><span class="ron-punct">)),</span>
     <span class="ron-key">asteroid_kinds</span><span class="ron-punct">:</span> <span class="ron-punct">[(</span><span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">12</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;carbon&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">4</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;ice&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">3</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;metal&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">1</span><span class="ron-punct">)],</span>
@@ -419,7 +444,7 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
 <td><code>min_separation</code></td>
 <td><code>Option</code> number</td>
 <td><code>None</code></td>
-<td>minimum centre-to-centre distance in meters against EVERY body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped</td>
+<td>an EXTRA centre-to-centre floor in meters, on top of the automatic body-to-body clearance below. Measured against every body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped</td>
 </tr>
 </tbody>
 </table>
@@ -440,7 +465,7 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
 </tr>
 <tr>
 <td><code>Ring(center: (..), inner: .., outer: .., y_min: .., y_max: ..)</code></td>
-<td><code>center</code> defaults to the origin</td>
+<td>all required</td>
 <td>horizontal annulus: uniform angle, radius in <code>[inner, outer]</code>, y in <code>[y_min, y_max]</code></td>
 </tr>
 </tbody>
@@ -449,12 +474,21 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
 adding a kind to a field that already ships moves no rock and changes no
 radius. An asteroid template with no mix, or with every weight at zero, is a
 lint error and spawns nothing - a belt has to say what it is made of.</p>
-<p>Set <code>min_separation</code> on any field of SOLID bodies: uniform sampling WILL
-nest rocks inside each other, and two overlapping dynamic bodies shove apart
-violently on the first physics step. Size it as the two widest bodies side
-by side - for asteroids that is NOT <code>radius</code>: the noise mesh reaches up to
-6x the nominal radius. Scatter results are gameplay content and are never
-thinned by graphics quality.</p>
+<p>Bodies are kept clear of each other WITHOUT you sizing anything. Every
+placement records its own reach - a rock's noise mesh reach (up to 6x the
+nominal <code>radius</code>, drawn from the same seed the body will use), a planet's
+surface radius, zero for anything with no body - and a candidate is rejected
+inside <code>existing reach + candidate reach</code>. A field of mixed sizes is therefore
+packed by the bodies it actually holds, not by one number sized for its
+biggest pair.</p>
+<p><code>min_separation</code> is what you add ON TOP of that: a spacing you want for
+gameplay rather than for geometry - a belt you can fly through, a picket line
+that reads as a line. The rule is <code>max(min_separation, reach + reach)</code>, so a
+value smaller than two bodies side by side changes nothing.</p>
+<p>A randomized <code>asteroid_radius</code> is drawn BEFORE placement, on a stream of its
+own, so a rock is the same size however many tries its neighbourhood cost.
+Scatter results are gameplay content and are never thinned by graphics
+quality.</p>
 </details>
 <h3 id="despawnscenarioobject" tabindex="-1">DespawnScenarioObject</h3>
 <p>Remove the scoped object whose id matches (recursively, whole child
@@ -661,9 +695,13 @@ implicitly.</p>
 <p>Speak one line into the HUD comms stack (bottom-left, arrival order, ~8 s hold
 each, at most three visible). Pending lines wait without being dropped. One
 line per beat is still the style; the queue is the safety net.</p>
-<pre><code class="hljs language-ron"><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Foreman Okono&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Strip it clean, Kestrel.&quot;</span><span class="ron-punct">,</span> <span class="ron-key">dwell</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">12.0</span><span class="ron-punct">))),</span>
-<span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;crew&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Copilot&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;You heard the man.&quot;</span><span class="ron-punct">)),</span>
-<span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;guard&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Unknown Signal&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;- state registry and -&quot;</span><span class="ron-punct">)),</span>
+<pre><code class="hljs language-ron"><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Foreman Okono&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Strip it clean, Kestrel.&quot;</span><span class="ron-punct">,</span> <span class="ron-key">dwell</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">12.0</span><span class="ron-punct">))),</span>
+<span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Copilot&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;You heard the man.&quot;</span><span class="ron-punct">)),</span>
+<span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span>
+    <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Unknown Signal&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;- state registry and -&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">accent</span><span class="ron-punct">:</span> <span class="ron-type">LinearRgba</span><span class="ron-punct">((</span><span class="ron-key">red</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span> <span class="ron-key">green</span><span class="ron-punct">:</span> <span class="ron-literal">0.55</span><span class="ron-punct">,</span> <span class="ron-key">blue</span><span class="ron-punct">:</span> <span class="ron-literal">0.2</span><span class="ron-punct">,</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
+<span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -677,12 +715,6 @@ line per beat is still the style; the queue is the safety net.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>channel</code></td>
-<td>string</td>
-<td>required</td>
-<td>the id of the <a href="../channels/">channel</a> the line is heard on; see below</td>
-</tr>
 <tr>
 <td><code>speaker</code></td>
 <td>string</td>
@@ -707,51 +739,40 @@ line per beat is still the style; the queue is the safety net.</p>
 <td><code>None</code></td>
 <td>speaker portrait (<code>Some(&quot;self://icons/okono.png&quot;)</code>); omitted = the cockpit fallback tile</td>
 </tr>
-</tbody>
-</table>
-<p><strong>Channels.</strong> Not a faction and not a speaker: the same person reaches the
-cockpit down two different channels and the difference matters. Control on the
-work channel is talking TO you; the same desk read over the guard channel is
-something you overheard.</p>
-<p>A channel is <a href="../channels/">authored content</a>, not a fixed list, so a mod ships
-a distress band or a corporate net and its lines are drawn in it. Three come
-with the base game and any mod may name them:</p>
-<table>
-<thead>
 <tr>
-<th>id</th>
-<th>drawn</th>
-<th>tagged</th>
-<th>means</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>comms</code></td>
-<td>incoming-transmission blue</td>
-<td>no</td>
-<td>the work channel: traffic addressed to this ship</td>
-</tr>
-<tr>
-<td><code>crew</code></td>
-<td>phosphor green</td>
-<td>no</td>
-<td>inside the hull, off the radio - a voice in the room</td>
-</tr>
-<tr>
-<td><code>guard</code></td>
-<td>amber, at 70% strength</td>
-<td><code>GUARD</code></td>
-<td>everybody's channel, nobody's conversation - a fragment the cockpit caught</td>
+<td><code>accent</code></td>
+<td>color</td>
+<td>the comms blue</td>
+<td>the one colour the card is drawn in; see below</td>
 </tr>
 </tbody>
 </table>
-<p>The channel is REQUIRED on every cue, and an id no bundle authors is an Error at
-lint and a refusal at load. A line whose channel was guessed is a line drawn in
-the wrong voice, and the wrong voice is the whole difference between being called
-and overhearing. Only <code>guard</code> carries a tag: the work channel is what the panel
-IS and the crew are in the room, so tagging either would label every line to
-distinguish it from nothing.</p>
+<p><strong>The accent.</strong> A line carries ONE presentation fact, and it is a colour, not an
+id. The panel derives everything it paints from it: the border, the speaker
+header, the fallback icon tile, and the reading copy lifted toward white. The
+background is the same dark for every card, and a card's opacity depends only on
+its normal display and fade.</p>
+<p>Leave it out and the line is drawn in the comms blue - the work channel, traffic
+addressed to this ship, which is what nearly every line in a scenario is.
+Authoring the blue on all of them would bury the few that differ, so the default
+is written nowhere and the generated base scenarios carry no <code>accent:</code> line at
+all.</p>
+<p>Name a colour when the line is NOT ordinary traffic: a distress band, a
+corporate net, a voice in the room off the radio, something the cockpit merely
+overheard. Nothing looks an id up, so nothing can fail to resolve one, and a mod
+invents as many voices as it has colours. Colour is tagged the same way it is
+everywhere else in content - <code>LinearRgba((..))</code> or <code>Srgba((..))</code>.</p>
+<p>Two lines the player must tell apart should differ by more than a shade. The
+useful distance is being CALLED versus OVERHEARING, and blue against amber reads
+at a glance where two blues do not.</p>
+<p><strong>Pacing is yours, not the panel's.</strong> A card holds its full time whatever is
+waiting behind it - the panel never takes reading time back to catch up - so
+the gap between two POSTS is what sets the reading rate. Post a line every 3-4
+seconds and the reader has three cards up, the newest shoving the others
+upward as it lands; six to seven seconds leaves the card being read as the only
+one moving. Budget more where the player is flying and less where a cut has
+taken the helm, and keep a line to one thought: a card that needs longer than
+its hold is two lines, not one line held open.</p>
 <p>Scenario-scoped: teardown clears the log.</p>
 <p>Two story lines in one handler is a lint Warn (unreadable); a story line
 beside an <a href="#outcome"><code>Outcome</code></a> in one handler is a Warn (frozen behind the
@@ -838,7 +859,8 @@ granting it.</p>
 </table>
 <p>The dock normally hides verbs the player cannot use yet, so emphasizing an
 unavailable verb REVEALS its chip dimmed and pulses it. Emphasis never
-grants the verb (<a href="#setcontrollerverb"><code>SetControllerVerb</code></a> does).</p>
+grants the capability (the
+<a href="#ship-capabilities"><code>SetShipCapability*</code></a> actions do).</p>
 </details>
 <h3 id="hintemphasisclear" tabindex="-1">HintEmphasisClear</h3>
 <p>Drop the gold emphasis on one chip (teardown clears all emphasis anyway).</p>
@@ -926,7 +948,6 @@ costs one action and no scenario variable.</p>
             <span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">2.0</span><span class="ron-punct">),</span>
             <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
                 <span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span>
-                    <span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span>
                     <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Capt. Halloran&quot;</span><span class="ron-punct">,</span>
                     <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Kestrel, you are cleared to burn.&quot;</span><span class="ron-punct">,</span>
                 <span class="ron-punct">)),</span>
@@ -1063,7 +1084,7 @@ controls away, and a player who has seen it once must be able to get them back.<
         <span class="ron-punct">(</span>
             <span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">14.0</span><span class="ron-punct">),</span>
             <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
-                <span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;guard&quot;</span><span class="ron-punct">,</span> <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Unknown Signal&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;- vessel this net -&quot;</span><span class="ron-punct">)),</span>
+                <span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Unknown Signal&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;- vessel this net -&quot;</span><span class="ron-punct">,</span> <span class="ron-key">accent</span><span class="ron-punct">:</span> <span class="ron-type">LinearRgba</span><span class="ron-punct">((</span><span class="ron-key">red</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span> <span class="ron-key">green</span><span class="ron-punct">:</span> <span class="ron-literal">0.55</span><span class="ron-punct">,</span> <span class="ron-key">blue</span><span class="ron-punct">:</span> <span class="ron-literal">0.2</span><span class="ron-punct">,</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">)))),</span>
             <span class="ron-punct">],</span>
         <span class="ron-punct">),</span>
     <span class="ron-punct">],</span>
@@ -1119,6 +1140,14 @@ load.</p>
 <p><code>skippable</code> is authored on every scene because a scene that cannot be left is a
 real decision - three seconds long, or the first time only - and not the kind of
 thing that should happen because a field was left out.</p>
+<p><strong><code>skippable: true</code> puts a prompt on the screen.</strong> The HUD prints
+<code>&lt;KEY&gt;  SKIP SCENE</code> bottom-centre, above the keybind dock, for as long as the
+scene will take the key; it reads the player's live binding for the
+<code>cinematic_skip</code> action, so a rebind is reflected mid-scene and a pad player is
+shown a pad glyph. It appears when the 0.75 s hold-off below expires, not when
+the scene opens, and it goes the moment the scene ends by any path. There is no
+field to suppress it: the prompt IS the promise the flag makes, and it is one
+of the two HUD surfaces the player's own hide-HUD toggle cannot take away.</p>
 <p><strong>A skip cancels the CURSOR.</strong> It never runs the remaining steps at speed: a
 step chain is not a list of world edits, it holds camera moves, comms lines and
 shots the player has just said they do not want. Whatever the world still needs
@@ -1326,51 +1355,17 @@ pause-frozen time; Enter skips the wait.</li>
 one and resets its clock.</p>
 </details>
 <h2 id="ship-state" tabindex="-1">Ship state</h2>
-<h3 id="setspeedcap" tabindex="-1">SetSpeedCap</h3>
-<p>Install, update or remove the soft manual-speed governor on a scoped ship.</p>
-<pre><code class="hljs language-ron"><span class="ron-type">SetSpeedCap</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">cap</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">250.0</span><span class="ron-punct">))),</span>
-<span class="ron-type">SetSpeedCap</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">))</span>              <span class="ron-comment">// release the governor</span>
-</code></pre>
-<details class="explain">
-<summary>Show explanation</summary>
-<table>
-<thead>
-<tr>
-<th>field</th>
-<th>type</th>
-<th>default</th>
-<th>meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>id</code></td>
-<td>string</td>
-<td>required</td>
-<td>scoped ship root</td>
-</tr>
-<tr>
-<td><code>cap</code></td>
-<td><code>Option</code> number</td>
-<td><code>None</code></td>
-<td><code>Some(250.0)</code> installs/updates the cap, in m/s; <code>None</code> or omitted REMOVES it</td>
-</tr>
-</tbody>
-</table>
-<p>The governor limits the ship's TOTAL speed, not the speed along whatever
-heading it points: a pilot who turns and burns again spends the same one
-allowance. It is soft - the manual burn tapers off over the last stretch below
-the cap - and it never blocks a burn that slows the ship, so a ship carried
-past the cap by a well or a maneuver can always brake back inside it. Only the
-MANUAL burn reads it; the autopilot plans its own deceleration.</p>
-</details>
-<h3 id="setcontrollerverb" tabindex="-1">SetControllerVerb</h3>
-<p>Grant or withhold one flight verb on a scoped ship's controller - the
-tutorial-progression primitive (Basic Training starts with every verb withheld
-and grants one per beat, <code>Goto</code> after the cadet's first lock).</p>
-<pre><code class="hljs language-ron"><span class="ron-type">SetControllerVerb</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">verb</span><span class="ron-punct">:</span> <span class="ron-type">Goto</span><span class="ron-punct">,</span> <span class="ron-key">enabled</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">)),</span>
+<h3 id="ship-capabilities" tabindex="-1">Ship capabilities</h3>
+<p>Grant or withhold one capability on a scoped SHIP - the tutorial-progression
+primitive (Basic Training starts with everything but the guns withheld and
+grants one per beat, GOTO after the cadet's first lock).</p>
+<p>One action per capability: <code>SetShipCapabilityStop</code>, <code>SetShipCapabilityGoto</code>,
+<code>SetShipCapabilityOrbit</code>, <code>SetShipCapabilityLock</code>, <code>SetShipCapabilityRcs</code>,
+<code>SetShipCapabilityPointDefense</code>. All six take the same two fields. The ship's
+seventh capability, <code>dock_enabled</code>, is authored at spawn and has no action.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">SetShipCapabilityGoto</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">enabled</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">)),</span>
 <span class="ron-comment">// The battery answers a salvo by itself - until this takes it away.</span>
-<span class="ron-type">SetControllerVerb</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">verb</span><span class="ron-punct">:</span> <span class="ron-type">PointDefense</span><span class="ron-punct">,</span> <span class="ron-key">enabled</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
+<span class="ron-type">SetShipCapabilityPointDefense</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">,</span> <span class="ron-key">enabled</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -1389,12 +1384,6 @@ and grants one per beat, <code>Goto</code> after the cadet's first lock).</p>
 <td>string</td>
 <td>required</td>
 <td>scoped ship root</td>
-</tr>
-<tr>
-<td><code>verb</code></td>
-<td>verb</td>
-<td>required</td>
-<td><code>Stop</code> / <code>Goto</code> / <code>Orbit</code> / <code>Lock</code> / <code>Rcs</code> / <code>PointDefense</code> (bare enum, no quotes). Convention: never withhold <code>Stop</code> - an engaged autopilot should always be cancelable</td>
 </tr>
 <tr>
 <td><code>enabled</code></td>
@@ -1404,8 +1393,12 @@ and grants one per beat, <code>Goto</code> after the cadet's first lock).</p>
 </tr>
 </tbody>
 </table>
-<p>The spawn-time twin is the <code>DisableVerb</code> section modification (see
-<a href="../objects/#spaceship">Spaceship</a>); this action is its runtime mirror.</p>
+<p>The capability lands on the ship ROOT, not on its flight computer: a hull that
+loses every controller section loses its steering, never its permissions. Never
+withhold STOP by convention - an engaged autopilot should always be cancelable.</p>
+<p>The spawn-time twin is the
+<a href="../objects/#capabilities"><code>capabilities</code></a> block on the spaceship object; these
+actions are its runtime mirror.</p>
 </details>
 <h3 id="setallegiance" tabindex="-1">SetAllegiance</h3>
 <p>Overwrite a scoped ship's side at runtime - the neutral-until-provoked
@@ -1440,7 +1433,7 @@ primitive: spawn a bystander <code>Neutral</code>, flip it <code>Enemy</code> on
 </table>
 </details>
 <h3 id="helm-orders" tabindex="-1">Helm orders</h3>
-<p>The six actions below take the helm of a ship the scenario owns: one authored
+<p>The six helm actions below take the helm of a ship the scenario owns: one authored
 with <code>controller: None</code> OR one authored with <code>controller: AI</code> (see
 <a href="../objects/#spaceship">Spaceship</a>). They refuse the PLAYER's ship - a lint
 Error, and a runtime error if one somehow reaches the engine - because a
@@ -1590,7 +1583,7 @@ alignment order on a tumbling wreck may take a while, and one with an
 impossible tolerance is refused outright rather than left never completing.</p>
 </details>
 <h3 id="stopship" tabindex="-1">StopShip</h3>
-<p>Bring an ordered ship to rest with the real STOP maneuver - the same
+<p>Brake an ordered ship with the real STOP maneuver - the same
 flip-retrograde-and-burn the player's X key runs, so it costs fuel and time,
 visibly.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">StopShip</span><span class="ron-punct">((</span><span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-string">&quot;hold_here&quot;</span><span class="ron-punct">,</span> <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;warship&quot;</span><span class="ron-punct">)),</span>
@@ -1621,9 +1614,14 @@ visibly.</p>
 </tr>
 </tbody>
 </table>
-<p>Completes when the ship is at rest, with <code>kind: Stop</code>. A ship that already is
-at rest completes almost immediately, which is the cheap way to make a beat
-wait for &quot;it definitely is not drifting any more&quot;.</p>
+<p>Completes when the maneuver ends, with <code>kind: Stop</code>. &quot;Ended&quot; is a deadband and
+not a dead stop: a residual the drive is already pointing at is braked out to
+2 m/s, and one it is not - a sideways drift, or a head-on crumb - is released at
+up to 7.5 m/s rather than chased with attitude flips. A hull granted RCS settles
+the remainder on its jets. So a ship already inside that band completes almost
+immediately, and a beat that needs the hull genuinely still should gate on a
+<a href="../expressions/#queries-and-watched-variables"><code>Speed</code> query</a> rather than on
+this order alone.</p>
 </details>
 <h3 id="patrolship" tabindex="-1">PatrolShip</h3>
 <p>Fly ONE loop of an authored waypoint route: the ship visits each mark in
@@ -1758,6 +1756,46 @@ completion: an order that was called off did not finish, so a beat gated on
 the completion correctly never runs. It also puts back the ship's own arrival
 standoff if a <a href="#moveshipto"><code>MoveShipTo</code></a> had displaced it. Clearing a ship
 that is under no order does nothing and says nothing.</p>
+</details>
+<h3 id="zeroshipmotion" tabindex="-1">ZeroShipMotion</h3>
+<p>Take a ship's motion away outright: linear and angular velocity to zero, this
+frame, with no maneuver flown and no fuel spent.</p>
+<p>NOT a helm order. It installs nothing, reports nothing, cancels nothing, and
+it is the one stop a PLAYER hull accepts.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">ZeroShipMotion</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;kaveri&quot;</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship root, any controller</td>
+</tr>
+</tbody>
+</table>
+<p>This is the CINEMATIC counterpart to <a href="#stopship"><code>StopShip</code></a>, and the only one
+of the two a player's hull accepts. A helm order cannot share a helm with live
+input, so <code>StopShip</code> refuses a player ship out loud; but a scene that cuts the
+camera away for a minute of dialogue has to leave the player's ship somewhere
+sane, and asking a suspended pilot to coast on through a rock field is not it.
+Use it behind a cut, where the ship is off screen and the arithmetic is nobody's
+business - season one's distress call does exactly that, and is worth reading.</p>
+<p>It only ever takes speed off. A ship whose controller still wants to burn is
+moving again on the next tick, so pair it with
+<a href="#suspendplayercontrol"><code>SuspendPlayerControl</code></a> for a player hull or with
+<a href="#clearshiporder"><code>ClearShipOrder</code></a> for an ordered one. It reports no
+completion: there is no maneuver to finish.</p>
 </details>
 <h3 id="forced-fire" tabindex="-1">Forced fire</h3>
 <p>The two weapon actions below are independent of the helm and of each other: a

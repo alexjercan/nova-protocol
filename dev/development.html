@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -430,7 +430,7 @@ the rule. The section curriculum first: <code>system_attitude_hold</code> (PD at
 <code>system_hull_damage</code> (damage -&gt; destroy -&gt; ship survives, and the mass
 properties the losses move), <code>system_section_severing</code> (a destroyed interior
 section leaves a real hole and the structure behind it drifts free as its own
-wreck body), <code>system_destruction_finale</code> (every destructible
+wreck body, at the speed its own size asks for), <code>system_destruction_finale</code> (every destructible
 body - gltf section, procedural section, multi-part turret, asteroid -
 breaking into its OWN art rather than generic cubes, on one budget),
 <code>system_turret_gunnery</code> and <code>system_torpedo_launch</code> (the
@@ -439,7 +439,14 @@ weapon ranges, the latter also the PN lead-a-crosser deep-dive), and
 and two salvos that cannot use the hole they make in the same tick) and
 <code>system_railgun_lance</code> (the spinal gun: a commit that outlives the trigger, a
 charge cue, one slug raking six plates in a single step, and the recoil that
-shoves the firing ship). Then the
+shoves the firing ship). Beside them, the ranges that read a figure off the
+HULL rather than off a constant, each staged on a skiff and a capital at
+once: <code>system_hull_scaling</code> (the two reference hulls’ live inputs and what
+the game derives from them - lock range, the fire gate, the size a hull burns
+at), <code>system_collision_damage</code> (a ram at three closing speeds, and the
+docking speed that costs nothing), <code>system_ai_combat</code> (what an AI ship does
+when it fights) and <code>system_ai_evade</code> (what it does when a gun is held on it:
+three jink legs, each the size of the hull flying it). Then the
 cross-cutting systems, every fixture a <code>ScenarioConfig</code> written in Rust and
 loaded with <code>LoadScenario</code>: <code>system_scenario_grammar</code> (the scenario language -
 variables, events, filters, actions), <code>system_player_path</code> (a scenario played
@@ -450,6 +457,15 @@ endings the scenario hears in order),
 <code>system_outcomes</code>
 (die -&gt; the Defeat overlay -&gt; Retry -&gt; a clean reload -&gt; kill -&gt; the
 objective and the CHECKPOINT -&gt; Continue -&gt; the chained scenario),
+<code>bug_outcome_pause</code> (who owns the screen and whether the world is running
+behind them: alt-tab pauses a fight and coming back does not resume, an
+outcome landing over the pause menu takes the screen, and a timed advance
+taken while the player is away hands its pause to the pause menu without one
+unpaused frame),
+<code>bug_refused_scenario</code> (a chapter the content gate refuses ends the one it
+replaces, cursor freed and Main Menu working),
+<code>bug_failed_assets</code> (a broken optional mod is quarantined and reported, and a
+broken base asset is fatal and says so),
 <code>bug_neutralized_quiet</code> (a wreck’s point defence stands down) and
 <code>system_borrowed_battery</code> (the Flight Computer works idle player PDCs). Then
 the interface, driven by synthesized pointer input: <code>system_ship_editor</code>
@@ -464,10 +480,12 @@ world-anchored label holds its LOGICAL offset when the scale factor doubles
 and the window changes shape, and the top bar and the stage’s nameplates are
 read at every shape alongside it), <code>system_hud_indicators</code>
 (where a screen-projected indicator lands), <code>system_menu_boot</code> (the shipped
-boot flow) and
-<code>bug_menu_picker</code> (the Scenarios picker, whose pane split must not depend on
-the selection - real fonts, real taffy, which a headless unit rig cannot
-measure at all), <code>bug_sandbox_soak</code> (the editor sandbox entered and then left
+boot flow), <code>bug_menu_fallback</code> (a menu with no clean backdrop to draw ends
+the scenario it came from and stands on one bare camera) and
+<code>system_scenario_picker</code> (the Scenarios picker: its pane split must not depend
+on the selection - real fonts, real taffy, which a headless unit rig cannot
+measure at all - and the row a pointer selects and plays is the scenario that
+comes up once the atomic load gate releases), <code>bug_sandbox_soak</code> (the editor sandbox entered and then left
 alone, holding one physics step to its own timestep), <code>bug_carve_apply</code> (one
 cut that severs a rock, and what the main thread pays to SWAP the result in -
 the range counts grids rather than milliseconds, so it reads the same on
@@ -501,8 +519,8 @@ target is AIMED at by undoing the composite that displays it
 (<code>nova_os_window_px_showing</code>), since a node laid out by an offscreen camera
 reports a rect in a space no cursor can be placed in. A driven run that still
 cannot reach a target says so and states its COVERAGE in the verdict -
-<code>bug_menu_picker</code> names any row it gave up on and fails outright below two
-measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
+<code>system_scenario_picker</code> names any row it gave up on and fails outright below
+two measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
 subject is the outcome chain, so pixel coordinates would only add layout
 coupling.</li>
 <li><code>screenshots/</code> - the content producers, and the NAME says what a run makes:
@@ -512,8 +530,8 @@ the same result twice - the fat sets these replace strung a dozen captures
 onto one script, so a beat that drifted took every frame after it with it.
 Duplication between producers is the accepted price: several stage the same
 set, and the scene builders they share live in <code>examples/screenshots/shared/</code>.
-The stills, by set: the Drydock drift beauty shots (<code>screenshot_gravity</code>,
-<code>screenshot_hero_ship</code>), the menu and editor walks (<code>screenshot_menu</code>,
+The stills, by set: the Drydock drift beauty shot (<code>screenshot_hero_ship</code>),
+the menu and editor walks (<code>screenshot_menu</code>,
 <code>screenshot_scenario_picker</code>, <code>screenshot_editor</code>), the section closeups
 (<code>screenshot_section_frame</code>, <code>screenshot_section_weapons</code>), the Tab ship
 computer (<code>screenshot_nova_os_terminal</code>, <code>screenshot_nova_os_apps</code>), the Rock
@@ -591,6 +609,11 @@ is an output mask; persistence and the settings menu never see it). <code>NOVA_M
 <code>NOVA_MUTE=1</code> mutes a normal one, and the game binary’s <code>--mute</code> flag does the
 same - see the outputs-off pair above.</li>
 </ul>
+<p>A HAND-RUN example is not silent and not pinned: it reads the store like the
+game does, so with no <code>settings.ron</code> saved it opens in the default window mode,
+which is now borderless fullscreen. Save Windowed once from the game’s Graphics
+tab (or <code>window windowed</code> in the command shell) and every example follows -
+examples read that file, they never write it.</p>
 <h3 id="examples-as-bug-pins"><a class="header" href="#examples-as-bug-pins">Examples as bug pins</a></h3>
 <p>A bug becomes a RANGE (<code>AGENTS.md</code>): reproduce it in <code>examples/systems/</code>
 before the fix, and the fix is what turns the range green. A unit/App test
@@ -615,8 +638,10 @@ cargo run -- --scenario nope               # refuses, and lists every id
 </code></pre>
 <ul>
 <li>The id is matched against the MERGED registry (base plus every enabled mod),
-so a mod’s scenarios are launchable by id and <code>hidden</code> chapters and menu
-backdrops are too - a superset of the rows the Scenarios picker shows.</li>
+so a mod’s scenarios are launchable by id, and so are the menu backdrops - a
+superset of the rows the Scenarios picker shows. The editor’s own Play range
+is not in it: it is the open document, not installed content, and the only
+way to it is Play in the editor.</li>
 <li>An unknown id prints the full id list to stderr and exits non-zero. The check
 happens once the content merge has run, which is after the window opens: the
 merged registry does not exist before that.</li>
@@ -626,6 +651,10 @@ merged registry does not exist before that.</li>
 the same non-blocking load screen as a click on Play.</li>
 </ul>
 </li>
+<li>It is a launch REQUEST, spent on the first boot. Back to Main Menu re-reads
+the content on the way out, and the second pass through <code>Loaded</code> finds no
+request left to open - so the flag opens its scenario once and then hands the
+session over to the menu, instead of being a door onto itself.</li>
 <li>Native only. The wasm bundle has no command line.</li>
 </ul>
 <h2 id="content-cli"><a class="header" href="#content-cli">Content CLI</a></h2>
@@ -758,7 +787,17 @@ nix develop --command scripts/capture-web-shots.sh screenshot_railgun  # or a fe
 </code></pre>
 <p>It stages into <code>target/shots</code>, runs each producer under Xvfb, and then packages
 with <code>scripts/gen-web-screenshots.py</code>. It is the stills half of a pair:
-<code>scripts/capture-web-media.sh</code> does the same for the webm loops. Both point
+<code>scripts/capture-web-media.sh</code> does the same for the webm loops, and
+<code>scripts/capture-lesson-media.sh</code> the same again for the training handbook’s
+demonstrations - the <code>lesson_*</code> producers, each writing one lesson’s still or
+4x5 sprite sheet into <code>assets/base/training/&lt;lesson&gt;.webp</code>. That one ships
+WEBP, not PNG: the Lessons pane draws a demonstration about 900 logical pixels
+wide, so a sheet carries 960x540 cells (3840x2700 in all), and at that size a
+lossless sheet is about 1.6 MB against about 150 KB encoded. Every lesson the
+base handbook authors has a producer; one authored WITHOUT one keeps the
+placeholder <code>scripts/gen-lesson-media.py</code> draws - lossless WebP, at the lower
+resolution it is drawn at - and that generator REFUSES to redraw over captured
+footage, so the two can be run in either order. Both point
 <code>NOVA_MODDING_CACHE_ROOT</code> and <code>NOVA_CONFIG_ROOT</code> at the capture sandbox and stamp
 a base-only mod set BEFORE EACH producer, so neither an installed mod nor a
 producer that enables one on purpose (<code>screenshot_scenario_picker</code> does) can
@@ -968,8 +1007,8 @@ var. It is the correctness half of the run-harness whose performance half is
 <p>Continuous INVARIANTS ride the same stream: set <code>NOVA_PROBE_INVARIANTS=1</code> (or
 <code>=strict</code> to panic on the first violation) on a wired example and every frame
 asserts what the engine guarantees - health within <code>0..=max</code> and finite,
-velocities finite (plus an absurd-speed bound at 10x a ship’s soft
-<code>FlightSpeedCap</code>), scenario Number variables finite, registered monotonic
+velocities finite and nothing more (manual flight is Newtonian, so no speed is
+absurd), scenario Number variables finite, registered monotonic
 variables never decreasing (opt-in per example: <code>system_player_path</code> registers
 <code>target_down</code>/<code>leg</code>, <code>system_scenario_grammar</code> seven counters and latches,
 <code>system_cinematic</code> eight scene latches, <code>system_outcomes</code> <code>hostile_down</code>), and a
@@ -1098,7 +1137,51 @@ below) and land it in <code>web/</code>; sync any wiki pages the cycle changed (
 </ol>
 <p>The workflow uploads four assets to a release named after the tag: macOS
 universal <code>.dmg</code>, Linux <code>.tar.gz</code>, Windows <code>.zip</code>, and a wasm-opt’d web zip.
-It can also be re-run via <code>workflow_dispatch</code> with a <code>version</code> input.</p>
+The macOS job writes <code>CFBundleShortVersionString</code> and <code>CFBundleVersion</code> from the
+tag, then refuses to create the DMG unless <code>Info.plist</code> declares the copied
+<code>nova-protocol</code> executable. The workflow can also be re-run via
+<code>workflow_dispatch</code> with a <code>version</code> input.</p>
+<h3 id="deploying-a-release-to-itchio"><a class="header" href="#deploying-a-release-to-itchio">Deploying a release to itch.io</a></h3>
+<p>The manually dispatched <code>deploy-itch</code> workflow
+(<code>.github/workflows/deploy-itch.yaml</code>) uploads an existing GitHub release to
+<code>alexjercan/nova-protocol</code>. It never rebuilds the game. The job downloads the
+four assets named above, and <code>scripts/prepare-itch-upload.sh</code> verifies and
+extracts them into the stable Butler channels <code>windows</code>, <code>osx</code>, <code>linux</code>, and
+<code>html5</code>. On macOS, <code>hdiutil</code> mounts the release DMG and <code>ditto</code> preserves the
+app bundle metadata. On Linux, the Nix development shell supplies 7-Zip to
+extract the HFS+ image; the script restores the declared app executable’s mode.
+Windows and web ZIPs use ordinary <code>unzip</code>. The macOS preparation checks that
+<code>CFBundleExecutable</code> names a real executable, and the web preparation requires
+<code>index.html</code> and the wasm file at the upload root. Production CI stays on
+macOS and uses the native path; the Linux fallback makes local preparation and
+preflight available without Apple tools.</p>
+<p>Configure the protected <code>itch-production</code> GitHub Environment before the first
+run:</p>
+<ul>
+<li>secret <code>BUTLER_API_KEY</code>: an itch.io API key for the <code>alexjercan</code> account;</li>
+<li>variable <code>ITCH_TARGET</code>: <code>alexjercan/nova-protocol</code>;</li>
+<li>variable <code>BUTLER_VERSION</code>: the exact Butler release to install;</li>
+<li>variables <code>BUTLER_SHA256_DARWIN_AMD64</code> and
+<code>BUTLER_SHA256_DARWIN_ARM64</code>: the SHA-256 sums of that release’s official
+macOS archives.</li>
+</ul>
+<p>Use the Butler download documented by itch.io to choose the version, download
+each macOS architecture archive from
+<code>https://broth.itch.ovh/butler/darwin-&lt;arch&gt;/&lt;version&gt;/archive/default</code>, and
+record its <code>shasum -a 256</code> output in the matching Environment variable. The
+workflow refuses a floating Butler version or an archive whose checksum does
+not match.</p>
+<p>After the GitHub release and Pages deployment are complete, keep the itch.io
+page in Draft and run:</p>
+<pre><code class="language-sh">gh workflow run deploy-itch.yaml -f tag=vX.Y.Z
+gh run watch
+</code></pre>
+<p>The protected Environment supplies the explicit approval boundary. The run
+records release checksums and the prepared file inventory as an Actions
+artifact. Confirm itch.io detected each platform, mark <code>html5</code> playable in the
+browser if needed, and launch all four channels on clean target systems. Only
+then change the page from Draft to Public. A later Butler push updates a public
+channel immediately, so a failed or mismatched channel blocks another deploy.</p>
 <h3 id="writing-the-release-news-post"><a class="header" href="#writing-the-release-news-post">Writing the release news post</a></h3>
 <p>Every release cycle gets one <strong>News</strong> post on the site (<code>/news/</code>, markdown under
 <code>web/src/news/</code>). News is the merged devlog + release notes: <strong>one post per
@@ -1337,11 +1420,11 @@ files live outside the repo, and task-scoped records live in <code>tasks/&lt;id&
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

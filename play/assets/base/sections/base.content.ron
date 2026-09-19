@@ -93,6 +93,282 @@
     )),
     Section((
         base: (
+            id: "light_hull_section",
+            name: "Light Hull Section",
+            description: "A thin-walled hull section; scavenger grade.",
+            health: 60.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/hull_personnel.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargo_hull_section",
+            name: "Cargo Hull Section",
+            description: "A hull section packed with caged freight; every face reads the same.",
+            health: 200.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/hull_cargo.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "tank_hull_section",
+            name: "Tank Hull Section",
+            description: "A hull section carrying a pressure vessel in open frame rails.",
+            health: 200.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/hull_tank.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
             id: "basic_thruster_section",
             name: "Basic Thruster Section",
             description: "A basic thruster section for spaceships.",
@@ -825,294 +1101,8 @@
         ),
         kind: Controller((
             steering_lag: 0.5,
-            max_torque: 1501.0,
+            max_torque: 9760.0,
             render_mesh: Some("self://gltf/core_wires.glb#Scene0"),
-            lock_on_sound: Some("self://sounds/lock_on.wav"),
-            lock_off_sound: Some("self://sounds/lock_off.wav"),
-            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
-            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
-            safety_on_sound: Some("self://sounds/safety_on.wav"),
-            warn_lock_sound: Some("self://sounds/warn_lock.wav"),
-            ammo_dry_sound: Some("self://sounds/ammo_dry.wav"),
-            warn_hull_sound: Some("self://sounds/warn_hull.wav"),
-            warn_hull_fraction: 0.3,
-            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "light_hull_section",
-            name: "Light Hull Section",
-            description: "A thin-walled hull section; scavenger grade.",
-            health: 60.0,
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "negative_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/hull_personnel.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "cargo_hull_section",
-            name: "Cargo Hull Section",
-            description: "A hull section packed with caged freight; every face reads the same.",
-            health: 200.0,
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "negative_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/hull_cargo.glb#Scene0"),
-        )),
-    )),
-    Section((
-        base: (
-            id: "tank_hull_section",
-            name: "Tank Hull Section",
-            description: "A hull section carrying a pressure vessel in open frame rails.",
-            health: 200.0,
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "negative_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        -0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        -1.0,
-                    ),
-                ),
-            ],
-        ),
-        kind: Hull((
-            render_mesh: Some("self://gltf/hull_tank.glb#Scene0"),
         )),
     )),
     Section((
@@ -1270,6 +1260,7 @@
                                                             -0.475,
                                                         ),
                                                         muzzle: Some((
+                                                            id: "main",
                                                             fire_rate: 100.0,
                                                         )),
                                                     ),
@@ -1291,8 +1282,8 @@
             dry_fire_sound: Some("self://sounds/dry_fire.wav"),
             stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
             stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
+            ammunition: Limited(500),
+            reload: Batch((
                 delay: 3.0,
                 amount: 200,
             )),
@@ -1453,6 +1444,7 @@
                                                             -0.475,
                                                         ),
                                                         muzzle: Some((
+                                                            id: "main",
                                                             fire_rate: 100.0,
                                                         )),
                                                     ),
@@ -1474,8 +1466,8 @@
             dry_fire_sound: Some("self://sounds/dry_fire.wav"),
             stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
             stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
+            ammunition: Limited(500),
+            reload: Batch((
                 delay: 3.0,
                 amount: 200,
             )),
@@ -1636,6 +1628,7 @@
                                                             -0.475,
                                                         ),
                                                         muzzle: Some((
+                                                            id: "right",
                                                             fire_rate: 50.0,
                                                         )),
                                                     ),
@@ -1646,6 +1639,7 @@
                                                             -0.475,
                                                         ),
                                                         muzzle: Some((
+                                                            id: "left",
                                                             fire_rate: 50.0,
                                                         )),
                                                     ),
@@ -1667,8 +1661,8 @@
             dry_fire_sound: Some("self://sounds/dry_fire.wav"),
             stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
             stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
+            ammunition: Limited(500),
+            reload: Batch((
                 delay: 3.0,
                 amount: 200,
             )),
@@ -1829,6 +1823,7 @@
                                                             -0.475,
                                                         ),
                                                         muzzle: Some((
+                                                            id: "right",
                                                             fire_rate: 50.0,
                                                         )),
                                                     ),
@@ -1839,6 +1834,7 @@
                                                             -0.475,
                                                         ),
                                                         muzzle: Some((
+                                                            id: "left",
                                                             fire_rate: 50.0,
                                                         )),
                                                     ),
@@ -1860,8 +1856,8 @@
             dry_fire_sound: Some("self://sounds/dry_fire.wav"),
             stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
             stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
-            ammo_capacity: Some(500),
-            reload: Some((
+            ammunition: Limited(500),
+            reload: Batch((
                 delay: 3.0,
                 amount: 200,
             )),
@@ -2054,8 +2050,8 @@
                 weave_angle: 0.44,
                 weave_rate: 1.4,
             ),
-            ammo_capacity: Some(6),
-            reload: Some((
+            ammunition: Limited(6),
+            reload: Batch((
                 delay: 10.0,
                 amount: 1,
             )),
@@ -2248,8 +2244,8 @@
                 weave_angle: 0.0,
                 weave_rate: 0.0,
             ),
-            ammo_capacity: Some(6),
-            reload: Some((
+            ammunition: Limited(6),
+            reload: Batch((
                 delay: 10.0,
                 amount: 1,
             )),
@@ -2477,8 +2473,8 @@
             fire_sound: Some("self://sounds/railgun_fire.wav"),
             charge_sound: Some("self://sounds/railgun_charge.wav"),
             reload_sound: Some("self://sounds/railgun_reload.wav"),
-            ammo_capacity: Some(1),
-            reload: Some((
+            ammunition: Limited(1),
+            reload: Batch((
                 delay: 12.0,
                 amount: 1,
             )),
@@ -2486,186 +2482,75 @@
     )),
     Section((
         base: (
-            id: "siege_railgun_lance_section",
-            name: "Siege Railgun Lance",
-            description: "The same spinal lance at capital grade: the shot that opens a working hull end to end rather than boring a corridor through it. Two hundred times the pierce budget, spent down a bore three times as wide. Deliberately overpowered siege ordnance for a scripted capital, not a balanced duel.",
-            health: 180.0,
+            id: "docking_port_section",
+            name: "Docking Port Section",
+            description: "A sealed-hatch docking port. Lock the ship you want to dock with, close to within a cell of its port with your own port facing it, and DOCK clamps the two hulls together; the sleeves reach across once the clamp holds. A clamped hull flies nothing: its drive and its helm stay dead until DOCK is pressed again, from either side.",
+            health: 90.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    1.0,
-                    1.0,
-                    3.0,
-                ),
-            )),
             link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
                 (
                     id: "positive_z",
                     position: (
                         0.0,
                         0.0,
-                        1.5,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "positive_x_fore",
-                    position: (
                         0.5,
-                        0.0,
-                        -1.0,
                     ),
                     normal: (
-                        1.0,
                         0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_x_mid",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_x_aft",
-                    position: (
-                        0.5,
                         0.0,
                         1.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x_fore",
-                    position: (
-                        -0.5,
-                        0.0,
-                        -1.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x_mid",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x_aft",
-                    position: (
-                        -0.5,
-                        0.0,
-                        1.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y_fore",
-                    position: (
-                        0.0,
-                        0.5,
-                        -1.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y_mid",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y_aft",
-                    position: (
-                        0.0,
-                        0.5,
-                        1.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y_fore",
-                    position: (
-                        0.0,
-                        -0.5,
-                        -1.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y_mid",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y_aft",
-                    position: (
-                        0.0,
-                        -0.5,
-                        1.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
                     ),
                 ),
             ],
@@ -2675,237 +2560,26 @@
             ]),
             animations: [
                 (
-                    cue: Charge,
-                    node_prefix: "charge_bolt",
+                    cue: DockTube,
+                    node_prefix: "dock_tube",
                     motion: Translate(
                         offset: (
                             0.0,
                             0.0,
-                            -1.18,
+                            -0.5,
                         ),
                     ),
-                    open_seconds: 0.0,
-                    close_seconds: 0.0,
+                    open_seconds: 1.2,
+                    close_seconds: 0.8,
                 ),
             ],
         ),
-        kind: Railgun((
-            render_mesh: Some("self://gltf/railgun_lance.glb#Scene0"),
-            muzzle_offset: (
-                0.0,
-                0.0,
-                -1.5,
-            ),
-            charge_seconds: 1.5,
-            slug_speed: 15000.0,
-            slug_damage: 500.0,
-            slug_power: 360000.0,
-            rake_radius: Some(30.0),
-            slug_lifetime: 1.2,
-            recoil_impulse: 45.0,
-            fire_sound: Some("self://sounds/railgun_fire.wav"),
-            charge_sound: Some("self://sounds/railgun_charge.wav"),
-            reload_sound: Some("self://sounds/railgun_reload.wav"),
-            ammo_capacity: Some(1),
-            reload: Some((
-                delay: 12.0,
-                amount: 1,
-            )),
-        )),
-    )),
-    Section((
-        base: (
-            id: "heavy_torpedo_section",
-            name: "Siege Torpedo Bay Section",
-            description: "A capital-grade siege torpedo battery: slow salvo, armored ordnance, ship-killing blast.",
-            health: 100.0,
-            destroy_sound: Some("self://sounds/explosion.wav"),
-            collider: Some(Cuboid(
-                size: (
-                    1.0,
-                    1.0,
-                    2.0,
-                ),
-            )),
-            link_points: [
-                (
-                    id: "positive_z",
-                    position: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    normal: (
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                ),
-                (
-                    id: "positive_x_fore",
-                    position: (
-                        0.5,
-                        0.0,
-                        -0.5,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_x_aft",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.5,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x_fore",
-                    position: (
-                        -0.5,
-                        0.0,
-                        -0.5,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x_aft",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.5,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y_fore",
-                    position: (
-                        0.0,
-                        0.5,
-                        -0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y_aft",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y_fore",
-                    position: (
-                        0.0,
-                        -0.5,
-                        -0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y_aft",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.5,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
-            ],
-            damage_effects: ([
-                Cracks,
-                Sparks,
-            ]),
-            animations: [
-                (
-                    cue: MuzzleDoor,
-                    node_prefix: "door_petal_",
-                    motion: RotateX(
-                        degrees: 105.0,
-                    ),
-                    open_seconds: 0.25,
-                    close_seconds: 0.7,
-                ),
-            ],
-        ),
-        kind: Torpedo((
-            render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
-            spawn_offset: (
-                0.0,
-                0.0,
-                -1.0,
-            ),
-            spawn_rotation: (
-                -0.70710677,
-                0.0,
-                0.0,
-                0.70710677,
-            ),
-            spawn_recess: 1.0,
-            fire_rate: 1.0,
-            spawner_speed: 80.0,
-            projectile_lifetime: 60.0,
-            arm_time: 0.5,
-            arm_distance: 50.0,
-            nav_constant: 4.0,
-            linear_damping: 0.4,
-            blast_radius: 450.0,
-            blast_damage: 2000.0,
-            launch_sound: Some("self://sounds/torpedo_launch.wav"),
-            door_sound: Some("self://sounds/bay_door.wav"),
-            detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
-            projectile_health: 5000.0,
-            torpedo_type: (
-                name: "Breaker",
-                tint: Srgba((
-                    red: 0.75,
-                    green: 0.1,
-                    blue: 0.12,
-                    alpha: 1.0,
-                )),
-                max_speed: 700.0,
-                weave_angle: 0.22,
-                weave_rate: 1.4,
-            ),
-            ammo_capacity: Some(6),
-            reload: Some((
-                delay: 10.0,
-                amount: 1,
-            )),
+        kind: Docking((
+            render_mesh: Some("self://gltf/dock_flush.glb#Scene0"),
+            capture_distance: 10.0,
+            capture_angle: 15.0,
+            maximum_relative_speed: 5.0,
+            maximum_relative_angular_speed: 5.0,
         )),
     )),
 ]

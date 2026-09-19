@@ -3,13 +3,13 @@
   "entries": [
     {
       "id": "gauntlet",
-      "version": "1.12.0",
+      "version": "1.13.0",
       "bundle": "gauntlet.bundle.ron",
       "meta": {
         "name": "Gauntlet Run",
         "description": "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         "author": "Nova Protocol",
-        "version": "1.12.0",
+        "version": "1.13.0",
         "dependencies": [
           "base"
         ],
@@ -19,8 +19,8 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 3729,
-          "sha256": "7d0cd3ba65b4af7e3213caa1876cfdbb12442349c6d61c940955bda7d240a7ec"
+          "size": 4069,
+          "sha256": "2706fabeacf7dafa19aceee5f8ee868916b599081641a97e578d4697e498e137"
         },
         {
           "path": "README.md",
@@ -29,13 +29,13 @@
         },
         {
           "path": "gauntlet.bundle.ron",
-          "size": 1420,
-          "sha256": "3eb86e2f86ced0f810db1e7a607f38acf698cdb091f4d9493241b9b2896672c8"
+          "size": 1351,
+          "sha256": "694d12fe735db135155e90518072762d83b9b0ba2350f0da28a74e8d74619618"
         },
         {
           "path": "gauntlet.content.ron",
-          "size": 38821,
-          "sha256": "68cf25a9923934c091f7d8685f1a0bd8d3e17c9e3bd8b0727c7cfebf9c89d963"
+          "size": 38721,
+          "sha256": "88e9d885cc3dfc5546d7e2f0d3029ef9f7d3efe0c15871f5f134cb4b78db5815"
         },
         {
           "path": "thumbnails/gauntlet_run.png",
@@ -43,17 +43,17 @@
           "sha256": "171e6eb2918105a3f526e04f84cf0fa5a1816701867f5a422a85d8df848a1ce9"
         }
       ],
-      "total_size": 50720
+      "total_size": 50891
     },
     {
       "id": "the-ledger",
-      "version": "1.28.0",
+      "version": "2.0.0",
       "bundle": "the-ledger.bundle.ron",
       "meta": {
         "name": "The Ledger",
-        "description": "A salvage crew in over its head: four chapters and a reward finale, one sealed crate everyone in the belt wants.",
+        "description": "Six field trials: a Racer time trial, arena combat, survey work, patrols, convoy escort and a gunship assault. Dense belts, planets and moving traffic.",
         "author": "Nova Protocol",
-        "version": "1.28.0",
+        "version": "2.0.0",
         "dependencies": [
           "base"
         ],
@@ -63,18 +63,18 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 13353,
-          "sha256": "a380e876ab4039ea01bd3e82d6323bad186b44aedc7c22dc91158e98cf6436b6"
+          "size": 14264,
+          "sha256": "9d191c5c40f452bd09fb48c9a6582a9f25d9b116a06f81ff3ce482b2c3473b7f"
         },
         {
           "path": "README.md",
-          "size": 3791,
-          "sha256": "ce10595ae59c1e9c65d69f45a3b211eef123d84da74b97aa3e1aeb4101585470"
+          "size": 3974,
+          "sha256": "2f7284a68ed9071baf5ea5c1b6d4fd9fee1c58b3391b4a9b65de330d1da7551f"
         },
         {
           "path": "balance_acks.ron",
-          "size": 1354,
-          "sha256": "a57d254d352dfa803aced78edf157aad24ace00b594ecb5d1dab17b229597485"
+          "size": 78,
+          "sha256": "0e5c5e56805c842028d296f03314c6bc82a40410a37acd600b220a857b2cbf54"
         },
         {
           "path": "gltf/parts/cargoa/engine_port.glb",
@@ -182,87 +182,87 @@
           "sha256": "2967ea2faf8b6984b37e996fb9efaff114e59f34d784d88aebc52106dcdfe459"
         },
         {
+          "path": "ledger_01_drift_run.content.ron",
+          "size": 24070,
+          "sha256": "adf7a8e4760a7be7ef7e7417b740802c4e6290edd497e5f5bfcc4af598b0b8f4"
+        },
+        {
+          "path": "ledger_02_rock_garden.content.ron",
+          "size": 21102,
+          "sha256": "d3e50fea764c5bee3816fadc4936ea9340d583af438b9fc4582fdb4f47958180"
+        },
+        {
+          "path": "ledger_03_blue_survey.content.ron",
+          "size": 27855,
+          "sha256": "c089298d22bcee75fada2ed3a51a18b09fe3b1893058966226435777ff379883"
+        },
+        {
+          "path": "ledger_04_cold_patrol.content.ron",
+          "size": 21174,
+          "sha256": "76c0d43f4bd51e474ff4a8df446bfc66ebe38efbbadd180ab42524a41fb77d74"
+        },
+        {
+          "path": "ledger_05_freight_lane.content.ron",
+          "size": 27430,
+          "sha256": "d255ec3ad3253ad5347b0b9136010cf3f08fd600825e56645b5edea56fd28d94"
+        },
+        {
+          "path": "ledger_06_siege_line.content.ron",
+          "size": 18710,
+          "sha256": "14aed6c0cc42571dbea23e0ac0713604024592ca458d6707d1d5310c1506a6fd"
+        },
+        {
           "path": "ledger_campaign.content.ron",
-          "size": 797,
-          "sha256": "c89393afb5c955d1a517312b1ab47566af1bf080a393abdf5fdb6f91c67ffdb5"
-        },
-        {
-          "path": "ledger_ch1.content.ron",
-          "size": 46162,
-          "sha256": "97358f9db11cbcc3f3d318b461d833a50bfd47b5a5e9d3dceadfdb7b48cc6c4e"
-        },
-        {
-          "path": "ledger_ch2.content.ron",
-          "size": 58385,
-          "sha256": "2d756828fb08d5d663f89e03f60f7d2fcf5663637392eb6ea8884bcdc056e213"
-        },
-        {
-          "path": "ledger_ch2b.content.ron",
-          "size": 56664,
-          "sha256": "90f4cdf8d2fb3c97322af0c656cd0040fc697f7b8fa0287819c4d5bcbb689ea3"
-        },
-        {
-          "path": "ledger_ch3.content.ron",
-          "size": 83471,
-          "sha256": "4a7aa866cfd7fd5f4da6b819ca36a5e3a88741c73f9ef4a270c3b82728e674e6"
-        },
-        {
-          "path": "ledger_ch4.content.ron",
-          "size": 34152,
-          "sha256": "2a773395d0397aa0eb32ecbac397bd611d9296dd0025278c93ae8f12668dd032"
-        },
-        {
-          "path": "ledger_ch5_the_raid.content.ron",
-          "size": 88715,
-          "sha256": "71cbddf65555bd60d76765db7f1022cc34def6c23e991140f2e5c40c83b46008"
+          "size": 409,
+          "sha256": "c8cb77bf01a013897cfc3af4468a3fea65347d6ed9a10ee5120171b0f32ded50"
         },
         {
           "path": "ledger_sections.content.ron",
-          "size": 55139,
-          "sha256": "b5576ef76e33037763c44e0dffa8ec860c92a9040d599aab01dbdca528468834"
+          "size": 67443,
+          "sha256": "089cd1e470e822eea13316c5567667848fb147b2195abc7994f200c548582510"
         },
         {
           "path": "ledger_ships.content.ron",
-          "size": 22098,
-          "sha256": "02e57bf45042043be0c036aff4b8a51414819bd3237ed6ab035f063a77159e19"
+          "size": 35309,
+          "sha256": "2b96c5b888518f10aabef5054bc17d680dec55226d792e19b689fca916c25c61"
         },
         {
           "path": "the-ledger.bundle.ron",
-          "size": 3614,
-          "sha256": "d632e3a07e4d667e031358228a1d3023f7a5ac4ea38941568cad50cebd768a2c"
+          "size": 1969,
+          "sha256": "15d9057eaabf7b034a85aa6c89af1c4a3bf3838ddb3d3e8672fb6f25d1b43149"
         },
         {
-          "path": "thumbnails/ledger_ch1_dead_weight.png",
-          "size": 3410,
-          "sha256": "85f198dd179d758d352d19ce3bde5b63c0afecd558234016ff177c2d353abae1"
+          "path": "thumbnails/ledger_01_drift_run.png",
+          "size": 2913,
+          "sha256": "c3897de16eb5b53218055de3829e6dfb40be9d4f95e4d2cdc26cf7c33a3e99d9"
         },
         {
-          "path": "thumbnails/ledger_ch2_claim_jumpers.png",
-          "size": 3630,
-          "sha256": "bac6c2fdb7992a0d506cfd04572f249651b892e893a5d2cb6c9164e96f06a9fc"
+          "path": "thumbnails/ledger_02_rock_garden.png",
+          "size": 3446,
+          "sha256": "0af11c67fe6a32c069b8977b0eccc09af43e5cdf7056976d56d336e0a2323756"
         },
         {
-          "path": "thumbnails/ledger_ch2b_the_heavies.png",
-          "size": 3370,
-          "sha256": "c614b813e2a0134e0d894ac591ad668f7b65e6756b8cac31a13d0e1d57c09576"
+          "path": "thumbnails/ledger_03_blue_survey.png",
+          "size": 3345,
+          "sha256": "f0d1289b31938aa18723c8dd757f44356d8966b6895a5fc944b58211d123fb17"
         },
         {
-          "path": "thumbnails/ledger_ch3_quiet_channel.png",
-          "size": 3742,
-          "sha256": "48ab1a0b28edc4ff5e87a275db05056495fbb4e506c84cacef811b95f5a6e09a"
+          "path": "thumbnails/ledger_04_cold_patrol.png",
+          "size": 3195,
+          "sha256": "f227579b4b97a6d208b82361ca54f24971b75ff0d38d24022ed9e0451ea33d6d"
         },
         {
-          "path": "thumbnails/ledger_ch4_the_buyer.png",
-          "size": 2912,
-          "sha256": "c243635671074a4dbf9b4811fab569c8bfd1451a91c60c467ff4fe264a1ab7ef"
+          "path": "thumbnails/ledger_05_freight_lane.png",
+          "size": 3480,
+          "sha256": "658345c7a41427268a6d1151b954b9a94c592fd8ff442e21d1380b3d4185f1ad"
         },
         {
-          "path": "thumbnails/ledger_ch5_the_raid.png",
-          "size": 2746,
-          "sha256": "5862dea24c8250f2ccea88c83bbd0f74a8029611bde9b758b7a80fb5a0841234"
+          "path": "thumbnails/ledger_06_siege_line.png",
+          "size": 3305,
+          "sha256": "e593f74b08b40a593de18e8fde93356a1be7bf07933dc4b6df35784172014b1f"
         }
       ],
-      "total_size": 764653
+      "total_size": 560619
     }
   ]
 }

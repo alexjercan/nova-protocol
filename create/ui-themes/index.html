@@ -1,0 +1,521 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>UI themes for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author the look the whole interface paints in: the UiTheme item, the palette and metrics, colours, fills and effects, the sixteen roles, the slider and badge shapes, inheritance, restyling a base theme, and what the player picks in Settings."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / UI themes for mods</p><h1>UI themes for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#what-a-theme-can-and-cannot-change">What a theme can and cannot change</a><ol></ol></li><li><a href="#the-uitheme-item">The UiTheme item</a><ol></ol></li><li><a href="#palette">Palette</a><ol></ol></li><li><a href="#metrics">Metrics</a><ol></ol></li><li><a href="#colours">Colours</a><ol><li><a href="#fills">Fills</a></li><li><a href="#effects">Effects</a></li></ol></li><li><a href="#roles">Roles</a><ol></ol></li><li><a href="#shape">Shape</a><ol></ol></li><li><a href="#inheritance">Inheritance</a><ol></ol></li><li><a href="#restyling-a-base-theme">Restyling a base theme</a><ol></ol></li><li><a href="#what-the-player-sees">What the player sees</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li></ol></nav><p>A <code>UiTheme</code> is the look the whole interface paints in: the menus, Settings, the
+pause screen, the shipyard, the HUD chrome and every widget on them. The base
+game ships two - <code>base/phosphor</code>, the green terminal, and <code>base/hardware</code>, the
+moulded casing - and a mod adds a third by declaring a new id.</p>
+<p>A theme is DATA. It names colours, three metrics and the paint of every control
+in every state it has. It runs no code, so a broken theme is a lint finding
+rather than a crash.</p>
+<p>This page is the field-by-field theme reference. For general RON spelling rules
+such as double parentheses, <code>Some(...)</code>, and asset schemes, see
+<a href="../reference/#how-ron-content-is-written">RON spelling rules</a>.</p>
+<h2 id="what-a-theme-can-and-cannot-change" tabindex="-1">What a theme can and cannot change</h2>
+<p>A theme owns PAINT and two shapes:</p>
+<ul>
+<li>foreground, background and border colour;</li>
+<li>border width and corner radius;</li>
+<li>solid, linear and radial fills;</li>
+<li>glows and drop shadows;</li>
+<li>whether a slider meters in blocks or in one continuous fill;</li>
+<li>whether a badge is a <code>[TAG]</code> or a bordered chip.</li>
+</ul>
+<p>A theme owns NO layout. It cannot set a position, a size, padding, a gap, a
+flex or grid rule, a z order, visibility, pointer behaviour or a font size.
+Those are the screen's, and a theme that could move them could make a screen
+unusable rather than ugly.</p>
+<p>A theme also cannot move the gameplay colours. A hostile reticle is red and an
+ally green in every theme, so the threat, ally, nav and objective accents are
+fixed in the game and are not theme roles. Everything a player would call
+chrome goes through the theme.</p>
+<h2 id="the-uitheme-item" tabindex="-1">The UiTheme item</h2>
+<p>A theme is an item in any <code>*.content.ron</code> file, beside your campaigns and
+ships:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">UiTheme</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my-mod/amber&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Amber CRT&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">inherit</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;base/phosphor&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">palette</span><span class="ron-punct">:</span> <span class="ron-punct">{</span>
+            <span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">:</span> <span class="ron-string">&quot;#ffb84a&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-string">&quot;secondary&quot;</span><span class="ron-punct">:</span> <span class="ron-string">&quot;#c98a28&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-string">&quot;body&quot;</span><span class="ron-punct">:</span> <span class="ron-string">&quot;#ffe6bd&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-punct">},</span>
+        <span class="ron-key">metrics</span><span class="ron-punct">:</span> <span class="ron-type">None</span><span class="ron-punct">,</span>
+        <span class="ron-key">roles</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">badge</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span>
+                <span class="ron-key">bracketed</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">,</span>
+                <span class="ron-key">padding_x</span><span class="ron-punct">:</span> <span class="ron-literal">8.0</span><span class="ron-punct">,</span>
+                <span class="ron-key">border_width</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
+                <span class="ron-key">border_alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.4</span><span class="ron-punct">,</span>
+                <span class="ron-key">fill_alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.06</span><span class="ron-punct">,</span>
+            <span class="ron-punct">)),</span>
+        <span class="ron-punct">),</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>Stable key. The overlay key, the value Settings persists, and what another theme's <code>inherit</code> names. Prefix new ids with your mod id.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>required</td>
+<td>The label on the Settings row.</td>
+</tr>
+<tr>
+<td><code>inherit</code></td>
+<td><code>Option</code> string</td>
+<td>required</td>
+<td>The theme this one derives from, or <code>None</code> for a root theme - see <a href="#inheritance">Inheritance</a>.</td>
+</tr>
+<tr>
+<td><code>palette</code></td>
+<td>map of string to string</td>
+<td><code>{}</code></td>
+<td>Named colour variables, six-digit <code>#rrggbb</code>.</td>
+</tr>
+<tr>
+<td><code>metrics</code></td>
+<td><code>Option</code> metrics</td>
+<td>required</td>
+<td>Border width and the two radii, or <code>None</code> to take the parent's - see <a href="#metrics">Metrics</a>.</td>
+</tr>
+<tr>
+<td><code>roles</code></td>
+<td>roles</td>
+<td><code>()</code></td>
+<td>The per-control paint tables - see <a href="#roles">Roles</a>.</td>
+</tr>
+</tbody>
+</table>
+<p>Unknown fields are refused, not ignored. A misspelled field stops the content
+file from parsing at all, and the message names what you wrote and every name
+that would have been valid.</p>
+<h2 id="palette" tabindex="-1">Palette</h2>
+<p>The palette is a map of name to hex. Role tables reference these names, so each
+tone is stated once and changed once.</p>
+<p>Thirteen names are REQUIRED in a root theme, because the screens ask for them
+directly:</p>
+<table>
+<thead>
+<tr>
+<th>variable</th>
+<th>what it inks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>primary</code></td>
+<td>Live text, active borders, glyphs - the primary ink.</td>
+</tr>
+<tr>
+<td><code>secondary</code></td>
+<td>Secondary text and idle fills.</td>
+</tr>
+<tr>
+<td><code>label</code></td>
+<td>Labels, section heads, tags.</td>
+</tr>
+<tr>
+<td><code>body</code></td>
+<td>Readable body copy.</td>
+</tr>
+<tr>
+<td><code>accent</code></td>
+<td>Selection, keycaps, warnings.</td>
+</tr>
+<tr>
+<td><code>accent_high</code></td>
+<td>The bright end of the accent family.</td>
+</tr>
+<tr>
+<td><code>accent_low</code></td>
+<td>The deep end of the accent family.</td>
+</tr>
+<tr>
+<td><code>inverted</code></td>
+<td>Glyphs sitting on a bright fill.</td>
+</tr>
+<tr>
+<td><code>surface</code></td>
+<td>The panel and screen surface.</td>
+</tr>
+<tr>
+<td><code>void</code></td>
+<td>The deepest field behind everything.</td>
+</tr>
+<tr>
+<td><code>danger</code></td>
+<td>The danger family.</td>
+</tr>
+<tr>
+<td><code>info</code></td>
+<td>The info family.</td>
+</tr>
+<tr>
+<td><code>nominal</code></td>
+<td>Healthy, online, lit - a passed check, an enabled dependency.</td>
+</tr>
+</tbody>
+</table>
+<p><code>nominal</code> is separate from <code>primary</code> on purpose. On a phosphor screen the ink
+IS green, so the two look like one colour and a screen that wanted &quot;good&quot; can
+get away with asking for the ink. On a casing the ink is bone white and the
+lamp is still green, and a theme that answers both questions with one colour
+draws a white ONLINE badge.</p>
+<p>Give these thirteen your OWN tones. A theme that copies another theme's
+semantic palette cannot differ from it anywhere a screen paints by meaning,
+whatever its role table says - the labels, the body copy and the preview panes
+all keep the colours they were copied from.</p>
+<p>Extra names are free, and are how a theme gives its role table tones the
+screens never ask for by name. The base themes add <code>black</code>, <code>white</code>,
+<code>hover_text</code>, <code>primary_high</code>, <code>primary_low</code>, <code>screen_lifted</code>, the <code>case_*</code>
+casing family and <code>danger_text_hot</code> this way.</p>
+<p>A derived theme's palette entry SHADOWS its parent's, and its extra names join
+rather than replace. The example above recolours three variables and inherits
+the rest.</p>
+<p>An unknown variable name is a lint error, never a silent black.</p>
+<h2 id="metrics" tabindex="-1">Metrics</h2>
+<p>Three numbers the whole interface is drawn with:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">metrics</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span>
+    <span class="ron-key">border_width</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">2.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">panel_radius</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>border_width</code></td>
+<td>Hairline border width, in logical pixels.</td>
+</tr>
+<tr>
+<td><code>radius</code></td>
+<td>Control corner radius. Phosphor is 2.0 and square-ish, hardware 7.0 and moulded.</td>
+</tr>
+<tr>
+<td><code>panel_radius</code></td>
+<td>Panel corner radius, larger than a control's in both shipped looks.</td>
+</tr>
+</tbody>
+</table>
+<p><code>metrics: None</code> takes the nearest ancestor's three whole. A root theme must
+carry them.</p>
+<h2 id="colours" tabindex="-1">Colours</h2>
+<p>Every colour in a role table is a value plus an alpha:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">border</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+    <span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">),</span>
+    <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.4</span><span class="ron-punct">,</span>
+<span class="ron-punct">),</span>
+<span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+    <span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-string">&quot;#ffd9d5&quot;</span><span class="ron-punct">),</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>value</code></td>
+<td><code>Variable(&quot;name&quot;)</code> reads the palette, <code>Literal(&quot;#rrggbb&quot;)</code> writes a one-off tone. Anything reused belongs in the palette.</td>
+</tr>
+<tr>
+<td><code>alpha</code></td>
+<td><code>0.0</code> to <code>1.0</code>. Omitted means opaque. It REPLACES the source colour's alpha rather than multiplying it, so the same variable at <code>0.12</code> reads the same in every theme.</td>
+</tr>
+</tbody>
+</table>
+<p>Transparent paint is alpha <code>0.0</code>, never a missing colour.</p>
+<h3 id="fills" tabindex="-1">Fills</h3>
+<p>A surface background is one of three:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">fill</span><span class="ron-punct">:</span> <span class="ron-type">Solid</span><span class="ron-punct">((</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;surface&quot;</span><span class="ron-punct">))),</span>
+
+<span class="ron-key">fill</span><span class="ron-punct">:</span> <span class="ron-type">Linear</span><span class="ron-punct">(</span>
+    <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;surface&quot;</span><span class="ron-punct">)),</span>
+    <span class="ron-key">degrees</span><span class="ron-punct">:</span> <span class="ron-literal">180.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">stops</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-punct">(</span><span class="ron-key">color</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;white&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.06</span><span class="ron-punct">),</span> <span class="ron-key">percent</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span>
+        <span class="ron-punct">(</span><span class="ron-key">color</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;black&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.18</span><span class="ron-punct">),</span> <span class="ron-key">percent</span><span class="ron-punct">:</span> <span class="ron-literal">100.0</span><span class="ron-punct">),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+
+<span class="ron-key">fill</span><span class="ron-punct">:</span> <span class="ron-type">Radial</span><span class="ron-punct">(</span>
+    <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;surface&quot;</span><span class="ron-punct">)),</span>
+    <span class="ron-key">anchor</span><span class="ron-punct">:</span> <span class="ron-type">Top</span><span class="ron-punct">,</span>
+    <span class="ron-key">stops</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-punct">(</span><span class="ron-key">color</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.05</span><span class="ron-punct">),</span> <span class="ron-key">percent</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span>
+        <span class="ron-punct">(</span><span class="ron-key">color</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;black&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span> <span class="ron-key">percent</span><span class="ron-punct">:</span> <span class="ron-literal">70.0</span><span class="ron-punct">),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p><code>Linear</code> takes an angle in degrees, where 180 runs top to bottom - that is how
+a moulded face gets its light. <code>Radial</code> takes an <code>anchor</code> of <code>Top</code> or <code>Center</code>
+and always shapes to the farthest side; the phosphor panel blooms from its top
+edge this way.</p>
+<p>Both gradient forms carry an explicit <code>base</code>, the flat colour painted UNDER the
+gradient. It is not derivable from the stops: the phosphor panel is a dark
+screen face under a translucent glow, so its stops say nothing about the colour
+a player sees. State it.</p>
+<h3 id="effects" tabindex="-1">Effects</h3>
+<p>A glow or a drop shadow, or <code>None</code> for a flat face:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">effect</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span>
+    <span class="ron-key">color</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.25</span><span class="ron-punct">),</span>
+    <span class="ron-key">offset_y</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">blur</span><span class="ron-punct">:</span> <span class="ron-literal">12.0</span><span class="ron-punct">,</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<p>One type serves both. A drop shadow is an offset dark blur, and a glow an
+un-offset coloured one.</p>
+<h2 id="roles" tabindex="-1">Roles</h2>
+<p>Sixteen roles name every control the interface paints. Each is an <code>Option</code>:
+<code>None</code> INHERITS that role whole from the parent, and a root theme must fill
+every one.</p>
+<table>
+<thead>
+<tr>
+<th>role</th>
+<th>what it paints</th>
+<th>states</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>button</code></td>
+<td>The neutral button.</td>
+<td><code>normal</code>, <code>hovered</code>, <code>pressed</code>, <code>selected</code>, <code>selected_pressed</code>, <code>disabled</code></td>
+</tr>
+<tr>
+<td><code>button_primary</code></td>
+<td>The call-to-action button.</td>
+<td>the same six</td>
+</tr>
+<tr>
+<td><code>button_danger</code></td>
+<td>The destructive button.</td>
+<td>the same six</td>
+</tr>
+<tr>
+<td><code>button_ghost</code></td>
+<td>The border-only button.</td>
+<td>the same six</td>
+</tr>
+<tr>
+<td><code>panel</code></td>
+<td>A bordered panel surface.</td>
+<td>one surface</td>
+</tr>
+<tr>
+<td><code>panel_head</code></td>
+<td>A panel's header band: <code>border</code>, <code>title</code>, <code>rule</code>, <code>tag</code>.</td>
+<td>one band</td>
+</tr>
+<tr>
+<td><code>list_row</code></td>
+<td>A list row.</td>
+<td><code>normal</code>, <code>hovered</code>, <code>selected</code></td>
+</tr>
+<tr>
+<td><code>segmented</code></td>
+<td>A segmented control's recessed container.</td>
+<td>one surface</td>
+</tr>
+<tr>
+<td><code>slider_track</code></td>
+<td>A slider track - see <a href="#shape">Shape</a>.</td>
+<td>one track</td>
+</tr>
+<tr>
+<td><code>text_field</code></td>
+<td>A text field.</td>
+<td><code>normal</code>, <code>hovered</code>, <code>focused</code>, <code>error</code></td>
+</tr>
+<tr>
+<td><code>checkbox</code></td>
+<td>A checkbox, plus its own <code>radius</code>.</td>
+<td><code>off</code>, <code>on</code></td>
+</tr>
+<tr>
+<td><code>toggle</code></td>
+<td>A pill toggle, plus <code>radius</code> and <code>knob_radius</code>.</td>
+<td><code>off</code>, <code>on</code></td>
+</tr>
+<tr>
+<td><code>badge</code></td>
+<td>A status badge - see <a href="#shape">Shape</a>.</td>
+<td>shape and alpha only</td>
+</tr>
+<tr>
+<td><code>scroll_bar</code></td>
+<td>A scrollbar: <code>track</code> and <code>thumb</code>.</td>
+<td>two colours</td>
+</tr>
+<tr>
+<td><code>key_chip</code></td>
+<td>A keycap chip.</td>
+<td>one state</td>
+</tr>
+<tr>
+<td><code>separator</code></td>
+<td>A rule between sections.</td>
+<td>one colour</td>
+</tr>
+</tbody>
+</table>
+<p>A control state is a fill, a border, a text colour and an optional effect:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">normal</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+    <span class="ron-key">fill</span><span class="ron-punct">:</span> <span class="ron-type">Solid</span><span class="ron-punct">((</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.05</span><span class="ron-punct">)),</span>
+    <span class="ron-key">border</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.4</span><span class="ron-punct">),</span>
+    <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">)),</span>
+    <span class="ron-key">effect</span><span class="ron-punct">:</span> <span class="ron-type">None</span><span class="ron-punct">,</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>Every state of a role a theme declares is explicit. A theme cannot leave one
+out and inherit it from another state, because a button that painted five of
+its six states would carry a dead state nobody noticed.</p>
+<p>A <code>panel</code>, a <code>segmented</code> and a slider's well carry <code>radius: Option&lt;f32&gt;</code> -
+<code>None</code> takes the metric, and a number overrides it for that surface alone.</p>
+<p>A list row carries no text colour. What a row holds is arbitrary - icons,
+badges, several spans - and each of those is already themed.</p>
+<h2 id="shape" tabindex="-1">Shape</h2>
+<p>Two roles carry shape as well as paint, because the shipped looks differ there
+and the difference IS the look.</p>
+<p>A slider meters in discrete blocks or in one continuous fill:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">slider_track</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span>
+    <span class="ron-key">surface</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+        <span class="ron-key">fill</span><span class="ron-punct">:</span> <span class="ron-type">Solid</span><span class="ron-punct">((</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;black&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.5</span><span class="ron-punct">)),</span>
+        <span class="ron-key">border</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.32</span><span class="ron-punct">),</span>
+        <span class="ron-key">effect</span><span class="ron-punct">:</span> <span class="ron-type">None</span><span class="ron-punct">,</span>
+        <span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-type">None</span><span class="ron-punct">,</span>
+    <span class="ron-punct">),</span>
+    <span class="ron-key">height</span><span class="ron-punct">:</span> <span class="ron-literal">14.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">meter</span><span class="ron-punct">:</span> <span class="ron-type">Blocks</span><span class="ron-punct">(</span><span class="ron-key">segments</span><span class="ron-punct">:</span> <span class="ron-literal">24</span><span class="ron-punct">,</span> <span class="ron-key">gap</span><span class="ron-punct">:</span> <span class="ron-literal">2.0</span><span class="ron-punct">),</span>
+    <span class="ron-key">lit</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">)),</span>
+    <span class="ron-key">unlit</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.16</span><span class="ron-punct">),</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<p><code>meter: Fill</code> draws one bar filled to the value instead, which is what the
+hardware look does behind its moulded well. <code>height</code> is authored because the
+two meters are not legible at one height.</p>
+<p>A badge is the terminal's bracketed tag or a bordered chip:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">badge</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span>
+    <span class="ron-key">bracketed</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">padding_x</span><span class="ron-punct">:</span> <span class="ron-literal">2.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">border_width</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">border_alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">fill_alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<p><code>bracketed: true</code> renders <code>[TAG]</code> as text with no chrome. <code>bracketed: false</code>
+draws the chip, and then <code>padding_x</code>, <code>border_width</code>, <code>border_alpha</code> and
+<code>fill_alpha</code> shape it. A badge's HUE comes from what it reports: a nominal
+badge reads <code>primary</code>, a warning <code>accent</code>, a fault <code>danger</code>. The theme sets
+those variables in its palette, so the role itself carries alphas rather than
+colours.</p>
+<h2 id="inheritance" tabindex="-1">Inheritance</h2>
+<p><code>inherit: None</code> marks a ROOT theme. A root theme must define every one of the
+sixteen roles, all thirteen required palette variables, and its metrics. Nothing
+stands behind it.</p>
+<p><code>inherit: Some(&quot;base/phosphor&quot;)</code> marks a DERIVED theme. Every role it omits
+comes from its parent. This is the normal way to ship a look: recolour the
+palette, override the two or three roles that should differ, and inherit the
+rest.</p>
+<p>A role a derived theme DOES declare replaces the inherited one COMPLETELY.
+Individual states are never merged, so a theme can never leave a control
+half-painted in two looks.</p>
+<p>Chains can be any depth. The game refuses:</p>
+<ul>
+<li>an <code>inherit</code> that names a theme nothing declares;</li>
+<li>an inheritance cycle, by the names in it;</li>
+<li>a root theme missing a role, a palette variable or its metrics;</li>
+<li>a hex that does not parse.</li>
+</ul>
+<p>Each is one lint finding naming the theme and what is missing.</p>
+<p>A theme can only inherit from a theme it can SEE: one the base game ships, one
+in the same bundle, or one in a bundle listed in <code>meta.dependencies</code>. <code>base</code> is
+an implicit dependency and is never declared, so inheriting from
+<code>base/phosphor</code> needs nothing.</p>
+<h2 id="restyling-a-base-theme" tabindex="-1">Restyling a base theme</h2>
+<p>Declaring <code>id: &quot;base/phosphor&quot;</code> REPLACES the shipped phosphor theme rather than
+adding a theme beside it. The player keeps the theme they chose and it looks
+different - which is what a restyle mod is.</p>
+<p>The registration order is the Settings picker's order, and an overlay keeps a
+theme where it was. A mod that restyles <code>base/phosphor</code> leaves the default in
+the first position, where the player expects it.</p>
+<p>Two mods that both restyle one id: the later-loaded one wins, as with every
+other content kind.</p>
+<h2 id="what-the-player-sees" tabindex="-1">What the player sees</h2>
+<p>Settings lists every theme every ENABLED mod declares, by <code>name</code>, in
+registration order. Picking one writes its <code>id</code>; the whole interface repaints
+on the same frame, with no restart and no rebuild.</p>
+<p>The setting persists as that id and nothing else. A theme id survives a
+restart, which is the point of the format.</p>
+<p>Enabling a mod never changes the player's selection. Disabling the mod whose
+theme was selected falls back to <code>base/phosphor</code> and says why, beside the theme
+row - so a player can tell a reverted theme from a forgotten setting.</p>
+<h2 id="check-it" tabindex="-1">Check it</h2>
+<pre><code class="hljs language-sh">nix develop --<span class="hljs-built_in">command</span> cargo run content lint --target path/to/your-mod
+</code></pre>
+<p>The lint RESOLVES every theme the bundle declares, against every theme visible
+to it. It refuses an unknown parent, a cycle, a missing role, a missing palette
+variable, an unknown variable name and an unparseable hex. A theme that does
+not resolve is not a theme that looks wrong; it is one the game would refuse
+and fall back from.</p>
+<p>Then run the game and open Settings. Headless output cannot prove appearance.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+</body></html>

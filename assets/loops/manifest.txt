@@ -60,3 +60,15 @@ news-0130-cinematic.webm	bench-replay	5.7	387943	frozen
 news-0130-agent-run.webm	bench-replay	7.7	704999	frozen
 news-0130-hull-collapse.webm	stress_hull_collapse	7.5	2550360	fresh
 news-0130-helm-orders.webm	loop_helm_orders	13.1	446774	fresh
+news-0140-release-lead.webm	content-machine-v0.14.0	3.2	184911	frozen
+news-0140-newtonian-burn.webm	content-machine-v0.14.0	8.1	134226	frozen
+news-0140-ai-flight.webm	content-machine-v0.14.0	8.1	496195	frozen
+news-0140-docking-approach.webm	content-machine-v0.14.0	3.8	138520	frozen
+news-0140-useful-job.webm	content-machine-v0.14.0	4.7	191080	frozen
+news-0140-handbook.webm	content-machine-v0.14.0	7.0	238496	frozen
+news-0140-editor-patches.webm	content-machine-v0.14.0	2.3	49656	frozen
+news-0140-sensor-scale.webm	content-machine-v0.14.0	4.0	84656	frozen
+news-0140-torpedo-envelope.webm	content-machine-v0.14.0	4.7	82512	frozen
+news-0140-live-themes.webm	content-machine-v0.14.0	5.3	77938	frozen
+news-0140-carrier-collapse.webm	content-machine-v0.14.0	8.8	1869685	frozen
+news-0140-four-v-four.webm	content-machine-v0.14.0	6.1	1852583	frozen

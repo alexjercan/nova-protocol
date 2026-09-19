@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -400,6 +400,36 @@ the parallelism buys. Matched at 650-750 dynamic bodies in a 1v1
 switch applied to them moved no step metric and made the frame tail worse (p99
 36.9 ms against 40.6): the solver’s <code>par_for_each</code> passes are the one part of a
 fixed step that does saturate threads. Re-measure before moving either boundary.</p>
+<h2 id="the-compute-pool-is-capped-at-eight-workers"><a class="header" href="#the-compute-pool-is-capped-at-eight-workers">The compute pool is capped at eight workers</a></h2>
+<p><code>AppBuilder::assemble</code> sets Bevy’s <code>TaskPoolPlugin</code> with
+<code>compute.max_threads = nova_core::MAX_COMPUTE_WORKERS</code>, which is 8.</p>
+<p>Bevy’s default hands the compute pool every core left after the IO and
+async-compute pools take four each, so it is <code>total - 8</code> on any host with
+enough cores to fill them - 16 workers on a 24-thread desktop. <strong>The cap binds
+only above 16 logical CPUs</strong>: a 16-thread host already lands on eight, and a
+smaller one lands under it. On wasm the pool is single-threaded and the number
+is ignored.</p>
+<p>The extra workers were not doing extra work. <code>bevy_transform</code>’s propagation
+workers share one queue behind a spin retry
+(<code>bevy_transform-0.19.0/src/systems.rs:574-610</code>), and in a measured 4v4
+<code>wfc_arena</code> fight the sampled spin was 23-24% of all CPU at 16 workers against
+8-9% at eight. Five release repeats per arm, same binary, same seed: the mean
+frame time went 18.69 ms -&gt; 13.41 and p99 41.18 ms -&gt; 27.39, with the
+per-repeat ranges disjoint on both. <code>stress_bullets</code> and
+<code>stress_point_defense</code> moved the same way. Four workers removed still more
+spin and used less total CPU but was about 4.9% SLOWER than eight on the mean,
+and the two p99 ranges overlap - minimising CPU work is not minimising frame
+latency.</p>
+<p>Eight is a measurement on one hybrid i9, not a proven optimum for every CPU.
+Re-measure before moving it.</p>
+<h3 id="measure-at-the-shipped-cap-not-above-it"><a class="header" href="#measure-at-the-shipped-cap-not-above-it">Measure at the shipped cap, not above it</a></h3>
+<p>A worker count is a contention regime, and the regime is an amplifier. The same
+pair of revisions measured across the same code change read +33.5% at 16
+workers and +10.2% at eight: the busier pool turns a small workload increase
+into a large frame-time increase. A bisection run at the old 16-worker default
+therefore over-attributes cost to whichever commit added work, and its
+boundaries are not comparable with a capped run’s. Say which regime a number
+came from, and prefer the shipped cap.</p>
 <h2 id="the-window-and-the-deadline-sized-to-it"><a class="header" href="#the-window-and-the-deadline-sized-to-it">The window, and the deadline sized to it</a></h2>
 <p>The capture window is the capture crate’s full 180/900 baseline unless the
 example declared one of its own, so probe numbers stay comparable with the
@@ -409,7 +439,11 @@ ceiling for any shorter one an example declares): probe sets
 <code>NOVA_AUTOPILOT_DEADLINE</code> for the fps pass to <code>(warmup + frames) / ~2fps + margin</code>, so a slow-but-progressing capture (a heavy scene in a dev build under
 software rendering - the <code>stress_*</code> ranges are the case) completes instead of
 tripping the hang detector; a genuine hang still fails at a window-appropriate
-bound, and your own <code>NOVA_AUTOPILOT_DEADLINE</code> overrides it. Every example’s <code>main</code>
+bound, and your own <code>NOVA_AUTOPILOT_DEADLINE</code> overrides it. The behavioral
+(clean) pass has no window to size against, so it sizes from <code>--timeout</code>
+instead - 30 s under it, so the named-laggards line still beats the
+supervisor’s kill - which is what makes <code>--timeout</code> move the budget of a long
+correctness range. Every example’s <code>main</code>
 returns <code>AppExit</code>, so a deadline expiry is a non-zero process exit the
 <code>process_exit</code> check reports. See the crate docs for the full knob list
 (<code>NOVA_PROBE_*</code>).</p>
@@ -438,12 +472,13 @@ rendered run, never instead of one.</p>
 reads on the native side; on <code>--platform web</code> it is load-bearing, because
 <code>nova_perf_web</code> takes the scenario id from the URL.</p>
 <p>Every capture records run metadata (wgpu backend + GPU adapter, resolution,
-graphics preset, git SHA, host and - schema v3 - the BUILD PROFILE) so a
-results file names its own renderer (pre-v3 files, like the v0.7.0
-baseline, still load; their profile reads <code>unknown</code>). The report badges
-each row <code>dev</code> or <code>release</code>: dev numbers are NOT baselines, and because the
-capture is wired by default, the badge is what keeps ad-hoc dev captures from
-being mistaken for comparable measurements. The web platform
+graphics preset, git SHA, host and the BUILD PROFILE) so a results file names
+its own renderer. That metadata is required, not optional: the reader accepts
+one header only, and a results file from an older schema is refused with
+<code>unexpected CSV header</code> rather than loaded with values it never carried. The
+report badges each row <code>dev</code> or <code>release</code>: dev numbers are NOT baselines, and
+because the capture is wired by default, the badge is what keeps ad-hoc dev
+captures from being mistaken for comparable measurements. The web platform
 builds the perf_web wasm app through Trunk, serves it from an embedded static
 server, drives headless Chromium with the calibrated WebGPU flags, and
 scrapes the summary line into a labeled CSV row (no fs in the browser).
@@ -550,11 +585,11 @@ schema both halves speak - <code>crates/nova_probe/src/stats.rs</code>.</li>
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

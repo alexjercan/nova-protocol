@@ -38,7 +38,7 @@
 <h2 id="what-is-on-screen-and-when" tabindex="-1">What is on screen, and when</h2>
 <p>The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of the way when it does not. Idle cruise keeps a quiet screen - the velocity sphere, your speed, the dock's few live verbs, the always-on ship markers and the status bar - and everything else arrives with its moment.</p>
 <div class="widget" data-widget="hud-context">
-<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges, redden the lead pips and put up a railgun's bore sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears the whole contextual HUD.</p>
+<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges, redden the lead pips and put up a railgun's bore sight; a locked docking target in range puts up the docking sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears the whole contextual HUD.</p>
 </div>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -63,10 +63,28 @@
 <p>The flight instruments sit around the ship, not in a status bar:</p>
 <ul>
 <li><strong>Velocity sphere</strong> - an orbiting cone and shaded sphere driven by your linear velocity; white and blue in manual flight, cyan when the autopilot is flying, violet while you hold RCS fine adjust (the violet wins over the cyan). A yellow variant shows the local gravity pull, hidden in flat space.</li>
-<li><strong>Speed and mode chips</strong> - a speed readout (<code>m/s</code>, meters per second; see the <a href="../glossary/">glossary</a>) always beside the sphere, and a mode chip reading <code>AP GOTO - BURN</code> (verb and phase: STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the autopilot is engaged.</li>
+<li><strong>Shell size</strong> - both spheres are drawn around your LIVE hull: the white one stands 5 m outside the furthest point your sections reach from your centre of mass, and the yellow one 6 m outside that. Fly a cutter and they hug it; fly a larger patrol gunship and they grow to enclose it. Lose the sections that were reaching furthest and they settle back in over about a fifth of a second, so a hull coming apart is never left standing through its own instruments.</li>
+<li><strong>Speed and mode chips</strong> - a speed readout (<code>m/s</code>, meters per second; see the <a href="../glossary/">glossary</a>) beside the sphere, and a mode chip reading <code>AP GOTO - BURN</code> (verb and phase: STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the autopilot is engaged. Both park just outside the outer shell, so they move out with the hull instead of landing on it.</li>
 <li><strong>ORBIT ring and radius spoke</strong> - while you hold an orbit, a world-space ring marks the orbit plane and a thin spoke runs from the well to your ship with the current radius.</li>
-<li><strong>Keybind dock</strong> - a row of icon chips along the bottom of the screen showing the flight verbs you can use RIGHT NOW, drawn from STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT and RCS. A verb that would do nothing at this moment is not on the dock at all, so the row grows and shrinks with the situation instead of parking a wall of dead keys under your ship. Each chip shows the real KEYCAP for the key that drives it plus the verb word, in full phosphor - or inverted while that verb is what the ship is doing (an engaged ORBIT keeps its chip even though you can no longer start one). A chip pulses gold when a scenario wants you to use it, and a spotlight will show a chip that has not lit up yet - that is how a tutorial points at a key before you can press it. The anchored <strong>verb cues</strong> are the same chip parked on the thing you would act on - the ORBIT keycap on a gravity well, the GOTO keycap on your aim lock.</li>
+<li><strong>Keybind dock</strong> - a row of icon chips along the bottom of the screen showing the flight verbs you can use RIGHT NOW, drawn from STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS and DOCK. A verb that would do nothing at this moment is not on the dock at all, so the row grows and shrinks with the situation instead of parking a wall of dead keys under your ship. Each chip shows the real KEYCAP for the key that drives it plus the verb word, in full phosphor - or inverted while that verb is what the ship is doing (an engaged ORBIT keeps its chip even though you can no longer start one). A chip pulses gold when a scenario wants you to use it, and a spotlight will show a chip that has not lit up yet - that is how a tutorial points at a key before you can press it. The anchored <strong>verb cues</strong> are the same chip parked on the thing you would act on - the ORBIT keycap on a gravity well, the GOTO keycap on your aim lock.</li>
 </ul>
+<figure class="figure">
+    <!-- Capture: assets/wiki-hud-shell.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-hud-shell.png</span
+        >
+        <span class="figure__placeholder-note"
+            >Both shells around a 360 m development stress hull:
+            the blue velocity sphere enclosing the whole hull,
+            the yellow gravity sphere outside it, and the speed
+            chip parked off the outer edge.</span
+        >
+    </div>
+</figure>
 <h2 id="locks-and-reticles" tabindex="-1">Locks and reticles</h2>
 <p>Locks are slot-coloured: a <strong>white crosshair</strong> is your travel (nav) lock, a <strong>red reticle</strong> is your combat lock. The combat reticle carries a readout riding its right edge - range to the target (<code>DST</code>), closing speed (<code>CLS</code>) and a health bar (measured against the hull the target was BUILT with, so it falls as you take sections off and never refills) - plus a focus meter that fills as a fine-lock dwell accumulates. Lock an asteroid and the bar is simply absent: a rock has no health to draw, and how much of it is left is something you read off the rock itself. While you hold the radar gesture a hollow box shows, coloured by the slot it will land in; a <strong>white ring fills clockwise</strong> around the target while the lock-on dwell charges, and vanishes with a cue the instant the lock snaps (sweep off before it fills to cancel). Clearing a lock pops a brief &quot;unlatch&quot; ghost. See <a href="../targeting-radar/">Targeting &amp; radar</a>.</p>
 <h2 id="bore-sight" tabindex="-1">Bore sight</h2>
@@ -88,15 +106,38 @@
         >
     </div>
 </figure>
+<h2 id="docking-sight" tabindex="-1">Docking sight</h2>
+<!-- Behavior verified against crates/nova_hud/src/docking_sight.rs: gated on a travel lock, a dock capability and an undocked hull; DRAW_RANGE 8.0 units of face gap; one PLATE_SPAN 2.5 cross per port face, one gap line, MAX_TICKS 12 ticks spaced at the pair's capture_distance; ALLY green when the tested half of the envelope holds, NAV cyan otherwise. -->
+<p>A hull carrying a <a href="../sections/docking/">docking port</a> gets an instrument of its own once it locks a ship that has one too. Inside <strong>80 m of face gap</strong> the sight draws three things in the world: a flat <strong>cross over each of the two port faces</strong>, a <strong>line between them</strong>, and a <strong>tick on that line for every cell of capture distance</strong> still to cross. Fly it in that order - square the two crosses up, stand the line perpendicular to them, then close the gap until the ticks run out.</p>
+<p>It is a two-colour readout, and each half answers one question. The crosses turn <strong>green</strong> when the two ports are facing each other closely enough; the line and its ticks turn <strong>green</strong> when both the gap and the closing speed are inside the envelope. Cyan means not yet. Three green and the DOCK chip lights.</p>
+<p>Nothing on it flies for you, and the <strong>roll is not drawn at all</strong> - the ports are cylinders, so any twist docks, and lining one up is your business. The sight is up only while you are locked, in range, carrying the verb, and not already docked.</p>
+<figure class="figure">
+    <!-- Capture: assets/wiki-hud-docking-sight.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-hud-docking-sight.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The two port crosses and the ticked line between
+            them on a final approach.</span
+        >
+    </div>
+</figure>
 <h2 id="allegiance-markers" tabindex="-1">Allegiance markers</h2>
 <p>A small filled triangle floats above every ship in view, pointing down at the hull and coloured by its side: <strong>green</strong> for your allies (your AI wingmen included), <strong>red</strong> for hostiles, <strong>grey</strong> for neutral bystanders. Your own ship shows none - you know where you are. The triangle tracks each ship and hides when it leaves the screen (pointing at off-screen ships is the edge indicators' job); a ship that turns hostile mid-fight (a neutral hauler provoked into a threat) flips its marker red on the spot. It reads at a glance so a mixed brawl - wingmen and enemies tangled together - stays legible. See <a href="../factions/">Factions</a>.</p>
 <h2 id="target-viewfinder" tabindex="-1">Target viewfinder</h2>
 <p>The corner inset renders a live, magnified 3D view of your combat lock through a second (offscreen) camera. Its frame glows hot-red while your weapons are hot and steel while safe, with corner ticks that appear only when hot; a caption names the target and its relation. Bodies that cannot be scoped (nav beacons) show a <strong>NO-SIGNAL</strong> panel instead. When the framed target dies the inset freezes the final pose for about two seconds - a <strong>kill cam</strong> - then closes. The fine-locked section glows in both the inset and the main view.</p>
 <h2 id="comms-and-objectives" tabindex="-1">Comms and objectives</h2>
-<p>Scenarios talk to you through a <strong>comms stack</strong>: broad story cards with a distinct speaker header above larger message text. They rise from the bottom-left like a chat transcript. A newly posted <strong>objective</strong> arrives in the <strong>objective stack</strong> at the top of the screen - a column of larger amber chips, newest on top. Both are notifications, not standing lists: each leaves once it has been read, so a quiet cockpit stays quiet.</p>
+<!-- Accents verified against crates/nova_gameplay/src/narrative_accent.rs (default_comms_accent is nova_ui::theme::BLUE) and crates/nova_hud/src/comms_panel.rs: the border is the accent at CHIP_BORDER_ALPHA (:536), the speaker line is the accent (:553), the body is body_colour(accent) (:560), the fallback icon is the accent (:612-613), the background is CHIP_FILL on every card (:537), and a card's alpha is its fade and nothing else (:414). -->
+<p>Scenarios talk to you through a <strong>comms stack</strong>: broad story cards with a distinct speaker header above larger message text. Each card is drawn in its own <strong>accent</strong> colour, so you know what kind of voice it is before you read a word. They rise from the bottom-left like a chat transcript. A newly posted <strong>objective</strong> arrives in the <strong>objective stack</strong> at the top of the screen - a column of larger amber chips, newest on top. Both are notifications, not standing lists: each leaves once it has been read, so a quiet cockpit stays quiet.</p>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a large speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise - Basic Training gives Range Control its own green CRT portrait, and a mod ships as many faces as it has voices. A card fades in with a soft blip and leaves by timeout or explicit dismiss. Bursts wait in order instead of silently dropping lines that do not fit the visible stack.</p>
+<p>One colour carries the whole card: the frame around it, the speaker header, the placeholder portrait, and the words themselves lifted toward white so the message stays the brightest thing on it. The dark backing and the way a card fades are the same on every line, so the only thing that ever changes is the voice.</p>
+<p>Almost everything you hear is the traffic your shift is paid to answer, and that is the HUD's own blue - the colour a line is drawn in when it says nothing else. A line that is NOT that says so in colour: an amber band you merely overheard, a green voice in the cabin beside you, a corporate net in its house colours. Nothing is looked up and nothing is registered, so a scenario or a mod invents as many voices as it has colours.</p>
+<p>Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a large speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise - Basic Training gives Range Control its own green CRT portrait, and a mod ships as many faces as it has voices. A card fades in with a soft blip and leaves by timeout or explicit dismiss. A burst larger than the visible stack waits its turn in order; a backlog longer than the panel could ever show (two dozen lines) drops its oldest waiting cue rather than queueing a line that would come up after the scene it belongs to.</p>
 <p>An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open <a href="../nova-os/">NOVA OS</a>. For the standing list, type <code>objectives</code> in NOVA OS (or <code>log</code> for the combined comms/objective event history); in flight, the larger gold <strong>objective markers</strong>, diamonds and edge chevrons on the targets themselves are the lasting &quot;go here&quot; cue. A <strong>completed</strong> objective chimes and its chip goes with it. Everything clears with the scenario rather than lingering over the menu.</p>
 </details>
 <h2 id="the-ship-computer" tabindex="-1">The ship computer</h2>

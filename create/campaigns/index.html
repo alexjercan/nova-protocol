@@ -81,9 +81,11 @@ would show the same chapter more than once.</p>
 player between missions. Add a
 <a href="../actions/#nextscenario"><code>NextScenario</code></a> action to a scenario when campaign
 play should continue directly into the next member.</p>
-<p>A scenario may set <code>hidden: true</code> and still appear under its campaign heading.
-This is useful for continuation chapters that should not appear in the flat
-scenario list.</p>
+<p>Every member is an ordinary row in the Scenarios list as well; the campaign
+heading groups the rows in play order, so a continuation chapter can be
+replayed without flying up to it. A member must be a launchable chapter: naming
+a <a href="../scenarios/#roles"><code>role: Backdrop</code> or <code>role: Lesson</code></a> scenario is a lint
+error.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">NextScenario</span><span class="ron-punct">((</span>
     <span class="ron-key">scenario_id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;freight_wars_ambush&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">linger</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>

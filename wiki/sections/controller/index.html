@@ -36,7 +36,7 @@
 <p>With no live controller, the hull cannot steer itself - so destroying the <strong>last</strong> controller <em>disables</em> a ship without destroying it outright, leaving a drifting, tumbling wreck. It is also what the autopilot verbs drive when they fly the ship for you.</p>
 <p>A hurt computer cracks and, past about a third of its health gone, throws sparks. It steers exactly as well as it did new right up to the moment it dies: handling degrades when a computer is LOST, never while one is merely damaged.</p>
 <h2 id="what-sets-how-hard-a-ship-turns" tabindex="-1">What sets how hard a ship turns</h2>
-<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 m/s^2 :17) and crates/nova_ship/src/physics/attitude.rs (the two ceilings and the lower one winning :75-95 - the structural one is LOAD_LIMIT in m/s^2 over an arm in meters, so rad/s^2 comes out unchanged by the scale; the arm to the outer FACE of the furthest live section :157-184, engine world units crossed to Meters by its caller, reading 5.52 u (55.2 m) on the base Patrol Gunship :151, the assembled mass properties :186-197, the sustained rate :111-113, the vector load a hard turn spends and the direction rule that holds it :117-145 with crates/nova_ship/src/physics/pd_controller.rs:156-190). The hull the widgets fly is block_gunship in assets/base/ships/base.content.ron - 53 authored cells, two flight computers at 1501 of torque each (crates/nova_authoring/src/base_content/sections/standard.rs:701,:718) - and web/tests/widgets.test.ts holds the widget's cell table to that ship's section count, mass and arm. Density is 1 and not authorable, so a section's mass IS its authored box (crates/nova_ship/src/sections/base_section.rs:470-471). Severing on a disconnected graph, and the rank that picks which body keeps the ship: crates/nova_ship/src/sections/integrity.rs:231-349,:345-385. -->
+<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 m/s^2 :17) and crates/nova_ship/src/physics/attitude.rs (the two ceilings and the lower one winning :75-95 - the structural one is LOAD_LIMIT in m/s^2 over an arm in meters, so rad/s^2 comes out unchanged by the scale; the arm to the outer FACE of the furthest live section :157-184, engine world units crossed to Meters by its caller, reading 5.52 u (55.2 m) on the base Patrol Gunship :151, the assembled mass properties :186-197, the sustained rate :111-113, the vector load a hard turn spends and the direction rule that holds it :117-145 with crates/nova_ship/src/physics/pd_controller.rs:156-190). The hull the widgets fly is block_gunship in assets/base/ships/base.content.ron - 53 authored cells, two flight computers at 9760 of torque each (crates/nova_authoring/src/base_content/sections/controller.rs) - and web/tests/widgets.test.ts holds the widget's cell table to that ship's section count, mass and arm. Density is 1 and not authorable, so a section's mass IS its authored box (crates/nova_ship/src/sections/base_section.rs:470-471). Severing on a disconnected graph, and the rank that picks which body keeps the ship: crates/nova_ship/src/sections/integrity.rs:231-349,:345-385. -->
 <p>The computer does not decide it on its own. A ship turns as hard as the lower of two limits allows:</p>
 <ul>
 <li><strong>Its computers.</strong> Their torque against the mass they have to swing. A heavier ship needs more of it for the same turn.</li>
@@ -45,7 +45,7 @@
 <div class="widget" data-widget="controller-arm">
 <p>The base Patrol Gunship carries its mass over a 55.2 m arm - balance point to the outer face of its furthest section, which is the tip of its bow spur. Hull metal takes 8 G, so that arm allows 1.42 rad/s^2 and no more, while its two flight computers together could push 8.74 - six times as hard. Shoot the bow off and the balance point slides aft: the arm drops to 41.6 m, the ceiling climbs to 1.89 rad/s^2, and the wreck flips 180 degrees in 2.58 s where the whole ship took 2.97 s. Cut the spine instead and only the dorsal ridge and the two computers on it are still one ship: twenty sections sever away as wreckage.</p>
 </div>
-<p>Every ship in the base fleet but one is held by the second, with a wide margin on the first. The exception is the carrier: 2,081 sections and enough inertia that its ten computers run out first, so it turns at 0.07 rad/s^2 where its metal would have allowed 0.40. Nothing authors either result - both fall out of the shape you built. A short craft swings on a short arm and whips around. A long hauler swings on a long arm and handles like the freighter it is.</p>
+<p>The patrol gunship is held by the structural limit, with a wide margin on the computer limit. Neither result is authored directly: both follow from the shape, section mass, and installed computer torque. A short craft swings on a short arm and turns harder. A long hauler swings on a long arm and turns more gently.</p>
 <p>Two things follow that you feel in the cockpit:</p>
 <ul>
 <li><strong>A wreck turns sharper.</strong> Shoot the bow off and the ship's balance point slides aft, shortening the reach to everything behind it - so what is left of the ship turns harder than the whole ship did. Mid-turn, on the same stick input, the survivor speeds up into it.</li>
@@ -56,7 +56,7 @@
 </div>
 <h2 id="stacking-controllers" tabindex="-1">Stacking controllers</h2>
 <p>A big hull can mount more than one. They do not each steer it: they share one steering loop, and their torque adds into it.</p>
-<p>On a ship that is already at its structural limit - which is every base hull but the carrier - that extra torque buys no turn rate at all. Metal does not care how many computers push it. Only a hull heavy enough to run its computers out first gains turn rate from a stack, and only until it reaches its own structural limit too. The carrier is the one shipped hull on that side of the line, which is why it carries ten.</p>
+<p>On a ship that is already at its structural limit, extra torque buys no turn rate. Metal does not care how many computers push it. Only a hull heavy enough to run its computers out first gains turn rate from a stack, and only until it reaches its own structural limit too. The test rigs below show both cases.</p>
 <!-- Flown 170 degree flips, printed by crates/nova_ship/src/flight/tests/stacking.rs::size_decides_the_turn_and_stacking_only_helps_a_torque_bound_hull (:314). Light hull = the "fighter" rig, 3 unit cells (:284-290); heavy barge = the "barge" rig, 15 cells at 20x density (:298-304); 5 degree traverse gate :232; stack sizes :306; 170 degree turn :309. -->
 <table>
 <thead>
@@ -115,14 +115,14 @@
 <h2 id="variants" tabindex="-1">Variants</h2>
 <p>One flight computer ships, and every hull in the game is steered by copies of it. What a ship does with them is the ship's own business: its mass and its length decide that, and a second one buys redundancy and precision rather than turn rate.</p>
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_controller_section health CONTROLLER_BASE_HEALTH 100.0 used :701, steering_lag 0.5 :709, max_torque 1501.0 :718). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/controller.rs (basic_controller_section health CONTROLLER_BASE_HEALTH 100.0, steering_lag 0.5, max_torque 9760.0). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-controller.png</span></span></span><span class="catalog__title">Controller - shipped prototypes</span></div>
 <table>
 <thead>
 <tr><th></th><th>Variant</th><th>Torque</th><th>Steering lag</th><th>Health</th></tr>
 </thead>
 <tbody>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-basic-controller-section.png</span></span></span></td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">1501</td><td class="catalog__num">0.5 s</td><td class="catalog__num">100</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-basic-controller-section.png</span></span></span></td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">9760</td><td class="catalog__num">0.5 s</td><td class="catalog__num">100</td></tr>
 </tbody>
 </table>
 </div>

@@ -17,10 +17,10 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship sections for mods</p><h1>Ship sections for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-section-item">The Section item</a><ol><li><a href="#common-fields">Common fields</a></li><li><a href="#damage-effects">Damage effects</a></li><li><a href="#structural-link-points">Structural link points</a></li><li><a href="#assets-and-visual-transforms">Assets and visual transforms</a></li><li><a href="#animation-tracks">Animation tracks</a></li></ol></li><li><a href="#hull">Hull</a><ol></ol></li><li><a href="#thruster">Thruster</a><ol></ol></li><li><a href="#controller">Controller</a><ol><li><a href="#what-a-hull-does-with-the-torque">What a hull does with the torque</a></li></ol></li><li><a href="#turret">Turret</a><ol></ol></li><li><a href="#torpedo">Torpedo</a><ol><li><a href="#the-fuze-is-not-a-bay-field">The fuze is not a bay field</a></li></ol></li><li><a href="#railgun">Railgun</a><ol></ol></li><li><a href="#a-section-in-a-mod">A section in a mod</a><ol></ol></li></ol></nav><p>A <code>Section</code> is a reusable ship part defined in a mod's <code>*.content.ron</code> file.
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship sections for mods</p><h1>Ship sections for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-section-item">The Section item</a><ol><li><a href="#common-fields">Common fields</a></li><li><a href="#damage-effects">Damage effects</a></li><li><a href="#structural-link-points">Structural link points</a></li><li><a href="#assets-and-visual-transforms">Assets and visual transforms</a></li><li><a href="#animation-tracks">Animation tracks</a></li></ol></li><li><a href="#hull">Hull</a><ol></ol></li><li><a href="#thruster">Thruster</a><ol></ol></li><li><a href="#controller">Controller</a><ol><li><a href="#what-a-hull-does-with-the-torque">What a hull does with the torque</a></li></ol></li><li><a href="#turret">Turret</a><ol></ol></li><li><a href="#torpedo">Torpedo</a><ol><li><a href="#the-fuze-is-not-a-bay-field">The fuze is not a bay field</a></li></ol></li><li><a href="#railgun">Railgun</a><ol></ol></li><li><a href="#docking">Docking</a><ol></ol></li><li><a href="#a-section-in-a-mod">A section in a mod</a><ol></ol></li></ol></nav><p>A <code>Section</code> is a reusable ship part defined in a mod's <code>*.content.ron</code> file.
 Create a new id to add a part to the editor palette, or reuse a base id to
-replace that part everywhere. The six available kinds are <code>Hull</code>, <code>Thruster</code>,
-<code>Controller</code>, <code>Turret</code>, <code>Torpedo</code>, and <code>Railgun</code>.</p>
+replace that part everywhere. The seven available kinds are <code>Hull</code>, <code>Thruster</code>,
+<code>Controller</code>, <code>Turret</code>, <code>Torpedo</code>, <code>Railgun</code>, and <code>Docking</code>.</p>
 <p>Start with the two working section items in
 <code>assets/mods/example/example.content.ron</code>: one replaces
 <code>reinforced_hull_section</code>, and one adds <code>example_plated_hull_section</code>. Use the
@@ -70,7 +70,7 @@ shared <code>base</code> block and one kind-specific block:</p>
 <td><code>base.id</code></td>
 <td>string</td>
 <td>required</td>
-<td>Prototype key used by <code>source: Prototype(&quot;&lt;id&gt;&quot;)</code>. A new id adds a part; a matching id replaces the earlier part. Prefix new ids with your mod id.</td>
+<td>Prototype key used by <code>source: Prototype(id: &quot;&lt;id&gt;&quot;)</code>. A new id adds a part; a matching id replaces the earlier part. Prefix new ids with your mod id.</td>
 </tr>
 <tr>
 <td><code>base.name</code></td>
@@ -89,12 +89,6 @@ shared <code>base</code> block and one kind-specific block:</p>
 <td>number</td>
 <td>required</td>
 <td>Hit points before the section is destroyed.</td>
-</tr>
-<tr>
-<td><code>base.material</code></td>
-<td><code>Option</code> string</td>
-<td><code>None</code></td>
-<td>What the section is MADE of, looked up in the <a href="../impacts/">impact table</a> against the round that hit it. Omitted means <code>&quot;hull&quot;</code>.</td>
 </tr>
 <tr>
 <td><code>base.destroy_sound</code></td>
@@ -361,6 +355,11 @@ that matters in a fight: it sinks lazily over 0.9 s and comes back up in 0.35.</
 <td>The railgun's charge system, from the committed trigger to the shot. It writes the charge fraction straight in, so <code>open_seconds</code> and <code>close_seconds</code> are unread on this cue: the travel is the authored <code>charge_seconds</code>, and the snap back to 0 is the shot leaving.</td>
 <td>fully charged, the instant before firing</td>
 </tr>
+<tr>
+<td><code>DockTube</code></td>
+<td>The docking port's sleeve, once the dock's fixed joint EXISTS - never before it, so the tube can never be what holds the two hulls together. It stows again the moment the dock is released.</td>
+<td>the sleeve fully out, 0.5 cells past the port face</td>
+</tr>
 </tbody>
 </table>
 <p>Authoring a <code>StowLift</code> track is what MAKES a turret retractable - the stow
@@ -402,9 +401,11 @@ scale; does not move or resize the collider.</li>
 sound THIS section's destruction plays, an asset ref like the meshes
 (<code>dep://base/sounds/explosion.wav</code> is the base voice); an omitted sound is
 silent.</li>
-<li>what a HIT sounds like is not authored here. A hit has two halves - the round
-and what it struck - so the section names only its <code>material</code> and the
-<a href="../impacts/">impact table</a> pairs that with the damage type.</li>
+<li>what a HIT sounds like is not authored at all. A hit has two halves - the
+round and what it struck - and both are closed engine vocabularies: every
+section is ship plate, every rock is stone, and the damage type does the rest.
+A mod that wants a different bang replaces the base sound file; it cannot add
+a category, because a category nothing can be made of would never play.</li>
 </ul>
 <h2 id="thruster" tabindex="-1">Thruster</h2>
 <p><code>ThrusterSectionConfig</code> - forward thrust.</p>
@@ -502,7 +503,7 @@ default, so a mod can override only the values it needs. Copy a drive from
 to fly.</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Controller</span><span class="ron-punct">((</span>
     <span class="ron-key">steering_lag</span><span class="ron-punct">:</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span>
-    <span class="ron-key">max_torque</span><span class="ron-punct">:</span> <span class="ron-literal">1501.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">max_torque</span><span class="ron-punct">:</span> <span class="ron-literal">9760.0</span><span class="ron-punct">,</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <ul>
@@ -514,7 +515,9 @@ fixed-step controller unstable. This is not a startup delay or total turn
 time: the computer reacts immediately, and the hull's turn ceiling still
 limits large turns.</li>
 <li><code>max_torque</code> - how hard this computer's reaction wheels twist the hull, in
-torque units. Every shipped controller carries <code>1501.0</code>. Controllers on one
+torque units. Every shipped controller carries <code>9760.0</code>, which is pinned so
+that the largest hull the base game ships is structure-bound with all ten of
+its computers alive and torque-bound once it loses one. Controllers on one
 hull ADD: two are twice the torque, with no cap and no stacking curve.</li>
 <li><code>render_mesh</code> (optional) - custom mesh; omit for the default body.</li>
 <li><code>render_mesh_transform</code> (optional) - visual-only position, rotation and scale.</li>
@@ -545,7 +548,7 @@ civilian computer may warn late, and <code>0.0</code> never warns at all. Clampe
 <p>A hull may mount several controllers, but they do NOT each steer it: the ship
 derives ONE attitude loop and shares it out. The turn ceiling it derives is
 never authored:</p>
-<!-- Numbers verified against crates/nova_ship/src/physics/attitude.rs (envelope :75-90, arm in meters :75, structural_arm measured in world units :149, sustained rate :111, vector load :124-130), crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :17), crates/nova_ship/src/sections/controller_section.rs (the one arm conversion, Meters::from_engine :490, linear torque sum :385-388, STACK_PRECISION_LIMIT 1.5 :259, stack_curve :267-269, smallest steering_lag :379-383) and crates/nova_authoring/src/base_content/sections/standard.rs (steering_lag 0.5 :376, max_torque 1501.0 :384). -->
+<!-- Numbers verified against crates/nova_ship/src/physics/attitude.rs (envelope :75-90, arm in meters :75, structural_arm measured in world units :149, sustained rate :111, vector load :124-130), crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :17), crates/nova_ship/src/sections/controller_section.rs (the one arm conversion, Meters::from_engine :490, linear torque sum :385-388, STACK_PRECISION_LIMIT 1.5 :259, stack_curve :267-269, smallest steering_lag :379-383) and crates/nova_authoring/src/base_content/sections/controller.rs (steering_lag 0.5, max_torque 9760.0). -->
 <pre><code class="hljs language-text">ceiling = min( sum(max_torque) / I , 78.48 / r )   rad/s2
 </code></pre>
 <ul>
@@ -561,13 +564,15 @@ it crosses into meters once, where the envelope is built.</li>
 for every ship and every mod.</li>
 </ul>
 <p>So <code>max_torque</code> is the only handling number you author, and it binds only on a
-hull heavy enough that its computers give up before its metal does. Everything
-that ships is on the second term: the hull would tear first, so fitting more
-computers buys it no turn rate at all. Size and shape set the rest. A long hull
-has a long arm and a low ceiling; a short one is sharp. Author a bigger
-<code>max_torque</code> for a capital-scale hull that reads sluggish, not for a small one -
-a small one is already at its limit.</p>
-<p>Three consequences to author around:</p>
+hull heavy enough that its computers give up before its metal does. Small hulls
+are all on the second term: the metal would tear first, so fitting more
+computers buys them no turn rate at all. Capital hulls can sit near the crossover. The development carrier fixture is
+on the structural term with all computers alive and on the torque term after it
+loses one. Size and shape set the rest.
+A long hull has a long arm and a low ceiling; a short one is sharp. Author a
+bigger <code>max_torque</code> for a capital-scale hull that reads sluggish, not for a small
+one - a small one is already at its limit.</p>
+<p>Four consequences to author around:</p>
 <ul>
 <li><strong>Damage sharpens a hull.</strong> Losing sections shortens <code>r</code>, which raises the
 ceiling. A wreck turns harder than it did intact.</li>
@@ -575,6 +580,10 @@ ceiling. A wreck turns harder than it did intact.</li>
 centripetal load <code>omega^2 * r</code> add as a vector, and that sum is what must stay
 under 8 G. So a hull holds <code>sqrt(78.48 / r)</code> rad/s indefinitely and has no
 authority left to tighten past it.</li>
+<li><strong>A capital's computers are worth losing.</strong> On a hull near the crossover,
+every computer shot off the bridge costs real turn rate, because the torque
+term falls while the structural one does not. On a small hull it costs
+nothing until the last one dies and the ship stops steering at all.</li>
 <li><strong>Stacking buys precision, not authority.</strong> A stack starts arresting a turn
 earlier and lands on the commanded attitude instead of swinging past. That
 gain approaches x1.5 from below: x1.25 at two computers, x1.375 at four,
@@ -643,7 +652,7 @@ between fights:</p>
                         <span class="ron-key">render_mesh_transform</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-key">scale</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.5</span><span class="ron-punct">,</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span> <span class="ron-literal">0.5</span><span class="ron-punct">))),</span>
                         <span class="ron-key">children</span><span class="ron-punct">:</span> <span class="ron-punct">[(</span>
                             <span class="ron-key">offset</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-0.475</span><span class="ron-punct">),</span>               <span class="ron-comment">// muzzle (fixed)</span>
-                            <span class="ron-key">muzzle</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-key">fire_rate</span><span class="ron-punct">:</span> <span class="ron-literal">100.0</span><span class="ron-punct">)),</span>
+                            <span class="ron-key">muzzle</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;main&quot;</span><span class="ron-punct">,</span> <span class="ron-key">fire_rate</span><span class="ron-punct">:</span> <span class="ron-literal">100.0</span><span class="ron-punct">)),</span>
                         <span class="ron-punct">)],</span>
                     <span class="ron-punct">)],</span>
                 <span class="ron-punct">)],</span>
@@ -656,8 +665,8 @@ between fights:</p>
     <span class="ron-key">bullet_kind</span><span class="ron-punct">:</span> <span class="ron-type">Kinetic</span><span class="ron-punct">,</span>
     <span class="ron-key">fire_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/turret_fire.wav&quot;</span><span class="ron-punct">),</span>
     <span class="ron-key">dry_fire_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/dry_fire.wav&quot;</span><span class="ron-punct">),</span>
-    <span class="ron-key">ammo_capacity</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">500</span><span class="ron-punct">),</span>
-    <span class="ron-key">reload</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-key">delay</span><span class="ron-punct">:</span> <span class="ron-literal">3.0</span><span class="ron-punct">,</span> <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">200</span><span class="ron-punct">)),</span>
+    <span class="ron-key">ammunition</span><span class="ron-punct">:</span> <span class="ron-type">Limited</span><span class="ron-punct">(</span><span class="ron-literal">500</span><span class="ron-punct">),</span>
+    <span class="ron-key">reload</span><span class="ron-punct">:</span> <span class="ron-type">Batch</span><span class="ron-punct">((</span><span class="ron-key">delay</span><span class="ron-punct">:</span> <span class="ron-literal">3.0</span><span class="ron-punct">,</span> <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">200</span><span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <p>Per-joint fields (on every <code>root</code>/<code>children</code> node):</p>
@@ -686,12 +695,17 @@ lifted into the disc the gun stands on.</li>
 a named node inside a scene mesh (the shipped PDC names its elevator joint
 <code>stow_lift</code>, and the <code>StowLift</code> track above targets that name). Omit it on a
 joint no track touches.</li>
-<li><code>muzzle</code> (optional) - marks this joint a fire point: <code>Some((fire_rate: N))</code>
-(rounds per second), plus an optional <code>muzzle_effect</code> flash asset ref. A turret
-aims and fires ALL of its muzzles: hang two off one barrel for a twin PDC, or
-give each its own arm. Every muzzle fires at its own <code>fire_rate</code> but draws from
-the ONE shared section magazine (<code>ammo_capacity</code>), so a twin barrel empties the
-same mag twice as fast rather than carrying a pool per gun.</li>
+<li><code>muzzle</code> (optional) - marks this joint a fire point:
+<code>Some((id: &quot;main&quot;, fire_rate: N))</code> - an id unique within the turret (<code>main</code> on
+a single barrel, <code>left</code> and <code>right</code> on a twin) and rounds per second - plus an
+optional <code>muzzle_effect</code> flash asset ref. The id is the handle a
+<a href="../objects/#the-sections-list">patch</a> and an editor row address the barrel
+by, so re-parenting one never moves an authored rate onto the other gun; two
+muzzles sharing an id is a lint error. A turret aims and fires ALL of its
+muzzles: hang two off one barrel for a twin PDC, or give each its own arm.
+Every muzzle fires at its own <code>fire_rate</code> but draws from the ONE shared
+section magazine (<code>ammunition</code>), so a twin barrel empties the same mag twice
+as fast rather than carrying a pool per gun.</li>
 <li><code>children</code> (optional) - joints hanging off this one; omit for a leaf.</li>
 </ul>
 <p>Section-wide fields (once, alongside <code>root</code>):</p>
@@ -746,7 +760,9 @@ crosses, alive or dead, undiminished by depth, so its total legitimately
 exceeds one round's worth. It pays for travel out of a separate power
 budget: crossing a section costs that section's <code>health</code> RATING (not its
 remaining health), and closing speed divides that cost (clamped
-0.5x..3.0x). A rake is bounded by its power and by a hard six-layer cap.</li>
+0.5x..3.0x). POWER IS THE ONLY BOUND - there is no layer cap - so a
+section authored with a <code>health</code> of zero costs nothing to cross and stops
+the round instead of letting it chain without limit.</li>
 <li><code>Explosive</code> on a bullet is spent on its first hit. A torpedo blast uses the
 Explosive pressure rule described below.</li>
 </ul>
@@ -764,15 +780,17 @@ type's HUD colour. Setting this field overrides all three - one mesh,
 whatever the turret has loaded.</p>
 </li>
 <li>
-<p><code>ammo_capacity</code> (optional) - magazine size; <code>None</code> fires without a limit,
-<code>Some(n)</code> gives an ammo slot of <code>n</code> rounds.</p>
+<p><code>ammunition</code> - the magazine, as a decision rather than a missing number:
+<code>Unlimited</code> (the default - fires without a limit and never reloads) or
+<code>Limited(n)</code> for an ammo slot of <code>n</code> rounds.</p>
 </li>
 <li>
-<p><code>reload</code> (optional) - idle batch reload for the magazine (needs
-<code>ammo_capacity</code>). <code>Some((delay, amount))</code>: every successful shot resets the
-timer; after <code>delay</code> quiet seconds, <code>amount</code> rounds return, clamped to
-capacity. Batches repeat while the weapon stays idle. An empty trigger pull
-does not reset the timer. <code>None</code> = a spent magazine stays empty.</p>
+<p><code>reload</code> - how spent rounds come back: <code>Disabled</code> (the default - a spent
+magazine stays empty) or <code>Batch((delay, amount))</code>. Every successful shot
+resets the timer; after <code>delay</code> quiet seconds, <code>amount</code> rounds return,
+clamped to capacity. Batches repeat while the weapon stays idle, and an empty
+trigger pull does not reset the timer. A <code>Batch</code> on an <code>Unlimited</code> weapon is
+a lint error - there is nothing to refill.</p>
 </li>
 </ul>
 <h2 id="torpedo" tabindex="-1">Torpedo</h2>
@@ -800,8 +818,8 @@ torpedoes dealing blast damage. The shipped <code>torpedo_section</code>:</p>
         <span class="ron-key">weave_angle</span><span class="ron-punct">:</span> <span class="ron-literal">0.44</span><span class="ron-punct">,</span>
         <span class="ron-key">weave_rate</span><span class="ron-punct">:</span> <span class="ron-literal">1.4</span><span class="ron-punct">,</span>
     <span class="ron-punct">),</span>
-    <span class="ron-key">ammo_capacity</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">6</span><span class="ron-punct">),</span>
-    <span class="ron-key">reload</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-key">delay</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">1</span><span class="ron-punct">)),</span>
+    <span class="ron-key">ammunition</span><span class="ron-punct">:</span> <span class="ron-type">Limited</span><span class="ron-punct">(</span><span class="ron-literal">6</span><span class="ron-punct">),</span>
+    <span class="ron-key">reload</span><span class="ron-punct">:</span> <span class="ron-type">Batch</span><span class="ron-punct">((</span><span class="ron-key">delay</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">1</span><span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <ul>
@@ -848,7 +866,9 @@ starts inside the tube and slides its whole length out past the muzzle.
 coast means the torpedo has no colliders until its drive lights.</p>
 </li>
 <li>
-<p><code>fire_rate</code> - launches per second.</p>
+<p><code>fire_rate</code> - launches per second. The value must be positive and finite;
+lint rejects anything else, and a bay that reaches the game with a bad rate
+is built with no launcher at all rather than a guessed cadence.</p>
 </li>
 <li>
 <p><code>spawner_speed</code> - the ejection charge, in meters per second. A torpedo is not
@@ -860,8 +880,13 @@ not the speed it flies at. That comes from the drive, once it lights.</p>
 </li>
 <li>
 <p><code>arm_time</code>, <code>arm_distance</code> - the torpedo may detonate only after this many
-seconds OR this many METERS from the muzzle (arms on whichever comes first),
-so it clears the firing ship.</p>
+seconds OR this many METERS from the muzzle (arms on whichever comes first).
+This is the WARHEAD's condition and it is not the only one: the torpedo must
+ALSO be clear of the hull that launched it plus the full <code>blast_radius</code>, a
+distance snapshotted at launch and not authorable from here. That second
+condition is what actually sets the bay's minimum range - about 324 m off a
+small boat with a 300 m warhead, or 494 m off the 194 m development carrier
+fixture - so authoring a shorter <code>arm_distance</code> buys nothing below it.</p>
 </li>
 <li>
 <p><code>ignition_delay</code> - seconds the torpedo coasts INERT before its drive lights.
@@ -909,14 +934,10 @@ ordnance point defense has to chew through across the closing window.</p>
 <li>
 <p><code>torpedo_type</code> (optional, defaults to the Serpent) - <strong>what the bay loads</strong>, as
 opposed to the tube it loads into. A type is DATA, not an enum: base authors
-its three (the straight-running Lance, the weaving Serpent, and the crimson
-siege Breaker - a cruise of 700 m/s with a shallow 0.22 rad weave - that only
-the experimental, deliberately overpowered <code>heavy_torpedo_section</code> bay loads),
-and a mod authors its own by writing the
-same five fields:</p>
+two (the straight-running Lance and the weaving Serpent), and a mod authors its
+own by writing the same five fields:</p>
 <ul>
-<li><code>name</code> - the ordnance's player-facing name (<code>&quot;Lance&quot;</code>, <code>&quot;Serpent&quot;</code>,
-<code>&quot;Breaker&quot;</code>). It names
+<li><code>name</code> - the ordnance's player-facing name (<code>&quot;Lance&quot;</code>, <code>&quot;Serpent&quot;</code>). It names
 the launched projectile, so a log line or a probe snapshot says WHICH torpedo
 is in the air.</li>
 <li><code>tint</code> - the warhead's colour in flight, as
@@ -924,10 +945,12 @@ is in the air.</li>
 meant to tell apart want different colours: it is the only difference visible
 before the flight paths have diverged.</li>
 <li><code>max_speed</code> (m/s; <code>350.0</code> on the Lance, <code>320.0</code> on the Serpent) - cruise speed
-cap. The thruster tapers off as the torpedo approaches it, so it decides
-time to target and, with <code>projectile_lifetime</code>, how far the ordnance can
-reach. <strong>This is where an evasive type pays for its weave</strong>, and it has to
-be authored: see the note below.</li>
+cap. The thruster tapers off over the last <strong>15 percent</strong> of it, so every
+type gets the same run-up in its own terms and a slow one is not stranded
+inside its own taper. It decides time to target and, with
+<code>projectile_lifetime</code>, how far the ordnance can reach. <strong>This is where an
+evasive type pays for its weave</strong>, and it has to be authored: see the note
+below.</li>
 <li><code>weave_angle</code> (rad; <code>0.44</code>, ~25 degrees, on the Serpent) - the terminal
 weave: how far off the guidance solution an armed torpedo corkscrews. It
 PERTURBS the solution rather than replacing it and fades linearly to nothing
@@ -960,11 +983,10 @@ total speed instead: a total-speed cap leaves the torpedo ballistic at cruise
 and unable to steer at all.</p>
 </li>
 <li>
-<p><code>ammo_capacity</code> (optional) - magazine size in torpedoes; <code>None</code> for unlimited.</p>
+<p><code>ammunition</code> - the magazine in torpedoes: <code>Unlimited</code> or <code>Limited(n)</code>.</p>
 </li>
 <li>
-<p><code>reload</code> (optional) - idle batch reload for the bay (needs <code>ammo_capacity</code>),
-with the same <code>Some((delay, amount))</code> shape as a turret. The shipped bay
+<p><code>reload</code> - <code>Disabled</code>, or the same <code>Batch((delay, amount))</code> a turret uses. The shipped bay
 restores one torpedo after ten seconds without a launch. Another launch
 resets that timer. Ammunition is a rate limit, not a permanent budget, but a
 bay must win through its six-round salvo rather than by outwaiting one PDC.</p>
@@ -990,11 +1012,8 @@ produces.</li>
 </ul>
 <h2 id="railgun" tabindex="-1">Railgun</h2>
 <p><code>RailgunSectionConfig</code> - a spinal railgun with no traverse of its own: the HULL
-aims it, and tapping the trigger COMMITS the shot. Two ship, and they are the
-same gun at two grades: <code>railgun_lance_section</code> is the balanced one every
-buildable hull can mount, and <code>siege_railgun_lance_section</code> is the campaign's
-stolen warship, which differs in <code>slug_damage</code>, <code>slug_power</code> and <code>rake_radius</code>
-and in nothing else. The standard one:</p>
+aims it, and tapping the trigger COMMITS the shot. One ships:
+<code>railgun_lance_section</code>, the balanced lance every buildable hull can mount.</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Railgun</span><span class="ron-punct">((</span>
     <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/gltf/railgun_lance.glb#Scene0&quot;</span><span class="ron-punct">),</span>
     <span class="ron-key">muzzle_offset</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-1.5</span><span class="ron-punct">),</span>
@@ -1008,8 +1027,8 @@ and in nothing else. The standard one:</p>
     <span class="ron-key">fire_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/railgun_fire.wav&quot;</span><span class="ron-punct">),</span>
     <span class="ron-key">charge_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/railgun_charge.wav&quot;</span><span class="ron-punct">),</span>
     <span class="ron-key">reload_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/railgun_reload.wav&quot;</span><span class="ron-punct">),</span>
-    <span class="ron-key">ammo_capacity</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">1</span><span class="ron-punct">),</span>
-    <span class="ron-key">reload</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-key">delay</span><span class="ron-punct">:</span> <span class="ron-literal">12.0</span><span class="ron-punct">,</span> <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">1</span><span class="ron-punct">)),</span>
+    <span class="ron-key">ammunition</span><span class="ron-punct">:</span> <span class="ron-type">Limited</span><span class="ron-punct">(</span><span class="ron-literal">1</span><span class="ron-punct">),</span>
+    <span class="ron-key">reload</span><span class="ron-punct">:</span> <span class="ron-type">Batch</span><span class="ron-punct">((</span><span class="ron-key">delay</span><span class="ron-punct">:</span> <span class="ron-literal">12.0</span><span class="ron-punct">,</span> <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">1</span><span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <ul>
@@ -1028,7 +1047,7 @@ when the charge ends, so a target that slid off the line in that window is
 simply missed.</li>
 <li><code>slug_speed</code>, <code>slug_lifetime</code> - muzzle speed in meters per second, and how
 long the slug lives. Their product is the reach: the shipped railgun is
-15,000 m/s for 1.2 s, so 18 km. With no layer cap on penetration, the
+15,000 m/s for 1.2 s, so 18 km. No Pierce round has a layer cap, so the
 lifetime is also what stops a miss travelling forever.</li>
 <li><code>slug_damage</code> - Pierce damage dealt to EVERY layer the slug rakes. Flat: it
 is not scaled by closing speed and it does not decay with depth, so the tenth
@@ -1061,10 +1080,9 @@ the budget usually binds either way, so a big radius removes the same total
 and spends it sideways on the entry face instead of forward through the hull:
 the standard lance's 10 m bores three cells wide through a four-deep wall and
 out the back, while 40 m on the same 1800 power strips the front layer and
-stops one cell in. Widen only when the power is no longer the constraint -
-which is what the siege grade buys with 360,000, and why it is the one lance
-that can afford 30 m. Pick the radius for the SHAPE you want, then let the
-power decide how much of it you get.</li>
+stops one cell in. Widen only when the power is no longer the constraint.
+Pick the radius for the SHAPE you want, then let the power decide how much of
+it you get.</li>
 </ul>
 </li>
 <li><code>recoil_impulse</code> - impulse applied backwards along the bore at the muzzle
@@ -1081,10 +1099,10 @@ file would either end early or be cut off.</li>
 <li><code>reload_sound</code> (optional) - a shell going back into the breech, played when
 the magazine returns to capacity. For a one-shell railgun that IS the whole of
 its cadence: the reload is the silence, and this is the silence ending.</li>
-<li><code>ammo_capacity</code> (optional) - shells carried; <code>None</code> for unlimited, the
-bare-rig default every weapon section shares.</li>
-<li><code>reload</code> (optional) - the same <code>Some((delay, amount))</code> batch reload a turret
-and a bay use. For a one-shell magazine it IS the cadence: the shipped railgun
+<li><code>ammunition</code> - shells carried: <code>Limited(n)</code>, or <code>Unlimited</code> (the default
+every weapon section shares).</li>
+<li><code>reload</code> - the same <code>Disabled</code> / <code>Batch((delay, amount))</code> a turret and a bay
+use. For a one-shell magazine it IS the cadence: the shipped railgun
 is one shot every twelve quiet seconds, and the section's ammo gauge is the
 countdown.</li>
 </ul>
@@ -1106,6 +1124,56 @@ the bolt has travelled is how much charge is left to run - readable by the
 firing player on their own hull and by an enemy across the gap. Without the
 track the gun still charges; it just charges invisibly.</p>
 <!-- Grammar verified against crates/nova_ship/src/sections/railgun_section/mod.rs (config :61-147 including rake_radius, commit :179-185, charge state :187-193) and firing.rs (Pierce :207, authored-or-narrow rake :215). Rake rules: crates/nova_gameplay/src/rounds.rs sweep_raking. Values from assets/base/sections/base.content.ron (:2258-2484). Radius comparison measured in examples/systems/system_railgun_lance.rs's stand bank. -->
+<h2 id="docking" tabindex="-1">Docking</h2>
+<p><code>DockingSectionConfig</code> - a docking port: a cylindrical, rotationally symmetric
+collar that holds this hull to another one. One ship,
+<code>docking_port_section</code>, and no base ship carries one yet; build a hull with one
+in the editor, or author your own port on a modded craft.</p>
+<pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Docking</span><span class="ron-punct">((</span>
+    <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/gltf/dock_flush.glb#Scene0&quot;</span><span class="ron-punct">),</span>
+    <span class="ron-key">capture_distance</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">capture_angle</span><span class="ron-punct">:</span> <span class="ron-literal">15.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">maximum_relative_speed</span><span class="ron-punct">:</span> <span class="ron-literal">5.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">maximum_relative_angular_speed</span><span class="ron-punct">:</span> <span class="ron-literal">5.0</span><span class="ron-punct">,</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<ul>
+<li><code>render_mesh</code>, <code>render_mesh_transform</code> (both optional) - the port mesh and a
+visual-only transform for it. Omit the mesh and the port draws as a unit
+cuboid, and still docks.</li>
+<li><code>capture_distance</code> (meters) - the widest FACE GAP a dock is offered at,
+measured between the two ports' retracted outer faces and not between their
+section origins. The shipped 10.0 is one build cell.</li>
+<li><code>capture_angle</code> (degrees) - how far the two ports' outward axes may be from
+directly opposed. Roll about the docking axis is NOT read: the ports are
+cylinders, so a twist is not a misalignment, and the dock simply holds
+whatever roll the two hulls met at.</li>
+<li><code>maximum_relative_speed</code> (meters per second) - the fastest the two HULLS may
+be closing. It is relative, so two ships holding formation at 2 km/s are
+stationary to each other and may dock.</li>
+<li><code>maximum_relative_angular_speed</code> (radians per second) - the same ceiling for
+their relative spin.</li>
+</ul>
+<p>A pair is graded on the STRICTER of its two ports' numbers, so a lax port
+cannot loosen the rules of the hull it meets. Author a
+<a href="#animation-tracks"><code>DockTube</code> animation track</a> to give the port its sleeve: the
+shipped one slides <code>dock_tube*</code> nodes 0.5 cells out along the section's own
+<code>-Z</code>, so two facing ports bridge up to a full cell of gap. The travel is fixed
+and never fitted to the actual gap - at a smaller gap the two sleeves overlap on
+purpose, which a rotationally symmetric port reads as one tunnel. The track
+moves ART only: the collider does not grow, so an extended sleeve never touches
+the other hull.</p>
+<p>A port takes ONE connection at a time, and offers no link point on its own
+outward face - that face is the hatch. Docking is spent through the <code>DOCK</code>
+verb, which the ship must also be PERMITTED to use: see the <code>dock</code>
+<a href="../objects/#capabilities">capability</a>.</p>
+<p>A dock is MODAL: while it holds, both hulls stop flying. The drive makes no
+thrust, the RCS no trim and the attitude computer no torque, on a player hull
+and an AI one alike, because the gate is read at the forces rather than at the
+input. <code>DOCK</code> again from either hull is the way out, and it is ungated - a
+capability withdrawn mid-dock can never strand a hull clamped to something. An
+engaged maneuver (ORBIT, GOTO, STOP) also ends a dock, before it is flown.</p>
+<!-- Grammar verified against crates/nova_ship/src/sections/docking_section/mod.rs (config and defaults) and port.rs (the envelope and its strictest-of-two grading). Values from assets/base/sections/base.content.ron docking_port_section. -->
 <h2 id="a-section-in-a-mod" tabindex="-1">A section in a mod</h2>
 <p>The example mod (<code>assets/mods/example/example.content.ron</code>) overlays the base
 <code>reinforced_hull_section</code> - same id, so it REPLACES the base part everywhere
@@ -1124,16 +1192,16 @@ track the gun still charges; it just charges invisibly.</p>
 </code></pre>
 <p>Reuse a base id to REBALANCE or re-skin that part; give a NEW id to ADD a part
 alongside the base catalog. Either way, a ship references the section by id via
-<code>source: Prototype(&quot;&lt;id&gt;&quot;)</code> in its <code>sections</code> list. To ship the section, package
+<code>source: Prototype(id: &quot;&lt;id&gt;&quot;)</code> in its <code>sections</code> list. To ship the section, package
 the file as a mod - <a href="../publish-a-mod/">Publish a mod</a> is the release flow.</p>
 <p>Base ships a whole catalog of GENERIC prototypes - hull cells, drives, mounts,
 bays - and every base hull is built out of them rather than out of parts cut for
 one craft. A mod does not have to inline a big ship or
 carry any mesh paths: build one as a compact list of
-<code>(id, position, rotation, source: Prototype(&quot;&lt;base-part-id&gt;&quot;))</code> entries, and each
+<code>(id, position, rotation, source: Prototype(id: &quot;&lt;base-part-id&gt;&quot;))</code> entries, and each
 prototype resolves the base's meshes and sounds for you. A mod that brings
 MODELLED craft brings their part prototypes with it, the way The Ledger does. Vary a ship by grade
-with a per-spawn <code>SetHealth</code> <a href="../ships/">modification</a> on the parts you want
+with a per-spawn <code>health</code> <a href="../ships/">patch</a> on the parts you want
 weaker - a scavenger flies the same <code>pdc_kinetic_turret_section</code> at 60 mount
 health - rather than re-authoring the parts. <code>SectionSource</code> is <code>Inline</code>
 (the full config, for a one-off part) or <code>Prototype</code> (a catalog reference, the

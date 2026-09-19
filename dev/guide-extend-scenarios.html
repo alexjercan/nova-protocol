@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -226,6 +226,10 @@ drain, then assert on the world (see
 <p>An event is fired somewhere in the engine, and scenarios react to it through a
 handler. Adding one is two files: the event type (<code>nova_events</code>) and its config
 variant (<code>nova_scenario</code>), plus the firing site.</p>
+<p>The example below is a kind that does NOT ship, so it stays a recipe. The
+closest shipped pair to read beside it is the docking lifecycle: <code>OnDocked</code> /
+<code>OnUndocked</code> in <code>nova_events/src/lib.rs</code>, their table rows in <code>events.rs</code>, and
+<code>track_docking_transitions</code> in <code>loader/trackers.rs</code>.</p>
 <ol>
 <li>
 <p>In <code>crates/nova_events/src/lib.rs</code> define the marker event and its info
@@ -235,12 +239,12 @@ targets an object so the <code>Entity</code> filter composes like the others.</p
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[derive(Debug, Clone, EventKind, Reflect)]
-#[event_name("ondocked")]
-#[event_info(OnDockedEventInfo)]
-pub struct OnDockedEvent;
+#[event_name("onscancomplete")]
+#[event_info(OnScanCompleteEventInfo)]
+pub struct OnScanCompleteEvent;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
-pub struct OnDockedEventInfo {
+pub struct OnScanCompleteEventInfo {
     #[serde(rename = "id")]
     pub id: String,
     #[serde(rename = "other_id")]
@@ -262,8 +266,9 @@ them, and do not edit the macro body above the table:</p>
 </span><span class="boring">fn main() {
 </span>scenario_events! {
     // ...
-    /// Fires once when a ship docks (`id` = the dock, other = the ship).
-    OnDocked =&gt; OnDockedEvent { label: "On Docked" },
+    /// Fires once a ship finishes scanning an object (`id` = the object,
+    /// other = the scanning ship).
+    OnScanComplete =&gt; OnScanCompleteEvent { label: "On Scan Complete" },
 }
 <span class="boring">}</span></code></pre>
 <p>The doc comment on the row is the one a reader gets; the <code>label</code> is the row
@@ -271,9 +276,10 @@ the editor’s trigger menu lists it under.</p>
 </li>
 <li>
 <p>Fire it. Engine-driven events fire from <code>crates/nova_scenario/src/loader/</code>
-with <code>commands.fire::&lt;OnDockedEvent&gt;(OnDockedEventInfo { .. })</code> (see the
+with <code>commands.fire::&lt;OnScanCompleteEvent&gt;(OnScanCompleteEventInfo { .. })</code>
+(see the
 <code>OnStart</code> site in <code>loader/lifecycle.rs</code>, <code>OnUpdate</code> in <code>loader/clock.rs</code>, and
-orbit-lifecycle/the lock events in <code>loader/trackers.rs</code>); object-local events (an
+orbit-lifecycle/lock/docking events in <code>loader/trackers.rs</code>); object-local events (an
 area entering/leaving) fire from the object’s own observer, the way
 <code>objects/area.rs</code> fires <code>OnEnterEvent</code> from its own trigger. A kind may also
 fire from a system it owns: <code>objects/asteroid_carve.rs</code> fires
@@ -431,8 +437,8 @@ their steps are children; <code>VariableSet</code> because its panel is a head. 
 three matches are exhaustive.</p>
 </li>
 <li>
-<p>Lint it, if it names anything. An action that carries an id, a channel or a
-file reference needs an arm in <code>crates/nova_scenario/src/lint/</code> so an
+<p>Lint it, if it names anything. An action that carries an id or a file
+reference needs an arm in <code>crates/nova_scenario/src/lint/</code> so an
 unresolvable name is an error at lint rather than a surprise at load. This
 is the fourth thing the table cannot generate.</p>
 </li>
@@ -501,7 +507,7 @@ house answer. An <code>Option</code> is right only where absence is a documented
 OVERRIDE with runtime-derived behavior behind it, and the field’s own doc
 comment says what the absence MEANS: <code>AsteroidConfig::mass</code> (absent = the
 global rule about which radii are wells) and <code>lock_signature</code> (absent = the
-radius) are the shipped precedent. <code>AsteroidConfig::material</code> is the
+radius) are the shipped precedent. <code>AsteroidConfig::kind</code> is the
 counter-example: it is a plain required <code>String</code>, because “how is this rock
 shaded” has no runtime answer to fall back on.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -682,11 +688,11 @@ editor’s choices: <code>FilterChoice</code>, and <code>ActionChoice</code> (an
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

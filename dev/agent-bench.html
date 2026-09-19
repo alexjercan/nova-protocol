@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -205,20 +205,35 @@ cargo run --features debug bench play &lt;scenario&gt; --agent pi --model gpt-5.
 cargo run --features debug bench play &lt;scenario&gt; --agent 'cmd:python3 my_agent.py'
 </code></pre>
 <p><code>&lt;scenario&gt;</code> is an installed scenario id, or a path ending in <code>.ron</code> loaded
-as a loose content file. The bench ships two fixtures under
-<code>crates/nova_bench/scenarios/</code>:</p>
+as a loose content file. The bench ships five fixtures under <code>crates/nova_bench/scenarios/</code>:</p>
 <ul>
-<li><code>hunt.content.ron</code>: one player gunship, one hostile raider parked 2600 m
+<li><code>hunt.content.ron</code>: one player gunship, one hostile inline raider parked 2600 m
 ahead, an objective and both outcomes. The scenario scores itself.</li>
 <li><code>range.content.ron</code>: an open range with no objective and no victory. A
-600 m planetoid 7 km ahead, a small rock and a big rock, a nav beacon and
-an unarmed hostile derelict hauler. The goal comes from <code>--goal</code>, the run
-is bounded by <code>--ticks</code> and <code>--deadline</code>, and a reader grades the <code>end</code>
-block of the score: “orbit the planetoid”, “park on the derelict”,
-“destroy the derelict”, “fly to the work mark and stop”. The rocks are
-places to fly to, not targets: a turret round flies through a rock and
-takes nothing off it, so there is no carving goal.</li>
+600 m planetoid 7 km ahead, two rocks, a nav beacon, and an unarmed hostile
+derelict support navigation, orbit, parking, and PDC goals.</li>
+<li><code>slingshot.content.ron</code>: an offset gravity well, a distant exit mark, and a
+hostile pursuer that wakes after 45 seconds support gravity-assist, evasion,
+collision, and route-cheese goals.</li>
+<li><code>arsenal.content.ron</code>: a player hull authored inline with a railgun, two
+torpedo bays and two PDC mounts, plus a carvable rock, two inert targets and
+a late picket, supports mixed weapons, asteroid carving, NOVA OS, cheat, and
+protocol-abuse goals.</li>
+<li><code>docking.content.ron</code>: the <code>docking_approach</code> example as a fixture. A
+tender with a port on its bow and an inert spar 120 m ahead, turned out of
+square, support docking and RCS goals; <code>me.docking</code> carries the approach.</li>
 </ul>
+<p>The four sandboxes are bounded by <code>--ticks</code> and <code>--deadline</code>; a reader grades
+the <code>end</code> block of the score and any recorded footage. The red-team rules are
+in <code>crates/nova_bench/scenarios/README.md</code>, and the goal deck itself is
+<code>scripts/bench-plays.sh</code>, which runs any of twelve named plays with its goal,
+seed and budgets already set:</p>
+<pre><code class="language-sh">nix develop -c scripts/bench-plays.sh --list
+nix develop -c scripts/bench-plays.sh sommelier shell cheat
+</code></pre>
+<p>The seed pins the world, not the run: the model is the other half and takes a
+different route every time. The script pins the setup so two plays of one goal
+are comparable, which is as close to reproducible as an agent play gets.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -232,7 +247,7 @@ takes nothing off it, so there is no carving goal.</li>
 <tr><td><code>--turns</code></td><td>300</td><td>the <code>act</code> budget</td></tr>
 <tr><td><code>--deadline</code></td><td>1800</td><td>wall-clock seconds</td></tr>
 <tr><td><code>--out</code></td><td><code>bench-runs/&lt;sha&gt;/&lt;scenario&gt;/&lt;agent&gt;-&lt;n&gt;/</code></td><td>the run directory</td></tr>
-<tr><td><code>--record</code></td><td>unset</td><td>draw every tick offscreen into this directory and stitch <code>&lt;dir&gt;.mp4</code>; see <a href="#the-movie">The movie</a></td></tr>
+<tr><td><code>--record</code></td><td>unset</td><td>draw every tick offscreen into this directory and make <code>&lt;dir&gt;.mp4</code> with the action rail; see <a href="#the-movie">The movie</a></td></tr>
 <tr><td><code>--ui</code></td><td><code>log</code></td><td><code>log</code> prints one line per event to stderr; <code>quiet</code> prints nothing</td></tr>
 <tr><td><code>--audit-raw</code></td><td>off</td><td>keep the full snapshot in every <code>channel_in</code> event</td></tr>
 </tbody>
@@ -306,10 +321,13 @@ candidate, the dwell target, <code>dwell_secs</code> of <code>dwell_needed</code
 <code>dwell_fill</code> a player watches on the ring, itself null when no dwell is
 running; null otherwise), <code>autopilot</code>
 (<code>engaged</code>: action, target and phase, or null; <code>completed</code>: the last action
-that finished), <code>gravity_well</code> (the dominant well’s id), <code>sections</code> (the
+that finished), <code>docking</code> (<code>docked</code>, the <code>connection</code> a clamp holds the
+hull to, and <code>pair</code>: the approach to the nearest port on the travel lock,
+as an offset and a bearing in the hull frame with the three capture gates
+and <code>eligible</code>), <code>gravity_well</code> (the dominant well’s id), <code>sections</code> (the
 bridge, the drives, each mount with its <code>weapon</code>: kind, ammo, <code>on_target</code>,
-<code>firing</code>), <code>hull_plates</code> as <code>{total, damaged, lost}</code> and <code>withheld_verbs</code>
-(flight verbs the scenario has not granted yet).</li>
+<code>firing</code>), <code>hull_plates</code> as <code>{total, damaged, lost}</code> and
+<code>withheld_capabilities</code> (what the scenario has not granted yet).</li>
 <li><code>contacts</code>: every other ship with <code>allegiance</code> (<code>Enemy</code>, <code>Player</code>,
 <code>Neutral</code>), <code>distance_m</code>, <code>bearing_deg</code>, <code>closing_mps</code>, <code>health</code>,
 <code>defeated</code>, <code>weapons_hot</code>, <code>ai_target</code>.</li>
@@ -410,7 +428,7 @@ exit) and pi gets an abort.</p>
 <tr><td><code>cheated</code></td><td>whether the run armed NOVA OS’s cheats, copied from the snapshot’s mark</td></tr>
 <tr><td><code>llm</code></td><td>pi only: messages, input, output, cached tokens and cost from the usage events</td></tr>
 <tr><td><code>ended_by</code>, <code>agent_status</code>, <code>agent_report</code></td><td>why it ended, and what the agent said</td></tr>
-<tr><td><code>end</code></td><td>where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, and the range to every contact, beacon and body</td></tr>
+<tr><td><code>end</code></td><td>where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, the docking state, and the range to every contact, beacon and body</td></tr>
 </tbody>
 </table>
 </div>
@@ -451,19 +469,61 @@ way a play’s is.</p>
 <p><code>--record &lt;dir&gt;</code> on a play or a replay hands the directory to the game’s own
 <code>--record</code>: the offscreen assembly draws every stepped tick with the real
 render stack and the full HUD, and saves it as <code>&lt;dir&gt;/frame_%06d.png</code>. When
-the game has exited the bench runs</p>
-<pre><code class="language-sh">ffmpeg -y -framerate 60 -i &lt;dir&gt;/frame_%06d.png -pix_fmt yuv420p &lt;dir&gt;.mp4
-</code></pre>
+the game has exited the bench draws the run’s own action rail over those
+frames and encodes <code>&lt;dir&gt;.mp4</code>.</p>
 <p>One tick is one frame and one tick is 1/60 s, so the movie runs in real
 time however long the agent thought between acts. The bench prints the
 movie’s path, frame count and length after the score table and notes them
-in the audit. Without ffmpeg, or when ffmpeg refuses, the frames stay on
-disk and the note carries the command line to run by hand; the run’s exit
-code does not change.</p>
+in the audit. A compose that cannot find the face falls back to the plain
+stitch; without ffmpeg entirely the frames stay on disk and the note says
+so. Neither changes the run’s exit code.</p>
 <p>Recording needs a GPU and a display. Run the bench from the dev shell
 (<code>nix develop</code>), which is where the Vulkan loader finds the driver, on an
 X display: your own, or an Xvfb (<code>DISPLAY=:99</code>). A play without <code>--record</code>
 needs neither.</p>
+<h3 id="the-action-rail"><a class="header" href="#the-action-rail">The action rail</a></h3>
+<pre><code class="language-sh">cargo run --features debug bench movie &lt;run dir&gt;/audit.jsonl --frames &lt;dir&gt;
+</code></pre>
+<p><code>bench movie</code> remakes the movie of frames already on disk, so the overlay can
+be changed without replaying anything. <code>--out</code> names the file (default
+<code>&lt;frames&gt;.mp4</code>), <code>--font</code> the face, and <code>--plain</code> stitches the frames
+untouched.</p>
+<p>The rail is composited in the bench, not in an ffmpeg filter graph: <code>image</code>
+decodes the PNGs, <code>ab_glyph</code> sets the game’s own terminal face over them, and
+ffmpeg is handed finished RGB frames on stdin. Layout that lived in a filter
+string could not be read or tested.</p>
+<p>A header strip carries the identity of the run - scenario, agent, seed, clock,
+tick and turn - so a clip lifted out of a movie still says where it came from.
+Under it a transcript of the last six lines, newest at the bottom, older ones
+fading:</p>
+<pre><code class="language-text">&gt; act    aim camera.camera_rotate [-80, 0] x21
+&gt; say    EXIT is 3.3 degrees off the nose at 7.27 km. With weapons lowered,
+         I'll hold radar to acquire it as a travel lock.
+&gt; act    press targeting.radar_hold
+&gt; think  Planning lock release and navigation
+</code></pre>
+<p>One lane per kind of line, each its own colour: <code>goal</code> (once, at the head),
+<code>think</code>, <code>say</code>, <code>look</code> (<code>observe</code> and <code>page</code>, which spend no tick), <code>act</code>,
+<code>nova</code> for a command shell line, <code>cheat</code>, and <code>err</code> in red for a refusal.</p>
+<p>The <code>cheat</code> lane is the world’s word, not the shape of a command. The first
+snapshot that carries <code>cheats_marked</code> puts <code>CHEATS ARMED: this run is marked</code>
+on the rail in amber, and from that frame on the header says <code>CHEATED</code> and
+turns amber too. A clip cut from a marked run cannot be read as clean, and a
+cheat the game does not mark does not colour the rail - which is the point of
+the “cheat without getting marked” red-team goal.</p>
+<p>Placement is arithmetic, not a guess. The recorder captures one frame per
+stepped tick and numbers from zero, so <strong>frame = tick - 1</strong>. <code>channel_in</code>
+carries the tick; agent prose does not, because the world is frozen while the
+model thinks, so it lands on the tick of the snapshot it was answering. Rows
+that would share one frame are spread 21 frames apart - a first turn can
+produce ten rows, and all ten on frame zero is a wall of text. That spread is
+why the opening rows can trail the world by a second or two; the rail is a
+log of the run, not a caption track.</p>
+<p>A short run can talk for longer than it flies. When the spread rows would run
+past the last frame, the gap tightens until they fit, and if even a one-frame
+gap is too tight the movie holds the last frame the game drew - up to 30 s -
+while the remaining rows scroll past. The header clock freezes with the
+picture, so a held tail never claims ticks the run did not take.</p>
 <h2 id="measured-on-the-hunt-fixture-seed-7"><a class="header" href="#measured-on-the-hunt-fixture-seed-7">Measured on the hunt fixture, seed 7</a></h2>
 <div class="table-wrapper">
 <table>
@@ -514,10 +574,9 @@ the fight steps rewritten around range control, pi closed at 160 m/s,
 tapped Stop at 1.96 km, settled 1.1 km off and broke the hauler up in
 900 ticks of fire.</p>
 <h2 id="not-built-yet"><a class="header" href="#not-built-yet">Not built yet</a></h2>
-<p>A <code>--ui tui</code> renderer on the same event bus, and <code>bench run</code>: a sweep of
-plays over a scenario set with an <code>index.json</code>, an HTML report and a
-<code>--baseline</code> diff release over release. The design record is
-<code>tasks/20260824-125933/ARCHITECTURE.md</code>.</p>
+<p>A <code>--ui tui</code> renderer on the same event bus, and <code>bench run</code>, a sweep of plays
+over a scenario set with an <code>index.json</code>, an HTML report and a <code>--baseline</code>
+diff release over release.</p>
 
                     </main>
 
@@ -563,11 +622,11 @@ plays over a scenario set with an <code>index.json</code>, an HTML report and a
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

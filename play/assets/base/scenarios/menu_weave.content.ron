@@ -4,8 +4,7 @@
         name: "Asteroid Weave",
         description: "An AI ship weaves a waypoint circuit through a dense rock band.",
         cubemap: "self://textures/cubemap.png",
-        hidden: true,
-        menu_backdrop: true,
+        role: Backdrop,
         events: [
             (
                 name: OnStart,
@@ -272,7 +271,9 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_cutter"),
+                            design: Prototype(
+                                id: "block_cutter",
+                            ),
                             controller: AI((
                                 patrol: [
                                     (
@@ -377,7 +378,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),

@@ -16,8 +16,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -241,14 +241,15 @@ prose depth, follow the chapter linked at each group heading.</p>
 <tr><td>Carve debris: dust and severed pieces</td><td><code>nova_gameplay</code></td><td><code>crates/nova_gameplay/src/integrity/spew.rs</code>, <code>crates/nova_gameplay/src/integrity/chunk.rs</code></td><td><code>CarveSpew</code>, <code>ShardLook</code>, <code>spawn_carved_chunk</code></td><td>Shards are keyed on the WEAPON CLASS - kinetic and pierce chip, explosive does not; only a cut that SEVERED material spawns a real body, floored at <code>CHUNK_MIN_VOLUME</code>.</td></tr>
 <tr><td>Severing, wreck fragments, structural collapse</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/sections/integrity.rs</code></td><td><code>ShipIntegrityPlugin</code></td><td>Builds the section graph, splits disconnected structure (<code>sever_disconnected_structures</code> -&gt; <code>ShipWreckFragmentMarker</code>), runs <code>cascade_structural_collapse</code>.</td></tr>
 <tr><td>Neutralization (combat-dead)</td><td><code>nova_gameplay</code></td><td><code>crates/nova_gameplay/src/integrity/neutralize.rs</code></td><td><code>NeutralizedMarker</code></td><td>An armed ship that loses all weapons, or the flight computer it had, fires <code>OnNeutralizedEvent</code>; the hull may survive.</td></tr>
-<tr><td>Procedural hulls: the collapse, the grammar</td><td><code>nova_wfc</code>, <code>nova_ship</code></td><td><code>crates/nova_wfc/src/lib.rs</code>, <code>crates/nova_wfc/src/collapse.rs</code>, <code>crates/nova_wfc/src/tiles.rs</code></td><td><code>TileSet</code></td><td><code>TileSet::build</code> reads a <code>ShipGrammarConfig</code> against the section catalog; <code>hull()</code> collapses one seed into a <code>ShipHull</code> and runs it through the game’s own content lint before handing it out. The grammar is mod-authorable content (<code>Content::Grammar</code>); the base game ships <code>standard_hull</code> and nothing selects another yet. Grid geometry, seeds and zones: <code>crates/nova_wfc/src/grid.rs</code>.</td></tr>
-<tr><td>Ship skins, styles, greebles</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/sections/shell_skin.rs</code>, <code>crates/nova_ship/src/sections/skin_style.rs</code>, <code>crates/nova_ship/src/sections/skin_decor.rs</code></td><td><code>ShipSkinPlugin</code></td><td>Cladding derived from structure; styles resolve by id (<code>ShipStyleConfig</code>, <code>GameStyles</code>); deterministic greeble scatter (<code>scatter_decor</code>).</td></tr>
+<tr><td>Procedural hulls: the collapse, the plan</td><td><code>nova_wfc</code></td><td><code>crates/nova_wfc/src/lib.rs</code>, <code>crates/nova_wfc/src/collapse.rs</code>, <code>crates/nova_wfc/src/tiles.rs</code>, <code>crates/nova_wfc/src/plan.rs</code></td><td><code>TileSet</code>, <code>WfcPlan</code></td><td><code>TileSet::build</code> reads a <code>WfcPlan</code> against the section catalog; <code>hull()</code> collapses one seed into a <code>ShipDesign</code> and runs it through the game’s own content lint before handing it out. The plan is CODE, not content: <code>WfcPlan::standard_hull</code> is the shipped one, and each caller (the editor’s Generate block, <code>wfc_arena</code>) builds its own from that plus its own UI rows. Grid geometry, seeds and zones: <code>crates/nova_wfc/src/grid.rs</code>.</td></tr>
+<tr><td>Ship skins, styles, greebles</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/sections/shell_skin.rs</code>, <code>crates/nova_ship/src/sections/skin_style.rs</code>, <code>crates/nova_ship/src/sections/skin_decor.rs</code></td><td><code>ShipSkinPlugin</code></td><td>Cladding derived from structure; styles resolve by id (<code>ShipStyleConfig</code>, <code>GameStyles</code>). A style authors a two-surface <code>StylePalette</code> and, per fixture, a three-word <code>FixturePlacement</code> (region, density, orientation) that <code>skin_style</code> expands privately into the engine’s own <code>ScatterRule</code>; deterministic greeble scatter (<code>scatter_decor</code>).</td></tr>
 <tr><td>Turrets, aiming</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/sections/turret_section/mod.rs</code>, <code>crates/nova_ship/src/sections/turret_section/aim.rs</code></td><td><code>TurretSectionPlugin</code></td><td>Authored joint tree; lead-intercept aim (<code>update_turret_aim_point</code>, <code>muzzle_on_target</code>); arcs and firing in sibling files.</td></tr>
 <tr><td>Torpedoes, point defense</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/sections/torpedo_section/mod.rs</code>, <code>crates/nova_ship/src/input/point_defense/mod.rs</code></td><td><code>TorpedoSectionPlugin</code>, <code>SpaceshipPointDefensePlugin</code></td><td>Bay + guided round lifecycle (<code>TorpedoGuidance</code>, <code>TorpedoBlast</code>); PD splits target assignment from mount authority (borrowed player mounts).</td></tr>
 <tr><td>The spinal lance: commit, charge, shot, recoil</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/sections/railgun_section/mod.rs</code>, <code>crates/nova_ship/src/sections/railgun_section/firing.rs</code></td><td><code>RailgunSectionPlugin</code>, <code>RailgunCharge</code></td><td>The hull aims it. <code>charge_and_fire_railgun</code> runs the whole cycle in one fixed-step system; the slug is a Pierce round with <code>layers: u32::MAX</code>, so <code>slug_power</code> alone bounds it. The AI’s crude commit envelope: <code>input/ai/railgun.rs</code> (<code>AIRailgun</code>).</td></tr>
 <tr><td>The rake: a slug that widens its cut</td><td><code>nova_gameplay</code>, <code>nova_ship</code></td><td><code>crates/nova_gameplay/src/rounds.rs</code>, <code>crates/nova_ship/src/sections/railgun_section/firing.rs</code></td><td><code>RoundRake</code>, <code>sweep_raking</code></td><td>Authored <code>rake_radius</code> inserts <code>RoundRake</code>; three passes per step - the tip arms bodies it hits, a sphere trailing it sweeps each armed body’s colliders, contacts charge by depth then axis outward out of the one budget. Measured in <code>examples/systems/system_railgun_lance.rs</code>.</td></tr>
+<tr><td>Docking: the candidate pair, the joint, the break</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/sections/docking_section/port.rs</code>, <code>crates/nova_ship/src/sections/docking_section/connection.rs</code></td><td><code>DockingPorts</code>, <code>DockingConnection</code>, <code>DockingSystems::Release</code></td><td><code>DOCK</code> names two SHIPS and the game picks the ports: face gap between RETRACTED faces, opposed axes, relative speed, graded on the STRICTER of the two envelopes and tie-broken on <code>EntityId</code>. One <code>FixedJoint</code> with an explicit anchor and basis holds the pose they met in; nothing writes a velocity. A dock is MODAL: <code>DockedShip</code> on the root kills the drive, the RCS and the attitude loop at the FORCES, and <code>DOCK</code> again from either hull is the only pilot-facing way out.</td></tr>
 <tr><td>The bore sight</td><td><code>nova_hud</code></td><td><code>crates/nova_hud/src/bore_sight.rs</code></td><td><code>BoreSightPlugin</code></td><td>The lance’s line of fire in world space, walked through the same <code>pierce_remainder</code> as the round; a ring per section the shot would destroy; gated on <code>WeaponsHot</code>, dimmed on an empty magazine.</td></tr>
-<tr><td>Flight autopilot verbs (STOP, GOTO, ORBIT), PD attitude controller</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/flight/state.rs</code>, <code>crates/nova_ship/src/sections/controller_section.rs</code>, <code>crates/nova_ship/src/physics/pd_controller.rs</code></td><td><code>FlightVerb</code>, <code>Autopilot</code></td><td>Controller sections grant verbs; the flight layer flies them (<code>NovaFlightPlugin</code>); <code>PDControllerPlugin</code> is the attitude loop.</td></tr>
+<tr><td>Flight autopilot verbs (STOP, GOTO, ORBIT), PD attitude controller</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/flight/state.rs</code>, <code>crates/nova_ship/src/sections/controller_section.rs</code>, <code>crates/nova_ship/src/physics/pd_controller.rs</code></td><td><code>ShipCapabilities</code>, <code>Autopilot</code></td><td>The ship ROOT carries what it is permitted to do; the flight layer flies the maneuvers (<code>NovaFlightPlugin</code>); <code>PDControllerPlugin</code> is the attitude loop, and a controller section is the attitude hardware it needs.</td></tr>
 <tr><td>Radar locking, targeting</td><td><code>nova_ship</code></td><td><code>crates/nova_ship/src/input/targeting/mod.rs</code>, <code>crates/nova_ship/src/input/targeting/state.rs</code></td><td><code>SpaceshipTargetingPlugin</code></td><td>Radar search writes the two sticky lock slots on the ship root: <code>TravelLock</code>, <code>CombatLock</code>.</td></tr>
 <tr><td>Gravity wells</td><td><code>nova_gameplay</code></td><td><code>crates/nova_gameplay/src/gravity.rs</code></td><td><code>GravityWell</code></td><td>Inverse-square wells with an SOI cutoff; anchors and asteroids publish one.</td></tr>
 </tbody>
@@ -282,8 +283,10 @@ prose depth, follow the chapter linked at each group heading.</p>
 <tr><td>NOVA OS (terminal, shell, ship computer apps)</td><td><code>nova_os</code>, <code>nova_os_ui</code></td><td><code>crates/nova_os/src/command.rs</code>, <code>crates/nova_os/src/app.rs</code>, <code>crates/nova_os_ui/src/lib.rs</code></td><td><code>NovaOsUiPlugin</code></td><td>Pure model in <code>nova_os</code> (<code>NovaOsCommandRegistry</code>, <code>NovaOsAppRuntime</code>); the Tab CRT monitor and the map/ship apps in <code>nova_os_ui</code>.</td></tr>
 <tr><td>Keybinds: the action table, rebinding, the capture</td><td><code>nova_input</code>, <code>nova_menu</code></td><td><code>crates/nova_input/src/registry.rs</code>, <code>crates/nova_input/src/poll.rs</code>, <code>crates/nova_menu/src/settings.rs</code></td><td><code>InputBindings</code>, <code>InputSources</code></td><td>One table of named actions; each owner registers its own defaults, every rig is BUILT from it, and every rebind surface reads it. Settings’ Controls tab takes the next press through <code>InputSources</code>; overrides persist in <code>settings_store</code>.</td></tr>
 <tr><td>Flight HUD widgets</td><td><code>nova_hud</code></td><td><code>crates/nova_hud/src/lib.rs</code></td><td><code>NovaHudPlugin</code></td><td>One module per instrument (crosshairs, ammo, markers, comms, keybind dock); reads the ship, never drives it.</td></tr>
-<tr><td>Main menu, menu backdrops</td><td><code>nova_menu</code></td><td><code>crates/nova_menu/src/lib.rs</code>, <code>crates/nova_menu/src/ambience.rs</code></td><td><code>NovaMenuPlugin</code></td><td>The backdrop is a random <code>menu_backdrop</code>-flagged scenario drawn live (<code>load_menu_ambience</code>); <code>NOVA_MENU_BACKDROP</code> pins one id for capture.</td></tr>
-<tr><td>Shared UI theme, widgets, skins</td><td><code>nova_ui</code></td><td><code>crates/nova_ui/src/lib.rs</code>, <code>crates/nova_ui/src/widget/mod.rs</code></td><td><code>NovaUiPlugin</code></td><td>Theme tokens, the <code>UiSkin</code> switch, and the widget factories every UI-drawing crate consumes.</td></tr>
+<tr><td>Main menu, menu backdrops</td><td><code>nova_menu</code></td><td><code>crates/nova_menu/src/lib.rs</code>, <code>crates/nova_menu/src/ambience.rs</code></td><td><code>NovaMenuPlugin</code></td><td>The backdrop is a random <code>role: Backdrop</code> scenario drawn live (<code>load_menu_ambience</code>); <code>NOVA_MENU_BACKDROP</code> pins one id for capture.</td></tr>
+<tr><td>Training handbook: lessons, field notes, progress</td><td><code>nova_training</code>, <code>nova_menu</code></td><td><code>crates/nova_training/src/catalog.rs</code>, <code>crates/nova_training/src/validate.rs</code>, <code>crates/nova_menu/src/training.rs</code>, <code>crates/nova_menu/src/training_store.rs</code></td><td><code>TrainingCatalog</code>, <code>TrainingProgress</code></td><td>A lesson is CONTENT (<code>Content::Lesson</code>): <code>register_bundles</code> merges base + mods into <code>TrainingCatalog</code>, and the menu draws whatever it is handed. Practice may only name a <code>role: Lesson</code> scenario and <code>proven_by</code> any launchable one; both are <code>lint_lesson</code>, at lint and then at load. Progress is a SECOND file beside <code>settings.ron</code> (<code>TrainingProgressPlugin</code>): opening a lesson reads it, and only a Victory on a scenario its <code>proven_by</code> names completes it. Field notes are derived from the same lessons (<code>facts.rs</code>) and drawn on three surfaces - the menu’s bottom-left notice corner beside the first-launch offer, the boot screen (compiled <code>boot_field_notes</code>, before any catalog exists) and the scenario load screen, which prefers a note from a lesson that names the scenario. Each corner notice carries its own switch (<code>TrainingPromptSetting</code>, <code>FieldNoteSetting</code>): the card writes it, Settings &gt; Interface brings it back, and neither touches the loading screens. A lesson’s demonstration is real footage at <code>assets/base/training/&lt;id&gt;.webp</code>, recorded by the <code>lesson_*</code> capture producers (<code>scripts/capture-lesson-media.sh</code>) and cut by the grid the LESSON authors; every base lesson has a producer, and one authored without one keeps <code>scripts/gen-lesson-media.py</code>’s placeholder, which never redraws over captured footage.</td></tr>
+<tr><td>Scenario roles</td><td><code>nova_scenario</code></td><td><code>crates/nova_scenario/src/loader/mod.rs</code>, <code>crates/nova_scenario/src/lint/scenario.rs</code></td><td><code>ScenarioRole</code></td><td><code>Chapter</code> (a level, the only picker row), <code>Backdrop</code> (menu scenery, poses its own camera), <code>Lesson</code> (a handbook practice range). A campaign may list only chapters.</td></tr>
+<tr><td>Shared UI themes and widgets</td><td><code>nova_ui</code></td><td><code>crates/nova_ui/src/theme/mod.rs</code>, <code>crates/nova_ui/src/widget/mod.rs</code></td><td><code>NovaUiPlugin</code></td><td>Moddable UI themes (<code>UiThemeConfig</code> -&gt; <code>ActiveUiTheme</code>) and the widget factories every UI-drawing crate consumes.</td></tr>
 <tr><td>Ship editor, link points, placement</td><td><code>nova_editor</code>, <code>nova_ship</code></td><td><code>crates/nova_editor/src/lib.rs</code>, <code>crates/nova_editor/src/snap.rs</code>, <code>crates/nova_ship/src/sections/link_points.rs</code></td><td><code>NovaEditorPlugin</code></td><td>Sandbox build scene; <code>snap_placement</code> mates socket frames; the editor solver decides or refuses a drop.</td></tr>
 </tbody>
 </table>
@@ -302,7 +305,7 @@ prose depth, follow the chapter linked at each group heading.</p>
 <tr><td>Probe, run reports, what an example claims</td><td><code>nova_probe</code>, <code>nova_probe_cli</code></td><td><code>crates/nova_probe/src/capabilities/mod.rs</code>, <code>crates/nova_probe/src/contract.rs</code>, <code>crates/nova_probe_cli/src/native.rs</code></td><td><code>NovaProbePlugin</code></td><td>One bundle wires every capability; <code>probe run</code>/<code>scenario</code>/<code>report</code> (subcommands of the game binary, <code>debug</code> feature) spawn and grade runs. Web capture app: <code>crates/nova_perf_web/src/main.rs</code>.</td></tr>
 <tr><td>Frame cost, scene census, the capture window</td><td><code>nova_probe</code></td><td><code>crates/nova_probe/src/capabilities/frametime.rs</code>, <code>framecost.rs</code>, <code>census.rs</code></td><td><code>nova_frametime</code>, <code>nova_framecost</code>, <code>nova_census</code></td><td>Wall-clock deltas over a fixed window, plus where the milliseconds went and what the scene contained. Knob table: <code>cargo doc -p nova_probe</code>.</td></tr>
 <tr><td>World-state snapshot (read the world, not a render)</td><td><code>nova_probe</code></td><td><code>crates/nova_probe/src/capabilities/snapshot.rs</code></td><td><code>nova_snapshot</code>, <code>probe_snapshot</code></td><td>One JSON object per snapshot: ships, sections, fixtures, weapon state, rounds in flight. Sorted and rounded, so two snapshots of one frozen frame are byte-identical.</td></tr>
-<tr><td>WFC arena: benching generated hulls</td><td>examples, <code>nova_wfc</code></td><td><code>examples/playable/wfc_arena.rs</code>, <code>examples/playable/wfc_arena/stamps.rs</code></td><td><code>arena_tiles</code></td><td>Fields collapsed hulls against each other. The collapse itself is <code>nova_wfc</code> (see The ship); the arena names a spinal gun as the grammar’s <code>bow_gun</code> and stamps a large-drive stern no single grammar can express. Lobby, pause and result flow sit beside it in <code>examples/playable/wfc_arena/</code>.</td></tr>
+<tr><td>WFC arena: benching generated hulls</td><td>examples, <code>nova_wfc</code></td><td><code>examples/playable/wfc_arena.rs</code>, <code>examples/playable/wfc_arena/stamps.rs</code></td><td><code>arena_tiles</code></td><td>Fields collapsed hulls against each other. The collapse itself is <code>nova_wfc</code> (see The ship); the arena names a spinal gun as its plan’s <code>keel.bow_gun</code> and stamps a large-drive stern no single plan can express. Lobby, pause and result flow sit beside it in <code>examples/playable/wfc_arena/</code>.</td></tr>
 <tr><td>Debug tooling (inspector, overlays, F12 screenshots)</td><td><code>nova_debug</code></td><td><code>crates/nova_debug/src/lib.rs</code></td><td><code>DebugPlugin</code></td><td>Compiled only under the <code>debug</code> feature; F11 overlay toggle, F12 screenshot, <code>--norender</code>, <code>--debugdump</code>.</td></tr>
 <tr><td>Web preview, this book at /dev/</td><td>scripts, web</td><td><code>scripts/serve-web.sh</code>, <code>scripts/preview-web.sh</code>, <code>web/webpack.config.js</code></td><td><code>serve-web.sh</code></td><td>Live-serves site + <code>/play/</code> + <code>/mods/</code> + this book at <code>/dev/</code>, all watched; the preview script builds the static deploy shape.</td></tr>
 </tbody>
@@ -565,7 +568,7 @@ the rule. The section curriculum first: <code>system_attitude_hold</code> (PD at
 <code>system_hull_damage</code> (damage -&gt; destroy -&gt; ship survives, and the mass
 properties the losses move), <code>system_section_severing</code> (a destroyed interior
 section leaves a real hole and the structure behind it drifts free as its own
-wreck body), <code>system_destruction_finale</code> (every destructible
+wreck body, at the speed its own size asks for), <code>system_destruction_finale</code> (every destructible
 body - gltf section, procedural section, multi-part turret, asteroid -
 breaking into its OWN art rather than generic cubes, on one budget),
 <code>system_turret_gunnery</code> and <code>system_torpedo_launch</code> (the
@@ -574,7 +577,14 @@ weapon ranges, the latter also the PN lead-a-crosser deep-dive), and
 and two salvos that cannot use the hole they make in the same tick) and
 <code>system_railgun_lance</code> (the spinal gun: a commit that outlives the trigger, a
 charge cue, one slug raking six plates in a single step, and the recoil that
-shoves the firing ship). Then the
+shoves the firing ship). Beside them, the ranges that read a figure off the
+HULL rather than off a constant, each staged on a skiff and a capital at
+once: <code>system_hull_scaling</code> (the two reference hulls’ live inputs and what
+the game derives from them - lock range, the fire gate, the size a hull burns
+at), <code>system_collision_damage</code> (a ram at three closing speeds, and the
+docking speed that costs nothing), <code>system_ai_combat</code> (what an AI ship does
+when it fights) and <code>system_ai_evade</code> (what it does when a gun is held on it:
+three jink legs, each the size of the hull flying it). Then the
 cross-cutting systems, every fixture a <code>ScenarioConfig</code> written in Rust and
 loaded with <code>LoadScenario</code>: <code>system_scenario_grammar</code> (the scenario language -
 variables, events, filters, actions), <code>system_player_path</code> (a scenario played
@@ -585,6 +595,15 @@ endings the scenario hears in order),
 <code>system_outcomes</code>
 (die -&gt; the Defeat overlay -&gt; Retry -&gt; a clean reload -&gt; kill -&gt; the
 objective and the CHECKPOINT -&gt; Continue -&gt; the chained scenario),
+<code>bug_outcome_pause</code> (who owns the screen and whether the world is running
+behind them: alt-tab pauses a fight and coming back does not resume, an
+outcome landing over the pause menu takes the screen, and a timed advance
+taken while the player is away hands its pause to the pause menu without one
+unpaused frame),
+<code>bug_refused_scenario</code> (a chapter the content gate refuses ends the one it
+replaces, cursor freed and Main Menu working),
+<code>bug_failed_assets</code> (a broken optional mod is quarantined and reported, and a
+broken base asset is fatal and says so),
 <code>bug_neutralized_quiet</code> (a wreck’s point defence stands down) and
 <code>system_borrowed_battery</code> (the Flight Computer works idle player PDCs). Then
 the interface, driven by synthesized pointer input: <code>system_ship_editor</code>
@@ -599,10 +618,12 @@ world-anchored label holds its LOGICAL offset when the scale factor doubles
 and the window changes shape, and the top bar and the stage’s nameplates are
 read at every shape alongside it), <code>system_hud_indicators</code>
 (where a screen-projected indicator lands), <code>system_menu_boot</code> (the shipped
-boot flow) and
-<code>bug_menu_picker</code> (the Scenarios picker, whose pane split must not depend on
-the selection - real fonts, real taffy, which a headless unit rig cannot
-measure at all), <code>bug_sandbox_soak</code> (the editor sandbox entered and then left
+boot flow), <code>bug_menu_fallback</code> (a menu with no clean backdrop to draw ends
+the scenario it came from and stands on one bare camera) and
+<code>system_scenario_picker</code> (the Scenarios picker: its pane split must not depend
+on the selection - real fonts, real taffy, which a headless unit rig cannot
+measure at all - and the row a pointer selects and plays is the scenario that
+comes up once the atomic load gate releases), <code>bug_sandbox_soak</code> (the editor sandbox entered and then left
 alone, holding one physics step to its own timestep), <code>bug_carve_apply</code> (one
 cut that severs a rock, and what the main thread pays to SWAP the result in -
 the range counts grids rather than milliseconds, so it reads the same on
@@ -636,8 +657,8 @@ target is AIMED at by undoing the composite that displays it
 (<code>nova_os_window_px_showing</code>), since a node laid out by an offscreen camera
 reports a rect in a space no cursor can be placed in. A driven run that still
 cannot reach a target says so and states its COVERAGE in the verdict -
-<code>bug_menu_picker</code> names any row it gave up on and fails outright below two
-measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
+<code>system_scenario_picker</code> names any row it gave up on and fails outright below
+two measurements, since its property is a comparison across selections. The simulation ranges deliberately do the opposite - their
 subject is the outcome chain, so pixel coordinates would only add layout
 coupling.</li>
 <li><code>screenshots/</code> - the content producers, and the NAME says what a run makes:
@@ -647,8 +668,8 @@ the same result twice - the fat sets these replace strung a dozen captures
 onto one script, so a beat that drifted took every frame after it with it.
 Duplication between producers is the accepted price: several stage the same
 set, and the scene builders they share live in <code>examples/screenshots/shared/</code>.
-The stills, by set: the Drydock drift beauty shots (<code>screenshot_gravity</code>,
-<code>screenshot_hero_ship</code>), the menu and editor walks (<code>screenshot_menu</code>,
+The stills, by set: the Drydock drift beauty shot (<code>screenshot_hero_ship</code>),
+the menu and editor walks (<code>screenshot_menu</code>,
 <code>screenshot_scenario_picker</code>, <code>screenshot_editor</code>), the section closeups
 (<code>screenshot_section_frame</code>, <code>screenshot_section_weapons</code>), the Tab ship
 computer (<code>screenshot_nova_os_terminal</code>, <code>screenshot_nova_os_apps</code>), the Rock
@@ -726,6 +747,11 @@ is an output mask; persistence and the settings menu never see it). <code>NOVA_M
 <code>NOVA_MUTE=1</code> mutes a normal one, and the game binary’s <code>--mute</code> flag does the
 same - see the outputs-off pair above.</li>
 </ul>
+<p>A HAND-RUN example is not silent and not pinned: it reads the store like the
+game does, so with no <code>settings.ron</code> saved it opens in the default window mode,
+which is now borderless fullscreen. Save Windowed once from the game’s Graphics
+tab (or <code>window windowed</code> in the command shell) and every example follows -
+examples read that file, they never write it.</p>
 <h3 id="examples-as-bug-pins"><a class="header" href="#examples-as-bug-pins">Examples as bug pins</a></h3>
 <p>A bug becomes a RANGE (<code>AGENTS.md</code>): reproduce it in <code>examples/systems/</code>
 before the fix, and the fix is what turns the range green. A unit/App test
@@ -750,8 +776,10 @@ cargo run -- --scenario nope               # refuses, and lists every id
 </code></pre>
 <ul>
 <li>The id is matched against the MERGED registry (base plus every enabled mod),
-so a mod’s scenarios are launchable by id and <code>hidden</code> chapters and menu
-backdrops are too - a superset of the rows the Scenarios picker shows.</li>
+so a mod’s scenarios are launchable by id, and so are the menu backdrops - a
+superset of the rows the Scenarios picker shows. The editor’s own Play range
+is not in it: it is the open document, not installed content, and the only
+way to it is Play in the editor.</li>
 <li>An unknown id prints the full id list to stderr and exits non-zero. The check
 happens once the content merge has run, which is after the window opens: the
 merged registry does not exist before that.</li>
@@ -761,6 +789,10 @@ merged registry does not exist before that.</li>
 the same non-blocking load screen as a click on Play.</li>
 </ul>
 </li>
+<li>It is a launch REQUEST, spent on the first boot. Back to Main Menu re-reads
+the content on the way out, and the second pass through <code>Loaded</code> finds no
+request left to open - so the flag opens its scenario once and then hands the
+session over to the menu, instead of being a door onto itself.</li>
 <li>Native only. The wasm bundle has no command line.</li>
 </ul>
 <h2 id="content-cli"><a class="header" href="#content-cli">Content CLI</a></h2>
@@ -893,7 +925,17 @@ nix develop --command scripts/capture-web-shots.sh screenshot_railgun  # or a fe
 </code></pre>
 <p>It stages into <code>target/shots</code>, runs each producer under Xvfb, and then packages
 with <code>scripts/gen-web-screenshots.py</code>. It is the stills half of a pair:
-<code>scripts/capture-web-media.sh</code> does the same for the webm loops. Both point
+<code>scripts/capture-web-media.sh</code> does the same for the webm loops, and
+<code>scripts/capture-lesson-media.sh</code> the same again for the training handbook’s
+demonstrations - the <code>lesson_*</code> producers, each writing one lesson’s still or
+4x5 sprite sheet into <code>assets/base/training/&lt;lesson&gt;.webp</code>. That one ships
+WEBP, not PNG: the Lessons pane draws a demonstration about 900 logical pixels
+wide, so a sheet carries 960x540 cells (3840x2700 in all), and at that size a
+lossless sheet is about 1.6 MB against about 150 KB encoded. Every lesson the
+base handbook authors has a producer; one authored WITHOUT one keeps the
+placeholder <code>scripts/gen-lesson-media.py</code> draws - lossless WebP, at the lower
+resolution it is drawn at - and that generator REFUSES to redraw over captured
+footage, so the two can be run in either order. Both point
 <code>NOVA_MODDING_CACHE_ROOT</code> and <code>NOVA_CONFIG_ROOT</code> at the capture sandbox and stamp
 a base-only mod set BEFORE EACH producer, so neither an installed mod nor a
 producer that enables one on purpose (<code>screenshot_scenario_picker</code> does) can
@@ -1103,8 +1145,8 @@ var. It is the correctness half of the run-harness whose performance half is
 <p>Continuous INVARIANTS ride the same stream: set <code>NOVA_PROBE_INVARIANTS=1</code> (or
 <code>=strict</code> to panic on the first violation) on a wired example and every frame
 asserts what the engine guarantees - health within <code>0..=max</code> and finite,
-velocities finite (plus an absurd-speed bound at 10x a ship’s soft
-<code>FlightSpeedCap</code>), scenario Number variables finite, registered monotonic
+velocities finite and nothing more (manual flight is Newtonian, so no speed is
+absurd), scenario Number variables finite, registered monotonic
 variables never decreasing (opt-in per example: <code>system_player_path</code> registers
 <code>target_down</code>/<code>leg</code>, <code>system_scenario_grammar</code> seven counters and latches,
 <code>system_cinematic</code> eight scene latches, <code>system_outcomes</code> <code>hostile_down</code>), and a
@@ -1233,7 +1275,51 @@ below) and land it in <code>web/</code>; sync any wiki pages the cycle changed (
 </ol>
 <p>The workflow uploads four assets to a release named after the tag: macOS
 universal <code>.dmg</code>, Linux <code>.tar.gz</code>, Windows <code>.zip</code>, and a wasm-opt’d web zip.
-It can also be re-run via <code>workflow_dispatch</code> with a <code>version</code> input.</p>
+The macOS job writes <code>CFBundleShortVersionString</code> and <code>CFBundleVersion</code> from the
+tag, then refuses to create the DMG unless <code>Info.plist</code> declares the copied
+<code>nova-protocol</code> executable. The workflow can also be re-run via
+<code>workflow_dispatch</code> with a <code>version</code> input.</p>
+<h3 id="deploying-a-release-to-itchio"><a class="header" href="#deploying-a-release-to-itchio">Deploying a release to itch.io</a></h3>
+<p>The manually dispatched <code>deploy-itch</code> workflow
+(<code>.github/workflows/deploy-itch.yaml</code>) uploads an existing GitHub release to
+<code>alexjercan/nova-protocol</code>. It never rebuilds the game. The job downloads the
+four assets named above, and <code>scripts/prepare-itch-upload.sh</code> verifies and
+extracts them into the stable Butler channels <code>windows</code>, <code>osx</code>, <code>linux</code>, and
+<code>html5</code>. On macOS, <code>hdiutil</code> mounts the release DMG and <code>ditto</code> preserves the
+app bundle metadata. On Linux, the Nix development shell supplies 7-Zip to
+extract the HFS+ image; the script restores the declared app executable’s mode.
+Windows and web ZIPs use ordinary <code>unzip</code>. The macOS preparation checks that
+<code>CFBundleExecutable</code> names a real executable, and the web preparation requires
+<code>index.html</code> and the wasm file at the upload root. Production CI stays on
+macOS and uses the native path; the Linux fallback makes local preparation and
+preflight available without Apple tools.</p>
+<p>Configure the protected <code>itch-production</code> GitHub Environment before the first
+run:</p>
+<ul>
+<li>secret <code>BUTLER_API_KEY</code>: an itch.io API key for the <code>alexjercan</code> account;</li>
+<li>variable <code>ITCH_TARGET</code>: <code>alexjercan/nova-protocol</code>;</li>
+<li>variable <code>BUTLER_VERSION</code>: the exact Butler release to install;</li>
+<li>variables <code>BUTLER_SHA256_DARWIN_AMD64</code> and
+<code>BUTLER_SHA256_DARWIN_ARM64</code>: the SHA-256 sums of that release’s official
+macOS archives.</li>
+</ul>
+<p>Use the Butler download documented by itch.io to choose the version, download
+each macOS architecture archive from
+<code>https://broth.itch.ovh/butler/darwin-&lt;arch&gt;/&lt;version&gt;/archive/default</code>, and
+record its <code>shasum -a 256</code> output in the matching Environment variable. The
+workflow refuses a floating Butler version or an archive whose checksum does
+not match.</p>
+<p>After the GitHub release and Pages deployment are complete, keep the itch.io
+page in Draft and run:</p>
+<pre><code class="language-sh">gh workflow run deploy-itch.yaml -f tag=vX.Y.Z
+gh run watch
+</code></pre>
+<p>The protected Environment supplies the explicit approval boundary. The run
+records release checksums and the prepared file inventory as an Actions
+artifact. Confirm itch.io detected each platform, mark <code>html5</code> playable in the
+browser if needed, and launch all four channels on clean target systems. Only
+then change the page from Draft to Public. A later Butler push updates a public
+channel immediately, so a failed or mismatched channel blocks another deploy.</p>
 <h3 id="writing-the-release-news-post"><a class="header" href="#writing-the-release-news-post">Writing the release news post</a></h3>
 <p>Every release cycle gets one <strong>News</strong> post on the site (<code>/news/</code>, markdown under
 <code>web/src/news/</code>). News is the merged devlog + release notes: <strong>one post per
@@ -1465,7 +1551,7 @@ for responsibilities and the dependency graph.</p>
 <tr><td><code>nova_core</code></td><td>Wiring only: <code>AppBuilder</code> assembles the whole plugin stack. No gameplay.</td></tr>
 <tr><td><code>nova_gameplay</code></td><td>The shared gameplay layer under the ship: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, entity markers. Owns <code>GameStates</code>/<code>PauseStates</code>/<code>GameMode</code>.</td></tr>
 <tr><td><code>nova_ship</code></td><td>The ship and how it is flown: sections, input (player/ai/radar), flight and its autopilot verbs, the camera rigs, the PD controller, the ship’s soundtrack.</td></tr>
-<tr><td><code>nova_wfc</code></td><td>Generated hulls: a catalog plus an authored <code>Grammar</code> in, a <code>ShipHull</code> out. No <code>App</code>, no systems - the editor’s Generate verb and the <code>wfc_*</code> examples call it.</td></tr>
+<tr><td><code>nova_wfc</code></td><td>Generated hulls: a catalog plus a code-owned <code>WfcPlan</code> in, a <code>ShipDesign</code> out. Owns the plan types; every caller builds its own plan. No <code>App</code>, no systems - the editor’s Generate verb and the <code>wfc_*</code> examples call it.</td></tr>
 <tr><td><code>nova_hud</code></td><td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it.</td></tr>
 <tr><td><code>nova_os</code></td><td>NOVA OS logic: the terminal model, shell grammar and app runtime. No bevy UI.</td></tr>
 <tr><td><code>nova_os_ui</code></td><td>The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the <code>map</code>/<code>ship</code> apps. A peer of the HUD, added by <code>nova_core</code>.</td></tr>
@@ -1473,11 +1559,12 @@ for responsibilities and the dependency graph.</p>
 <tr><td><code>nova_scenario</code></td><td>Scenario engine: events, filters, actions, variables, world, loader, objects.</td></tr>
 <tr><td><code>nova_events</code></td><td>Shared game-event kinds + entity identity components (gameplay &lt;-&gt; scenario).</td></tr>
 <tr><td><code>nova_events_macros</code></td><td>The <code>EventKind</code> derive behind <code>nova_events</code>’ engine events. Its only consumer is <code>nova_events</code>.</td></tr>
-<tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup; loads glb/textures/shaders/sounds; owns the mod merge + prefs.</td></tr>
+<tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal) + prefs.</td></tr>
 <tr><td><code>nova_modding</code></td><td>Bundle/content/catalog asset loaders and the <code>Content</code> routing enum.</td></tr>
 <tr><td><code>nova_mod_format</code></td><td>Pure serde types for the mod formats (engine-free); re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>.</td></tr>
 <tr><td><code>nova_editor</code></td><td>The ship editor scene (<code>NovaEditorPlugin</code>), shown in <code>GameMode::Sandbox</code>.</td></tr>
 <tr><td><code>nova_menu</code></td><td>Main menu + the ESC pause overlay; hands off to <code>Playing</code>.</td></tr>
+<tr><td><code>nova_training</code></td><td>The training handbook’s data: the <code>Lesson</code> content type, catalog ordering, field notes, progress, and the pure lesson validation both <code>content lint</code> and the runtime merge run. A leaf under <code>nova_modding</code>, <code>nova_assets</code> and <code>nova_menu</code>.</td></tr>
 <tr><td><code>nova_input</code></td><td>The bindings registry: the one table of named actions and the sources each holds, the shared rebind capture, and the by-name dispatch. A leaf under every rig and every rebind surface.</td></tr>
 <tr><td><code>nova_ui</code></td><td>Shared theme, skin, themed widgets, screen composition, unit formatting. A leaf: every UI-drawing crate (<code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code>, <code>nova_assets</code>) draws from it.</td></tr>
 <tr><td><code>nova_debug</code></td><td>Debug-only plugin (inspector, overlays); compiled under the <code>debug</code> feature.</td></tr>
@@ -1517,7 +1604,7 @@ for responsibilities and the dependency graph.</p>
 <tr><td>Scenario objects / loading</td><td><code>crates/nova_scenario/src/{objects/,loader/}</code></td><td><a href="#scenario--modding-system">Scenario engine</a></td></tr>
 <tr><td>Mod loading / merge</td><td><code>crates/nova_assets/</code> + <code>crates/nova_modding/</code></td><td><a href="https://alexjercan.github.io/nova-protocol/create/mod-files/">Mod files</a>, <a href="https://alexjercan.github.io/nova-protocol/create/publish-a-mod/">Publish a mod</a></td></tr>
 <tr><td>A built-in scenario or section</td><td><code>crates/nova_authoring/src/</code> (builders), then <code>content -- gen</code></td><td><a href="https://alexjercan.github.io/nova-protocol/create/author-a-scenario/">Create your first scenario</a></td></tr>
-<tr><td>A generated hull, or the grammar it is drawn from</td><td><code>crates/nova_wfc/</code> + <code>crates/nova_authoring/src/base_content/grammars.rs</code>, then <code>content -- gen</code></td><td><a href="#concept-index">Concept index</a>, <a href="https://alexjercan.github.io/nova-protocol/create/grammars/">Create: grammars</a></td></tr>
+<tr><td>A generated hull, or the plan it is drawn from</td><td><code>crates/nova_wfc/</code> (<code>plan.rs</code> for the plan, <code>WfcPlan::standard_hull</code> for the shipped one) and each caller’s own plan builder</td><td><a href="#concept-index">Concept index</a>, <a href="#giving-a-generated-ship-a-front">Ship layout sense</a></td></tr>
 <tr><td>The ship editor</td><td><code>crates/nova_editor/</code></td><td>–</td></tr>
 <tr><td>Shared UI theme / widgets</td><td><code>crates/nova_ui/</code></td><td>–</td></tr>
 <tr><td>The web site / wiki</td><td><code>web/</code></td><td><a href="#development">Building &amp; running</a></td></tr>
@@ -1530,10 +1617,16 @@ wired – <code>DefaultPlugins</code> + window/log/asset/render setup, then the 
 (assets, gameplay, ship, scenario, HUD + NOVA OS monitor, editor, menu, debug).
 The state machines:</p>
 <ul>
-<li><code>GameStates { Loading, MainMenu, Playing }</code> – top-level lifecycle.</li>
+<li><code>GameStates { Loading, MainMenu, Playing }</code> – top-level lifecycle. Leaving
+<code>Playing</code> returns through <code>Loading</code>: the content is re-read on the way to the
+front door, and the menu is built once, on the far side of it.</li>
 <li><code>PauseStates { Unpaused, Paused }</code> – the ESC overlay, nested in <code>Playing</code>.</li>
-<li><code>GameAssetsStates { Loading, Processing, Loaded }</code> – the asset pipeline that
-gates entry; on <code>OnEnter(Loaded)</code> the app hands off to <code>MainMenu</code>/<code>Playing</code>.</li>
+<li><code>GameAssetsStates { Boot, Loading, Processing, Loaded, Failed }</code> – the asset
+pipeline that gates entry; on <code>OnEnter(Loaded)</code> the app hands off to
+<code>MainMenu</code>/<code>Playing</code>. Only the base game is MANDATORY: an optional mod loads
+beside the pipeline, and a broken one is switched off and reported instead of
+failing the boot. <code>Failed</code> is the mandatory failure, and it is terminal - the
+loading animation is replaced by a report.</li>
 </ul>
 <p>Gameplay systems run an explicit chain configured identically in <code>Update</code> and
 <code>FixedUpdate</code>; avian3d physics runs on a fixed timestep in <code>FixedPostUpdate</code>.
@@ -1623,17 +1716,18 @@ creator pages on the site; linked names are chapters of this book.</p>
 <tr><td>How a body WEARS its damage: the two readings and the authored looks (<code>nova_gameplay/integrity/{erosion,carve,spew,chunk}</code>, <code>nova_ship/sections/damage_*</code>)</td><td><code>ships.md</code>, <code>sections.md</code> (+ section children), <code>combat-weapons.md</code></td><td><a href="#spaceship-sections-and-integrity">Ship sections internals</a>, <code>/create/sections/</code> (<code>damage_effects</code> is a CONTENT format serialized into <code>assets/base/sections/base.content.ron</code>, so rule 3 applies), <code>/create/base-content/</code></td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
 <tr><td>Asteroid carving: the signed field, its cost model, severing (<code>nova_scenario/objects/asteroid*</code>, <code>nova_gameplay/mesh/field.rs</code>)</td><td><code>combat-weapons.md</code>, <code>scenarios.md</code></td><td><a href="#scenario--modding-system">Scenario engine</a> (the mechanism AND what a remesh costs), <code>/create/objects/</code> (the Asteroid fields, and that <code>radius</code> is durability)</td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
 <tr><td>The derived skin, its plate vocabulary and skin styles (<code>nova_ship/sections/shell_*</code>, <code>skin_*</code>, <code>scripts/gen-greebles.py</code>)</td><td><code>sections.md</code></td><td><a href="#spaceship-sections-and-integrity">Ship sections internals</a> (the derived skin), <code>/create/styles/</code>, <code>/create/base-content/</code> (style ids, greeble assets), <code>/create/objects/</code> (the ship’s <code>skin</code> / <code>style</code> fields)</td><td>CHANGELOG</td></tr>
-<tr><td>Flight, controller, camera (<code>nova_ship/input</code>, <code>camera</code>)</td><td><code>flight-autopilot.md</code>, <code>keybinds.md</code></td><td><a href="#architecture">Architecture</a></td><td>CHANGELOG</td></tr>
+<tr><td>Flight: the manual burn, the autopilot legs and the telemetry they publish, controller, camera (<code>nova_ship/flight</code>, <code>nova_ship/input</code>, <code>nova_ship/camera</code>, the maneuver instruments in <code>nova_hud</code>)</td><td><code>flight-autopilot.md</code>, <code>keybinds.md</code>, <code>glossary.md</code> (the Flight terms quote what each verb DOES), <code>hud.md</code></td><td><a href="#architecture">Architecture</a>, <code>/create/actions/</code> (<code>StopShip</code> and the other helm orders - a completion contract that moves lands there), <code>/create/events/</code> (the maneuver-completion events)</td><td>CHANGELOG</td></tr>
 <tr><td>Targeting, radar, weapons, turrets, torpedoes (<code>nova_ship</code> targeting/sections, <code>nova_hud</code>)</td><td><code>targeting-radar.md</code>, <code>combat-weapons.md</code>, <code>sections/turret.md</code>, <code>sections/torpedo-bay.md</code>, <code>sections/railgun.md</code>, <code>hud.md</code></td><td><a href="#architecture">Architecture</a></td><td>CHANGELOG</td></tr>
 <tr><td>Gravity wells, factions, world (<code>nova_gameplay</code>)</td><td><code>gravity-wells.md</code>, <code>factions.md</code></td><td></td><td>CHANGELOG</td></tr>
 <tr><td>Scenario engine: events, filters, actions, variables, objects (<code>nova_scenario</code>, <code>nova_events</code>)</td><td><code>scenarios.md</code></td><td><a href="#scenario--modding-system">Scenario engine</a>, <code>/create/author-a-scenario/</code>, <a href="#extend-the-scenario-engine">Extend the scenario engine</a>, <strong>the creator reference</strong> (<code>/create/scenarios/</code>, <code>/create/events/</code>, <code>/create/filters/</code>, <code>/create/actions/</code>, <code>/create/objects/</code>, <code>/create/expressions/</code> - a new/changed construct MUST land there, it is the exhaustive catalog)</td><td>CHANGELOG</td></tr>
-<tr><td>Modding data format, bundles, catalog, local cache (<code>nova_mod_format</code>, <code>nova_modding</code>)</td><td><code>modding.md</code></td><td><code>/create/mod-files/</code>, <code>/create/base-content/</code> (overlay rules, dep://base)</td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
+<tr><td>Modding data format, bundles, catalog, local cache (<code>nova_mod_format</code>, <code>nova_modding</code>)</td><td></td><td><code>/create/mod-files/</code>, <code>/create/base-content/</code> (overlay rules, dep://base)</td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
 <tr><td>The ship content kind: what a hull IS vs what a spawn is (<code>nova_scenario/objects/ship.rs</code>, <code>nova_authoring/base_content/ships</code>)</td><td><code>sections.md</code></td><td><code>/create/ships/</code>, <code>/create/objects/</code> (the Spaceship spawn), <code>/create/mod-files/</code>, <code>/create/reference/</code></td><td>CHANGELOG <strong>(breaking?)</strong></td></tr>
-<tr><td>Generated hulls: the collapse, the tiles, and the <code>Grammar</code> that draws them (<code>nova_wfc</code>, <code>nova_ship/sections/ship_grammar.rs</code>, <code>nova_editor/generate.rs</code>)</td><td><code>ships.md</code></td><td><a href="#concept-index">Concept index</a> (the row under The ship), <code>/create/grammars/</code>, <code>/create/base-content/</code> (<code>standard_hull</code>)</td><td>CHANGELOG <strong>(a grammar field is a format break)</strong></td></tr>
-<tr><td>Mod portal + generator (<code>scripts/gen-portal.py</code>, <code>nova_modding</code>)</td><td><code>modding.md</code></td><td><code>/create/publish-a-mod/</code></td><td>CHANGELOG</td></tr>
+<tr><td>Generated hulls: the collapse, the tiles, and the <code>WfcPlan</code> that draws them (<code>nova_wfc</code>, <code>nova_editor/generate.rs</code>)</td><td><code>ships.md</code></td><td><a href="#concept-index">Concept index</a> (the row under The ship), <a href="#giving-a-generated-ship-a-front">Ship layout sense</a></td><td>CHANGELOG. The plan is CODE, not content - a plan field is not a format break, and there is no creator page for it</td></tr>
+<tr><td>Mod portal + generator (<code>scripts/gen-portal.py</code>, <code>nova_modding</code>)</td><td></td><td><code>/create/publish-a-mod/</code></td><td>CHANGELOG</td></tr>
 <tr><td>The CRT and its two shells: the emulator and NOVA OS grammar, the command catalog, and the dispatcher that runs it (<code>nova_os</code>, <code>nova_os_ui</code>, <code>nova_console</code>)</td><td><code>nova-os.md</code>, <code>commands.md</code>, <code>keybinds.md</code></td><td><a href="#architecture">Architecture</a> (crate map, and the <code>PauseStates</code> named freeze)</td><td>CHANGELOG; <strong>a new command MUST land in <code>commands.md</code> - that page is the exhaustive catalog, and <code>help</code> is generated from the same registry, so the two disagreeing is a bug</strong></td></tr>
 <tr><td>The process channel and its lanes (<code>nova_channel</code>)</td><td></td><td><a href="#architecture">Architecture</a> (crate map), and the <code>command</code> lane’s vocabulary is <code>commands.md</code>, not a second wire reference</td><td>CHANGELOG <strong>(a lane rename is breaking for every run script)</strong></td></tr>
 <tr><td>Menus, editor, UI (<code>nova_menu</code>, <code>nova_editor</code>, <code>nova_ui</code>)</td><td><code>hud.md</code>, <code>sections.md</code></td><td><a href="#add-a-ship-section">Add a ship section</a></td><td>tutorial, CHANGELOG; <strong>theme tokens: <code>web/design/nova_ui_rework_poc.html</code> is the source for BOTH <code>nova_ui/src/theme.rs</code> and <code>web/src/style.css</code>; the site draws the PHOSPHOR skin only</strong></td></tr>
+<tr><td>The training handbook: lessons as content, the practice ranges, the progress record, the field notes (<code>nova_training</code>, <code>nova_menu/training.rs</code>, <code>nova_menu/training_store.rs</code>, <code>nova_authoring/base_content/lessons.rs</code>, <code>nova_authoring/base_content/scenarios/drills.rs</code>)</td><td><code>getting-started.md</code> (the way in), and every page a lesson links to</td><td><code>/create/lessons/</code> (the Lesson item), <code>/create/scenarios/</code> (the roles and the practice-range contract), <a href="#architecture">Architecture</a> (the crate map and the graph), <a href="#concept-index">Concept index</a></td><td>CHANGELOG; <strong>RENAMING A WIKI PAGE OR RETITLING A HEADING BREAKS A LESSON’S LINK</strong> - <code>crates/nova_authoring/tests/lesson_wiki_links.rs</code> resolves every authored <code>wiki_path</code> against <code>web/src</code> and fails until the lesson is repointed</td></tr>
 <tr><td>Automation drivers, the env contract, the completion protocol (<code>nova_autopilot</code>, <code>nova_debug/harness.rs</code>)</td><td></td><td><a href="#the-automation-harness">Automation harness</a></td><td>CHANGELOG <strong>(env rename? breaking for every run script)</strong></td></tr>
 <tr><td>ANY environment variable: a new one, a rename, a removal (<code>NOVA_*</code> anywhere in <code>crates/</code> or <code>src/</code>)</td><td></td><td><a href="#environment-variables">Environment variables</a> - the index of the whole set, and the rule for adding one</td><td>the roster in <code>tests/env_contract.rs</code> (it fails until you do), CHANGELOG <strong>(breaking for every run script)</strong></td></tr>
 <tr><td>The probe harness: capabilities, run grading, the report (<code>nova_probe</code>, <code>nova_probe_cli</code>, <code>nova_perf_web</code>)</td><td></td><td><a href="#development">Building and running</a> (“Run verification”), <a href="#measuring-performance">Measuring performance</a>, and the <code>nova_probe</code> rustdoc knob table</td><td>CHANGELOG (Internals)</td></tr>
@@ -1753,11 +1847,11 @@ real code lives under <code>crates/</code>.</p>
 <tbody>
 <tr><td><code>nova-protocol</code> (root)</td><td><code>src/main.rs</code> = clap CLI + entrypoint. <code>src/lib.rs</code> re-exports <code>nova_core</code>. Runnable examples in <code>examples/</code>.</td></tr>
 <tr><td><code>nova_core</code></td><td>Thin wiring only: <code>AppBuilder</code> assembles every plugin (window/log/asset setup, status UI). No gameplay logic.</td></tr>
-<tr><td><code>nova_menu</code></td><td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>. The Settings modal (audio volume, graphics preset, interface skin, and the Controls tab that REBINDS every action in <code>nova_input</code>, one binding group at a time) is shared by both entry points. Persistence is NOT the menu’s: <code>settings_store</code> owns <code>SettingsStorePlugin</code>, which <code>nova_core</code> adds to every app, and it reads the same cross-platform store (RON file / localStorage), keybind overrides included. The two directions are split: every app READS, and only an app that builds the settings panel calls <code>allow_settings_saves</code> and earns the write direction.</td></tr>
+<tr><td><code>nova_menu</code></td><td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>. The Settings modal (audio volume, graphics preset, UI theme, and the Controls tab that REBINDS every action in <code>nova_input</code>, one binding group at a time) is shared by both entry points. Persistence is NOT the menu’s: <code>settings_store</code> owns <code>SettingsStorePlugin</code>, which <code>nova_core</code> adds to every app, and it reads the same cross-platform store (RON file / localStorage), keybind overrides included. The two directions are split: every app READS, and only an app that builds the settings panel calls <code>allow_settings_saves</code> and earns the write direction. What the player has LEARNED is a second file beside it, <code>training_store</code>: opening a lesson reads it, and only a scenario Victory that a lesson’s <code>proven_by</code> names completes it. Same root, same access split, separate file - deleting <code>settings.ron</code> to fix your audio must not erase your progress.</td></tr>
 <tr><td><code>nova_editor</code></td><td>The ship editor scene (<code>NovaEditorPlugin</code>). Comes up on entering <code>Playing</code>, only in <code>GameMode::Sandbox</code>.</td></tr>
 <tr><td><code>nova_gameplay</code></td><td>The shared gameplay layer under the ship: <code>integrity/</code> (health, the two damage readings <code>erosion</code> and <code>carve</code>, and the debris a carve leaves in <code>spew</code>/<code>chunk</code>), <code>damage</code>, <code>gravity</code> (gravity wells), <code>markers</code> (the entity markers the ship tags with and this layer reads), <code>math</code>, <code>audio</code> (the bus-and-route sound engine every voice in the game goes through: <code>bus</code> for the four routes and the three volume tracks, <code>mixing</code> for the distance rolloff and the cue throttle, <code>spatial</code> for the stereo placement, <code>voice</code> for the one playback path), <code>juice</code>, <code>shake</code>, <code>settings</code> (<code>MasterVolume</code>/<code>GraphicsQuality</code> + apply systems; the per-bus <code>InterfaceVolume</code>/<code>WorldVolume</code>/<code>MusicVolume</code> live in <code>audio/bus</code>), <code>mesh</code> (the procedural <code>TriangleMeshBuilder</code>, plus the <code>SignedField</code> an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), <code>transform</code>, <code>relations</code>, <code>beacon</code>, <code>objectives</code> (the <code>GameObjectives</code> list, its panel and the conveyance tags), <code>lifetime</code> (<code>TempEntity</code>/<code>DespawnEntity</code>), <code>cooldown</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource. Knows nothing about a ship.</td></tr>
 <tr><td><code>nova_ship</code></td><td>The ship and how it is flown: <code>sections/</code> (the modular hull, its ammo, and the authored damage looks in <code>damage_effects</code>/<code>damage_cracks</code>/<code>damage_sparks</code>/<code>damage_plume</code>), <code>input/</code> (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, and the flight and camera action DEFAULTS it registers into <code>nova_input</code>), <code>flight/</code> (the diegetic controller and its autopilot verbs), <code>camera/</code> (the chase-camera controller and the chase/skybox/post/WASD rigs under it), <code>physics/</code> (the PD attitude controller) and <code>ship_audio/</code> (the soundtrack those five produce). Depends on <code>nova_gameplay</code> and never the reverse; <code>NovaShipPlugin</code> owns the <code>SpaceshipSystems</code> brackets and <code>nova_core</code> adds it after <code>NovaGameplayPlugin</code>.</td></tr>
-<tr><td><code>nova_wfc</code></td><td>Generated hulls: a function from a section catalog and an authored <code>Grammar</code> to a <code>ShipHull</code>, with no <code>App</code> and no systems in it. <code>TileSet::build</code> reads the grammar against the catalog, <code>hull()</code> collapses one seed, and every hull is put through the game’s own content lint before it is handed back. Called by <code>nova_editor</code>’s Generate verb and by the <code>wfc_*</code> examples.</td></tr>
+<tr><td><code>nova_wfc</code></td><td>Generated hulls: a function from a section catalog and a code-owned <code>WfcPlan</code> to a <code>ShipDesign</code>, with no <code>App</code> and no systems in it. Owns the plan types too (<code>WfcGrid</code>, <code>WfcVacuum</code>, <code>WfcKeel</code>, <code>WfcPart</code>), because which sections one generator may reach for is generator policy and not mod content. <code>TileSet::build</code> reads the plan against the catalog, <code>hull()</code> collapses one seed, and every hull is put through the game’s own content lint before it is handed back. Each caller builds its own plan from <code>WfcPlan::standard_hull</code> and its own UI rows: <code>nova_editor</code>’s Generate verb, and the <code>wfc_*</code> examples.</td></tr>
 <tr><td><code>nova_hud</code></td><td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs <code>nova_hud -&gt; nova_gameplay</code>. <code>nova_core</code> adds <code>NovaHudPlugin</code> render-gated, and the crate places <code>NovaHudSystems</code> between the section and camera sets itself.</td></tr>
 <tr><td><code>nova_os</code></td><td>NOVA OS logic with no UI in it: the terminal model (<code>terminal</code>), the shell command language and typo suggestions (<code>shell</code>), and the app runtime seam (<code>app</code>).</td></tr>
 <tr><td><code>nova_os_ui</code></td><td>The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (<code>terminal</code>), and the two apps that run on it - <code>map</code> (schematic local space) and <code>ship</code> (schematic player ship). A PEER of the flight HUD, not one of its widgets: <code>nova_core</code> adds it, and nothing in <code>nova_hud</code> reaches into it (it reads <code>NovaHudAssets</code> and <code>NovaHudSystems</code>, so it sits ABOVE <code>nova_hud</code>).</td></tr>
@@ -1765,11 +1859,12 @@ real code lives under <code>crates/</code>.</p>
 <tr><td><code>nova_scenario</code></td><td>Scenario/modding engine: <code>events</code>, <code>filters</code>, <code>actions</code>, <code>variables</code>, <code>world</code>, <code>loader</code>, <code>objects/</code>, <code>lint/</code> (the scenario half of the <code>content -- lint</code> checks), <code>render_scale</code> (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See <a href="#scenario--modding-system">Scenario engine</a>.</td></tr>
 <tr><td><code>nova_events</code></td><td>Game event kinds and entity identity components, shared between gameplay and scenario. Also the world’s scale: the <code>Meters</code>/<code>MetersPerSecond</code>/<code>Meters3</code> quantity types and <code>METERS_PER_UNIT</code> (<code>units</code>), and <code>LOAD_LIMIT</code> (<code>scale</code>). See <a href="#units-and-scale">Units and scale</a>.</td></tr>
 <tr><td><code>nova_events_macros</code></td><td>Procedural macros behind <code>nova_events</code>’ derives.</td></tr>
-<tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup. Loads glb/textures/shaders/sounds, and loads the base game’s own generated content (<code>assets/base/</code>) through the same bundle machinery as mods. Owns the mod merge (<code>register_bundles</code>, <code>EnabledMods</code>, <code>ModCatalog</code>), the portal client and downloads (<code>portal/</code>), and prefs persistence.</td></tr>
+<tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup. Loads glb/textures/shaders/sounds, and loads the base game’s own generated content (<code>assets/base/</code>) through the same bundle machinery as mods. Owns the mod merge (<code>register_bundles</code>, <code>EnabledMods</code>, <code>ModCatalog</code>), safe mode (<code>safe_mode.rs</code>: the optional half of the installed set loads outside the boot gate, and a broken mod is disabled, persisted off and reported), the portal client and downloads (<code>portal/</code>), and prefs persistence.</td></tr>
 <tr><td><code>nova_modding</code></td><td>Bundle/content/catalog ASSET LOADERS and the <code>Content</code> routing enum. See <a href="https://alexjercan.github.io/nova-protocol/create/mod-files/">Mod files</a>.</td></tr>
 <tr><td><code>nova_mod_format</code></td><td>Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>, not a crate. See <a href="https://alexjercan.github.io/nova-protocol/create/publish-a-mod/">Publish a mod</a>.</td></tr>
+<tr><td><code>nova_training</code></td><td>The training handbook’s DATA, a leaf under everything that teaches: the <code>Lesson</code> content type and its catalog ordering, the field notes the menu and both loading screens draw, the progress record, and the pure <code>validate</code> both <code>content lint</code> and the runtime merge run. It knows nothing about drawing a lesson or loading one - <code>nova_modding</code> routes <code>Content::Lesson</code>, <code>nova_assets</code> merges the catalog, <code>nova_menu</code> draws it, and <code>nova_authoring</code> builds the base set. Its only game dependency is <code>nova_gameplay</code>, for the <code>AssetRef&lt;Image&gt;</code> a lesson’s media resolves through.</td></tr>
 <tr><td><code>nova_input</code></td><td>The bindings registry, a leaf crate under every rig and every rebind surface: the one table (<code>InputBindings</code>) that says which named actions exist, what each is called on screen, and which physical sources it holds, plus the shared capture (<code>poll::InputSources</code>) every rebind row reads and the by-name <code>dispatch</code>. Owners register their own defaults into it; nothing here knows what an action DOES.</td></tr>
-<tr><td><code>nova_ui</code></td><td>Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (<code>theme::*</code>), the <code>UiSkin</code> visual-language switch (<code>skin</code>), the themed widgets (<code>widget</code>: button, slider, segmented control, list rows, panel chrome), screen-level composition (<code>screen</code>: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (<code>hud</code>), player-facing unit formatting (<code>units</code>), the shared typeface (<code>font</code>), the generic <code>status_bar</code> and the keyboard-ownership arbiter (<code>input_mode</code>: one app-global <code>InputMode</code> resolved from per-frame claims, with <code>InputModeSystems</code> as the ordering handle every keyboard consumer gates behind). Consumed by <code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code> and <code>nova_assets</code>.</td></tr>
+<tr><td><code>nova_ui</code></td><td>Shared UI, a leaf crate everything that renders UI draws from: the UI THEME (<code>theme::*</code>: the authored <code>UiThemeConfig</code> format, the inheritance resolver, the two base themes the base mod ships as content, and the <code>GameUiThemes</code>/<code>SelectedUiTheme</code>/<code>ActiveUiTheme</code> registry every widget paints from), the themed widgets (<code>widget</code>: button, slider, segmented control, list rows, panel chrome), screen-level composition (<code>screen</code>: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (<code>hud</code>), player-facing unit formatting (<code>units</code>), the shared typeface (<code>font</code>), the generic <code>status_bar</code> and the keyboard-ownership arbiter (<code>input_mode</code>: one app-global <code>InputMode</code> resolved from per-frame claims, with <code>InputModeSystems</code> as the ordering handle every keyboard consumer gates behind). Consumed by <code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code> and <code>nova_assets</code>.</td></tr>
 <tr><td><code>nova_debug</code></td><td>Debug-only plugin (inspector, overlays). Compiled only under the <code>debug</code> feature.</td></tr>
 <tr><td><code>nova_info</code></td><td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td></tr>
 <tr><td><code>nova_autopilot</code></td><td>Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; <code>nova_debug</code>, <code>nova_probe</code> and <code>nova_probe_cli</code> all build on it. See <a href="#the-automation-harness">Automation harness</a>.</td></tr>
@@ -1828,7 +1923,11 @@ real code lives under <code>crates/</code>.</p>
     scenario --&gt; hud
     assets --&gt; modding["nova_modding"]
     assets --&gt; scenario
+    assets --&gt; training["nova_training"]
     modding --&gt; modfmt["nova_mod_format"]
+    modding --&gt; training
+    menu --&gt; training
+    training --&gt; gameplay
     core --&gt; debug["nova_debug"]
     core --&gt; info["nova_info"]
 </pre>
@@ -1957,7 +2056,14 @@ when no custom game plugins were supplied - the menu fronts the default app and
 nothing else, so an example that brings its own game plugins goes straight
 <code>Loading -&gt; Playing</code>), and finally <code>DebugPlugin</code> under the <code>debug</code> feature. On
 <code>OnEnter(GameAssetsStates::Loaded)</code> it hands off to <code>MainMenu</code> (or straight to
-<code>Playing</code> when the menu is off) and spawns the status UI.</p>
+<code>Playing</code> when the menu is off) and spawns the status UI. That handoff runs on
+every pass through <code>Loaded</code>, boot and content restart alike, so what separates
+them is the <code>--scenario</code> launch request: <code>boot_into_the_game</code> TAKES it, and a
+restart therefore finds nothing to open and lands in the menu. The status bar is
+taken down again on <code>OnExit(Loaded)</code> - its FPS icon is a handle out of the
+collection the restart is about to re-read, and <code>insert_status_bar_item</code> hangs
+every item off a <code>Single</code> root, so a second root would silence the new items
+rather than draw a second bar.</p>
 <p><code>NovaGameplayPlugin</code> pulls in avian3d <code>PhysicsPlugins</code> (zero gravity, projectile
 collision hooks), <code>bevy_rand</code>, <code>bevy_hanabi</code> particles (on wasm via the WebGPU
 backend), <code>NovaUiPlugin</code> (render-gated), the transform/lifetime/mesh rigs, and
@@ -1965,6 +2071,15 @@ the shared gameplay sub-plugins: integrity, damage, gravity, relations, audio,
 juice, settings. The ship stack (input, sections, flight, camera, physics) is
 <code>NovaShipPlugin</code>’s, and the HUD is <code>NovaHudPlugin</code>’s - both added by
 <code>nova_core</code>, not by gameplay.</p>
+<p><code>bevy_rand</code> is added THERE and nowhere else, so the whole app holds exactly one
+seeded <code>GlobalRng</code> (<code>NOVA_SEED</code> picks the seed, see
+<a href="#environment-variables">Environment variables</a>). A gameplay system that needs
+randomness takes it as <code>Option&lt;Single&lt;&amp;mut WyRand, With&lt;GlobalRng&gt;&gt;&gt;</code> and builds
+no fallback of its own: a second entropy plugin anywhere in the assembly does not
+make two RNGs, it makes every one of those systems find none. Each of them logs
+the broken contract once and then does its non-random work anyway - a destroyed
+section still loses its collider, it just bursts no debris. <code>nova_gameplay</code>’s
+plugin test pins the count at one.</p>
 <h2 id="states"><a class="header" href="#states">States</a></h2>
 <ul>
 <li><code>GameStates { Loading, MainMenu, Playing }</code> (<code>nova_gameplay</code>) - top-level
@@ -1972,15 +2087,59 @@ lifecycle. <code>MainMenu</code> only occurs when <code>NovaMenuPlugin</code> fr
 default editor app); examples with custom game plugins go straight
 <code>Loading -&gt; Playing</code>. The <code>GameMode</code> resource (<code>Sandbox</code> default | <code>NewGame</code>)
 records what the menu handed off to.</li>
+<li>Leaving <code>Playing</code> goes back through <code>Loading</code>, not straight to the menu.
+<code>nova_menu</code> writes <code>ReloadContent</code> on <code>OnExit(Playing)</code> - the Wesnoth rule:
+the front door is where the game catches up with what is on disk, so a
+scenario just played, a ship just saved or a mod just installed is merged
+before the Scenarios picker, the campaign list or the ship catalog is read
+again. <code>restart_through_loading</code> rewrites the pending <code>MainMenu</code> into
+<code>Loading</code> in the <code>StateTransition</code> schedule, before
+<code>StateTransitionSystems::DependentTransitions</code>, so the menu, its UI camera and
+its randomly drawn ambience backdrop are never built for the one frame the
+restart would have thrown them away in. Every exit path gets this - the pause
+overlay’s Back, the editor’s File menu, the outcome frame, a scenario’s own
+<code>ExitToMenu</code> - because the redirect is on the transition rather than on the
+four call sites, and <code>OnExit(Playing)</code> is also where the scenario is torn down
+(<code>end_gameplay_scenario</code>) rather than on whichever screen comes next. Menu
+ENTRY owes the same debt on its own account: <code>load_menu_ambience</code> triggers
+<code>UnloadScenario</code> before it draws anything, so the branch that finds no clean
+backdrop - a mod set with nothing flagged, or nothing the content gate lets
+through - puts its bare camera over an empty world instead of over whatever
+was last running. An app with no content pipeline (no <code>GameAssets</code>) is
+exempt: it has no restart to come back from.</li>
 <li><code>PauseStates { Unpaused, Paused, NovaOs }</code> - the freeze axis. <code>Paused</code> is the
 ESC pause overlay; <code>NovaOs</code> is the CRT terminal takeover, whichever shell it
-is showing - Tab opens the ship computer, <code>:</code> opens the command shell (same
-clock freeze, cursor freed, no pause menu). The live transitions are
+is showing - Tab opens the ship computer, <code>:</code> opens the command shell (cursor
+freed, no pause menu). The live transitions are
 <code>Unpaused &lt;-&gt; Paused</code>, <code>Unpaused &lt;-&gt; NovaOs</code> and <code>Paused &lt;-&gt; NovaOs</code>: the CRT
 is a surface OVER what was there, so <code>NovaOsCloseTransition::return_to</code>
 records the state it covered and closing restores it. <code>nova_gameplay</code> owns the
 enum and gates the spaceship sets; <code>nova_menu</code> owns the toggles and the
-overlay UI. Only meaningful inside <code>Playing</code>; leaving <code>Playing</code> resets it.</li>
+overlay UI. The two keys are gated differently: Tab needs a player ship and
+so runs <code>in_state(Playing)</code>, while <code>:</code> is a GLOBAL gesture over the main
+menu, the editor and flight alike - gated only on a live terminal, Normal
+input mode, no armed rebind, and not mid-load, where there is nothing yet to
+inspect. On the main menu the open shell is still the active modal, because
+its full-screen backdrop takes every pick and the menu buttons under it are
+unreachable until it closes.</li>
+<li>The pause PANEL is reconciled, not spawned on the way in
+(<code>reconcile_pause_overlay</code>): <code>Paused</code> is a freeze axis three surfaces share,
+and the outcome frame and the FAILED TO START report each hold it while
+drawing a modal of their own. The panel exists exactly while <code>Paused</code> is the
+pause MENU’s, so an outcome landing behind it takes the screen, and an outcome
+clearing into a pause the player still owns hands it back. Exactly one modal,
+whichever arrived last.</li>
+<li>Losing the window pauses interactive play (<code>pause_on_focus_loss</code>): an unpaused
+run over a live scenario takes the ordinary pause the moment the window is not
+focused, and regaining focus never resumes - Resume is the player’s. A run
+already paused stays as it is, so an open NOVA OS or a shown outcome remains
+the active modal, and the editor’s build mode (no live scenario) never pauses
+at all. <code>FocusPause</code> carries the policy and boots OFF under a harness
+(<code>harness_env_active</code>): a probe drives an X display nobody is looking at, and
+a <code>--norender</code> run has no window to lose. An authored <code>auto_advance_secs</code>
+keeps running on the wall clock while unfocused, and the chapter it advances
+into gets no unpaused frame - the outcome’s pause is TRANSFERRED to the pause
+menu rather than released (<code>examples/systems/bug_outcome_pause.rs</code>).</li>
 <li>The freeze itself is a NAMED hold, not a boolean: <code>ClockFreeze</code> counts
 <code>FreezeOwner::{PauseMenu, Terminal}</code> and stops <code>Time&lt;Virtual&gt;</code> +
 <code>Time&lt;Physics&gt;</code> while any owner holds. It has to be named because the two
@@ -1989,10 +2148,52 @@ handover is a state transition: <code>OnExit(Paused)</code> releases the <code>P
 before <code>OnEnter(NovaOs)</code> takes the <code>Terminal</code> one, and the way back re-takes
 it. Naming the owners is what stops one surface’s release from unfreezing the
 other’s world. Switching CRT shells never passes through the hold at all, so
-the world does not tick between a release and the re-hold it would need.</li>
-<li><code>GameAssetsStates { Loading, Processing, Loaded }</code> (<code>nova_assets</code>) - asset
-pipeline. Scenario setup hooks <code>OnEnter(GameAssetsStates::Loaded)</code> - see
-<code>examples/systems/system_scenario_grammar.rs</code>.</li>
+the world does not tick between a release and the re-hold it would need.
+The terminal’s hold is SCOPED to <code>Playing</code> (<code>hold_clocks_for_terminal</code>): what
+runs behind the main menu is the ambience backdrop, a cinematic the shell is
+drawn over rather than a game the player is being kept out of, and stopping
+it would leave the front door on a still frame for as long as the shell is up
+(<code>examples/systems/system_command_shell.rs</code>).</li>
+<li>Every full-screen surface takes its <code>GlobalZIndex</code> from one table,
+<code>nova_ui::layer</code>: HUD, the menu’s own panels, the editor’s ceiling, the report
+frames (outcome, FAILED TO START, MODS DISABLED), the pause menu, its Settings
+panel, the NOVA OS backdrop and monitor, the diagnostics exempt from the NOVA
+OS dim, the scenario loading screen, the fatal asset report. Two modals
+sharing a number are ordered by whatever the UI stack’s traversal produces
+that frame, which is not a decision - the pause Settings panel and the open
+NOVA OS shared 11 until the table was written, and only survived it because
+the pause overlay is <code>DespawnOnExit(Paused)</code> and is gone before the computer
+draws. The editor keeps its own ladder (<code>nova_editor::ui::layer</code>) for chrome
+the two tables cannot see across; that ladder lives entirely under
+<code>EDITOR_CEILING_Z</code>, pinned by a test, so a pause or an outcome covers editor
+chrome instead of losing to its foot bar.</li>
+<li>The window a native run opens is BORDERLESS by default and has a floor.
+<code>WindowModeSetting</code> defaults to <code>Borderless</code>, and the store’s field carries
+<code>#[serde(default)]</code>, so a fresh install and an older store with no field both
+open full-screen while a player who explicitly saved <code>Windowed</code> keeps it;
+<code>apply_window_mode</code> is registered only for a READING store, so a harnessed run
+(inert store) never touches the window it was given. <code>window_plugin</code> hands the
+window manager <code>MIN_WINDOW_WIDTH</code> x <code>MIN_WINDOW_HEIGHT</code> (640x600) as resize
+constraints. The floor is not what makes the layouts safe: the Settings panel
+(the widest modal, and the same one from the menu and from pause) sizes itself
+at <code>SETTINGS_PANEL_WIDTH_PCT</code> of the window capped at <code>SETTINGS_PANEL_MAX_W</code>,
+because a canvas in a narrow page column obeys no native constraint. A fixed
+width there did not overflow - the panel is a flex ITEM, so at 500 px the
+620 px panel measured 500, squeezed edge to edge with the keybind rows’ label
+column paying for it (<code>examples/systems/system_pause_settings.rs</code>).</li>
+<li><code>GameAssetsStates { Boot, Loading, Processing, Loaded, Failed }</code>
+(<code>nova_assets</code>) - asset pipeline. <code>Boot</code> loads the UI font the loading screen
+itself draws with; <code>Loading</code> loads the rest of the MANDATORY set (the shared
+art and the catalog, whose only loaded dependency is the base game’s bundle);
+<code>Processing</code> kicks the OPTIONAL cataloged mods, waits for them to settle, and
+merges. Scenario setup hooks <code>OnEnter(GameAssetsStates::Loaded)</code> - see
+<code>examples/systems/system_scenario_grammar.rs</code>.
+<code>Failed</code> is the MANDATORY failure and is terminal: <code>nova_core</code>’s loading
+screen replaces its animation with a report that offers Quit on native and
+browser instructions on the web, and draws in the default font when the boot
+font is what failed. An OPTIONAL mod never reaches it - <code>safe_mode</code> disables
+that mod, persists the choice, and the front door owes one <code>MODS DISABLED</code>
+report per recovery episode (<code>examples/systems/bug_failed_assets.rs</code>).</li>
 </ul>
 <p>The top-level lifecycle, the pause overlay nested inside <code>Playing</code>, and the asset
 pipeline that gates entry:</p>
@@ -2002,9 +2203,10 @@ pipeline that gates entry:</p>
         Loading --&gt; MainMenu: menu app
         Loading --&gt; Playing: custom game plugins
         MainMenu --&gt; Playing: New Game / Sandbox
+        Playing --&gt; Loading: leaving gameplay (content restart)
         state "Playing" as Playing {
             [*] --&gt; Unpaused
-            Unpaused --&gt; Paused: ESC
+            Unpaused --&gt; Paused: ESC / focus lost / outcome
             Paused --&gt; Unpaused: ESC
             Unpaused --&gt; NovaOs: Tab / :
             NovaOs --&gt; Unpaused: Tab / ESC
@@ -2014,9 +2216,12 @@ pipeline that gates entry:</p>
     }
 
     state "GameAssetsStates" as AS {
-        [*] --&gt; AsLoading: Loading
+        [*] --&gt; Boot
+        Boot --&gt; AsLoading: Loading
         AsLoading --&gt; Processing
         Processing --&gt; Loaded
+        Boot --&gt; Failed: mandatory asset failure
+        AsLoading --&gt; Failed: mandatory asset failure
     }
 
     AS --&gt; GS: OnEnter(Loaded) hands off to MainMenu / Playing
@@ -2108,7 +2313,10 @@ both keeps ordering consistent wherever a system lands.</p>
 <p>The fixed loop runs on the SINGLE-THREADED executor (<code>AppBuilder::assemble</code>), so
 a <code>FixedUpdate</code> system gets no parallelism from its neighbours - only from its
 own <code>par_iter</code>. That is a deliberate trade for the schedules’ size; the number
-behind it is in <a href="#the-fixed-loop-is-single-threaded-on-purpose">Measuring performance</a>.</p>
+behind it is in <a href="#the-fixed-loop-is-single-threaded-on-purpose">Measuring performance</a>.
+The same method caps the compute task pool at <code>nova_core::MAX_COMPUTE_WORKERS</code>
+threads, so the parallelism a <code>par_iter</code> or a <code>PostUpdate</code> system can reach is
+bounded too (<a href="#the-compute-pool-is-capped-at-eight-workers">why</a>).</p>
 <p>What breaks if a system lands in the wrong schedule – worked example: a
 <code>FixedUpdate</code> system reading <code>GlobalTransform</code>. <code>thruster_impulse_system</code> used to
 apply its impulse at the thruster child’s <code>GlobalTransform</code>, i.e. the previous
@@ -2149,10 +2357,11 @@ live UNDER <code>assets/base/</code> (exported <code>gltf/</code> models <code>.
 web (Trunk <code>copy-dir</code>) and native (<code>release.yaml</code>) builds ship, so non-runtime
 files must not live here. The Blender SOURCES the <code>gltf/</code> models are exported
 from live OUT of the shipped tree, in top-level <code>art/blender/</code>, because nothing
-loads them at runtime. The built-in sections, ships, styles and scenarios ARE
-data: the Rust builders under <code>crates/nova_authoring/src/base_content/</code>
-(<code>sections/</code>, <code>ships/</code>, <code>styles.rs</code>, <code>scenarios/</code>, <code>assets.rs</code>) are the single
-source, and <code>cargo run content gen</code> serializes them to the committed
+loads them at runtime. The built-in sections, ships, styles, scenarios and training
+lessons ARE data: the Rust builders under
+<code>crates/nova_authoring/src/base_content/</code> (<code>sections/</code>, <code>ships/</code>, <code>styles.rs</code>,
+<code>scenarios/</code>, <code>lessons.rs</code>, <code>assets.rs</code>) are the single source, and
+<code>cargo run content gen</code> serializes them to the committed
 <code>assets/base/**/*.content.ron</code> the game loads like any other bundle.
 Never hand-edit the generated files; edit the builders and re-run <code>gen</code>.</p>
 <h2 id="find-it-in-the-code"><a class="header" href="#find-it-in-the-code">Find it in the code</a></h2>
@@ -2179,6 +2388,16 @@ cost model - <code>crates/nova_gameplay/src/integrity/carve.rs</code>.</li>
 <li>Asset gate and mod merge: <code>GameAssetsPlugin</code> -
 <code>crates/nova_assets/src/plugin.rs</code>; <code>register_bundles</code> -
 <code>crates/nova_assets/src/merge.rs</code>.</li>
+<li>The training handbook: the lesson format and catalog ordering -
+<code>crates/nova_training/src/catalog.rs</code>; the validation both <code>content lint</code> and
+the merge run - <code>crates/nova_training/src/validate.rs</code>; the screen -
+<code>crates/nova_menu/src/training.rs</code>; the progress record and what a won
+scenario proves - <code>crates/nova_menu/src/training_store.rs</code>; the base lessons,
+their practice ranges and what each one is <code>proven_by</code> -
+<code>crates/nova_authoring/src/base_content/lessons.rs</code> and
+<code>.../scenarios/drills.rs</code>. A lesson’s <code>wiki_path</code> points into the web manual
+under <code>web/src/</code>, and <code>crates/nova_authoring/tests/lesson_wiki_links.rs</code>
+fails if a page or heading it names stops existing.</li>
 <li>API detail: <code>cargo doc --open -p nova_core</code> (any crate from the map works).</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -2194,8 +2413,7 @@ how sections connect and handles damage, disabling, and cascading destruction.</
 <h2 id="sections-nova_shipsections"><a class="header" href="#sections-nova_shipsections">Sections (<code>nova_ship::sections</code>)</a></h2>
 <p>A section is a <code>SectionConfig { base: BaseSectionConfig, kind: SectionKind }</code>.
 <code>BaseSectionConfig</code> is shared by all kinds: <code>id</code>, <code>name</code>, <code>description</code>,
-<code>health</code>, optional <code>material</code> (the impact table’s target half) and
-<code>destroy_sound</code>, optional <code>collider</code>,
+<code>health</code>, optional <code>destroy_sound</code>, optional <code>collider</code>,
 structural <code>link_points</code>, <code>hide_in_editor</code>, and <code>damage_effects</code> - the authored
 list of looks this section wears as it is damaged (see <a href="#damage-is-two-readings">Damage is two
 readings</a>).</p>
@@ -2209,17 +2427,19 @@ readings</a>).</p>
 <tbody>
 <tr><td><code>Hull</code></td><td>Passive structure/armor. Just a <code>render_mesh</code>.</td></tr>
 <tr><td><code>Thruster</code></td><td>Forward thrust (<code>magnitude</code>); drives the exhaust visual.</td></tr>
-<tr><td><code>Controller</code></td><td>Attitude controller (<code>steering_lag</code>, <code>max_torque</code>); lag derives the internal PD gains, torque feeds the hull’s attitude envelope (see below). Also grants flight <code>verbs</code> (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop.</td></tr>
+<tr><td><code>Controller</code></td><td>Attitude controller (<code>steering_lag</code>, <code>max_torque</code>); lag derives the internal PD gains, torque feeds the hull’s attitude envelope (see below). Attitude hardware only - what a ship is PERMITTED to do is <code>ShipCapabilities</code> on its root. A ship needs one to be steerable; several SHARE one attitude loop.</td></tr>
 <tr><td><code>Turret</code></td><td>Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own <code>offset</code>/<code>axis</code>/<code>speed</code>/limits/<code>render_mesh</code>), section-wide <code>muzzle_speed</code> + authored <code>bullet_damage</code> + <code>bullet_kind</code>, per-muzzle <code>fire_rate</code>, optional <code>ammo_capacity</code>.</td></tr>
 <tr><td><code>Torpedo</code></td><td>Torpedo bay. Fires guided torpedoes of an authored <code>torpedo_type</code> (name, tint, <code>max_speed</code>, <code>weave_angle</code>, <code>weave_rate</code>) that detonate an Explosive area blast (<code>blast_radius</code>, <code>blast_damage</code>), optional <code>ammo_capacity</code>. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube.</td></tr>
 <tr><td><code>Railgun</code></td><td>Spinal lance. No traverse: the HULL aims it down <code>muzzle_offset</code>. Tapping the trigger commits, the bolt walks the bore for <code>charge_seconds</code>, and the shot leaves whether or not the nose is still on the target. The slug deals <code>slug_damage</code> to every layer it rakes; <code>slug_power</code> and not a layer count bounds it, optional <code>rake_radius</code> spends that budget on a wider corridor instead of unused depth, <code>slug_speed</code> x <code>slug_lifetime</code> is the reach, and <code>recoil_impulse</code> lands at the muzzle point so an off-axis mount yaws the ship. Usually <code>ammo_capacity: 1</code> with a long <code>reload</code>.</td></tr>
+<tr><td><code>Docking</code></td><td>Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. <code>capture_distance</code>, <code>capture_angle</code> and the two relative-speed ceilings are the envelope a <code>DOCK</code> is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see <a href="#docking-ports-and-what-holds-a-pair-together">below</a>).</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>GameSections(Vec&lt;SectionConfig&gt;)</code> is the resource of section blueprints.
-Every base prototype is GENERIC and authored in
-<code>crates/nova_authoring/src/base_content/sections/standard.rs</code>; a mod that brings
-modelled craft declares their parts itself. The explicit <code>section_catalog()</code> is
+Every base prototype is GENERIC and authored under
+<code>crates/nova_authoring/src/base_content/sections/</code>, one module per family
+(<code>hull</code>, <code>controller</code>, <code>thruster</code>, <code>turret</code>, <code>torpedo_bay</code>, <code>railgun</code>,
+<code>docking_port</code>); a mod that brings modelled craft declares their parts itself. The explicit <code>section_catalog()</code> is
 generated into <code>assets/base/sections/base.content.ron</code> by <code>content -- gen</code> and
 merged into the resource by
 <code>crates/nova_assets/src/merge.rs</code>. The outer-skin cladding is not a prototype at
@@ -2282,6 +2502,12 @@ it into its <code>PDController</code>. The authored numbers stay put in
 <code>ControllerSectionTuning</code>, which is what the pass re-derives from when a
 controller dies. The smallest live <code>steering_lag</code> supplies the stack’s base
 response.</p>
+<p>The pass measures or it does nothing. A root with no finite, positive inertia
+and arm yet - the spawn frame before avian has computed mass properties, or a
+hull that has lost every live section and is no longer sized at all (see
+<code>publish_hull_radii</code>) - is SKIPPED, and every controller on it keeps the tuning
+it already had. Dividing by a missing arm writes an infinite structural ceiling
+onto each <code>PDController</code>, which disables the load clamp for that tick.</p>
 <p>The ship-level loop, for <code>n</code> live controllers:</p>
 <ul>
 <li>authority: the envelope above. Torque SUMS across controllers, with no curve
@@ -2399,6 +2625,85 @@ its own copy of the pierce math is a sight that eventually lies. It is gated on
 happens to sweep the bore across a target it is already fighting, inside about
 eight degrees and 60% of the slug’s reach, with a per-gun cadence over the gun’s
 own reload. It does not FLY the shot.</p>
+<h3 id="docking-ports-and-what-holds-a-pair-together"><a class="header" href="#docking-ports-and-what-holds-a-pair-together">Docking ports, and what holds a pair together</a></h3>
+<p>A dock is deliberately NOT an attachment. Two docked hulls stay two rigid
+bodies held by one avian <code>FixedJoint</code>, and every part of the mechanic follows
+from that: no authority moves, no mass is merged, and either ship can leave.</p>
+<p>The code is <code>crates/nova_ship/src/sections/docking_section/</code>: <code>mod.rs</code> is the
+config and the sleeve’s state machine, <code>port.rs</code> the candidate search, and
+<code>connection.rs</code> the connection’s whole life.</p>
+<p><strong>Finding a pair</strong> (<code>DockingPorts</code>, a <code>SystemParam</code>). <code>DOCK</code> names two SHIPS -
+the presser and the ship it has locked - and the game picks the ports. A port
+is eligible when it carries no <code>DockedPort</code> and is not <code>SectionInactiveMarker</code>.
+Each pair is then graded on the STRICTEST of the two ports’ envelopes, so a
+hull cannot loosen another’s rules by offering a lax port:</p>
+<ul>
+<li>the <strong>face gap</strong> between the two RETRACTED outer faces, not between section
+origins. A port’s face is <code>(0, 0, -0.5)</code> in its own frame, because a section’s
+outward axis is local <code>-Z</code> everywhere in Nova.</li>
+<li>the <strong>opposition</strong> of the two outward axes, within <code>capture_angle</code>. Roll about
+the docking axis is not read at all: the ports are cylinders, so a twist is
+not a misalignment.</li>
+<li>the <strong>relative</strong> linear and angular speed of the two BODIES. Absolute speed is
+irrelevant; two hulls holding formation at 2 km/s are stationary to each
+other.</li>
+</ul>
+<p><code>best_candidate</code> ranks survivors by <code>(gap, opposition, first_id, second_id)</code>.
+The two <code>EntityId</code>s are the tie-break, so two identical pairs resolve the same
+way on every machine and in every replay.</p>
+<p><strong>Making the joint.</strong> <code>DockingConnectionRequest</code> re-runs the search - the
+envelope is re-read at execution, never trusted from the frame the offer was
+drawn in - and spawns ONE connection entity carrying both the
+<code>DockingConnection</code> record and the <code>FixedJoint</code>. The joint is built with an
+explicit frame:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>FixedJoint::new(first_ship, second_ship)
+    .with_anchor(world_point)
+    .with_basis(Rotation(relative))
+<span class="boring">}</span></code></pre>
+<p><code>with_anchor</code> / <code>with_basis</code> set one GLOBAL frame that avian resolves into
+per-body local frames on its next step, which is what preserves the pose the
+two hulls met in, roll included. A bare <code>FixedJoint::new(a, b)</code> carries
+<code>JointFrame::IDENTITY</code> and would yank the two hulls into the same origin.</p>
+<p>Nothing writes a velocity anywhere on this path. The constraint is the physics’
+job, so a pair that met while drifting keeps drifting; a hull that had been
+zeroed on capture would be a hull the solver has to fight.</p>
+<p><strong>The sleeves.</strong> <code>DockingSectionState</code> runs <code>Retracted -&gt; Extending -&gt; Extended</code> off the <code>DockTube</code> animation cue, and back down on release. It is
+driven only AFTER the joint exists, so the tubes can never be what holds the
+ships together. The track is a plain <code>Translate</code> on <code>dock_tube*</code> nodes: art
+only, with no collider growth, which is why two mated sleeves may overlap
+without the hulls touching.</p>
+<p><strong>A dock is MODAL.</strong> While it holds, a docked hull flies nothing. <code>DockedShip</code>
+on the root is the single gate, and it is read at the FORCE, not at the key, so
+pilot, AI and scripted order are all held by the same line:
+<code>thruster_impulse_system</code> skips the impulse, <code>sync_controller_section_forces</code>
+skips the torque, and the manual balancer and the RCS writer never reach a
+drive. A throttle held through a whole dock is simply inert - and bites the
+moment the dock ends, which is what the <code>system_docking_ports</code> range reads back
+to back.</p>
+<p><code>park_docked_helms_and_release_maneuvers</code> re-parks each docked hull’s attitude
+command on the rotation it actually has, every tick. The attitude loop is off,
+so a command left where it stood at capture would be a stale order the PD snaps
+to the instant the dock ends; parking it live means a released ship inherits
+the direction it is already pointing.</p>
+<p><strong>Ending it.</strong> Four paths, and each removes only the connection it owns:</p>
+<ul>
+<li><strong>the verb</strong> (<code>on_docking_release_request</code>): <code>DOCK</code> pressed again, from
+EITHER hull, exactly as <code>ORBIT</code> pressed again disengages. This is the only
+pilot-facing path, and it is ungated - a capability withdrawn while docked
+must never strand a hull clamped to something.</li>
+<li><strong>an engaged maneuver</strong> (<code>park_docked_helms_and_release_maneuvers</code>, in
+<code>DockingSystems::Release</code>, ordered BEFORE the attitude copy and the section
+pass): an autopilot on either hull takes the dock away first, so the maneuver
+is flown by a ship that is already free.</li>
+<li><strong>a destroyed port</strong> (<code>on_docking_port_removed_release</code>), which frees the
+surviving port.</li>
+<li><strong>a broken endpoint</strong> (<code>release_broken_docking_connections</code>), for a ship that
+is gone entirely.</li>
+</ul>
+<p><code>nova_ship/src/sections/docking_section/tests.rs</code> grades the search; the
+<code>system_docking_ports</code> range grades what the SOLVER does with the joint.</p>
 <h3 id="meshes-and-colliders-authorable"><a class="header" href="#meshes-and-colliders-authorable">Meshes and colliders (authorable)</a></h3>
 <p>Two authorable knobs decouple a section’s look and physics from the default unit
 cube (<code>crates/nova_ship/src/sections/base_section.rs</code>). Unset content still uses
@@ -2425,17 +2730,20 @@ every cell on its exhaust face. Other collider shapes remain one-cell parts.</li
 </ul>
 <h2 id="building-a-ship"><a class="header" href="#building-a-ship">Building a ship</a></h2>
 <p>A <code>SpaceshipConfig</code> (<code>crates/nova_scenario/src/objects/spaceship.rs</code>) has a
-<code>controller</code> (<code>None</code>, <code>Player</code>, or <code>AI</code>), an <code>allegiance</code>, an optional
-<code>collapse_threshold</code> (below), a <code>skin</code> flag (the
-<a href="#the-derived-skin">derived cladding</a>), and a list of
-<code>SpaceshipSectionConfig</code>, each placing one section at a <code>position</code> + <code>rotation</code>
-relative to the ship root. That <code>position</code> is the one authored vector that is
-not a distance: it is a BUILD-GRID CELL, so it stays a bare <code>Vec3</code> of engine
-world units and sections stack by whole cells of 10 m. It comes with a <code>source</code>
-(<code>Inline</code> /
-<code>Prototype</code>) and optional <code>modifications</code>. The player
-config carries the input mapping (section id -&gt; key/gamepad bindings) plus
-<code>speed_cap</code>; the AI config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.</p>
+<code>controller</code> (<code>None</code>, <code>Player</code>, or <code>AI</code>), an <code>allegiance</code>, a <code>capabilities</code> set
+(what this spawn is permitted to do) and a <code>design</code>: a <code>ShipDesignSource</code>, which
+is either an <code>Inline</code> <code>ShipDesign</code> or a <code>Prototype</code> naming a catalog design by
+id with this spawn’s own <code>section_patches</code> over it. The design carries the
+<code>integrity</code> (the optional <code>collapse_threshold</code>, below), the <code>presentation</code> (the
+<a href="#the-derived-skin">derived cladding</a>, the style and the cockpit voice) and a
+list of <code>SpaceshipSectionConfig</code>, each placing one section at a <code>position</code> +
+<code>rotation</code> relative to the ship root. That <code>position</code> is the one authored vector
+that is not a distance: it is a BUILD-GRID CELL, so it stays a bare <code>Vec3</code> of
+engine world units and sections stack by whole cells of 10 m. It comes with a
+<code>source</code> (<code>Inline</code>, or <code>Prototype</code> with its own <code>SectionConfigPatch</code>). The
+player config carries the input mapping (section id -&gt; key/gamepad bindings)
+and nothing else, and refuses an unknown key rather than dropping it; the AI
+config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.</p>
 <p>Spawning: the base scenario bundle gives the root <code>RigidBody::Dynamic</code>; the
 spaceship object adds <code>SpaceshipRootMarker</code>, and an observer
 (<code>insert_spaceship_sections</code>) spawns each section as a direct child. Every
@@ -2449,7 +2757,17 @@ and <code>webmods/the-ledger/ledger_ships.content.ron</code> for hand-authored s
 out of modelled parts a mod brings with it.
 The editor (<code>crates/nova_editor</code>) assembles ships interactively using
 <code>preview_section</code>, which has no health or rigid body and never enters the
-damage pipeline.</p>
+damage pipeline. A part placed from the gallery is a <code>Prototype</code> reference from
+the moment it lands (<code>spawn_section_node</code>), and stays one when it is tuned:
+<code>inspect::edit_section</code> applies the current patch, hands the edit a whole
+config, then asks <code>SectionConfigPatch::between</code> for the delta back and keeps the
+<code>Prototype</code> source with that patch. <code>between</code> is the checked inverse of <code>apply</code></p>
+<ul>
+<li>it re-applies its own result and compares - and returns <code>None</code> when the edit
+is outside what a patch can say (a different kind, a muzzle the prototype does
+not carry), which is the only case that falls back to an <code>Inline</code> copy. So the
+editor never keeps a second list of which fields the patch reaches.</li>
+</ul>
 <h3 id="the-derived-skin"><a class="header" href="#the-derived-skin">The derived skin</a></h3>
 <p><code>skin: true</code> on a ship’s hull asks the game to CLAD it. Nothing authors a plate:
 <code>spawn_ship_skin</code> (<code>sections/shell_skin.rs</code>) reads the finished section batch on
@@ -2479,9 +2797,9 @@ outward from the hull, a tumble and a <code>TempEntity</code> timer - inheriting
 ship’s motion through <code>inherited_motion</code>, so cladding does not hang in space
 while the hull flies out from under it. It is the SAME entity, so the meshes
 drawing it and the greebles standing on it come along untouched. Its
-colliders do not: shed cladding is DEBRIS - kinematic and untouchable, the
-claim <code>spew</code> makes for its shards - because a hull wears hundreds of plates
-and a dynamic body per plate is the cost a dying section already refuses.</li>
+colliders do not: shed cladding is DEBRIS - kinematic and untouchable -
+because a hull wears hundreds of plates and a dynamic body per plate is the
+cost a dying section already refuses.</li>
 <li>The shed is CAPPED and runs on the FIXED STEP, in the phase the deaths
 arrive in. <code>SHED_TICK_CAP</code> bounds it to 24 fixtures a TICK and <code>ShedBudget</code>
 bounds it to 48 a FRAME; the rest are deferred, never dropped, because
@@ -2522,8 +2840,8 @@ the pointer never hits one, and the <code>Q</code> pipette cannot arm one.</li>
 </ul>
 <p>Both readings go through <code>read_structure</code> (<code>shell_skin.rs</code>), so the lattice the
 editor clads on and the lattice the flown ship clads on cannot drift - and the
-build state carries the toggle into the <code>SpaceshipConfig</code> the scenario spawns,
-so what you see in the editor is what you fly.</p>
+build state carries the toggle into the <code>ShipDesign</code>’s <code>presentation</code> the
+scenario spawns, so what you see in the editor is what you fly.</p>
 <h4 id="the-plate-vocabulary-and-skin-styles"><a class="header" href="#the-plate-vocabulary-and-skin-styles">The plate vocabulary and skin styles</a></h4>
 <p>The derivation works out far more than it keeps. <code>read_plates</code>
 (<code>sections/skin_reading.rs</code>) is a SECOND PASS over the finished plates that reads
@@ -2549,10 +2867,24 @@ piece turned to <code>along</code> lies down an edge, and one turned to <code>fa
 over it.</p>
 <p>A <code>ShipStyleConfig</code> (<code>sections/skin_style.rs</code>) is CONTENT resolved by id out of
 <code>GameStyles</code>, exactly as a section prototype resolves out of <code>GameSections</code>. It
-carries a material per surface role and a list of decoration fixtures, each with
-a model <code>AssetRef</code> and a <code>ScatterRule</code> written in the vocabulary above. The mod
-merge routes <code>Content::Style</code> into <code>GameStyles</code> with the same last-wins overlay
-every other kind gets, so a mod restyles a base look by declaring its id.</p>
+carries a <code>StylePalette</code> - a <code>SurfaceFinish</code> for the plate <code>top</code> and one for its
+<code>wall</code>, the hidden floor keeping an engine finish - and a list of decoration
+fixtures, each with a model <code>AssetRef</code>, a health, a collider and a
+<code>FixturePlacement</code>. The mod merge routes <code>Content::Style</code> into <code>GameStyles</code> with
+the same last-wins overlay every other kind gets, so a mod restyles a base look
+by declaring its id.</p>
+<p>A <code>FixturePlacement</code> is three authored words - a <code>FixtureRegion</code>, a
+<code>FixtureDensity</code> and a <code>FixtureOrientation</code> - and <code>skin_style</code> expands it
+PRIVATELY into the <code>ScatterRule</code> written in the vocabulary above. That expansion
+is engine policy: it is tuned against real hulls and it moves when the plate
+derivation moves, which a style that had spelled out fourteen interacting
+filters could not survive. Two facts are derived from the fixture’s own collider
+rather than authored beside it, because the size already answers them:
+<code>min_run</code> (one cell of run per half cell the piece spans in plane, capped at
+<code>MAX_DERIVED_RUN</code>) and whether the piece needs a whole seat at all (a collider
+under <code>TRIM_HEIGHT</code> is trim, and trim beds onto a crease). Physics density is
+not authored either - every piece stands at <code>DECOR_DENSITY</code>, the same as the
+cladding it sits on.</p>
 <p><code>scatter_decor</code> (<code>sections/skin_decor.rs</code>) turns plates plus readings plus a
 style into placements. It takes the READINGS, not the structure, so the scatter
 cannot reach past the vocabulary into the derivation. Two properties are
@@ -2577,10 +2909,16 @@ tuned on a 150-plate generated hull put one visible piece on a 20-plate editor
 build. <code>ScatterRule::patch</code> is a floor: within each block of <code>patch</code> cubed cells,
 keyed by the out face, a rule that the share left with nothing claims its lowest
 hashing eligible plate. A block is a fixed division of the ship’s own cells, so a
-hull that grows by one cell keeps every piece outside the block it grew into; the
-floor never displaces another rule’s piece, so priority still means what it says.
-With <code>chance: 0.0</code> the share picks nothing and the rule is purely “one piece per
-block”, which is a density that reads the same at any hull size.</p>
+hull that grows by one cell keeps every piece outside the block it grew into.</p>
+<p>The floor takes UNCLAIMED plate first. Where a thin rule’s whole region was
+swept by broader rules below it - <code>Rare</code> on a <code>Panel</code> two <code>Dense</code> rules also
+want - there is no unclaimed plate to floor onto, and the rule logs <code>x0 of 78</code>
+on a hull it was eligible all over. So the floor may BORROW one claimed plate,
+under three conditions that bound the damage: the holder is on a THICKER rung
+than the borrower, the holder has a floor of its own (<code>Every</code> never lends, and
+a line with a hole in it is not a line), and the holder still keeps a piece
+somewhere on the ship. Priority therefore decides who picks, and the floor
+decides only that nobody is picked down to nothing.</p>
 <p>A decoration is a <code>SectionFixture</code> like a plate, and a child of the PLATE, one
 level further out - so a plate shot off takes its greebles, and
 <code>damage_cracks</code>’s <code>owning_section</code> walk stops at the first fixture it meets
@@ -2620,7 +2958,8 @@ nine generic pieces, and the ship adds its own <code>ShipIntegrityPlugin</code> 
 <li><code>health.rs</code> - the hit-point store: <code>Health</code>, <code>HealthApplyDamage</code> and the
 <code>HealthZeroMarker</code> its observer adds at zero.</li>
 <li><code>core.rs</code> (<code>IntegrityCorePlugin</code>) - the generic disable/destroy core, plus
-the mass-times-velocity impact damage.</li>
+the contact impact damage, taken from the impulse avian’s solver settled on
+and spent only on the approach above a universal 5 m/s safe contact speed.</li>
 <li><code>erosion.rs</code> (<code>DamageLevelPlugin</code>) and <code>carve.rs</code> (<code>DamageMarksPlugin</code>) - the
 two damage READINGS, below.</li>
 <li><code>spew.rs</code> (<code>CarveSpewPlugin</code>) and <code>chunk.rs</code> (<code>CarvedChunkPlugin</code>) - what a
@@ -2653,44 +2992,71 @@ death is decided by its own remesh (see
 <h3 id="how-a-body-comes-apart"><a class="header" href="#how-a-body-comes-apart">How a body comes apart</a></h3>
 <p>Nothing computes geometry when something dies. A destroyed <code>ExplodableEntity</code>
 DETACHES: it comes off its parent, becomes a rigid body of its own carrying the
-art and the collider it already had, takes an outward kick and a spin, and
-despawns on a timer (<code>PIECE_LIFETIME_SECS</code>). A death moves entities and clones
+art and the collider it already had, takes an outward kick sized by how deeply
+it was buried and a spin, and despawns on a timer (<code>PIECE_LIFETIME_SECS</code>). A death moves entities and clones
 one collider handle, which is why the module has no fragment budget and no
 spawn queue - there is nothing left to ration.</p>
 <p>The FIREBALL is the other half, and it is a separate plugin because it rations
 what <code>explode</code> does not. <code>pyre.rs</code> observes the same destroy marker and spawns
 two hanabi instances - a core and its ejecta - at two authored sizes: a section
 burns at <code>SECTION_PYRE</code>, a whole hull at <code>HULK_PYRE</code>.</p>
-<p>Almost nothing about those graphs is built at the death. <code>warm_the_pyres</code>
-runs in <code>PostStartup</code> after the settings pass that derives the graphics budget</p>
-<ul>
-<li>late enough that the tier a player picked is settled, early enough to be
-before the first frame of any state - and it does the whole job: the four
-graphs, the shared soft-dot mask, and one hidden instance of each graph. The
-instance is the part that matters, because <code>bevy_hanabi</code> generates a shader
+<p>A section is the same size on every ship, because a build-grid cell is. A HULL
+is not, so <code>HULK_PYRE</code> is the look and the dying root’s <code>IntegrityEnvelope</code> is
+the size it is drawn at: every length is multiplied by the hull’s containment
+radius over the 55.2 m gunship the look was cut on, and the flash by the square
+of it, because lumens stand in for a burning surface. The shipped hulls run
+from 0.88 on a skiff-sized hull to 3.52 on a carrier-sized one, so a carrier’s debris
+reaches 479 m rather than ending 58 m inside its own wreck. Durations and
+particle counts are NOT scaled: a bigger ship does not burn for longer, and the
+count is what the frame budget was written against. A body that publishes no
+envelope gets the authored death rather than no death.</p>
+<p>Hanabi bakes a <code>Gradient</code> into the asset, so a baked size curve cannot be
+multiplied by a per-instance property. Every size curve in <code>pyre.rs</code> is
+therefore an expression over the particle’s own normalised age, built by
+<code>key_curve</code> from the same keys a gradient would hold, and multiplied by one
+<code>hull_scale</code> property written per death - the same shape the railgun wake uses.</p>
+<p>Almost nothing about those graphs is built at the death. <code>warm_the_pyres</code> runs
+in <code>Update</code>, on the first frame that has all three of a cold store, a tier that
+draws particles at all, and an active camera - and it does the whole job: the
+four graphs, the shared soft-dot mask, and one hidden instance of each graph.
+The instance is the part that matters, because <code>bevy_hanabi</code> generates a shader
 from a spawned INSTANCE and never from an asset, so a warm-up that only filled
 the asset store left the WGSL to be generated on the collapse frame. Those four
 are silent, invisible, and despawned the next frame. A tier with particles off
-builds none of it and lights nothing.</li>
-</ul>
-<p>Startup and not a state transition, because deaths are not confined to
+builds none of it and lights nothing.</p>
+<p><code>Update</code> and not a state transition, because deaths are not confined to
 <code>Playing</code>: the main menu’s backdrop is a scenario whose whole loop is a torpedo
-erasing a ship. There is a second pass on <code>Update</code>, run only when the graphics
-budget changes while the graphs are still cold, for the other path a state
-transition misses - a tier RAISED from the pause overlay, which never
-re-enters anything.</p>
+erasing a ship, and that backdrop raises its camera frames before its first
+death. The tier is settled well before the gate opens - the settings pass
+applies in <code>PostStartup</code> and again on change, both inside <code>SettingsSystems</code>,
+which the warm-up orders itself after - and the cold store is what lets a tier
+RAISED from the pause overlay reach the warm-up, which no <code>OnEnter</code> carries.</p>
+<p>The camera is a requirement and not a preference. hanabi gives every live
+instance a row in one <code>BufferTable</code> of draw arguments and reconciles that table
+only on a frame that has a view, so four rows taken and given back with no view
+in between leave it allocating a 60-byte buffer and writing 80 bytes into it: a
+panic in the render schedule at boot. Warming in <code>PostStartup</code> is exactly that
+shape, because that is before any scenario has spawned a camera.</p>
 <p>The ALMOST is one pipeline. A hidden instance is compiled and gets its two
 compute pipelines, but <code>bevy_hanabi</code> specializes the RENDER pipeline only for
 entities a camera can see, so the first death of a run still creates one - on
 the render thread, because <code>nova_core</code> asks for
 <code>synchronous_pipeline_compilation</code> on every backend. Warming that would take a
-visible instance in a live view, and the warm-up runs before any scenario has a
-camera.</p>
-<p>What a death still mints is instances, so this half DOES need a budget:
-<code>PYRE_FRAME_CAP</code> bounds how many fireballs one frame lights, and a root’s own is
-never the one dropped, because that is the one the whole death reads as.
-Material has the last word - <code>IntegrityDestroyMarker</code> is a shared seam that an
-exhausted asteroid also raises, and rock does not burn.</p>
+VISIBLE instance, which a warm-up is not: these are hidden exactly so that
+nothing draws them.</p>
+<p>What a death still mints is instances, so this half DOES need a budget. A
+compartment death is QUEUED, and the whole frame’s batch is spent at the end of
+it: <code>6 * sqrt(condemned / 53)</code> fires, floored at six and capped at 48, picked by
+farthest-point sampling over where the deaths happened. The reference is the
+53-section gunship the look was cut on, so an ordinary frame still lights the
+six it always did, a 720-cell corridor lights 23 and a whole carrier 38. The
+sampling is the half that matters: deaths arrive in section-graph order, so the
+first six of a collapse are six fires in one shoulder of the wreck - the chain
+has to be cut from the batch and spread over it, not taken off the front. A
+root’s own fireball is never queued and never dropped, because that is the one
+the whole death reads as. Material has the last word -
+<code>IntegrityDestroyMarker</code> is a shared seam that an exhausted asteroid also
+raises, and rock does not burn.</p>
 <p>Four properties follow from that, and each is load-bearing:</p>
 <ul>
 <li><strong>Destructibility is SEMANTIC.</strong> It is <code>ExplodableEntity</code> plus the destroy
@@ -2718,12 +3084,40 @@ own collider is the shape the wreck is.</li>
 interpenetrating another - something the solver fixes by shoving hard. So it
 takes the same <code>ChunkGrace</code> a carved rock chunk takes: kinematic and
 colliderless until it has drifted clear.</li>
+<li><strong>How far clear is measured on the piece, not on the constant.</strong> A piece has
+to cross the structure standing over it, plus its own reach, plus 10 m of
+daylight. The kick and the grace window are both multiplied by the square
+root of that distance over 10 m (<code>clearance_scale</code>), so the SLOWEST piece is
+exactly outside as its window runs out: a plate off the skin leaves at 20 to
+50 m/s and is physical in half a second, while a section 97 m inside a
+capital leaves at over 100 m/s and stays a ghost for 1.7 s. The depth comes
+from <code>IntegrityEnvelope</code>, which the layer that owns the body publishes - a
+hull from its live containment radius, a rock from its own.</li>
 </ul>
 <p>There is NO FALLBACK for a body with no collider: it leaves nothing behind and
 logs an error, and <code>system_destruction_finale</code> asserts that branch never runs
 on shipped content. A refusal rather than a stand-in, because a stand-in looks
 like SOMETHING - a body that had silently failed to come apart would be
 indistinguishable from one that came apart badly.</p>
+<p>What the frame SOUNDS and FEELS like is grouped the same way, by the STRUCTURE
+rather than by the place. An impact or a destruction cue - the explosion, the
+surface hit, the camera kick and the spark burst - is throttled on its
+<code>CueGroup</code> (<code>nova_gameplay::audio::mixing</code>), which is the nearest <code>RigidBody</code> at
+or above the entity the event named: a section, a plate, a health node and an
+asteroid’s collider node all hang under one. A severed fragment, a rock and a
+torpedo each resolve to their own body, so each is its own event, and only a cue
+with nothing physical over it falls back to a 60 m world cell (<code>SFX_AREA_CELL</code>,
+six world units). That cell used to be the whole rule, and a cell is about the
+size of a gunship, so it was the same mistake in both directions: a carrier
+collapse spanned two dozen cells and threw 25 trauma kicks in the frame it came
+apart - the pile-up the throttle exists to stop - while two hulls dying a few
+metres apart shared one death. The same collapse throws 3 kicks now.</p>
+<p>WHERE it plays is the other half. A death is emitted from the body’s centre of
+mass, not from the section that happened to be raised first, because the
+sections a collapse raises first are the ones nearest the wound and not the ones
+a listener is watching let go. A HIT still plays at the contact: that is a real
+place on a hull the listener can see being struck. Audio and juice share one
+resolver, so a collapse is one explosion and one kick from the same point.</p>
 <p>Editor placement mates the same sockets, so the editor cannot build a ship the
 graph would reject. <code>snap_placement</code> (<code>nova_ship::sections::link_points</code>) poses a
 part from one mate: the two sockets become coincident and their normals opposed,
@@ -2820,8 +3214,11 @@ gaps are irregular while a count that fell is direct evidence a section died.</p
 <p>A severed wreck fragment is persistent until scenario teardown. Its healthy
 sections remain damageable, but <code>SectionInactiveMarker</code> disconnects every
 controller, thruster and weapon from the lost command bus. Fragments inherit
-rigid point velocity and receive a momentum-balanced kick of 10 m/s (one engine world unit per second) away from the
-cut. They are unsigned debris, not ships: no allegiance, control, defeat event,
+rigid point velocity and receive a momentum-balanced kick away from the cut. Its
+raw speed is the fragment’s own containment radius over two seconds, floored at
+10 m/s, so two halves open a gap as wide as themselves in about two seconds
+whatever they are: a carrier’s halves part at tens of meters a second where a
+cockpit shard takes the floor. They are unsigned debris, not ships: no allegiance, control, defeat event,
 or scenario identity.</p>
 <p>A ship is disabled progressively, so a collapsing ship can keep shooting for a
 few frames; its weapons stop as their own sections go. That also means the
@@ -2927,16 +3324,19 @@ for its pressure pass.</p>
 shape, in world space. <code>kind</code> is the weapon class that paid for the carve, and
 it is what decides the look: <code>spew.rs</code> keys a <code>ShardLook</code> off it, one entry per
 <code>DamageType</code>. Kinetic and Pierce throw 2 to 7 shards of one fixed size
-(<code>ShardLook::size</code>, 0.12 world units - a 1.2 m chip) - kinematic, no collider, <code>TempEntity(2.5)</code> - and
+(<code>ShardLook::size</code>, 0.12 world units - a 1.2 m chip) that live 2.5 s, and
 hold identical values in two SEPARATE entries, so giving a penetrator its own
 debris is editing a number rather than splitting a branch. Explosive throws nothing: a
 warhead’s fireball already covers the frames the geometry changes in, the crater
 is permanent evidence afterwards, and a cut that severs throws real geometry
-anyway. Shards are born INSIDE the body they came off, so a dynamic body with a
-collider would spawn interpenetrating and the solver would shove the two apart -
-a ship kicking itself sideways every time it was shot. An event rather than a
-direct spawn, so a mod that wants a puff or nothing at all replaces the observer
-instead of patching the carve.</p>
+anyway. Shards are <code>bevy_hanabi</code> PARTICLES, not entities: a carve aims one of a
+per-material pool of emitters (grown on demand to <code>SHARD_EMITTERS</code> per
+material, which is also the most craters one frame chips) and the GPU throws
+the cone, tumbles, cools and ends them. Nothing on the CPU stands for a chip -
+no rigid body, no collider, no mesh - which is what a busy fight paid for when
+they were kinematic bodies; a range reads <code>CarveShardTally</code> for what was thrown.
+An event rather than a direct spawn, so a mod that wants a puff or nothing at
+all replaces the observer instead of patching the carve.</p>
 <p>Real geometry leaves a body only where a carve actually SEVERED it, and only the
 body being cut knows that. <code>chunk.rs</code> is what a severed piece spawns through;
 <code>CHUNK_MIN_VOLUME</code> (1.0 cubic world unit, 1000 m^3 - a volume, so it is engine-side with the field) is the floor under which a crumb goes out as
@@ -3169,8 +3569,10 @@ else.</li>
 <code>crates/nova_gameplay/src/integrity/chunk.rs</code>.</li>
 <li>How a body comes apart: <code>detach_destroyed_body</code>, <code>DetachedPieceMarker</code> -
 <code>crates/nova_gameplay/src/integrity/explode.rs</code>; the fireball over it,
-<code>SECTION_PYRE</code>, <code>HULK_PYRE</code>, <code>PYRE_FRAME_CAP</code>, <code>warm_the_pyres</code> -
-<code>crates/nova_gameplay/src/integrity/pyre.rs</code>.</li>
+<code>SECTION_PYRE</code>, <code>HULK_PYRE</code>, <code>frame_cap</code>, <code>warm_the_pyres</code> -
+<code>crates/nova_gameplay/src/integrity/pyre.rs</code>; what it sounds and feels like,
+<code>CueGroup</code>, <code>cue_body</code>, <code>body_middle</code> -
+<code>crates/nova_gameplay/src/audio/mixing.rs</code>.</li>
 <li>Authored damage looks: <code>DamageEffect</code>, <code>fit_damage_effects</code> -
 <code>crates/nova_ship/src/sections/damage_effects.rs</code>, with one module per look in
 <code>damage_cracks.rs</code>, <code>damage_sparks.rs</code> and <code>damage_plume.rs</code>.</li>
@@ -3222,7 +3624,8 @@ runtime handler, so the loader and every headless rig honour the same fields.</l
 <li><code>GameScenarios(HashMap&lt;ScenarioId, ScenarioConfig&gt;)</code> - all known scenarios,
 populated by <code>nova_assets</code> (ready at <code>GameAssetsStates::Loaded</code>).</li>
 <li><code>CampaignConfig</code> - <code>id</code>, <code>name</code>, <code>scenarios</code> (ordered member scenario ids,
-hidden ones allowed); a first-class content kind (<code>Campaign((..))</code>).</li>
+each a launchable chapter - naming a non-<code>Chapter</code> scenario is a lint
+Error); a first-class content kind (<code>Campaign((..))</code>).</li>
 <li><code>GameCampaigns(HashMap&lt;CampaignId, CampaignConfig&gt;)</code> - all known campaigns, the
 ordered campaign-&gt;scenario mapping the Scenarios picker groups/launches by,
 populated by <code>nova_assets</code> alongside <code>GameScenarios</code>.</li>
@@ -3235,7 +3638,10 @@ populated by <code>nova_assets</code> alongside <code>GameScenarios</code>.</li>
 <code>GameScenarios</code>, <code>commands.trigger(LoadScenario(cfg.clone()))</code> (see
 <code>examples/systems/system_scenario_grammar.rs</code>). Load tears down the previous
 scenario, spawns the camera, input context, one handler per event, fires
-<code>OnStart</code>. No engine
+<code>OnStart</code>. The camera opens on the authored PLAYER spawn, in the chase rig’s
+own pose for that hull’s envelope (<code>chase_camera_opening_pose</code>), so the first
+frame is already the shot the live rig will hold; a scenario with no player
+falls back to 100 m up and 200 m back from the origin. No engine
 light: a scene is lit by the <code>Light</code> objects it authors, and one that authors
 none renders black.</li>
 <li><code>ScenarioLoaded</code> - fired after a load; carries <code>scenario_id</code>,
@@ -3266,7 +3672,7 @@ so the FIRST ship wearing a hull paid for that hull’s art. A hull no <code>OnS
 event spawns is therefore cold when its beat arrives: both of <code>menu_duel</code>’s
 corvettes appeared in placeholder art and dressed themselves a moment later.</p>
 <p><code>preload::scenario_render_meshes</code> walks the loaded config for <code>SpawnScenarioObject</code>
-and <code>ScatterObjects</code> actions, resolves each ship’s <code>ShipSource</code> and every
+and <code>ScatterObjects</code> actions, resolves each ship’s <code>ShipDesignSource</code> and every
 section’s <code>SectionSource</code> against the two catalogs, and collects the render
 meshes. That walk is possible at all because a spawn action carries its object’s
 WHOLE config inline rather than an id looked up at spawn time, so what a
@@ -3279,15 +3685,58 @@ warm.</li>
 <li><code>ScenarioPreload</code> HOLDS the handles for the scenario’s lifetime. Without a
 strong handle bevy frees the mesh again long before the mid-mission spawn.</li>
 <li>The load WAITS: <code>scenario_has_settled</code> and the LOADING panel both hold while
-the warm-up is pending, bounded by its own deadline so a missing or broken
-mesh cannot hang the load. A failed mesh counts as settled and is named in a
-warning; the section spawns in placeholder art, exactly as it would have.</li>
+the warm-up is pending. The budget is a NO-PROGRESS one
+(<code>PRELOAD_STALL_SECS</code>, 10 s): every handle that settles buys the whole budget
+again, so a big catalog on a cold disk takes as long as it takes, and what
+the budget catches is an asset source that has gone silent. A handle that
+fails, or a load that stops moving, fails the load CLOSED - see below.</li>
 </ul>
 <p>Ships are the only object kind involved. A beacon and a salvage crate build
 primitives, an asteroid meshes itself on a worker, and a light and an anchor
 have no mesh at all. The warm-up is also registered only when
 <code>NovaScenarioPlugin::render</code> is set: a headless rig builds no mesh children, so
 there is nothing to warm and nothing to wait for.</p>
+<h3 id="the-load-is-atomic-loadergaters"><a class="header" href="#the-load-is-atomic-loadergaters">The load is atomic (<code>loader/gate.rs</code>)</a></h3>
+<p>A scenario used to start the moment its config landed: its objects arrived over
+the following frames, its art after that, and the player had the helm through
+all of it. Rocks popped in around a ship already flying, mission time had
+already run, and a collision could happen against a body still spawning.</p>
+<p><code>ScenarioLoadGate</code> closes that. From <code>ScenarioLoaded</code> until the frame the
+scenario is built it is <code>Loading</code>, and while it is:</p>
+<ul>
+<li>the simulation is HELD - <code>Clocks::hold(FreezeOwner::ScenarioLoad)</code> pauses
+<code>Time&lt;Virtual&gt;</code> and <code>Time&lt;Physics&gt;</code>, so the scenario clock, physics, timers
+and every <code>Time</code>-driven system stand still;</li>
+<li>gameplay input and both camera rigs are gated off (<code>scenario_play_is_free</code>
+on <code>SpaceshipInputSystems</code>, <code>SpaceshipSectionSystems</code>, <code>NovaCameraSystems</code>
+and <code>WASDCameraSystems::Sync</code>) - holding the clocks alone is not enough,
+because a chase camera reads the mouse and a free-fly camera reads held keys
+on REAL time;</li>
+<li><code>Time&lt;Real&gt;</code> keeps running, so the LOADING panel animates.</li>
+</ul>
+<p>The release is <code>scenario_has_settled</code> PIPED into
+<code>release_when_scenario_is_built</code>, which is the same condition the panel’s own
+dismissal reads: the panel cannot come down over a held world, and the world
+cannot start behind a panel. The frame that releases is the last frozen one -
+its delta was taken while the clocks were held - so the first frame the player
+is given is a complete scene at scenario time zero.</p>
+<p>A load that FAILS never releases. An explicitly failed handle, or a load that
+stops making progress, calls <code>fail_scenario_load</code>: the gate goes to <code>Failed</code>,
+the hold STAYS, and the paths are reported through <code>ScenarioStartFailure</code> -
+the same <code>FAILED TO START</code> overlay the content gate uses, which offers Main
+Menu and nothing else. Continuing with placeholder art would hand the player a
+scene that is not the one the author wrote, with no way to know it. Leaving
+through <code>UnloadScenario</code> is the one path out of <code>Failed</code>, and it drops the
+hold with the scenario that took it.</p>
+<p>A load the content GATE refuses never takes a hold at all - <code>on_load_scenario</code>
+lints the config in hand (<code>start_errors</code>) and returns before <code>ScenarioLoaded</code>
+fires. A refusal ENDS the scenario it was asked to replace: the teardown runs
+and <code>CurrentScenario</code> is cleared BEFORE the report is published, the LOADING
+panel comes down on the spot, and the report is drawn on a 2D camera of its
+own, with the cursor freed for the one button on it. Nothing is left to
+simulate behind the modal, which is the point - the report is a dead end, and
+the scenario it interrupted is not a fallback the player can be handed back.
+The campaign case is a chapter whose next chapter a mod removed.</p>
 <h2 id="the-vocabulary-and-who-documents-it"><a class="header" href="#the-vocabulary-and-who-documents-it">The vocabulary, and who documents it</a></h2>
 <p>Three closed enums are the whole authored language, one dispatch match each:</p>
 <div class="table-wrapper">
@@ -3322,11 +3771,12 @@ that refers to something declares what, or it is a blank box.</p>
 <code>EntityId(String)</code> and <code>EntityTypeName(String)</code>, and every PAIR event has the
 same filter shape - a subject <code>id</code> plus an <code>other_id</code> / <code>other_type_name</code>.
 Which entity is the subject is per-event (area against body, well against ship,
-target against locker), which is why the filter is one struct rather than one
-per event. Lock, orbit, and player STOP/GOTO completion events are one-shot
-EDGES with no hidden timer behind them: a target switch queues end-old then
-start-new, a successful GOTO reports only after physical settle, and a scenario
-that needs a continuous hold composes the edges with a keyed timer.</p>
+target against locker, the hull docked with against the hull that asked), which
+is why the filter is one struct rather than one
+per event. Lock, orbit, docking and player STOP/GOTO completion events are
+one-shot EDGES with no hidden timer behind them: a target switch queues end-old
+then start-new, a successful GOTO reports only after physical settle, and a
+scenario that needs a continuous hold composes the edges with a keyed timer.</p>
 <p>Filters read and never mutate; they take <code>&amp;NovaEventWorld</code> and the fired
 <code>GameEventInfo</code> and return a bool, and every filter on a handler must pass.
 Actions take <code>&amp;mut NovaEventWorld</code> and run in order. Neither touches the Bevy
@@ -3481,7 +3931,8 @@ dropped: they dispatch in order on the frame the world goes live.</p>
 for one more reason: the glTF warm-up above. Dispatch is not, so <code>OnStart</code>
 still fires and the scene still builds while the art arrives; what waits is the
 scenario CLOCK, so no mission time passes behind a panel the player cannot see
-past.</p>
+past. It is also what the load gate releases on, so the panel, the clock and
+the simulation hold all come down on one frame and one condition.</p>
 <p>Variables are typed literals (<code>String</code>, <code>Number</code>, <code>Boolean</code>) with a small
 expression tree: <code>VariableExpressionNode</code> (add/subtract), <code>VariableTermNode</code>
 (multiply/divide), <code>VariableFactorNode</code> (literal/name/parens);
@@ -3520,9 +3971,11 @@ position and has the same answer.</p>
 <h3 id="story-pacing-is-a-queue-not-a-slot"><a class="header" href="#story-pacing-is-a-queue-not-a-slot">Story pacing is a QUEUE, not a slot</a></h3>
 <p><code>NarrativeCue</code> writes into a bottom-left comms stack rather than a
 latest-wins line: arrival order, a bounded number of cards visible, and a
-lossless pending queue behind them. The whole log stays in the feed too. That
-is why a burst of lines is survivable - but one line per beat is still the
-style, and the queue is the safety net.</p>
+bounded pending queue behind them. The whole log stays in the feed either way.
+That is why a burst of lines is survivable - but one line per beat is still the
+style, and the queue is the safety net. The backlog holds 24 waiting lines,
+which is what three cards can reach inside the 30 s a line stays worth reading;
+past that the OLDEST waiting line is dropped and the overrun is logged once.</p>
 <p>Two consequences for anything that fires story lines:</p>
 <ul>
 <li><strong>The stack is a HUD surface <code>nova_scenario</code> reaches up into.</strong> The dwell
@@ -3605,18 +4058,12 @@ continuous questions.</li>
 <p>A <code>Sequence</code> step’s <code>until</code> gate is a real handler the loader spawns, so it is
 scanned with the authored ones. A gate waiting on <code>OnUpdate</code> that was not a
 reason to wake would stall its chain forever.</p>
-<p>Measured on a headless run, as the share of frames that queue the event:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>scenario</th><th>pulses / frames</th><th>why</th></tr>
-</thead>
-<tbody>
-<tr><td><code>ledger_ch1</code></td><td>350 / 22500</td><td>milestones plus four scheduled lines</td></tr>
-<tr><td><code>ledger_ch3</code></td><td>every frame</td><td>a <code>player_speed</code> ladder, correctly polling</td></tr>
-</tbody>
-</table>
-</div>
+<p>The Ledger’s field trials show both patterns. In
+<code>webmods/the-ledger/ledger_05_freight_lane.content.ron</code>, the victory gate reads
+<code>arrived</code> and <code>stage</code>. In <code>ledger_03_blue_survey.content.ron</code>, an active scan
+writes <code>scan_left</code> for its HUD countdown. That write keeps the pulse awake
+until the scan ends or the player leaves its area. Neither pattern needs
+an authored wake list.</p>
 <h2 id="scenario-patterns"><a class="header" href="#scenario-patterns">Scenario patterns</a></h2>
 <p>The engine holds three facts for content - <code>once</code>, keyed timers, and a
 <code>Sequence</code> cursor - and everything past those is one numeric variable plus
@@ -3782,9 +4229,10 @@ authors no <code>Light</code> renders black. This catches every new backdrop.</p
 </li>
 <li>
 <p><strong>What a rock is MADE of is required, and it decides how it looks.</strong>
-<code>AsteroidConfig::material</code> names a KIND - <code>rock</code>, <code>metal</code>, <code>ice</code>, <code>carbon</code>,
+<code>AsteroidConfig::kind</code> names a KIND - <code>rock</code>, <code>metal</code>, <code>ice</code>, <code>carbon</code>,
 or the <code>plain</code> control - and <code>objects/asteroid_kind.rs</code> is the one table that
-maps a kind to a look. The look is uniform data for a triplanar
+maps a kind to a look. It decides the LOOK and nothing else: a rock’s hit
+voice is <code>ImpactSurface::Rock</code> whatever it is made of. The look is uniform data for a triplanar
 <code>ExtendedMaterial</code> (<code>objects/asteroid_surface.rs</code>), so a carved and remeshed
 rock wears the same surface it did before the hit. There is NO default and no
 fallback: a config without the field fails to deserialize, an id the table
@@ -3916,12 +4364,25 @@ correction that puts the ship back on the ring, not a departure from it - and
 is written off only by an absence from <code>Hold</code> longer than
 <code>ORBIT_LAP_GRACE_SECS</code>. So authored lap objectives need no guessed timer, and
 one nudge does not silently cost the player three quarters of a revolution.</p>
+<p>The docking tracker reads its two edges off the CONNECTION entity rather than
+off either hull. <code>DOCK</code> builds exactly one connection per pair and every way
+out of a dock - either pilot’s verb, a maneuver engaged on either hull, a
+shot-off port, a dead ship - despawns that one entity, so comparing a live
+connection against the <code>DockEcho</code> BOTH hulls carry reports one <code>OnDocked</code> and
+one <code>OnUndocked</code> on every path, with no branch per ending and nothing in
+<code>nova_ship</code> knowing what a scenario event is. The echo retains the payload, not
+the two entities, because the release edge has to name a partner that may
+already be gone - which is also why both hulls carry it: a pair whose asking
+hull is destroyed still reports through the survivor, and the two echoes are
+deduplicated into one release. Only a pair that dies whole falls silent, the
+way orbit end and area exit do for a despawned body.</p>
 <h2 id="adding-new-pieces"><a class="header" href="#adding-new-pieces">Adding new pieces</a></h2>
 <ul>
 <li>Event: event + info structs in <code>nova_events/src/lib.rs</code>, an <code>EventConfig</code>
 variant in <code>events.rs</code>, and something that fires it (engine-driven events
 live in <code>loader/</code> - <code>OnStart</code> in <code>lifecycle.rs</code>, <code>OnUpdate</code> in <code>clock.rs</code>,
-the orbit/lock trackers in <code>trackers.rs</code>; area events in <code>objects/area.rs</code>;
+the orbit/lock/docking trackers in <code>trackers.rs</code>; area events in
+<code>objects/area.rs</code>;
 <code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, and a rock’s
 <code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted).</li>
 <li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
@@ -3951,7 +4412,9 @@ text form: <code>crates/nova_scenario/src/syntax.rs</code>.</li>
 <li>Loading and scoping: <code>ScenarioLoaderPlugin</code>, <code>ScenarioScopedMarker</code>,
 <code>scenario_is_live</code> - <code>crates/nova_scenario/src/loader/mod.rs</code>; the glTF
 warm-up: <code>ScenarioPreload</code>, <code>scenario_render_meshes</code> -
-<code>crates/nova_scenario/src/loader/preload.rs</code>; what the pulse wakes for:
+<code>crates/nova_scenario/src/loader/preload.rs</code>; the load hold and its failure:
+<code>ScenarioLoadGate</code>, <code>scenario_play_is_free</code> -
+<code>crates/nova_scenario/src/loader/gate.rs</code>; what the pulse wakes for:
 <code>WakeProfile</code>, <code>configure_scenario_shape</code> -
 <code>crates/nova_scenario/src/loader/wake.rs</code>.</li>
 <li>Objects: <code>ScenarioObjectsPlugin</code> - <code>crates/nova_scenario/src/objects/mod.rs</code>;
@@ -4004,8 +4467,9 @@ directly.</p>
 <p><code>nova_probe_cli</code> (the game binary’s <code>probe</code> subcommand, debug feature only) is the host layer above: it arms the
 harness variables, spawns a subject as a child process and turns the output
 into a correctness and performance report. It arms the variables below -
-including a window-sized <code>NOVA_AUTOPILOT_DEADLINE</code> for its fps pass, which your
-own value overrides. Its in-game half, <code>nova_probe</code>, is what the subject
+including a <code>NOVA_AUTOPILOT_DEADLINE</code> sized to the capture window for its fps
+pass and to <code>--timeout</code> for its behavioral pass, which your own value
+overrides. Its in-game half, <code>nova_probe</code>, is what the subject
 wires to collect the evidence.</p>
 <p>A harness run is headless, which for these drivers means a SOFTWARE X server,
 and that is not free: presenting a window under Xvfb costs a CPU copy of every
@@ -4053,8 +4517,9 @@ reports nothing wrong.</p>
 <p>The timeline says what HAPPENED. The world-state snapshot
 (<code>nova_probe::capabilities::snapshot</code>) says what the world LOOKS like: one JSON
 object holding every ship - identity, pose, velocity, aggregate health, mass,
-the collapse/defeat flags and its weapon locks - each ship’s sections with their
-class, pose, health, modifications and magazine state, each section’s fixtures
+the collapse/defeat flags, its weapon locks and its capabilities - each ship’s
+sections with their class, pose, health and magazine state, each section’s
+fixtures
 (the skin plates and decor bolted to it), and every torpedo and round in flight
 with its owner, damage, remaining lifetime and - for a torpedo - which ordnance
 TYPE it is, since two bays on one hull can load different torpedoes that are
@@ -4169,6 +4634,11 @@ the settles existed for. And the pointer acks answer for <code>PointerId::Mouse<
 alone, because that is the pointer the gestures drive; an app may carry others
 (Nova’s terminal parks a forwarded one), and a second pointer sitting in the
 opposite state would otherwise ack for the one the beat actually moved.</p>
+<p>A headless range that clicks UI must SPAWN A WINDOW, as
+<code>system_headless_drag</code> does. <code>nova_core</code> holds <code>UiSystems::Layout</code> while any UI
+root is aimed at a target with no area - a zero-size target makes taffy hand
+bevy a negative node size, which panics - so an app with no window at all never
+lays its UI out and no <code>ui_node_present</code> beat can ever advance.</p>
 <p>The aim beat re-hovers EVERY frame rather than holding the coordinate it first
 sent, so a reflow moves it along instead of stranding it; it carries
 <code>pointer_hover_diagnosis(name)</code>, which names the occluder that took the pick.</p>
@@ -4406,6 +4876,36 @@ production caller passes its own profile and changes nothing else.
 not), so the window, the frame clock and the encode cannot disagree about the
 framing - and a profile whose output equals its window encodes with no scale
 filter at all, rather than resampling a master through itself.</p>
+<p>A SPRITE SHEET is the same recorder with a grid for a length. The training
+handbook draws a lesson loop from one image of cells - the game has no video
+decoder, so an atlas is how a panel animates - and a producer opens the
+recording with <code>sheet_start(world, name, grid)</code> and holds the closing step on
+<code>sheet_written(name)</code>. There is no <code>sheet_end</code>: the grid IS the length, so the
+recorder stops at <code>SheetGrid::frames()</code> frames, tiles them left to right and
+top to bottom, and acks <code>&lt;name&gt;.png</code> itself. Calling <code>loop_end</code> on a sheet is
+an error that names the predicate to hold on instead.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>sheet_start(world, "flight_aim", SheetGrid {
+    columns: 4, rows: 5, cell: (960, 540),  // the grid the LESSON authors
+});
+<span class="boring">}</span></code></pre>
+<p>The cells are recorded frames, so what happens under a sheet has to survive
+the WRAP: a sheet plays on a cycle, and twenty frames at ten a second is two
+seconds of it. <code>examples/screenshots/shared/lesson.rs</code> carries both answers. A
+POSE loop freezes the scene and puts the camera on one period of a sine arc, so
+the last cell hands back to the first. An ACTION loop holds the camera still
+and lets the act be the motion - a few cells before, the press, and the rest of
+the sheet holding the result - which wraps the way a tutorial clip wraps. When
+the act is the SHIP MOVING, a camera fixed in the world loses it inside two
+seconds, so <code>LessonChase</code> holds a fixed offset IN WORLD AXES from the moving
+hull: the ship keeps its place in the cell and its attitude on the screen, and
+a hull the flight computer turns end for end is SEEN to turn. What does not
+work is a one-way clip of gameplay under a camera bolted to the hull’s own
+frame: that shows a still ship with the background spinning round it. <code>scripts/capture-lesson-media.sh</code> runs the <code>lesson_*</code> producers and
+packages what they write into <code>assets/base/training/</code>, encoding the staged PNG
+as the WebP the handbook ships - a sheet sized to fill the Lessons pane is
+megabytes lossless and about 150 KB encoded.</p>
 <p>Do not add a second capture idiom beside it. A driver that walks its own list
 of shots builds that list away from the script producing the state each shot
 frames, which puts timing and framing in different files - and they drift. A
@@ -4452,7 +4952,7 @@ fallback for examples with nothing observable to wait on.</p>
 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
   cargo run --example system_scenario_grammar --features debug
 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
-  cargo run --example screenshot_gravity --features debug
+  cargo run --example screenshot_hero_ship --features debug
 </code></pre>
 <p><code>crates/nova_autopilot/examples/driven_app.rs</code> is the end-to-end read: a
 self-contained <code>DefaultPlugins</code> app with its own state machine, driven through
@@ -4513,20 +5013,35 @@ cargo run --features debug bench play &lt;scenario&gt; --agent pi --model gpt-5.
 cargo run --features debug bench play &lt;scenario&gt; --agent 'cmd:python3 my_agent.py'
 </code></pre>
 <p><code>&lt;scenario&gt;</code> is an installed scenario id, or a path ending in <code>.ron</code> loaded
-as a loose content file. The bench ships two fixtures under
-<code>crates/nova_bench/scenarios/</code>:</p>
+as a loose content file. The bench ships five fixtures under <code>crates/nova_bench/scenarios/</code>:</p>
 <ul>
-<li><code>hunt.content.ron</code>: one player gunship, one hostile raider parked 2600 m
+<li><code>hunt.content.ron</code>: one player gunship, one hostile inline raider parked 2600 m
 ahead, an objective and both outcomes. The scenario scores itself.</li>
 <li><code>range.content.ron</code>: an open range with no objective and no victory. A
-600 m planetoid 7 km ahead, a small rock and a big rock, a nav beacon and
-an unarmed hostile derelict hauler. The goal comes from <code>--goal</code>, the run
-is bounded by <code>--ticks</code> and <code>--deadline</code>, and a reader grades the <code>end</code>
-block of the score: “orbit the planetoid”, “park on the derelict”,
-“destroy the derelict”, “fly to the work mark and stop”. The rocks are
-places to fly to, not targets: a turret round flies through a rock and
-takes nothing off it, so there is no carving goal.</li>
+600 m planetoid 7 km ahead, two rocks, a nav beacon, and an unarmed hostile
+derelict support navigation, orbit, parking, and PDC goals.</li>
+<li><code>slingshot.content.ron</code>: an offset gravity well, a distant exit mark, and a
+hostile pursuer that wakes after 45 seconds support gravity-assist, evasion,
+collision, and route-cheese goals.</li>
+<li><code>arsenal.content.ron</code>: a player hull authored inline with a railgun, two
+torpedo bays and two PDC mounts, plus a carvable rock, two inert targets and
+a late picket, supports mixed weapons, asteroid carving, NOVA OS, cheat, and
+protocol-abuse goals.</li>
+<li><code>docking.content.ron</code>: the <code>docking_approach</code> example as a fixture. A
+tender with a port on its bow and an inert spar 120 m ahead, turned out of
+square, support docking and RCS goals; <code>me.docking</code> carries the approach.</li>
 </ul>
+<p>The four sandboxes are bounded by <code>--ticks</code> and <code>--deadline</code>; a reader grades
+the <code>end</code> block of the score and any recorded footage. The red-team rules are
+in <code>crates/nova_bench/scenarios/README.md</code>, and the goal deck itself is
+<code>scripts/bench-plays.sh</code>, which runs any of twelve named plays with its goal,
+seed and budgets already set:</p>
+<pre><code class="language-sh">nix develop -c scripts/bench-plays.sh --list
+nix develop -c scripts/bench-plays.sh sommelier shell cheat
+</code></pre>
+<p>The seed pins the world, not the run: the model is the other half and takes a
+different route every time. The script pins the setup so two plays of one goal
+are comparable, which is as close to reproducible as an agent play gets.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -4540,7 +5055,7 @@ takes nothing off it, so there is no carving goal.</li>
 <tr><td><code>--turns</code></td><td>300</td><td>the <code>act</code> budget</td></tr>
 <tr><td><code>--deadline</code></td><td>1800</td><td>wall-clock seconds</td></tr>
 <tr><td><code>--out</code></td><td><code>bench-runs/&lt;sha&gt;/&lt;scenario&gt;/&lt;agent&gt;-&lt;n&gt;/</code></td><td>the run directory</td></tr>
-<tr><td><code>--record</code></td><td>unset</td><td>draw every tick offscreen into this directory and stitch <code>&lt;dir&gt;.mp4</code>; see <a href="#the-movie">The movie</a></td></tr>
+<tr><td><code>--record</code></td><td>unset</td><td>draw every tick offscreen into this directory and make <code>&lt;dir&gt;.mp4</code> with the action rail; see <a href="#the-movie">The movie</a></td></tr>
 <tr><td><code>--ui</code></td><td><code>log</code></td><td><code>log</code> prints one line per event to stderr; <code>quiet</code> prints nothing</td></tr>
 <tr><td><code>--audit-raw</code></td><td>off</td><td>keep the full snapshot in every <code>channel_in</code> event</td></tr>
 </tbody>
@@ -4614,10 +5129,13 @@ candidate, the dwell target, <code>dwell_secs</code> of <code>dwell_needed</code
 <code>dwell_fill</code> a player watches on the ring, itself null when no dwell is
 running; null otherwise), <code>autopilot</code>
 (<code>engaged</code>: action, target and phase, or null; <code>completed</code>: the last action
-that finished), <code>gravity_well</code> (the dominant well’s id), <code>sections</code> (the
+that finished), <code>docking</code> (<code>docked</code>, the <code>connection</code> a clamp holds the
+hull to, and <code>pair</code>: the approach to the nearest port on the travel lock,
+as an offset and a bearing in the hull frame with the three capture gates
+and <code>eligible</code>), <code>gravity_well</code> (the dominant well’s id), <code>sections</code> (the
 bridge, the drives, each mount with its <code>weapon</code>: kind, ammo, <code>on_target</code>,
-<code>firing</code>), <code>hull_plates</code> as <code>{total, damaged, lost}</code> and <code>withheld_verbs</code>
-(flight verbs the scenario has not granted yet).</li>
+<code>firing</code>), <code>hull_plates</code> as <code>{total, damaged, lost}</code> and
+<code>withheld_capabilities</code> (what the scenario has not granted yet).</li>
 <li><code>contacts</code>: every other ship with <code>allegiance</code> (<code>Enemy</code>, <code>Player</code>,
 <code>Neutral</code>), <code>distance_m</code>, <code>bearing_deg</code>, <code>closing_mps</code>, <code>health</code>,
 <code>defeated</code>, <code>weapons_hot</code>, <code>ai_target</code>.</li>
@@ -4718,7 +5236,7 @@ exit) and pi gets an abort.</p>
 <tr><td><code>cheated</code></td><td>whether the run armed NOVA OS’s cheats, copied from the snapshot’s mark</td></tr>
 <tr><td><code>llm</code></td><td>pi only: messages, input, output, cached tokens and cost from the usage events</td></tr>
 <tr><td><code>ended_by</code>, <code>agent_status</code>, <code>agent_report</code></td><td>why it ended, and what the agent said</td></tr>
-<tr><td><code>end</code></td><td>where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, and the range to every contact, beacon and body</td></tr>
+<tr><td><code>end</code></td><td>where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, the docking state, and the range to every contact, beacon and body</td></tr>
 </tbody>
 </table>
 </div>
@@ -4759,19 +5277,61 @@ way a play’s is.</p>
 <p><code>--record &lt;dir&gt;</code> on a play or a replay hands the directory to the game’s own
 <code>--record</code>: the offscreen assembly draws every stepped tick with the real
 render stack and the full HUD, and saves it as <code>&lt;dir&gt;/frame_%06d.png</code>. When
-the game has exited the bench runs</p>
-<pre><code class="language-sh">ffmpeg -y -framerate 60 -i &lt;dir&gt;/frame_%06d.png -pix_fmt yuv420p &lt;dir&gt;.mp4
-</code></pre>
+the game has exited the bench draws the run’s own action rail over those
+frames and encodes <code>&lt;dir&gt;.mp4</code>.</p>
 <p>One tick is one frame and one tick is 1/60 s, so the movie runs in real
 time however long the agent thought between acts. The bench prints the
 movie’s path, frame count and length after the score table and notes them
-in the audit. Without ffmpeg, or when ffmpeg refuses, the frames stay on
-disk and the note carries the command line to run by hand; the run’s exit
-code does not change.</p>
+in the audit. A compose that cannot find the face falls back to the plain
+stitch; without ffmpeg entirely the frames stay on disk and the note says
+so. Neither changes the run’s exit code.</p>
 <p>Recording needs a GPU and a display. Run the bench from the dev shell
 (<code>nix develop</code>), which is where the Vulkan loader finds the driver, on an
 X display: your own, or an Xvfb (<code>DISPLAY=:99</code>). A play without <code>--record</code>
 needs neither.</p>
+<h3 id="the-action-rail"><a class="header" href="#the-action-rail">The action rail</a></h3>
+<pre><code class="language-sh">cargo run --features debug bench movie &lt;run dir&gt;/audit.jsonl --frames &lt;dir&gt;
+</code></pre>
+<p><code>bench movie</code> remakes the movie of frames already on disk, so the overlay can
+be changed without replaying anything. <code>--out</code> names the file (default
+<code>&lt;frames&gt;.mp4</code>), <code>--font</code> the face, and <code>--plain</code> stitches the frames
+untouched.</p>
+<p>The rail is composited in the bench, not in an ffmpeg filter graph: <code>image</code>
+decodes the PNGs, <code>ab_glyph</code> sets the game’s own terminal face over them, and
+ffmpeg is handed finished RGB frames on stdin. Layout that lived in a filter
+string could not be read or tested.</p>
+<p>A header strip carries the identity of the run - scenario, agent, seed, clock,
+tick and turn - so a clip lifted out of a movie still says where it came from.
+Under it a transcript of the last six lines, newest at the bottom, older ones
+fading:</p>
+<pre><code class="language-text">&gt; act    aim camera.camera_rotate [-80, 0] x21
+&gt; say    EXIT is 3.3 degrees off the nose at 7.27 km. With weapons lowered,
+         I'll hold radar to acquire it as a travel lock.
+&gt; act    press targeting.radar_hold
+&gt; think  Planning lock release and navigation
+</code></pre>
+<p>One lane per kind of line, each its own colour: <code>goal</code> (once, at the head),
+<code>think</code>, <code>say</code>, <code>look</code> (<code>observe</code> and <code>page</code>, which spend no tick), <code>act</code>,
+<code>nova</code> for a command shell line, <code>cheat</code>, and <code>err</code> in red for a refusal.</p>
+<p>The <code>cheat</code> lane is the world’s word, not the shape of a command. The first
+snapshot that carries <code>cheats_marked</code> puts <code>CHEATS ARMED: this run is marked</code>
+on the rail in amber, and from that frame on the header says <code>CHEATED</code> and
+turns amber too. A clip cut from a marked run cannot be read as clean, and a
+cheat the game does not mark does not colour the rail - which is the point of
+the “cheat without getting marked” red-team goal.</p>
+<p>Placement is arithmetic, not a guess. The recorder captures one frame per
+stepped tick and numbers from zero, so <strong>frame = tick - 1</strong>. <code>channel_in</code>
+carries the tick; agent prose does not, because the world is frozen while the
+model thinks, so it lands on the tick of the snapshot it was answering. Rows
+that would share one frame are spread 21 frames apart - a first turn can
+produce ten rows, and all ten on frame zero is a wall of text. That spread is
+why the opening rows can trail the world by a second or two; the rail is a
+log of the run, not a caption track.</p>
+<p>A short run can talk for longer than it flies. When the spread rows would run
+past the last frame, the gap tightens until they fit, and if even a one-frame
+gap is too tight the movie holds the last frame the game drew - up to 30 s -
+while the remaining rows scroll past. The header clock freezes with the
+picture, so a held tail never claims ticks the run did not take.</p>
 <h2 id="measured-on-the-hunt-fixture-seed-7"><a class="header" href="#measured-on-the-hunt-fixture-seed-7">Measured on the hunt fixture, seed 7</a></h2>
 <div class="table-wrapper">
 <table>
@@ -4822,10 +5382,9 @@ the fight steps rewritten around range control, pi closed at 160 m/s,
 tapped Stop at 1.96 km, settled 1.1 km off and broke the hauler up in
 900 ticks of fire.</p>
 <h2 id="not-built-yet"><a class="header" href="#not-built-yet">Not built yet</a></h2>
-<p>A <code>--ui tui</code> renderer on the same event bus, and <code>bench run</code>: a sweep of
-plays over a scenario set with an <code>index.json</code>, an HTML report and a
-<code>--baseline</code> diff release over release. The design record is
-<code>tasks/20260824-125933/ARCHITECTURE.md</code>.</p>
+<p>A <code>--ui tui</code> renderer on the same event bus, and <code>bench run</code>, a sweep of plays
+over a scenario set with an <code>index.json</code>, an HTML report and a <code>--baseline</code>
+diff release over release.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="environment-variables"><a class="header" href="#environment-variables">Environment variables</a></h1>
 <p>Every <code>NOVA_*</code> variable the game reads, in one place: what it gates, which
@@ -5013,7 +5572,7 @@ names its own root on <code>SettingsStorePlugin</code> instead.</p>
 <tr><th>Variable</th><th>Gates</th><th>Owner</th><th>For</th></tr>
 </thead>
 <tbody>
-<tr><td><code>NOVA_MENU_BACKDROP</code></td><td>pins the menu backdrop to one <code>menu_backdrop</code> scenario id instead of re-rolling the draw; an unknown id warns and falls back</td><td><code>nova_menu</code></td><td>harness</td></tr>
+<tr><td><code>NOVA_MENU_BACKDROP</code></td><td>pins the menu backdrop to one <code>role: Backdrop</code> scenario id instead of re-rolling the draw; an unknown id warns and falls back</td><td><code>nova_menu</code></td><td>harness</td></tr>
 </tbody>
 </table>
 </div>
@@ -5060,9 +5619,7 @@ by them, so count <code>env::var</code> call sites instead of identifiers.</p>
 <li>
 <p><strong>Shell-only.</strong> <code>NOVA_UI_PORT</code>, <code>NOVA_GAME_PORT</code>, <code>NOVA_MODS_PORT</code>,
 <code>NOVA_MODS_DIR</code>, <code>NOVA_PORT_LO</code>/<code>_HI</code> are read by <code>scripts/</code> and
-<code>web/webpack.config.js</code>; <code>NOVA_BENCH_MODEL</code>, <code>NOVA_BENCH_EFFORT</code> and
-<code>NOVA_BENCH_PERSONA</code> by <code>benchmark/</code>, which is the CODING benchmark and not
-the agent bench above. No Rust reads any of them.</p>
+<code>web/webpack.config.js</code>. No Rust reads any of them.</p>
 <p>The media packagers own two more. <code>NOVA_UNFREEZE</code> takes a comma-separated
 prefix list and re-opens the frozen <code>news-</code> names of the post being authored
 (<code>NOVA_UNFREEZE=news-0130</code>), in <code>scripts/gen-web-screenshots.py</code> for stills
@@ -5324,6 +5881,36 @@ the parallelism buys. Matched at 650-750 dynamic bodies in a 1v1
 switch applied to them moved no step metric and made the frame tail worse (p99
 36.9 ms against 40.6): the solver’s <code>par_for_each</code> passes are the one part of a
 fixed step that does saturate threads. Re-measure before moving either boundary.</p>
+<h2 id="the-compute-pool-is-capped-at-eight-workers"><a class="header" href="#the-compute-pool-is-capped-at-eight-workers">The compute pool is capped at eight workers</a></h2>
+<p><code>AppBuilder::assemble</code> sets Bevy’s <code>TaskPoolPlugin</code> with
+<code>compute.max_threads = nova_core::MAX_COMPUTE_WORKERS</code>, which is 8.</p>
+<p>Bevy’s default hands the compute pool every core left after the IO and
+async-compute pools take four each, so it is <code>total - 8</code> on any host with
+enough cores to fill them - 16 workers on a 24-thread desktop. <strong>The cap binds
+only above 16 logical CPUs</strong>: a 16-thread host already lands on eight, and a
+smaller one lands under it. On wasm the pool is single-threaded and the number
+is ignored.</p>
+<p>The extra workers were not doing extra work. <code>bevy_transform</code>’s propagation
+workers share one queue behind a spin retry
+(<code>bevy_transform-0.19.0/src/systems.rs:574-610</code>), and in a measured 4v4
+<code>wfc_arena</code> fight the sampled spin was 23-24% of all CPU at 16 workers against
+8-9% at eight. Five release repeats per arm, same binary, same seed: the mean
+frame time went 18.69 ms -&gt; 13.41 and p99 41.18 ms -&gt; 27.39, with the
+per-repeat ranges disjoint on both. <code>stress_bullets</code> and
+<code>stress_point_defense</code> moved the same way. Four workers removed still more
+spin and used less total CPU but was about 4.9% SLOWER than eight on the mean,
+and the two p99 ranges overlap - minimising CPU work is not minimising frame
+latency.</p>
+<p>Eight is a measurement on one hybrid i9, not a proven optimum for every CPU.
+Re-measure before moving it.</p>
+<h3 id="measure-at-the-shipped-cap-not-above-it"><a class="header" href="#measure-at-the-shipped-cap-not-above-it">Measure at the shipped cap, not above it</a></h3>
+<p>A worker count is a contention regime, and the regime is an amplifier. The same
+pair of revisions measured across the same code change read +33.5% at 16
+workers and +10.2% at eight: the busier pool turns a small workload increase
+into a large frame-time increase. A bisection run at the old 16-worker default
+therefore over-attributes cost to whichever commit added work, and its
+boundaries are not comparable with a capped run’s. Say which regime a number
+came from, and prefer the shipped cap.</p>
 <h2 id="the-window-and-the-deadline-sized-to-it"><a class="header" href="#the-window-and-the-deadline-sized-to-it">The window, and the deadline sized to it</a></h2>
 <p>The capture window is the capture crate’s full 180/900 baseline unless the
 example declared one of its own, so probe numbers stay comparable with the
@@ -5333,7 +5920,11 @@ ceiling for any shorter one an example declares): probe sets
 <code>NOVA_AUTOPILOT_DEADLINE</code> for the fps pass to <code>(warmup + frames) / ~2fps + margin</code>, so a slow-but-progressing capture (a heavy scene in a dev build under
 software rendering - the <code>stress_*</code> ranges are the case) completes instead of
 tripping the hang detector; a genuine hang still fails at a window-appropriate
-bound, and your own <code>NOVA_AUTOPILOT_DEADLINE</code> overrides it. Every example’s <code>main</code>
+bound, and your own <code>NOVA_AUTOPILOT_DEADLINE</code> overrides it. The behavioral
+(clean) pass has no window to size against, so it sizes from <code>--timeout</code>
+instead - 30 s under it, so the named-laggards line still beats the
+supervisor’s kill - which is what makes <code>--timeout</code> move the budget of a long
+correctness range. Every example’s <code>main</code>
 returns <code>AppExit</code>, so a deadline expiry is a non-zero process exit the
 <code>process_exit</code> check reports. See the crate docs for the full knob list
 (<code>NOVA_PROBE_*</code>).</p>
@@ -5362,12 +5953,13 @@ rendered run, never instead of one.</p>
 reads on the native side; on <code>--platform web</code> it is load-bearing, because
 <code>nova_perf_web</code> takes the scenario id from the URL.</p>
 <p>Every capture records run metadata (wgpu backend + GPU adapter, resolution,
-graphics preset, git SHA, host and - schema v3 - the BUILD PROFILE) so a
-results file names its own renderer (pre-v3 files, like the v0.7.0
-baseline, still load; their profile reads <code>unknown</code>). The report badges
-each row <code>dev</code> or <code>release</code>: dev numbers are NOT baselines, and because the
-capture is wired by default, the badge is what keeps ad-hoc dev captures from
-being mistaken for comparable measurements. The web platform
+graphics preset, git SHA, host and the BUILD PROFILE) so a results file names
+its own renderer. That metadata is required, not optional: the reader accepts
+one header only, and a results file from an older schema is refused with
+<code>unexpected CSV header</code> rather than loaded with values it never carried. The
+report badges each row <code>dev</code> or <code>release</code>: dev numbers are NOT baselines, and
+because the capture is wired by default, the badge is what keeps ad-hoc dev
+captures from being mistaken for comparable measurements. The web platform
 builds the perf_web wasm app through Trunk, serves it from an embedded static
 server, drives headless Chromium with the calibrated WebGPU flags, and
 scrapes the summary line into a labeled CSV row (no fs in the browser).
@@ -5589,10 +6181,10 @@ SectionKind::Shield(shield) =&gt; {
 </li>
 <li>
 <p><strong>Asset prototype.</strong>
-In <code>crates/nova_authoring/src/base_content/sections/standard.rs</code>, add a
-<code>SectionConfig</code> to <code>standard_section_prototypes()</code> so the catalog ships a
-ready-to-place
-instance. Give it a stable snake_case <code>id</code> (this is what
+Add a family module under
+<code>crates/nova_authoring/src/base_content/sections/</code> (or extend the one this
+kind belongs to) and return your <code>SectionConfig</code> from its <code>prototypes()</code>, so
+the catalog ships a ready-to-place instance. Give it a stable snake_case <code>id</code> (this is what
 <code>sections.get_section("...")</code> and RON authors reference). The id is a
 runtime STRING that nothing type-checks: keep it a literal beside the
 builder, and promote it to a <code>const</code> in
@@ -5662,8 +6254,9 @@ label matches - <code>crates/nova_os_ui/src/ship/sections.rs</code>.</li>
 <code>insert_preview_section</code> - <code>crates/nova_editor/src/preview.rs</code>;
 <code>GalleryCategory</code> - <code>crates/nova_editor/src/gallery/catalog.rs</code>.</li>
 <li>Cross-crate prototype ids: <code>crates/nova_ship/src/sections/catalog_ids.rs</code>.</li>
-<li>Prototypes: <code>standard_section_prototypes</code> -
-<code>crates/nova_authoring/src/base_content/sections/standard.rs</code>.</li>
+<li>Prototypes: <code>section_catalog</code> -
+<code>crates/nova_authoring/src/base_content/sections/mod.rs</code>, with one
+<code>prototypes()</code> per family module beside it.</li>
 <li>API detail: <code>cargo doc --open -p nova_ship</code>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -5719,6 +6312,10 @@ drain, then assert on the world (see
 <p>An event is fired somewhere in the engine, and scenarios react to it through a
 handler. Adding one is two files: the event type (<code>nova_events</code>) and its config
 variant (<code>nova_scenario</code>), plus the firing site.</p>
+<p>The example below is a kind that does NOT ship, so it stays a recipe. The
+closest shipped pair to read beside it is the docking lifecycle: <code>OnDocked</code> /
+<code>OnUndocked</code> in <code>nova_events/src/lib.rs</code>, their table rows in <code>events.rs</code>, and
+<code>track_docking_transitions</code> in <code>loader/trackers.rs</code>.</p>
 <ol>
 <li>
 <p>In <code>crates/nova_events/src/lib.rs</code> define the marker event and its info
@@ -5728,12 +6325,12 @@ targets an object so the <code>Entity</code> filter composes like the others.</p
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[derive(Debug, Clone, EventKind, Reflect)]
-#[event_name("ondocked")]
-#[event_info(OnDockedEventInfo)]
-pub struct OnDockedEvent;
+#[event_name("onscancomplete")]
+#[event_info(OnScanCompleteEventInfo)]
+pub struct OnScanCompleteEvent;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
-pub struct OnDockedEventInfo {
+pub struct OnScanCompleteEventInfo {
     #[serde(rename = "id")]
     pub id: String,
     #[serde(rename = "other_id")]
@@ -5755,8 +6352,9 @@ them, and do not edit the macro body above the table:</p>
 </span><span class="boring">fn main() {
 </span>scenario_events! {
     // ...
-    /// Fires once when a ship docks (`id` = the dock, other = the ship).
-    OnDocked =&gt; OnDockedEvent { label: "On Docked" },
+    /// Fires once a ship finishes scanning an object (`id` = the object,
+    /// other = the scanning ship).
+    OnScanComplete =&gt; OnScanCompleteEvent { label: "On Scan Complete" },
 }
 <span class="boring">}</span></code></pre>
 <p>The doc comment on the row is the one a reader gets; the <code>label</code> is the row
@@ -5764,9 +6362,10 @@ the editor’s trigger menu lists it under.</p>
 </li>
 <li>
 <p>Fire it. Engine-driven events fire from <code>crates/nova_scenario/src/loader/</code>
-with <code>commands.fire::&lt;OnDockedEvent&gt;(OnDockedEventInfo { .. })</code> (see the
+with <code>commands.fire::&lt;OnScanCompleteEvent&gt;(OnScanCompleteEventInfo { .. })</code>
+(see the
 <code>OnStart</code> site in <code>loader/lifecycle.rs</code>, <code>OnUpdate</code> in <code>loader/clock.rs</code>, and
-orbit-lifecycle/the lock events in <code>loader/trackers.rs</code>); object-local events (an
+orbit-lifecycle/lock/docking events in <code>loader/trackers.rs</code>); object-local events (an
 area entering/leaving) fire from the object’s own observer, the way
 <code>objects/area.rs</code> fires <code>OnEnterEvent</code> from its own trigger. A kind may also
 fire from a system it owns: <code>objects/asteroid_carve.rs</code> fires
@@ -5924,8 +6523,8 @@ their steps are children; <code>VariableSet</code> because its panel is a head. 
 three matches are exhaustive.</p>
 </li>
 <li>
-<p>Lint it, if it names anything. An action that carries an id, a channel or a
-file reference needs an arm in <code>crates/nova_scenario/src/lint/</code> so an
+<p>Lint it, if it names anything. An action that carries an id or a file
+reference needs an arm in <code>crates/nova_scenario/src/lint/</code> so an
 unresolvable name is an error at lint rather than a surprise at load. This
 is the fourth thing the table cannot generate.</p>
 </li>
@@ -5994,7 +6593,7 @@ house answer. An <code>Option</code> is right only where absence is a documented
 OVERRIDE with runtime-derived behavior behind it, and the field’s own doc
 comment says what the absence MEANS: <code>AsteroidConfig::mass</code> (absent = the
 global rule about which radii are wells) and <code>lock_signature</code> (absent = the
-radius) are the shipped precedent. <code>AsteroidConfig::material</code> is the
+radius) are the shipped precedent. <code>AsteroidConfig::kind</code> is the
 counter-example: it is a plain required <code>String</code>, because “how is this rock
 shaded” has no runtime answer to fall back on.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -6134,9 +6733,9 @@ editor’s choices: <code>FilterChoice</code>, and <code>ActionChoice</code> (an
 <h1 id="giving-a-generated-ship-a-front"><a class="header" href="#giving-a-generated-ship-a-front">Giving a generated ship a front</a></h1>
 <p>Design note. Written in 2026-08 against <code>examples/playable/shared/wfc.rs</code>,
 where the collapse used to live as consts in one example file. It lives in
-<code>crates/nova_wfc</code> now and every number the note treated as a constant is an
-authored field of a <code>Grammar</code> (<code>nova_ship::prelude::ShipGrammarConfig</code>), so the
-citations below have been re-derived. The REASONING is unchanged and is why the
+<code>crates/nova_wfc</code> now and every number the note treated as a constant is a field
+of a <code>WfcPlan</code> (<code>nova_wfc::prelude::WfcPlan</code>), so the citations below have been
+re-derived. The REASONING is unchanged and is why the
 note is kept.</p>
 <p>The complaint it answers: looking at any render of the <code>wfc_ships</code> row, drives
 point in several directions on the same hull. The generator places parts by
@@ -6167,21 +6766,23 @@ illegal. The drive was the one part whose direction was both free and wrong.</p>
 <h2 id="2-what-the-grid-already-gives-us-to-hang-this-on"><a class="header" href="#2-what-the-grid-already-gives-us-to-hang-this-on">2. What the grid already gives us to hang this on</a></h2>
 <p>More than expected. The generator is not orientation-blind - it is
 orientation-blind <em>about parts</em> while being quite opinionated about <em>shape</em>.</p>
-<p>Every row was a constant when this was written. All but two are authored
-<code>Grammar</code> fields now, which is the change that made the note need re-deriving
-rather than retiring: the facts are the same facts, a mod can retune them, and
-<code>standard_hull</code> is the grammar the numbers below come from.</p>
+<p>Every row was a constant when this was written. All but two are <code>WfcPlan</code> fields
+now, which is the change that made the note need re-deriving rather than
+retiring: the facts are the same facts, each caller can retune them, and
+<code>WfcPlan::standard_hull</code> is the plan the numbers below come from. The plan is
+code and not content - which generator wants which section is generator policy,
+so a section stays a description of geometry and capability.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Fact</th><th>Where</th><th>What it already means</th></tr>
 </thead>
 <tbody>
-<tr><td><code>grid.length = 11</code> on <code>z</code></td><td><code>GrammarGrid</code>, authored</td><td>the ship’s long axis</td></tr>
-<tr><td><code>grid.height = 5</code> on <code>y</code>; the keel row is <code>height / 2</code></td><td><code>GrammarGrid</code>; <code>TileSet::hull</code></td><td>up, and a middle</td></tr>
+<tr><td><code>grid.length = 11</code> on <code>z</code></td><td><code>WfcGrid</code>, authored</td><td>the ship’s long axis</td></tr>
+<tr><td><code>grid.height = 5</code> on <code>y</code>; the keel row is <code>height / 2</code></td><td><code>WfcGrid</code>; <code>TileSet::hull</code></td><td>up, and a middle</td></tr>
 <tr><td><code>x = 0</code> is the mirror plane</td><td><code>Grid::starboard_half</code> starts at <code>x = 0.5</code></td><td>port/starboard</td></tr>
-<tr><td><code>vacuum.bow_taper = 24.0</code></td><td><code>GrammarVacuum</code>, read by <code>Plan::vacuum_weight</code></td><td><strong><code>z = 0</code> is the BOW</strong></td></tr>
-<tr><td><code>vacuum.stern = 9.0</code></td><td><code>GrammarVacuum</code>, same reader</td><td>the last row is sparse</td></tr>
+<tr><td><code>vacuum.bow_taper = 24.0</code></td><td><code>WfcVacuum</code>, read by <code>Plan::vacuum_weight</code></td><td><strong><code>z = 0</code> is the BOW</strong></td></tr>
+<tr><td><code>vacuum.stern = 9.0</code></td><td><code>WfcVacuum</code>, same reader</td><td>the last row is sparse</td></tr>
 <tr><td><code>seed_keel</code></td><td>collapses the spine by hand, from <code>keel.hull</code></td><td>a connected structure to grow on</td></tr>
 <tr><td><code>keel.bridge</code> at <code>length / 3</code></td><td>the bridge, forward of centre</td><td>a front, already</td></tr>
 </tbody>
@@ -6244,23 +6845,23 @@ does not buy the fact; putting the fact in the right place does.</p>
 <tr><th>#</th><th>Then</th><th>Now</th></tr>
 </thead>
 <tbody>
-<tr><td>1. Per-part aim</td><td>done</td><td>shipped, as the authored <code>GrammarPart::aim</code></td></tr>
+<tr><td>1. Per-part aim</td><td>done</td><td>shipped, as <code>WfcPart::aim</code></td></tr>
 <tr><td>2. Seed the drive deck</td><td>done</td><td>shipped, and it seeds a multi-cell drive whole</td></tr>
 <tr><td>3. Deck and belly</td><td>measured, not landed</td><td>unchanged: measured, not landed, still a taste call</td></tr>
 <tr><td>4. Seed a superstructure</td><td>proposal</td><td>not landed</td></tr>
-<tr><td>5. Zone the grid</td><td>“only if 1-4 are not enough”</td><td>the MECHANISM shipped as <code>GrammarPart::zone</code>; <code>standard_hull</code> authors none</td></tr>
-<tr><td>6. Re-tune the weights</td><td>last</td><td>not done; the weights are content now, so it is a mod’s call as much as ours</td></tr>
+<tr><td>5. Zone the grid</td><td>“only if 1-4 are not enough”</td><td>the MECHANISM shipped as <code>WfcPart::zone</code>; <code>standard_hull</code> names none</td></tr>
+<tr><td>6. Re-tune the weights</td><td>last</td><td>not done; the weights are plan fields, so each caller retunes its own</td></tr>
 </tbody>
 </table>
 </div>
-<p>Not on the list and shipped anyway: a seeded SPINAL GUN (<code>GrammarKeel::bow_gun</code>),
+<p>Not on the list and shipped anyway: a seeded SPINAL GUN (<code>WfcKeel::bow_gun</code>),
 which is item 2’s move applied to the bow. It is what replaced the <code>wfc_arena</code>
 bench stamping a lance on after the collapse.</p>
 <h3 id="1-a-per-part-aim-as-a-unary-constraint-shipped"><a class="header" href="#1-a-per-part-aim-as-a-unary-constraint-shipped">1. A per-part AIM, as a unary constraint. SHIPPED</a></h3>
-<p>Landed as proposed, then became content: a draw entry carries
-<code>aim: Option&lt;GrammarAim&gt;</code> - the only face this part may fire through - and
+<p>Landed as proposed, then moved into the plan: a draw entry carries
+<code>aim: Option&lt;WfcAim&gt;</code> - the only face this part may fire through - and
 <code>Plan::domains</code> strikes any tile <code>Plan::aim_allowed</code> disagrees with. The
-shipped grammar aims its thrusters <code>Aft</code>; everything else authors nothing.</p>
+shipped plan aims its thrusters <code>Aft</code>; everything else names nothing.</p>
 <ul>
 <li><strong>Cost:</strong> one struct field, a four-line predicate, one line in <code>Plan::domains</code>.
 Cannot empty a domain, because <code>VACUUM</code> is compatible with everything and is
@@ -6284,10 +6885,10 @@ the drive’s mount face, and the drive bolted to its aft face. The mirror makes
 that a pair either side of the centreline. <code>seed_keel</code> stops one cell short of
 the transom so the seam cell beside the drive is free - a keel cube there would
 press a socket into the drive’s blind flank.</p>
-<p>It grew past the two cells proposed here: the drive is authored
-(<code>GrammarKeel::stern_drive</code>) and may be several cells on a side, so the seed
+<p>It grew past the two cells proposed here: the drive is named by the plan
+(<code>WfcKeel::stern_drive</code>) and may be several cells on a side, so the seed
 lays the block by its minimum corner and propagation fills the rest of it in.
-<code>runnable</code> refuses a grid too small to hold what the grammar seeds, by name,
+<code>runnable</code> refuses a grid too small to hold what the plan seeds, by name,
 rather than letting the seed run off the end.</p>
 <ul>
 <li><strong>Cost:</strong> fifteen lines, in the shape of the function above it.</li>
@@ -6306,7 +6907,7 @@ running forward from it. This is the single biggest change to how the row reads
 of anything in this note.</li>
 </ul>
 <h3 id="3-give-the-hull-a-deck-and-a-belly-measured-not-landed"><a class="header" href="#3-give-the-hull-a-deck-and-a-belly-measured-not-landed">3. Give the hull a deck and a belly. MEASURED, NOT LANDED</a></h3>
-<p>It would be two more <code>GrammarVacuum</code> fields today, not two consts.</p>
+<p>It would be two more <code>WfcVacuum</code> fields today, not two consts.</p>
 <p><code>off_keel</code> is symmetric in <code>y</code>, so a ship has no top. Weight the two directions
 differently - <code>|y - keel_row|</code> times a deck taper above and a belly taper below -
 and the hull fills out above the keel and tapers under it.</p>
@@ -6337,27 +6938,32 @@ becomes a plated superstructure rather than a lump. It also gives the decoration
 scatter’s <code>PlateFacing::Up</code> rules somewhere meaningful to fire.</li>
 <li><strong>Risk, and it was real:</strong> a seeded tower is a stud, and <code>erode_studs</code> exists
 to take those off. <code>run</code> now marks every cell the seed passes write, widens the
-mark over a part’s joints, and erosion skips it - so a tower seeded the way the
-stern is inherits the exemption rather than needing its own.</li>
+mark over a part’s joints, and <code>erode_studs</code> skips it - so a tower seeded the
+way the stern is inherits THAT exemption rather than needing its own. It
+inherits nothing else: <code>keel_component</code> and <code>erode_blocked_exits</code> drop parts
+through the same <code>drop_part</code> and never read the mark. The stern deck survives
+the keel component only because it sits beside the keel, and both seeded lanes
+exit the grid; a tower at <code>y = HEIGHT - 1</code> reaches the keel through cells the
+roll placed, so it needs its own answer there.</li>
 </ul>
 <h3 id="5-zone-the-grid-and-give-each-zone-its-own-part-list-mechanism-shipped"><a class="header" href="#5-zone-the-grid-and-give-each-zone-its-own-part-list-mechanism-shipped">5. Zone the grid, and give each zone its own part list. MECHANISM SHIPPED</a></h3>
 <p>The general form of items 1-4: split <code>z</code> into bow / midships / engineering bands
 (the vacuum taper already computes the signal) and ban part families per band -
 no drives forward of the engineering band, no bays in it, bridges only in
 midships-top. Same mechanism as item 1, a table instead of a formula.</p>
-<p>Shipped as <code>GrammarPart::zone</code>, with six regions rather than three bands: thirds
+<p>Shipped as <code>WfcPart::zone</code>, with six regions rather than three bands: thirds
 along the hull (<code>Bow</code>, <code>Amidships</code>, <code>Stern</code>), halves either side of the keel row
 (<code>Dorsal</code>, <code>Ventral</code>, and the keel row itself is neither), and the outboard half
 (<code>Flank</code>). It rules on one CELL, so a multi-cell part is zoned only where every
 cell of it qualifies. <strong><code>standard_hull</code> authors no zone at all</strong> - the mechanism
-is there for a mod, and the caution below is why the base grammar has not spent
-it.</p>
+is there for a caller that wants it, and the caution below is why the shipped
+plan has not spent it.</p>
 <p>The caution turned out to be right in a way not anticipated here: a zone CAN
 empty a domain, which nothing else in this note can. Not through the unary
 filter itself - vacuum survives that - but across a JOINT, where vacuum is not
 an option and only the partner segment fits. Zone a multi-cell part into a
 region too short to hold it and the cell past the boundary has nothing left.
-The collapse refuses that grammar by name; it does not photograph it.</p>
+The collapse refuses that plan by name; it does not photograph it.</p>
 <ul>
 <li><strong>Cost:</strong> a band function and a table. Maybe forty lines.</li>
 <li><strong>Effect:</strong> the ships get an internal LAYOUT rather than a uniform texture,
@@ -6380,19 +6986,18 @@ mounts came down a third and nobody asked them to.</p>
 histogram).</li>
 <li><strong>Do it LAST.</strong> Tuning weights against a layout that is about to change is
 wasted work, and it is how the previous round of numbers got measured twice.</li>
-<li>The weights are AUTHORED now (<code>GrammarPart::weight</code>, <code>GrammarVacuum</code>), so a
-sweep tunes <code>standard_hull</code> rather than the generator. A mod retunes the same
-numbers without touching this crate, which is most of the reason not to keep
-chasing them here.</li>
+<li>The weights are PLAN fields now (<code>WfcPart::weight</code>, <code>WfcVacuum</code>), so a
+sweep tunes <code>standard_hull</code> rather than the generator, and a caller that wants
+a different row builds a different plan from it.</li>
 </ul>
 <h2 id="5-what-i-would-not-do"><a class="header" href="#5-what-i-would-not-do">5. What I would NOT do</a></h2>
 <p><strong>Do not put the fact in the tileset.</strong> It is tempting to author two thruster
 prototypes, an “aft drive” and a “manoeuvring thruster”, and let mating sort them
 out. It cannot: mating is binary and the distinction is global, so both would
 still land anywhere. It would also put a generator concern into shipped catalog
-content that the editor and every scenario have to carry. The <code>Grammar</code> is where
-that fact went instead - authored, overlayable, and read by nothing but the
-collapse.</p>
+content that the editor and every scenario have to carry. The <code>WfcPlan</code> is where
+that fact went instead - code beside the collapse, built fresh by each caller,
+and read by nothing else.</p>
 <p><strong>Do not add a scoring-and-rejection pass.</strong> Generate N ships, score each for
 “engines at the back, bridge on top”, keep the best. It is the obvious answer and
 it is a trap: the cost is N collapses per ship, the failure mode is that the
@@ -6417,7 +7022,7 @@ because vacuum is compatible with everything and is never struck. That property
 is worth defending: a collapse that cannot fail needs no restart loop, no retry
 counter and no failure budget. Any proposal that costs it should have to argue
 for itself - and note that item 5 already costs a little of it, because a joint
-face has no vacuum option. The answer there was to REFUSE the grammar with a
+face has no vacuum option. The answer there was to REFUSE the plan with a
 line naming what to change, not to start retrying seeds.</p>
 <h2 id="sources"><a class="header" href="#sources">Sources</a></h2>
 <p>Verified from the primary source:</p>
@@ -6477,11 +7082,11 @@ structure”) - <a href="https://github.com/mxgmn/WaveFunctionCollapse">https://
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

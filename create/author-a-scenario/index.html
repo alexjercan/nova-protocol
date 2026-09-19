@@ -68,8 +68,8 @@ item is the shooting range used below.</p>
 <li><code>cubemap</code> sets the background image.</li>
 <li><code>events</code> contains the mission logic.</li>
 </ul>
-<p>The complete field table, including thumbnails, hidden scenarios, and menu
-backdrops, is in <a href="../scenarios/">Scenario files</a>.</p>
+<p>The complete field table, including thumbnails and menu backdrops, is in
+<a href="../scenarios/">Scenario files</a>.</p>
 <h2 id="3-plan-one-short-story" tabindex="-1">3. Plan one short story</h2>
 <p>Keep a first scenario small. Write three beats before you write RON:</p>
 <ol>
@@ -195,7 +195,6 @@ you want shot</a>.</li>
 </ol>
 <p>For example:</p>
 <pre><code class="hljs language-ron"><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span>
-    <span class="ron-key">channel</span><span class="ron-punct">:</span> <span class="ron-string">&quot;comms&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Harbor Master&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Two wrecks block the lane. Clear them before the convoy arrives.&quot;</span><span class="ron-punct">,</span>
 <span class="ron-punct">)),</span>
@@ -238,8 +237,9 @@ screen appears.</li>
 </div>
 <p>When the scenario works, give it its own folder and id with
 <a href="../mod-files/">Mod files</a>, then follow <a href="../publish-a-mod/">Publish a mod</a> to
-make it installable by other players. Keep <code>hidden</code> unset so players can find
-it in the Scenarios menu.</p>
+make it installable by other players. It appears in the Scenarios menu on its
+own, because it is a <a href="../scenarios/#roles"><code>Chapter</code></a>; a backdrop or a practice
+range is left out.</p>
 <h2 id="9-common-mistakes" tabindex="-1">9. Common mistakes</h2>
 <ul>
 <li>RON is strict. A misspelled field stops the file from loading.</li>

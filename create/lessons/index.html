@@ -1,0 +1,283 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Training lessons for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author a screen of the in-game handbook: the Lesson item, the six categories, still and sprite-sheet demonstrations, the practice range a lesson may hand off to, field notes, and how a lesson id overlays."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Training lessons for mods</p><h1>Training lessons for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-lesson-item">The Lesson item</a><ol></ol></li><li><a href="#categories">Categories</a><ol></ol></li><li><a href="#media">Media</a><ol></ol></li><li><a href="#practice">Practice</a><ol></ol></li><li><a href="#field-notes">Field notes</a><ol></ol></li><li><a href="#overlay">Overlay</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li></ol></nav><p>A <code>Lesson</code> is one screen of the in-game handbook: a demonstration, a few lines,
+the actions it names, a link into this manual, and sometimes a range to fly. The
+handbook is the CONDENSED companion to these pages - a player reads a lesson in
+the menu and comes here for the whole story.</p>
+<p>Lessons are content like everything else. The base game ships its own, and an
+enabled mod can add lessons to any category or replace a base lesson by
+declaring its id.</p>
+<p>This page is the field-by-field lesson reference. For general RON spelling rules
+such as double parentheses, <code>Some(...)</code>, and asset schemes, see
+<a href="../reference/#how-ron-content-is-written">RON spelling rules</a>.</p>
+<h2 id="the-lesson-item" tabindex="-1">The Lesson item</h2>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">Lesson</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_mod_towing&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">category</span><span class="ron-punct">:</span> <span class="ron-type">Flight</span><span class="ron-punct">,</span>
+        <span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-literal">70</span><span class="ron-punct">,</span>
+        <span class="ron-key">title</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Towing a dead hull&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">media</span><span class="ron-punct">:</span> <span class="ron-type">Loop</span><span class="ron-punct">(</span>
+            <span class="ron-key">sheet</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://training/towing.png&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">columns</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">,</span>
+            <span class="ron-key">rows</span><span class="ron-punct">:</span> <span class="ron-literal">3</span><span class="ron-punct">,</span>
+            <span class="ron-key">frames</span><span class="ron-punct">:</span> <span class="ron-literal">12</span><span class="ron-punct">,</span>
+            <span class="ron-key">frames_per_second</span><span class="ron-punct">:</span> <span class="ron-literal">12</span><span class="ron-punct">,</span>
+            <span class="ron-key">alt</span><span class="ron-punct">:</span> <span class="ron-string">&quot;a tug closing on a drifting ship and matching its velocity&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-key">body</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Match the other ship's velocity before you close on it. \
+               Starting a tow while you are still closing pushes both ships \
+               off course.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-string">&quot;autopilot_stop&quot;</span><span class="ron-punct">],</span>
+        <span class="ron-key">wiki_path</span><span class="ron-punct">:</span> <span class="ron-string">&quot;wiki/flight-autopilot#manual-flight&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">practice</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;my_mod_drill_towing&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">field_notes</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+            <span class="ron-string">&quot;Match the other ship's velocity before you start a tow.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-punct">],</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>Stable key, the overlay key, and what the player's progress is recorded against. Prefix new ids with your mod id.</td>
+</tr>
+<tr>
+<td><code>category</code></td>
+<td>category</td>
+<td>required</td>
+<td>Which group the lesson is listed under - see <a href="#categories">Categories</a>.</td>
+</tr>
+<tr>
+<td><code>order</code></td>
+<td>integer</td>
+<td>required</td>
+<td>Position within the category. Ties break on <code>id</code>, so the list never depends on which mods are installed.</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>string</td>
+<td>required</td>
+<td>The row label and the heading over the lesson.</td>
+</tr>
+<tr>
+<td><code>media</code></td>
+<td>media</td>
+<td>required</td>
+<td>The demonstration - see <a href="#media">Media</a>. Required, so the layout never reflows between lessons.</td>
+</tr>
+<tr>
+<td><code>body</code></td>
+<td>string</td>
+<td>required</td>
+<td>The whole lesson, at most 45 words. A tip that needs more is two tips.</td>
+</tr>
+<tr>
+<td><code>actions</code></td>
+<td>list of strings</td>
+<td><code>[]</code></td>
+<td>Action names whose CURRENT bindings are drawn as chips. Never write a key.</td>
+</tr>
+<tr>
+<td><code>wiki_path</code></td>
+<td>string</td>
+<td>required</td>
+<td>Where this manual continues, without a leading slash: a page it ships, such as <code>wiki/flight-autopilot</code>, plus the heading anchor where the claim sits.</td>
+</tr>
+<tr>
+<td><code>practice</code></td>
+<td><code>Option</code> string</td>
+<td><code>None</code></td>
+<td>A <a href="../scenarios/#roles"><code>role: Lesson</code></a> scenario the Practice button launches.</td>
+</tr>
+<tr>
+<td><code>field_notes</code></td>
+<td>list of strings</td>
+<td><code>[]</code></td>
+<td>Short facts drawn from this lesson - see <a href="#field-notes">Field notes</a>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="categories" tabindex="-1">Categories</h2>
+<p>Six, fixed. A mod adds lessons to them; it does not add a seventh.</p>
+<table>
+<thead>
+<tr>
+<th>category</th>
+<th>what belongs in it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>StartHere</code></td>
+<td>What the game is and how to read the screen.</td>
+</tr>
+<tr>
+<td><code>Flight</code></td>
+<td>Flying the hull, by hand and by flight computer.</td>
+</tr>
+<tr>
+<td><code>Combat</code></td>
+<td>Finding, locking and shooting things.</td>
+</tr>
+<tr>
+<td><code>Shipbuilding</code></td>
+<td>The editor, and what a hull's parts cost.</td>
+</tr>
+<tr>
+<td><code>NovaOs</code></td>
+<td>The cockpit computer.</td>
+</tr>
+<tr>
+<td><code>Advanced</code></td>
+<td>Scenarios, mods, bindings - the game around the game.</td>
+</tr>
+</tbody>
+</table>
+<p>An empty category draws no header, so a mod that only writes Flight lessons does
+not put five empty groups on a player's screen.</p>
+<h2 id="media" tabindex="-1">Media</h2>
+<p>Every lesson carries a demonstration, in one of two forms.</p>
+<p>A still:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">media</span><span class="ron-punct">:</span> <span class="ron-type">Image</span><span class="ron-punct">(</span>
+    <span class="ron-key">image</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://training/towing.png&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">alt</span><span class="ron-punct">:</span> <span class="ron-string">&quot;a tug closing on a drifting ship&quot;</span><span class="ron-punct">,</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>A loop, as a sprite sheet:</p>
+<pre><code class="hljs language-ron"><span class="ron-key">media</span><span class="ron-punct">:</span> <span class="ron-type">Loop</span><span class="ron-punct">(</span>
+    <span class="ron-key">sheet</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://training/towing.png&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">columns</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">,</span>
+    <span class="ron-key">rows</span><span class="ron-punct">:</span> <span class="ron-literal">3</span><span class="ron-punct">,</span>
+    <span class="ron-key">frames</span><span class="ron-punct">:</span> <span class="ron-literal">12</span><span class="ron-punct">,</span>
+    <span class="ron-key">frames_per_second</span><span class="ron-punct">:</span> <span class="ron-literal">12</span><span class="ron-punct">,</span>
+    <span class="ron-key">alt</span><span class="ron-punct">:</span> <span class="ron-string">&quot;a tug closing on a drifting ship and matching its velocity&quot;</span><span class="ron-punct">,</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> / <code>sheet</code></td>
+<td>asset ref</td>
+<td>A <code>self://</code> or <code>dep://</code> image in your bundle's <code>resources</code>. A plain 2D PNG - not a cubemap.</td>
+</tr>
+<tr>
+<td><code>columns</code>, <code>rows</code></td>
+<td>integer</td>
+<td>How the sheet is cut into cells. Every cell is the same size, so the sheet's pixel size must divide evenly.</td>
+</tr>
+<tr>
+<td><code>frames</code></td>
+<td>integer</td>
+<td>How many cells are played, read left to right, top to bottom. At most <code>columns * rows</code>.</td>
+</tr>
+<tr>
+<td><code>frames_per_second</code></td>
+<td>number</td>
+<td>Playback rate. Above zero.</td>
+</tr>
+<tr>
+<td><code>alt</code></td>
+<td>string</td>
+<td>What the demonstration shows. Drawn in the frame while the image loads, and if it cannot be drawn at all.</td>
+</tr>
+</tbody>
+</table>
+<p>A sprite sheet rather than a video file: it is one image through the same
+pipeline every other texture uses, so it plays on the desktop build and the web
+build without a second decoder. Nothing in a PNG says where its cells are, which
+is why the grid is authored - a grid the sheet cannot be cut by is a content
+error.</p>
+<h2 id="practice" tabindex="-1">Practice</h2>
+<p><code>practice</code> names a scenario the Practice button launches, through the same
+New Game hand-off the Scenarios menu uses. There is no second launch path.</p>
+<p>The scenario must declare <a href="../scenarios/#roles"><code>role: Lesson</code></a>. That is what
+makes &quot;somewhere focused to fly&quot; checkable: a practice range is ONE thing to
+try, with the briefing and the cast taken out, and a Practice button that
+dropped the reader into an hour of campaign would not be practice. Naming a
+chapter or a backdrop is a lint error.</p>
+<p>The range is part of the lesson, so write it like one: hand the player only the
+verbs this lesson names and withhold the others, put the reason on the comms
+channel rather than on the objective board, light the chip for the verb in
+hand, and END it in a banner the player can earn or retry. The
+<a href="../scenarios/#roles">practice-range contract</a> spells out each of the four.</p>
+<p>Pressing Practice never marks the lesson completed. Reading a lesson marks it
+read; only an outcome that asserts the skill can claim more.</p>
+<p>A lesson with nothing focused to fly carries <code>practice: None</code>. Leave it out
+rather than pointing at the nearest approximation.</p>
+<h2 id="field-notes" tabindex="-1">Field notes</h2>
+<p>A field note is the same fact the lesson teaches, cut to the two short lines the
+menu card and the loading screen draw. The claim is written ONCE, on the lesson
+it belongs to, and the note carries its lesson with it so the menu card can open
+it.</p>
+<p>Write a note as one sentence and let the slot break it: two lines of 64
+characters. A note that needs a third line is a lesson, and the lint says so.</p>
+<p>A note names an ACTION, never a key - the loading screen has no binding table to
+correct it with.</p>
+<h2 id="overlay" tabindex="-1">Overlay</h2>
+<p>A new <code>id</code> adds a lesson. Reusing one replaces that lesson whole - it is not a
+field-level patch.</p>
+<p>A lesson id denotes a stable learning outcome, because the player's progress is
+recorded against it. A replacement may change every word and the picture, but
+somebody who has already read that lesson has still read it, so replace a base
+lesson when you have a better telling of the SAME thing - and add a new id when
+you have something else to say.</p>
+<h2 id="check-it" tabindex="-1">Check it</h2>
+<pre><code class="hljs language-sh">nix develop --<span class="hljs-built_in">command</span> cargo run content lint --target path/to/your-mod
+</code></pre>
+<p>The lint refuses a blank required field, a body over the word cap, a loop grid
+that cannot be cut, a field note that does not fit the slot, and a <code>practice</code>
+that names an unknown scenario or one that is not a practice range. It warns
+about a practice range no lesson sends the player to.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+</body></html>

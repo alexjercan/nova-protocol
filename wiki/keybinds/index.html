@@ -17,7 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Keybinds</p><h1>Keybinds</h1><div class="wiki__tags" id="wiki-tags"></div><p>The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with <a href="../getting-started/">Your first flight</a>, which teaches these one at a time. Every one of these is REBINDABLE in-game under <strong>Settings &gt; Controls</strong>, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and <code>Reset Defaults</code> puts the whole table back. The MOUSE group in that same list holds no bindings - it is the three mouse sensitivity sliders, covered in <a href="../settings/#mouse">Settings</a>.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Keybinds</p><h1>Keybinds</h1><div class="wiki__tags" id="wiki-tags"></div><p>The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; CANCEL, a main-drive burn, a bound thruster key, entering RCS or the engaged verb pressed again disengages them immediately, while the mouse only swings the camera. New players should start with <a href="../getting-started/">Your first flight</a>, which teaches these one at a time. Every one of these is REBINDABLE in-game under <strong>Settings &gt; Controls</strong>, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and <code>Reset Defaults</code> puts the whole table back. The MOUSE group in that same list holds no bindings - it is the three mouse sensitivity sliders, covered in <a href="../settings/#mouse">Settings</a>.</p>
 <p>A dash means the action has no binding on that device.</p>
 <h2 id="flight" tabindex="-1">Flight</h2>
 <table class="controls controls--split">
@@ -63,7 +63,7 @@
             </td>
         </tr>
         <tr>
-            <td>STOP - face retrograde and burn to rest</td>
+            <td>STOP - face retrograde and burn the speed off</td>
             <td><kbd>X</kbd></td>
             <td>
                 <span
@@ -114,8 +114,14 @@
                 ></span>
             </td>
         </tr>
+        <tr>
+            <td>DOCK - clamp to the ship you have locked, press again to let go</td>
+            <td><kbd>D</kbd></td>
+            <td>unbound</td>
+        </tr>
     </tbody>
 </table>
+<p>DOCK needs a docking port on both hulls, so it is offered only on a ship built with one. No shipped ship carries one yet: build a hull with a docking port in the editor, or fly the <code>docking_approach</code> example. A dock is modal - while it holds, your drive and your helm are dead, and <kbd>D</kbd> again is what gives them back. See <a href="../sections/docking/">Docking port</a>.</p>
 <p>RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the training range hands it over for one leg of its pattern. See <a href="../flight-autopilot/#rcs-fine-docking-thrusters">Flight &amp; autopilot</a>.</p>
 <h2 id="targeting-and-camera" tabindex="-1">Targeting and camera</h2>
 <table class="controls controls--split">
@@ -351,6 +357,12 @@ a row on the top bar - <strong>File</strong>, <strong>Edit</strong>, <strong>Vie
 the key printed beside it, so this table is a shortcut list and not a second
 interface. The bottom-left legend shows the gestures that apply to whatever you
 are holding right now; <strong>View &gt; Key Legend</strong> hides it.</p>
+<p>The stage camera starts at a walking 60 m/s, which is the register a plate is
+inspected in, and a held direction ramps it to 32 times that over two seconds -
+the far end of an 8 km range is about four seconds away. Let go and it is back
+at walking pace at once. Double-click a ship and the camera frames the whole
+hull, however big it is; <kbd>F</kbd> does the same for whatever is selected,
+and at the scenario level it frames the whole document.</p>
 <p>Keys are verbs only while nothing else has the keyboard. With the parts gallery
 up, the arrow keys move its grid and <kbd>Esc</kbd> closes the gallery rather
 than backing out of the ship; with the caret in a text field, every key is a
@@ -363,7 +375,7 @@ field and a pending rebind.</p>
         <td>
             <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>,
             <kbd>Space</kbd> / <kbd>Shift</kbd> for up and down,
-            right-drag to look
+            right-drag to look. Hold a direction and it builds speed
         </td>
     </tr>
     <tr>
@@ -447,6 +459,50 @@ the search field, the gallery, a pending rebind, the part in hand, the ship you
 are inside, and finally the pause menu. <kbd>Bksp</kbd> is the shortcut past all
 of that - it leaves the ship from wherever you are, unless a text field has the
 caret, where it deletes a character instead.</p>
+<h3 id="the-build-readout" tabindex="-1">The build readout</h3>
+<p>The left rail prints what the hull on the stage would fly like, repainted as you
+place. Five lines, values aligned:</p>
+<table>
+<thead>
+<tr>
+<th>line</th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Turn</code></td>
+<td>the attitude ceiling in <code>rad/s2</code>, or <code>no computer</code> on a hull that has none</td>
+</tr>
+<tr>
+<td><code>Mass</code></td>
+<td>the hull's mass, which is the volume of the parts - a section is solid ship at one density, so its box IS its mass</td>
+</tr>
+<tr>
+<td><code>Thrust</code></td>
+<td>every thruster's magnitude, summed</td>
+</tr>
+<tr>
+<td><code>HP</code></td>
+<td>every section's health, summed</td>
+</tr>
+<tr>
+<td><code>Parts</code></td>
+<td>how many sections are on the hull</td>
+</tr>
+</tbody>
+</table>
+<p>A hull with nothing on it reads <code>no parts yet</code> rather than <code>-</code> down the column,
+because nothing has failed - nothing has been built. The numbers are measured
+off the parts as they are POSED, through the same arithmetic the flown ship
+spawns with, so the rail and the hull cannot disagree; a design that mounts its
+engine at half health is counted at half health here too.</p>
+<p>Under the block sits one line naming the limit that holds <code>Turn</code> down, and the
+one thing that raises it: <strong><code>torque-limited - fit another computer</code></strong> or
+<strong><code>structure-limited - shorten the hull</code></strong>. The two ceilings want opposite
+answers - more computers do nothing against the metal, and shorter metal does
+nothing against the computers - so the remedy is printed rather than left to be
+guessed. See <a href="../sections/controller/">What sets how hard a ship turns</a>.</p>
 <h3 id="the-inspector" tabindex="-1">The inspector</h3>
 <p>The right-hand panel shows the selected node's own fields, read off the thing
 itself rather than from a list the editor keeps - so a part that grows a setting
@@ -473,6 +529,41 @@ including around the part you are still holding, so a hull is dragged about UNDE
 the skin and the plating closes over it before you click. A placement the editor
 refuses stays bare. The toggle carries through to Play, so the ship you built
 clad is the ship you fly clad.</p>
+<h3 id="generate-a-hull" tabindex="-1">Generate a hull</h3>
+<p><strong>Generate</strong>, in the same left-rail block, rolls a whole hull into the ship you
+are inside. It is a ship verb: a hull is what one ship IS, so what the roll
+produces REPLACES the sections that ship is already holding. That is what makes
+a seed a dial you turn until you like the answer rather than a way to fill a
+scenario with drafts.</p>
+<p>Three controls and a list:</p>
+<ul>
+<li><strong>Hull Seed</strong> is the number the roll is built from. It starts random, so the
+first press is a ship rather than everyone's ship zero, and <strong>Reroll Seed</strong>
+hands you a fresh one. A hull you liked is a number you can write down and
+type back in. Anything that is not a whole positive number is refused in the
+field - <code>Enter an unsigned integer</code> - and greys the <strong>Generate</strong> button with
+it, because a button that cannot work should not look like it can.</li>
+<li><strong>HULL PLAN</strong> reads back what your ticks add up to, stern and bow. The roles
+are derived, not chosen: the biggest ticked drive becomes the ship's main
+engine and the biggest ticked spinal gun its bow gun, and the engine is what
+decides how big the ship comes out.</li>
+<li><strong>DRAW FROM</strong> lists every section the merged catalog holds, a mod's included.
+Only the ticked rows are drawn, at the weights the standard hull plan already
+prices them at; a section that plan does not name joins the draw at <code>1</code>. The
+chip on a ticked row says where on the hull that part may stand, and the zone
+you set on the row beats the plan's own.</li>
+</ul>
+<p>The order is collapse, lint, then place. A roll that fails - or a hull the
+game's own content lint would reject - writes one line to the status bar and
+leaves the document exactly as it was, so the ship on the stage is never left
+holding something that will not save. Generate outside a ship, or with nothing
+ticked, and you get the same treatment: <code>go inside a ship to generate a hull into it</code>, <code>tick at least one section for the collapse to draw</code>.</p>
+<p>The ship's current <strong>Ship Skin</strong> and style go INTO the collapse, so rolling the
+seed asks for a different hull under the same ship rather than the cladding back
+at its factory setting. What lands is ordinary section nodes - selectable,
+movable, deletable - and each one arrives already bound to the flight key its
+kind answers to, so a generated ship can be set to the player's and flown as it
+is. The status bar names the seed and the part count it built.</p>
 <p>Button glyphs from <a href="https://shinmera.com/promptfont/">PromptFont</a> by Yukari &quot;Shinmera&quot; Hafner (SIL Open Font License).</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>

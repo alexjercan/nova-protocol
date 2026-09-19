@@ -1,0 +1,567 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.14.0 - Every ship at its own scale - Nova Protocol</title><meta name="description" content="Nova Protocol v0.14.0: Newtonian manual flight, hull-scale AI and combat, physical docking, the first chapter of Season 1, a 62-lesson training handbook, ship designs with typed section patches, mod-authored UI themes, adaptive cameras and HUD, and destruction that matches the size of the ship."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#the-throttle-has-no-ceiling" class="news__toc-link">The throttle has no ceiling</a> <a href="#the-enemy-flies-the-same-kind-of-ship" class="news__toc-link news__toc-link--sub">The enemy flies the same kind of ship</a> <a href="#two-hulls-become-one" class="news__toc-link">Two hulls become one</a> <a href="#a-port-is-a-section" class="news__toc-link news__toc-link--sub">A port is a section</a> <a href="#a-useful-job" class="news__toc-link">A Useful Job</a> <a href="#seven-voices-seven-faces" class="news__toc-link news__toc-link--sub">Seven voices, seven faces</a> <a href="#the-handbook-is-the-front-door" class="news__toc-link">The handbook is the front door</a> <a href="#it-remembers-what-you-learned" class="news__toc-link news__toc-link--sub">It remembers what you learned</a> <a href="#a-ship-is-a-design" class="news__toc-link">A ship is a design</a> <a href="#references-carry-patches" class="news__toc-link news__toc-link--sub">References carry patches</a> <a href="#magazines-say-what-they-do" class="news__toc-link news__toc-link--sub">Magazines say what they do</a> <a href="#combat-reads-the-body" class="news__toc-link">Combat reads the body</a> <a href="#aim-at-what-is-there" class="news__toc-link news__toc-link--sub">Aim at what is there</a> <a href="#the-interface-belongs-to-content" class="news__toc-link">The interface belongs to content</a> <a href="#the-view-clears-the-ship" class="news__toc-link">The view clears the ship</a> <a href="#a-large-ship-dies-large" class="news__toc-link">A large ship dies large</a> <a href="#less-body-work-for-the-same-hit" class="news__toc-link news__toc-link--sub">Less body work for the same hit</a> <a href="#more-in-v0140" class="news__toc-link">More in v0.14.0</a> <a href="#modding-and-compatibility" class="news__toc-link">Modding and compatibility</a> <a href="#point-releases" class="news__toc-link">Point releases</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-09-19 &nbsp;//&nbsp; v0.14.0</p><h1>v0.14.0 - Every ship at its own scale</h1><p>v0.13.0 put the game on screen. It gave every section a body, gave the world
+materials and sound, and gave the base game a fleet it could draw from its own
+parts. It also exposed the next problem. A skiff and a carrier were still asked
+to live inside too many of the same invisible numbers. They circled at the same
+radius from their centres. They aimed through the same cone. Their cameras,
+markers, explosions and wreck motion assumed the same hull around them. The
+larger ship looked larger, but much of the game did not know what that meant.</p>
+<p>v0.14.0 makes the ship's real shape count. Sensors read the return of the body
+in front of them. Guns aim at its angular size. Torpedoes arm only after they
+clear the hull that launched them. AI measures its attack, jink and route around
+both hulls, not two points. Cameras and HUD marks stand clear of the structure
+that is actually alive. When a carrier dies, its fire crosses the carrier and
+its wreck parts leave at the speed their own size needs.</p>
+<p>It also makes the ship the owner of more than its dimensions. The hull owns its
+permissions and its cockpit voice. A ship in content is a design assembled from
+catalog parts and explicit patches. A mod can own a complete interface theme.
+And the player gets two new ways into all of it: a 62-lesson training handbook,
+and the first chapter of the rebuilt campaign, a rescue flown without firing a
+shot.</p>
+<div class="callout">
+<p class="callout__title">v0.14.0 is the scale and ownership release</p>
+<p>Fly without a speed governor, learn the ship from a handbook, bring two hulls together with DOCK, and take the first job in Season 1. Mod authors should read the compatibility section: ship designs, section patches, scenarios, themes and installed-mod defaults all changed format.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-release-lead.webm -->
+    <div class="figure__placeholder" data-eager="true">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-release-lead.webm</span>
+        <span class="figure__placeholder-note">The Gantry rescue in one continuous shot: Kaveri closes on the damaged frame tender, the view moves in as the collars meet, and both hulls leave together under the story comms.</span>
+    </div>
+    <figcaption class="figure__caption">A ship-sized approach, a hull-to-hull connection, and a job whose whole story is in getting there.</figcaption>
+</figure>
+<h2 id="the-throttle-has-no-ceiling" tabindex="-1">The throttle has no ceiling</h2>
+<p>Manual flight is Newtonian now. Hold the main drive and the ship keeps building
+speed for as long as the drive can burn. There is no hidden governor waiting at
+500 m/s, and there is no second press that the throttle quietly ignores because
+the number has been reached. The drive always answers.</p>
+<p>That sounds like a deleted limit because it is one. The hard part was not
+removing the comparison. It was removing every assumption built around the
+comparison: the HUD's speed-cap marks, the settings and scenario action that
+could retune it, the handbook copy that taught it, and test ranges whose camera
+or deadline expected a ship to stop accelerating on its own. A file still
+using <code>speed_cap</code> or <code>SetSpeedCap</code> is refused rather than accepted with a field
+that no longer does anything.</p>
+<p>RCS keeps its own 100 m/s budget. The distinction is deliberate. Main drive is
+how a ship commits to a trajectory. RCS is the bounded translation tool for
+placing the hull, approaching a port and taking the last few meters out of a
+maneuver.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-newtonian-burn.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-newtonian-burn.webm</span>
+        <span class="figure__placeholder-note">A workship in open space with the velocity readout and drive visible: one uninterrupted burn carries it through the old 500 m/s ceiling, the engines stay lit, and the readout keeps climbing until the pilot releases the throttle.</span>
+    </div>
+    <figcaption class="figure__caption">There is no speed at which a live drive stops answering.</figcaption>
+</figure>
+<h3 id="the-enemy-flies-the-same-kind-of-ship" tabindex="-1">The enemy flies the same kind of ship</h3>
+<p>Enemy flight was rebuilt around the flight computer instead of a collection of
+fight-specific pushes. A hostile now holds a velocity and points its nose while
+it closes, circles and jinks. Only the thrusters that produce the requested burn
+light. Its speed comes from what its live drive and turning authority can hold,
+not two fixed combat caps.</p>
+<p>The circle is measured between hulls. A skiff and a carrier both keep 1 km of
+clear space by default, even though their centres end up at very different
+ranges. A ship can author another <code>standoff_clearance</code>, including zero for
+contact. The whole fight happens in the target's moving frame, so a hostile
+matches the velocity of a ship that runs instead of holding a perfect ring
+around the place the target left.</p>
+<p>A jink is physical too. Each of its three legs continues until the hostile has
+carried its entire hull clear of the line that threatened it. A small ship cuts
+across quickly. A carrier has to move a carrier's width. If the drive is gone,
+the ship stops pretending to evade and fights from the trajectory it has.
+Patrol avoidance follows the same rule: its 200 m margin begins at the skin,
+not at the centre, and <code>avoid_margin</code> can tune that space per ship.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-ai-flight.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-ai-flight.webm</span>
+        <span class="figure__placeholder-note">A skiff-scale AI attacker circles a stationary carrier, repeatedly correcting its flight while its guns walk impacts across the capital hull.</span>
+    </div>
+    <figcaption class="figure__caption">The tactic is shared. The motion belongs to the hull flying it.</figcaption>
+</figure>
+<p>The flight computer also carries 9,760 of torque, up from 1,501. That change is
+mostly visible on the intact carrier: it now turns at the rate its metal allows,
+about 0.40 rad/s2 instead of 0.07. Shoot out the bridge and the barge comes back.
+Small hulls were already limited elsewhere and do not become spinning tops.</p>
+<h2 id="two-hulls-become-one" tabindex="-1">Two hulls become one</h2>
+<p>DOCK is the new helm verb. Lock another ship, bring a free port on each hull
+inside the envelope, and press <code>D</code>. The nearest eligible pair holds the two
+ships together at the pose where they met. Press DOCK again from either hull to
+release them.</p>
+<p>The envelope has four rules. The port faces must be within one cell of each
+other. Their axes must oppose within 15 degrees. Closing speed must be under 5
+m/s. Both ships must permit docking. Roll around the port axis does not matter,
+so a pair can meet at any twist instead of hunting for one ornamental &quot;up&quot; in
+space.</p>
+<p>A dock is modal. Main drive, helm and RCS stay dead while the connection holds.
+An engaged maneuver releases the dock before it flies. The joined hulls keep
+the drift they arrived with; capture does not zero either ship and turn a moving
+rescue into a frozen tableau.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-docking-approach.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-docking-approach.webm</span>
+        <span class="figure__placeholder-note">Kaveri closes on Gantry in a stable three-quarter view. The docking brackets hold both collars, the range closes, and the DOCK state lights when the connection takes.</span>
+    </div>
+    <figcaption class="figure__caption">The sight does not say "close enough". It shows which half of the envelope is still wrong.</figcaption>
+</figure>
+<h3 id="a-port-is-a-section" tabindex="-1">A port is a section</h3>
+<p>Docking is not a magic point on a ship record. <code>Docking</code> is a section kind with
+its own capture distance, capture angle and speed ceilings. The shipped
+<code>dock_flush</code> port has a sliding sleeve. It sits retracted against the hull until
+the connection holds, reaches across the last gap, and never grows a collider
+through the other ship.</p>
+<p>A ship owns a <code>dock</code> capability as well. It is enabled by default, but a range
+that is trying to teach another verb can withhold it. Scenarios can react to
+both sides of the connection through <code>OnDocked</code> and <code>OnUndocked</code>; undocking
+covers every ending, including a port or whole ship being destroyed.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0140-docking-port.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0140-docking-port.png</span>
+        <span class="figure__placeholder-note">The dock_flush section in the section gallery, shown twice under the same angle and light: retracted against its mounting face, then extended with its sleeve at the held pose.</span>
+    </div>
+    <figcaption class="figure__caption">The port reaches only after the solver has a connection to hold.</figcaption>
+</figure>
+<h2 id="a-useful-job" tabindex="-1">A Useful Job</h2>
+<p>The base game has a story campaign again. Season 1 opens with &quot;A Useful Job&quot;: a
+quiet lane assignment that becomes a rescue. Thread a working lane on RCS, come
+about on the damaged frame tender Gantry, bring the ports together, and take
+three people off. Nothing in the chapter is armed.</p>
+<p>That last part matters. The first story the new campaign tells is not a firing
+range with names painted over its targets. It asks the player to read drift,
+turn a working hull around a stranded one, and use the release's new verb under
+pressure from people rather than weapons.</p>
+<p>The Scenarios screen now gives a campaign its own folding header. Season 1 sits
+over its chapters, while Basic Training remains a separate row. Every installed
+chapter is launchable from the picker; the old hidden chain is gone. A scenario
+now declares its role as <code>Chapter</code>, <code>Backdrop</code> or <code>Lesson</code>, and a campaign may
+name only a chapter the player can launch.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-useful-job.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-useful-job.webm</span>
+        <span class="figure__placeholder-note">The middle of A Useful Job: the workship clears the last lane mark and Gantry's first rescue call opens over the live flight view.</span>
+    </div>
+    <figcaption class="figure__caption">No target bracket turns hostile. The hard part is arriving with control left.</figcaption>
+</figure>
+<h3 id="seven-voices-seven-faces" tabindex="-1">Seven voices, seven faces</h3>
+<p>Season one's seven speakers have portraits built from the story's character
+palettes: skin, hair and coat belong to the character, not to a generic comms
+silhouette. A remote caller carries a blue channel chip. Someone in the cabin
+carries a green one. The color identifies where the voice is before the line
+has been read.</p>
+<p>The comms backlog now holds 24 waiting lines, enough for the three visible cards
+to keep moving while each line is still worth reading. If a scenario posts
+faster than that, it drops the oldest waiting cue, not the current line about
+the maneuver the player is flying.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0140-season-one-comms.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0140-season-one-comms.png</span>
+        <span class="figure__placeholder-note">Tomas's Season 1 call holds over the live Gantry approach, pairing his portrait and name with the lane-clear report while both workships remain in view.</span>
+    </div>
+    <figcaption class="figure__caption">The band says where they are. The portrait says who is there.</figcaption>
+</figure>
+<h2 id="the-handbook-is-the-front-door" tabindex="-1">The handbook is the front door</h2>
+<p>The main menu opens a training handbook with 62 lessons in six categories. Each
+lesson is one screen: a short explanation, a demonstration captured from the
+game, the player's current bindings, a link into the wiki, and, where practice
+helps, a button that launches a range built for that lesson.</p>
+<p>This replaces the idea that one linear tutorial can carry the whole game. Basic
+Training is still the guided first flight. The handbook is the reference beside
+it: open only the lesson needed now, watch the act instead of reading a control
+list, and return later without replaying an hour to reach one maneuver.</p>
+<p>Four practice ranges ship with it: momentum, STOP, one autopilot range for
+GOTO and ORBIT, and turret gunnery. A range hands over only the verbs its
+lesson teaches. It says why on
+the comms channel, lights the chip for the verb currently in hand, and ends in a
+clear success banner or Retry instead of silently leaving the player in a
+sandbox.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-handbook.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-handbook.webm</span>
+        <span class="figure__placeholder-note">The handbook opens from the main menu, selects the practice-enabled radar lesson, holds its demonstration, then launches the lesson's real practice range.</span>
+    </div>
+    <figcaption class="figure__caption">Explanation, demonstration, current binding, deeper reference, then a place to try it.</figcaption>
+</figure>
+<h3 id="it-remembers-what-you-learned" tabindex="-1">It remembers what you learned</h3>
+<p>The handbook keeps a progress file beside settings. Opening a lesson marks it
+read. Winning a scenario that teaches the lesson marks it done. The difference
+is visible: reading the explanation and completing the act are not collapsed
+into one check mark.</p>
+<p>A first launch offers Basic Training in the menu corner. Take it or answer &quot;Not
+now&quot; and the card stays away; Settings &gt; Interface can bring it back. The same
+corner can carry a two-line field note drawn from the handbook, with its lesson
+one click away. Field notes also occupy the spare slot on loading screens, and
+can be disabled from the card or settings.</p>
+<p>A mod can teach too. <code>Lesson</code> is a content item with category, order, still or
+sprite-sheet loop, body, named actions, wiki path and optional practice range.
+A new id adds a lesson. A shipped id overlays one.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0140-handbook-progress.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0140-handbook-progress.png</span>
+        <span class="figure__placeholder-note">The handbook category view after several sessions: unread, read and done lessons appear together beside the selected introduction, its embedded demonstration and the overall progress counters.</span>
+    </div>
+    <figcaption class="figure__caption">Read means the page was opened. Done means the game saw the lesson's act completed.</figcaption>
+</figure>
+<h2 id="a-ship-is-a-design" tabindex="-1">A ship is a design</h2>
+<p>A content ship is a DESIGN now. Its old <code>hull</code> field becomes <code>design</code>.
+<code>collapse_threshold</code> moves under <code>integrity</code>. Skin, style and sounds move under
+<code>presentation</code>. The words match the ownership: the design is the reusable
+assembly, integrity is how that assembly fails, and presentation is how the
+finished hull looks and speaks.</p>
+<p>The base catalog follows that boundary. Two civilian industrial designs join
+it. <code>block_workship</code> is an open work cradle over two bell drives.
+<code>block_frame_tender</code> is a keel under two gantry arches with a flank collar. Its
+raided sister has no main drive and loses its transom and service stack along a
+ragged edge, while the cab and collar ahead of the strike remain whole.</p>
+<p>At the same time, base content stops being a fixture warehouse. Hulls no shipped
+scenario flies leave the catalog, as do the siege railgun, the Breaker torpedo
+bay and the placeholder style. Examples now own the rigs they test. A mod that
+needs a removed hull or weapon must ship it instead of depending on a private
+bench piece that happened to be in base.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0140-industrial-hulls.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0140-industrial-hulls.png</span>
+        <span class="figure__placeholder-note">The workship, frame tender and damaged frame tender posed at one scale. The tender pair use the same front half; the damaged version ends in a torn edge where the drive and service stack used to continue.</span>
+    </div>
+    <figcaption class="figure__caption">Two working hulls and one event written into the third hull's structure.</figcaption>
+</figure>
+<h3 id="references-carry-patches" tabindex="-1">References carry patches</h3>
+<p>A prototype reference no longer carries a bag of <code>modifications</code>. It carries a
+typed <code>patch</code>: health plus only the fields that belong to that section kind.
+Anything the patch omits is inherited from the catalog prototype. Applying a
+turret patch to a thruster is a lint error, not a list that loads and perhaps
+does nothing.</p>
+<p>A ship spawn tunes its catalog design through <code>section_patches</code>, keyed by the
+design's own section ids. The editor writes the same form. Place a catalog part
+and the document keeps the reference rather than copying the resolved section.
+Tune one field and it saves only that delta. A changed row gets a mark and a
+reset control; reset removes the field from the patch, so the part inherits the
+catalog again instead of freezing today's value into the document.</p>
+<p>Every turret muzzle now has an id. A single mount uses <code>main</code>; the shipped twin
+uses <code>left</code> and <code>right</code>. Patches and editor rows address those ids, and duplicate
+ids fail lint.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-editor-patches.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-editor-patches.webm</span>
+        <span class="figure__placeholder-note">A twin turret is placed from the catalog, one muzzle group is opened, its value is changed and gains a tuned mark, then Reset removes the delta and restores the inherited value without replacing the prototype reference.</span>
+    </div>
+    <figcaption class="figure__caption">The document says what changed, not what the catalog happened to contain that day.</figcaption>
+</figure>
+<h3 id="magazines-say-what-they-do" tabindex="-1">Magazines say what they do</h3>
+<p>Weapons now author ammunition and reload as separate decisions.
+<code>ammunition: Unlimited</code> or <code>Limited(n)</code> says whether the magazine can empty.
+<code>reload: Disabled</code> or <code>Batch((delay, amount))</code> says how rounds return. A batch
+reload on an unlimited gun is rejected because it cannot have a visible effect.
+A torpedo bay must also author a positive finite <code>fire_rate</code>; invalid content is
+caught at lint, and a bad bay that somehow reaches runtime gets no launcher
+instead of firing every tick.</p>
+<p>The cockpit voice belongs to the design too. A ship that loses every flight
+computer can no longer steer, but it keeps its radar, point defence,
+permissions, lock calls, dry-magazine call and structural alarms. Destroying a
+controller takes away control authority, not the identity of the whole ship.</p>
+<h2 id="combat-reads-the-body" tabindex="-1">Combat reads the body</h2>
+<p>The sensor pass is shared by player and AI. Range, line of sight and relation
+are collected once per ship per frame, so a hostile cannot target something the
+player-facing rules say is hidden, and two systems cannot disagree about which
+side of a rock a contact occupies.</p>
+<p>A lock's range comes from the target's return instead of its class. A bare ship
+returns about 9 km, a skiff about 22 km, and a carrier about 60 km from its live
+hull and machinery. Asteroids and planets default from their true surface.
+Torpedoes return from speed. A bare gravity anchor and any other unsigned body
+remain point-blank. AI may author <code>sensor_range</code>, and <code>Some(0 m)</code> means it sees
+nothing at all.</p>
+<p>Once a lock is held, making the target quieter does not retroactively break it.
+The lock remembers the range at which it was acquired. It also no longer expires
+after thirty quiet seconds. Only the world - range, sight, destruction - or the
+pilot's own tap removes it. Cover now drops both the weapons lock and the travel
+designation. An already engaged GOTO survives because the computer owns the
+destination from the moment the maneuver starts.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-sensor-scale.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-sensor-scale.webm</span>
+        <span class="figure__placeholder-note">A skiff and carrier cross the same radar display at increasing distance. The skiff falls off first while the carrier remains available, then a rock crosses the held carrier lock and removes both lock slots.</span>
+    </div>
+    <figcaption class="figure__caption">Range belongs to what the target returns. Cover belongs to the line between you.</figcaption>
+</figure>
+<h3 id="aim-at-what-is-there" tabindex="-1">Aim at what is there</h3>
+<p>A gun fires inside the target's angular size instead of one 0.92 degree cone. A
+carrier at 1 km fills about 11 degrees, a skiff about 2.7 and a torpedo about
+0.7. A crosshair with no target underneath still uses the fixed cone. AI
+railguns use the same geometry before committing, so a lance no longer spends
+its only shell while its bore is sweeping kilometers wide of the hull.</p>
+<p>Pierce rounds lose their six-layer ceiling. Power is the only bound now. Cheap
+plating cannot stop a rake simply by offering enough nearly free layers, while
+a layer that costs no power still ends the round. Pierce also advances past
+near misses already counted in a dense debris field, so the cloud no longer
+protects whatever stands behind it by trapping the traversal on the same
+pieces.</p>
+<p>Torpedoes must clear the firing hull plus their own blast before they arm: about
+324 m from a small boat and 494 m from a carrier. Within that envelope the
+warhead is inert. AI keeps its separate 900 m launch margin between the two
+hulls, which puts a carrier launch at about 1,290 m where a skiff can launch at
+1,000. Thrust tapers over the last 15 percent of the torpedo type's own cruise
+speed, so a slow warhead is not stranded inside a fixed 50 m/s taper.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-torpedo-envelope.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-torpedo-envelope.webm</span>
+        <span class="figure__placeholder-note">Matched torpedoes leave a skiff-scale launcher and a capital launcher in consecutive close views, clear each hull, light their drives and close on their targets.</span>
+    </div>
+    <figcaption class="figure__caption">A warhead becomes live only after its own ship is outside the blast.</figcaption>
+</figure>
+<p>Two hulls can come alongside without paying for harmless contact. Under 5 m/s,
+the collision costs nothing. Above it, only the excess is spent. A carrier pair
+can park and dock without shredding each other's outer cells on the contact
+solver.</p>
+<h2 id="the-interface-belongs-to-content" tabindex="-1">The interface belongs to content</h2>
+<p>Settings &gt; Interface now lists THEMES, not two hard-coded skins. The shipped
+Phosphor and Hardware looks are base-mod content at <code>base/phosphor</code> and
+<code>base/hardware</code>. An enabled mod's themes appear in the same row.</p>
+<p>A <code>UiTheme</code> is complete interface paint: a palette, three metrics and every
+widget role. It can inherit from another theme. A recolor can inherit
+<code>base/phosphor</code> and declare only a palette; a role it does declare replaces the
+inherited role whole, including its states. A root palette carries a required
+<code>nominal</code> color for healthy, online and passed states, separate from <code>primary</code>,
+so a theme whose main ink is not green can still show a green lamp.</p>
+<p>Theme changes repaint what is already on screen. The menu, pause screen, editor
+and HUD resolve their paint from the live theme instead of keeping the look they
+were built with. If a selected theme's mod is disabled, the game falls back to
+Phosphor and says why under the row. It keeps the selection, so enabling the mod
+restores the theme.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-live-themes.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-live-themes.webm</span>
+        <span class="figure__placeholder-note">Settings remains open while the selection moves between Phosphor and Hardware. The panel and menu behind it repaint in place without rebuilding the screen.</span>
+    </div>
+    <figcaption class="figure__caption">The selected content paints the interface that is already alive.</figcaption>
+</figure>
+<p>Hardware is now a casing throughout, not Phosphor with a beige frame. It carries
+its own semantic palette, so labels, body copy, previews and status marks all
+read in the casing's ink.</p>
+<h2 id="the-view-clears-the-ship" tabindex="-1">The view clears the ship</h2>
+<p>Every camera rig now measures the live hull. Chase, combat and free-look views
+stand beyond a carrier's shoulders instead of opening inside them. The survey
+camera's dolly and burn scale with the rig. A scenario opens behind the player
+wherever the ship spawned, not at a fixed point that can be inside a large hull
+or kilometers from a displaced one.</p>
+<p>The HUD follows. Velocity and gravity spheres sit 5 m and 11 m outside the live
+hull around its centre of mass. World labels stand off a target's projected edge
+instead of a fixed number of pixels. The flip gate encloses its own hull. Dwell
+rings, unlatch ghosts and component marks scale from what they mark. Crowded
+ammo gauges cluster in screen space, report mount count and lowest feed, then
+separate when room returns.</p>
+<p>The objective stack and target inset measure readouts and the status bar before
+they place themselves. The bore sight traces only as deep as the shot's power
+can pay. NOVA OS maps bodies at physical size, gives tiny ones a minimum pick
+target, and chooses ring spacing from the contacts actually present.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0140-hull-scale-hud.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0140-hull-scale-hud.png</span>
+        <span class="figure__placeholder-note">A carrier in a clear three-quarter combat view, with the camera outside its live skin and the velocity readout, distant target marker and flight controls clear of the projected hull.</span>
+    </div>
+    <figcaption class="figure__caption">The overlay measures the ship before it decides where the cockpit can read.</figcaption>
+</figure>
+<p>The editor learns the same scale. Entering a ship frames its whole hull; the
+scenario view frames the whole document. A new ship stands 20 m clear of the
+last one and shuffles outward as the hulls grow, until the author moves it by
+hand. Previews use real bounds. Placement distance and drag steps follow the
+camera's framing scale. The stage camera accelerates from 60 m/s to 32 times
+that over two seconds and widens its lens as it crosses a large range. The parts
+gallery expands up to eight by five tiles and parks its preview stage clear of
+the document.</p>
+<h2 id="a-large-ship-dies-large" tabindex="-1">A large ship dies large</h2>
+<p>A hull's death now comes from its live structure. The fireball, debris and flash
+scale to the body that failed. A carrier's death reaches 479 m instead of ending
+58 m inside its own wreck. The collapse can light up to 48 fires spread over the
+sections it condemned, rather than burning only the first six pieces shed.</p>
+<p>The event is grouped by the structure it happened on - hull, wreck, rock or
+torpedo - rather than by 60 m cells in space. A carrier collapse is one kick
+from the carrier's middle, not 25 separate camera blows.</p>
+<p>Wreck motion scales too. Two severed halves move clear in about two seconds
+whatever the original hull size; below 20 m, a piece is not pushed at all. A
+section cut from deep inside a capital hull can leave at over 100 m/s and remains
+a ghost until it has escaped the structure around it. It no longer becomes
+solid while still buried and grind through the wreck for twenty seconds.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-carrier-collapse.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-carrier-collapse.webm</span>
+        <span class="figure__placeholder-note">A carrier crosses its authored structural-collapse threshold in full view. A localized breach starts the real cascade, hundreds of sections peel away, and detached wreck pieces spread clear while the remaining hull keeps collapsing.</span>
+    </div>
+    <figcaption class="figure__caption">The effect covers the event. The debris leaves at the speed the wreck needs.</figcaption>
+</figure>
+<h3 id="less-body-work-for-the-same-hit" tabindex="-1">Less body work for the same hit</h3>
+<p>Bullet chips are GPU particles now. A busy 4v4 fight used to carry about eight
+thousand short-lived kinematic bodies through physics, every sensor sweep and
+the renderer for 2.5 seconds. The chips remain visible without becoming bodies
+the rest of the game has to understand.</p>
+<p>A frame emits at most 64 craters of each material, seven chips for a wide one.
+The 65th crater throws nothing instead of cutting a short effect from the last
+budget. Gun rounds confirm a hit against the collider already selected rather
+than searching the spatial tree a second time. The game also caps parallel
+workers at eight; above 16 hardware threads, extra workers mostly waited on one
+another. The busy 4v4 reference gained about 28 percent in frame time and 33
+percent at its worst.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0140-four-v-four.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0140-four-v-four.webm</span>
+        <span class="figure__placeholder-note">The matched busy 4v4 reference fight from a high tactical camera: both formations enter together, tracer streams cross between the lines, and repeated impacts turn the ordered opening into a debris field.</span>
+    </div>
+    <figcaption class="figure__caption">The picture is still busy. The chips are no longer ships, sensors or solver work.</figcaption>
+</figure>
+<h2 id="more-in-v0140" tabindex="-1">More in v0.14.0</h2>
+<p>The main story is scale and ownership, but the release also closes a long list
+of sharp edges:</p>
+<ul>
+<li><strong>A scenario opens complete.</strong> World simulation stays held while objects spawn
+and art loads. A failed or stalled load ends in a report that names the art;
+valid work still arriving is not cut off by an arbitrary deadline.</li>
+<li><strong>A broken installed mod does not break boot.</strong> Only base content must load.
+A mod that fails is switched off, named once on the menu, and left installed
+so it can be updated, removed or enabled again.</li>
+<li><strong>A fresh install enables only base.</strong> Installed mods no longer opt themselves
+in through <code>enabled_by_default</code>, and every installed mod has a visible row.</li>
+<li><strong>Desktop starts borderless fullscreen.</strong> Existing choices remain intact.
+Windows cannot shrink below 640x600, and Settings uses 92 percent of narrow
+space up to its 620 px maximum.</li>
+<li><strong>Focus loss pauses interactive play.</strong> Returning leaves the pause menu open;
+the game never resumes itself. Scripted runs are exempt.</li>
+<li><strong>Only one full-screen overlay owns the front.</strong> Outcomes and start failures
+replace pause rather than drawing at the same depth, and every full-screen
+layer comes from one ordering table.</li>
+<li><strong>The command shells agree.</strong> Incomplete commands list aligned subcommands in
+NOVA OS and the command shell, and a bad subcommand is named under the caret
+before Enter. The NOVA OS drawer scrolls at the same rate as every other pane.</li>
+<li><strong>Selection no longer rebuilds lists.</strong> Scenario and lesson rows keep their
+scroll position and do not restart thumbnail loading when the highlight moves.</li>
+<li><strong>The menu duel stays in frame.</strong> Both ships patrol mirrored centre lines;
+the doomed raider breaks apart below half health.</li>
+<li><strong>The editor offers only loadable assets.</strong> A sideloaded bundle that reuses a
+shipped id no longer leaks ignored files into pickers.</li>
+<li><strong>Bindings fail clearly.</strong> <code>bind</code> refuses an input already owned by another
+action and names it. Rebinding a section preserves its controller trigger.</li>
+<li><strong>A fatal base-file error ends in a report.</strong> Desktop offers Quit; browser
+builds give reload and report instructions instead of spinning forever.</li>
+<li><strong>Scenario launch and return are single transitions.</strong> <code>--scenario</code> launches
+once, returning goes through Loading to the menu, and no one-frame backdrop or
+stale launch scenario appears on the way.</li>
+<li><strong>The sky, markers and overlays update in the right order.</strong> Scripted camera
+poses project indicators through the pose that will be rendered, and editor
+pause finally covers the editor foot bar, gallery and windows.</li>
+<li><strong>Detonations survive slow frames.</strong> Blast damage is spent in physics ticks,
+so a heavy frame cannot sweep the volume away before it resolves what it hit.</li>
+</ul>
+<h2 id="modding-and-compatibility" tabindex="-1">Modding and compatibility</h2>
+<p>v0.14.0 deliberately removes obsolete internal formats instead of maintaining
+adapters for content that has not shipped on this version. Run <code>content lint</code>
+on every bundle. It names known fields and ids before the loader has to guess.</p>
+<ul>
+<li><strong>Manual speed caps are gone.</strong> Remove <code>speed_cap</code> and <code>SetSpeedCap</code>. Main
+drive is unbounded; RCS keeps its separate budget.</li>
+<li><strong>A ship spawn uses <code>design</code>, not <code>hull</code>.</strong> Move <code>collapse_threshold</code> under
+<code>integrity</code>, and move skin, style and sounds under <code>presentation</code>.</li>
+<li><strong>Ship permissions live on the ship.</strong> Replace controller <code>DisableVerb</code> data
+with the spawn's <code>capabilities</code> block. Six <code>SetShipCapability*</code> actions replace
+<code>SetControllerVerb</code>.</li>
+<li><strong>Prototype edits are typed patches.</strong> Replace a reference's <code>modifications</code>
+list with <code>patch</code>. Replace a spawn's <code>modifications</code> with <code>section_patches</code>
+keyed by section id.</li>
+<li><strong>Weapon feeds are explicit.</strong> Author <code>ammunition: Unlimited</code> or <code>Limited(n)</code>
+and <code>reload: Disabled</code> or <code>Batch((delay, amount))</code>. Every turret muzzle needs
+a unique id. Every torpedo bay needs a positive finite <code>fire_rate</code>.</li>
+<li><strong>Docking is a section kind and capability.</strong> Author capture distance, angle
+and speed ceilings. Scenarios may listen for <code>OnDocked</code> and <code>OnUndocked</code>.</li>
+<li><strong>Scenarios declare a role.</strong> Replace <code>menu_backdrop</code> with <code>role: Chapter</code>,
+<code>Backdrop</code> or <code>Lesson</code>. Remove <code>hidden</code>; every installed chapter is launchable.</li>
+<li><strong>Scatter rings need a centre.</strong> <code>Ring.center</code> is required.</li>
+<li><strong>Themes are content.</strong> The saved selection is a theme id. Root palettes need
+<code>nominal</code>. A mod may add a <code>UiTheme</code> or overlay <code>base/phosphor</code>.</li>
+<li><strong>Several tables became code.</strong> Impact rows, narrative channels and ship
+grammars are no longer content. A style now has a <code>palette</code> and three-word
+placement; an asteroid uses <code>kind</code>, not <code>material</code>; a cue uses <code>accent</code>.</li>
+<li><strong>Lessons are content.</strong> A <code>Lesson</code> can add or overlay handbook material and
+may name a practice range.</li>
+<li><strong>Installed-mod flags are gone.</strong> Remove catalog <code>hidden</code> and
+<code>enabled_by_default</code>. New installs enable base and nothing else.</li>
+<li><strong>Base content is smaller.</strong> Raider, carrier, warship, skiff, tug, claw,
+cleanup leader, three carrier wrecks, the siege railgun, Breaker bay and
+placeholder style are no longer borrowed from base. Ship what the mod uses.</li>
+<li><strong>The Ledger has new scenario ids.</strong> Its six Field Trials replace the old
+campaign set; retarget links and launch commands.</li>
+<li><strong>Old interface skin settings are dropped.</strong> An older <code>ui_skin</code> store opens on
+<code>base/phosphor</code>; new settings persist a theme id.</li>
+</ul>
+<div class="callout callout--breaking">
+<p class="callout__title">Lint the design, then fly its size</p>
+<p>The format breaks remove fields the game no longer owns and make the remaining decisions explicit. Migrate each bundle with the current creator reference, run <code>content lint</code>, and verify the resolved ship in the editor before publishing it.</p>
+</div>
+<p>The visible result is a game where a carrier is not a skiff with a larger mesh,
+a controller is not the soul of the hull around it, and the interface is not
+paint only the base game may choose. The shape, authority and presentation all
+have owners now.</p>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<p>No point releases yet.</p>
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/story/">Story</a>
+        <a href="/nova-protocol/lore/">Lore</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+</body></html>

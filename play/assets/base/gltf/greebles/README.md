@@ -55,8 +55,7 @@ Fourteen pieces, and the cap is deliberate: the look comes from where they land
 and what they are made of, never from how many of them there are.
 
 `placeholder_*.glb` are PLACEHOLDERS in garish magenta, shipped only to prove
-the pipeline runs end to end. They make no art decision (task
-`20260815-225748`, Phase A).
+the pipeline runs end to end. They make no art decision.
 
 Two recipe habits the kits share, and both are answers to the same constraint -
 the scatter stands a piece at the CENTRE of its plate and offers no jitter:

@@ -19,15 +19,18 @@
 </header>
 <main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Your first flight</p><h1>Your first flight</h1><div class="wiki__tags" id="wiki-tags"></div><p>Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario - an asteroid field with gravity wells, salvage, and hostile ships. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, Basic Training beat by beat, and where to go next.</p>
 <h2 id="launch-and-start" tabindex="-1">Launch and start</h2>
-<p>The game boots into a main menu. <strong>New Game</strong> drops you into <strong>Basic Training</strong> - the Fleet gunnery range, flown in a ready-made armed trainer, so there is nothing to build first. The other doors can wait.</p>
+<p>The game boots into a main menu. On a first launch a card in the bottom-left corner offers you <strong>Basic Training</strong> straight away, with <strong>Open lessons</strong> beside it and <strong>Not now</strong> to put the card away for good. <strong>New Game</strong> does the same thing as <strong>Start Basic Training</strong> - the Fleet gunnery range, flown in a ready-made armed trainer, so there is nothing to build first. The other doors can wait.</p>
+<p>The card is a one-time offer, not the entrance: the menu's <strong>Lessons</strong> row always opens the handbook, and <strong>Settings &gt; Interface &gt; Training prompt</strong> switches the corner back on if you want it.</p>
+<p>Under it sits a <strong>field note</strong> - one short fact taken from the handbook, with <strong>Open lesson</strong> to read the page it came from and <strong>Don't show again</strong> to stop the notes appearing on the menu. It changes each time you come back to the menu, and the same notes fill the slot at the bottom of every loading screen, which that switch does not touch. While a practice range loads, the note is about what that range teaches. <strong>Settings &gt; Interface &gt; Field notes</strong> switches the menu card back on.</p>
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 <ul>
 <li><strong>New Game</strong> - drops you into <strong>Basic Training</strong>, the Fleet gunnery range, flown in a ready-made armed trainer, so there is nothing to build first.</li>
 <li><strong>Sandbox</strong> - opens the ship editor so you can build a ship and test-fly it in a practice scenario.</li>
+<li><strong>Lessons</strong> - opens the training handbook: one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked <strong>read</strong>, and one is marked <strong>done</strong> only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.</li>
 <li><strong>Scenarios</strong> - opens the complete scenario picker, every scenario your enabled mods ship included.</li>
-<li><strong>Mods</strong> - opens the installed-mod and online-catalog browser.</li>
-<li><strong>Settings</strong> - adjusts volume, graphics quality, and UI skin, and shows the control reference.</li>
+<li><strong>Mods</strong> - opens the installed-mod and online-catalog browser. A mod whose content will not load is switched off for you and named in one <strong>MODS DISABLED</strong> notice on the front door; its files stay installed, so you can update, remove or switch it back on from this screen.</li>
+<li><strong>Settings</strong> - adjusts volume, graphics quality, window mode and the UI theme, and shows the control reference. The desktop build opens borderless fullscreen; <strong>Windowed</strong> is one click away.</li>
 <li><strong>Exit</strong> - quits (hidden in the browser build).</li>
 </ul>
 </details>
@@ -47,16 +50,16 @@
 <ul>
 <li><strong>Burn.</strong> Hold <kbd>W</kbd> (or <kbd>Space</kbd>) for the main-drive burn and aim with the mouse. You point the hull, then thrust where the nose looks. The velocity sphere beside your ship shows where you are actually going.</li>
 <li><strong>Lock a target.</strong> Hold <kbd>Ctrl</kbd> to sweep the radar; the hollow box shows what you are about to lock. Settle on it and hold steady for a moment - a short lock-on dwell has to fill (longer the farther the target is) before the lock latches, and sweeping off before then cancels it. A white crosshair is a travel (nav) lock; raise weapons first (see below) and it lands as a red combat lock instead.</li>
-<li><strong>GOTO.</strong> With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. Any manual input hands the ship straight back to you.</li>
+<li><strong>GOTO.</strong> With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. <kbd>Z</kbd>, a burn on <kbd>W</kbd> or <kbd>G</kbd> again hands the ship straight back to you; the mouse does not, because while the computer flies your look input only swings the camera.</li>
 <li><strong>Raise weapons and fire.</strong> Hold the right mouse button to raise weapons (combat stance); your reticle goes red and the ship is now &quot;hot&quot;. Left mouse fires the turrets and launches torpedoes. A torpedo only launches while you hold a red combat lock.</li>
 </ul>
 <p>That is the whole core loop: burn, lock, GOTO, shoot. Basic Training covers all of it on an armed trainer, ORBIT included.</p>
 <h2 id="basic-training-beat-by-beat" tabindex="-1">Basic Training, beat by beat</h2>
-<p>You open on the Fleet gunnery range in an exterior shot of <strong>Trainer Seven</strong>, an armed picket held on the line, while Range Control reads the qualification card: fly the pattern, take the flight computer out to the planetoid and back, put five target hulks on the scrap list, then deal with two live drones. The camera comes back with the helm, each objective arrives as a short amber notification, and one gold marker at a time keeps the current target in view. A 150 m/s manual-flight cap stays on for the whole card.</p>
+<p>You open on the Fleet gunnery range in an exterior shot of <strong>Trainer Seven</strong>, an armed picket held on the line, while Range Control reads the qualification card: fly the pattern, take the flight computer out to the planetoid and back, put five target hulks on the scrap list, then deal with two live drones. The camera comes back with the helm, each objective arrives as a short amber notification, and one gold marker at a time keeps the current target in view.</p>
 <h3 id="part-1---the-pattern" tabindex="-1">Part 1 - The pattern</h3>
 <ol>
 <li><strong>Burn to mark ALPHA.</strong> Hold <kbd>W</kbd> to burn and steer with the mouse. ALPHA sits dead ahead; flying into its ring completes the beat.</li>
-<li><strong>Kill the drift.</strong> Press <kbd>X</kbd> once and let STOP bring the trainer to rest. Hands off: the next lesson waits for the maneuver to finish, and a manual input takes the ship back before it is done.</li>
+<li><strong>Kill the drift.</strong> Press <kbd>X</kbd> once and let STOP brake the trainer down. Hands off the throttle: the next lesson waits for the maneuver to finish, and a burn or <kbd>Z</kbd> takes the ship back before it is done. The mouse is safe - it only moves the camera while STOP flies.</li>
 <li><strong>Slide across to BRAVO.</strong> Hold <kbd>Shift</kbd> and move the mouse to translate without turning the hull - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and RCS tops out at 100 m/s in any direction.</li>
 </ol>
 <h3 id="part-2---the-flight-computer" tabindex="-1">Part 2 - The flight computer</h3>

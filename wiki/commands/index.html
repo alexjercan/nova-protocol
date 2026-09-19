@@ -49,7 +49,7 @@
 <tbody>
 <tr>
 <td><kbd>:</kbd></td>
-<td>The monitor opens straight on the command shell. It needs no ship, so it works in the menu and the editor too.</td>
+<td>The monitor opens straight on the command shell. It needs no ship, so it works in the menu and the editor too. Close it and you are back on exactly what it covered - the menu, the pause screen or your flight.</td>
 </tr>
 <tr>
 <td>Type <code>commands</code> at the NOVA OS prompt</td>
@@ -72,13 +72,13 @@
 <details class="explain">
 <summary>Show explanation</summary>
 <p>It is one monitor with two languages, not two overlays. The casing, the glass, the phosphor, the scrollback, <kbd>Tab</kbd> completion, the history keys and <kbd>PgUp</kbd>/<kbd>PgDn</kbd> are the terminal's and are shared. What each shell owns is its own vocabulary, its own prompt (<code>nova&gt;</code> against <code>cmd&gt;</code>), its own transcript and its own history - so switching back and forth loses nothing, and never replays the power-on animation.</p>
-<p>Opening the command shell freezes the game exactly as NOVA OS does: the clocks stop, the cursor is freed, and <kbd>Esc</kbd> belongs to the shell rather than the pause menu. Switching between the two shells does not unpause and re-pause; the monitor owns the freeze for as long as it is open. The one place it will not open is mid-load, where there is nothing yet to inspect.</p>
+<p>Opened over the game, the command shell freezes it exactly as NOVA OS does: the clocks stop, the cursor is freed, and <kbd>Esc</kbd> belongs to the shell rather than the pause menu. Switching between the two shells does not unpause and re-pause; the monitor owns the freeze for as long as it is open. Opened on the main menu it stops nothing - the backdrop behind it keeps flying, because that is a view and not a game you are being kept out of - but the monitor is still the front-most thing on the screen, so the menu buttons under it wait until you close it. The one place it will not open is mid-load, where there is nothing yet to inspect.</p>
 </details>
 <h2 id="what-the-introduction-tells-you" tabindex="-1">What the introduction tells you</h2>
 <pre><code class="hljs language-text">NOVA OS v0.13.0 // COMMANDS
 POST ......... command shell / ok
 CORE ......... local game runtime / attached
-REGISTRY ..... 27 commands / ready
+REGISTRY ..... 26 commands / ready
 WORLD ........ tutorial / paused
 CHEATS ....... disabled / run clean
 Hint: type `help` and press Enter.
@@ -171,7 +171,7 @@ Hint: type `help` and press Enter.
 </tr>
 <tr>
 <td><code>ship &lt;id&gt;</code></td>
-<td>one ship: side, hull, sections, speed cap, magazines</td>
+<td>one ship: side, hull, sections, magazines</td>
 </tr>
 <tr>
 <td><code>sections &lt;ship-id&gt;</code></td>
@@ -264,10 +264,6 @@ Hint: type `help` and press Enter.
 <tr>
 <td><code>ammo refill section &lt;ship-id&gt; &lt;section-id&gt;</code></td>
 <td>top up one magazine</td>
-</tr>
-<tr>
-<td><code>speed-cap &lt;ship-id&gt; &lt;m/s|off&gt;</code></td>
-<td>change or remove a ship's manual speed cap</td>
 </tr>
 </tbody>
 </table>

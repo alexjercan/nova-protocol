@@ -1,0 +1,1809 @@
+[
+    Scenario((
+        id: "season_one_chapter_one",
+        name: "A Useful Job",
+        description: "Season 1, chapter one. Kaveri is running home to Baikal with a replacement pump assembly when a stranded ship calls for help. Thread the working lane, come about, and bring three people off Gantry. No weapons.",
+        cubemap: "self://textures/cubemap.png",
+        thumbnail: Some("self://thumbnails/season_one_chapter_one.png"),
+        events: [
+            (
+                name: OnStart,
+                once: true,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "kaveri",
+                            name: "Kaveri",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_workship",
+                                section_patches: {
+                                    "bridge": (
+                                        config: (
+                                            health: Some(1800.0),
+                                        ),
+                                    ),
+                                    "port_collar": (
+                                        config: (
+                                            health: Some(1800.0),
+                                        ),
+                                    ),
+                                },
+                            ),
+                            controller: Player(()),
+                            allegiance: Some(Player),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gantry",
+                            name: "Gantry",
+                            position: (
+                                2400.0,
+                                0.0,
+                                -6000.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_frame_tender_damaged",
+                                section_patches: {
+                                    "port_collar": (
+                                        config: (
+                                            health: Some(1800.0),
+                                        ),
+                                    ),
+                                },
+                            ),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gantry_debris_transom",
+                            name: "Debris",
+                            position: (
+                                2460.0,
+                                20.0,
+                                -5910.0,
+                            ),
+                            rotation: (
+                                0.17889123,
+                                0.4262952,
+                                -0.08641431,
+                                0.88249815,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_wreck_plate",
+                            ),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gantry_debris_stack",
+                            name: "Debris",
+                            position: (
+                                2405.0,
+                                -35.0,
+                                -5870.0,
+                            ),
+                            rotation: (
+                                -0.14006945,
+                                0.8574256,
+                                0.31298476,
+                                0.38372198,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_wreck_plate",
+                            ),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gantry_debris_arch",
+                            name: "Debris",
+                            position: (
+                                2485.0,
+                                5.0,
+                                -5945.0,
+                            ),
+                            rotation: (
+                                0.3933902,
+                                0.59205955,
+                                -0.4050497,
+                                0.57501686,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_wreck_plate",
+                            ),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "moon_near",
+                            name: "Ice Moon",
+                            position: (
+                                -7800.0,
+                                -900.0,
+                                -4200.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Planet((
+                            radius: 1350.0,
+                            planet_type: IceWorld,
+                            seed: 20780101,
+                            mass: Some(4000.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "moon_far",
+                            name: "Grey Moon",
+                            position: (
+                                9600.0,
+                                1400.0,
+                                -11000.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Planet((
+                            radius: 1900.0,
+                            planet_type: BarrenRock,
+                            seed: 20780102,
+                            mass: Some(4000.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "moon_hazy",
+                            name: "Hazy Moon",
+                            position: (
+                                -2600.0,
+                                2600.0,
+                                -17500.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Planet((
+                            radius: 2600.0,
+                            planet_type: Greenhouse,
+                            seed: 20780103,
+                            mass: Some(4000.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "season_one_chapter_one_key",
+                            name: "Key Light",
+                            position: (
+                                -1500.0,
+                                1250.0,
+                                -1500.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "season_one_chapter_one_rim",
+                            name: "Rim Light",
+                            position: (
+                                750.0,
+                                1000.0,
+                                -5000.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "season_one_chapter_one_fill",
+                            name: "Fill Light",
+                            position: (
+                                1750.0,
+                                -500.0,
+                                -2000.0,
+                            ),
+                            rotation: (
+                                0.10489727,
+                                0.49822173,
+                                -0.060874246,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "lane_rock_",
+                        count: 96,
+                        seed: 433757350450364417,
+                        region: Box(
+                            min: (
+                                -900.0,
+                                -420.0,
+                                -5200.0,
+                            ),
+                            max: (
+                                900.0,
+                                420.0,
+                                -600.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "lane_rock_",
+                                name: "Lane Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 6.0,
+                                texture: "self://textures/asteroid.png",
+                                kind: "ice",
+                                destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            6.0,
+                            16.0,
+                        )),
+                        asteroid_kinds: [
+                            (
+                                "ice",
+                                10,
+                            ),
+                            (
+                                "rock",
+                                4,
+                            ),
+                            (
+                                "carbon",
+                                2,
+                            ),
+                        ],
+                        min_separation: Some(300.0),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "drift_rock_",
+                        count: 34,
+                        seed: 433757350450364418,
+                        region: Box(
+                            min: (
+                                700.0,
+                                -500.0,
+                                -6600.0,
+                            ),
+                            max: (
+                                1900.0,
+                                500.0,
+                                -4800.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "drift_rock_",
+                                name: "Drift Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 8.0,
+                                texture: "self://textures/asteroid.png",
+                                kind: "ice",
+                                destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            8.0,
+                            22.0,
+                        )),
+                        asteroid_kinds: [
+                            (
+                                "ice",
+                                10,
+                            ),
+                            (
+                                "rock",
+                                4,
+                            ),
+                            (
+                                "carbon",
+                                2,
+                            ),
+                        ],
+                        min_separation: Some(400.0),
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SuspendPlayerControl(()),
+                    SetCameraAnchor((
+                        anchor: "kaveri",
+                        offset: (
+                            120.0,
+                            45.0,
+                            150.0,
+                        ),
+                        frame: World,
+                        look_at: Object("kaveri"),
+                    )),
+                    Cinematic((
+                        key: "open",
+                        skippable: true,
+                        steps: [
+                            (
+                                after: Some(0.0),
+                                actions: [
+                                    CinematicTitle((
+                                        corner: TopLeft,
+                                        location: "SATURN, THE INNER LANES",
+                                        date: "2078",
+                                        note: "Kaveri, homebound for Baikal with a pump assembly.",
+                                        seconds: 9.0,
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Rina",
+                                        text: "Load\'s secured, covers on. Passage is clear.",
+                                        icon: Some("self://portraits/rina.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Tomas",
+                                        text: "Rock is thick on the direct line.",
+                                        icon: Some("self://portraits/tomas.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Tomas",
+                                        text: "I can take us around it, or thread it and save us the hour.",
+                                        icon: Some("self://portraits/tomas.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Leila",
+                                        text: "Baikal loses production for every hour that assembly is out here. Thread it.",
+                                        icon: Some("self://portraits/leila.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Jonah",
+                                        text: "Thread it. Slowly - there is only the one assembly.",
+                                        icon: Some("self://portraits/jonah.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Tomas",
+                                        text: "Marks are up. She is carrying something today.",
+                                        icon: Some("self://portraits/tomas.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Tomas",
+                                        text: "Slide her across with the thrusters - [SHIFT] and the mouse. Do not swing her.",
+                                        icon: Some("self://portraits/tomas.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnCinematicFinished,
+                once: true,
+                filters: [
+                    Cinematic((
+                        key: "open",
+                    )),
+                ],
+                actions: [
+                    ReleaseCamera(()),
+                    ResumePlayerControl(()),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    Objective((
+                        id: "lane",
+                        message: "Thread the lane home.",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "lane_one",
+                            name: "LANE-1",
+                            position: (
+                                0.0,
+                                0.0,
+                                -1200.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "LANE-1",
+                            radius: 20.0,
+                            color: Srgba((
+                                red: 0.3,
+                                green: 0.9,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(220.0),
+                        )),
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "lane_one",
+                        label: "LANE-1",
+                    )),
+                    CreateScenarioArea((
+                        id: "lane_one_gate",
+                        name: "LANE-1 Gate",
+                        position: (
+                            0.0,
+                            0.0,
+                            -1200.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 220.0,
+                    )),
+                    HintEmphasisSet((
+                        verb: "RCS",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("lane_one_gate"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveMarkerDetach((
+                        target_id: "lane_one",
+                    )),
+                    DespawnScenarioObject((
+                        id: "lane_one",
+                    )),
+                    DespawnScenarioObject((
+                        id: "lane_one_gate",
+                    )),
+                    NarrativeCue((
+                        speaker: "Tomas",
+                        text: "LANE-1. Next one is off to port and a little high.",
+                        icon: Some("self://portraits/tomas.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    Sequence((
+                        key: "beat_3",
+                        steps: [
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(3.0)))),
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "lane_two",
+                                            name: "LANE-2",
+                                            position: (
+                                                -340.0,
+                                                90.0,
+                                                -2300.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "LANE-2",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(180.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "lane_two",
+                                        label: "LANE-2",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "lane_two_gate",
+                                        name: "LANE-2 Gate",
+                                        position: (
+                                            -340.0,
+                                            90.0,
+                                            -2300.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 180.0,
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("lane_two_gate"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveMarkerDetach((
+                        target_id: "lane_two",
+                    )),
+                    DespawnScenarioObject((
+                        id: "lane_two",
+                    )),
+                    DespawnScenarioObject((
+                        id: "lane_two_gate",
+                    )),
+                    NarrativeCue((
+                        speaker: "Leila",
+                        text: "That is the way. The cradle does not care for being turned with two tonnes on it.",
+                        icon: Some("self://portraits/leila.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    Sequence((
+                        key: "beat_4",
+                        steps: [
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(4.0)))),
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "lane_three",
+                                            name: "LANE-3",
+                                            position: (
+                                                300.0,
+                                                -110.0,
+                                                -3400.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "LANE-3",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(180.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "lane_three",
+                                        label: "LANE-3",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "lane_three_gate",
+                                        name: "LANE-3 Gate",
+                                        position: (
+                                            300.0,
+                                            -110.0,
+                                            -3400.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 180.0,
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("lane_three_gate"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveMarkerDetach((
+                        target_id: "lane_three",
+                    )),
+                    DespawnScenarioObject((
+                        id: "lane_three",
+                    )),
+                    DespawnScenarioObject((
+                        id: "lane_three_gate",
+                    )),
+                    NarrativeCue((
+                        speaker: "Rina",
+                        text: "Tight through there. Nothing touched.",
+                        icon: Some("self://portraits/rina.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    Sequence((
+                        key: "beat_5",
+                        steps: [
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(5.0)))),
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "lane_four",
+                                            name: "LANE-4",
+                                            position: (
+                                                -140.0,
+                                                60.0,
+                                                -4500.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "LANE-4",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(200.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "lane_four",
+                                        label: "LANE-4",
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "lane_four_gate",
+                                        name: "LANE-4 Gate",
+                                        position: (
+                                            -140.0,
+                                            60.0,
+                                            -4500.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 200.0,
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("lane_four_gate"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(5.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveMarkerDetach((
+                        target_id: "lane_four",
+                    )),
+                    DespawnScenarioObject((
+                        id: "lane_four",
+                    )),
+                    DespawnScenarioObject((
+                        id: "lane_four_gate",
+                    )),
+                    HintEmphasisClear((
+                        verb: "RCS",
+                    )),
+                    ObjectiveComplete((
+                        id: "lane",
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(6.0)))),
+                    )),
+                    NarrativeCue((
+                        speaker: "Tomas",
+                        text: "LANE-4, and clear of the worst of it. Baikal in four hours.",
+                        icon: Some("self://portraits/tomas.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    SuspendPlayerControl(()),
+                    ZeroShipMotion((
+                        id: "kaveri",
+                    )),
+                    SetCameraAnchor((
+                        anchor: "gantry",
+                        offset: (
+                            150.0,
+                            45.0,
+                            -120.0,
+                        ),
+                        frame: World,
+                        look_at: Object("gantry"),
+                    )),
+                    Cinematic((
+                        key: "call",
+                        skippable: true,
+                        steps: [
+                            (
+                                after: Some(6.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Samir",
+                                        text: "Traffic. Distress, broad channel, and it is close.",
+                                        icon: Some("self://portraits/samir.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Nadia - Gantry",
+                                        text: "Gantry, requesting assistance. Main propulsion disabled.",
+                                        icon: Some("self://portraits/nadia.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Samir",
+                                        text: "That\'s the captain from Aquila.",
+                                        icon: Some("self://portraits/samir.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Jonah",
+                                        text: "Gantry, Kaveri. We hear you. How many aboard?",
+                                        icon: Some("self://portraits/jonah.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Nadia - Gantry",
+                                        text: "Three. All alive. Owen\'s hurt. We\'ve isolated the damaged spaces.",
+                                        icon: Some("self://portraits/nadia.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Tomas",
+                                        text: "We can reach them before their reserves run out. The scheduled recovery can\'t.",
+                                        icon: Some("self://portraits/tomas.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Tomas",
+                                        text: "It costs us the repair plan. Ebro\'s load won\'t be ready.",
+                                        icon: Some("self://portraits/tomas.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Rina",
+                                        text: "Then let\'s get them off it.",
+                                        icon: Some("self://portraits/rina.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Elena - Baikal",
+                                        text: "Kaveri, Baikal. I asked EarthWorks to cover the diversion.",
+                                        icon: Some("self://portraits/elena.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Elena - Baikal",
+                                        text: "Reed has three of his own people on that hull, and the answer was no.",
+                                        icon: Some("self://portraits/elena.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.5),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Elena - Baikal",
+                                        text: "Clearwell will cover it. Bring them home.",
+                                        icon: Some("self://portraits/elena.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Jonah",
+                                        text: "Tomas. Take the intercept.",
+                                        icon: Some("self://portraits/jonah.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnCinematicFinished,
+                once: true,
+                filters: [
+                    Cinematic((
+                        key: "call",
+                    )),
+                ],
+                actions: [
+                    ReleaseCamera(()),
+                    ResumePlayerControl(()),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(7.0)))),
+                    )),
+                    Objective((
+                        id: "reach",
+                        message: "Come about and close on Gantry.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "gantry",
+                        label: "Gantry",
+                    )),
+                    CreateScenarioArea((
+                        id: "gantry_approach_gate",
+                        name: "Gantry Gate",
+                        position: (
+                            2400.0,
+                            0.0,
+                            -6000.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 700.0,
+                    )),
+                    HintEmphasisSet((
+                        verb: "RADAR",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("gantry_approach_gate"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "reach",
+                    )),
+                    DespawnScenarioObject((
+                        id: "gantry_approach_gate",
+                    )),
+                    NarrativeCue((
+                        speaker: "Tomas",
+                        text: "Gantry in sight. Matching their motion.",
+                        icon: Some("self://portraits/tomas.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    CreateScenarioArea((
+                        id: "gantry_standoff_gate",
+                        name: "Gantry Gate",
+                        position: (
+                            2400.0,
+                            0.0,
+                            -6000.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 450.0,
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("gantry_standoff_gate"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                ],
+                actions: [
+                    DespawnScenarioObject((
+                        id: "gantry_standoff_gate",
+                    )),
+                    Sequence((
+                        key: "approach",
+                        steps: [
+                            (
+                                after: Some(2.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Leila",
+                                        text: "Gantry, did the fault reach your docking equipment?",
+                                        icon: Some("self://portraits/leila.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Nadia - Gantry",
+                                        text: "Not that branch. The collar on our port side is sound, and we can hold attitude.",
+                                        icon: Some("self://portraits/nadia.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(6.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Jonah",
+                                        text: "Understood, we come to you. Tomas - hold her on the radar.",
+                                        icon: Some("self://portraits/jonah.png"),
+                                        accent: Srgba((
+                                            red: 0.21176471,
+                                            green: 1.0,
+                                            blue: 0.4745098,
+                                            alpha: 1.0,
+                                        )),
+                                    )),
+                                    TimerStart((
+                                        key: "dock_card",
+                                        seconds: Term(Factor(Literal(Number(5.0)))),
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                once: true,
+                filters: [
+                    Timer((
+                        key: "dock_card",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(8.0)))),
+                    )),
+                    Objective((
+                        id: "dock",
+                        message: "Bring Kaveri\'s collar onto Gantry\'s port side.",
+                    )),
+                    HintEmphasisSet((
+                        verb: "DOCK",
+                    )),
+                    HintEmphasisSet((
+                        verb: "RCS",
+                    )),
+                ],
+            ),
+            (
+                name: OnDocked,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("gantry"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(7.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "RADAR",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gantry",
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(9.0)))),
+                    )),
+                    NarrativeCue((
+                        speaker: "Leila",
+                        text: "Connection secure. Checking the seal.",
+                        icon: Some("self://portraits/leila.png"),
+                    )),
+                    TimerStart((
+                        key: "transfer_start",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnDocked,
+                filters: [
+                    Entity((
+                        id: Some("gantry"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "RADAR",
+                    )),
+                    HintEmphasisClear((
+                        verb: "DOCK",
+                    )),
+                    HintEmphasisClear((
+                        verb: "RCS",
+                    )),
+                    ObjectiveComplete((
+                        id: "dock",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gantry",
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(9.0)))),
+                    )),
+                    NarrativeCue((
+                        speaker: "Leila",
+                        text: "Connection secure. Checking the seal.",
+                        icon: Some("self://portraits/leila.png"),
+                    )),
+                    TimerStart((
+                        key: "transfer_start",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "transfer_start",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(9.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(10.0)))),
+                    )),
+                    Objective((
+                        id: "hold",
+                        message: "Hold the clamp while Gantry\'s crew come across.",
+                    )),
+                    TimerStart((
+                        key: "transfer_owen",
+                        seconds: Term(Factor(Literal(Number(6.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "transfer_owen",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(10.0)))),
+                    ))),
+                ],
+                actions: [
+                    NarrativeCue((
+                        speaker: "Rina",
+                        text: "I\'m Rina. Tell me what he can manage, and we move together.",
+                        icon: Some("self://portraits/rina.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    TimerStart((
+                        key: "transfer_aboard",
+                        seconds: Term(Factor(Literal(Number(6.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "transfer_aboard",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(10.0)))),
+                    ))),
+                ],
+                actions: [
+                    NarrativeCue((
+                        speaker: "Samir",
+                        text: "Owen is aboard and supported. Ivo behind him.",
+                        icon: Some("self://portraits/samir.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    TimerStart((
+                        key: "transfer_all",
+                        seconds: Term(Factor(Literal(Number(6.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "transfer_all",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(10.0)))),
+                    ))),
+                ],
+                actions: [
+                    NarrativeCue((
+                        speaker: "Nadia - Gantry",
+                        text: "That\'s everyone. Three aboard Kaveri.",
+                        icon: Some("self://portraits/nadia.png"),
+                    )),
+                    TimerStart((
+                        key: "transfer_done",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "transfer_done",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(10.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(11.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "hold",
+                    )),
+                    Objective((
+                        id: "release",
+                        message: "Let go and take them home.",
+                    )),
+                    HintEmphasisSet((
+                        verb: "DOCK",
+                    )),
+                ],
+            ),
+            (
+                name: OnUndocked,
+                filters: [
+                    Entity((
+                        id: Some("gantry"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(9.0)))),
+                    ))),
+                ],
+                actions: [
+                    NarrativeCue((
+                        speaker: "Rina",
+                        text: "We have not got them all. Get back on that collar.",
+                        icon: Some("self://portraits/rina.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(8.5)))),
+                    )),
+                    TimerStart((
+                        key: "regrip",
+                        seconds: Term(Factor(Literal(Number(2.5)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnUndocked,
+                filters: [
+                    Entity((
+                        id: Some("gantry"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(10.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "hold",
+                    )),
+                    NarrativeCue((
+                        speaker: "Rina",
+                        text: "We have not got them all. Get back on that collar.",
+                        icon: Some("self://portraits/rina.png"),
+                        accent: Srgba((
+                            red: 0.21176471,
+                            green: 1.0,
+                            blue: 0.4745098,
+                            alpha: 1.0,
+                        )),
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(8.5)))),
+                    )),
+                    TimerStart((
+                        key: "regrip",
+                        seconds: Term(Factor(Literal(Number(2.5)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "regrip",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.5)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(8.0)))),
+                    )),
+                    Objective((
+                        id: "dock",
+                        message: "Get back on Gantry\'s collar.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "gantry",
+                        label: "Gantry",
+                    )),
+                    HintEmphasisSet((
+                        verb: "DOCK",
+                    )),
+                ],
+            ),
+            (
+                name: OnDocked,
+                filters: [
+                    Entity((
+                        id: Some("gantry"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.5)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(9.0)))),
+                    )),
+                    NarrativeCue((
+                        speaker: "Leila",
+                        text: "Connection secure. Checking the seal.",
+                        icon: Some("self://portraits/leila.png"),
+                    )),
+                    TimerStart((
+                        key: "transfer_start",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnUndocked,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("gantry"),
+                        other_id: Some("kaveri"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(11.0)))),
+                    ))),
+                ],
+                actions: [
+                    HintEmphasisClear((
+                        verb: "DOCK",
+                    )),
+                    ObjectiveComplete((
+                        id: "release",
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(12.0)))),
+                    )),
+                    NarrativeCue((
+                        speaker: "Jonah",
+                        text: "Baikal, Kaveri. We have all three. Coming home.",
+                        icon: Some("self://portraits/jonah.png"),
+                    )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    NarrativeCue((
+                                        speaker: "Elena - Baikal",
+                                        text: "The load is late and Foundation has already called. That one is mine. Come home.",
+                                        icon: Some("self://portraits/elena.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "beat",
+                                        expression: Term(Factor(Literal(Number(13.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("Three people are coming home. Ebro\'s load is not, and Clearwell carries the cost."),
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("kaveri"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(12.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Kaveri broke up in the rock, with the assembly aboard."),
+                    )),
+                    NextScenario((
+                        scenario_id: "season_one_chapter_one",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("gantry"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(12.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Gantry came apart with its crew still on it."),
+                    )),
+                    NextScenario((
+                        scenario_id: "season_one_chapter_one",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

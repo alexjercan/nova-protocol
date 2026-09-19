@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -208,7 +208,8 @@ runtime handler, so the loader and every headless rig honour the same fields.</l
 <li><code>GameScenarios(HashMap&lt;ScenarioId, ScenarioConfig&gt;)</code> - all known scenarios,
 populated by <code>nova_assets</code> (ready at <code>GameAssetsStates::Loaded</code>).</li>
 <li><code>CampaignConfig</code> - <code>id</code>, <code>name</code>, <code>scenarios</code> (ordered member scenario ids,
-hidden ones allowed); a first-class content kind (<code>Campaign((..))</code>).</li>
+each a launchable chapter - naming a non-<code>Chapter</code> scenario is a lint
+Error); a first-class content kind (<code>Campaign((..))</code>).</li>
 <li><code>GameCampaigns(HashMap&lt;CampaignId, CampaignConfig&gt;)</code> - all known campaigns, the
 ordered campaign-&gt;scenario mapping the Scenarios picker groups/launches by,
 populated by <code>nova_assets</code> alongside <code>GameScenarios</code>.</li>
@@ -221,7 +222,10 @@ populated by <code>nova_assets</code> alongside <code>GameScenarios</code>.</li>
 <code>GameScenarios</code>, <code>commands.trigger(LoadScenario(cfg.clone()))</code> (see
 <code>examples/systems/system_scenario_grammar.rs</code>). Load tears down the previous
 scenario, spawns the camera, input context, one handler per event, fires
-<code>OnStart</code>. No engine
+<code>OnStart</code>. The camera opens on the authored PLAYER spawn, in the chase rig’s
+own pose for that hull’s envelope (<code>chase_camera_opening_pose</code>), so the first
+frame is already the shot the live rig will hold; a scenario with no player
+falls back to 100 m up and 200 m back from the origin. No engine
 light: a scene is lit by the <code>Light</code> objects it authors, and one that authors
 none renders black.</li>
 <li><code>ScenarioLoaded</code> - fired after a load; carries <code>scenario_id</code>,
@@ -252,7 +256,7 @@ so the FIRST ship wearing a hull paid for that hull’s art. A hull no <code>OnS
 event spawns is therefore cold when its beat arrives: both of <code>menu_duel</code>’s
 corvettes appeared in placeholder art and dressed themselves a moment later.</p>
 <p><code>preload::scenario_render_meshes</code> walks the loaded config for <code>SpawnScenarioObject</code>
-and <code>ScatterObjects</code> actions, resolves each ship’s <code>ShipSource</code> and every
+and <code>ScatterObjects</code> actions, resolves each ship’s <code>ShipDesignSource</code> and every
 section’s <code>SectionSource</code> against the two catalogs, and collects the render
 meshes. That walk is possible at all because a spawn action carries its object’s
 WHOLE config inline rather than an id looked up at spawn time, so what a
@@ -265,15 +269,58 @@ warm.</li>
 <li><code>ScenarioPreload</code> HOLDS the handles for the scenario’s lifetime. Without a
 strong handle bevy frees the mesh again long before the mid-mission spawn.</li>
 <li>The load WAITS: <code>scenario_has_settled</code> and the LOADING panel both hold while
-the warm-up is pending, bounded by its own deadline so a missing or broken
-mesh cannot hang the load. A failed mesh counts as settled and is named in a
-warning; the section spawns in placeholder art, exactly as it would have.</li>
+the warm-up is pending. The budget is a NO-PROGRESS one
+(<code>PRELOAD_STALL_SECS</code>, 10 s): every handle that settles buys the whole budget
+again, so a big catalog on a cold disk takes as long as it takes, and what
+the budget catches is an asset source that has gone silent. A handle that
+fails, or a load that stops moving, fails the load CLOSED - see below.</li>
 </ul>
 <p>Ships are the only object kind involved. A beacon and a salvage crate build
 primitives, an asteroid meshes itself on a worker, and a light and an anchor
 have no mesh at all. The warm-up is also registered only when
 <code>NovaScenarioPlugin::render</code> is set: a headless rig builds no mesh children, so
 there is nothing to warm and nothing to wait for.</p>
+<h3 id="the-load-is-atomic-loadergaters"><a class="header" href="#the-load-is-atomic-loadergaters">The load is atomic (<code>loader/gate.rs</code>)</a></h3>
+<p>A scenario used to start the moment its config landed: its objects arrived over
+the following frames, its art after that, and the player had the helm through
+all of it. Rocks popped in around a ship already flying, mission time had
+already run, and a collision could happen against a body still spawning.</p>
+<p><code>ScenarioLoadGate</code> closes that. From <code>ScenarioLoaded</code> until the frame the
+scenario is built it is <code>Loading</code>, and while it is:</p>
+<ul>
+<li>the simulation is HELD - <code>Clocks::hold(FreezeOwner::ScenarioLoad)</code> pauses
+<code>Time&lt;Virtual&gt;</code> and <code>Time&lt;Physics&gt;</code>, so the scenario clock, physics, timers
+and every <code>Time</code>-driven system stand still;</li>
+<li>gameplay input and both camera rigs are gated off (<code>scenario_play_is_free</code>
+on <code>SpaceshipInputSystems</code>, <code>SpaceshipSectionSystems</code>, <code>NovaCameraSystems</code>
+and <code>WASDCameraSystems::Sync</code>) - holding the clocks alone is not enough,
+because a chase camera reads the mouse and a free-fly camera reads held keys
+on REAL time;</li>
+<li><code>Time&lt;Real&gt;</code> keeps running, so the LOADING panel animates.</li>
+</ul>
+<p>The release is <code>scenario_has_settled</code> PIPED into
+<code>release_when_scenario_is_built</code>, which is the same condition the panel’s own
+dismissal reads: the panel cannot come down over a held world, and the world
+cannot start behind a panel. The frame that releases is the last frozen one -
+its delta was taken while the clocks were held - so the first frame the player
+is given is a complete scene at scenario time zero.</p>
+<p>A load that FAILS never releases. An explicitly failed handle, or a load that
+stops making progress, calls <code>fail_scenario_load</code>: the gate goes to <code>Failed</code>,
+the hold STAYS, and the paths are reported through <code>ScenarioStartFailure</code> -
+the same <code>FAILED TO START</code> overlay the content gate uses, which offers Main
+Menu and nothing else. Continuing with placeholder art would hand the player a
+scene that is not the one the author wrote, with no way to know it. Leaving
+through <code>UnloadScenario</code> is the one path out of <code>Failed</code>, and it drops the
+hold with the scenario that took it.</p>
+<p>A load the content GATE refuses never takes a hold at all - <code>on_load_scenario</code>
+lints the config in hand (<code>start_errors</code>) and returns before <code>ScenarioLoaded</code>
+fires. A refusal ENDS the scenario it was asked to replace: the teardown runs
+and <code>CurrentScenario</code> is cleared BEFORE the report is published, the LOADING
+panel comes down on the spot, and the report is drawn on a 2D camera of its
+own, with the cursor freed for the one button on it. Nothing is left to
+simulate behind the modal, which is the point - the report is a dead end, and
+the scenario it interrupted is not a fallback the player can be handed back.
+The campaign case is a chapter whose next chapter a mod removed.</p>
 <h2 id="the-vocabulary-and-who-documents-it"><a class="header" href="#the-vocabulary-and-who-documents-it">The vocabulary, and who documents it</a></h2>
 <p>Three closed enums are the whole authored language, one dispatch match each:</p>
 <div class="table-wrapper">
@@ -308,11 +355,12 @@ that refers to something declares what, or it is a blank box.</p>
 <code>EntityId(String)</code> and <code>EntityTypeName(String)</code>, and every PAIR event has the
 same filter shape - a subject <code>id</code> plus an <code>other_id</code> / <code>other_type_name</code>.
 Which entity is the subject is per-event (area against body, well against ship,
-target against locker), which is why the filter is one struct rather than one
-per event. Lock, orbit, and player STOP/GOTO completion events are one-shot
-EDGES with no hidden timer behind them: a target switch queues end-old then
-start-new, a successful GOTO reports only after physical settle, and a scenario
-that needs a continuous hold composes the edges with a keyed timer.</p>
+target against locker, the hull docked with against the hull that asked), which
+is why the filter is one struct rather than one
+per event. Lock, orbit, docking and player STOP/GOTO completion events are
+one-shot EDGES with no hidden timer behind them: a target switch queues end-old
+then start-new, a successful GOTO reports only after physical settle, and a
+scenario that needs a continuous hold composes the edges with a keyed timer.</p>
 <p>Filters read and never mutate; they take <code>&amp;NovaEventWorld</code> and the fired
 <code>GameEventInfo</code> and return a bool, and every filter on a handler must pass.
 Actions take <code>&amp;mut NovaEventWorld</code> and run in order. Neither touches the Bevy
@@ -467,7 +515,8 @@ dropped: they dispatch in order on the frame the world goes live.</p>
 for one more reason: the glTF warm-up above. Dispatch is not, so <code>OnStart</code>
 still fires and the scene still builds while the art arrives; what waits is the
 scenario CLOCK, so no mission time passes behind a panel the player cannot see
-past.</p>
+past. It is also what the load gate releases on, so the panel, the clock and
+the simulation hold all come down on one frame and one condition.</p>
 <p>Variables are typed literals (<code>String</code>, <code>Number</code>, <code>Boolean</code>) with a small
 expression tree: <code>VariableExpressionNode</code> (add/subtract), <code>VariableTermNode</code>
 (multiply/divide), <code>VariableFactorNode</code> (literal/name/parens);
@@ -506,9 +555,11 @@ position and has the same answer.</p>
 <h3 id="story-pacing-is-a-queue-not-a-slot"><a class="header" href="#story-pacing-is-a-queue-not-a-slot">Story pacing is a QUEUE, not a slot</a></h3>
 <p><code>NarrativeCue</code> writes into a bottom-left comms stack rather than a
 latest-wins line: arrival order, a bounded number of cards visible, and a
-lossless pending queue behind them. The whole log stays in the feed too. That
-is why a burst of lines is survivable - but one line per beat is still the
-style, and the queue is the safety net.</p>
+bounded pending queue behind them. The whole log stays in the feed either way.
+That is why a burst of lines is survivable - but one line per beat is still the
+style, and the queue is the safety net. The backlog holds 24 waiting lines,
+which is what three cards can reach inside the 30 s a line stays worth reading;
+past that the OLDEST waiting line is dropped and the overrun is logged once.</p>
 <p>Two consequences for anything that fires story lines:</p>
 <ul>
 <li><strong>The stack is a HUD surface <code>nova_scenario</code> reaches up into.</strong> The dwell
@@ -591,18 +642,12 @@ continuous questions.</li>
 <p>A <code>Sequence</code> step’s <code>until</code> gate is a real handler the loader spawns, so it is
 scanned with the authored ones. A gate waiting on <code>OnUpdate</code> that was not a
 reason to wake would stall its chain forever.</p>
-<p>Measured on a headless run, as the share of frames that queue the event:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>scenario</th><th>pulses / frames</th><th>why</th></tr>
-</thead>
-<tbody>
-<tr><td><code>ledger_ch1</code></td><td>350 / 22500</td><td>milestones plus four scheduled lines</td></tr>
-<tr><td><code>ledger_ch3</code></td><td>every frame</td><td>a <code>player_speed</code> ladder, correctly polling</td></tr>
-</tbody>
-</table>
-</div>
+<p>The Ledger’s field trials show both patterns. In
+<code>webmods/the-ledger/ledger_05_freight_lane.content.ron</code>, the victory gate reads
+<code>arrived</code> and <code>stage</code>. In <code>ledger_03_blue_survey.content.ron</code>, an active scan
+writes <code>scan_left</code> for its HUD countdown. That write keeps the pulse awake
+until the scan ends or the player leaves its area. Neither pattern needs
+an authored wake list.</p>
 <h2 id="scenario-patterns"><a class="header" href="#scenario-patterns">Scenario patterns</a></h2>
 <p>The engine holds three facts for content - <code>once</code>, keyed timers, and a
 <code>Sequence</code> cursor - and everything past those is one numeric variable plus
@@ -768,9 +813,10 @@ authors no <code>Light</code> renders black. This catches every new backdrop.</p
 </li>
 <li>
 <p><strong>What a rock is MADE of is required, and it decides how it looks.</strong>
-<code>AsteroidConfig::material</code> names a KIND - <code>rock</code>, <code>metal</code>, <code>ice</code>, <code>carbon</code>,
+<code>AsteroidConfig::kind</code> names a KIND - <code>rock</code>, <code>metal</code>, <code>ice</code>, <code>carbon</code>,
 or the <code>plain</code> control - and <code>objects/asteroid_kind.rs</code> is the one table that
-maps a kind to a look. The look is uniform data for a triplanar
+maps a kind to a look. It decides the LOOK and nothing else: a rock’s hit
+voice is <code>ImpactSurface::Rock</code> whatever it is made of. The look is uniform data for a triplanar
 <code>ExtendedMaterial</code> (<code>objects/asteroid_surface.rs</code>), so a carved and remeshed
 rock wears the same surface it did before the hit. There is NO default and no
 fallback: a config without the field fails to deserialize, an id the table
@@ -902,12 +948,25 @@ correction that puts the ship back on the ring, not a departure from it - and
 is written off only by an absence from <code>Hold</code> longer than
 <code>ORBIT_LAP_GRACE_SECS</code>. So authored lap objectives need no guessed timer, and
 one nudge does not silently cost the player three quarters of a revolution.</p>
+<p>The docking tracker reads its two edges off the CONNECTION entity rather than
+off either hull. <code>DOCK</code> builds exactly one connection per pair and every way
+out of a dock - either pilot’s verb, a maneuver engaged on either hull, a
+shot-off port, a dead ship - despawns that one entity, so comparing a live
+connection against the <code>DockEcho</code> BOTH hulls carry reports one <code>OnDocked</code> and
+one <code>OnUndocked</code> on every path, with no branch per ending and nothing in
+<code>nova_ship</code> knowing what a scenario event is. The echo retains the payload, not
+the two entities, because the release edge has to name a partner that may
+already be gone - which is also why both hulls carry it: a pair whose asking
+hull is destroyed still reports through the survivor, and the two echoes are
+deduplicated into one release. Only a pair that dies whole falls silent, the
+way orbit end and area exit do for a despawned body.</p>
 <h2 id="adding-new-pieces"><a class="header" href="#adding-new-pieces">Adding new pieces</a></h2>
 <ul>
 <li>Event: event + info structs in <code>nova_events/src/lib.rs</code>, an <code>EventConfig</code>
 variant in <code>events.rs</code>, and something that fires it (engine-driven events
 live in <code>loader/</code> - <code>OnStart</code> in <code>lifecycle.rs</code>, <code>OnUpdate</code> in <code>clock.rs</code>,
-the orbit/lock trackers in <code>trackers.rs</code>; area events in <code>objects/area.rs</code>;
+the orbit/lock/docking trackers in <code>trackers.rs</code>; area events in
+<code>objects/area.rs</code>;
 <code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, and a rock’s
 <code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted).</li>
 <li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
@@ -937,7 +996,9 @@ text form: <code>crates/nova_scenario/src/syntax.rs</code>.</li>
 <li>Loading and scoping: <code>ScenarioLoaderPlugin</code>, <code>ScenarioScopedMarker</code>,
 <code>scenario_is_live</code> - <code>crates/nova_scenario/src/loader/mod.rs</code>; the glTF
 warm-up: <code>ScenarioPreload</code>, <code>scenario_render_meshes</code> -
-<code>crates/nova_scenario/src/loader/preload.rs</code>; what the pulse wakes for:
+<code>crates/nova_scenario/src/loader/preload.rs</code>; the load hold and its failure:
+<code>ScenarioLoadGate</code>, <code>scenario_play_is_free</code> -
+<code>crates/nova_scenario/src/loader/gate.rs</code>; what the pulse wakes for:
 <code>WakeProfile</code>, <code>configure_scenario_shape</code> -
 <code>crates/nova_scenario/src/loader/wake.rs</code>.</li>
 <li>Objects: <code>ScenarioObjectsPlugin</code> - <code>crates/nova_scenario/src/objects/mod.rs</code>;
@@ -1000,11 +1061,11 @@ material itself: <code>DAMAGE_PER_UNIT_VOLUME</code> -
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

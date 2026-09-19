@@ -11,15 +11,11 @@
 //   3. ADD a playable scenario  - `example_arena` (mod-shipped skybox + rocks,
 //                                  a NarrativeCue comms beat, an objective, a
 //                                  win check, and Victory/Defeat Outcomes)
-//   4. ADD a menu backdrop      - `example_menu` (a menu_backdrop scene: mods
-//                                  can ship main-menu ambience)
-//   5. ADD a hull line          - `example_freighter_hull` (a `Grammar` under a
-//                                  new id: the editor's Generate block lists it
-//                                  beside the base one and collapses whichever
-//                                  is picked)
+//   4. ADD a menu backdrop      - `example_menu` (a `role: Backdrop` scene:
+//                                  mods can ship main-menu ambience)
 //
 // Everything here is pure data - no engine changes. For the field-by-field
-// grammar behind it see the wiki: "Author a section", "Author a scenario",
+// syntax behind it see the wiki: "Author a section", "Author a scenario",
 // "Make and publish a mod", and "Modding data format (RON)".
 [
     // -- 1. SECTION OVERLAY -------------------------------------------------
@@ -314,7 +310,6 @@
                     // text). The story log is scenario-scoped: it clears at
                     // teardown, so a line never leaks into the next scenario.
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Range Control",
                         text: "Welcome to the range. Two derelicts on the board - clear them at your leisure.",
                     )),
@@ -337,41 +332,40 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                speed_cap: Some(250.0),
                             )),
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "controller",
                                         position: (0.0, 0.0, 0.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("basic_controller_section"),
+                                        source: Prototype(id: "basic_controller_section"),
                                     ),
                                     (
                                         id: "hull_front",
                                         position: (0.0, 0.0, 1.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
                                         // the OVERRIDDEN base section (id 1 above)
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(id: "reinforced_hull_section"),
                                     ),
                                     (
                                         id: "hull_rear",
                                         position: (0.0, 0.0, 2.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
                                         // the NEW section this mod adds (id 2 above)
-                                        source: Prototype("example_plated_hull_section"),
+                                        source: Prototype(id: "example_plated_hull_section"),
                                     ),
                                     (
                                         id: "thruster",
                                         position: (0.0, 0.0, 3.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("basic_thruster_section"),
+                                        source: Prototype(id: "basic_thruster_section"),
                                     ),
                                     (
                                         id: "turret",
                                         position: (0.0, 0.0, -0.75),
                                         rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
-                                        source: Prototype("pdc_kinetic_turret_section"),
+                                        source: Prototype(id: "pdc_kinetic_turret_section"),
                                     ),
                                 ],
                             )),
@@ -403,14 +397,15 @@
                     // Two destructible targets, textured from THIS mod's own PNG
                     // (`self://textures/rock.png`), not a base texture.
                     //
-                    // `material` is REQUIRED on every asteroid and it is the
-                    // rock's KIND: what the body is made of, which decides how
-                    // it is shaded, what it sounds like when something hits it,
-                    // and what a mining system would get out of it. The base
-                    // game ships `rock`, `metal`, `ice`, `carbon`, and `plain`
-                    // (the control - the texture with nothing done to it).
+                    // `kind` is REQUIRED on every asteroid: what the body is
+                    // made of, which decides how it is shaded and what a mining
+                    // system would get out of it. The base game ships `rock`,
+                    // `metal`, `ice`, `carbon`, and `plain` (the control - the
+                    // texture with nothing done to it). It does NOT decide what
+                    // the rock sounds like when something hits it: every
+                    // asteroid is stone to the impact bank, whatever its kind.
                     //
-                    // There is no default. Leave `material` out and the file
+                    // There is no default. Leave `kind` out and the file
                     // does not load; name a kind nobody ships and `content
                     // lint` fails you before it ever runs. That is deliberate:
                     // a typo that quietly turned into grey stone is a typo you
@@ -432,7 +427,7 @@
                             // Small size, not hidden health, keeps this tutorial target brief.
                             radius: 2.5,
                             texture: "self://textures/rock.png",
-                            material: "rock",
+                            kind: "rock",
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -451,7 +446,7 @@
                             // The same texture, a different kind. Put this one
                             // beside `example_target_1` in the range and the
                             // pair is the whole feature in one look.
-                            material: "ice",
+                            kind: "ice",
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -591,7 +586,6 @@
                 ],
                 actions: [
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Range Control",
                         text: "Clock's running. Put your reticle on a derelict and hold the trigger.",
                     )),
@@ -614,10 +608,21 @@
                     ))),
                 ],
                 actions: [
+                    // `accent` is the colour the whole comms card is drawn in:
+                    // its frame, its speaker line, its icon tile, and - lifted
+                    // toward white - the words. Omit it and the line is drawn
+                    // in the ordinary comms blue, which is what the two cues
+                    // above do. Named here so the late contact reads as a
+                    // different voice from range control's own traffic.
                     NarrativeCue((
-                        channel: "comms",
                         speaker: "Range Control",
                         text: "Late contact drifting onto the range - bonus target if you want it.",
+                        accent: LinearRgba((
+                            red: 1.0,
+                            green: 0.55,
+                            blue: 0.2,
+                            alpha: 1.0,
+                        )),
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -631,7 +636,7 @@
                             texture: "self://textures/rock.png",
                             // Nickel-iron: the rare one, so the bonus target is
                             // worth flying out to.
-                            material: "metal",
+                            kind: "metal",
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -658,18 +663,18 @@
         ],
     )),
     // -- 4. MENU BACKDROP ---------------------------------------------------
-    // A scenario flagged `menu_backdrop: true` can drive the main-menu ambience:
-    // mods can ship their own menu scene, not just playable levels. `hidden:
-    // true` keeps it out of the player-facing Scenarios picker (it is menu
-    // dressing, not a level you launch). It renders under this mod's own skybox
+    // A scenario declaring `role: Backdrop` can drive the main-menu ambience:
+    // mods can ship their own menu scene, not just playable levels. The role is
+    // also what keeps it out of the player-facing Scenarios picker (it is menu
+    // dressing, not a level you launch) - a scenario with no `role` is a
+    // `Chapter`, which is a picker row. It renders under this mod's own skybox
     // and uses this mod's own rock texture, all via `self://`.
     Scenario((
         id: "example_menu",
         name: "Example Menu Backdrop",
         description: "A menu-ambience scene shipped by the example mod, under its own skybox.",
         cubemap: "self://textures/nebula.png",
-        hidden: true,
-        menu_backdrop: true,
+        role: Backdrop,
         events: [
             (
                 name: OnStart,
@@ -754,7 +759,7 @@
                         kind: Asteroid((
                             radius: 180.0,
                             texture: "self://textures/rock.png",
-                            material: "rock",
+                            kind: "rock",
                             mass: Some(36_000.0),
                             invulnerable: true,
                             lock_signature: None,
@@ -771,95 +776,31 @@
                             controller: AI((
                                 orbit: Some("menu_planetoid"),
                             )),
-                            hull: Inline((
+                            design: Inline((
                                 sections: [
                                     (
                                         id: "controller",
                                         position: (0.0, 0.0, 0.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("basic_controller_section"),
+                                        source: Prototype(id: "basic_controller_section"),
                                     ),
                                     (
                                         id: "hull_front",
                                         position: (0.0, 0.0, 1.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("reinforced_hull_section"),
+                                        source: Prototype(id: "reinforced_hull_section"),
                                     ),
                                     (
                                         id: "thruster",
                                         position: (0.0, 0.0, 2.0),
                                         rotation: (0.0, 0.0, 0.0, 1.0),
-                                        source: Prototype("basic_thruster_section"),
+                                        source: Prototype(id: "basic_thruster_section"),
                                     ),
                                 ],
                             )),
                         )),
                     )),
                 ],
-            ),
-        ],
-    )),
-
-    // -- 5. HULL LINE -------------------------------------------------------
-    // A `Grammar` is a procedural HULL LINE: the grid a collapse runs in, how
-    // it prices emptiness, the spine it lays before it starts, and the parts it
-    // may draw. A NEW id ADDS a line beside the base `standard_hull` rather
-    // than retuning it - the editor's Generate block lists every grammar in the
-    // merged content under HULL LINE, and collapses the one that is picked.
-    //
-    // A freighter rather than a second warship, so the difference is visible in
-    // one look: longer, no weapons in the draw, and built out of this mod's own
-    // plate. Nothing here is engine work - a mod ships a hull line as data.
-    Grammar((
-        id: "example_freighter_hull",
-        name: "Freighter Hull (Example Mod)",
-        // 4 x 5 x 15 = 300 cells, against the base hull's 220. Longer and no
-        // wider: a hauler is a hull with a hold in the middle of it. The cell
-        // count is what the collapse allocates a domain per, and it is capped -
-        // see `MAX_GRAMMAR_CELLS`.
-        grid: (
-            half_width: 4,
-            height: 5,
-            length: 15,
-        ),
-        // Emptiness is priced exactly as the base line prices it, except at the
-        // bow: a freighter has a blunt nose, so vacuum gets far less of a
-        // discount out front than the warship's long taper gives it.
-        vacuum: (
-            base: 0.22,
-            taper: 1.4,
-            stern: 9.0,
-            bow_taper: 6.0,
-        ),
-        // The spine, laid before the collapse gets a say. Built out of the
-        // section this mod ADDS above, which is the whole point of a mod
-        // shipping a line: the parts and the plan are one piece of content.
-        keel: (
-            hull: "example_plated_hull_section",
-            bridge: "basic_controller_section",
-            stern_deck: "example_plated_hull_section",
-            stern_drive: "basic_thruster_section",
-        ),
-        // What the collapse may draw, and how often. No turret and no torpedo:
-        // this is a hauler, and what a line does NOT draw is as much of its
-        // silhouette as what it does.
-        parts: [
-            (
-                prototype: "example_plated_hull_section",
-                weight: 6.0,
-            ),
-            (
-                prototype: "reinforced_hull_section",
-                weight: 2.0,
-            ),
-            (
-                prototype: "basic_controller_section",
-                weight: 0.15,
-            ),
-            (
-                prototype: "basic_thruster_section",
-                weight: 6.4,
-                aim: Some(Aft),
             ),
         ],
     )),

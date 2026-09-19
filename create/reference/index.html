@@ -58,23 +58,23 @@ dependency).</li>
 <tbody>
 <tr>
 <td>Mod structure</td>
-<td><a href="../mod-files/">bundle and content files</a>, <a href="../campaigns/"><code>Campaign</code></a>, <a href="../channels/"><code>Channel</code></a>, <a href="../grammars/"><code>Grammar</code></a>, <a href="../impacts/"><code>Impact</code></a>, <a href="../scenarios/"><code>Scenario</code></a>, <a href="../sections/"><code>Section</code></a>, <a href="../ships/"><code>Ship</code></a>, <a href="../styles/"><code>Style</code></a></td>
+<td><a href="../mod-files/">bundle and content files</a>, <a href="../campaigns/"><code>Campaign</code></a>, <a href="../lessons/"><code>Lesson</code></a>, <a href="../scenarios/"><code>Scenario</code></a>, <a href="../sections/"><code>Section</code></a>, <a href="../ships/"><code>Ship</code></a>, <a href="../styles/"><code>Style</code></a></td>
 </tr>
 <tr>
 <td>Handler fields</td>
 <td><a href="../events/"><code>name</code></a>, <a href="../scenarios/#once-a-beat-that-happens-one-time"><code>once</code></a>, <a href="../filters/"><code>filters</code></a>, <a href="../actions/"><code>actions</code></a></td>
 </tr>
 <tr>
-<td>Events (26)</td>
-<td><a href="../events/#onstart"><code>OnStart</code></a>, <a href="../events/#onupdate"><code>OnUpdate</code></a>, <a href="../events/#ontimerend"><code>OnTimerEnd</code></a>, <a href="../events/#cinematic-endings"><code>OnCinematicFinished</code></a>, <a href="../events/#cinematic-endings"><code>OnCinematicSkipped</code></a>, <a href="../events/#ondefeated"><code>OnDefeated</code></a>, <a href="../events/#ondestroyed"><code>OnDestroyed</code></a>, <a href="../events/#onneutralized"><code>OnNeutralized</code></a>, <a href="../events/#onenter"><code>OnEnter</code></a>, <a href="../events/#onexit"><code>OnExit</code></a>, <a href="../events/#player-maneuver-completion"><code>OnGotoComplete</code></a>, <a href="../events/#player-maneuver-completion"><code>OnStopComplete</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitStart</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitStable</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitLap</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitUnstable</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitEnd</code></a>, <a href="../events/#lock-lifecycle"><code>OnTravelLockStart</code></a>, <a href="../events/#lock-lifecycle"><code>OnTravelLockEnd</code></a>, <a href="../events/#lock-lifecycle"><code>OnCombatLockStart</code></a>, <a href="../events/#lock-lifecycle"><code>OnCombatLockEnd</code></a>, <a href="../events/#onshipordercomplete"><code>OnShipOrderComplete</code></a>, <a href="../events/#onshiporderinterrupted"><code>OnShipOrderInterrupted</code></a>, <a href="../events/#onshiporderresumed"><code>OnShipOrderResumed</code></a>, <a href="../events/#onshipordercanceled"><code>OnShipOrderCanceled</code></a>, <a href="../events/#onshiporderfailed"><code>OnShipOrderFailed</code></a></td>
+<td>Events (28)</td>
+<td><a href="../events/#onstart"><code>OnStart</code></a>, <a href="../events/#onupdate"><code>OnUpdate</code></a>, <a href="../events/#ontimerend"><code>OnTimerEnd</code></a>, <a href="../events/#cinematic-endings"><code>OnCinematicFinished</code></a>, <a href="../events/#cinematic-endings"><code>OnCinematicSkipped</code></a>, <a href="../events/#ondefeated"><code>OnDefeated</code></a>, <a href="../events/#ondestroyed"><code>OnDestroyed</code></a>, <a href="../events/#onneutralized"><code>OnNeutralized</code></a>, <a href="../events/#onenter"><code>OnEnter</code></a>, <a href="../events/#onexit"><code>OnExit</code></a>, <a href="../events/#player-maneuver-completion"><code>OnGotoComplete</code></a>, <a href="../events/#player-maneuver-completion"><code>OnStopComplete</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitStart</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitStable</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitLap</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitUnstable</code></a>, <a href="../events/#orbit-lifecycle"><code>OnOrbitEnd</code></a>, <a href="../events/#lock-lifecycle"><code>OnTravelLockStart</code></a>, <a href="../events/#lock-lifecycle"><code>OnTravelLockEnd</code></a>, <a href="../events/#lock-lifecycle"><code>OnCombatLockStart</code></a>, <a href="../events/#lock-lifecycle"><code>OnCombatLockEnd</code></a>, <a href="../events/#docking-lifecycle"><code>OnDocked</code></a>, <a href="../events/#docking-lifecycle"><code>OnUndocked</code></a>, <a href="../events/#onshipordercomplete"><code>OnShipOrderComplete</code></a>, <a href="../events/#onshiporderinterrupted"><code>OnShipOrderInterrupted</code></a>, <a href="../events/#onshiporderresumed"><code>OnShipOrderResumed</code></a>, <a href="../events/#onshipordercanceled"><code>OnShipOrderCanceled</code></a>, <a href="../events/#onshiporderfailed"><code>OnShipOrderFailed</code></a></td>
 </tr>
 <tr>
 <td>Filters (6)</td>
 <td><a href="../filters/#entity"><code>Entity</code></a>, <a href="../filters/#timer"><code>Timer</code></a>, <a href="../filters/#cinematic"><code>Cinematic</code></a>, <a href="../filters/#shiporder"><code>ShipOrder</code></a>, <a href="../filters/#expression"><code>Expression</code></a>, <a href="../filters/#conditional"><code>Conditional</code></a> (<code>Not</code> / <code>And</code> / <code>Or</code>)</td>
 </tr>
 <tr>
-<td>Actions (46)</td>
-<td>spawning: <a href="../actions/#spawnscenarioobject"><code>SpawnScenarioObject</code></a>, <a href="../actions/#scatterobjects"><code>ScatterObjects</code></a>, <a href="../actions/#despawnscenarioobject"><code>DespawnScenarioObject</code></a>, <a href="../actions/#createscenarioarea"><code>CreateScenarioArea</code></a> - mission: <a href="../actions/#objective"><code>Objective</code></a>, <a href="../actions/#objectivecomplete"><code>ObjectiveComplete</code></a>, <a href="../actions/#objectivemarkerattach"><code>ObjectiveMarkerAttach</code></a>, <a href="../actions/#objectivemarkerdetach"><code>ObjectiveMarkerDetach</code></a>, <a href="../actions/#narrativecue"><code>NarrativeCue</code></a>, <a href="../actions/#hudreadout"><code>HudReadout</code></a>, <a href="../actions/#hintemphasisset"><code>HintEmphasisSet</code></a>, <a href="../actions/#hintemphasisclear"><code>HintEmphasisClear</code></a> - sound: <a href="../actions/#playsound"><code>PlaySound</code></a> - pacing: <a href="../actions/#sequence"><code>Sequence</code></a>, <a href="../actions/#cinematic"><code>Cinematic</code></a>, <a href="../actions/#cancelcinematic"><code>CancelCinematic</code></a>, <a href="../actions/#cinematictitle"><code>CinematicTitle</code></a> - flow: <a href="../actions/#outcome"><code>Outcome</code></a>, <a href="../actions/#nextscenario"><code>NextScenario</code></a> - ships: <a href="../actions/#setspeedcap"><code>SetSpeedCap</code></a>, <a href="../actions/#setcontrollerverb"><code>SetControllerVerb</code></a>, <a href="../actions/#setallegiance"><code>SetAllegiance</code></a>, <a href="../actions/#setinfiniteammo"><code>SetInfiniteAmmo</code></a>, <a href="../actions/#refillammo"><code>RefillAmmo</code></a> - helm orders: <a href="../actions/#moveshipto"><code>MoveShipTo</code></a>, <a href="../actions/#forcealign"><code>ForceAlign</code></a>, <a href="../actions/#stopship"><code>StopShip</code></a>, <a href="../actions/#patrolship"><code>PatrolShip</code></a>, <a href="../actions/#orbitship"><code>OrbitShip</code></a>, <a href="../actions/#clearshiporder"><code>ClearShipOrder</code></a> - forced fire: <a href="../actions/#forcerailgunfire"><code>ForceRailgunFire</code></a>, <a href="../actions/#forcetorpedofire"><code>ForceTorpedoFire</code></a> - AI constraints: <a href="../actions/#setaileash"><code>SetAILeash</code></a>, <a href="../actions/#setaiengagerange"><code>SetAIEngageRange</code></a>, <a href="../actions/#setaipointdefenserange"><code>SetAIPointDefenseRange</code></a> - state: <a href="../actions/#variableset"><code>VariableSet</code></a>, <a href="../actions/#timerstart"><code>TimerStart</code></a>, <a href="../actions/#timercancel"><code>TimerCancel</code></a>, <a href="../actions/#debugmessage"><code>DebugMessage</code></a> - view: <a href="../actions/#setcamera"><code>SetCamera</code></a>, <a href="../actions/#setcameraanchor"><code>SetCameraAnchor</code></a>, <a href="../actions/#releasecamera"><code>ReleaseCamera</code></a>, <a href="../actions/#screenshot"><code>Screenshot</code></a>, <a href="../actions/#setskybox"><code>SetSkybox</code></a> - control: <a href="../actions/#suspendplayercontrol"><code>SuspendPlayerControl</code></a>, <a href="../actions/#resumeplayercontrol"><code>ResumePlayerControl</code></a></td>
+<td>Actions (51)</td>
+<td>spawning: <a href="../actions/#spawnscenarioobject"><code>SpawnScenarioObject</code></a>, <a href="../actions/#scatterobjects"><code>ScatterObjects</code></a>, <a href="../actions/#despawnscenarioobject"><code>DespawnScenarioObject</code></a>, <a href="../actions/#createscenarioarea"><code>CreateScenarioArea</code></a> - mission: <a href="../actions/#objective"><code>Objective</code></a>, <a href="../actions/#objectivecomplete"><code>ObjectiveComplete</code></a>, <a href="../actions/#objectivemarkerattach"><code>ObjectiveMarkerAttach</code></a>, <a href="../actions/#objectivemarkerdetach"><code>ObjectiveMarkerDetach</code></a>, <a href="../actions/#narrativecue"><code>NarrativeCue</code></a>, <a href="../actions/#hudreadout"><code>HudReadout</code></a>, <a href="../actions/#hintemphasisset"><code>HintEmphasisSet</code></a>, <a href="../actions/#hintemphasisclear"><code>HintEmphasisClear</code></a> - sound: <a href="../actions/#playsound"><code>PlaySound</code></a> - pacing: <a href="../actions/#sequence"><code>Sequence</code></a>, <a href="../actions/#cinematic"><code>Cinematic</code></a>, <a href="../actions/#cancelcinematic"><code>CancelCinematic</code></a>, <a href="../actions/#cinematictitle"><code>CinematicTitle</code></a> - flow: <a href="../actions/#outcome"><code>Outcome</code></a>, <a href="../actions/#nextscenario"><code>NextScenario</code></a> - ships: <a href="../actions/#ship-capabilities"><code>SetShipCapabilityStop</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityGoto</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityOrbit</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityLock</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityRcs</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityPointDefense</code></a>, <a href="../actions/#setallegiance"><code>SetAllegiance</code></a>, <a href="../actions/#setinfiniteammo"><code>SetInfiniteAmmo</code></a>, <a href="../actions/#refillammo"><code>RefillAmmo</code></a>, <a href="../actions/#zeroshipmotion"><code>ZeroShipMotion</code></a> - helm orders: <a href="../actions/#moveshipto"><code>MoveShipTo</code></a>, <a href="../actions/#forcealign"><code>ForceAlign</code></a>, <a href="../actions/#stopship"><code>StopShip</code></a>, <a href="../actions/#patrolship"><code>PatrolShip</code></a>, <a href="../actions/#orbitship"><code>OrbitShip</code></a>, <a href="../actions/#clearshiporder"><code>ClearShipOrder</code></a> - forced fire: <a href="../actions/#forcerailgunfire"><code>ForceRailgunFire</code></a>, <a href="../actions/#forcetorpedofire"><code>ForceTorpedoFire</code></a> - AI constraints: <a href="../actions/#setaileash"><code>SetAILeash</code></a>, <a href="../actions/#setaiengagerange"><code>SetAIEngageRange</code></a>, <a href="../actions/#setaipointdefenserange"><code>SetAIPointDefenseRange</code></a> - state: <a href="../actions/#variableset"><code>VariableSet</code></a>, <a href="../actions/#timerstart"><code>TimerStart</code></a>, <a href="../actions/#timercancel"><code>TimerCancel</code></a>, <a href="../actions/#debugmessage"><code>DebugMessage</code></a> - view: <a href="../actions/#setcamera"><code>SetCamera</code></a>, <a href="../actions/#setcameraanchor"><code>SetCameraAnchor</code></a>, <a href="../actions/#releasecamera"><code>ReleaseCamera</code></a>, <a href="../actions/#screenshot"><code>Screenshot</code></a>, <a href="../actions/#setskybox"><code>SetSkybox</code></a> - control: <a href="../actions/#suspendplayercontrol"><code>SuspendPlayerControl</code></a>, <a href="../actions/#resumeplayercontrol"><code>ResumePlayerControl</code></a></td>
 </tr>
 <tr>
 <td>Objects (7)</td>
@@ -90,7 +90,7 @@ dependency).</li>
 </tr>
 <tr>
 <td>Base ids &amp; assets</td>
-<td><a href="../base-content/#section-prototypes">section prototypes</a>, <a href="../base-content/#scenario-ids">scenario ids</a>, <a href="../ships/#base-ships">ship ids</a>, <a href="../base-content/#skin-styles">style ids</a>, <a href="../grammars/#base-grammars">grammar ids</a>, <a href="../channels/#base-channels">channel ids</a>, <a href="../base-content/#assets-what-depbase-can-reach"><code>dep://base/</code> assets</a></td>
+<td><a href="../base-content/#section-prototypes">section prototypes</a>, <a href="../base-content/#scenario-ids">scenario ids</a>, <a href="../ships/#base-ships">ship ids</a>, <a href="../base-content/#skin-styles">style ids</a>, <a href="../base-content/#assets-what-depbase-can-reach"><code>dep://base/</code> assets</a></td>
 </tr>
 </tbody>
 </table>
@@ -107,7 +107,6 @@ dependency).</li>
 <a href="../actions/#scatterobjects"><code>Box</code></a> (scatter region)</p>
 <p><strong>C</strong> - <a href="../campaigns/"><code>Campaign</code></a> (content item),
 <a href="../actions/#cancelcinematic"><code>CancelCinematic</code></a> (action),
-<a href="../channels/"><code>Channel</code></a> (content item),
 <a href="../actions/#cinematic"><code>Cinematic</code></a> (action),
 <a href="../filters/#cinematic"><code>Cinematic</code></a> (filter),
 <a href="../actions/#cinematictitle"><code>CinematicTitle</code></a> (action),
@@ -118,7 +117,6 @@ dependency).</li>
 <p><strong>D</strong> - <a href="../actions/#debugmessage"><code>DebugMessage</code></a> (action),
 <a href="../actions/#despawnscenarioobject"><code>DespawnScenarioObject</code></a> (action),
 <a href="../objects/#light"><code>Directional</code></a> (light method),
-<a href="../objects/#the-sections-list"><code>DisableVerb</code></a> (section modification),
 <a href="../expressions/#terms-multiply-divide"><code>Divide</code></a> (expression node)</p>
 <p><strong>E</strong> - <a href="../filters/#entity"><code>Entity</code></a> (filter),
 <a href="../expressions/#conditions-the-boolean-root"><code>Equal</code></a> (condition),
@@ -131,10 +129,10 @@ dependency).</li>
 <p><strong>H</strong> - <a href="../actions/#hintemphasisclear"><code>HintEmphasisClear</code></a>,
 <a href="../actions/#hintemphasisset"><code>HintEmphasisSet</code></a>,
 <a href="../actions/#hudreadout"><code>HudReadout</code></a> (actions)</p>
-<p><strong>I</strong> - <a href="../impacts/"><code>Impact</code></a> (content item),
-<a href="../objects/#the-sections-list"><code>Inline</code></a> (section source)</p>
+<p><strong>I</strong> - <a href="../objects/#the-sections-list"><code>Inline</code></a> (section source)</p>
 <p><strong>K</strong> - <a href="../objects/#the-controller"><code>Keyboard</code> / <code>Mouse</code> / <code>Gamepad</code></a> (input bindings)</p>
 <p><strong>L</strong> - <a href="../expressions/#conditions-the-boolean-root"><code>LessThan</code></a> (condition),
+<a href="../lessons/"><code>Lesson</code></a> (content item),
 <a href="../objects/#light"><code>Light</code></a> (object),
 <a href="../expressions/#factors-the-atoms"><code>Literal</code></a> (expression node)</p>
 <p><strong>M</strong> - <a href="../actions/#moveshipto"><code>MoveShipTo</code></a> (action),
@@ -155,6 +153,7 @@ dependency).</li>
 <a href="../events/#lock-lifecycle"><code>OnCombatLockEnd</code></a>,
 <a href="../events/#ondefeated"><code>OnDefeated</code></a>,
 <a href="../events/#ondestroyed"><code>OnDestroyed</code></a>,
+<a href="../events/#docking-lifecycle"><code>OnDocked</code></a>,
 <a href="../events/#onenter"><code>OnEnter</code></a>,
 <a href="../events/#onexit"><code>OnExit</code></a>,
 <a href="../events/#player-maneuver-completion"><code>OnGotoComplete</code></a>,
@@ -170,6 +169,7 @@ dependency).</li>
 <a href="../events/#ontimerend"><code>OnTimerEnd</code></a>,
 <a href="../events/#lock-lifecycle"><code>OnTravelLockStart</code></a>,
 <a href="../events/#lock-lifecycle"><code>OnTravelLockEnd</code></a>,
+<a href="../events/#docking-lifecycle"><code>OnUndocked</code></a>,
 <a href="../events/#onupdate"><code>OnUpdate</code></a> (events),
 <a href="../scenarios/#once-a-beat-that-happens-one-time"><code>once</code></a> (handler field),
 <a href="../actions/#orbitship"><code>OrbitShip</code></a> (action),
@@ -187,7 +187,6 @@ dependency).</li>
 <p><strong>Q</strong> - <a href="../expressions/#factors-the-atoms"><code>Query</code></a> (expression node)</p>
 <p><strong>R</strong> - <a href="../actions/#refillammo"><code>RefillAmmo</code></a> (action),
 <a href="../actions/#releasecamera"><code>ReleaseCamera</code></a> (action),
-<a href="../objects/#the-sections-list"><code>Rename</code></a> (section modification),
 <a href="../actions/#resumeplayercontrol"><code>ResumePlayerControl</code></a> (action),
 <a href="../actions/#scatterobjects"><code>Ring</code></a> (scatter region)</p>
 <p><strong>S</strong> - <a href="../objects/#salvagecrate"><code>SalvageCrate</code></a> (object),
@@ -202,12 +201,14 @@ dependency).</li>
 <a href="../actions/#setallegiance"><code>SetAllegiance</code></a>,
 <a href="../actions/#setcamera"><code>SetCamera</code></a>,
 <a href="../actions/#setcameraanchor"><code>SetCameraAnchor</code></a>,
-<a href="../actions/#setcontrollerverb"><code>SetControllerVerb</code></a> (actions),
 <a href="../actions/#setinfiniteammo"><code>SetInfiniteAmmo</code></a> (action),
-<a href="../objects/#the-sections-list"><code>SetAmmo</code></a> (section modification),
-<a href="../objects/#the-sections-list"><code>SetHealth</code></a> (section modification),
+<a href="../actions/#ship-capabilities"><code>SetShipCapabilityGoto</code></a>,
+<a href="../actions/#ship-capabilities"><code>SetShipCapabilityLock</code></a>,
+<a href="../actions/#ship-capabilities"><code>SetShipCapabilityOrbit</code></a>,
+<a href="../actions/#ship-capabilities"><code>SetShipCapabilityPointDefense</code></a>,
+<a href="../actions/#ship-capabilities"><code>SetShipCapabilityRcs</code></a>,
+<a href="../actions/#ship-capabilities"><code>SetShipCapabilityStop</code></a> (actions),
 <a href="../actions/#setskybox"><code>SetSkybox</code></a>,
-<a href="../actions/#setspeedcap"><code>SetSpeedCap</code></a>,
 <a href="../ships/"><code>Ship</code></a> (content item),
 <a href="../filters/#shiporder"><code>ShipOrder</code></a> (filter),
 <a href="../sections/#damage-effects"><code>Sparks</code></a> (damage effect),
@@ -223,6 +224,7 @@ dependency).</li>
 <a href="../actions/#timercancel"><code>TimerCancel</code></a>,
 <a href="../actions/#timerstart"><code>TimerStart</code></a> (actions)</p>
 <p><strong>V</strong> - <a href="../actions/#variableset"><code>VariableSet</code></a> (action)</p>
+<p><strong>Z</strong> - <a href="../actions/#zeroshipmotion"><code>ZeroShipMotion</code></a> (action)</p>
 <p>Typed queries and their auto-updating watched variables also belong to the
 vocabulary:
 <a href="../expressions/#queries-and-watched-variables">queries and watched variables</a>.</p>

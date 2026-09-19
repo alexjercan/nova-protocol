@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -360,7 +360,7 @@ names its own root on <code>SettingsStorePlugin</code> instead.</p>
 <tr><th>Variable</th><th>Gates</th><th>Owner</th><th>For</th></tr>
 </thead>
 <tbody>
-<tr><td><code>NOVA_MENU_BACKDROP</code></td><td>pins the menu backdrop to one <code>menu_backdrop</code> scenario id instead of re-rolling the draw; an unknown id warns and falls back</td><td><code>nova_menu</code></td><td>harness</td></tr>
+<tr><td><code>NOVA_MENU_BACKDROP</code></td><td>pins the menu backdrop to one <code>role: Backdrop</code> scenario id instead of re-rolling the draw; an unknown id warns and falls back</td><td><code>nova_menu</code></td><td>harness</td></tr>
 </tbody>
 </table>
 </div>
@@ -407,9 +407,7 @@ by them, so count <code>env::var</code> call sites instead of identifiers.</p>
 <li>
 <p><strong>Shell-only.</strong> <code>NOVA_UI_PORT</code>, <code>NOVA_GAME_PORT</code>, <code>NOVA_MODS_PORT</code>,
 <code>NOVA_MODS_DIR</code>, <code>NOVA_PORT_LO</code>/<code>_HI</code> are read by <code>scripts/</code> and
-<code>web/webpack.config.js</code>; <code>NOVA_BENCH_MODEL</code>, <code>NOVA_BENCH_EFFORT</code> and
-<code>NOVA_BENCH_PERSONA</code> by <code>benchmark/</code>, which is the CODING benchmark and not
-the agent bench above. No Rust reads any of them.</p>
+<code>web/webpack.config.js</code>. No Rust reads any of them.</p>
 <p>The media packagers own two more. <code>NOVA_UNFREEZE</code> takes a comma-separated
 prefix list and re-opens the frozen <code>news-</code> names of the post being authored
 (<code>NOVA_UNFREEZE=news-0130</code>), in <code>scripts/gen-web-screenshots.py</code> for stills
@@ -489,11 +487,11 @@ do, which is the point.</li>
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

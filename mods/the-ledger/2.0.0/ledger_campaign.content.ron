@@ -1,0 +1,15 @@
+// Independent activities, grouped in a suggested play order.
+[
+    Campaign((
+        id: "the_ledger",
+        name: "The Ledger: Field Trials",
+        scenarios: [
+            "ledger_01_drift_run",
+            "ledger_02_rock_garden",
+            "ledger_03_blue_survey",
+            "ledger_04_cold_patrol",
+            "ledger_05_freight_lane",
+            "ledger_06_siege_line",
+        ],
+    )),
+]

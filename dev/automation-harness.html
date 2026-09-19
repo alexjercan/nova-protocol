@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -208,8 +208,9 @@ directly.</p>
 <p><code>nova_probe_cli</code> (the game binary’s <code>probe</code> subcommand, debug feature only) is the host layer above: it arms the
 harness variables, spawns a subject as a child process and turns the output
 into a correctness and performance report. It arms the variables below -
-including a window-sized <code>NOVA_AUTOPILOT_DEADLINE</code> for its fps pass, which your
-own value overrides. Its in-game half, <code>nova_probe</code>, is what the subject
+including a <code>NOVA_AUTOPILOT_DEADLINE</code> sized to the capture window for its fps
+pass and to <code>--timeout</code> for its behavioral pass, which your own value
+overrides. Its in-game half, <code>nova_probe</code>, is what the subject
 wires to collect the evidence.</p>
 <p>A harness run is headless, which for these drivers means a SOFTWARE X server,
 and that is not free: presenting a window under Xvfb costs a CPU copy of every
@@ -257,8 +258,9 @@ reports nothing wrong.</p>
 <p>The timeline says what HAPPENED. The world-state snapshot
 (<code>nova_probe::capabilities::snapshot</code>) says what the world LOOKS like: one JSON
 object holding every ship - identity, pose, velocity, aggregate health, mass,
-the collapse/defeat flags and its weapon locks - each ship’s sections with their
-class, pose, health, modifications and magazine state, each section’s fixtures
+the collapse/defeat flags, its weapon locks and its capabilities - each ship’s
+sections with their class, pose, health and magazine state, each section’s
+fixtures
 (the skin plates and decor bolted to it), and every torpedo and round in flight
 with its owner, damage, remaining lifetime and - for a torpedo - which ordnance
 TYPE it is, since two bays on one hull can load different torpedoes that are
@@ -373,6 +375,11 @@ the settles existed for. And the pointer acks answer for <code>PointerId::Mouse<
 alone, because that is the pointer the gestures drive; an app may carry others
 (Nova’s terminal parks a forwarded one), and a second pointer sitting in the
 opposite state would otherwise ack for the one the beat actually moved.</p>
+<p>A headless range that clicks UI must SPAWN A WINDOW, as
+<code>system_headless_drag</code> does. <code>nova_core</code> holds <code>UiSystems::Layout</code> while any UI
+root is aimed at a target with no area - a zero-size target makes taffy hand
+bevy a negative node size, which panics - so an app with no window at all never
+lays its UI out and no <code>ui_node_present</code> beat can ever advance.</p>
 <p>The aim beat re-hovers EVERY frame rather than holding the coordinate it first
 sent, so a reflow moves it along instead of stranding it; it carries
 <code>pointer_hover_diagnosis(name)</code>, which names the occluder that took the pick.</p>
@@ -610,6 +617,36 @@ production caller passes its own profile and changes nothing else.
 not), so the window, the frame clock and the encode cannot disagree about the
 framing - and a profile whose output equals its window encodes with no scale
 filter at all, rather than resampling a master through itself.</p>
+<p>A SPRITE SHEET is the same recorder with a grid for a length. The training
+handbook draws a lesson loop from one image of cells - the game has no video
+decoder, so an atlas is how a panel animates - and a producer opens the
+recording with <code>sheet_start(world, name, grid)</code> and holds the closing step on
+<code>sheet_written(name)</code>. There is no <code>sheet_end</code>: the grid IS the length, so the
+recorder stops at <code>SheetGrid::frames()</code> frames, tiles them left to right and
+top to bottom, and acks <code>&lt;name&gt;.png</code> itself. Calling <code>loop_end</code> on a sheet is
+an error that names the predicate to hold on instead.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>sheet_start(world, "flight_aim", SheetGrid {
+    columns: 4, rows: 5, cell: (960, 540),  // the grid the LESSON authors
+});
+<span class="boring">}</span></code></pre>
+<p>The cells are recorded frames, so what happens under a sheet has to survive
+the WRAP: a sheet plays on a cycle, and twenty frames at ten a second is two
+seconds of it. <code>examples/screenshots/shared/lesson.rs</code> carries both answers. A
+POSE loop freezes the scene and puts the camera on one period of a sine arc, so
+the last cell hands back to the first. An ACTION loop holds the camera still
+and lets the act be the motion - a few cells before, the press, and the rest of
+the sheet holding the result - which wraps the way a tutorial clip wraps. When
+the act is the SHIP MOVING, a camera fixed in the world loses it inside two
+seconds, so <code>LessonChase</code> holds a fixed offset IN WORLD AXES from the moving
+hull: the ship keeps its place in the cell and its attitude on the screen, and
+a hull the flight computer turns end for end is SEEN to turn. What does not
+work is a one-way clip of gameplay under a camera bolted to the hull’s own
+frame: that shows a still ship with the background spinning round it. <code>scripts/capture-lesson-media.sh</code> runs the <code>lesson_*</code> producers and
+packages what they write into <code>assets/base/training/</code>, encoding the staged PNG
+as the WebP the handbook ships - a sheet sized to fill the Lessons pane is
+megabytes lossless and about 150 KB encoded.</p>
 <p>Do not add a second capture idiom beside it. A driver that walks its own list
 of shots builds that list away from the script producing the state each shot
 frames, which puts timing and framing in different files - and they drift. A
@@ -656,7 +693,7 @@ fallback for examples with nothing observable to wait on.</p>
 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
   cargo run --example system_scenario_grammar --features debug
 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=target/shots \
-  cargo run --example screenshot_gravity --features debug
+  cargo run --example screenshot_hero_ship --features debug
 </code></pre>
 <p><code>crates/nova_autopilot/examples/driven_app.rs</code> is the end-to-end read: a
 self-contained <code>DefaultPlugins</code> app with its own state machine, driven through
@@ -730,11 +767,11 @@ how to read it: <a href="performance.html">Measuring performance</a>.</li>
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

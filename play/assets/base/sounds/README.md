@@ -3,8 +3,8 @@
 The base mod's WORLD cues - the sounds of things that exist in the game world -
 and its AVIONICS cues, the ship's own cockpit instruments.
 
-These live under `assets/base/` because the base game is just a mod (task
-20260717-002228) and a mod can reship or reference any of them. They are
+These live under `assets/base/` because the base game is just a mod and a mod
+can reship or reference any of them. They are
 declared in the base bundle's `resources` list (`assets/base/base.bundle.ron`),
 so a mod reaches them with `dep://base/sounds/<name>.wav` - the same scheme the
 base uses with `self://`. Engine chrome (menus, the editor, objectives, comms)
@@ -16,8 +16,8 @@ that decides which directory a sound belongs in.
 A section or object declares a sound as an authorable `AssetRef<AudioSource>`
 content field, exactly like it declares a render mesh. Content that declares no
 sound plays none - there is no fallback bank, and the transitional `WorldSfx`
-bank was deleted when the migration completed (spike 20260717-101524). So a
-file in this directory that nothing authors is silent until something does.
+bank was deleted when the migration completed. So a file in this directory that
+nothing authors is silent until something does.
 
 Combat and world cues are POSITIONAL (attenuated by distance from the listener
 camera). The avionics cues are the ship talking to its own pilot.

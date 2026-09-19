@@ -17,7 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Scenario objects</p><h1>Scenario objects</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#anchor">Anchor</a><ol></ol></li><li><a href="#asteroid">Asteroid</a><ol><li><a href="#what-a-rock-is-made-of">What a rock is made of</a></li><li><a href="#sizing-a-rock-you-want-shot">Sizing a rock you want shot</a></li></ol></li><li><a href="#planet">Planet</a><ol><li><a href="#sizing-a-planet">Sizing a planet</a></li><li><a href="#picking-a-type">Picking a type</a></li></ol></li><li><a href="#spaceship">Spaceship</a><ol><li><a href="#the-controller">The controller</a></li><li><a href="#the-sections-list">The sections list</a></li></ol></li><li><a href="#beacon">Beacon</a><ol></ol></li><li><a href="#salvagecrate">SalvageCrate</a><ol></ol></li><li><a href="#light">Light</a><ol></ol></li><li><a href="#radar-line-of-sight">Radar line of sight</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol></nav><p>Everything a scenario can place in the world. An object is spawned by
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Scenario objects</p><h1>Scenario objects</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#anchor">Anchor</a><ol></ol></li><li><a href="#asteroid">Asteroid</a><ol><li><a href="#what-a-rock-is-made-of">What a rock is made of</a></li><li><a href="#sizing-a-rock-you-want-shot">Sizing a rock you want shot</a></li></ol></li><li><a href="#planet">Planet</a><ol><li><a href="#sizing-a-planet">Sizing a planet</a></li><li><a href="#picking-a-type">Picking a type</a></li></ol></li><li><a href="#spaceship">Spaceship</a><ol><li><a href="#capabilities">Capabilities</a></li><li><a href="#section-patches">Section patches</a></li><li><a href="#the-controller">The controller</a></li><li><a href="#the-sections-list">The sections list</a></li></ol></li><li><a href="#beacon">Beacon</a><ol></ol></li><li><a href="#salvagecrate">SalvageCrate</a><ol></ol></li><li><a href="#light">Light</a><ol></ol></li><li><a href="#radar-line-of-sight">Radar line of sight</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol></nav><p>Everything a scenario can place in the world. An object is spawned by
 <a href="../actions/#spawnscenarioobject"><code>SpawnScenarioObject</code></a> (or in bulk by
 <a href="../actions/#scatterobjects"><code>ScatterObjects</code></a>): a shared <code>base</code> block plus a
 <code>kind</code> that picks one of the SEVEN kinds below. Every object gets the base's
@@ -161,10 +161,10 @@ default mass and radar signature together.</p>
 <td>well STRENGTH (the parameter mu), an engine dial rather than an SI mass - see <a href="#anchor">Anchor</a>. <code>Some</code> ALWAYS makes this rock a well. Size it by the reach you want, which is metric: <code>mass = (soi / 20)^2</code> for an <code>soi</code> in meters, so the campaign planetoid's 27,000 buys 3.29 km. <code>None</code> = the global rule (a default mass only if the radius qualifies it as a well: below 50 m a rock stays flat space)</td>
 </tr>
 <tr>
-<td><code>material</code></td>
+<td><code>kind</code></td>
 <td>string</td>
 <td>required</td>
-<td>the rock's KIND: <code>&quot;rock&quot;</code>, <code>&quot;metal&quot;</code>, <code>&quot;ice&quot;</code>, <code>&quot;carbon&quot;</code> or <code>&quot;plain&quot;</code>. It decides how the rock looks and how a round sounds landing on it - see <a href="#what-a-rock-is-made-of">below</a>. There is no default and no fallback</td>
+<td>the rock's KIND: <code>&quot;rock&quot;</code>, <code>&quot;metal&quot;</code>, <code>&quot;ice&quot;</code>, <code>&quot;carbon&quot;</code> or <code>&quot;plain&quot;</code>. It decides how the rock LOOKS - see <a href="#what-a-rock-is-made-of">below</a>. There is no default and no fallback</td>
 </tr>
 <tr>
 <td><code>destroy_sound</code></td>
@@ -176,7 +176,7 @@ default mass and radar signature together.</p>
 <td><code>lock_signature</code></td>
 <td><code>Option</code> number</td>
 <td><code>None</code></td>
-<td>radar signature override, meters; <code>None</code> = the radius (big rocks lock far). Lock range is thirty times the signature, so a 200 m rock is lockable from 6 km. Separately, and whatever the signature says, EVERY asteroid blocks radar: nothing behind it can be locked or detected while it is on the line - see <a href="#radar-line-of-sight">line of sight</a></td>
+<td>radar signature override, meters; <code>None</code> = 100 m plus half the rock's TRUE geometric radius (the meshed extent, not the nominal <code>radius</code> above), so a pebble is a close-range contact and a belt body a landmark. Lock range is thirty times the signature. Separately, and whatever the signature says, EVERY asteroid blocks radar: nothing behind it can be locked or detected while it is on the line - see <a href="#radar-line-of-sight">line of sight</a></td>
 </tr>
 <tr>
 <td><code>seed</code></td>
@@ -191,16 +191,17 @@ default mass and radar signature together.</p>
     <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span>
         <span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">200.0</span><span class="ron-punct">,</span>
         <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span>
-        <span class="ron-key">material</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">mass</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">45000.0</span><span class="ron-punct">),</span>
         <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
     <span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <h3 id="what-a-rock-is-made-of" tabindex="-1">What a rock is made of</h3>
-<p><code>material</code> is the rock's KIND, and it is REQUIRED. It answers two questions at
-once: how the body is SHADED, and what the <a href="../impacts/">impact table</a> plays
-when a round lands on it.</p>
+<p><code>kind</code> is the rock's KIND, and it is REQUIRED. It answers one question: how the
+body is SHADED. It does NOT decide what the rock sounds like when something
+hits it - every asteroid is stone to the engine's impact voice, whatever it is
+made of, and only the damage type changes the bang.</p>
 <table>
 <thead>
 <tr>
@@ -237,11 +238,13 @@ different questions, so a mod keeps its own rock texture and still picks a kind.
 <p><strong>There is no default and no fallback.</strong> A rock that does not say what it is
 made of fails to load, and one that names a kind nobody ships is a <code>content lint</code> error and a refusal to render. A body this big in the frame does not get
 to be a shrug.</p>
-<p><strong>Migrating a file written for 0.12.0 or earlier:</strong> every <code>Asteroid((..))</code> needs a
-<code>material:</code> line. <code>material: &quot;rock&quot;</code> is what the old files were drawn as, so it
-is the mechanical migration; picking a kind per rock is the point of the field.
-A field scattered by <a href="../actions/#scatterobjects"><code>ScatterObjects</code></a> states its
-kinds once, in <code>asteroid_kinds</code>, and the scatter writes them into every copy.</p>
+<p><strong>Migrating an older file:</strong> the field was called <code>material:</code> in 0.13.x - rename
+it to <code>kind:</code>, and nothing else about it changed. A file written for 0.12.0 or
+earlier has no such line at all and needs one on every <code>Asteroid((..))</code>;
+<code>kind: &quot;rock&quot;</code> is what those files were drawn as, so it is the mechanical
+migration, and picking a kind per rock is the point of the field. A field
+scattered by <a href="../actions/#scatterobjects"><code>ScatterObjects</code></a> states its kinds
+once, in <code>asteroid_kinds</code>, and the scatter writes them into every copy.</p>
 <p>A normal asteroid has no health pool. Hits remove signed geometry and severed
 pieces become debris. When no viable connected solid remains, destruction fires
 <a href="../events/#ondestroyed"><code>OnDestroyed</code></a> with the rock's id and <code>&quot;asteroid&quot;</code>.</p>
@@ -260,7 +263,7 @@ authored radius, and that swell is the solid the guns have to chew.</p>
 <p>Author the size you want the fight to take. The shipped tutorial targets are
 <code>radius: 2.5</code> and <code>3.0</code> for exactly this reason: small size, not hidden health,
 is what keeps a target brief now that there is no <code>health</code> field to turn down.</p>
-<!-- Numbers verified against crates/nova_gameplay/src/integrity/carve.rs (DAMAGE_PER_UNIT_VOLUME 8.0 per cubic world unit :83, mark_radius :264-277) and crates/nova_authoring/src/base_content/sections/standard.rs (KINETIC_PDC_BULLET_DAMAGE 4.0 :59, GATLING_FIRE_RATE 100.0 :74). Tutorial radii from assets/mods/example/example.content.ron (:409, :424). -->
+<!-- Numbers verified against crates/nova_gameplay/src/integrity/carve.rs (DAMAGE_PER_UNIT_VOLUME 8.0 per cubic world unit :83, mark_radius :264-277) and crates/nova_authoring/src/base_content/sections/turret.rs (KINETIC_PDC_BULLET_DAMAGE 4.0, GATLING_FIRE_RATE 100.0). Tutorial radii from assets/mods/example/example.content.ron (:409, :424). -->
 <h2 id="planet" tabindex="-1">Planet</h2>
 <p>A world. Pick a TYPE and a SEED and you get a body with its own terrain,
 palette and polar cap - mountains, basins, seas where the type has them.
@@ -325,7 +328,7 @@ with a big radius is a rock the size of a planet, and it looks like one.</p>
 <td><code>lock_signature</code></td>
 <td><code>Option</code> number</td>
 <td><code>None</code></td>
-<td>radar signature override in meters; <code>None</code> = the mean radius. A planet also blocks radar over its whole sphere - the largest piece of cover you can place - see <a href="#radar-line-of-sight">line of sight</a></td>
+<td>radar signature override in meters; <code>None</code> = ten times the outer surface radius (<code>radius * (1 + relief)</code>), which makes any world a landmark from anywhere a scanner reaches. A planet also blocks radar over its whole sphere - the largest piece of cover you can place - see <a href="#radar-line-of-sight">line of sight</a></td>
 </tr>
 </tbody>
 </table>
@@ -350,6 +353,10 @@ sphere of influence, the ring <a href="../actions/#orbitship"><code>OrbitShip</c
 authored as <code>Asteroid((radius: 200.0))</code> drew a body about 1 km across; written
 as a planet it wants <code>radius: 950.0</code>, not <code>200.0</code>, or every distance around it
 collapses by about five.</p>
+<p>The MESH follows the radius too: a world is built to a 20 m facet whatever its
+size, so a small planetoid is no longer paying for a big world's triangles and
+a big one is round. Detail is capped, so a body past about 1.4 km of radius is
+meshed coarser than 20 m rather than without limit.</p>
 <h3 id="picking-a-type" tabindex="-1">Picking a type</h3>
 <p>Each type is a palette and a terrain character, not a single look - a seed
 moves the biomes, the cap and the tint, so two <code>DustWorld</code>s are two worlds.</p>
@@ -410,10 +417,10 @@ id or authored inline.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>hull</code></td>
-<td>hull source</td>
+<td><code>design</code></td>
+<td>design source</td>
 <td>required</td>
-<td><code>Prototype(&quot;block_gunship&quot;)</code> names a <a href="../ships/">ship</a> by id; <code>Inline((..))</code> carries a one-off hull (below)</td>
+<td><code>Prototype(id: &quot;block_gunship&quot;)</code> names a <a href="../ships/">ship design</a> by id, with this spawn's own <code>section_patches</code> over it; <code>Inline((..))</code> carries a one-off design (below)</td>
 </tr>
 <tr>
 <td><code>controller</code></td>
@@ -428,17 +435,119 @@ id or authored inline.</p>
 <td>side override, strict RON <code>Some(Neutral)</code>. Omitted = the controller default: Player ships fight for the player, AI ships are hostile</td>
 </tr>
 <tr>
-<td><code>modifications</code></td>
-<td>list</td>
-<td><code>[]</code></td>
-<td>per-spawn deltas over the shared hull: <code>(section: &quot;fuselage&quot;, modifications: [SetHealth(500.0)])</code>. Applied AFTER the section's own list, so the spawn wins. A section id the hull does not carry is a lint error</td>
+<td><code>capabilities</code></td>
+<td>capability set</td>
+<td>all on</td>
+<td>what this spawn is PERMITTED to do (below). Omit it for a ship that can do everything</td>
 </tr>
 </tbody>
 </table>
-<p><code>hull: Inline((..))</code> carries the same fields a <a href="../ships/">ship</a>'s own <code>hull</code>
-does - <code>sections</code>, <code>collapse_threshold</code>, <code>skin</code>, <code>style</code>. Author one for a
-genuine one-off (a scripted battery that is a single torpedo tube); anything a
-second scenario would spawn belongs in the ship catalog.</p>
+<p><code>design: Inline((..))</code> carries the same fields a <a href="../ships/">ship design</a> does</p>
+<ul>
+<li><code>sections</code>, <code>integrity</code>, <code>presentation</code>. Author one for a genuine one-off (a
+scripted battery that is a single torpedo tube); anything a second scenario
+would spawn belongs in the ship catalog. An inline design takes no
+<code>section_patches</code>: it is already this spawn's own, so anything a patch would
+say it can simply say.</li>
+</ul>
+<h3 id="capabilities" tabindex="-1">Capabilities</h3>
+<p>What the ship may do, on the SHIP, not on its flight computer. Every field is
+<code>true</code> when omitted, and the whole block is omitted for a ship that can do
+everything. Losing the controller section takes the hull's steering, never its
+permissions.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stop_enabled</code></td>
+<td><code>true</code></td>
+<td>STOP: flip retrograde and burn to rest</td>
+</tr>
+<tr>
+<td><code>goto_enabled</code></td>
+<td><code>true</code></td>
+<td>GOTO: fly to the nav lock and come to rest off it</td>
+</tr>
+<tr>
+<td><code>orbit_enabled</code></td>
+<td><code>true</code></td>
+<td>ORBIT: circularize inside a gravity well</td>
+</tr>
+<tr>
+<td><code>lock_enabled</code></td>
+<td><code>true</code></td>
+<td>LOCK: the radar gesture and the combat lock it makes</td>
+</tr>
+<tr>
+<td><code>rcs_enabled</code></td>
+<td><code>true</code></td>
+<td>RCS: the torque-free fine-adjust push</td>
+</tr>
+<tr>
+<td><code>point_defense_enabled</code></td>
+<td><code>true</code></td>
+<td>the turrets engaging incoming ordnance on their own</td>
+</tr>
+<tr>
+<td><code>dock_enabled</code></td>
+<td><code>true</code></td>
+<td>DOCK: clamping the hull to the ship it has locked, port to port</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="hljs language-ron"><span class="ron-comment">// A cadet trainer: guns on the mount, nothing else handed over yet.</span>
+<span class="ron-key">capabilities</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+    <span class="ron-key">stop_enabled</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">,</span>
+    <span class="ron-key">goto_enabled</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">,</span>
+    <span class="ron-key">orbit_enabled</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">,</span>
+    <span class="ron-key">lock_enabled</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">,</span>
+    <span class="ron-key">rcs_enabled</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">,</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>Runtime mirror: the
+<a href="../actions/#ship-capabilities"><code>SetShipCapability*</code></a> actions, which is how a
+tutorial hands them over one lesson at a time. <code>dock_enabled</code> is authored at
+spawn only; it has no runtime action yet.</p>
+<h3 id="section-patches" tabindex="-1">Section patches</h3>
+<p><code>section_patches</code> tunes named sections of a catalog design for THIS spawn,
+keyed by the design's own section ids. A section id the design does not carry
+is a lint error, and so is a patch that argues with the section's kind.</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>position</code></td>
+<td>3-tuple</td>
+<td>inherit</td>
+<td>move the section to this mount cell</td>
+</tr>
+<tr>
+<td><code>rotation</code></td>
+<td>4-tuple</td>
+<td>inherit</td>
+<td>turn the section to this mount rotation</td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td>section patch</td>
+<td>inherit</td>
+<td>what this spawn changes about the section's config (<a href="#the-sections-list">the patch</a>)</td>
+</tr>
+</tbody>
+</table>
 <p>An abbreviated player ship:</p>
 <pre><code class="hljs language-ron"><span class="ron-type">SpawnScenarioObject</span><span class="ron-punct">((</span>
     <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
@@ -453,26 +562,27 @@ second scenario would spawn belongs in the ship catalog.</p>
                 <span class="ron-string">&quot;turret_port&quot;</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Mouse</span><span class="ron-punct">(</span><span class="ron-type">Left</span><span class="ron-punct">)],</span>
             <span class="ron-punct">},</span>
         <span class="ron-punct">)),</span>
-        <span class="ron-comment">// The shipped patrol gunship, by id.</span>
-        <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-string">&quot;block_gunship&quot;</span><span class="ron-punct">),</span>
-        <span class="ron-comment">// This spawn's own flight computer is hardened; every other gunship</span>
-        <span class="ron-comment">// is untouched.</span>
-        <span class="ron-key">modifications</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
-            <span class="ron-punct">(</span><span class="ron-key">section</span><span class="ron-punct">:</span> <span class="ron-string">&quot;bridge&quot;</span><span class="ron-punct">,</span> <span class="ron-key">modifications</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">SetHealth</span><span class="ron-punct">(</span><span class="ron-literal">500.0</span><span class="ron-punct">)]),</span>
-        <span class="ron-punct">],</span>
+        <span class="ron-comment">// The shipped patrol gunship, by id, with this spawn's own flight</span>
+        <span class="ron-comment">// computer hardened; every other gunship is untouched.</span>
+        <span class="ron-key">design</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span>
+            <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;block_gunship&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">section_patches</span><span class="ron-punct">:</span> <span class="ron-punct">{</span>
+                <span class="ron-string">&quot;bridge&quot;</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">config</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">health</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">500.0</span><span class="ron-punct">))),</span>
+            <span class="ron-punct">},</span>
+        <span class="ron-punct">),</span>
     <span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
-<p>A one-off hull, authored inline:</p>
+<p>A one-off design, authored inline:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Spaceship</span><span class="ron-punct">((</span>
     <span class="ron-key">controller</span><span class="ron-punct">:</span> <span class="ron-type">None</span><span class="ron-punct">,</span>
-    <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-type">Inline</span><span class="ron-punct">((</span>
+    <span class="ron-key">design</span><span class="ron-punct">:</span> <span class="ron-type">Inline</span><span class="ron-punct">((</span>
         <span class="ron-key">sections</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
             <span class="ron-punct">(</span>
                 <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;bay&quot;</span><span class="ron-punct">,</span>
                 <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span>
                 <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span>
-                <span class="ron-key">source</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-string">&quot;torpedo_section&quot;</span><span class="ron-punct">),</span>
+                <span class="ron-key">source</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;torpedo_section&quot;</span><span class="ron-punct">),</span>
             <span class="ron-punct">),</span>
         <span class="ron-punct">],</span>
     <span class="ron-punct">)),</span>
@@ -482,7 +592,7 @@ second scenario would spawn belongs in the ship catalog.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">SpawnScenarioObject</span><span class="ron-punct">((</span>
     <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
         <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;raider_1&quot;</span><span class="ron-punct">,</span>
-        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Raider&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Picket&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-3000.0</span><span class="ron-punct">),</span>
         <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span>
     <span class="ron-punct">),</span>
@@ -491,7 +601,7 @@ second scenario would spawn belongs in the ship catalog.</p>
             <span class="ron-key">patrol</span><span class="ron-punct">:</span> <span class="ron-punct">[(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-3000.0</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-literal">800.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-2200.0</span><span class="ron-punct">)],</span>
             <span class="ron-key">engage_delay</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">8.0</span><span class="ron-punct">),</span>
         <span class="ron-punct">)),</span>
-        <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-string">&quot;block_raider&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">design</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;block_picket&quot;</span><span class="ron-punct">),</span>
     <span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
@@ -537,14 +647,10 @@ crashing, so a missing dependency is visible instead of fatal.</p>
 <td><code>{}</code></td>
 <td>per-SECTION bindings, keyed by section id: <code>{ &quot;turret_port&quot;: [ Mouse(Left) ] }</code>. Values are <code>Keyboard(&lt;KeyCode&gt;)</code> / <code>Mouse(&lt;MouseButton&gt;)</code> / <code>Gamepad(&lt;GamepadButton&gt;)</code> - modifier-free buttons only</td>
 </tr>
-<tr>
-<td><code>speed_cap</code></td>
-<td><code>Option</code> number</td>
-<td><code>None</code></td>
-<td>soft manual-speed cap in m/s (Basic Training flies the whole range at <code>Some(150.0)</code>); <code>None</code> = unbounded. Runtime mirror: <a href="../actions/#setspeedcap"><code>SetSpeedCap</code></a></td>
-</tr>
 </tbody>
 </table>
+<p><code>Player((..))</code> is STRICT: a key that is not in that table is a load error
+naming the key, not a key quietly dropped.</p>
 <p><code>AI((..))</code> fields:</p>
 <table>
 <thead>
@@ -560,7 +666,7 @@ crashing, so a missing dependency is visible instead of fatal.</p>
 <td><code>patrol</code></td>
 <td>list of 3-tuples</td>
 <td><code>[]</code></td>
-<td>waypoint loop in world METERS while nothing hostile is detected; empty = station-keep. Legs blocked by a solid body (an asteroid's geometric radius) are flown around automatically, so routes need not measure every rock. Nav beacons are marks to fly TO, never obstacles, so a route can be its own beacons</td>
+<td>waypoint loop in world METERS while nothing hostile is detected; empty = station-keep. Legs blocked by a solid body are flown around automatically - the clearance is the body's geometric radius plus this ship's own live hull radius plus <code>avoid_margin</code> - so routes need not measure every rock. Nav beacons are marks to fly TO, never obstacles, so a route can be its own beacons</td>
 </tr>
 <tr>
 <td><code>orbit</code></td>
@@ -569,10 +675,22 @@ crashing, so a missing dependency is visible instead of fatal.</p>
 <td>id of a gravity-well object to orbit passively. Precedence: orbit &gt; patrol &gt; idle</td>
 </tr>
 <tr>
+<td><code>sensor_range</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>scanner-reach override in meters: how far this ship can hear anything at all, instead of the default 20,000 m. It is a CEILING over the <a href="../../wiki/targeting-radar/#lock-ranges">signature model</a>, not a replacement for it - a target is seen inside <code>min(this, its own signature x 30)</code> - so authoring it wide does not make a quiet target loud. <code>Some(0.0)</code> is a ship that sees nothing (a decoy, a derelict that must never react), and so is any hull whose last flight computer is dead, whatever is authored here. Not <code>engage_range</code>: this decides whether the ship CAN see something, that one decides whether it leaves its routine for it</td>
+</tr>
+<tr>
 <td><code>engage_range</code></td>
 <td><code>Option</code> number</td>
 <td><code>None</code></td>
 <td>hostile-detection override in meters: a passive ship leaves its routine for a hostile inside this range instead of the default 4,000 m. Wide = a long-watch emplacement that wakes for targets nothing else detects; short = a ship that ignores a nearby brawl. Range is the CEILING, not the guarantee: detection is line-of-sight gated, so a wide emplacement parked behind a planetoid never wakes - see <a href="#radar-line-of-sight">line of sight</a></td>
+</tr>
+<tr>
+<td><code>standoff_clearance</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>combat standoff override in meters: the clear space this ship wants between its own hull and its target's while it fights, instead of the default 1,000 m. A FACE distance - the engine adds both ships' live hull radii to it - so the same number means the same thing whether the fight is two skiffs or two carriers. Author what a player should SEE between the two skins. <code>Some(0.0)</code> is legal and closes until the hulls meet: a boarder, a rammer. Not where the guns open, which is the weapon's own reach, and not <code>arrival_standoff</code>, which is navigation</td>
 </tr>
 <tr>
 <td><code>pd_range</code></td>
@@ -585,6 +703,12 @@ crashing, so a missing dependency is visible instead of fatal.</p>
 <td><code>Option</code> number</td>
 <td><code>None</code></td>
 <td>patrol arrival slack override in meters on top of where the leg comes to rest (hull + arrival standoff); the default is 250 m. Small = the ship turns onto the next leg closer to each waypoint. The gate is measured from the same point the leg parks, so the slack has only the arrival's own terminal drift left to cover - author small, not zero</td>
+</tr>
+<tr>
+<td><code>avoid_margin</code></td>
+<td><code>Option</code> number</td>
+<td><code>None</code></td>
+<td>patrol avoidance margin override in meters: the daylight this ship wants between its own hull and a sized body's, instead of the default 200 m. A FACE distance - the engine adds this ship's live hull radius - so the same number is the same visible gap for a skiff and for a carrier. <code>Some(0.0)</code> is legal and passes on the hull's own skin: a miner who knows the belt. Only the patrol routine avoids; a ship in combat flies its fight</td>
 </tr>
 <tr>
 <td><code>arrival_standoff</code></td>
@@ -677,51 +801,97 @@ still hurts it). Runtime flip:
 <td><code>source</code></td>
 <td>source</td>
 <td>required</td>
-<td><code>Prototype(&quot;&lt;id&gt;&quot;)</code> - a <a href="../base-content/#section-prototypes">catalog id</a>, the compact reusable form - or <code>Inline((..))</code> with a full section config (<a href="../sections/">Ship sections for mods</a>)</td>
-</tr>
-<tr>
-<td><code>modifications</code></td>
-<td>list</td>
-<td><code>[]</code></td>
-<td>spawn-time deltas (below)</td>
+<td><code>Prototype(id: &quot;&lt;id&gt;&quot;)</code> - a <a href="../base-content/#section-prototypes">catalog id</a>, the compact reusable form, with an optional <code>patch</code> over it - or <code>Inline((..))</code> with a full section config (<a href="../sections/">Ship sections for mods</a>)</td>
 </tr>
 </tbody>
 </table>
-<p>Section modifications - closed, data-only deltas applied at spawn:</p>
+<p>A <code>Prototype</code> reference may carry a <code>patch</code>: a typed, curated delta over the
+section it resolves to. An omitted field INHERITS the prototype's value,
+<code>Some(value)</code> replaces it, and for a nullable field <code>Some(None)</code> clears it. An
+<code>Inline</code> source takes no patch - it is the config, so anything a patch would
+say it simply says.</p>
 <table>
 <thead>
 <tr>
-<th>variant</th>
-<th>payload</th>
+<th>field</th>
+<th>type</th>
+<th>default</th>
 <th>meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>DisableVerb(&lt;verb&gt;)</code></td>
-<td><code>Stop</code>/<code>Goto</code>/<code>Orbit</code>/<code>Lock</code>/<code>Rcs</code>/<code>PointDefense</code></td>
-<td>withhold a flight verb from birth (controller sections; multiple accumulate). Runtime mirror: <a href="../actions/#setcontrollerverb"><code>SetControllerVerb</code></a></td>
+<td><code>health</code></td>
+<td><code>Option</code> number</td>
+<td>inherit</td>
+<td>the section's starting health (current and max)</td>
 </tr>
 <tr>
-<td><code>SetHealth(&lt;number&gt;)</code></td>
-<td>starting health</td>
-<td>override the section's health (current and max)</td>
-</tr>
-<tr>
-<td><code>Rename(&lt;string&gt;)</code></td>
-<td>new name</td>
-<td>rename the section entity</td>
-</tr>
-<tr>
-<td><code>SetAmmo(&lt;number&gt;)</code></td>
-<td>rounds</td>
-<td>HARD magazine: override the weapon's rounds AND strip its auto-reload - when they are gone the section is dry for good. Inert on a section with no magazine</td>
+<td><code>kind</code></td>
+<td><code>Option</code> kind patch</td>
+<td>inherit</td>
+<td>the kind-specific delta, tagged with the section's own kind: <code>Turret((..))</code>, <code>Torpedo((..))</code>, <code>Railgun((..))</code>, <code>Thruster((..))</code>, <code>Controller((..))</code>, <code>Hull(())</code>. A kind that argues with the prototype is a lint error</td>
 </tr>
 </tbody>
 </table>
-<pre><code class="hljs language-ron"><span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;bridge&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.7</span><span class="ron-punct">,</span> <span class="ron-literal">0.1</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span>
- <span class="ron-key">source</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-string">&quot;basic_controller_section&quot;</span><span class="ron-punct">),</span>
- <span class="ron-key">modifications</span><span class="ron-punct">:</span> <span class="ron-punct">[</span> <span class="ron-type">DisableVerb</span><span class="ron-punct">(</span><span class="ron-type">Goto</span><span class="ron-punct">),</span> <span class="ron-type">DisableVerb</span><span class="ron-punct">(</span><span class="ron-type">Orbit</span><span class="ron-punct">)</span> <span class="ron-punct">]),</span>
+<p>What each kind patch reaches:</p>
+<table>
+<thead>
+<tr>
+<th>kind</th>
+<th>fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Thruster</code></td>
+<td><code>magnitude</code></td>
+</tr>
+<tr>
+<td><code>Controller</code></td>
+<td><code>steering_lag</code>, <code>max_torque</code></td>
+</tr>
+<tr>
+<td><code>Turret</code></td>
+<td><code>muzzle_speed</code>, <code>projectile_lifetime</code>, <code>bullet_damage</code>, <code>bullet_kind</code>, <code>ammunition</code>, <code>reload</code>, <code>muzzles</code> (per-barrel <code>fire_rate</code>, keyed by muzzle id)</td>
+</tr>
+<tr>
+<td><code>Torpedo</code></td>
+<td><code>fire_rate</code>, <code>spawner_speed</code>, <code>projectile_lifetime</code>, <code>arm_time</code>, <code>arm_distance</code>, <code>nav_constant</code>, <code>blast_radius</code>, <code>blast_damage</code>, <code>ammunition</code>, <code>reload</code></td>
+</tr>
+<tr>
+<td><code>Railgun</code></td>
+<td><code>charge_seconds</code>, <code>slug_speed</code>, <code>slug_damage</code>, <code>slug_power</code>, <code>rake_radius</code>, <code>slug_lifetime</code>, <code>recoil_impulse</code>, <code>ammunition</code>, <code>reload</code></td>
+</tr>
+<tr>
+<td><code>Hull</code></td>
+<td>nothing of its own - a hull's health is the common <code>health</code> above</td>
+</tr>
+</tbody>
+</table>
+<p>Art, colliders, sockets, link points, the turret joint tree, the section kind
+and the source itself stay the prototype's. A patch that could move them would
+make the prototype meaningless.</p>
+<p>The editor writes these patches for you. A part placed from the parts gallery
+names the catalog part it came from, and tuning a field on it marks the row:
+the build keeps the reference plus the delta, not a copy. The mark carries a reset control that DROPS that field from the
+patch, so the part's own value reaches the ship again - and a later change to
+the part reaches every ship that did not tune the field. A gun with more than
+one barrel shows a group of rows per muzzle id, which is what <code>muzzles</code> is
+keyed by. An edit no patch can say falls back to an <code>Inline</code> copy.</p>
+<pre><code class="hljs language-ron"><span class="ron-comment">// A catalog mount that carries one dry magazine on this build.</span>
+<span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;turret_port&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">1.2</span><span class="ron-punct">,</span> <span class="ron-literal">0.7</span><span class="ron-punct">,</span> <span class="ron-literal">0.5</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span>
+ <span class="ron-key">source</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span>
+     <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;pdc_kinetic_turret_section&quot;</span><span class="ron-punct">,</span>
+     <span class="ron-key">patch</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+         <span class="ron-key">health</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">90.0</span><span class="ron-punct">),</span>
+         <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Turret</span><span class="ron-punct">((</span>
+             <span class="ron-key">ammunition</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Limited</span><span class="ron-punct">(</span><span class="ron-literal">200</span><span class="ron-punct">)),</span>
+             <span class="ron-key">reload</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Disabled</span><span class="ron-punct">),</span>
+             <span class="ron-key">muzzles</span><span class="ron-punct">:</span> <span class="ron-punct">{</span> <span class="ron-string">&quot;main&quot;</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">fire_rate</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">80.0</span><span class="ron-punct">))</span> <span class="ron-punct">},</span>
+         <span class="ron-punct">))),</span>
+     <span class="ron-punct">),</span>
+ <span class="ron-punct">)),</span>
 </code></pre>
 <p>Ship structure is linted from authoritative link-point mates. A multi-section
 ship must form one graph. Collider AABB overlap is an Error unless the two
@@ -943,8 +1113,12 @@ ship looks indecisive, look at what is between it and its target.</li>
 <li>Range is a ceiling on top of sight, not an alternative to it. Both have to
 pass.</li>
 </ul>
-<p>Only ACQUIRING is gated. A travel lock the player already holds survives a rock
-drifting across it, so a rock is not a way to cancel someone's autopilot.</p>
+<p>A lock is a radio link, so cover takes the ones already held too: a rock
+crossing the line drops BOTH of the player's slots, the white travel
+designation as well as the red combat lock, and neither re-locks by itself when
+the line clears. A trip the player has already ENGAGED is the exception - the
+autopilot owns its destination once it is flying - so a rock is still not a way
+to cancel someone's burn.</p>
 <h2 id="traps-for-the-unwary" tabindex="-1">Traps for the unwary</h2>
 <ul>
 <li>A despawned object fires no <code>OnExit</code> for itself, and a beacon/crate area

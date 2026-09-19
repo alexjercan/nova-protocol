@@ -4,8 +4,7 @@
         name: "Waystation Traffic",
         description: "A freight waystation going about its day.",
         cubemap: "self://textures/cubemap.png",
-        hidden: true,
-        menu_backdrop: true,
+        role: Backdrop,
         events: [
             (
                 name: OnStart,
@@ -51,7 +50,9 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_hauler"),
+                            design: Prototype(
+                                id: "block_hauler",
+                            ),
                             controller: AI((
                                 orbit: Some("menu_planetoid"),
                             )),
@@ -74,7 +75,9 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("block_hauler"),
+                            design: Prototype(
+                                id: "block_hauler",
+                            ),
                             controller: AI((
                                 orbit: Some("menu_planetoid"),
                             )),
@@ -288,7 +291,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
-                                material: "rock",
+                                kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),

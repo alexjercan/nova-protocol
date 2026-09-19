@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ship skin styles for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author the look a ship's derived cladding wears: plate material, scattered decoration, the deterministic scatter rule, and how a ship names a style by id."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ship skin styles for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author the look a ship's derived cladding wears: the two-surface palette, scattered decoration, the region, density and orientation a fixture is placed by, and how a ship names a style by id."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
@@ -17,7 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship skin styles for mods</p><h1>Ship skin styles for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#what-a-style-can-and-cannot-change">What a style can and cannot change</a><ol></ol></li><li><a href="#the-style-item">The Style item</a><ol><li><a href="#surfaces">surfaces</a></li><li><a href="#fixtures">fixtures</a></li></ol></li><li><a href="#the-scatter-rule">The scatter rule</a><ol><li><a href="#the-seat-one-surface-or-a-crease">The seat: one surface, or a crease</a></li><li><a href="#the-seven-reliefs">The seven reliefs</a></li><li><a href="#start-from-what-a-hull-offers">Start from what a hull offers</a></li><li><a href="#priority-one-piece-per-plate">Priority: one piece per plate</a></li><li><a href="#density-one-piece-per-block-of-hull">Density: one piece per block of hull</a></li><li><a href="#alignment-not-noise">Alignment, not noise</a></li></ol></li><li><a href="#the-scatter-is-deterministic">The scatter is deterministic</a><ol></ol></li><li><a href="#the-frame-a-greeble-is-authored-in">The frame a greeble is authored in</a><ol></ol></li><li><a href="#using-a-style">Using a style</a><ol><li><a href="#drawing-a-continuous-line">Drawing a CONTINUOUS line</a></li><li><a href="#reading-as-unplanned-with-no-randomness">Reading as UNPLANNED with no randomness</a></li></ol></li></ol></nav><p>A <code>Style</code> is the LOOK a ship's derived cladding wears: what its plates are made
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship skin styles for mods</p><h1>Ship skin styles for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#what-a-style-can-and-cannot-change">What a style can and cannot change</a><ol></ol></li><li><a href="#the-style-item">The Style item</a><ol><li><a href="#palette">palette</a></li><li><a href="#fixtures">fixtures</a></li></ol></li><li><a href="#the-placement">The placement</a><ol><li><a href="#the-seven-regions">The seven regions</a></li><li><a href="#start-from-what-a-hull-offers">Start from what a hull offers</a></li><li><a href="#the-five-densities">The five densities</a></li><li><a href="#orientation">Orientation</a></li><li><a href="#what-the-collider-decides">What the collider decides</a></li><li><a href="#priority-one-piece-per-plate">Priority: one piece per plate</a></li></ol></li><li><a href="#the-scatter-is-deterministic">The scatter is deterministic</a><ol></ol></li><li><a href="#the-frame-a-greeble-is-authored-in">The frame a greeble is authored in</a><ol></ol></li><li><a href="#using-a-style">Using a style</a><ol><li><a href="#drawing-a-continuous-line">Drawing a CONTINUOUS line</a></li><li><a href="#reading-as-unplanned-with-no-randomness">Reading as UNPLANNED with no randomness</a></li></ol></li></ol></nav><p>A <code>Style</code> is the LOOK a ship's derived cladding wears: what its plates are made
 of, and the decoration scattered over them. A <a href="../ships/">ship</a> names one by id
 (<code>style: Some(&quot;raider&quot;)</code> on its hull) and wears it.</p>
 <p>Styles are content like sections and scenarios. Create a new id to add a look,
@@ -35,8 +35,8 @@ is a function of the hull, so a style cannot author one. What it authors is:</p>
 <li>the MATERIAL of each plate surface, and</li>
 <li>the DECORATION bolted on top - vents, ribbing, blisters, masts.</li>
 </ul>
-<p>Decoration is destructible in the full sense: each piece carries its own health,
-mass and collider, stops rounds, and comes off when it is shot out, leaving the
+<p>Decoration is destructible in the full sense: each piece carries its own health
+and collider, stops rounds, and comes off when it is shot out, leaving the
 plate behind it bare. Nothing decorative does anything else - if losing a thing
 should cost the ship an ability, that thing is a <a href="../sections/">section</a>, not
 decoration.</p>
@@ -68,23 +68,28 @@ decoration.</p>
     <span class="ron-type">Style</span><span class="ron-punct">((</span>
         <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_raider_look&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Raider&quot;</span><span class="ron-punct">,</span>
-        <span class="ron-key">surfaces</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
-            <span class="ron-punct">(</span><span class="ron-key">surface</span><span class="ron-punct">:</span> <span class="ron-type">Top</span><span class="ron-punct">,</span>  <span class="ron-key">color</span><span class="ron-punct">:</span> <span class="ron-type">Srgba</span><span class="ron-punct">((</span><span class="ron-key">red</span><span class="ron-punct">:</span> <span class="ron-literal">0.4</span><span class="ron-punct">,</span> <span class="ron-key">green</span><span class="ron-punct">:</span> <span class="ron-literal">0.3</span><span class="ron-punct">,</span> <span class="ron-key">blue</span><span class="ron-punct">:</span> <span class="ron-literal">0.25</span><span class="ron-punct">,</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span> <span class="ron-key">roughness</span><span class="ron-punct">:</span> <span class="ron-literal">0.8</span><span class="ron-punct">,</span> <span class="ron-key">metallic</span><span class="ron-punct">:</span> <span class="ron-literal">0.1</span><span class="ron-punct">),</span>
-            <span class="ron-punct">(</span><span class="ron-key">surface</span><span class="ron-punct">:</span> <span class="ron-type">Wall</span><span class="ron-punct">,</span> <span class="ron-key">color</span><span class="ron-punct">:</span> <span class="ron-type">Srgba</span><span class="ron-punct">((</span><span class="ron-key">red</span><span class="ron-punct">:</span> <span class="ron-literal">0.2</span><span class="ron-punct">,</span> <span class="ron-key">green</span><span class="ron-punct">:</span> <span class="ron-literal">0.15</span><span class="ron-punct">,</span> <span class="ron-key">blue</span><span class="ron-punct">:</span> <span class="ron-literal">0.12</span><span class="ron-punct">,</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span> <span class="ron-key">roughness</span><span class="ron-punct">:</span> <span class="ron-literal">0.9</span><span class="ron-punct">,</span> <span class="ron-key">metallic</span><span class="ron-punct">:</span> <span class="ron-literal">0.1</span><span class="ron-punct">),</span>
-        <span class="ron-punct">],</span>
+        <span class="ron-key">palette</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">top</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+                <span class="ron-key">color</span><span class="ron-punct">:</span> <span class="ron-type">Srgba</span><span class="ron-punct">((</span><span class="ron-key">red</span><span class="ron-punct">:</span> <span class="ron-literal">0.4</span><span class="ron-punct">,</span> <span class="ron-key">green</span><span class="ron-punct">:</span> <span class="ron-literal">0.3</span><span class="ron-punct">,</span> <span class="ron-key">blue</span><span class="ron-punct">:</span> <span class="ron-literal">0.25</span><span class="ron-punct">,</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
+                <span class="ron-key">roughness</span><span class="ron-punct">:</span> <span class="ron-literal">0.8</span><span class="ron-punct">,</span>
+                <span class="ron-key">metallic</span><span class="ron-punct">:</span> <span class="ron-literal">0.1</span><span class="ron-punct">,</span>
+            <span class="ron-punct">),</span>
+            <span class="ron-key">wall</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+                <span class="ron-key">color</span><span class="ron-punct">:</span> <span class="ron-type">Srgba</span><span class="ron-punct">((</span><span class="ron-key">red</span><span class="ron-punct">:</span> <span class="ron-literal">0.2</span><span class="ron-punct">,</span> <span class="ron-key">green</span><span class="ron-punct">:</span> <span class="ron-literal">0.15</span><span class="ron-punct">,</span> <span class="ron-key">blue</span><span class="ron-punct">:</span> <span class="ron-literal">0.12</span><span class="ron-punct">,</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
+                <span class="ron-key">roughness</span><span class="ron-punct">:</span> <span class="ron-literal">0.9</span><span class="ron-punct">,</span>
+                <span class="ron-key">metallic</span><span class="ron-punct">:</span> <span class="ron-literal">0.1</span><span class="ron-punct">,</span>
+            <span class="ron-punct">),</span>
+        <span class="ron-punct">),</span>
         <span class="ron-key">fixtures</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
             <span class="ron-punct">(</span>
                 <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;antenna&quot;</span><span class="ron-punct">,</span>
                 <span class="ron-key">model</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://gltf/greebles/antenna.glb#Scene0&quot;</span><span class="ron-punct">,</span>
                 <span class="ron-key">health</span><span class="ron-punct">:</span> <span class="ron-literal">8.0</span><span class="ron-punct">,</span>
-                <span class="ron-key">density</span><span class="ron-punct">:</span> <span class="ron-literal">0.05</span><span class="ron-punct">,</span>
                 <span class="ron-key">collider</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.12</span><span class="ron-punct">,</span> <span class="ron-literal">0.38</span><span class="ron-punct">,</span> <span class="ron-literal">0.12</span><span class="ron-punct">),</span>
-                <span class="ron-key">scatter</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
-                    <span class="ron-key">relief</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Ridge</span><span class="ron-punct">,</span> <span class="ron-type">Peak</span><span class="ron-punct">,</span> <span class="ron-type">Spur</span><span class="ron-punct">],</span>
-                    <span class="ron-key">facing</span><span class="ron-punct">:</span> <span class="ron-type">Up</span><span class="ron-punct">,</span>
-                    <span class="ron-key">min_depth</span><span class="ron-punct">:</span> <span class="ron-literal">2</span><span class="ron-punct">,</span>
-                    <span class="ron-key">chance</span><span class="ron-punct">:</span> <span class="ron-literal">0.3</span><span class="ron-punct">,</span>
-                    <span class="ron-key">align</span><span class="ron-punct">:</span> <span class="ron-type">Outward</span><span class="ron-punct">,</span>
+                <span class="ron-key">placement</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+                    <span class="ron-key">region</span><span class="ron-punct">:</span> <span class="ron-type">HighGround</span><span class="ron-punct">,</span>
+                    <span class="ron-key">density</span><span class="ron-punct">:</span> <span class="ron-type">Sparse</span><span class="ron-punct">,</span>
+                    <span class="ron-key">orientation</span><span class="ron-punct">:</span> <span class="ron-type">Outward</span><span class="ron-punct">,</span>
                 <span class="ron-punct">),</span>
             <span class="ron-punct">),</span>
         <span class="ron-punct">],</span>
@@ -114,10 +119,10 @@ decoration.</p>
 <td>display name</td>
 </tr>
 <tr>
-<td><code>surfaces</code></td>
-<td>list</td>
-<td><code>[]</code></td>
-<td>one entry per plate surface to dress. A surface left out keeps the built-in colour</td>
+<td><code>palette</code></td>
+<td>palette</td>
+<td>required</td>
+<td>what the plates are made of</td>
 </tr>
 <tr>
 <td><code>fixtures</code></td>
@@ -127,7 +132,29 @@ decoration.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="surfaces" tabindex="-1"><code>surfaces</code></h3>
+<h3 id="palette" tabindex="-1"><code>palette</code></h3>
+<p>Two surfaces, both required:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>top</code></td>
+<td>the shell face exposed to space, and normally the only one lit</td>
+</tr>
+<tr>
+<td><code>wall</code></td>
+<td>the shell side exposed at slopes, gaps and edges</td>
+</tr>
+</tbody>
+</table>
+<p>The third surface - the cell floor, against the section the plate clads - is
+not authored. It is never in shot, so it keeps the engine's own finish.</p>
+<p>Each of the two is a finish:</p>
 <table>
 <thead>
 <tr>
@@ -137,11 +164,6 @@ decoration.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>surface</code></td>
-<td><code>Top</code> / <code>Wall</code> / <code>Floor</code></td>
-<td>which face of a plate. <code>Top</code> faces space; <code>Wall</code> is the side a plate drops away at; <code>Floor</code> is against the hull and never seen</td>
-</tr>
 <tr>
 <td><code>color</code></td>
 <td>color</td>
@@ -159,14 +181,17 @@ decoration.</p>
 </tr>
 </tbody>
 </table>
-<p><strong><code>Top</code> is nearly the whole of what a camera sees.</strong> Measured, by painting
-<code>Wall</code> a colour nothing else uses and shooting the <code>wfc_ships</code> row: two plates
-in a run press their walls together and neither is ever seen, so <code>Wall</code> comes
+<p><strong><code>top</code> is nearly the whole of what a camera sees.</strong> Measured, by painting
+<code>wall</code> a colour nothing else uses and shooting the <code>wfc_ships</code> row: two plates
+in a run press their walls together and neither is ever seen, so <code>wall</code> comes
 back only at the skin's OUTER RIM and on the side of a plate climbing past a
 lower neighbour - roughly a twentieth of the hull. A dark wall under a pale top
 therefore does NOT draw a panel line at every plate boundary; it makes the
 silhouette read thick, like plate with depth. Panel lines are geometry, or they
 are the livery. Budget your effort accordingly.</p>
+<p>Both are required because the relationship BETWEEN them is most of a look. A
+style that set only one would be a style whose main move was decided by
+whichever default it happened to keep.</p>
 <h3 id="fixtures" tabindex="-1"><code>fixtures</code></h3>
 <table>
 <thead>
@@ -182,7 +207,7 @@ are the livery. Budget your effort accordingly.</p>
 <td><code>id</code></td>
 <td>string</td>
 <td>required</td>
-<td>names the piece within its style, and SALTS its scatter - two pieces sharing one rule do not claim the same plates</td>
+<td>names the piece within its style, and SALTS its scatter - two pieces sharing one placement do not claim the same plates</td>
 </tr>
 <tr>
 <td><code>model</code></td>
@@ -197,28 +222,31 @@ are the livery. Budget your effort accordingly.</p>
 <td>what the piece takes before it comes off</td>
 </tr>
 <tr>
-<td><code>density</code></td>
-<td>float</td>
-<td>required</td>
-<td>mass per unit of collider volume. A greeble is light - the base placeholders run 0.05 to 0.2, against a plate's 0.25</td>
-</tr>
-<tr>
 <td><code>collider</code></td>
 <td><code>(x, y, z)</code></td>
 <td>required</td>
 <td>the box a round stops on, in cells, standing on the mounting face. Not the model: a hull of one would cost more than it is worth</td>
 </tr>
 <tr>
-<td><code>scatter</code></td>
-<td>rule</td>
-<td>every plate</td>
-<td>where the piece may stand</td>
+<td><code>placement</code></td>
+<td>placement</td>
+<td><code>(region: Anywhere, density: Regular, orientation: Free)</code></td>
+<td>where the piece belongs</td>
 </tr>
 </tbody>
 </table>
-<h2 id="the-scatter-rule" tabindex="-1">The scatter rule</h2>
-<p>Every field is a filter over the plate's NEIGHBOURHOOD, except the last three.
-An empty rule matches every plate.</p>
+<p>There is no authored physics density. Every decoration stands at the engine's
+<code>DECOR_DENSITY</code> of 0.25, the same as the skin's own cladding, and avian derives
+the real mass from that and the collider's volume. Nothing a style says about
+its look can make one ship heavier than another.</p>
+<p><code>health</code> and <code>collider</code> stay authored, and for different reasons. <code>health</code>
+decides when a piece is shot OFF, and two greebles of a size are not equally
+worth shooting off. <code>collider</code> is authored because a headless simulation never
+loads the model its bounds could otherwise be read from - and it is
+load-bearing for the LOOK as well, see <a href="#what-the-collider-decides">What the collider
+decides</a>.</p>
+<h2 id="the-placement" tabindex="-1">The placement</h2>
+<p>Three words. They say what a piece is FOR, not how the skin is derived:</p>
 <table>
 <thead>
 <tr>
@@ -230,171 +258,84 @@ An empty rule matches every plate.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>seat</code></td>
-<td><code>Whole</code>/<code>Any</code></td>
-<td><code>Whole</code></td>
-<td>what the plate's TOP must be: one unbroken surface, or anything at all - see <a href="#the-seat-one-surface-or-a-crease">The seat</a></td>
+<td><code>region</code></td>
+<td>region</td>
+<td><code>Anywhere</code></td>
+<td>the part of the hull the piece belongs on</td>
 </tr>
 <tr>
-<td><code>relief</code></td>
-<td>list</td>
-<td>any</td>
-<td>which ZONE of the hull the piece may stand in - see <a href="#the-seven-reliefs">The seven reliefs</a></td>
+<td><code>density</code></td>
+<td>density</td>
+<td><code>Regular</code></td>
+<td>how much of that region it covers</td>
 </tr>
 <tr>
-<td><code>facing</code></td>
-<td><code>Any</code>/<code>Up</code>/<code>Down</code>/<code>Side</code></td>
-<td><code>Any</code></td>
-<td>which way the plate faces in the SHIP's own frame</td>
-</tr>
-<tr>
-<td><code>min_run</code></td>
-<td>int</td>
-<td>0</td>
-<td>the shortest run of LIKE plate the piece will stand on</td>
-</tr>
-<tr>
-<td><code>min_height</code></td>
-<td>int</td>
-<td>0</td>
-<td>how much of its cell the plate must fill, in quarter cells (0-4)</td>
-</tr>
-<tr>
-<td><code>min_border</code></td>
-<td>int</td>
-<td>0</td>
-<td>how far in from the end of that run the plate must be</td>
-</tr>
-<tr>
-<td><code>max_border</code></td>
-<td><code>Some(int)</code></td>
-<td>none</td>
-<td>how far in it may be at most. <code>Some(0)</code> is TRIM: only ever at the end of a run</td>
-</tr>
-<tr>
-<td><code>min_depth</code></td>
-<td>int</td>
-<td>0</td>
-<td>how many cells of ship must stand under the plate</td>
-</tr>
-<tr>
-<td><code>min_enclosure</code></td>
-<td>int</td>
-<td>0</td>
-<td>how many of the eight surrounding cells the surface carries on into (0-8)</td>
-</tr>
-<tr>
-<td><code>near_fitting</code></td>
-<td><code>Some(int)</code></td>
-<td>none</td>
-<td>how many steps across the surface the nearest fitting - a drive, a bay, a gun mount - may be at most</td>
-</tr>
-<tr>
-<td><code>stride</code></td>
-<td>int</td>
-<td>1</td>
-<td>the LATTICE the piece claims cells on. <code>2</code> is every other cell on both in-plane axes</td>
-</tr>
-<tr>
-<td><code>chance</code></td>
-<td>float</td>
-<td>1.0</td>
-<td>the share of the plates that pass everything above which take the piece</td>
-</tr>
-<tr>
-<td><code>patch</code></td>
-<td>int</td>
-<td>0</td>
-<td>at least one piece per block of this many cells - see <a href="#density-one-piece-per-block-of-hull">Density</a></td>
-</tr>
-<tr>
-<td><code>align</code></td>
-<td><code>Free</code>/<code>Run</code>/<code>Outward</code></td>
+<td><code>orientation</code></td>
+<td>orientation</td>
 <td><code>Free</code></td>
-<td>which way the piece is turned - see <a href="#alignment-not-noise">Alignment</a></td>
+<td>which way it is turned on the plate it lands on</td>
 </tr>
 </tbody>
 </table>
-<h3 id="the-seat-one-surface-or-a-crease" tabindex="-1">The seat: one surface, or a crease</h3>
-<p>A plate's top is either ONE PLANE or a CONE, and nothing in between. <code>seat</code> is
-the filter for it, and it is the one filter that is ON by default:</p>
+<p>Each expands internally into the neighbourhood filter, the lattice, the share
+and the patch floor the scatter actually runs. That expansion is engine policy:
+it is tuned against real hulls and it changes when the plate derivation
+changes. A style that had spelled it out would go quietly wrong the next time
+it did. You pick the high ground; the engine decides what the high ground
+measures on this hull.</p>
+<h3 id="the-seven-regions" tabindex="-1">The seven regions</h3>
 <table>
 <thead>
 <tr>
-<th><code>seat</code></th>
-<th>what it takes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>Whole</code></td>
-<td>plates whose top is one unbroken surface. TILTED COUNTS - a ramp is a surface, and a piece is bedded onto it</td>
-</tr>
-<tr>
-<td><code>Any</code></td>
-<td>any plate at all. The exception, for a piece that WANTS the high ground: a crest, a spar tip or a stud</td>
-</tr>
-</tbody>
-</table>
-<p>A piece is stood up on the plate it lands on: on a surface it is turned onto that
-surface's own normal, so it lies flush however far the plate is raked; on a cone
-it stands up the cell, because a cone has no plane to lie on and the middle of
-the plate is its apex.</p>
-<p><strong>Do not use <code>relief</code> to mean this.</strong> Measured over 526 generated plates: <code>Flat</code>
-and <code>Brink</code> are surfaces every time, <code>Bevel</code>, <code>Ridge</code>, <code>Peak</code> and <code>Spur</code> are cones
-every time, and <code>Step</code> splits about in half - square-on to a raise it is a clean
-ramp, on its diagonal it is a cone. A relief list written to mean &quot;somewhere flat
-to lie&quot; is therefore wrong about a fifth of a hull in both directions. Name the
-zone with <code>relief</code> and the seat with <code>seat</code>.</p>
-<p><strong>A hand-built ship has no seat anywhere on it.</strong> A small build is one cell thick
-nearly everywhere, so every plate on it is a cone: the owner's five-cube L reads
-0% seated against 58.6% on a generated hull. A kit whose every rule is <code>Whole</code>
-therefore decorates a generated ship and leaves an editor build BARE. Give the
-pieces that belong on the high ground <code>seat: Any</code> - every base kit does, for its
-mast, whip, fin, stack or corner boss - and they carry the small builds.</p>
-<h3 id="the-seven-reliefs" tabindex="-1">The seven reliefs</h3>
-<p>What the top of a plate is shaped like, read off the derivation. Four fifths of a
-ship FALLS AWAY somewhere, and the last three say how many ways:</p>
-<table>
-<thead>
-<tr>
-<th>relief</th>
+<th>region</th>
 <th>what it is</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>Flat</code></td>
-<td>a flat panel - every boundary sample at the same height. Where a big piece fits</td>
+<td><code>Panel</code></td>
+<td>unbroken panel: the flat face of a hull, and the panel with one corner taken off that still reads as one. Where a sign, a hatch or a decal goes</td>
 </tr>
 <tr>
-<td><code>Step</code></td>
-<td>the plate climbs structure standing proud beside it. A hard edge</td>
+<td><code>Deck</code></td>
+<td>working deck: flat plate with real ship under it. The laydown area - a crate, a rack, a tank, anything that would need a floor to stand on</td>
 </tr>
 <tr>
-<td><code>Ridge</code></td>
-<td>a crest across the plate: the tent a run of skin one cell wide comes out as</td>
+<td><code>Flank</code></td>
+<td>the ship's SIDES: deck plate that faces out rather than up. Windows, doors and anything read from another ship</td>
 </tr>
 <tr>
-<td><code>Peak</code></td>
-<td>every sample on the floor, so the middle rides half a cell: a lone clad cell</td>
+<td><code>Edge</code></td>
+<td>the straight edge of a hull, where the skin falls away along one whole side. Rim strips, hazard paint, fairings - the pieces that draw a silhouette</td>
 </tr>
 <tr>
-<td><code>Bevel</code></td>
-<td>falls at ONE CORNER only: a panel with a corner taken off, and nearly a <code>Flat</code></td>
+<td><code>HighGround</code></td>
+<td>the pointiest thing on the hull: crests, spar tips and studs. Masts, stacks and aerials</td>
 </tr>
 <tr>
-<td><code>Brink</code></td>
-<td>falls along ONE WHOLE SIDE: the straight edge of a hull. The only relief with an outward direction to turn to</td>
+<td><code>NearFitting</code></td>
+<td>right beside the mouth of a fitting - a nozzle, a gun well, a bay. The service kit: grilles, lighting, machinery</td>
 </tr>
 <tr>
-<td><code>Spur</code></td>
-<td>falls TWO WAYS OR MORE: an outer corner, the tip of a spar, a saddle</td>
+<td><code>Anywhere</code></td>
+<td>anything with a seat on it. The FILLER, and the default: a style's last rule, which takes whatever the rules above it left</td>
 </tr>
 </tbody>
 </table>
+<p><strong><code>NearFitting</code> reads as narrow and is not.</strong> On a hull dense with drives and
+bays, something is beside a fitting nearly everywhere: measured, a pocket rule
+placed first took 45% of a ship and starved every rule below it. Every base kit
+puts its pocket rule last.</p>
+<p><strong><code>HighGround</code> is the one region that accepts a creased plate.</strong> A crest, a
+spar tip and a stud are cones every time, so a region that demanded an unbroken
+surface would refuse every plate the high ground is for - and would strip a
+ship of its silhouette to fix a bedding defect. Everywhere else, a piece is
+bedded onto one flat surface, and the plates that crease are refused unless the
+piece is trim (see below).</p>
 <h3 id="start-from-what-a-hull-offers" tabindex="-1">Start from what a hull offers</h3>
-<p>A GENERATED hull and a HAND-BUILT one offer almost opposite things. Measured, per
+<p>A GENERATED hull and a HAND-BUILT one offer almost opposite things. The engine
+reads every plate into one of seven shapes and logs the tally beside the
+decoration tally (see <a href="#priority-one-piece-per-plate">Priority</a>). Measured per
 ship, on the three fixed seeds of the <code>wfc_ships</code> row and on a 7-9 part editor
 build:</p>
 <table>
@@ -436,68 +377,68 @@ build:</p>
 </tr>
 </tbody>
 </table>
-<p><strong>A rule written for flat panels lands on almost nothing, and on a hand-built
-ship it lands on NOTHING AT ALL.</strong> A small build is one cell wide nearly
-everywhere, so it has no flat plate, no bevel and no brink - only spurs, ridges
-and studs, none of which is a <a href="#the-seat-one-surface-or-a-crease">seat</a>. No
-amount of <code>patch</code> rescues that: a floor over an empty set is still empty. Widen
-the <code>relief</code> list, and give the piece <code>seat: Any</code> if it belongs on the high
-ground.</p>
+<p>Only <code>flat</code> and <code>step</code> are unbroken surfaces; <code>brink</code> is an outer rim, and
+<code>ridge</code>, <code>peak</code> and <code>spur</code> are the creases and studs of a skinny hull. A small
+build is one cell wide nearly everywhere, so it has no flat plate, no bevel and
+no brink at all. <strong><code>Panel</code>, <code>Deck</code>, <code>Flank</code> and <code>Edge</code> therefore land on
+NOTHING on a hand-built hull.</strong> A kit that uses only those decorates a
+generated ship and leaves an editor build bare. Give a style at least one
+<code>HighGround</code> piece and at least one <code>Anywhere</code> piece flat enough to count as
+trim; every base kit does.</p>
 <p><strong>Read the SPREAD, not the middle.</strong> Every bucket above swings by two or three
 times across three seeds of one generator, so a rule sized against one hull is
 not sized against the next. Tune against the logged tally below, on more than
 one subject.</p>
-<h3 id="priority-one-piece-per-plate" tabindex="-1">Priority: one piece per plate</h3>
-<p>A plate takes AT MOST ONE piece, and the FIRST fixture in the list whose rule
-accepts it wins. So the order is a priority order: put the rare, specific pieces
-first and the common filler last.</p>
-<p>Watch out for a rule that READS AS SPECIFIC AND IS NOT. Two measured examples,
-both of which carpeted a ship and starved every rule below them:</p>
-<ul>
-<li><code>near_fitting: Some(1)</code> sounds narrow. On a hull dense with drives and bays,
-something is beside a fitting nearly everywhere.</li>
-<li><code>max_border: Some(0)</code> - &quot;only at the end of a run&quot; - admitted 126 of 132
-plates, because on a broken-up hull almost every plate is the end of its own
-one-cell run. Pair it with <code>min_run: 2</code> so a run has to be a run.</li>
-</ul>
-<p>Both are visible rather than guessable. <code>spawn_ship_skin</code> and the build view log
-each rule as <code>taken of reach</code> at debug, where reach is everything the filter and
-the lattice admit before the share and before priority:</p>
-<pre><code class="hljs language-text">decoration mast x3 of 8, vent x5 of 7, block x29 of 94, blister x12 of 19
-</code></pre>
-<p><code>x0 of 78</code> is a rule that was starved or thinned away; <code>x0 of 0</code> is a filter that
-matches nothing this hull has. They look identical on screen and have opposite
-fixes.</p>
-<h3 id="density-one-piece-per-block-of-hull" tabindex="-1">Density: one piece per block of hull</h3>
-<p>Every field above is per plate, and they MULTIPLY. A stride of 2 is a quarter of
-the surface, a share of 0.5 is half of that, and a relief filter is another
-fraction again - which reads as a field of pieces on a 150-plate generated hull
-and as one piece on a 20-plate hand-built one.</p>
-<p><code>patch</code> states the density in cells of ship instead. Set it to <code>N</code> and the rule is
-guaranteed a piece in every block of <code>N</code> x <code>N</code> x <code>N</code> cells, per face, that it can
-stand on at all: where the share already put one, nothing happens; where it did
-not, the block's lowest-hashing eligible plate takes one.</p>
-<ul>
-<li>It is a FLOOR, never a cap. It only ever adds, and it never takes a plate
-another rule already claimed, so priority still means what it says.</li>
-<li>It drops the SHARE only. The filter and the lattice still hold, so a floor
-piece lands on the same grid the rest of the rule does. Keep <code>patch</code> at or
-above <code>stride</code>.</li>
-<li><code>chance: 0.0</code> with a <code>patch</code> set is the pure form: no share at all, exactly one
-piece per block. That is a density that reads the same at any hull size.</li>
-<li>On a BIG hull a small <code>patch</code> outvotes the share - one per 3 cells over a
-fragmented hull is a lot of pieces. Size it against the ship, then check the
-logged tally.</li>
-</ul>
-<h3 id="alignment-not-noise" tabindex="-1">Alignment, not noise</h3>
-<p><code>stride</code> and <code>align</code> exist because alignment is what makes decoration read as
-bolted on rather than as confetti. There is no random jitter and no rotation
-freedom, deliberately - a piece is turned in quarter turns about the plate's own
-outward axis, or not at all.</p>
+<h3 id="the-five-densities" tabindex="-1">The five densities</h3>
+<p>A ladder rather than a number, because the dials underneath it interact and a
+style that set them apart gets a hull carpeted at one size and bare at another.</p>
 <table>
 <thead>
 <tr>
-<th><code>align</code></th>
+<th>density</th>
+<th>what it is for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Rare</code></td>
+<td>the thinnest rung there is: a piece or two on a whole ship. The share is nearly off, so what actually places it is the floor below</td>
+</tr>
+<tr>
+<td><code>Sparse</code></td>
+<td>scattered thinly, with a floor so a big hull does not clump it</td>
+</tr>
+<tr>
+<td><code>Regular</code></td>
+<td>the workhorse rung: a piece every few cells of the region</td>
+</tr>
+<tr>
+<td><code>Dense</code></td>
+<td>heavy cover, still on the lattice</td>
+</tr>
+<tr>
+<td><code>Every</code></td>
+<td>every plate the region admits, off the lattice entirely. For the pieces that ARE the surface - a rim strip down a whole edge, cladding</td>
+</tr>
+</tbody>
+</table>
+<p>Every rung but <code>Every</code> carries a patch floor: a guarantee of at least one piece
+per block of hull the rule can stand on at all. That is what keeps a rule
+reading the same on a 150-plate generated hull and a 20-plate hand-built one.</p>
+<p>The floor takes free plate first. When there is none left - a thin rule whose
+whole region was swept by the broad rules under it - it may BORROW one, and
+only under three conditions: the lender is thicker than the borrower, it has a
+floor of its own (so <code>Every</code> never lends), and it still keeps a piece somewhere
+on the ship. That is why a rare piece on a busy region lands at all, and it is
+bounded enough that the rule underneath never disappears.</p>
+<h3 id="orientation" tabindex="-1">Orientation</h3>
+<p>Quarter turns about the plate's own outward axis, and nothing finer. There is
+no random jitter and no free yaw, deliberately - alignment is what makes
+decoration read as bolted on rather than as confetti.</p>
+<table>
+<thead>
+<tr>
+<th><code>orientation</code></th>
 <th>what the piece's own <code>+Z</code> points down</th>
 </tr>
 </thead>
@@ -507,7 +448,7 @@ outward axis, or not at all.</p>
 <td>nothing. Right for anything with no long axis - a blister, a stud, a hatch</td>
 </tr>
 <tr>
-<td><code>Run</code></td>
+<td><code>Along</code></td>
 <td>the direction the surface RUNS, so a rib strip follows the spine it is on and a row of vents lines up with itself</td>
 </tr>
 <tr>
@@ -516,12 +457,45 @@ outward axis, or not at all.</p>
 </tr>
 </tbody>
 </table>
-<p>The piece is turned ACROSS THE SURFACE it lies on, and then bedded onto it, so on
-a raked plate its <code>+Z</code> comes out raked too: a fairing on a hull edge noses down
-the slope rather than standing square out of it.</p>
-<p>The two are square to each other. <code>Outward</code> is a rule for the falling plate:
-<code>Brink</code> has a single outward cardinal, an outer corner leans on the diagonal
-between its two sides, and a plate that does not fall one way is left unturned.</p>
+<p>The piece is turned ACROSS THE SURFACE it lies on, and then bedded onto it, so
+on a raked plate its <code>+Z</code> comes out raked too: a fairing on a hull edge noses
+down the slope rather than standing square out of it.</p>
+<p>The two are square to each other. <code>Outward</code> is a rule for the falling plate,
+and <code>Edge</code> above all: a plate that does not fall one way is left unturned.</p>
+<h3 id="what-the-collider-decides" tabindex="-1">What the collider decides</h3>
+<p>Two things are read off the piece's own size rather than authored, because the
+size already answers them and a second authored word could disagree with it:</p>
+<ul>
+<li><strong>How long a run of like plate it needs under it.</strong> One cell of run per half
+cell the piece spans across the plate (the two in-plane axes; <code>y</code> stands off
+the plate and says nothing). So a strip most of a cell long asks for a
+neighbour either side, and a stud asks for nothing. Shorten a model and its
+gate relaxes with it.</li>
+<li><strong>Whether it needs an unbroken seat at all.</strong> A piece standing less than 0.1
+cells - one metre - off the plate is TRIM: a stencil, a livery patch or a
+hazard stripe, where a crease underneath is a fold in a decal rather than a
+gap you can see. Anything that stands proud needs the seat, because on a
+crease it touches along one line and floats at both ends.</li>
+</ul>
+<p>Trim is also what reaches a hand-built hull, which has no unbroken plate on it
+anywhere. A kit whose every filler stands proud leaves exactly the shapes
+players build bare.</p>
+<h3 id="priority-one-piece-per-plate" tabindex="-1">Priority: one piece per plate</h3>
+<p>A plate takes AT MOST ONE piece, and the FIRST fixture in the list whose
+placement accepts it wins. So the order is a priority order: put the rare,
+specific pieces first and the common filler last.</p>
+<p>Watch out for a placement that READS AS SPECIFIC AND IS NOT. <code>NearFitting</code> is
+the measured example - see above. The general failure is a rare rule sampled
+after a broad one: it is starved out of the leavings and lands nothing, which
+looks identical on screen to a rule that matched nothing at all.</p>
+<p>Both are visible rather than guessable. <code>spawn_ship_skin</code> and the build view
+log each rule as <code>taken of reach</code> at debug, where reach is everything the
+region and the lattice admit before the share and before priority:</p>
+<pre><code class="hljs language-text">decoration mast x3 of 8, vent x5 of 7, block x6 of 94, blister x12 of 19
+</code></pre>
+<p><code>x0 of 78</code> is a rule that was starved or thinned away; <code>x0 of 0</code> is a region
+that matches nothing this hull has. They look identical on screen and have
+opposite fixes.</p>
 <h2 id="the-scatter-is-deterministic" tabindex="-1">The scatter is deterministic</h2>
 <p>There is no RNG. Whether a plate takes a piece is decided by hashing the CELL it
 would stand in together with the fixture's id, so:</p>
@@ -530,14 +504,14 @@ would stand in together with the fixture's id, so:</p>
 <li>the build view can show it live while a hull is dragged, without flicker;</li>
 <li>two ships built the same way are decorated the same way.</li>
 </ul>
-<p><code>chance</code> therefore does not mean &quot;roll a die&quot;; it means &quot;the share of eligible
-cells whose hash falls below this&quot;. Lowering it REMOVES pieces rather than moving
-them.</p>
-<p><code>patch</code> is the one thing decided by a BLOCK of hull rather than by a single cell,
-and the blocks are a fixed division of the ship's own cells. So growing a hull by
-one cell leaves every piece outside the block that cell lands in exactly where it
-was; inside that block the floor's own pick can move, if the new plate hashes
-lower. Nothing shuffles across the ship.</p>
+<p>A density rung therefore does not mean &quot;roll a die&quot;; its share is &quot;the fraction
+of eligible cells whose hash falls below this&quot;. Dropping a rung REMOVES pieces
+rather than moving them.</p>
+<p>The patch floor is the one thing decided by a BLOCK of hull rather than by a
+single cell, and the blocks are a fixed division of the ship's own cells. So
+growing a hull by one cell leaves every piece outside the block that cell lands
+in exactly where it was; inside that block the floor's own pick can move, if the
+new plate hashes lower. Nothing shuffles across the ship.</p>
 <h2 id="the-frame-a-greeble-is-authored-in" tabindex="-1">The frame a greeble is authored in</h2>
 <p>A hull plate is one cell - the unit cube, out along <code>+Y</code>. A decoration model uses
 that same frame:</p>
@@ -547,8 +521,8 @@ it.</li>
 <li>The footprint is centred on the origin and stays inside half a cell, so a piece
 cannot spill across a plate seam onto its neighbour. A tall piece (a mast)
 reaches further up.</li>
-<li><code>+Z</code> is the piece's own long axis, which <code>align: Run</code> points down the run and
-<code>align: Outward</code> points off the ship.</li>
+<li><code>+Z</code> is the piece's own long axis, which <code>orientation: Along</code> points down the
+surface's run and <code>orientation: Outward</code> points off the ship.</li>
 <li>Flat-shaded, low-poly, untextured, one primitive per flat colour - and under
 200 triangles, because decoration is scattered many times over a hull.</li>
 </ul>
@@ -572,7 +546,7 @@ cladding in the first place:</p>
 looks and every scenario spawning them gets the right one. A style id nothing authored leaves the ship
 clad and BARE rather than falling back to another look - a missing mod is
 visible, not silently substituted.</p>
-<p>The base game ships four authored looks and one piece of scaffolding:</p>
+<p>The base game ships four looks:</p>
 <table>
 <thead>
 <tr>
@@ -595,21 +569,16 @@ visible, not silently substituted.</p>
 </tr>
 <tr>
 <td><code>salvage</code></td>
-<td>the raider's: mismatched patches, weld beads, a lashed drum, a whip antenna</td>
-</tr>
-<tr>
-<td><code>placeholder</code></td>
-<td>scaffolding for the authored kits rather than a look to build on</td>
+<td>mismatched patches, weld beads, a lashed drum, a whip antenna</td>
 </tr>
 </tbody>
 </table>
 <p>A ship that names no style flies undressed: built-in plate colours, no
 decoration. The EDITOR's build view instead previews the first style the merged
-content offers while none is picked, so the authored looks are listed before
-the scaffolding. The editor lists every merged
-style under its cladding toggle - a mod's look appears there beside the base
-ones with nothing to register - and the <code>wfc_ships</code> example cycles the same list
-with <code>L</code>, or takes <code>--style &lt;id&gt;</code>.</p>
+content offers while none is picked. The editor lists every merged style under
+its cladding toggle - a mod's look appears there beside the base ones with
+nothing to register - and the <code>wfc_ships</code> example cycles the same list with <code>L</code>,
+or takes <code>--style &lt;id&gt;</code>.</p>
 <h3 id="drawing-a-continuous-line" tabindex="-1">Drawing a CONTINUOUS line</h3>
 <p>Decoration cannot span cells: every piece stands on one plate. A band that
 looks continuous is therefore a row of pieces, and it needs three things at
@@ -618,28 +587,31 @@ once - <code>civilian_stripe</code> is the worked example.</p>
 <li>The MODEL fills its cell along <code>+Z</code> (a raised budget in the recipe), so
 neighbours butt together instead of leaving a gap. A piece is always centred
 on its plate, so a full-cell piece still cannot spill onto a neighbour.</li>
-<li>The RULE takes every eligible plate: <code>stride: 1</code> and <code>chance: 1.0</code>. A band
-with every other cell missing is a dashed line.</li>
-<li><code>align: Run</code> turns each piece down the run, and <code>relief: [Brink]</code> is the run
-worth following - the straight edge of a hull.</li>
+<li>The RULE takes every eligible plate: <code>density: Every</code>, which is the one rung
+off the lattice. A band with every other cell missing is a dashed line.</li>
+<li><code>region: Edge</code> is the run worth following - the straight edge of a hull - and
+<code>orientation: Along</code> turns each piece down it.</li>
 </ul>
-<p><strong>Do not try to cap the run's ends with <code>min_border</code>.</strong> <code>border</code> is the smallest
-of the four in-plane walks, and a <code>Brink</code> has open space on one side, so a hull
-edge reads border 0 along its whole length: a body rule on <code>min_border: 1</code>
-matches nothing (<code>x0 of 0</code>) and the terminal takes the entire edge. <code>min_border</code>
-is a rule for <code>Flat</code> and for nothing else.</p>
+<p>So a continuous band is <code>(region: Edge, density: Every, orientation: Along)</code> and
+a model that fills its cell. Every base kit's rim piece is spelled exactly that
+way; what differs between them is only the model.</p>
+<p><strong>A band cannot be capped with a different piece at its ends.</strong> There is no
+authored way to ask for &quot;the end of a run&quot;: ends are not a region. Draw the
+whole edge with one piece and let the silhouette end where the hull does.</p>
 <h3 id="reading-as-unplanned-with-no-randomness" tabindex="-1">Reading as UNPLANNED with no randomness</h3>
 <p>The scatter has no RNG in it, deliberately. <code>salvage</code> is the worked example of
 what that makes hardest: decoration that reads as unplanned. Four devices carry
 it, and none of them is jitter:</p>
 <ul>
-<li>three patch pieces in three materials, each gated on a DIFFERENT structural
-reading (<code>near_fitting</code>, <code>min_depth</code>, a <code>patch</code> floor), because a hash is
-spatially incoherent and splitting one rule three ways by <code>chance</code> alone gives
-an even speckle rather than regions;</li>
-<li>two of those pieces authored long on OPPOSITE in-plane axes with both aligned
-to the run, so neighbouring repairs cross at right angles while every piece
-stays square to the grid;</li>
+<li>three patch pieces in three materials, spread across regions and rungs
+(<code>salvage_patch_strip</code> on <code>NearFitting</code>/<code>Regular</code>, <code>salvage_patch_plate</code> on
+<code>Anywhere</code>/<code>Regular</code>, <code>salvage_patch_scab</code> on <code>Anywhere</code>/<code>Sparse</code> below it),
+because a hash is spatially incoherent: one rule split three ways gives an
+even speckle, while a rule gated on the ship's own service gear gives
+regions;</li>
+<li>two of those pieces authored long on OPPOSITE in-plane axes with both on
+<code>orientation: Along</code>, so neighbouring repairs cross at right angles while
+every piece stays square to the grid;</li>
 <li>every model authored OFF-CENTRE in its own footprint, since the scatter offers
 no jitter and a centred piece repeated is a tile;</li>
 <li>a weld bead built from four lumps of different size rather than from the

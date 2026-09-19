@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -211,7 +211,7 @@ for responsibilities and the dependency graph.</p>
 <tr><td><code>nova_core</code></td><td>Wiring only: <code>AppBuilder</code> assembles the whole plugin stack. No gameplay.</td></tr>
 <tr><td><code>nova_gameplay</code></td><td>The shared gameplay layer under the ship: integrity, damage, gravity, the SFX engine, juice, objectives, mesh/transform rigs, entity markers. Owns <code>GameStates</code>/<code>PauseStates</code>/<code>GameMode</code>.</td></tr>
 <tr><td><code>nova_ship</code></td><td>The ship and how it is flown: sections, input (player/ai/radar), flight and its autopilot verbs, the camera rigs, the PD controller, the ship’s soundtrack.</td></tr>
-<tr><td><code>nova_wfc</code></td><td>Generated hulls: a catalog plus an authored <code>Grammar</code> in, a <code>ShipHull</code> out. No <code>App</code>, no systems - the editor’s Generate verb and the <code>wfc_*</code> examples call it.</td></tr>
+<tr><td><code>nova_wfc</code></td><td>Generated hulls: a catalog plus a code-owned <code>WfcPlan</code> in, a <code>ShipDesign</code> out. Owns the plan types; every caller builds its own plan. No <code>App</code>, no systems - the editor’s Generate verb and the <code>wfc_*</code> examples call it.</td></tr>
 <tr><td><code>nova_hud</code></td><td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it.</td></tr>
 <tr><td><code>nova_os</code></td><td>NOVA OS logic: the terminal model, shell grammar and app runtime. No bevy UI.</td></tr>
 <tr><td><code>nova_os_ui</code></td><td>The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the <code>map</code>/<code>ship</code> apps. A peer of the HUD, added by <code>nova_core</code>.</td></tr>
@@ -219,11 +219,12 @@ for responsibilities and the dependency graph.</p>
 <tr><td><code>nova_scenario</code></td><td>Scenario engine: events, filters, actions, variables, world, loader, objects.</td></tr>
 <tr><td><code>nova_events</code></td><td>Shared game-event kinds + entity identity components (gameplay &lt;-&gt; scenario).</td></tr>
 <tr><td><code>nova_events_macros</code></td><td>The <code>EventKind</code> derive behind <code>nova_events</code>’ engine events. Its only consumer is <code>nova_events</code>.</td></tr>
-<tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup; loads glb/textures/shaders/sounds; owns the mod merge + prefs.</td></tr>
+<tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal) + prefs.</td></tr>
 <tr><td><code>nova_modding</code></td><td>Bundle/content/catalog asset loaders and the <code>Content</code> routing enum.</td></tr>
 <tr><td><code>nova_mod_format</code></td><td>Pure serde types for the mod formats (engine-free); re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>.</td></tr>
 <tr><td><code>nova_editor</code></td><td>The ship editor scene (<code>NovaEditorPlugin</code>), shown in <code>GameMode::Sandbox</code>.</td></tr>
 <tr><td><code>nova_menu</code></td><td>Main menu + the ESC pause overlay; hands off to <code>Playing</code>.</td></tr>
+<tr><td><code>nova_training</code></td><td>The training handbook’s data: the <code>Lesson</code> content type, catalog ordering, field notes, progress, and the pure lesson validation both <code>content lint</code> and the runtime merge run. A leaf under <code>nova_modding</code>, <code>nova_assets</code> and <code>nova_menu</code>.</td></tr>
 <tr><td><code>nova_input</code></td><td>The bindings registry: the one table of named actions and the sources each holds, the shared rebind capture, and the by-name dispatch. A leaf under every rig and every rebind surface.</td></tr>
 <tr><td><code>nova_ui</code></td><td>Shared theme, skin, themed widgets, screen composition, unit formatting. A leaf: every UI-drawing crate (<code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code>, <code>nova_assets</code>) draws from it.</td></tr>
 <tr><td><code>nova_debug</code></td><td>Debug-only plugin (inspector, overlays); compiled under the <code>debug</code> feature.</td></tr>
@@ -263,7 +264,7 @@ for responsibilities and the dependency graph.</p>
 <tr><td>Scenario objects / loading</td><td><code>crates/nova_scenario/src/{objects/,loader/}</code></td><td><a href="scenario-system.html">Scenario engine</a></td></tr>
 <tr><td>Mod loading / merge</td><td><code>crates/nova_assets/</code> + <code>crates/nova_modding/</code></td><td><a href="https://alexjercan.github.io/nova-protocol/create/mod-files/">Mod files</a>, <a href="https://alexjercan.github.io/nova-protocol/create/publish-a-mod/">Publish a mod</a></td></tr>
 <tr><td>A built-in scenario or section</td><td><code>crates/nova_authoring/src/</code> (builders), then <code>content -- gen</code></td><td><a href="https://alexjercan.github.io/nova-protocol/create/author-a-scenario/">Create your first scenario</a></td></tr>
-<tr><td>A generated hull, or the grammar it is drawn from</td><td><code>crates/nova_wfc/</code> + <code>crates/nova_authoring/src/base_content/grammars.rs</code>, then <code>content -- gen</code></td><td><a href="concept-index.html">Concept index</a>, <a href="https://alexjercan.github.io/nova-protocol/create/grammars/">Create: grammars</a></td></tr>
+<tr><td>A generated hull, or the plan it is drawn from</td><td><code>crates/nova_wfc/</code> (<code>plan.rs</code> for the plan, <code>WfcPlan::standard_hull</code> for the shipped one) and each caller’s own plan builder</td><td><a href="concept-index.html">Concept index</a>, <a href="ship-layout-sense.html">Ship layout sense</a></td></tr>
 <tr><td>The ship editor</td><td><code>crates/nova_editor/</code></td><td>–</td></tr>
 <tr><td>Shared UI theme / widgets</td><td><code>crates/nova_ui/</code></td><td>–</td></tr>
 <tr><td>The web site / wiki</td><td><code>web/</code></td><td><a href="development.html">Building &amp; running</a></td></tr>
@@ -276,10 +277,16 @@ wired – <code>DefaultPlugins</code> + window/log/asset/render setup, then the 
 (assets, gameplay, ship, scenario, HUD + NOVA OS monitor, editor, menu, debug).
 The state machines:</p>
 <ul>
-<li><code>GameStates { Loading, MainMenu, Playing }</code> – top-level lifecycle.</li>
+<li><code>GameStates { Loading, MainMenu, Playing }</code> – top-level lifecycle. Leaving
+<code>Playing</code> returns through <code>Loading</code>: the content is re-read on the way to the
+front door, and the menu is built once, on the far side of it.</li>
 <li><code>PauseStates { Unpaused, Paused }</code> – the ESC overlay, nested in <code>Playing</code>.</li>
-<li><code>GameAssetsStates { Loading, Processing, Loaded }</code> – the asset pipeline that
-gates entry; on <code>OnEnter(Loaded)</code> the app hands off to <code>MainMenu</code>/<code>Playing</code>.</li>
+<li><code>GameAssetsStates { Boot, Loading, Processing, Loaded, Failed }</code> – the asset
+pipeline that gates entry; on <code>OnEnter(Loaded)</code> the app hands off to
+<code>MainMenu</code>/<code>Playing</code>. Only the base game is MANDATORY: an optional mod loads
+beside the pipeline, and a broken one is switched off and reported instead of
+failing the boot. <code>Failed</code> is the mandatory failure, and it is terminal - the
+loading animation is replaced by a report.</li>
 </ul>
 <p>Gameplay systems run an explicit chain configured identically in <code>Update</code> and
 <code>FixedUpdate</code>; avian3d physics runs on a fixed timestep in <code>FixedPostUpdate</code>.
@@ -339,11 +346,11 @@ live in <a href="architecture.html">Architecture</a> – start there once the sh
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

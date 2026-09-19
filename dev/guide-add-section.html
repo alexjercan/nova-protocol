@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -333,10 +333,10 @@ SectionKind::Shield(shield) =&gt; {
 </li>
 <li>
 <p><strong>Asset prototype.</strong>
-In <code>crates/nova_authoring/src/base_content/sections/standard.rs</code>, add a
-<code>SectionConfig</code> to <code>standard_section_prototypes()</code> so the catalog ships a
-ready-to-place
-instance. Give it a stable snake_case <code>id</code> (this is what
+Add a family module under
+<code>crates/nova_authoring/src/base_content/sections/</code> (or extend the one this
+kind belongs to) and return your <code>SectionConfig</code> from its <code>prototypes()</code>, so
+the catalog ships a ready-to-place instance. Give it a stable snake_case <code>id</code> (this is what
 <code>sections.get_section("...")</code> and RON authors reference). The id is a
 runtime STRING that nothing type-checks: keep it a literal beside the
 builder, and promote it to a <code>const</code> in
@@ -406,8 +406,9 @@ label matches - <code>crates/nova_os_ui/src/ship/sections.rs</code>.</li>
 <code>insert_preview_section</code> - <code>crates/nova_editor/src/preview.rs</code>;
 <code>GalleryCategory</code> - <code>crates/nova_editor/src/gallery/catalog.rs</code>.</li>
 <li>Cross-crate prototype ids: <code>crates/nova_ship/src/sections/catalog_ids.rs</code>.</li>
-<li>Prototypes: <code>standard_section_prototypes</code> -
-<code>crates/nova_authoring/src/base_content/sections/standard.rs</code>.</li>
+<li>Prototypes: <code>section_catalog</code> -
+<code>crates/nova_authoring/src/base_content/sections/mod.rs</code>, with one
+<code>prototypes()</code> per family module beside it.</li>
 <li>API detail: <code>cargo doc --open -p nova_ship</code>.</li>
 </ul>
 
@@ -455,11 +456,11 @@ label matches - <code>crates/nova_os_ui/src/ship/sections.rs</code>.</li>
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

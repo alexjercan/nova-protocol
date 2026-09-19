@@ -25,8 +25,8 @@ binary assets it ships).
 - **Mod-shipped binary art** - ships its own skybox and asteroid texture under
   `textures/`, declared in the manifest's `resources`, referenced with the
   `self://` scheme so they resolve against this mod's own folder.
-- **A menu backdrop** - `example_menu` is flagged `menu_backdrop: true`, so mods
-  can ship their own main-menu ambience, not just playable levels.
+- **A menu backdrop** - `example_menu` declares `role: Backdrop`, so mods can
+  ship their own main-menu ambience, not just playable levels.
 - **A hull line** - `example_freighter_hull` is a `Grammar` under a new id: a
   longer, blunt-nosed hauler drawing this mod's own plate and no weapons. The
   editor's Generate block lists it under HULL LINE beside the base warship and
@@ -45,8 +45,7 @@ example/
     rock.png             # self:// asteroid texture
 ```
 
-The textures are PLACEHOLDERS (debug-colored); real art replaces them under
-task 20260716-205214, keeping the same paths.
+The textures are PLACEHOLDERS (debug-colored).
 
 ## How to enable
 

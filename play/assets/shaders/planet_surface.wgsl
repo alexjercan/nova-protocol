@@ -279,7 +279,7 @@ fn fragment(
         1.0,
     );
     // Emissive bypasses camera exposure, so a band that glows carries a
-    // multiplier in the tens rather than a fraction (see the round record).
+    // multiplier in the tens rather than a fraction.
     pbr_input.material.emissive = vec4<f32>(tinted * color.a, 1.0);
 
     // Bend the shading normal along the same grain field. Without this a close

@@ -15,8 +15,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-9dfbd86b.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a109d2dd.js";
+            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e8ad555.js"></script>
+        <script src="toc-6ac6c19d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -186,8 +186,7 @@ how sections connect and handles damage, disabling, and cascading destruction.</
 <h2 id="sections-nova_shipsections"><a class="header" href="#sections-nova_shipsections">Sections (<code>nova_ship::sections</code>)</a></h2>
 <p>A section is a <code>SectionConfig { base: BaseSectionConfig, kind: SectionKind }</code>.
 <code>BaseSectionConfig</code> is shared by all kinds: <code>id</code>, <code>name</code>, <code>description</code>,
-<code>health</code>, optional <code>material</code> (the impact table’s target half) and
-<code>destroy_sound</code>, optional <code>collider</code>,
+<code>health</code>, optional <code>destroy_sound</code>, optional <code>collider</code>,
 structural <code>link_points</code>, <code>hide_in_editor</code>, and <code>damage_effects</code> - the authored
 list of looks this section wears as it is damaged (see <a href="#damage-is-two-readings">Damage is two
 readings</a>).</p>
@@ -201,17 +200,19 @@ readings</a>).</p>
 <tbody>
 <tr><td><code>Hull</code></td><td>Passive structure/armor. Just a <code>render_mesh</code>.</td></tr>
 <tr><td><code>Thruster</code></td><td>Forward thrust (<code>magnitude</code>); drives the exhaust visual.</td></tr>
-<tr><td><code>Controller</code></td><td>Attitude controller (<code>steering_lag</code>, <code>max_torque</code>); lag derives the internal PD gains, torque feeds the hull’s attitude envelope (see below). Also grants flight <code>verbs</code> (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop.</td></tr>
+<tr><td><code>Controller</code></td><td>Attitude controller (<code>steering_lag</code>, <code>max_torque</code>); lag derives the internal PD gains, torque feeds the hull’s attitude envelope (see below). Attitude hardware only - what a ship is PERMITTED to do is <code>ShipCapabilities</code> on its root. A ship needs one to be steerable; several SHARE one attitude loop.</td></tr>
 <tr><td><code>Turret</code></td><td>Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own <code>offset</code>/<code>axis</code>/<code>speed</code>/limits/<code>render_mesh</code>), section-wide <code>muzzle_speed</code> + authored <code>bullet_damage</code> + <code>bullet_kind</code>, per-muzzle <code>fire_rate</code>, optional <code>ammo_capacity</code>.</td></tr>
 <tr><td><code>Torpedo</code></td><td>Torpedo bay. Fires guided torpedoes of an authored <code>torpedo_type</code> (name, tint, <code>max_speed</code>, <code>weave_angle</code>, <code>weave_rate</code>) that detonate an Explosive area blast (<code>blast_radius</code>, <code>blast_damage</code>), optional <code>ammo_capacity</code>. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube.</td></tr>
 <tr><td><code>Railgun</code></td><td>Spinal lance. No traverse: the HULL aims it down <code>muzzle_offset</code>. Tapping the trigger commits, the bolt walks the bore for <code>charge_seconds</code>, and the shot leaves whether or not the nose is still on the target. The slug deals <code>slug_damage</code> to every layer it rakes; <code>slug_power</code> and not a layer count bounds it, optional <code>rake_radius</code> spends that budget on a wider corridor instead of unused depth, <code>slug_speed</code> x <code>slug_lifetime</code> is the reach, and <code>recoil_impulse</code> lands at the muzzle point so an off-axis mount yaws the ship. Usually <code>ammo_capacity: 1</code> with a long <code>reload</code>.</td></tr>
+<tr><td><code>Docking</code></td><td>Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. <code>capture_distance</code>, <code>capture_angle</code> and the two relative-speed ceilings are the envelope a <code>DOCK</code> is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see <a href="#docking-ports-and-what-holds-a-pair-together">below</a>).</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>GameSections(Vec&lt;SectionConfig&gt;)</code> is the resource of section blueprints.
-Every base prototype is GENERIC and authored in
-<code>crates/nova_authoring/src/base_content/sections/standard.rs</code>; a mod that brings
-modelled craft declares their parts itself. The explicit <code>section_catalog()</code> is
+Every base prototype is GENERIC and authored under
+<code>crates/nova_authoring/src/base_content/sections/</code>, one module per family
+(<code>hull</code>, <code>controller</code>, <code>thruster</code>, <code>turret</code>, <code>torpedo_bay</code>, <code>railgun</code>,
+<code>docking_port</code>); a mod that brings modelled craft declares their parts itself. The explicit <code>section_catalog()</code> is
 generated into <code>assets/base/sections/base.content.ron</code> by <code>content -- gen</code> and
 merged into the resource by
 <code>crates/nova_assets/src/merge.rs</code>. The outer-skin cladding is not a prototype at
@@ -274,6 +275,12 @@ it into its <code>PDController</code>. The authored numbers stay put in
 <code>ControllerSectionTuning</code>, which is what the pass re-derives from when a
 controller dies. The smallest live <code>steering_lag</code> supplies the stack’s base
 response.</p>
+<p>The pass measures or it does nothing. A root with no finite, positive inertia
+and arm yet - the spawn frame before avian has computed mass properties, or a
+hull that has lost every live section and is no longer sized at all (see
+<code>publish_hull_radii</code>) - is SKIPPED, and every controller on it keeps the tuning
+it already had. Dividing by a missing arm writes an infinite structural ceiling
+onto each <code>PDController</code>, which disables the load clamp for that tick.</p>
 <p>The ship-level loop, for <code>n</code> live controllers:</p>
 <ul>
 <li>authority: the envelope above. Torque SUMS across controllers, with no curve
@@ -391,6 +398,85 @@ its own copy of the pierce math is a sight that eventually lies. It is gated on
 happens to sweep the bore across a target it is already fighting, inside about
 eight degrees and 60% of the slug’s reach, with a per-gun cadence over the gun’s
 own reload. It does not FLY the shot.</p>
+<h3 id="docking-ports-and-what-holds-a-pair-together"><a class="header" href="#docking-ports-and-what-holds-a-pair-together">Docking ports, and what holds a pair together</a></h3>
+<p>A dock is deliberately NOT an attachment. Two docked hulls stay two rigid
+bodies held by one avian <code>FixedJoint</code>, and every part of the mechanic follows
+from that: no authority moves, no mass is merged, and either ship can leave.</p>
+<p>The code is <code>crates/nova_ship/src/sections/docking_section/</code>: <code>mod.rs</code> is the
+config and the sleeve’s state machine, <code>port.rs</code> the candidate search, and
+<code>connection.rs</code> the connection’s whole life.</p>
+<p><strong>Finding a pair</strong> (<code>DockingPorts</code>, a <code>SystemParam</code>). <code>DOCK</code> names two SHIPS -
+the presser and the ship it has locked - and the game picks the ports. A port
+is eligible when it carries no <code>DockedPort</code> and is not <code>SectionInactiveMarker</code>.
+Each pair is then graded on the STRICTEST of the two ports’ envelopes, so a
+hull cannot loosen another’s rules by offering a lax port:</p>
+<ul>
+<li>the <strong>face gap</strong> between the two RETRACTED outer faces, not between section
+origins. A port’s face is <code>(0, 0, -0.5)</code> in its own frame, because a section’s
+outward axis is local <code>-Z</code> everywhere in Nova.</li>
+<li>the <strong>opposition</strong> of the two outward axes, within <code>capture_angle</code>. Roll about
+the docking axis is not read at all: the ports are cylinders, so a twist is
+not a misalignment.</li>
+<li>the <strong>relative</strong> linear and angular speed of the two BODIES. Absolute speed is
+irrelevant; two hulls holding formation at 2 km/s are stationary to each
+other.</li>
+</ul>
+<p><code>best_candidate</code> ranks survivors by <code>(gap, opposition, first_id, second_id)</code>.
+The two <code>EntityId</code>s are the tie-break, so two identical pairs resolve the same
+way on every machine and in every replay.</p>
+<p><strong>Making the joint.</strong> <code>DockingConnectionRequest</code> re-runs the search - the
+envelope is re-read at execution, never trusted from the frame the offer was
+drawn in - and spawns ONE connection entity carrying both the
+<code>DockingConnection</code> record and the <code>FixedJoint</code>. The joint is built with an
+explicit frame:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>FixedJoint::new(first_ship, second_ship)
+    .with_anchor(world_point)
+    .with_basis(Rotation(relative))
+<span class="boring">}</span></code></pre>
+<p><code>with_anchor</code> / <code>with_basis</code> set one GLOBAL frame that avian resolves into
+per-body local frames on its next step, which is what preserves the pose the
+two hulls met in, roll included. A bare <code>FixedJoint::new(a, b)</code> carries
+<code>JointFrame::IDENTITY</code> and would yank the two hulls into the same origin.</p>
+<p>Nothing writes a velocity anywhere on this path. The constraint is the physics’
+job, so a pair that met while drifting keeps drifting; a hull that had been
+zeroed on capture would be a hull the solver has to fight.</p>
+<p><strong>The sleeves.</strong> <code>DockingSectionState</code> runs <code>Retracted -&gt; Extending -&gt; Extended</code> off the <code>DockTube</code> animation cue, and back down on release. It is
+driven only AFTER the joint exists, so the tubes can never be what holds the
+ships together. The track is a plain <code>Translate</code> on <code>dock_tube*</code> nodes: art
+only, with no collider growth, which is why two mated sleeves may overlap
+without the hulls touching.</p>
+<p><strong>A dock is MODAL.</strong> While it holds, a docked hull flies nothing. <code>DockedShip</code>
+on the root is the single gate, and it is read at the FORCE, not at the key, so
+pilot, AI and scripted order are all held by the same line:
+<code>thruster_impulse_system</code> skips the impulse, <code>sync_controller_section_forces</code>
+skips the torque, and the manual balancer and the RCS writer never reach a
+drive. A throttle held through a whole dock is simply inert - and bites the
+moment the dock ends, which is what the <code>system_docking_ports</code> range reads back
+to back.</p>
+<p><code>park_docked_helms_and_release_maneuvers</code> re-parks each docked hull’s attitude
+command on the rotation it actually has, every tick. The attitude loop is off,
+so a command left where it stood at capture would be a stale order the PD snaps
+to the instant the dock ends; parking it live means a released ship inherits
+the direction it is already pointing.</p>
+<p><strong>Ending it.</strong> Four paths, and each removes only the connection it owns:</p>
+<ul>
+<li><strong>the verb</strong> (<code>on_docking_release_request</code>): <code>DOCK</code> pressed again, from
+EITHER hull, exactly as <code>ORBIT</code> pressed again disengages. This is the only
+pilot-facing path, and it is ungated - a capability withdrawn while docked
+must never strand a hull clamped to something.</li>
+<li><strong>an engaged maneuver</strong> (<code>park_docked_helms_and_release_maneuvers</code>, in
+<code>DockingSystems::Release</code>, ordered BEFORE the attitude copy and the section
+pass): an autopilot on either hull takes the dock away first, so the maneuver
+is flown by a ship that is already free.</li>
+<li><strong>a destroyed port</strong> (<code>on_docking_port_removed_release</code>), which frees the
+surviving port.</li>
+<li><strong>a broken endpoint</strong> (<code>release_broken_docking_connections</code>), for a ship that
+is gone entirely.</li>
+</ul>
+<p><code>nova_ship/src/sections/docking_section/tests.rs</code> grades the search; the
+<code>system_docking_ports</code> range grades what the SOLVER does with the joint.</p>
 <h3 id="meshes-and-colliders-authorable"><a class="header" href="#meshes-and-colliders-authorable">Meshes and colliders (authorable)</a></h3>
 <p>Two authorable knobs decouple a section’s look and physics from the default unit
 cube (<code>crates/nova_ship/src/sections/base_section.rs</code>). Unset content still uses
@@ -417,17 +503,20 @@ every cell on its exhaust face. Other collider shapes remain one-cell parts.</li
 </ul>
 <h2 id="building-a-ship"><a class="header" href="#building-a-ship">Building a ship</a></h2>
 <p>A <code>SpaceshipConfig</code> (<code>crates/nova_scenario/src/objects/spaceship.rs</code>) has a
-<code>controller</code> (<code>None</code>, <code>Player</code>, or <code>AI</code>), an <code>allegiance</code>, an optional
-<code>collapse_threshold</code> (below), a <code>skin</code> flag (the
-<a href="#the-derived-skin">derived cladding</a>), and a list of
-<code>SpaceshipSectionConfig</code>, each placing one section at a <code>position</code> + <code>rotation</code>
-relative to the ship root. That <code>position</code> is the one authored vector that is
-not a distance: it is a BUILD-GRID CELL, so it stays a bare <code>Vec3</code> of engine
-world units and sections stack by whole cells of 10 m. It comes with a <code>source</code>
-(<code>Inline</code> /
-<code>Prototype</code>) and optional <code>modifications</code>. The player
-config carries the input mapping (section id -&gt; key/gamepad bindings) plus
-<code>speed_cap</code>; the AI config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.</p>
+<code>controller</code> (<code>None</code>, <code>Player</code>, or <code>AI</code>), an <code>allegiance</code>, a <code>capabilities</code> set
+(what this spawn is permitted to do) and a <code>design</code>: a <code>ShipDesignSource</code>, which
+is either an <code>Inline</code> <code>ShipDesign</code> or a <code>Prototype</code> naming a catalog design by
+id with this spawn’s own <code>section_patches</code> over it. The design carries the
+<code>integrity</code> (the optional <code>collapse_threshold</code>, below), the <code>presentation</code> (the
+<a href="#the-derived-skin">derived cladding</a>, the style and the cockpit voice) and a
+list of <code>SpaceshipSectionConfig</code>, each placing one section at a <code>position</code> +
+<code>rotation</code> relative to the ship root. That <code>position</code> is the one authored vector
+that is not a distance: it is a BUILD-GRID CELL, so it stays a bare <code>Vec3</code> of
+engine world units and sections stack by whole cells of 10 m. It comes with a
+<code>source</code> (<code>Inline</code>, or <code>Prototype</code> with its own <code>SectionConfigPatch</code>). The
+player config carries the input mapping (section id -&gt; key/gamepad bindings)
+and nothing else, and refuses an unknown key rather than dropping it; the AI
+config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.</p>
 <p>Spawning: the base scenario bundle gives the root <code>RigidBody::Dynamic</code>; the
 spaceship object adds <code>SpaceshipRootMarker</code>, and an observer
 (<code>insert_spaceship_sections</code>) spawns each section as a direct child. Every
@@ -441,7 +530,17 @@ and <code>webmods/the-ledger/ledger_ships.content.ron</code> for hand-authored s
 out of modelled parts a mod brings with it.
 The editor (<code>crates/nova_editor</code>) assembles ships interactively using
 <code>preview_section</code>, which has no health or rigid body and never enters the
-damage pipeline.</p>
+damage pipeline. A part placed from the gallery is a <code>Prototype</code> reference from
+the moment it lands (<code>spawn_section_node</code>), and stays one when it is tuned:
+<code>inspect::edit_section</code> applies the current patch, hands the edit a whole
+config, then asks <code>SectionConfigPatch::between</code> for the delta back and keeps the
+<code>Prototype</code> source with that patch. <code>between</code> is the checked inverse of <code>apply</code></p>
+<ul>
+<li>it re-applies its own result and compares - and returns <code>None</code> when the edit
+is outside what a patch can say (a different kind, a muzzle the prototype does
+not carry), which is the only case that falls back to an <code>Inline</code> copy. So the
+editor never keeps a second list of which fields the patch reaches.</li>
+</ul>
 <h3 id="the-derived-skin"><a class="header" href="#the-derived-skin">The derived skin</a></h3>
 <p><code>skin: true</code> on a ship’s hull asks the game to CLAD it. Nothing authors a plate:
 <code>spawn_ship_skin</code> (<code>sections/shell_skin.rs</code>) reads the finished section batch on
@@ -471,9 +570,9 @@ outward from the hull, a tumble and a <code>TempEntity</code> timer - inheriting
 ship’s motion through <code>inherited_motion</code>, so cladding does not hang in space
 while the hull flies out from under it. It is the SAME entity, so the meshes
 drawing it and the greebles standing on it come along untouched. Its
-colliders do not: shed cladding is DEBRIS - kinematic and untouchable, the
-claim <code>spew</code> makes for its shards - because a hull wears hundreds of plates
-and a dynamic body per plate is the cost a dying section already refuses.</li>
+colliders do not: shed cladding is DEBRIS - kinematic and untouchable -
+because a hull wears hundreds of plates and a dynamic body per plate is the
+cost a dying section already refuses.</li>
 <li>The shed is CAPPED and runs on the FIXED STEP, in the phase the deaths
 arrive in. <code>SHED_TICK_CAP</code> bounds it to 24 fixtures a TICK and <code>ShedBudget</code>
 bounds it to 48 a FRAME; the rest are deferred, never dropped, because
@@ -514,8 +613,8 @@ the pointer never hits one, and the <code>Q</code> pipette cannot arm one.</li>
 </ul>
 <p>Both readings go through <code>read_structure</code> (<code>shell_skin.rs</code>), so the lattice the
 editor clads on and the lattice the flown ship clads on cannot drift - and the
-build state carries the toggle into the <code>SpaceshipConfig</code> the scenario spawns,
-so what you see in the editor is what you fly.</p>
+build state carries the toggle into the <code>ShipDesign</code>’s <code>presentation</code> the
+scenario spawns, so what you see in the editor is what you fly.</p>
 <h4 id="the-plate-vocabulary-and-skin-styles"><a class="header" href="#the-plate-vocabulary-and-skin-styles">The plate vocabulary and skin styles</a></h4>
 <p>The derivation works out far more than it keeps. <code>read_plates</code>
 (<code>sections/skin_reading.rs</code>) is a SECOND PASS over the finished plates that reads
@@ -541,10 +640,24 @@ piece turned to <code>along</code> lies down an edge, and one turned to <code>fa
 over it.</p>
 <p>A <code>ShipStyleConfig</code> (<code>sections/skin_style.rs</code>) is CONTENT resolved by id out of
 <code>GameStyles</code>, exactly as a section prototype resolves out of <code>GameSections</code>. It
-carries a material per surface role and a list of decoration fixtures, each with
-a model <code>AssetRef</code> and a <code>ScatterRule</code> written in the vocabulary above. The mod
-merge routes <code>Content::Style</code> into <code>GameStyles</code> with the same last-wins overlay
-every other kind gets, so a mod restyles a base look by declaring its id.</p>
+carries a <code>StylePalette</code> - a <code>SurfaceFinish</code> for the plate <code>top</code> and one for its
+<code>wall</code>, the hidden floor keeping an engine finish - and a list of decoration
+fixtures, each with a model <code>AssetRef</code>, a health, a collider and a
+<code>FixturePlacement</code>. The mod merge routes <code>Content::Style</code> into <code>GameStyles</code> with
+the same last-wins overlay every other kind gets, so a mod restyles a base look
+by declaring its id.</p>
+<p>A <code>FixturePlacement</code> is three authored words - a <code>FixtureRegion</code>, a
+<code>FixtureDensity</code> and a <code>FixtureOrientation</code> - and <code>skin_style</code> expands it
+PRIVATELY into the <code>ScatterRule</code> written in the vocabulary above. That expansion
+is engine policy: it is tuned against real hulls and it moves when the plate
+derivation moves, which a style that had spelled out fourteen interacting
+filters could not survive. Two facts are derived from the fixture’s own collider
+rather than authored beside it, because the size already answers them:
+<code>min_run</code> (one cell of run per half cell the piece spans in plane, capped at
+<code>MAX_DERIVED_RUN</code>) and whether the piece needs a whole seat at all (a collider
+under <code>TRIM_HEIGHT</code> is trim, and trim beds onto a crease). Physics density is
+not authored either - every piece stands at <code>DECOR_DENSITY</code>, the same as the
+cladding it sits on.</p>
 <p><code>scatter_decor</code> (<code>sections/skin_decor.rs</code>) turns plates plus readings plus a
 style into placements. It takes the READINGS, not the structure, so the scatter
 cannot reach past the vocabulary into the derivation. Two properties are
@@ -569,10 +682,16 @@ tuned on a 150-plate generated hull put one visible piece on a 20-plate editor
 build. <code>ScatterRule::patch</code> is a floor: within each block of <code>patch</code> cubed cells,
 keyed by the out face, a rule that the share left with nothing claims its lowest
 hashing eligible plate. A block is a fixed division of the ship’s own cells, so a
-hull that grows by one cell keeps every piece outside the block it grew into; the
-floor never displaces another rule’s piece, so priority still means what it says.
-With <code>chance: 0.0</code> the share picks nothing and the rule is purely “one piece per
-block”, which is a density that reads the same at any hull size.</p>
+hull that grows by one cell keeps every piece outside the block it grew into.</p>
+<p>The floor takes UNCLAIMED plate first. Where a thin rule’s whole region was
+swept by broader rules below it - <code>Rare</code> on a <code>Panel</code> two <code>Dense</code> rules also
+want - there is no unclaimed plate to floor onto, and the rule logs <code>x0 of 78</code>
+on a hull it was eligible all over. So the floor may BORROW one claimed plate,
+under three conditions that bound the damage: the holder is on a THICKER rung
+than the borrower, the holder has a floor of its own (<code>Every</code> never lends, and
+a line with a hole in it is not a line), and the holder still keeps a piece
+somewhere on the ship. Priority therefore decides who picks, and the floor
+decides only that nobody is picked down to nothing.</p>
 <p>A decoration is a <code>SectionFixture</code> like a plate, and a child of the PLATE, one
 level further out - so a plate shot off takes its greebles, and
 <code>damage_cracks</code>’s <code>owning_section</code> walk stops at the first fixture it meets
@@ -612,7 +731,8 @@ nine generic pieces, and the ship adds its own <code>ShipIntegrityPlugin</code> 
 <li><code>health.rs</code> - the hit-point store: <code>Health</code>, <code>HealthApplyDamage</code> and the
 <code>HealthZeroMarker</code> its observer adds at zero.</li>
 <li><code>core.rs</code> (<code>IntegrityCorePlugin</code>) - the generic disable/destroy core, plus
-the mass-times-velocity impact damage.</li>
+the contact impact damage, taken from the impulse avian’s solver settled on
+and spent only on the approach above a universal 5 m/s safe contact speed.</li>
 <li><code>erosion.rs</code> (<code>DamageLevelPlugin</code>) and <code>carve.rs</code> (<code>DamageMarksPlugin</code>) - the
 two damage READINGS, below.</li>
 <li><code>spew.rs</code> (<code>CarveSpewPlugin</code>) and <code>chunk.rs</code> (<code>CarvedChunkPlugin</code>) - what a
@@ -645,44 +765,71 @@ death is decided by its own remesh (see
 <h3 id="how-a-body-comes-apart"><a class="header" href="#how-a-body-comes-apart">How a body comes apart</a></h3>
 <p>Nothing computes geometry when something dies. A destroyed <code>ExplodableEntity</code>
 DETACHES: it comes off its parent, becomes a rigid body of its own carrying the
-art and the collider it already had, takes an outward kick and a spin, and
-despawns on a timer (<code>PIECE_LIFETIME_SECS</code>). A death moves entities and clones
+art and the collider it already had, takes an outward kick sized by how deeply
+it was buried and a spin, and despawns on a timer (<code>PIECE_LIFETIME_SECS</code>). A death moves entities and clones
 one collider handle, which is why the module has no fragment budget and no
 spawn queue - there is nothing left to ration.</p>
 <p>The FIREBALL is the other half, and it is a separate plugin because it rations
 what <code>explode</code> does not. <code>pyre.rs</code> observes the same destroy marker and spawns
 two hanabi instances - a core and its ejecta - at two authored sizes: a section
 burns at <code>SECTION_PYRE</code>, a whole hull at <code>HULK_PYRE</code>.</p>
-<p>Almost nothing about those graphs is built at the death. <code>warm_the_pyres</code>
-runs in <code>PostStartup</code> after the settings pass that derives the graphics budget</p>
-<ul>
-<li>late enough that the tier a player picked is settled, early enough to be
-before the first frame of any state - and it does the whole job: the four
-graphs, the shared soft-dot mask, and one hidden instance of each graph. The
-instance is the part that matters, because <code>bevy_hanabi</code> generates a shader
+<p>A section is the same size on every ship, because a build-grid cell is. A HULL
+is not, so <code>HULK_PYRE</code> is the look and the dying root’s <code>IntegrityEnvelope</code> is
+the size it is drawn at: every length is multiplied by the hull’s containment
+radius over the 55.2 m gunship the look was cut on, and the flash by the square
+of it, because lumens stand in for a burning surface. The shipped hulls run
+from 0.88 on a skiff-sized hull to 3.52 on a carrier-sized one, so a carrier’s debris
+reaches 479 m rather than ending 58 m inside its own wreck. Durations and
+particle counts are NOT scaled: a bigger ship does not burn for longer, and the
+count is what the frame budget was written against. A body that publishes no
+envelope gets the authored death rather than no death.</p>
+<p>Hanabi bakes a <code>Gradient</code> into the asset, so a baked size curve cannot be
+multiplied by a per-instance property. Every size curve in <code>pyre.rs</code> is
+therefore an expression over the particle’s own normalised age, built by
+<code>key_curve</code> from the same keys a gradient would hold, and multiplied by one
+<code>hull_scale</code> property written per death - the same shape the railgun wake uses.</p>
+<p>Almost nothing about those graphs is built at the death. <code>warm_the_pyres</code> runs
+in <code>Update</code>, on the first frame that has all three of a cold store, a tier that
+draws particles at all, and an active camera - and it does the whole job: the
+four graphs, the shared soft-dot mask, and one hidden instance of each graph.
+The instance is the part that matters, because <code>bevy_hanabi</code> generates a shader
 from a spawned INSTANCE and never from an asset, so a warm-up that only filled
 the asset store left the WGSL to be generated on the collapse frame. Those four
 are silent, invisible, and despawned the next frame. A tier with particles off
-builds none of it and lights nothing.</li>
-</ul>
-<p>Startup and not a state transition, because deaths are not confined to
+builds none of it and lights nothing.</p>
+<p><code>Update</code> and not a state transition, because deaths are not confined to
 <code>Playing</code>: the main menu’s backdrop is a scenario whose whole loop is a torpedo
-erasing a ship. There is a second pass on <code>Update</code>, run only when the graphics
-budget changes while the graphs are still cold, for the other path a state
-transition misses - a tier RAISED from the pause overlay, which never
-re-enters anything.</p>
+erasing a ship, and that backdrop raises its camera frames before its first
+death. The tier is settled well before the gate opens - the settings pass
+applies in <code>PostStartup</code> and again on change, both inside <code>SettingsSystems</code>,
+which the warm-up orders itself after - and the cold store is what lets a tier
+RAISED from the pause overlay reach the warm-up, which no <code>OnEnter</code> carries.</p>
+<p>The camera is a requirement and not a preference. hanabi gives every live
+instance a row in one <code>BufferTable</code> of draw arguments and reconciles that table
+only on a frame that has a view, so four rows taken and given back with no view
+in between leave it allocating a 60-byte buffer and writing 80 bytes into it: a
+panic in the render schedule at boot. Warming in <code>PostStartup</code> is exactly that
+shape, because that is before any scenario has spawned a camera.</p>
 <p>The ALMOST is one pipeline. A hidden instance is compiled and gets its two
 compute pipelines, but <code>bevy_hanabi</code> specializes the RENDER pipeline only for
 entities a camera can see, so the first death of a run still creates one - on
 the render thread, because <code>nova_core</code> asks for
 <code>synchronous_pipeline_compilation</code> on every backend. Warming that would take a
-visible instance in a live view, and the warm-up runs before any scenario has a
-camera.</p>
-<p>What a death still mints is instances, so this half DOES need a budget:
-<code>PYRE_FRAME_CAP</code> bounds how many fireballs one frame lights, and a root’s own is
-never the one dropped, because that is the one the whole death reads as.
-Material has the last word - <code>IntegrityDestroyMarker</code> is a shared seam that an
-exhausted asteroid also raises, and rock does not burn.</p>
+VISIBLE instance, which a warm-up is not: these are hidden exactly so that
+nothing draws them.</p>
+<p>What a death still mints is instances, so this half DOES need a budget. A
+compartment death is QUEUED, and the whole frame’s batch is spent at the end of
+it: <code>6 * sqrt(condemned / 53)</code> fires, floored at six and capped at 48, picked by
+farthest-point sampling over where the deaths happened. The reference is the
+53-section gunship the look was cut on, so an ordinary frame still lights the
+six it always did, a 720-cell corridor lights 23 and a whole carrier 38. The
+sampling is the half that matters: deaths arrive in section-graph order, so the
+first six of a collapse are six fires in one shoulder of the wreck - the chain
+has to be cut from the batch and spread over it, not taken off the front. A
+root’s own fireball is never queued and never dropped, because that is the one
+the whole death reads as. Material has the last word -
+<code>IntegrityDestroyMarker</code> is a shared seam that an exhausted asteroid also
+raises, and rock does not burn.</p>
 <p>Four properties follow from that, and each is load-bearing:</p>
 <ul>
 <li><strong>Destructibility is SEMANTIC.</strong> It is <code>ExplodableEntity</code> plus the destroy
@@ -710,12 +857,40 @@ own collider is the shape the wreck is.</li>
 interpenetrating another - something the solver fixes by shoving hard. So it
 takes the same <code>ChunkGrace</code> a carved rock chunk takes: kinematic and
 colliderless until it has drifted clear.</li>
+<li><strong>How far clear is measured on the piece, not on the constant.</strong> A piece has
+to cross the structure standing over it, plus its own reach, plus 10 m of
+daylight. The kick and the grace window are both multiplied by the square
+root of that distance over 10 m (<code>clearance_scale</code>), so the SLOWEST piece is
+exactly outside as its window runs out: a plate off the skin leaves at 20 to
+50 m/s and is physical in half a second, while a section 97 m inside a
+capital leaves at over 100 m/s and stays a ghost for 1.7 s. The depth comes
+from <code>IntegrityEnvelope</code>, which the layer that owns the body publishes - a
+hull from its live containment radius, a rock from its own.</li>
 </ul>
 <p>There is NO FALLBACK for a body with no collider: it leaves nothing behind and
 logs an error, and <code>system_destruction_finale</code> asserts that branch never runs
 on shipped content. A refusal rather than a stand-in, because a stand-in looks
 like SOMETHING - a body that had silently failed to come apart would be
 indistinguishable from one that came apart badly.</p>
+<p>What the frame SOUNDS and FEELS like is grouped the same way, by the STRUCTURE
+rather than by the place. An impact or a destruction cue - the explosion, the
+surface hit, the camera kick and the spark burst - is throttled on its
+<code>CueGroup</code> (<code>nova_gameplay::audio::mixing</code>), which is the nearest <code>RigidBody</code> at
+or above the entity the event named: a section, a plate, a health node and an
+asteroid’s collider node all hang under one. A severed fragment, a rock and a
+torpedo each resolve to their own body, so each is its own event, and only a cue
+with nothing physical over it falls back to a 60 m world cell (<code>SFX_AREA_CELL</code>,
+six world units). That cell used to be the whole rule, and a cell is about the
+size of a gunship, so it was the same mistake in both directions: a carrier
+collapse spanned two dozen cells and threw 25 trauma kicks in the frame it came
+apart - the pile-up the throttle exists to stop - while two hulls dying a few
+metres apart shared one death. The same collapse throws 3 kicks now.</p>
+<p>WHERE it plays is the other half. A death is emitted from the body’s centre of
+mass, not from the section that happened to be raised first, because the
+sections a collapse raises first are the ones nearest the wound and not the ones
+a listener is watching let go. A HIT still plays at the contact: that is a real
+place on a hull the listener can see being struck. Audio and juice share one
+resolver, so a collapse is one explosion and one kick from the same point.</p>
 <p>Editor placement mates the same sockets, so the editor cannot build a ship the
 graph would reject. <code>snap_placement</code> (<code>nova_ship::sections::link_points</code>) poses a
 part from one mate: the two sockets become coincident and their normals opposed,
@@ -812,8 +987,11 @@ gaps are irregular while a count that fell is direct evidence a section died.</p
 <p>A severed wreck fragment is persistent until scenario teardown. Its healthy
 sections remain damageable, but <code>SectionInactiveMarker</code> disconnects every
 controller, thruster and weapon from the lost command bus. Fragments inherit
-rigid point velocity and receive a momentum-balanced kick of 10 m/s (one engine world unit per second) away from the
-cut. They are unsigned debris, not ships: no allegiance, control, defeat event,
+rigid point velocity and receive a momentum-balanced kick away from the cut. Its
+raw speed is the fragment’s own containment radius over two seconds, floored at
+10 m/s, so two halves open a gap as wide as themselves in about two seconds
+whatever they are: a carrier’s halves part at tens of meters a second where a
+cockpit shard takes the floor. They are unsigned debris, not ships: no allegiance, control, defeat event,
 or scenario identity.</p>
 <p>A ship is disabled progressively, so a collapsing ship can keep shooting for a
 few frames; its weapons stop as their own sections go. That also means the
@@ -919,16 +1097,19 @@ for its pressure pass.</p>
 shape, in world space. <code>kind</code> is the weapon class that paid for the carve, and
 it is what decides the look: <code>spew.rs</code> keys a <code>ShardLook</code> off it, one entry per
 <code>DamageType</code>. Kinetic and Pierce throw 2 to 7 shards of one fixed size
-(<code>ShardLook::size</code>, 0.12 world units - a 1.2 m chip) - kinematic, no collider, <code>TempEntity(2.5)</code> - and
+(<code>ShardLook::size</code>, 0.12 world units - a 1.2 m chip) that live 2.5 s, and
 hold identical values in two SEPARATE entries, so giving a penetrator its own
 debris is editing a number rather than splitting a branch. Explosive throws nothing: a
 warhead’s fireball already covers the frames the geometry changes in, the crater
 is permanent evidence afterwards, and a cut that severs throws real geometry
-anyway. Shards are born INSIDE the body they came off, so a dynamic body with a
-collider would spawn interpenetrating and the solver would shove the two apart -
-a ship kicking itself sideways every time it was shot. An event rather than a
-direct spawn, so a mod that wants a puff or nothing at all replaces the observer
-instead of patching the carve.</p>
+anyway. Shards are <code>bevy_hanabi</code> PARTICLES, not entities: a carve aims one of a
+per-material pool of emitters (grown on demand to <code>SHARD_EMITTERS</code> per
+material, which is also the most craters one frame chips) and the GPU throws
+the cone, tumbles, cools and ends them. Nothing on the CPU stands for a chip -
+no rigid body, no collider, no mesh - which is what a busy fight paid for when
+they were kinematic bodies; a range reads <code>CarveShardTally</code> for what was thrown.
+An event rather than a direct spawn, so a mod that wants a puff or nothing at
+all replaces the observer instead of patching the carve.</p>
 <p>Real geometry leaves a body only where a carve actually SEVERED it, and only the
 body being cut knows that. <code>chunk.rs</code> is what a severed piece spawns through;
 <code>CHUNK_MIN_VOLUME</code> (1.0 cubic world unit, 1000 m^3 - a volume, so it is engine-side with the field) is the floor under which a crumb goes out as
@@ -1161,8 +1342,10 @@ else.</li>
 <code>crates/nova_gameplay/src/integrity/chunk.rs</code>.</li>
 <li>How a body comes apart: <code>detach_destroyed_body</code>, <code>DetachedPieceMarker</code> -
 <code>crates/nova_gameplay/src/integrity/explode.rs</code>; the fireball over it,
-<code>SECTION_PYRE</code>, <code>HULK_PYRE</code>, <code>PYRE_FRAME_CAP</code>, <code>warm_the_pyres</code> -
-<code>crates/nova_gameplay/src/integrity/pyre.rs</code>.</li>
+<code>SECTION_PYRE</code>, <code>HULK_PYRE</code>, <code>frame_cap</code>, <code>warm_the_pyres</code> -
+<code>crates/nova_gameplay/src/integrity/pyre.rs</code>; what it sounds and feels like,
+<code>CueGroup</code>, <code>cue_body</code>, <code>body_middle</code> -
+<code>crates/nova_gameplay/src/audio/mixing.rs</code>.</li>
 <li>Authored damage looks: <code>DamageEffect</code>, <code>fit_damage_effects</code> -
 <code>crates/nova_ship/src/sections/damage_effects.rs</code>, with one module per look in
 <code>damage_cracks.rs</code>, <code>damage_sparks.rs</code> and <code>damage_plume.rs</code>.</li>
@@ -1224,11 +1407,11 @@ envelope: <code>crates/nova_ship/src/input/ai/railgun.rs</code>.</li>
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
         <script src="mermaid-eefea253.min.js"></script>

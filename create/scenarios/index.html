@@ -17,7 +17,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Scenario files</p><h1>Scenario files</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#handler-shape">Handler shape</a><ol><li><a href="#once---a-beat-that-happens-one-time">once - a beat that happens one time</a></li><li><a href="#sequence---beats-that-follow-each-other">Sequence - beats that follow each other</a></li></ol></li><li><a href="#scenario-scripting-chapters">Scenario scripting chapters</a><ol></ol></li><li><a href="#lifecycle">Lifecycle</a><ol></ol></li><li><a href="#add-or-replace-a-scenario">Add or replace a scenario</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li><li><a href="#common-mistakes">Common mistakes</a><ol></ol></li></ol></nav><p>A scenario defines one playable mission, continuation, or menu backdrop. Its
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Scenario files</p><h1>Scenario files</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#roles">Roles</a><ol></ol></li><li><a href="#handler-shape">Handler shape</a><ol><li><a href="#once---a-beat-that-happens-one-time">once - a beat that happens one time</a></li><li><a href="#sequence---beats-that-follow-each-other">Sequence - beats that follow each other</a></li></ol></li><li><a href="#scenario-scripting-chapters">Scenario scripting chapters</a><ol></ol></li><li><a href="#lifecycle">Lifecycle</a><ol></ol></li><li><a href="#add-or-replace-a-scenario">Add or replace a scenario</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li><li><a href="#common-mistakes">Common mistakes</a><ol></ol></li></ol></nav><p>A scenario defines one playable mission, continuation, or menu backdrop. Its
 <code>events</code> list is the script: events decide when a handler runs, filters decide
 whether it applies, and actions change the world.</p>
 <p>For a guided first mission, start with
@@ -89,16 +89,10 @@ folder and bundle shape.</p>
 <td>Plain 2D menu image, written as <code>Some(&quot;self://thumbnails/x.png&quot;)</code>. Do not use a cubemap.</td>
 </tr>
 <tr>
-<td><code>hidden</code></td>
-<td>bool</td>
-<td><code>false</code></td>
-<td><code>true</code> removes the scenario from the flat list. Campaign members remain available under their campaign.</td>
-</tr>
-<tr>
-<td><code>menu_backdrop</code></td>
-<td>bool</td>
-<td><code>false</code></td>
-<td><code>true</code> adds the scenario to the random main-menu backdrop rotation. Backdrops normally also use <code>hidden: true</code>.</td>
+<td><code>role</code></td>
+<td>role</td>
+<td><code>Chapter</code></td>
+<td>What the scenario IS - see <a href="#roles">Roles</a>. <code>Chapter</code> is a level and the only role the Scenarios list shows.</td>
 </tr>
 <tr>
 <td><code>watches</code></td>
@@ -115,17 +109,70 @@ folder and bundle shape.</p>
 </tbody>
 </table>
 <p>A skybox is six square faces stacked vertically in one PNG, with a <code>.png.meta</code>
-sidecar that reinterprets the stack (see
+sidecar that cuts the stack into six layers (see
 <a href="../base-content/">Base content</a>). Size the faces for the memory they cost, not
-for the detail the source can give: every face is uploaded uncompressed, so
-1024 px faces cost 24 MB of video memory and 4096 px faces cost 384 MB. The base
-skies ship at 1024.</p>
+for the detail the source can give: every face is uploaded uncompressed, and the
+sidecar keeps the decoded pixels in main memory as well, so 1024 px faces cost
+24 MB of video memory AND 24 MB of main memory, and 4096 px faces cost 384 MB of
+each. On the web build both halves come out of the same budget. The base skies
+ship at 1024.</p>
+<h2 id="roles" tabindex="-1">Roles</h2>
+<p><code>role</code> says what kind of thing the scenario is. It decides where the game offers
+it, and it is checked: a campaign may only list <code>Chapter</code>s, and a lesson may only
+practise in a <code>Lesson</code>.</p>
+<table>
+<thead>
+<tr>
+<th>role</th>
+<th>what it is</th>
+<th>where it is offered</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Chapter</code></td>
+<td>A level. The default, and what you want unless you are writing menu scenery or a training range.</td>
+<td>The Scenarios list, and campaigns.</td>
+</tr>
+<tr>
+<td><code>Backdrop</code></td>
+<td>Menu scenery: it poses its own camera and hands the player no ship.</td>
+<td>The random main-menu backdrop rotation, and nowhere else.</td>
+</tr>
+<tr>
+<td><code>Lesson</code></td>
+<td>A focused practice range for one handbook <a href="../lessons/">lesson</a>.</td>
+<td>That lesson's Practice button, and nowhere else.</td>
+</tr>
+</tbody>
+</table>
+<p>Omit <code>role</code> and the scenario is a <code>Chapter</code>.</p>
 <p>A menu backdrop POSES ITS OWN CAMERA: author a
 <a href="../actions/#setcamera"><code>SetCamera</code></a> in its <code>OnStart</code> (the reference shot is
 <code>position: (0, 570, 1920)</code> in meters, looking at the origin, which frames
 about 1,060 m either side of the origin in a 4:3 window). A backdrop without
 one is a content Error and never enters the menu rotation - the menu derives
 no pose of its own.</p>
+<p>A practice range TEACHES ONE THING, and owes the player four things the four
+ranges in the handbook show:</p>
+<ul>
+<li>It hands over only the verbs its lesson names. Withhold the rest in the
+player ship's <a href="../objects/#capabilities"><code>capabilities</code></a> block, so the
+momentum range carries no flight computer at all and the keybind chip for a
+verb the player must not press is never drawn.</li>
+<li>It posts ONE objective at a time, one short imperative line, completed before
+the next is posted. The objective chip is a notification that leaves once it
+has been read, so the REASON goes to the comms stack in a
+<a href="../actions/#narrativecue"><code>NarrativeCue</code></a> from the range's own voice, not
+onto the board.</li>
+<li>It lights the verb in hand with
+<a href="../actions/#hintemphasisset"><code>HintEmphasisSet</code></a>, and clears it with
+<a href="../actions/#hintemphasisclear"><code>HintEmphasisClear</code></a> when that beat is done.</li>
+<li>It ENDS. Every path reaches an <a href="../actions/#outcome"><code>Outcome</code></a>: a Victory
+with nothing queued, so the overlay sends the player back to the handbook,
+and a Defeat that <a href="../actions/#nextscenario"><code>NextScenario</code></a>s the range
+itself, so the overlay offers Retry.</li>
+</ul>
 <h2 id="handler-shape" tabindex="-1">Handler shape</h2>
 <p>Each event entry is one handler:</p>
 <table>
@@ -241,8 +288,10 @@ separate content or design each scenario to start from a complete state.</p>
 <h2 id="add-or-replace-a-scenario" tabindex="-1">Add or replace a scenario</h2>
 <p>A new id adds a scenario. Reusing an existing id replaces the whole scenario;
 it is not a field-level patch. Names and filenames do not affect matching.</p>
-<p>Leave <code>hidden</code> unset for a scenario players should launch directly. Use a
-campaign or <code>NextScenario</code> for hidden continuation chapters.</p>
+<p>Every scenario you add is a row in the Scenarios list, unless it declares a
+<code>role</code> other than <code>Chapter</code>. A continuation chapter is a row too: use a campaign
+to group the chapters under one header, and <code>NextScenario</code> to play on into the
+next one.</p>
 <h2 id="check-it" tabindex="-1">Check it</h2>
 <pre><code class="hljs language-sh">nix develop --<span class="hljs-built_in">command</span> cargo run content lint --target path/to/your-mod
 nix develop --<span class="hljs-built_in">command</span> cargo run --features dev
@@ -257,7 +306,12 @@ find. In the game, enable the mod, open Scenarios, and play the visible entry.</
 <li>Optional values require <code>Some(...)</code>.</li>
 <li>Initialize variables before filters read them.</li>
 <li>Spawn an object before an action targets its id.</li>
-<li><code>hidden</code> and <code>menu_backdrop</code> are separate flags.</li>
+<li><code>role: Backdrop</code> is menu scenery, not a level. It is left out of the
+Scenarios list, it must pose its own camera with <code>SetCamera</code>, and a campaign
+that names one is a lint error.</li>
+<li><code>role: Lesson</code> is a practice range, reachable only from the
+<a href="../lessons/">lesson</a> whose Practice button names it. A campaign that names
+one is a lint error too, and a range no lesson practises in is a warning.</li>
 <li>A mod cannot replace the base New Game selection. Use the Scenarios menu,
 campaigns, or <code>NextScenario</code>.</li>
 </ul>

@@ -1,0 +1,995 @@
+[
+    Scenario((
+        id: "drill_gunnery",
+        name: "Turret practice",
+        description: "Five unarmed target ships to practise shooting.",
+        cubemap: "self://textures/cubemap.png",
+        role: Lesson,
+        events: [
+            (
+                name: OnStart,
+                once: true,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "trainer",
+                            name: "Your ship",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_picket",
+                                section_patches: {
+                                    "bridge": (
+                                        config: (
+                                            health: Some(1300.0),
+                                        ),
+                                    ),
+                                    "pdc": (
+                                        config: (
+                                            health: Some(1300.0),
+                                        ),
+                                    ),
+                                },
+                            ),
+                            controller: Player((
+                                input_mapping: {
+                                    "pdc": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                            )),
+                            capabilities: (
+                                goto_enabled: false,
+                                orbit_enabled: false,
+                            ),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "drill_gunnery_key",
+                            name: "Key Light",
+                            position: (
+                                -1500.0,
+                                1250.0,
+                                -500.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "drill_gunnery_rim",
+                            name: "Rim Light",
+                            position: (
+                                750.0,
+                                1000.0,
+                                -4000.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "drill_gunnery_fill",
+                            name: "Fill Light",
+                            position: (
+                                1750.0,
+                                -500.0,
+                                -1000.0,
+                            ),
+                            rotation: (
+                                0.10489727,
+                                0.49822173,
+                                -0.060874246,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "shallow_rock_",
+                        count: 30,
+                        seed: 433757351519980343,
+                        region: Box(
+                            min: (
+                                700.0,
+                                -500.0,
+                                -4400.0,
+                            ),
+                            max: (
+                                4300.0,
+                                500.0,
+                                -400.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "shallow_rock_",
+                                name: "Shallow Belt Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 10.0,
+                                texture: "self://textures/asteroid.png",
+                                kind: "rock",
+                                destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            10.0,
+                            30.0,
+                        )),
+                        asteroid_kinds: [
+                            (
+                                "rock",
+                                10,
+                            ),
+                            (
+                                "carbon",
+                                3,
+                            ),
+                            (
+                                "ice",
+                                2,
+                            ),
+                            (
+                                "metal",
+                                1,
+                            ),
+                        ],
+                        min_separation: Some(450.0),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "deep_rock_",
+                        count: 34,
+                        seed: 433757353748728849,
+                        region: Box(
+                            min: (
+                                -2800.0,
+                                -600.0,
+                                -8400.0,
+                            ),
+                            max: (
+                                3000.0,
+                                600.0,
+                                -5400.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "deep_rock_",
+                                name: "Deep Belt Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 15.0,
+                                texture: "self://textures/asteroid.png",
+                                kind: "rock",
+                                destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            15.0,
+                            40.0,
+                        )),
+                        asteroid_kinds: [
+                            (
+                                "rock",
+                                10,
+                            ),
+                            (
+                                "carbon",
+                                3,
+                            ),
+                            (
+                                "ice",
+                                2,
+                            ),
+                            (
+                                "metal",
+                                1,
+                            ),
+                        ],
+                        min_separation: Some(550.0),
+                    )),
+                    CreateScenarioArea((
+                        id: "range_boundary",
+                        name: "Range Boundary",
+                        position: (
+                            0.0,
+                            0.0,
+                            -2500.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 7000.0,
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_1",
+                            name: "Target 1",
+                            position: (
+                                -600.0,
+                                200.0,
+                                -1700.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                ],
+                                integrity: (),
+                                presentation: (),
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_2",
+                            name: "Target 2",
+                            position: (
+                                -1400.0,
+                                -250.0,
+                                -2400.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                ],
+                                integrity: (),
+                                presentation: (),
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_3",
+                            name: "Target 3",
+                            position: (
+                                -700.0,
+                                500.0,
+                                -3000.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                ],
+                                integrity: (),
+                                presentation: (),
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_4",
+                            name: "Target 4",
+                            position: (
+                                -2000.0,
+                                150.0,
+                                -3600.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                ],
+                                integrity: (),
+                                presentation: (),
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "target_5",
+                            name: "Target 5",
+                            position: (
+                                -950.0,
+                                -550.0,
+                                -4300.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "spine",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "reinforced_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "bow",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "stern",
+                                        position: (
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "port",
+                                        position: (
+                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "starboard",
+                                        position: (
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                ],
+                                integrity: (),
+                                presentation: (),
+                            )),
+                            controller: r#None,
+                        )),
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "target_1",
+                        label: "Target 1",
+                    )),
+                    Objective((
+                        id: "target",
+                        message: "Destroy Target 1.",
+                    )),
+                    HintEmphasisSet((
+                        verb: "RADAR",
+                    )),
+                    NarrativeCue((
+                        speaker: "Training",
+                        text: "Five unarmed targets are on the range, and none of them shoot back. Find Target 1 with the radar, raise your weapons, and destroy it.",
+                    )),
+                ],
+            ),
+            (
+                name: OnTravelLockStart,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_1"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    NarrativeCue((
+                        speaker: "Training",
+                        text: "That white lock is the travel lock and it does not feed the guns. Raise your weapons and take the lock again.",
+                    )),
+                ],
+            ),
+            (
+                name: OnCombatLockStart,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_1"),
+                        other_id: Some("trainer"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    HintEmphasisClear((
+                        verb: "RADAR",
+                    )),
+                    NarrativeCue((
+                        speaker: "Training",
+                        text: "That red lock is the weapon lock. Scroll the wheel to step the lock onto one section, such as a drive or a turret.",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("target_1"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(90.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "target",
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(90.0)))),
+                    )),
+                    NarrativeCue((
+                        speaker: "Training",
+                        text: "Target 1 is destroyed. The other four stay on the range, so you can come back and practise.",
+                    )),
+                    Sequence((
+                        key: "drill_outro",
+                        steps: [
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("Turret practice complete."),
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("trainer"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(90.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship was destroyed. Starting again."),
+                    )),
+                    NextScenario((
+                        scenario_id: "drill_gunnery",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnNeutralized,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("trainer"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(90.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship was destroyed. Starting again."),
+                    )),
+                    NextScenario((
+                        scenario_id: "drill_gunnery",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
