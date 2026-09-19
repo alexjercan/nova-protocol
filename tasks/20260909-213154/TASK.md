@@ -8,6 +8,11 @@ Meta task: ship the initial v0.14.0 GitHub release and website update. Store
 publication follows the tag. The v0.13.0 flow (`20260831-145920`) is the
 precedent.
 
+Owner decision, 2026-09-19: cut the tag and generate the release binaries before
+finishing the open release-media, store-presence, Steam and itch.io work. Those
+tasks consume the tagged artifacts and remain open. The release proceeds with
+one complete green CI run instead of the planned three-repeat probe gate.
+
 ## News loop TODOs
 
 Create these loops for `web/src/news/0.14.0.md`. Add each release-owned alias
