@@ -3,7 +3,7 @@
 //! what it authored, and a scene that authors nothing renders black.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{light::SimulationLightSystems, prelude::*};
 use nova_events::prelude::*;
 
 use crate::prelude::*;
@@ -218,64 +218,80 @@ impl Plugin for LightPlugin {
         trace!("LightPlugin: build");
 
         if self.render {
-            app.add_observer(insert_light);
+            app.add_systems(
+                PostUpdate,
+                insert_lights.before(SimulationLightSystems::UpdateDirectionalLightCascades),
+            );
         }
     }
 }
 
-/// Insert the Bevy light the config names, and apply `aim` when authored.
-fn insert_light(
-    add: On<Add, LightMarker>,
+/// Insert the Bevy light each new [`LightMarker`] names, and apply `aim` when
+/// authored.
+///
+/// A SCHEDULED system, ordered before bevy's cascade build, rather than the
+/// `On<Add, LightMarker>` observer this used to be. An observer's insert is a
+/// command, and where in the frame that command lands is wherever the
+/// scenario's spawn queue happens to drain: in `first_shift_map` it landed
+/// inside `PostUpdate` PAST `build_directional_light_cascades` but ahead of the
+/// visibility pass, so on the frame the rig's key light appeared it reached the
+/// renderer visible with an empty `Cascades` map. `prepare_lights` unwraps that
+/// map per view (bevy_pbr-0.19 `render/light.rs:1831`), so the render schedule
+/// panicked, the process wedged, and the probe supervisor killed the run at its
+/// timeout.
+///
+/// The ordering IS the fix: the edge into the cascade build forces the sync
+/// point that applies this insert, so a light is in the world before the
+/// cascades it needs are built. A light spawned later in `PostUpdate` than this
+/// runs simply has no light component yet - nothing to extract - and gets one
+/// ahead of the next frame's cascade build.
+fn insert_lights(
     mut commands: Commands,
-    q_light: Query<(&ScenarioLightConfig, &Transform), With<LightMarker>>,
+    lights: Query<(Entity, &ScenarioLightConfig, &Transform), Added<LightMarker>>,
 ) {
-    let entity = add.entity;
-    let Ok((config, transform)) = q_light.get(entity) else {
-        error!("insert_light: entity {:?} not found in q_light", entity);
-        return;
-    };
-
-    match **config {
-        LightConfig::Directional {
-            illuminance,
-            color,
-            shadows,
-            aim,
-        } => {
-            // Engine boundary: the transform this re-aims is Bevy's, so the
-            // authored target crosses into world units to be looked at.
-            let aimed = aim.map(|target| {
-                Transform::from_translation(transform.translation)
-                    .looking_at(target.to_engine(), Vec3::Y)
-            });
-            let mut entity_commands = commands.entity(entity);
-            entity_commands.insert(DirectionalLight {
+    for (entity, config, transform) in &lights {
+        match **config {
+            LightConfig::Directional {
                 illuminance,
                 color,
-                shadow_maps_enabled: shadows,
-                ..default()
-            });
-            if let Some(aimed) = aimed {
-                entity_commands.insert(aimed);
+                shadows,
+                aim,
+            } => {
+                // Engine boundary: the transform this re-aims is Bevy's, so the
+                // authored target crosses into world units to be looked at.
+                let aimed = aim.map(|target| {
+                    Transform::from_translation(transform.translation)
+                        .looking_at(target.to_engine(), Vec3::Y)
+                });
+                let mut entity_commands = commands.entity(entity);
+                entity_commands.insert(DirectionalLight {
+                    illuminance,
+                    color,
+                    shadow_maps_enabled: shadows,
+                    ..default()
+                });
+                if let Some(aimed) = aimed {
+                    entity_commands.insert(aimed);
+                }
             }
-        }
-        LightConfig::Point {
-            intensity,
-            range,
-            radius,
-            color,
-            shadows,
-        } => {
-            // Engine boundary: Bevy's falloff and source radius are world
-            // units.
-            commands.entity(entity).insert(PointLight {
+            LightConfig::Point {
                 intensity,
-                range: range.to_engine(),
-                radius: radius.to_engine(),
+                range,
+                radius,
                 color,
-                shadow_maps_enabled: shadows,
-                ..default()
-            });
+                shadows,
+            } => {
+                // Engine boundary: Bevy's falloff and source radius are world
+                // units.
+                commands.entity(entity).insert(PointLight {
+                    intensity,
+                    range: range.to_engine(),
+                    radius: radius.to_engine(),
+                    color,
+                    shadow_maps_enabled: shadows,
+                    ..default()
+                });
+            }
         }
     }
 }

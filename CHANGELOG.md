@@ -505,6 +505,9 @@ does NOT get an entry - and it is the only place they are written down.
   hitch mid-flight no longer asks for tens of thousands at once.
 - A voice, a lifetime mark, a neutralized hull or a re-parented section torn
   down in the same flush no longer crashes or leaves a stale command.
+- A scenario still building no longer takes the game down: its key light could
+  reach the renderer a step ahead of the shadow cascades it needs, and the
+  render thread died behind the loading screen.
 
 ## [0.13.2] - 2026-09-10
 
