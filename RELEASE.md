@@ -32,3 +32,5 @@ game version. See the [comic publishing procedure](web/src/comics/README.md#publ
 - [ ] Push `master` and the tag. The tag starts the GitHub release workflow.
 - [ ] Confirm the macOS, Linux, Windows, and web assets are attached to the GitHub release.
 - [ ] Run the current GitHub Pages deploy workflow, which preserves the independently published comic. Complete the comic bootstrap before the first site-only deployment. Verify the published site and download links.
+- [ ] Confirm the itch.io page is still Draft, then run the manually approved `deploy-itch` workflow with the release tag after all four GitHub release assets exist.
+- [ ] Verify the four itch.io channels and complete their clean-platform launch checks before changing the page from Draft to Public.

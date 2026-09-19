@@ -209,6 +209,7 @@
             watchexec # file-watch driver for scripts/serve-mods.sh (the mod portal has no watch mode of its own)
             xvfb-run
             ffmpeg # webm loop encoder (nova_autopilot::loops) + ffprobe for scripts/capture-web-media.sh
+            p7zip # Linux fallback for inspecting the macOS release DMG before an itch.io upload
             mdbook # developer docs: book.toml at the root, source in docs/, published at /dev/
             mdbook-mermaid # renders the book's ```mermaid fences
             # The sound-design renderers (scripts/gen-*-sfx.py). numpy carries
@@ -216,6 +217,7 @@
             # design and resonator banks a layered hit needs. The NOVA OS
             # renderer stays pure stdlib and does not use this.
             (python3.withPackages (ps: with ps; [numpy scipy]))
+            butler
           ];
 
           buildInputs = gameLibs;

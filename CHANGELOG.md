@@ -452,6 +452,8 @@ does NOT get an entry - and it is the only place they are written down.
   arsenal set taken before this is no longer a matched comparison.
 
 ### Fixes
+- The macOS release bundle names the `nova-protocol` executable it ships, so
+  Finder no longer looks for the retired `bevy_protocol` binary.
 - The game starts while another application already owns fullscreen. A window
   the desktop hands over reports no area for a frame or two, and laying the
   menu out against it crashed the game on the way up.

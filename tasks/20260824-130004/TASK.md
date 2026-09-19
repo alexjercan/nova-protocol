@@ -16,6 +16,26 @@ demo is free. Use itch.io `No payments`, not a minimum price or suggested
 donation. The repository remains public on GitHub. Future Steam release scope
 and pricing remain open.
 
+Owner decision, 2026-09-19: deploy the tagged GitHub artifacts through a
+separate, manually dispatched `.github/workflows/deploy-itch.yaml`. Prepare the
+four Butler payloads with
+`scripts/prepare-itch-upload.sh <tag> <download-directory> <output-directory>`.
+The protected `itch-production` GitHub Environment owns approval and the API
+key. Publication remains manual after clean-platform checks.
+
+Owner decision, 2026-09-19: the macOS bundle executable is named
+`nova-protocol`. Release CI writes both bundle version fields from the tag and
+must fail before creating the DMG when `Info.plist` does not name the copied
+executable.
+
+## Page identity
+
+- Owner account: `alexjercan`
+- Project slug: `nova-protocol`
+- Butler target: `alexjercan/nova-protocol`
+- Intended public URL: `https://alexjercan.itch.io/nova-protocol`
+- Edit URL: pending capture from the live dashboard
+
 ## Inputs
 
 - The final `v0.14.0` GitHub release and its exact Windows ZIP, macOS DMG,
@@ -51,9 +71,14 @@ and pricing remain open.
 
 ## Upload the tagged artifacts
 
-Use Butler so later versions can update stable channels. Authenticate the owner
-account without committing credentials. Prefer unpacked release directories for
-native channels so Butler can patch their contents.
+Use the manually approved `deploy-itch` workflow so later versions update
+stable Butler channels from the exact GitHub release artifacts. The
+`itch-production` Environment supplies `BUTLER_API_KEY`, `ITCH_TARGET`, the
+pinned Butler version, and the official archive checksums without committing
+credentials. `scripts/prepare-itch-upload.sh` verifies and unpacks the release
+artifacts before any channel push. Production uses the workflow's native macOS
+DMG tools. Linux local runs use 7-Zip from the Nix shell and restore the app
+executable's mode before producing the same channel layout.
 
 - `butler push <windows-dir> <user>/<project>:windows --userversion 0.14.0`
 - `butler push <macos-dir> <user>/<project>:osx --userversion 0.14.0`
@@ -87,6 +112,23 @@ working-tree build.
 6. Verify the itch.io page links to Steam and the Steam page links to itch.io as
    the current place to play. Record URLs, upload versions, checksums, machines,
    operating-system versions, and observed results on this task.
+
+## Agent findings
+
+The deployment preflight exposes an existing macOS release-package defect that
+must be fixed before the first itch.io run:
+
+- `build/macos/src/Game.app/Contents/Info.plist` declares
+  `CFBundleExecutable=bevy_protocol`, while the release workflow copies the
+  binary as `Contents/MacOS/nova-protocol`.
+
+The real `v0.13.2` Windows ZIP and macOS DMG were inspected on 2026-09-19; both
+have the intended `assets/base/...` and `credits/...` layout, so the source
+copy commands do not justify an archive-layout change. The macOS executable
+mismatch is present in the real DMG. `scripts/prepare-itch-upload.sh` rejects it
+rather than uploading an app that Finder cannot launch. The source bundle now
+declares `nova-protocol`, and release CI verifies that contract before creating
+the next DMG. A tagged macOS build is still required to prove the repair.
 
 ## Failure policy
 

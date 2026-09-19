@@ -1,0 +1,140 @@
+name: deploy-itch
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: GitHub release tag, for example v0.14.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: itch-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy tagged release to itch.io
+    runs-on: macos-latest
+    timeout-minutes: 60
+    environment: itch-production
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+      BUTLER_VERSION: ${{ vars.BUTLER_VERSION }}
+      BUTLER_SHA256_DARWIN_AMD64: ${{ vars.BUTLER_SHA256_DARWIN_AMD64 }}
+      BUTLER_SHA256_DARWIN_ARM64: ${{ vars.BUTLER_SHA256_DARWIN_ARM64 }}
+      ITCH_TARGET: ${{ vars.ITCH_TARGET }}
+      RELEASE_TAG: ${{ inputs.tag }}
+
+    steps:
+      - name: Validate deployment request
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "tag must have the form vX.Y.Z: $RELEASE_TAG" >&2
+            exit 1
+          }
+          [[ "$ITCH_TARGET" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || {
+            echo "ITCH_TARGET must have the form user/project" >&2
+            exit 1
+          }
+          test -n "$BUTLER_API_KEY" || {
+            echo "BUTLER_API_KEY is not configured" >&2
+            exit 1
+          }
+          test -n "$BUTLER_VERSION" || {
+            echo "BUTLER_VERSION is not configured" >&2
+            exit 1
+          }
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = false || {
+            echo "GitHub release is still a draft: $RELEASE_TAG" >&2
+            exit 1
+          }
+
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Download exact GitHub release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir downloads
+          for suffix in windows.zip macOS.dmg linux.tar.gz web.zip; do
+            asset="nova-protocol_${RELEASE_TAG}_${suffix}"
+            gh release download "$RELEASE_TAG" --dir downloads --pattern "$asset"
+            test -f "downloads/$asset" || {
+              echo "release asset was not downloaded: $asset" >&2
+              exit 1
+            }
+          done
+
+      - name: Prepare Butler payloads
+        shell: bash
+        run: scripts/prepare-itch-upload.sh "$RELEASE_TAG" downloads itch-upload
+
+      - name: Install pinned Butler
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64)
+              butler_arch=amd64
+              expected_sha="$BUTLER_SHA256_DARWIN_AMD64"
+              ;;
+            arm64)
+              butler_arch=arm64
+              expected_sha="$BUTLER_SHA256_DARWIN_ARM64"
+              ;;
+            *)
+              echo "unsupported macOS runner architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+          test -n "$expected_sha" || {
+            echo "Butler SHA-256 is not configured for darwin-$butler_arch" >&2
+            exit 1
+          }
+          archive="$RUNNER_TEMP/butler.zip"
+          install_dir="$RUNNER_TEMP/butler"
+          curl --fail --location --silent --show-error \
+            "https://broth.itch.ovh/butler/darwin-${butler_arch}/${BUTLER_VERSION}/archive/default" \
+            --output "$archive"
+          printf '%s  %s\n' "$expected_sha" "$archive" | shasum -a 256 --check
+          mkdir "$install_dir"
+          ditto -x -k "$archive" "$install_dir"
+          chmod +x "$install_dir/butler"
+          echo "$install_dir" >>"$GITHUB_PATH"
+          "$install_dir/butler" -V
+
+      - name: Upload Windows channel
+        shell: bash
+        run: butler push itch-upload/windows "${ITCH_TARGET}:windows" --userversion "${RELEASE_TAG#v}"
+
+      - name: Upload macOS channel
+        shell: bash
+        run: butler push itch-upload/osx "${ITCH_TARGET}:osx" --userversion "${RELEASE_TAG#v}"
+
+      - name: Upload Linux channel
+        shell: bash
+        run: butler push itch-upload/linux "${ITCH_TARGET}:linux" --userversion "${RELEASE_TAG#v}"
+
+      - name: Upload HTML5 channel
+        shell: bash
+        run: butler push itch-upload/html5 "${ITCH_TARGET}:html5" --userversion "${RELEASE_TAG#v}"
+
+      - name: Store deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: itch-deployment-${{ inputs.tag }}
+          path: |
+            itch-upload/release-sha256.txt
+            itch-upload/upload-inventory.txt
+          if-no-files-found: warn

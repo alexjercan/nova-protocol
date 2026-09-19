@@ -1051,7 +1051,58 @@ Pushing a tag `v[0-9]+.[0-9]+.[0-9]+*` triggers `release-flow`
 
 The workflow uploads four assets to a release named after the tag: macOS
 universal `.dmg`, Linux `.tar.gz`, Windows `.zip`, and a wasm-opt'd web zip.
-It can also be re-run via `workflow_dispatch` with a `version` input.
+The macOS job writes `CFBundleShortVersionString` and `CFBundleVersion` from the
+tag, then refuses to create the DMG unless `Info.plist` declares the copied
+`nova-protocol` executable. The workflow can also be re-run via
+`workflow_dispatch` with a `version` input.
+
+### Deploying a release to itch.io
+
+The manually dispatched `deploy-itch` workflow
+(`.github/workflows/deploy-itch.yaml`) uploads an existing GitHub release to
+`alexjercan/nova-protocol`. It never rebuilds the game. The job downloads the
+four assets named above, and `scripts/prepare-itch-upload.sh` verifies and
+extracts them into the stable Butler channels `windows`, `osx`, `linux`, and
+`html5`. On macOS, `hdiutil` mounts the release DMG and `ditto` preserves the
+app bundle metadata. On Linux, the Nix development shell supplies 7-Zip to
+extract the HFS+ image; the script restores the declared app executable's mode.
+Windows and web ZIPs use ordinary `unzip`. The macOS preparation checks that
+`CFBundleExecutable` names a real executable, and the web preparation requires
+`index.html` and the wasm file at the upload root. Production CI stays on
+macOS and uses the native path; the Linux fallback makes local preparation and
+preflight available without Apple tools.
+
+Configure the protected `itch-production` GitHub Environment before the first
+run:
+
+- secret `BUTLER_API_KEY`: an itch.io API key for the `alexjercan` account;
+- variable `ITCH_TARGET`: `alexjercan/nova-protocol`;
+- variable `BUTLER_VERSION`: the exact Butler release to install;
+- variables `BUTLER_SHA256_DARWIN_AMD64` and
+  `BUTLER_SHA256_DARWIN_ARM64`: the SHA-256 sums of that release's official
+  macOS archives.
+
+Use the Butler download documented by itch.io to choose the version, download
+each macOS architecture archive from
+`https://broth.itch.ovh/butler/darwin-<arch>/<version>/archive/default`, and
+record its `shasum -a 256` output in the matching Environment variable. The
+workflow refuses a floating Butler version or an archive whose checksum does
+not match.
+
+After the GitHub release and Pages deployment are complete, keep the itch.io
+page in Draft and run:
+
+```sh
+gh workflow run deploy-itch.yaml -f tag=vX.Y.Z
+gh run watch
+```
+
+The protected Environment supplies the explicit approval boundary. The run
+records release checksums and the prepared file inventory as an Actions
+artifact. Confirm itch.io detected each platform, mark `html5` playable in the
+browser if needed, and launch all four channels on clean target systems. Only
+then change the page from Draft to Public. A later Butler push updates a public
+channel immediately, so a failed or mismatched channel blocks another deploy.
 
 ### Writing the release news post
 

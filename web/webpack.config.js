@@ -111,6 +111,13 @@ const sectionDocPages = (section) => {
 // fill the meta line; description is the head meta; the title comes from the H1.
 const NEWS_POSTS = [
     {
+        slug: "0.14.0",
+        version: "v0.14.0",
+        date: "2026-09-19",
+        description:
+            "Nova Protocol v0.14.0: Newtonian manual flight, hull-scale AI and combat, physical docking, the first chapter of Season 1, a 62-lesson training handbook, ship designs with typed section patches, mod-authored UI themes, adaptive cameras and HUD, and destruction that matches the size of the ship.",
+    },
+    {
         slug: "0.13.0",
         version: "v0.13.0",
         date: "2026-09-09",
