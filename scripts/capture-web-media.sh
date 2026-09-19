@@ -310,6 +310,18 @@ IMPORTED=(
     "news-0130-sections-before-after|loop_sections_compare|the left half is the content-machine v0.12.0 capsule scene sections-compare, composed by hand"
     "news-0130-belt-before-after|loop_belt_compare|the left half is the content-machine v0.12.0 capsule scene belt-compare, composed by hand"
     "news-0130-death-before-after|loop_death_compare|the left half is the content-machine v0.12.0 capsule scene death-compare, composed by hand"
+    "news-0140-release-lead|content-machine-v0.14.0|dedicated release-lead capsule scene"
+    "news-0140-newtonian-burn|content-machine-v0.14.0|dedicated Newtonian-burn capsule scene"
+    "news-0140-ai-flight|content-machine-v0.14.0|dedicated AI-flight capsule scene"
+    "news-0140-docking-approach|content-machine-v0.14.0|dedicated docking-approach capsule scene"
+    "news-0140-useful-job|content-machine-v0.14.0|dedicated useful-job capsule scene"
+    "news-0140-handbook|content-machine-v0.14.0|dedicated handbook capsule scene"
+    "news-0140-editor-patches|content-machine-v0.14.0|dedicated editor-patches capsule scene"
+    "news-0140-sensor-scale|content-machine-v0.14.0|dedicated sensor-scale capsule scene"
+    "news-0140-torpedo-envelope|content-machine-v0.14.0|dedicated torpedo-envelope capsule scene"
+    "news-0140-live-themes|content-machine-v0.14.0|dedicated live-themes capsule scene"
+    "news-0140-carrier-collapse|content-machine-v0.14.0|dedicated carrier-collapse capsule scene"
+    "news-0140-four-v-four|content-machine-v0.14.0|dedicated four-v-four capsule scene"
 )
 
 package_import() {

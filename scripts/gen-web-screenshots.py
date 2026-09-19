@@ -186,6 +186,14 @@ FIGURES = [
     # The editor's Generate block with a landed hull, and its Save As window.
     ("news-0130-hull-plan.png",          "loop_hull_generate"),
     ("news-0130-editor-save-as.png",     "loop_hull_generate"),
+    # Frozen v0.14.0 figures are authored by dedicated pinned Content Machine
+    # binaries. They enter this packager through --stage-dir, not Cargo examples
+    # in this repository.
+    ("news-0140-docking-port.png",       None),
+    ("news-0140-season-one-comms.png",   None),
+    ("news-0140-handbook-progress.png",  None),
+    ("news-0140-industrial-hulls.png",   None),
+    ("news-0140-hull-scale-hud.png",     None),
     ("greeble-catalog.png",              "greeble_catalog"),
     # One ROW of that wall, read close enough that a piece's id, its box in
     # meters and its health are legible. The whole wall is a picture of how
