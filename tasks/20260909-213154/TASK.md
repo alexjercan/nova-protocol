@@ -13,6 +13,13 @@ finishing the open release-media, store-presence, Steam and itch.io work. Those
 tasks consume the tagged artifacts and remain open. The release proceeds with
 one complete green CI run instead of the planned three-repeat probe gate.
 
+The mdBook repair run then failed only `lesson_flight_well`: on the two-core CI
+host, its braking sheet closed after the retro burn ended and tripped the
+fixture's explicit visual assertion. The preceding `master` run was green and
+the intervening commit changed only mdBook packaging. This host-rate fixture
+failure is deferred past binary generation under the same owner decision; it is
+not treated as evidence that the tagged gameplay changed.
+
 ## News loop TODOs
 
 Create these loops for `web/src/news/0.14.0.md`. Add each release-owned alias
