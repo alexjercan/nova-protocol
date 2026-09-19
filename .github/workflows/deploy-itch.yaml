@@ -51,7 +51,7 @@ jobs:
             echo "BUTLER_VERSION is not configured" >&2
             exit 1
           }
-          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = false || {
+          test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = false || {
             echo "GitHub release is still a draft: $RELEASE_TAG" >&2
             exit 1
           }

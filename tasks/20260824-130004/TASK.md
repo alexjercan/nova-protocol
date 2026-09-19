@@ -36,6 +36,9 @@ environment now pins Butler `15.31.0`, with official archive SHA-256 values
 `5a5fcd3dc83de480748223388d9b5d6eab8df786bedb5d6730ffe59df87b2c5b`
 (darwin-arm64). The documented Broth host is `broth.itch.zone`; the retired
 `broth.itch.ovh` host no longer resolves and was replaced before retrying.
+The second run exposed that release validation happened before checkout, where
+`gh release view` could not infer a repository and falsely reported the public
+release as a draft. Validation now passes `GITHUB_REPOSITORY` explicitly.
 
 ## Page identity
 
