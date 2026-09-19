@@ -28,6 +28,15 @@ Owner decision, 2026-09-19: the macOS bundle executable is named
 must fail before creating the DMG when `Info.plist` does not name the copied
 executable.
 
+Deployment configuration, 2026-09-19: the first run failed before checkout
+because only `ITCH_TARGET` and `BUTLER_API_KEY` were configured. The protected
+environment now pins Butler `15.31.0`, with official archive SHA-256 values
+`70a4b8543fddee7031052ea76f1846ba071913148e20cf7a2f18421702fc1929`
+(darwin-amd64) and
+`5a5fcd3dc83de480748223388d9b5d6eab8df786bedb5d6730ffe59df87b2c5b`
+(darwin-arm64). The documented Broth host is `broth.itch.zone`; the retired
+`broth.itch.ovh` host no longer resolves and was replaced before retrying.
+
 ## Page identity
 
 - Owner account: `alexjercan`

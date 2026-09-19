@@ -1084,7 +1084,7 @@ run:
 
 Use the Butler download documented by itch.io to choose the version, download
 each macOS architecture archive from
-`https://broth.itch.ovh/butler/darwin-<arch>/<version>/archive/default`, and
+`https://broth.itch.zone/butler/darwin-<arch>/<version>/archive/default`, and
 record its `shasum -a 256` output in the matching Environment variable. The
 workflow refuses a floating Butler version or an archive whose checksum does
 not match.

@@ -104,7 +104,7 @@ jobs:
           archive="$RUNNER_TEMP/butler.zip"
           install_dir="$RUNNER_TEMP/butler"
           curl --fail --location --silent --show-error \
-            "https://broth.itch.ovh/butler/darwin-${butler_arch}/${BUTLER_VERSION}/archive/default" \
+            "https://broth.itch.zone/butler/darwin-${butler_arch}/${BUTLER_VERSION}/archive/default" \
             --output "$archive"
           printf '%s  %s\n' "$expected_sha" "$archive" | shasum -a 256 --check
           mkdir "$install_dir"
