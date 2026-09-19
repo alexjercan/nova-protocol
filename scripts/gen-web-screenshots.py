@@ -204,6 +204,8 @@ FIGURES = [
 # Thumbnails are 16:9 too (the post cards size them at 300px wide).
 THUMBNAILS = [
     ("thumb-news-0.11.0.png", "wfc_arena"),
+    # Dedicated pinned Content Machine capture; supplied through --stage-dir.
+    ("thumb-news-0.14.0.png", None),
     ("thumb-devlog-3.png", None),
     ("thumb-devlog-4.png", None),
     ("thumb-devlog-5.png", None),
