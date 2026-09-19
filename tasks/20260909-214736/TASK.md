@@ -57,40 +57,45 @@ Proof and CI:
 
 Content and feel:
 
-- p62 `20260908-161328` write the shared season-one story (the campaign
-  brief is what chapter one needs)
 - p58 `20260909-213032` chapter one: the Gantry rescue as a scenario
 - p55 `20260909-213118` gameplay feedback ledger
-- p50 `20260714-001140` gamepad navigation and the hardware playthrough
+
+The full season story (`20260908-161328`) publishes through separate `comic-*`
+tags and moved to backlog. Gamepad navigation and its hardware playthrough
+(`20260714-001140`) also moved to backlog for a later Steam build.
 
 Store:
 
 - p45 `20260909-212954` store presence: pitch, trailer, capsules, copy
-- p40 `20260909-212935` Steam Coming Soon page with a wishlist button
-- p30 `20260824-130004` ship to itch.io (Steam builds recorded, not shipped)
-- p10 `20260909-213154` release v0.14.0
+- p42 `20260909-213154` release v0.14.0 to GitHub and the website
+- p40 `20260909-212935` publish the Steam Coming Soon page
+- p30 `20260824-130004` publish the free v0.14.0 demo on itch.io
 
 Ordering: the sphere fix and the three size sweeps first, because every
 range written afterwards must run on the carrier as well as the skiff and
 the fixes change what those ranges measure. The CI split lands before the
-range tasks grow the suite. The store presence task starts as soon as the
-pitch can be written; the Steam page follows it and runs long before the
-release so wishlists accrue. Chapter one waits on the story brief, not on
-the bug work.
+range tasks grow the suite. Produce the store material before the tag, then
+release v0.14.0 to GitHub and the website. Only after that release is live,
+publish the Steam Coming Soon page and the free itch.io demo. The full season
+story and gamepad work do not gate this sequence.
 
 ## Backlog, deliberately not pulled
 
 `20260831-145917` mobile virtual pad, `20260901-104359` railgun lance AI,
 `20260824-125951` grown ship cast, `20260824-125943` stations,
-`20260824-125938` open world, `20260907-173050` verified statistics wiki.
-The first five are features; the wiki task is where balance figures would
-publish and may be scheduled by the owner if the ledger produces them.
+`20260824-125938` open world, `20260907-173050` verified statistics wiki,
+`20260908-161328` full season story, and `20260714-001140` gamepad navigation.
+The open world may become a stronger later selling point, but the owner chose a
+smaller initial release first. The wiki task is where balance figures would
+publish and may be scheduled by the owner if needed.
 
 ## Release definition of done
 
-- Every v0.14.0 task closed or explicitly cut with the cut recorded on it.
+- Every pre-tag v0.14.0 task closed or explicitly cut with the cut recorded
+  on it.
 - Full correctness probe green three runs in a row, content lint, Rust
   checks and web CI green on master.
 - The feedback ledger has a disposition on every row.
-- The game installs from itch.io on each OS and launches to a playable
-  state; the Steam page is live and links there.
+- The v0.14.0 GitHub release and website are live before store publication.
+- The free v0.14.0 demo then installs from itch.io on each OS and launches
+  to a playable state; the Steam Coming Soon page is live and links there.

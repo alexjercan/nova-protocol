@@ -1,16 +1,18 @@
 # Release v0.14.0
 
 - STATUS: OPEN
-- PRIORITY: 10
+- PRIORITY: 42
 - TAGS: v0.14.0, release, meta
 
-Meta task: ship v0.14.0, the stabilization and store release. Runs last. The
-v0.13.0 flow (`20260831-145920`) is the precedent.
+Meta task: ship the initial v0.14.0 GitHub release and website update. Store
+publication follows the tag. The v0.13.0 flow (`20260831-145920`) is the
+precedent.
 
 ## Gate
 
-- Every `v0.14.0`-tagged task is CLOSED or explicitly cut with the cut
-  recorded on the task.
+- Every pre-tag `v0.14.0` task is CLOSED or explicitly cut with the cut
+  recorded on the task. The store-page and itch.io publication tasks remain
+  open because they consume the tagged release.
 - Full correctness probe green three times in a row on master, content
   lint, Rust checks, and web CI all pass. A flaky range is a defect, not a
   re-run.

@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 50
-- TAGS: v0.14.0,input,gamepad
+- TAGS: backlog,input,gamepad
 
 Rescoped 2026-08-31 for v0.13.0. The mobile virtual pad (old Part B) split
 to `20260831-145917` and stays backlog, so its layout targets interactions
@@ -46,12 +46,14 @@ Done when: the menus and the editor are fully operable with a gamepad, a
 full hardware playthrough completes without touching the keyboard, and
 the findings list is closed or explicitly deferred.
 
-## Scheduled 2026-09-09 for v0.14.0
+## Scheduling
 
-Pulled from the backlog onto the store release board: a Steam page draws pad
-and Deck players, and the pad support has only ever met the harness. Part A
-(menu and editor navigation) and Part B (the hardware playthrough) both
-stay; Part B is the deliverable that matters for the store.
+Pulled onto the v0.14.0 board on 2026-09-09 because a Steam page draws pad and
+Deck players, then returned to the backlog by owner decision on 2026-09-18. The
+initial release does not claim full controller support. Part A (menu and editor
+navigation) and Part B (the hardware playthrough) both remain in scope when the
+task is scheduled again; Part B is the deliverable that matters for a later
+Steam build.
 
 Known before the playthrough starts, from the v0.13.0 review
 (`20260905-231735`, group I, "NOT fixed - a gamepad binding collision"):

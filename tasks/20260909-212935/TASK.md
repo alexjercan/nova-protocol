@@ -11,37 +11,69 @@ game before any build ships there. No demo, no release build on Steam in this
 cycle. Owner (2026-09-09): "at least a landing page with wishlist capabilities
 on Steam, we don't have to release a demo yet or anything."
 
-This runs EARLY in the cycle, not at the end: wishlists accrue while the
-stabilization work lands, and Steam reviews a page before it goes live.
+Owner decision, 2026-09-18: publish this page after the v0.14.0 GitHub release.
+Prepare the account and page earlier if useful, but do not make it public before
+the release. A future Steam build and its price remain undecided.
 
 ## Steps
 
-Verify each requirement against the current Steamworks documentation before
-acting; the figures below are from memory and may have moved.
+Requirements were checked against current Steamworks documentation on
+2026-09-18. Recheck the live product checklist before submission because it is
+the final authority.
 
-1. Steamworks partner account: legal entity or individual, tax and bank
-   interview, the per-app fee (100 USD, recoverable after 1000 USD net). Owner
-   action; record the app id on this task.
-2. Store page assets, from the store presence task's outputs:
-   - capsule art in every required size (header, small, main, vertical,
-     library hero and logo),
-   - at least five screenshots at 1920x1080 or 16:9,
-   - one trailer (a store trailer must be uploaded as a video, not a link),
-   - short and long description, genre and feature tags, system requirements
-     for Windows, macOS, and Linux, the age rating questionnaire.
-3. Set the release date to "Coming soon" or a quarter. Enable the wishlist
-   button by publishing the Coming Soon page after Steam's page review.
-4. Landing page: add a "Wishlist on Steam" button in the hero beside "Play in
-   browser" (`web/src/index.html`, `.hero__cta`). Add the Steam widget to the
-   News post for the release, if the site uses one.
-5. Record the page URL, the app id, and the review outcome on this task.
+### Owner account work
+
+1. Complete Steamworks onboarding as an individual or legal entity, including
+   identity, bank, and tax information.
+2. Buy one Steam Direct app credit. Valve currently charges 100 USD plus
+   applicable tax; it is recouped only after the product reaches 1,000 USD in
+   adjusted Steam gross revenue. This fee applies even while only a Coming Soon
+   page is public.
+3. Create the app and record its app ID, owner account, public URL, developer
+   name, and publisher name on this task.
+
+### Populate the store page
+
+1. Import the approved task `20260909-212954` outputs:
+   - store header 920x430, small capsule 462x174, main capsule 1232x706, and
+     vertical capsule 748x896;
+   - library capsule 600x900, library header 920x430, hero 3840x1240, and
+     transparent library logo;
+   - at least five 1920x1080, 16:9 gameplay screenshots, with at least four
+     suitable-for-all-ages images marked where their content permits;
+   - the gameplay-first 1920x1080 MP4 uploaded to Steam, not linked from
+     another video host;
+   - approved short and long descriptions.
+2. Fill the creator, supported language, Windows/macOS/Linux requirements,
+   genre, tags, supported features, mature-content survey, legal, and release
+   date fields. List only features that will exist when a Steam build launches.
+   Do not claim open world, stations, expanded ships, mobile controls, or full
+   gamepad support.
+3. Use Coming Soon release-date wording. Do not set a product price, upload a
+   build, create depots, or advertise a Steam demo in this task.
+
+### Review and publish
+
+1. Complete every item under Steamworks `Your Store Presence` and inspect the
+   preview at desktop and narrow widths.
+2. Mark the page ready for review at least seven business days before the
+   intended publication date. Valve says store review typically takes 3-5
+   business days. Record every rejection and its resolution.
+3. After approval and after v0.14.0 is released, select `Post as Coming Soon`.
+   Verify the page publicly and add it to a logged-in account's wishlist.
+4. Add `Wishlist on Steam` beside `Play in browser` in
+   `web/src/index.html` `.hero__cta`. Add a Steam widget to the v0.14.0 News
+   post only if it improves the page rather than duplicating that action.
+5. Record the publication time, public URL, app ID, review outcome, and proof of
+   the working website link and wishlist action.
 
 ## Not in scope
 
-- Steam builds, depots, Steam Input, achievements, cloud saves: the
-  distribution task (`20260824-130004`) owns uploads when a build ships.
+- Steam builds, depots, Steam Input, achievements, cloud saves, and Steam
+  product pricing. No Steam build ships in this cycle.
 - The trailer cut, screenshots, and copy are produced by the store presence
   task; this task consumes them.
+- The free downloadable demo is published on itch.io by `20260824-130004`.
 
 ## Done when
 

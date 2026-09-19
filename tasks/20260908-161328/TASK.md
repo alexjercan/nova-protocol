@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 62
-- TAGS: v0.14.0,story,comic
+- TAGS: backlog,story,comic
 
 ## Goal
 
@@ -16,11 +16,12 @@ Story writing is now the main work; more illustration trials are not a
 prerequisite. Episode one, **A useful job**, is complete and approved. The wider
 season story is not yet complete or approved, so this task remains OPEN.
 
-The current release tag schedules this development work. It is not a promise to
-ship the whole comic season or a playable campaign in that release.
+This development work does not gate a game release. Comic publication uses its
+independent immutable `comic-*` tags, and unreleased season writing stays private.
 
-Moved 2026-09-09 from v0.13.0 to the v0.14.0 board. The season is still being
-written, so it is not a v0.13.0 deliverable and does not gate that release.
+Moved 2026-09-18 from v0.14.0 to the backlog by owner decision. Episode one and
+the playable first chapter are enough for the initial game release; completing
+the wider season remains separate work.
 
 ## Maintained sources
 
