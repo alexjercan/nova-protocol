@@ -15,14 +15,15 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-19
+
 ### Gameplay & Flight
 - **(breaking)** Manual flight is Newtonian: no speed cap, so the drive always
   answers and a held throttle keeps building. `speed_cap` and `SetSpeedCap` are
   gone and a file using either is refused.
-- **(breaking)** What a ship may do belongs to the SHIP: a spawn's
-  `capabilities` block replaces the controller section's `DisableVerb`, so a
-  hull that loses every flight computer keeps its radar, its point defence and
-  its permissions, and loses only its steering.
+- **(breaking)** Ship-root `capabilities` replace controller `DisableVerb`.
+  Losing every flight computer removes steering, not radar, point defence or
+  permissions.
 - An enemy flies its fight on the flight computer: it holds a velocity and
   keeps its nose on you while it circles, and lights only the engines that
   burn for it instead of every thruster at once.
@@ -35,16 +36,12 @@ does NOT get an entry - and it is the only place they are written down.
 - An enemy flies its whole fight in YOUR frame: it matches your velocity and
   circles on top of it, so a ship that runs is followed instead of left
   holding a ring you have already left.
-- An enemy's jink is three real legs: each runs until the ship has carried its
-  whole hull clear of the line you were holding, so a carrier weaves like a
-  carrier instead of rocking in place. A hull with no drive left fights on
-  rather than pretending to evade.
-- A patrolling ship rounds a rock with its whole hull: the 200 m of daylight is
-  measured from its skin, not its centre, so a carrier no longer scrapes past
-  with 23 m. Authorable per ship with `avoid_margin`.
-- A flight computer carries 9760 of torque, not 1501: an intact carrier turns at
-  the rate its metal allows (0.40 rad/s2, up from 0.07) and goes back to being a
-  barge once its bridge is shot up. Small hulls are unchanged.
+- An enemy's three jink legs each carry its whole hull clear of your line. A
+  carrier weaves like a carrier, while a hull with no drive left fights on.
+- A patrolling ship's 200 m rock clearance is measured from its skin, not its
+  centre. Ships can override it with `avoid_margin`.
+- A flight computer carries 9760 torque, not 1501. An intact carrier reaches
+  0.40 rad/s2, up from 0.07, but becomes a barge when its bridge is shot up.
 - DOCK (D) holds two hulls together: the nearest free port pair on your ship
   and the ship you have locked, joined at the pose they met in.
 - A dock is modal: a docked hull's drive, helm and RCS stay dead until DOCK is
@@ -135,9 +132,8 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** The base catalog drops the hulls no shipped scenario flies:
   raider, carrier, warship, skiff, tug, claw, cleanup leader and the three
   carrier wrecks. A mod that names one must ship it.
-- **(breaking)** The siege railgun and the Breaker torpedo bay leave the base
-  sections, and the `placeholder` style with them. The menu duel authors its
-  own Breaker inline; nothing player-buildable changed.
+- **(breaking)** The siege railgun, Breaker torpedo bay and `placeholder` style
+  leave base content. The menu duel now owns its Breaker.
 
 ### Scenarios & Objectives
 - The base game ships a story campaign. Season 1, chapter one - A Useful Job:
@@ -170,9 +166,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A range hands over only the verbs its lesson teaches, says why on the comms
   channel, lights the chip for the verb in hand, and ends in a banner or a
   Retry.
-- The scenario lint reads the same table the editor does, so an action that
-  names a ship nothing spawns is an error everywhere. `SetInfiniteAmmo` and
-  `RefillAmmo` passed the lint and then did nothing in the game.
+- Scenario lint and the editor share one object table. Actions such as
+  `SetInfiniteAmmo` and `RefillAmmo` can no longer name a ship that nothing
+  spawns.
 - A scenario opens complete: the world is held still while its objects spawn
   and its art loads, so the first frame you fly is a finished scene at mission
   time zero, not one that pops in around you.
@@ -194,9 +190,8 @@ does NOT get an entry - and it is the only place they are written down.
   optional, and a scenario file omitting it is refused.
 
 ### Modding & Mod Portal
-- A mod can ship a LOOK: a `UiTheme` content item is a complete UI theme - a
-  palette, three metrics and the paint of every widget role. Declare a new id to
-  add one, or `base/phosphor`'s id to restyle the shipped default.
+- A mod can ship a `UiTheme`: a palette, three metrics and every widget role.
+  A new id adds one; `base/phosphor` restyles the default.
 - A theme may inherit: `inherit: Some("base/phosphor")` takes every role it
   omits, so a recolour is a palette and nothing else. A role it does declare
   replaces the inherited one whole, states and all.
@@ -209,18 +204,16 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** A spawn tunes a catalog design through `section_patches`,
   keyed by the design's own section ids, instead of a `modifications` list. The
   Ledger and the example mod ship migrated.
-- **(breaking)** The Ledger becomes six replayable Field Trials with new
-  scenario ids. Add dense fields, traffic, 500 m/s player caps, lighter hulls,
-  tight race-gate cues, early convoy blockers and a trailing escort.
+- **(breaking)** The Ledger becomes six replayable Field Trials with new ids,
+  denser fields, traffic, lighter hulls, tighter cues and convoy blockers.
 - **(breaking)** An installed mod's catalog `hidden` flag is gone. Every
   installed mod has a row in the Mods screen the player can switch off, and a
   catalog still declaring `hidden` is refused.
 - **(breaking)** An installed mod's catalog `enabled_by_default` flag is gone.
   A fresh install enables the base game and nothing else, and a catalog still
   declaring the flag is refused.
-- The editor offers the content the game will actually load. A sideloaded mod
-  reusing a shipped bundle id had its files listed in every asset picker while
-  the loader ignored them, so the reference never resolved in play.
+- Editor asset pickers omit files from a sideloaded mod whose bundle id loses
+  to a shipped bundle, matching what the game will load.
 - A mod whose content will not load is switched off automatically and named in
   one MODS DISABLED notice on the menu. Its files stay installed, so the Mods
   screen can update, remove or re-enable it.
@@ -229,30 +222,24 @@ does NOT get an entry - and it is the only place they are written down.
   enabled.
 
 ### Interface & HUD
-- **(breaking)** Settings > Interface lists THEMES rather than two skins. The
-  two shipped looks are now base-mod content (`base/phosphor`, `base/hardware`)
-  and an enabled mod's themes appear in the same row. The saved setting is the
-  theme id: an older store's `ui_skin` is dropped and opens on `base/phosphor`.
-- **(breaking)** A root theme's palette carries a thirteenth required variable,
-  `nominal` - the healthy, online, lit tone. It is what a passed check and an
-  enabled dependency ink in, and it is separate from `primary` so a look whose
-  ink is not green can still light a green lamp.
-- A theme change repaints what is already on screen. Every widget resolves its
-  paint from the live theme each frame it changes, so the menu, the pause
-  screen, the editor and the HUD chrome all move together instead of keeping
-  the look the screen was built in.
+- **(breaking)** Interface settings select content theme ids. Phosphor,
+  Hardware and enabled-mod themes share one row; an old `ui_skin` store opens
+  on `base/phosphor`.
+- **(breaking)** A root theme palette requires `nominal`, the healthy, online
+  and passed tone. It is separate from `primary`, so non-green ink can still
+  light a green lamp.
+- Theme changes repaint the live screen. Menu, pause, editor and HUD widgets
+  resolve their paint from the current theme instead of keeping their initial
+  look.
 - A selected theme whose mod is switched off falls back to `base/phosphor` and
   says so under the theme row. The selection is kept, so re-enabling the mod
   restores the look.
-- The Hardware look is a casing throughout. It carries its own semantic palette
-  instead of the terminal's, so labels, body copy and the mod and lesson preview
-  panes read in the casing's ink rather than in phosphor green.
-- Picking a lesson or a scenario moves the highlight instead of redrawing the
-  whole list, so the rows hold still, keep their scroll position, and a
-  thumbnail still loading no longer rebuilds the picker every frame.
-- The main menu opens a training handbook: 62 lessons in six categories, one
-  screen each with a demonstration - a still or a two-second loop - your own
-  bindings, a wiki link, and a Practice button that flies a range.
+- Hardware uses its own semantic palette throughout, so labels, body copy, mod
+  previews and lesson previews use casing ink instead of phosphor green.
+- Picking a lesson or scenario moves its highlight without rebuilding the
+  list, losing scroll position or restarting a loading thumbnail.
+- The menu opens a handbook with 62 lessons in six categories. Each lesson has
+  a demonstration, current bindings, a wiki link and optional practice range.
 - A first launch is offered Basic Training from the menu's corner. Taking it or
   answering `Not now` puts the card away for good; Settings > Interface brings
   it back.
@@ -271,13 +258,10 @@ does NOT get an entry - and it is the only place they are written down.
 - Season one's seven voices have faces on the comms panel, taking their skin,
   hair and coat from the story's own character palettes. A radio caller
   carries a blue channel chip, the cabin a green one.
-- A mistyped command reads the same at the NOVA OS prompt and in the Commands
-  shell: an incomplete command lists its subcommands in both, the listing is
-  column-aligned, and the hint under the caret names a bad subcommand before
-  you press Enter instead of counting arguments.
-- One wheel notch moves the NOVA OS drawer as far as it moves every other
-  scrolling pane. The drawer stepped a third of that distance, so the same
-  gesture read as a different control depending on what was under the pointer.
+- NOVA OS and the Commands shell now show the same aligned subcommands and
+  identify a bad subcommand under the caret before Enter.
+- One wheel notch moves the NOVA OS drawer as far as every other scrolling
+  pane, instead of one third as far.
 - The desktop build opens borderless fullscreen on a fresh install. Windowed is
   one row away on the Graphics tab, and an install that already chose keeps its
   choice.
@@ -346,9 +330,9 @@ does NOT get an entry - and it is the only place they are written down.
 - One overlay at a time: an outcome or a start refusal takes the screen from
   the pause menu, and a timed outcome that advances unfocused hands its pause
   to the menu rather than dropping a live frame.
-
 - The verb row carries a DOCK chip. It lights while a port pair on the two
   locked hulls is eligible, and stays lit for as long as the dock holds.
+
 ### Audio & Visuals
 - A hull dies at its own size: the fireball, its debris and its flash are drawn
   from the ship's live structure, so a carrier's death reaches 479 m instead of
@@ -385,29 +369,23 @@ does NOT get an entry - and it is the only place they are written down.
 - `system_chapter_one` walks the shipped chapter end to end on the autopilot:
   every card it posts and completes, in order, the banner it ends on, and the
   clamp-and-let-go cases the panel has to survive.
-- One resolver builds every ship: the spawn, the content lint, the preload
-  walk, the editor preview and the balance audit read the same finished
-  sections, so an audit quotes the numbers the ship flies with.
+- Spawn, content lint, preload, editor preview and balance audit share one ship
+  resolver, so audits quote the sections the ship flies with.
 - The agent bench reads `withheld_capabilities` off the ship record instead of
   digging through each section for a `DisableVerb`.
-- The four bench fixtures are authored in the new design format, so their
-  revision moved: a performance set taken against the old files is no longer a
-  matched comparison and has to be re-baselined before it is read as one.
+- Four bench fixtures use the new design format. Their revisions changed, so
+  older performance sets need a new matched baseline.
 - `--scenario editor_sandbox` no longer resolves. The editor's Play range is
   the open document rather than installed content, so nothing registers it and
   the only way to it is Play in the editor.
-- A probe check that was armed for a capability and wrote nothing now reads
-  `armed and silent` in every row that grades it a failure. `invariants_held`
-  used one word for that and for a run with no manifest at all.
+- A probe capability that was armed but wrote nothing now reads `armed and
+  silent`, distinct from a run with no manifest.
 - `frametime.csv` is read at one schema only. A capture written before the run
   metadata, build profile and cluster-shape columns is refused with
   `unexpected CSV header` instead of half-read.
-- `probe sweep --baseline <dir>` resolves a commit directory under `<dir>`, the
-  same way an automatic baseline does; an explicit path no longer falls back to
-  `<dir>` itself. A run directory named directly now prints `no baseline commit
-  dir found in <dir>; skipping fps comparison` and the FPS comparison does not
-  run. `probe run --baseline <dir>` is unchanged and still takes the capture
-  directory itself.
+- `probe sweep --baseline <dir>` now requires a commit directory under `<dir>`.
+  It skips FPS comparison when none exists. `probe run` still accepts a capture
+  directory.
 - Agent work defaults to Pair, with code-backed proposals and a required Verify
   workflow for bugs and features. Claude shares the same instructions and skills.
 - The retired code-navigation benchmark tools are removed. The gameplay agent
@@ -447,22 +425,19 @@ does NOT get an entry - and it is the only place they are written down.
 - Examples own the fixtures they fly: `examples/shared/dev_fixtures` registers
   the fixture hulls, sections and style, so base content carries only shipped
   content.
-- The arsenal bench authors its player hull inline, out of base prototypes: one
-  railgun, two bays and two mounts on five keys. Its revision moved, so an
-  arsenal set taken before this is no longer a matched comparison.
+- The arsenal bench owns its player hull: one railgun, two bays and two mounts
+  on five keys. Its changed revision requires a new matched baseline.
 
 ### Fixes
 - The macOS release bundle names the `nova-protocol` executable it ships, so
   Finder no longer looks for the retired `bevy_protocol` binary.
-- The game starts while another application already owns fullscreen. A window
-  the desktop hands over reports no area for a frame or two, and laying the
-  menu out against it crashed the game on the way up.
+- The game starts while another app owns fullscreen. UI layout waits through
+  transient zero-area window frames instead of crashing during menu startup.
 - A ship built in the editor flies with the cockpit's voice: the lock cues,
   the alarms and the RCS hiss. Only its collapse was authored, so a hull you
   drew or rolled flew a silent panel.
-- A torpedo that goes off on a heavy frame still does its damage: the blast
-  volume is now spent in physics ticks, so a slow frame can no longer sweep it
-  away before the tick that resolves what it caught.
+- A torpedo blast spends its volume in physics ticks, so a heavy frame cannot
+  sweep it away before resolving what it caught.
 - A travel order given the moment a ship appears is actually flown. The
   computer read the hull's mass one tick before the physics published it, and
   reported the trip complete without moving.
@@ -483,9 +458,8 @@ does NOT get an entry - and it is the only place they are written down.
   screen, so the menu waits behind it.
 - Pausing in the editor covers the editor: the pause menu no longer draws under
   the foot bar, an open parts gallery or a floating window.
-- A main menu with no backdrop to draw still ends the game behind it: a mod set
-  that leaves nothing flagged, or nothing the content gate passes, no longer
-  leaves the last scenario simulating under the front door.
+- A menu with no valid backdrop still ends the prior game instead of leaving
+  its scenario simulating behind the menu.
 - Leaving a scenario goes straight to the loading screen: the return no longer
   builds a whole main menu and loads an ambience backdrop for one frame before
   throwing both away.
@@ -2696,7 +2670,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.13.2...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/alexjercan/nova-protocol/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/alexjercan/nova-protocol/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/alexjercan/nova-protocol/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/alexjercan/nova-protocol/compare/v0.12.0...v0.13.0

@@ -4513,7 +4513,7 @@ dependencies = [
 
 [[package]]
 name = "nova-protocol"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4543,7 +4543,7 @@ dependencies = [
 
 [[package]]
 name = "nova_assets"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "bevy_asset_loader",
@@ -4572,7 +4572,7 @@ dependencies = [
 
 [[package]]
 name = "nova_authoring"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4597,7 +4597,7 @@ dependencies = [
 
 [[package]]
 name = "nova_autopilot"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "tracing",
@@ -4606,7 +4606,7 @@ dependencies = [
 
 [[package]]
 name = "nova_bench"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "ab_glyph",
  "clap",
@@ -4617,7 +4617,7 @@ dependencies = [
 
 [[package]]
 name = "nova_channel"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "bevy_enhanced_input",
@@ -4633,7 +4633,7 @@ dependencies = [
 
 [[package]]
 name = "nova_console"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "nova_events",
@@ -4648,7 +4648,7 @@ dependencies = [
 
 [[package]]
 name = "nova_core"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "bevy_enhanced_input",
@@ -4671,7 +4671,7 @@ dependencies = [
 
 [[package]]
 name = "nova_debug"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4692,7 +4692,7 @@ dependencies = [
 
 [[package]]
 name = "nova_editor"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4712,7 +4712,7 @@ dependencies = [
 
 [[package]]
 name = "nova_events"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "nova_events_macros",
@@ -4723,7 +4723,7 @@ dependencies = [
 
 [[package]]
 name = "nova_events_macros"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4732,7 +4732,7 @@ dependencies = [
 
 [[package]]
 name = "nova_gameplay"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4749,7 +4749,7 @@ dependencies = [
 
 [[package]]
 name = "nova_hud"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4762,11 +4762,11 @@ dependencies = [
 
 [[package]]
 name = "nova_info"
-version = "0.13.2"
+version = "0.14.0"
 
 [[package]]
 name = "nova_input"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "bevy_enhanced_input",
@@ -4775,7 +4775,7 @@ dependencies = [
 
 [[package]]
 name = "nova_menu"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4799,7 +4799,7 @@ dependencies = [
 
 [[package]]
 name = "nova_meta_gen"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "clap",
@@ -4809,7 +4809,7 @@ dependencies = [
 
 [[package]]
 name = "nova_mod_format"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "ron",
  "serde",
@@ -4818,7 +4818,7 @@ dependencies = [
 
 [[package]]
 name = "nova_modding"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "nova_gameplay",
@@ -4833,7 +4833,7 @@ dependencies = [
 
 [[package]]
 name = "nova_os"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "nova_info",
@@ -4842,7 +4842,7 @@ dependencies = [
 
 [[package]]
 name = "nova_os_ui"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4858,7 +4858,7 @@ dependencies = [
 
 [[package]]
 name = "nova_perf_web"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "nova_core",
@@ -4867,7 +4867,7 @@ dependencies = [
 
 [[package]]
 name = "nova_probe"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4885,7 +4885,7 @@ dependencies = [
 
 [[package]]
 name = "nova_probe_cli"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "clap",
  "dirs",
@@ -4899,7 +4899,7 @@ dependencies = [
 
 [[package]]
 name = "nova_scenario"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4921,7 +4921,7 @@ dependencies = [
 
 [[package]]
 name = "nova_ship"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4939,7 +4939,7 @@ dependencies = [
 
 [[package]]
 name = "nova_training"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "nova_gameplay",
@@ -4949,7 +4949,7 @@ dependencies = [
 
 [[package]]
 name = "nova_ui"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "nova_events",
@@ -4959,7 +4959,7 @@ dependencies = [
 
 [[package]]
 name = "nova_wfc"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "bevy",
  "nova_authoring",
