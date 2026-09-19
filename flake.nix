@@ -39,6 +39,22 @@
           targets = ["wasm32-unknown-unknown"];
         };
 
+        # mdbook-mermaid 0.17.x implements mdBook's 0.5.0 preprocessor
+        # protocol and warns when a newer mdBook invokes it. Keep the producer
+        # and preprocessor on the same protocol so doc builds are warning-free.
+        mdbook_0_5 = pkgs.rustPlatform.buildRustPackage rec {
+          pname = "mdbook";
+          version = "0.5.0";
+          src = pkgs.fetchFromGitHub {
+            owner = "rust-lang";
+            repo = "mdBook";
+            tag = "v${version}";
+            hash = "sha256-KJhCzvwRRK8luSwLN7xNzPanL6Nzlp9+xKGIrSSdyOA=";
+          };
+          cargoHash = "sha256-cE9oidTX2qb6gaXOfgw3clpAZtpAzhTOfx2EHQjvaLo=";
+          meta.mainProgram = "mdbook";
+        };
+
         # The libraries the game needs AT RUN TIME - every one of them opened
         # with `dlopen`, so the linker never records them and a plain binary
         # finds none of them outside a shell that exported them. The devshell
@@ -210,7 +226,7 @@
             xvfb-run
             ffmpeg # webm loop encoder (nova_autopilot::loops) + ffprobe for scripts/capture-web-media.sh
             p7zip # Linux fallback for inspecting the macOS release DMG before an itch.io upload
-            mdbook # developer docs: book.toml at the root, source in docs/, published at /dev/
+            mdbook_0_5 # developer docs: book.toml at the root, source in docs/, published at /dev/
             mdbook-mermaid # renders the book's ```mermaid fences
             # The sound-design renderers (scripts/gen-*-sfx.py). numpy carries
             # the sample buffers and the FFT; scipy.signal supplies the filter
