@@ -1,6 +1,6 @@
 # Publish the v0.14.0 demo on itch.io
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.14.0,release,distribution,itchio
 

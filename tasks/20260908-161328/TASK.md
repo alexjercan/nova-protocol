@@ -1,7 +1,7 @@
 # Write the shared season-one story
 
 - STATUS: OPEN
-- PRIORITY: 62
+- PRIORITY: 0
 - TAGS: backlog,story,comic
 
 ## Goal

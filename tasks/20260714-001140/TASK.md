@@ -1,7 +1,7 @@
 # Gamepad navigation, and a real playthrough on hardware
 
 - STATUS: OPEN
-- PRIORITY: 50
+- PRIORITY: 0
 - TAGS: backlog,input,gamepad
 
 Rescoped 2026-08-31 for v0.13.0. The mobile virtual pad (old Part B) split

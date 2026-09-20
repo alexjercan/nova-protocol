@@ -1,6 +1,6 @@
 # Release v0.14.0
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 42
 - TAGS: v0.14.0, release, meta
 
