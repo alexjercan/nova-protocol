@@ -23,6 +23,11 @@ Moved 2026-09-18 from v0.14.0 to the backlog by owner decision. Episode one and
 the playable first chapter are enough for the initial game release; completing
 the wider season remains separate work.
 
+Confirmed backburner on 2026-09-21 by owner decision: this task stays OPEN on
+the backlog at priority 0 and is NOT on the v0.15.0 board (epic
+`20260921-231507`). It is not blocked and not cut - it is simply not scheduled,
+and it does not gate any v0.15.0 work.
+
 ## Maintained sources
 
 - [Shared season-one production outline](../../web/src/lore/seasons/season-1.md).

@@ -1,8 +1,8 @@
 # Export an SFX sidecar from a capture loop
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog
+- PRIORITY: 60
+- TAGS: v0.15.0,capture,audio,tooling
 
 Record what a capture loop HEARD, beside the frames it recorded, so an editor
 can rebuild the mix from the engine's own numbers.
@@ -20,7 +20,7 @@ record. The loop must be reconstructed from data instead.
 - The game mixes by distance, so position has to survive into the export.
 - Prove it outside the engine first, because no Nova release is due. Adopt it
   here afterwards.
-- Backlog. Land it in the version after v0.14.0.
+- Land it in the version after v0.14.0.
 
 ## Status: the producer exists and works, outside the engine
 
@@ -149,3 +149,10 @@ resolved, for every frame each voice was alive.
 - `content-machine:capture/nova-protocol/<next version>/src/sfx_sidecar.rs` is
   DELETED when that capsule is cut, and its two "divergence" notes go with it.
 - The asserted example and the unit tests above pass.
+
+## Scheduling
+
+Pulled onto the v0.15.0 board at priority 60 on 2026-09-21 by owner decision.
+The work is small and already proven outside the engine, and the capture and
+content loops need the sidecar before they can rebuild a mix from engine
+numbers. Epic: `20260921-231507`.

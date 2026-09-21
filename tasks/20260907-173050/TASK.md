@@ -1,8 +1,8 @@
 # Add verified gameplay statistics to the wiki
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog
+- PRIORITY: 55
+- TAGS: v0.15.0,docs,wiki,gameplay
 
 ## Goal
 
@@ -95,3 +95,14 @@ The reference was moved unchanged from `web/src/lore/TECHNICAL_SPEC.md`; its
 tracked predecessor was `lore/TECHNICAL_SPEC.md`. Both match the SHA-256 above.
 The lore authoring guide no longer points at a separate technical specification.
 No wiki article or gameplay code was changed when creating this task.
+
+## Scheduling
+
+Pulled onto the v0.15.0 board at priority 55 on 2026-09-21 by owner decision,
+in epic `20260921-231507`.
+
+It runs CONCURRENTLY with the two v0.15.0 spikes (`20260824-125943`,
+`20260824-125938`). This is a truth audit of what the game does today. It is
+not gated on what those spikes decide the game should become, and it does not
+gate them. If a spike later changes a documented figure, that is the spike's
+child task, not a reason to hold this one.

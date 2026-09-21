@@ -1,8 +1,8 @@
 # Gamepad navigation, and a real playthrough on hardware
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,input,gamepad
+- PRIORITY: 50
+- TAGS: v0.15.0,input,gamepad
 
 Rescoped 2026-08-31 for v0.13.0. The mobile virtual pad (old Part B) split
 to `20260831-145917` and stays backlog, so its layout targets interactions
@@ -66,3 +66,10 @@ weapons AND fires the tubes. The arena test
 because `flight_rig_reserved_sources` is derived from `flight_bindings()`
 only. Decide the pad layout, fix the collision, and extend that test to
 cover `camera_bindings()` too.
+
+## Scheduled for v0.15.0
+
+Pulled back onto the board at priority 50 on 2026-09-21 by owner decision, in
+epic `20260921-231507`. Both parts stay in scope. The interaction findings
+from Part B are what `20260831-145917` (mobile virtual pad) waits on, so this
+task runs first.

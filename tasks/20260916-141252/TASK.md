@@ -1,8 +1,8 @@
 # Cycle menu backdrops in a non-repeating pseudorandom order
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog, menu, backdrop
+- PRIORITY: 40
+- TAGS: v0.15.0,menu,backdrop
 
 ## Goal
 
@@ -25,3 +25,9 @@ Keep `NOVA_MENU_BACKDROP` pinning behavior unchanged.
 - Zero- and one-backdrop catalogs retain safe fallback behavior.
 - Focused deterministic tests cover one full cycle, a cycle boundary, and the
   zero-, one-, and two-backdrop cases.
+
+## Scheduling
+
+Pulled onto the v0.15.0 board at priority 40 on 2026-09-21 by owner decision,
+in epic `20260921-231507`. It is self-contained and depends on nothing else
+on the board.

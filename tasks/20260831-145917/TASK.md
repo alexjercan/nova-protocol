@@ -1,8 +1,8 @@
 # Mobile virtual pad: the web build playable by touch
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,input,mobile,touch
+- PRIORITY: 45
+- TAGS: v0.15.0,input,mobile,touch
 
 Split 2026-08-31 out of `20260714-001140`, which v0.13.0 rescopes to real
 gamepad hardware. The touch half stays backlog so its layout targets
@@ -29,3 +29,14 @@ touch primitives as the reference implementation:
 
 Done when: the web build is playable on a touchscreen via a virtual pad
 built on the bevy-common-systems primitives.
+
+## Scheduled for v0.15.0
+
+Pulled onto the board at priority 45 on 2026-09-21 by owner decision, in epic
+`20260921-231507`. The work is mechanical: the touch primitives it builds
+on already ship in `bevy-common-systems`.
+
+It keeps its dependency. This task FOLLOWS `20260714-001140` (gamepad) and
+starts from that task's interaction findings - the pad layout, the chord
+decisions, and the dead-zone and focus behaviour proven on hardware. Do not
+commit a touch layout for a verb whose pad interaction is still open.
