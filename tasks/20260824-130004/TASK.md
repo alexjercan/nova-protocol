@@ -12,9 +12,17 @@ receives only the separate Coming Soon page (`20260909-212935`) in this cycle.
 No Steam build, depot, or demo ships.
 
 Owner decision, 2026-09-18: v0.14.0 is a quick initial release. The itch.io
-demo is free. Use itch.io `No payments`, not a minimum price or suggested
-donation. The repository remains public on GitHub. Future Steam release scope
-and pricing remain open.
+demo is free. The repository remains public on GitHub. Future Steam release
+scope and pricing remain open.
+
+Owner decision, 2026-09-21: keep the live itch.io `Name your own price`
+setting. The demo must remain downloadable for zero payment.
+
+Owner decision, 2026-09-21 (supersedes the note above that kept itch.io off
+the website): the project website carries platform links. The landing hero and
+the landing resource directory each show a GitHub link, a live itch.io link to
+<https://alexjercan.itch.io/nova-protocol>, and a static `Steam page pending`
+item with no href. The shared footer carries identity text and no links.
 
 Owner decision, 2026-09-19: deploy the tagged GitHub artifacts through a
 separate, manually dispatched `.github/workflows/deploy-itch.yaml`. Prepare the
@@ -64,8 +72,9 @@ release as a draft. Validation now passes `GITHUB_REPOSITORY` explicitly.
 2. Set the project classification and kind for a game with a browser build and
    native downloads. Set its release status to the honest in-development/demo
    state offered by the live form.
-3. Set pricing to `No payments`. Label the release as a free initial demo; do
-   not imply that the later Steam product will be free or paid.
+3. Keep `Name your own price` with a zero-cost download. Label the release as
+   a free initial demo; do not imply that the later Steam product will be free
+   or paid.
 4. Populate:
    - title and approved short description;
    - the 630x500 cover using itch.io's 315:250 aspect ratio;
@@ -119,8 +128,9 @@ working-tree build.
    - launch the browser build and reach playable flight.
 4. Judge actual title-screen-to-play behavior, assets, logs, and rendered web
    output. An installer exit code or page load alone is not proof.
-5. Add the itch.io badge beside the website's GitHub download actions. Keep the
-   existing GitHub release downloads as direct alternatives.
+5. Keep the website's existing browser and GitHub download actions, and keep
+   the itch.io link in the landing hero and resource directory pointing at the
+   live page.
 6. Verify the itch.io page links to Steam and the Steam page links to itch.io as
    the current place to play. Record URLs, upload versions, checksums, machines,
    operating-system versions, and observed results on this task.
@@ -152,10 +162,10 @@ records the cut here.
 
 ## Done when
 
-The public itch.io page presents the approved game accurately, accepts no
-payments, offers the exact tagged v0.14.0 demo through stable Windows, macOS,
-Linux, and HTML5 channels, and each channel reaches playable flight in its
-clean-platform check. The website, itch.io page, GitHub release, and Steam
+The public itch.io page presents the approved game accurately, permits a
+zero-cost download, offers the exact tagged v0.14.0 demo through stable
+Windows, macOS, Linux, and HTML5 channels, and each channel reaches playable
+flight in its clean-platform check. The website, itch.io page, GitHub release, and Steam
 Coming Soon page link to the intended destinations.
 
 Requirements checked 2026-09-18 against itch.io `Your first itch.io page`,

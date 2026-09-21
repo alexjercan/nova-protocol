@@ -20,6 +20,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Objective notification rebuilding now survives same-frame ship teardown, and
   buffered keys after launching a NOVA OS app no longer edit the hidden prompt.
 
+### Web & Platform
+
+- The site header carries Home, Wiki, Create, News and Play; Create opens on
+  mods or engine work and Wiki on Story and Lore. The landing hero and its
+  four-column directory link GitHub and itch.io.
+
 ### Internals & Tooling
 
 - Agent Bench enforces post-run grace on persistent clients and rejects

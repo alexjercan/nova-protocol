@@ -89,6 +89,49 @@
                             >
                         </div>
                     </div>
+                    <div class="hero__platforms">
+                        <ul class="platform-links">
+                            <li>
+                                <a
+                                    class="platform-link platform-link--github"
+                                    href="https://github.com/alexjercan/nova-protocol"
+                                    target="_blank"
+                                    rel="noopener"
+                                >
+                                    <span
+                                        class="platform-link__icon"
+                                        aria-hidden="true"
+                                    ></span>
+                                    GitHub
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    class="platform-link platform-link--itch"
+                                    href="https://alexjercan.itch.io/nova-protocol"
+                                    target="_blank"
+                                    rel="noopener"
+                                >
+                                    <span
+                                        class="platform-link__icon"
+                                        aria-hidden="true"
+                                    ></span>
+                                    itch.io
+                                </a>
+                            </li>
+                            <li>
+                                <span
+                                    class="platform-link platform-link--steam platform-link--pending"
+                                >
+                                    <span
+                                        class="platform-link__icon"
+                                        aria-hidden="true"
+                                    ></span>
+                                    Steam page pending
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
                 <a
                     class="hero__scroll"
@@ -280,37 +323,121 @@
 
             <section class="section" id="learn" style="padding-top: 0">
                 <div class="container">
-                    <div class="grid grid--3">
-                        <a
-                            class="card card--link"
-                            href="<%= htmlWebpackPlugin.options.basePath %>wiki/getting-started/"
-                        >
-                            <h3 class="card__title">How to play &rarr;</h3>
-                            <p class="card__body">
-                                Your first flight: burn, lock, GOTO and fire,
-                                one gesture at a time. Start here.
-                            </p>
-                        </a>
-                        <a
-                            class="card card--link"
-                            href="<%= htmlWebpackPlugin.options.basePath %>wiki/"
-                        >
-                            <h3 class="card__title">Wiki &rarr;</h3>
-                            <p class="card__body">
-                                Reference for ship sections, scenarios, gravity
-                                wells and factions.
-                            </p>
-                        </a>
-                        <a
-                            class="card card--link"
-                            href="<%= htmlWebpackPlugin.options.basePath %>news/"
-                        >
-                            <h3 class="card__title">News &rarr;</h3>
-                            <p class="card__body">
-                                One post per release - what shipped and why,
-                                with the occasional video.
-                            </p>
-                        </a>
+                    <nav class="resource-directory" aria-label="Site directory">
+                        <div class="resource-directory__group">
+                            <h2 class="resource-directory__heading">Start</h2>
+                            <ul class="resource-directory__list">
+                                <li>
+                                    <a
+                                        class="resource-directory__link"
+                                        href="<%= htmlWebpackPlugin.options.basePath %>wiki/getting-started/"
+                                        >How to play</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        class="resource-directory__link"
+                                        href="<%= htmlWebpackPlugin.options.basePath %>wiki/"
+                                        >Wiki</a
+                                    >
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="resource-directory__group">
+                            <h2 class="resource-directory__heading">
+                                Universe
+                            </h2>
+                            <ul class="resource-directory__list">
+                                <li>
+                                    <a
+                                        class="resource-directory__link"
+                                        href="<%= htmlWebpackPlugin.options.basePath %>story/"
+                                        >Story</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        class="resource-directory__link"
+                                        href="<%= htmlWebpackPlugin.options.basePath %>lore/"
+                                        >Lore</a
+                                    >
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="resource-directory__group">
+                            <h2 class="resource-directory__heading">Create</h2>
+                            <ul class="resource-directory__list">
+                                <li>
+                                    <a
+                                        class="resource-directory__link"
+                                        href="<%= htmlWebpackPlugin.options.basePath %>create/"
+                                        >Creator documentation</a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        class="resource-directory__link"
+                                        href="<%= htmlWebpackPlugin.options.basePath %>dev/"
+                                        >Developer documentation</a
+                                    >
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="resource-directory__group">
+                            <h2 class="resource-directory__heading">Project</h2>
+                            <ul class="resource-directory__list">
+                                <li>
+                                    <a
+                                        class="resource-directory__link"
+                                        href="<%= htmlWebpackPlugin.options.basePath %>news/"
+                                        >News</a
+                                    >
+                                </li>
+                            </ul>
+                        </div>
+                    </nav>
+                    <div class="resource-directory__platforms">
+                        <ul class="platform-links">
+                            <li>
+                                <a
+                                    class="platform-link platform-link--github"
+                                    href="https://github.com/alexjercan/nova-protocol"
+                                    target="_blank"
+                                    rel="noopener"
+                                >
+                                    <span
+                                        class="platform-link__icon"
+                                        aria-hidden="true"
+                                    ></span>
+                                    GitHub
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    class="platform-link platform-link--itch"
+                                    href="https://alexjercan.itch.io/nova-protocol"
+                                    target="_blank"
+                                    rel="noopener"
+                                >
+                                    <span
+                                        class="platform-link__icon"
+                                        aria-hidden="true"
+                                    ></span>
+                                    itch.io
+                                </a>
+                            </li>
+                            <li>
+                                <span
+                                    class="platform-link platform-link--steam platform-link--pending"
+                                >
+                                    <span
+                                        class="platform-link__icon"
+                                        aria-hidden="true"
+                                    ></span>
+                                    Steam page pending
+                                </span>
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </section>

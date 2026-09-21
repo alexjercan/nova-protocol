@@ -9,6 +9,17 @@ to mod authors.
 You need a text editor and a local copy of the repository. Start with one small
 scenario, play it, then publish it when it works.
 
+<div class="wiki-index__grid">
+<a class="wiki-index__card" href="author-a-scenario/">
+<div class="wiki-index__cardhead"><h3 class="wiki-index__cardtitle">Create mods</h3></div>
+<p class="wiki-index__cardsum">Write scenarios, campaigns, ships, and styles as data files. No game code and no Rust build.</p>
+</a>
+<a class="wiki-index__card" href="../dev/">
+<div class="wiki-index__cardhead"><h3 class="wiki-index__cardtitle">Develop Nova</h3></div>
+<p class="wiki-index__cardsum">Work on the game itself in Rust, and add the events, actions, and section kinds mods then use.</p>
+</a>
+</div>
+
 ## Learn to mod
 
 Follow this path in order:

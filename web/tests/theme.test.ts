@@ -221,7 +221,10 @@ const readOf = (token: string): RegExp =>
 
     const SURFACES: Array<[string, RegExp]> = [
         ["buttons (.btn)", family("btn")],
-        ["cards (.card)", family("card")],
+        [
+            "landing directory (.resource-directory)",
+            family("resource-directory"),
+        ],
         ["post cards (.post-card)", family("post-card")],
         ["wiki index cards (.wiki-index__card)", family("wiki-index__card")],
         ["code blocks (.prose pre)", /\.prose\s+pre(?![\w-])/],

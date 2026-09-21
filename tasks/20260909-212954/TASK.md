@@ -16,8 +16,11 @@ game and make it fun enough for people to wishlist it."
 Owner decision, 2026-09-18:
 
 - v0.14.0 is a quick initial release, not the open-world release.
-- The v0.14.0 build is a free demo on itch.io. Use itch.io's `No payments`
-  mode; do not ask for a minimum price or donation in this release.
+- The v0.14.0 build is a free demo on itch.io.
+- Owner update, 2026-09-21: keep the live itch.io `Name your own price`
+  setting, with zero-cost download available. The project website links
+  itch.io from the landing hero and the landing resource directory; the shared
+  footer carries no links.
 - Steam receives a Coming Soon page only. No Steam demo or game build ships.
 - The source remains public on GitHub. Future Steam product pricing stays open
   and must not be implied by this page.

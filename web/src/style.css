@@ -244,8 +244,7 @@ a:hover {
    keyboard nav (:focus-visible), so mouse clicks stay clean. */
 a:focus-visible,
 .btn:focus-visible,
-.site-nav a:focus-visible,
-.card--link:focus-visible {
+.site-nav a:focus-visible {
     outline: 2px solid var(--phosphor);
     outline-offset: 2px;
 }
@@ -324,6 +323,20 @@ a:focus-visible,
     color: var(--ink);
     background: var(--phosphor-hot);
     border-color: var(--phosphor-hot);
+}
+@media (max-width: 560px) {
+    .site-header {
+        gap: 8px;
+        padding: 8px 12px;
+    }
+    .site-header__brand {
+        font-size: 0.82rem;
+        letter-spacing: 0.08em;
+    }
+    .site-nav a {
+        padding: 6px 7px;
+        font-size: 0.72rem;
+    }
 }
 
 /* ---- layout -------------------------------------------------------------- */
@@ -575,7 +588,8 @@ main {
         font-size: clamp(2.7rem, 17vw, 4.5rem);
     }
     .hero__cta,
-    .hero__downloads-btns {
+    .hero__downloads-btns,
+    .hero__platforms .platform-links {
         justify-content: center;
     }
     .hero__downloads {
@@ -653,79 +667,120 @@ main {
     background: var(--fill-amber-hot);
 }
 
-/* ---- cards / grids ------------------------------------------------------- */
-.grid {
-    display: grid;
-    gap: 16px;
+/* ---- platform strip ------------------------------------------------------
+   Where the game lives off this site: the repository, the itch.io page, and a
+   Steam entry that stays inert until that page exists. A cell is a quiet CLI
+   chip, so the strip reads below the Play and download keys above it. */
+.platform-links {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
-.grid--3 {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-.grid--2 {
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-}
-/* A card is a panel: a lit CRT surface outlined by a phosphor hairline. */
-.card {
-    position: relative;
-    background: var(--panel-face);
+.platform-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    color: var(--phosphor-dim);
     border: 1px solid var(--edge-faint);
-    border-radius: var(--panel-radius);
-    padding: 22px 22px 24px;
-    box-shadow: var(--panel-shadow);
-    transition: background 0.12s ease;
-}
-/* A phosphor rail lights the top edge on hover - an instrument cue, no lift. */
-.card::before {
-    content: "";
-    position: absolute;
-    left: 10%;
-    right: 10%;
-    top: -1px;
-    height: 2px;
-    border-radius: 2px;
-    background: transparent;
-    transition: background 0.12s ease;
-}
-.card:hover {
-    background: var(--panel-face-hot);
-}
-.card:hover::before {
-    background: var(--phosphor);
-}
-.card__num {
-    display: block;
+    border-radius: var(--radius);
     font-family: var(--font-mono);
     font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+a.platform-link:hover {
+    color: var(--phosphor-hot);
+    background: var(--fill-hot);
+    border-color: var(--edge);
+}
+/* The Simple Icons marks are monochrome paths with no fill of their own, so
+   they are masked rather than drawn: the cell's own colour fills the shape and
+   the mark follows hover and focus instead of carrying a second palette. The
+   label beside it carries the meaning, so the mark is decorative in markup. */
+.platform-link__icon {
+    flex: none;
+    width: 15px;
+    height: 15px;
+    background-color: currentColor;
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: contain;
+}
+.platform-link--github .platform-link__icon {
+    mask-image: url("assets/platforms/github.svg");
+}
+.platform-link--itch .platform-link__icon {
+    mask-image: url("assets/platforms/itchdotio.svg");
+}
+.platform-link--steam .platform-link__icon {
+    mask-image: url("assets/platforms/steam.svg");
+}
+/* There is no Steam page to send anyone to yet. The cell is a readout, not a
+   control: a dashed hairline marks it as not-yet-wired, and it is a <span>, so
+   it takes neither the pointer nor the tab ring. Remove this modifier and make
+   it an <a> when the Steam URL is public. */
+.platform-link--pending {
+    border-style: dashed;
+    cursor: default;
+}
+.hero__platforms {
+    margin-top: 18px;
+}
+
+/* ---- landing resource directory ------------------------------------------
+   The four places the site goes after the feature rows. A column is a labelled
+   group of links rather than a panel: four panels here would compete with the
+   feature rows above them. Four columns on desktop, two on tablet, one narrow. */
+.resource-directory {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 28px 24px;
+    padding-top: 28px;
+    border-top: 1px solid var(--edge-faint);
+}
+.resource-directory__heading {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
     color: var(--phosphor);
-    margin-bottom: 12px;
+    margin: 0 0 12px;
 }
-.card__num::after {
-    content: "";
-    display: inline-block;
-    width: 22px;
-    height: 1px;
-    vertical-align: middle;
-    margin-left: 10px;
-    background: var(--phosphor-muted);
+.resource-directory__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
-.card__title {
-    font-size: 1.05rem;
-    margin-bottom: 6px;
-    color: var(--text);
-}
-.card__body {
+.resource-directory__link {
     color: var(--phosphor-dim);
     font-size: 0.88rem;
-    margin: 0;
 }
-.card--link {
-    display: block;
-    color: inherit;
-}
-.card--link:hover .card__title {
+.resource-directory__link:hover {
     color: var(--phosphor);
+}
+.resource-directory__platforms {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--edge-faint);
+}
+@media (max-width: 900px) {
+    .resource-directory {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 560px) {
+    .resource-directory {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 /* ---- feature rows (bevy.org-style showcase) ------------------------------
@@ -2848,9 +2903,6 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
     padding: 20px 24px;
     margin-top: 40px;
     border-top: 1px solid var(--edge-faint);
@@ -2860,17 +2912,6 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     font-family: var(--font-mono);
     font-size: 0.78rem;
     letter-spacing: 0.02em;
-}
-.site-footer nav {
-    display: flex;
-    gap: 18px;
-    flex-wrap: wrap;
-}
-.site-footer a {
-    color: var(--phosphor-dim);
-}
-.site-footer a:hover {
-    color: var(--phosphor);
 }
 
 /* ---- responsive ---------------------------------------------------------- */

@@ -59,12 +59,17 @@ try {
                 ].includes(relative[0])
             )
                 return false;
+            // Keep src/assets slim: only what style.css resolves through
+            // webpack has to exist for the build under test.
             if (
                 relative[0] === "src" &&
                 relative[1] === "assets" &&
                 relative.length > 2
             )
-                return relative[2] === "promptfont.woff2";
+                return (
+                    relative[2] === "promptfont.woff2" ||
+                    relative[2] === "platforms"
+                );
             return true;
         },
     });
