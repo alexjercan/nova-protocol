@@ -18,7 +18,7 @@ real code lives under `crates/`.
 | `nova_gameplay` | The shared gameplay layer under the ship: `integrity/` (health, the two damage readings `erosion` and `carve`, and the debris a carve leaves in `spew`/`chunk`), `damage`, `gravity` (gravity wells), `markers` (the entity markers the ship tags with and this layer reads), `math`, `audio` (the bus-and-route sound engine every voice in the game goes through: `bus` for the four routes and the three volume tracks, `mixing` for the distance rolloff and the cue throttle, `spatial` for the stereo placement, `voice` for the one playback path), `juice`, `shake`, `settings` (`MasterVolume`/`GraphicsQuality` + apply systems; the per-bus `InterfaceVolume`/`WorldVolume`/`MusicVolume` live in `audio/bus`), `mesh` (the procedural `TriangleMeshBuilder`, plus the `SignedField` an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), `transform`, `relations`, `beacon`, `objectives` (the `GameObjectives` list, its panel and the conveyance tags), `lifetime` (`TempEntity`/`DespawnEntity`), `cooldown`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. Knows nothing about a ship. |
 | `nova_ship`     | The ship and how it is flown: `sections/` (the modular hull, its ammo, and the authored damage looks in `damage_effects`/`damage_cracks`/`damage_sparks`/`damage_plume`), `input/` (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, and the flight and camera action DEFAULTS it registers into `nova_input`), `flight/` (the diegetic controller and its autopilot verbs), `camera/` (the chase-camera controller and the chase/skybox/post/WASD rigs under it), `physics/` (the PD attitude controller) and `ship_audio/` (the soundtrack those five produce). Depends on `nova_gameplay` and never the reverse; `NovaShipPlugin` owns the `SpaceshipSystems` brackets and `nova_core` adds it after `NovaGameplayPlugin`. |
 | `nova_wfc`      | Generated hulls: a function from a section catalog and a code-owned `WfcPlan` to a `ShipDesign`, with no `App` and no systems in it. Owns the plan types too (`WfcGrid`, `WfcVacuum`, `WfcKeel`, `WfcPart`), because which sections one generator may reach for is generator policy and not mod content. `TileSet::build` reads the plan against the catalog, `hull()` collapses one seed, and every hull is put through the game's own content lint before it is handed back. Each caller builds its own plan from `WfcPlan::standard_hull` and its own UI rows: `nova_editor`'s Generate verb, and the `wfc_*` examples. |
-| `nova_hud`      | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs `nova_hud -> nova_gameplay`. `nova_core` adds `NovaHudPlugin` render-gated, and the crate places `NovaHudSystems` between the section and camera sets itself. |
+| `nova_hud`      | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs `nova_hud -> nova_gameplay`. `nova_core` adds `NovaHudPlugin` unconditionally, headless runs included - the widgets register their keybindings in `build`, so a gate took those bindings out of the registry. The crate places `NovaHudSystems` between the section and camera sets itself. |
 | `nova_os`       | NOVA OS logic with no UI in it: the terminal model (`terminal`), the shell command language and typo suggestions (`shell`), and the app runtime seam (`app`). |
 | `nova_os_ui`    | The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (`terminal`), and the two apps that run on it - `map` (schematic local space) and `ship` (schematic player ship). A PEER of the flight HUD, not one of its widgets: `nova_core` adds it, and nothing in `nova_hud` reaches into it (it reads `NovaHudAssets` and `NovaHudSystems`, so it sits ABOVE `nova_hud`). |
 | `nova_console`  | The Command shell's dispatcher: the executor behind the CRT's `cmd>` prompt and the channel's `command` lane. `nova_os` owns the LANGUAGE (catalog metadata, parser, `CommandChannel`) and stays a leaf; this crate owns the half that touches the world - inspection, the persisted settings, and the armed cheats. It sits ABOVE `nova_menu` on purpose: a `graphics` or `volume` command writes the very resources the settings screen owns, and one of them has to be downstream. |
@@ -210,7 +210,7 @@ AppBuilder::new()                 // Bevy DefaultPlugins + window/log/asset/rend
 ```
 
 `AppBuilder::headless()` is the same builder with no wgpu device, no window, no
-winit event loop and none of the visual game plugins. Rendering is fixed by the
+winit event loop and none of the visual game plugins the `render` flag gates. Rendering is fixed by the
 CONSTRUCTOR rather than by a setter, because `DefaultPlugins` bakes the wgpu and
 window settings the moment the builder starts - a later setter could not reach
 them. It is one switch and not two because the halves cannot be separated:
@@ -218,12 +218,18 @@ them. It is one switch and not two because the halves cannot be separated:
 dropping the plugins that need it.
 
 `build()` inits `GameStates` + `PauseStates`, then adds, in order:
-`EnhancedInputPlugin`, `GameAssetsPlugin`, `LoadingScreenPlugin`,
+`EnhancedInputPlugin`, `NovaInputPlugin` (the bindings registry is a leaf: it
+holds the table every rig is built from, so it lands before any plugin that
+registers an action), `GameAssetsPlugin`, `LoadingScreenPlugin`,
 `NovaGameplayPlugin`, `NovaShipPlugin` (the ship orders its sets inside
 gameplay's `SpaceshipSystems` brackets, so it comes after), `NovaScenarioPlugin`,
-then - render-gated, a headless harness run draws neither - `NovaHudPlugin` and
-`NovaOsUiPlugin` (HUD first: the monitor orders itself against
-`NovaHudSystems`), then `NovaEditorPlugin`, then `SettingsStorePlugin` (EVERY
+then `NovaHudPlugin` and `NovaOsUiPlugin` (HUD first: the monitor orders itself
+against `NovaHudSystems`). Those two are NOT render-gated - a headless run
+assembles both. Each registers its bindings inside `build`, and under a gate a
+headless run kept only 15 of the 33 registry actions; everything GPU-side in
+them is already guarded by bevy (`UiMaterialPlugin` and friends no-op without a
+render sub-app). The price is that a headless measurement run carries HUD and
+monitor CPU systems. Then `NovaEditorPlugin`, then `SettingsStorePlugin` (EVERY
 app, menu or not, and READING only: a settings panel is where a value is edited,
 not what makes it apply, so an example that never builds a menu still flies on
 the player's own sensitivities, keybinds, volumes and quality preset - while an
@@ -232,9 +238,13 @@ makes it inert under a scripted run, and the menu below is what grants the write
 direction), then `NovaMenuPlugin` (the editor and the menu only
 when no custom game plugins were supplied - the menu fronts the default app and
 nothing else, so an example that brings its own game plugins goes straight
-`Loading -> Playing`), and finally `DebugPlugin` under the `debug` feature. On
-`OnEnter(GameAssetsStates::Loaded)` it hands off to `MainMenu` (or straight to
-`Playing` when the menu is off) and spawns the status UI. That handoff runs on
+`Loading -> Playing`), then `NovaConsolePlugin` (the Command shell's dispatcher,
+unconditional and after the menu: a `graphics` or `volume` command writes the
+very resources the settings screen owns, and an example with no menu still has a
+CRT to answer `status` and `ships` on), and finally `DebugPlugin` under the
+`debug` feature. On `OnEnter(GameAssetsStates::Loaded)` it hands off to
+`MainMenu` (or straight to `Playing` when the menu is off) and spawns the
+status UI. That handoff runs on
 every pass through `Loaded`, boot and content restart alike, so what separates
 them is the `--scenario` launch request: `boot_into_the_game` TAKES it, and a
 restart therefore finds nothing to open and lands in the menu. The status bar is

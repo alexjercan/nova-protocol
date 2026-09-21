@@ -127,6 +127,12 @@ a long one searches - so an act carrying both is refused with a message that
 says to split it. Nothing downstream could report that: a press has no verdict
 to give.
 
+Splitting it is not enough on its own. The referee checks the act against its
+held set too, so driving one reading while the other is still held is refused
+the same way: the key is down for the first reading, and the second would
+release that same source behind the referee's back. The release goes in its
+own act, before the act that drives the other reading.
+
 The pairs are not a table in the bench. `nova_input` already models the
 relation as `ActionBinding::follows`, the channel publishes it as
 `inputs.shared`, and the referee checks the act against whatever the world

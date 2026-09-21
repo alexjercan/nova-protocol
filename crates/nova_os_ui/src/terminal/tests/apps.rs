@@ -171,6 +171,48 @@ fn nova_os_launch_keystroke_does_not_bleed_into_the_app() {
 }
 
 #[test]
+fn keys_buffered_behind_a_launch_do_not_edit_the_hidden_prompt() {
+    // A fast typist submits `sample` and keeps typing: the OS delivers Enter
+    // and the next character in ONE frame's `KeyboardInput` batch. The prompt
+    // handler must stop at the launch, or it goes on editing a prompt the app
+    // has already covered - and the stray text is waiting there when the
+    // player exits the app.
+    let mut app = app_runtime_app();
+    set_prompt(&mut app, "sample");
+
+    let world = app.world_mut();
+    world.write_message(KeyboardInput {
+        key_code: KeyCode::Enter,
+        logical_key: Key::Enter,
+        state: ButtonState::Pressed,
+        text: None,
+        repeat: false,
+        window: Entity::PLACEHOLDER,
+    });
+    world.write_message(KeyboardInput {
+        key_code: KeyCode::KeyX,
+        logical_key: Key::Character("x".into()),
+        state: ButtonState::Pressed,
+        text: Some("x".into()),
+        repeat: false,
+        window: Entity::PLACEHOLDER,
+    });
+    app.update();
+
+    let terminal = app.world().resource::<NovaOsTerminal>();
+    assert_eq!(
+        terminal.active_mode(),
+        TerminalMode::App { id: "sample" },
+        "the batched Enter launched the app",
+    );
+    assert_eq!(
+        terminal.prompt(),
+        "",
+        "the key buffered behind the launch does not reach the hidden prompt",
+    );
+}
+
+#[test]
 fn nova_os_app_close_restores_terminal_state() {
     let mut app = app_runtime_app();
     // Build some scrollback before launching so we can prove it survives.

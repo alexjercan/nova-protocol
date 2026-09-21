@@ -125,7 +125,7 @@ pub fn parse_gestures(value: &Value) -> Result<Vec<Gesture>, String> {
         .collect()
 }
 
-/// Refuse an act that drives both readings of one key.
+/// Refuse an act that drives one key through both of its readings.
 ///
 /// `shared` is the world's own `inputs.shared`: each pair is an action and the
 /// shadow that follows it onto the same physical key - a short press read
@@ -133,18 +133,43 @@ pub fn parse_gestures(value: &Value) -> Result<Vec<Gesture>, String> {
 /// and neither reading fires cleanly. The pairs are NOT a table here, because
 /// the game declares the relation and a driver copy would go stale the day
 /// someone declares a second one.
-pub fn check_shared_keys(gestures: &[Gesture], shared: &[[String; 2]]) -> Result<(), String> {
+///
+/// `held` is the referee's held set, so a reading pressed in an earlier act
+/// counts too: the key is still down for it, and driving the other reading
+/// now releases that same physical source while the referee still records the
+/// first action as held. The release has to come first, in its own act.
+pub fn check_shared_keys(
+    gestures: &[Gesture],
+    held: &BTreeSet<String>,
+    shared: &[[String; 2]],
+) -> Result<(), String> {
     let driven: Vec<&str> = gestures.iter().filter_map(Gesture::wire).collect();
     for [first, second] in shared {
-        if driven.contains(&first.as_str()) && driven.contains(&second.as_str()) {
+        let drives_first = driven.contains(&first.as_str());
+        let drives_second = driven.contains(&second.as_str());
+        if drives_first && drives_second {
             return Err(format!(
                 "`{first}` and `{second}` are two readings of one key: an act that drives both \
                  hands it contradictory input and neither reading lands. Put the second one in \
                  the next act."
             ));
         }
+        if drives_first && held.contains(second) {
+            return Err(still_held(second, first));
+        }
+        if drives_second && held.contains(first) {
+            return Err(still_held(first, second));
+        }
     }
     Ok(())
+}
+
+fn still_held(held: &str, driving: &str) -> String {
+    format!(
+        "`{held}` is still held from an earlier act and `{driving}` is the other reading of the \
+         same key: the key cannot be down for one reading and driven for the other. Release \
+         `{held}`, then drive `{driving}` in a later act."
+    )
 }
 
 /// The `input.shared` pairs of a raw snapshot, as [`check_shared_keys`] takes
@@ -318,19 +343,54 @@ mod tests {
             { "tap": "targeting.radar_clear" },
         ]))
         .unwrap();
-        let error = check_shared_keys(&both, &pairs).unwrap_err();
+        let error = check_shared_keys(&both, &BTreeSet::new(), &pairs).unwrap_err();
         assert!(error.contains("two readings of one key"), "{error}");
         assert!(error.contains("next act"), "{error}");
 
         // Either one alone is ordinary.
         let alone = parse_gestures(&json!([{ "tap": "targeting.radar_clear" }])).unwrap();
-        assert!(check_shared_keys(&alone, &pairs).is_ok());
+        assert!(check_shared_keys(&alone, &BTreeSet::new(), &pairs).is_ok());
         let unrelated = parse_gestures(&json!([
             { "release": "targeting.radar_hold" },
             { "press": "flight.main_drive" },
         ]))
         .unwrap();
-        assert!(check_shared_keys(&unrelated, &pairs).is_ok());
+        assert!(check_shared_keys(&unrelated, &BTreeSet::new(), &pairs).is_ok());
+    }
+
+    /// The held set is the other half of the rule: a reading pressed in an
+    /// earlier act keeps the key down, so the counterpart is refused until
+    /// the release lands in an act of its own.
+    #[test]
+    fn a_reading_held_from_an_earlier_act_refuses_its_counterpart_until_released() {
+        let pairs = shared_keys(&json!({
+            "input": { "shared": [["targeting.radar_hold", "targeting.radar_clear"]] }
+        }));
+        let clear = parse_gestures(&json!([{ "tap": "targeting.radar_clear" }])).unwrap();
+        let release = parse_gestures(&json!([{ "release": "targeting.radar_hold" }])).unwrap();
+
+        // Act one holds the search.
+        let mut held = BTreeSet::new();
+        expand(
+            &[Gesture::Press("targeting.radar_hold".into())],
+            0,
+            1,
+            &mut held,
+        );
+        assert!(held.contains("targeting.radar_hold"), "{held:?}");
+
+        // Act two cannot clear while that key is down.
+        let error = check_shared_keys(&clear, &held, &pairs).unwrap_err();
+        assert!(error.contains("still held"), "{error}");
+        assert!(error.contains("targeting.radar_hold"), "{error}");
+
+        // Releasing the hold is the one act that is allowed to follow.
+        check_shared_keys(&release, &held, &pairs).unwrap();
+        expand(&release, 1, 1, &mut held);
+        assert!(held.is_empty(), "{held:?}");
+
+        // And the act after the release clears as the manual says.
+        assert!(check_shared_keys(&clear, &held, &pairs).is_ok());
     }
 
     /// The pairs come from the world, so a game that declares a second shadow
@@ -343,11 +403,12 @@ mod tests {
             { "tap": "flight.stop_hard" },
         ]))
         .unwrap();
-        let error = check_shared_keys(&gestures, &shared_keys(&world)).unwrap_err();
+        let error =
+            check_shared_keys(&gestures, &BTreeSet::new(), &shared_keys(&world)).unwrap_err();
         assert!(error.contains("flight.stop_hard"), "{error}");
 
         // And a world that declares none guards nothing.
-        assert!(check_shared_keys(&gestures, &shared_keys(&json!({}))).is_ok());
+        assert!(check_shared_keys(&gestures, &BTreeSet::new(), &shared_keys(&json!({}))).is_ok());
     }
 
     #[test]

@@ -237,6 +237,11 @@ pub(crate) fn handle_terminal_keyboard(
     // The `bank` is absent on rigs without the sound assets (headless), so each
     // branch guards on it and cues are a no-op there.
     let now = time.elapsed_secs();
+    // `nova_os_prompt_active` is read once, so a launch made mid-batch does not
+    // update it: the keys a fast typist queued behind the launching Enter went
+    // on editing - and submitting - the prompt the app had already covered, and
+    // the stray line was waiting at the prompt when the app exited.
+    let mut launched = false;
     for event in keyboard.read() {
         if !nova_os_prompt_active {
             continue;
@@ -298,6 +303,7 @@ pub(crate) fn handle_terminal_keyboard(
                         play_nova_os_cue(&mut commands, bank, &settings, cue, volume);
                     }
                 }
+                launched = outcome == TerminalSubmitOutcome::Launched;
             }
             Key::Tab => {
                 if terminal.complete() {
@@ -398,6 +404,16 @@ pub(crate) fn handle_terminal_keyboard(
             }
             _ => {}
         }
+        if launched {
+            break;
+        }
+    }
+    // Dropped, not deferred: an unread message is still live next frame, where
+    // this handler would type it into whatever prompt is on screen then.
+    // `handle_nova_os_app_keyboard` keeps its own cursor and already drops the
+    // batch on a transition frame, so the app's input is untouched.
+    if launched {
+        keyboard.clear();
     }
 
     // The `exit`/`close` commands request the same animated close as Esc/Start.

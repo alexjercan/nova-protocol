@@ -82,7 +82,8 @@ All lengths are meters, speeds meters per second, angles degrees.
   that matter (a lock, a well, the stance, the range) sit above the input
   layer. `inputs.held`: what you are holding down. `inputs.shared`: pairs of
   wire names that read one physical key; an act driving both sides of a pair
-  is refused, so put the second one in the next act.
+  is refused, and so is driving one side while the other is still in
+  `inputs.held`. Release the held side in its own act first.
 - `cinematic` (only while one is playing): `playing` names the scene and
   `skippable` names the action that would leave it, or is `null` when the
   scene cannot be left. A skip action can appear in `inputs.live` through a

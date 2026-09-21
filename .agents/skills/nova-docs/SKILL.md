@@ -21,10 +21,8 @@ claims from code; do not update pages from name searches alone.
 - Ship invalidated docs with code. Delete docs for removed unshipped behavior;
   do not write migration notes for it.
 - Do not cite completed tasks. Use `TODO(<task-id>)` only for active work.
-- Add one changelog entry per released change, at most 200 joined characters.
-  Use the last release, group by subsystem, and mark breaks `**(breaking)**`.
-  Collapse pre-release revisions; omit bugs introduced and fixed in that cycle.
-  Reread all `[Unreleased]` entries after several edits.
+- Apply the Changelog section of [AGENTS.md](../../../AGENTS.md) to every
+  `CHANGELOG.md` edit. It owns those rules; do not restate them here.
 - Keep static prose in each `data-widget` block. Source game numbers from Rust
   and record their `file:line` in a source comment.
 - Do not add tests for prose. Check links, manifests, generated pages, and the

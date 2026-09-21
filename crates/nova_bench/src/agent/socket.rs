@@ -31,12 +31,22 @@ const OVER_GRACE: Duration = Duration::from_secs(60);
 const READ_TIMEOUT: Duration = Duration::from_millis(200);
 const IDLE_SLEEP: Duration = Duration::from_millis(20);
 
-/// Serve until `poll` says stop, or until the run has been over for the
-/// grace period. Returns the stop reason.
+/// Serve until `poll` says stop, or until the run has been over for
+/// [`OVER_GRACE`]. Returns the stop reason.
 pub fn serve<G: GameChannel>(
     referee: &mut Referee<G>,
     path: &Path,
+    poll: impl FnMut(&mut Referee<G>) -> Poll,
+) -> Result<String, String> {
+    serve_with_grace(referee, path, poll, OVER_GRACE)
+}
+
+/// [`serve`] with the grace named, so a test can end a run in milliseconds.
+fn serve_with_grace<G: GameChannel>(
+    referee: &mut Referee<G>,
+    path: &Path,
     mut poll: impl FnMut(&mut Referee<G>) -> Poll,
+    grace: Duration,
 ) -> Result<String, String> {
     let _ = std::fs::remove_file(path);
     let listener = UnixListener::bind(path)
@@ -46,14 +56,8 @@ pub fn serve<G: GameChannel>(
         .map_err(|error| format!("could not set the socket nonblocking: {error}"))?;
     let mut over_since: Option<Instant> = None;
     loop {
-        if let Poll::Stop(reason) = poll(referee) {
+        if let Some(reason) = stop_reason(referee, &mut poll, &mut over_since, grace) {
             return Ok(reason);
-        }
-        if referee.check_deadline() {
-            let since = over_since.get_or_insert_with(Instant::now);
-            if since.elapsed() >= OVER_GRACE {
-                return Ok("agent_exit".into());
-            }
         }
         match listener.accept() {
             Ok((stream, _)) => {
@@ -65,6 +69,9 @@ pub fn serve<G: GameChannel>(
                 let mut reader = BufReader::new(stream);
                 let mut line = String::new();
                 loop {
+                    if let Some(reason) = stop_reason(referee, &mut poll, &mut over_since, grace) {
+                        return Ok(reason);
+                    }
                     line.clear();
                     match reader.read_line(&mut line) {
                         Ok(0) => break,
@@ -84,13 +91,7 @@ pub fn serve<G: GameChannel>(
                             if matches!(
                                 error.kind(),
                                 ErrorKind::WouldBlock | ErrorKind::TimedOut
-                            ) =>
-                        {
-                            if let Poll::Stop(reason) = poll(referee) {
-                                return Ok(reason);
-                            }
-                            referee.check_deadline();
-                        }
+                            ) => {}
                         Err(_) => break,
                     }
                 }
@@ -101,6 +102,28 @@ pub fn serve<G: GameChannel>(
             Err(error) => return Err(format!("the referee socket failed: {error}")),
         }
     }
+}
+
+/// The stop check both loops make: the poll's word first, then the grace that
+/// runs from the moment the run ended. A connected client takes it before
+/// every read, so neither holding a connection open nor asking faster than
+/// [`READ_TIMEOUT`] skips the grace.
+fn stop_reason<G: GameChannel>(
+    referee: &mut Referee<G>,
+    poll: &mut impl FnMut(&mut Referee<G>) -> Poll,
+    over_since: &mut Option<Instant>,
+    grace: Duration,
+) -> Option<String> {
+    if let Poll::Stop(reason) = poll(referee) {
+        return Some(reason);
+    }
+    if referee.check_deadline() {
+        let since = over_since.get_or_insert_with(Instant::now);
+        if since.elapsed() >= grace {
+            return Some("agent_exit".into());
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -183,6 +206,71 @@ mod tests {
         })
         .unwrap();
         client.join().unwrap();
+        assert_eq!(reason, "agent_exit");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_grace_ends_the_run_while_a_client_keeps_sending() {
+        let dir = std::env::temp_dir().join(format!("nova-bench-grace-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("referee.sock");
+        let mut referee = Referee::new(
+            Scripted(vec![]),
+            Bus::quiet(),
+            Budget {
+                ticks: 1000,
+                turns: 10,
+                deadline: Duration::from_millis(50),
+            },
+            false,
+        );
+        referee.start().unwrap();
+        let server_path = path.clone();
+        let (done, served) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let reason = serve_with_grace(
+                &mut referee,
+                &server_path,
+                |_| Poll::Continue,
+                Duration::from_millis(200),
+            );
+            let _ = done.send(reason);
+        });
+        let started = Instant::now();
+        let held = loop {
+            if let Ok(stream) = UnixStream::connect(&path) {
+                break stream;
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(5),
+                "server never came up"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        // Ask again the moment each reply lands, so no read ever waits out
+        // READ_TIMEOUT: the server only sees the grace if it checks between
+        // requests.
+        let mut writer = held.try_clone().unwrap();
+        let mut reader = BufReader::new(held);
+        let started = Instant::now();
+        let reason = loop {
+            if let Ok(reason) = served.try_recv() {
+                break reason.unwrap();
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(5),
+                "the grace never ended the run while a client kept sending requests"
+            );
+            if writeln!(writer, r#"{{"observe": {{}}}}"#)
+                .and_then(|()| writer.flush())
+                .is_err()
+            {
+                continue;
+            }
+            let mut reply = String::new();
+            let _ = reader.read_line(&mut reply);
+        };
         assert_eq!(reason, "agent_exit");
         let _ = std::fs::remove_dir_all(&dir);
     }

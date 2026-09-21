@@ -42,11 +42,8 @@ Transient working files live outside the repo, and task-scoped records live in
 
 Before you commit, ask three questions and act on each "yes":
 
-1. **Did user-visible behavior change?** Add a line to `CHANGELOG.md` under
-   `## [Unreleased]`, in the right subsystem section (Gameplay & Flight, Combat
-   & Weapons, Ships & Sections, Scenarios & Objectives, Modding & Mod Portal,
-   Interface & HUD, Web & Platform, Audio & Visuals, Performance, Fixes,
-   Internals & Tooling). One terse line; tag a format break **(breaking)**.
+1. **Did user-visible behavior change?** Apply the Changelog section of
+   `AGENTS.md`; it owns the entry and release-baseline rules.
 2. **Did player-facing behavior change** (controls, HUD, a verb, a section, a
    weapon, a scenario primitive, the modding UX)? Update the player wiki
    page(s) it affects, and the tutorial if the first-flight flow moved. A wiki

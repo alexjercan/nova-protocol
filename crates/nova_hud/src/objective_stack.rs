@@ -32,7 +32,7 @@
 //! the owner retired that card, so the stack is the sole presentation of a
 //! posting and no handover gate stands between the two.
 
-use bevy::prelude::*;
+use bevy::{ecs::relationship::RelatedSpawner, prelude::*};
 use nova_gameplay::{objectives::GameObjectives, prelude::*};
 use nova_input::prelude::{source_label, InputBindings};
 use nova_ui::{
@@ -384,24 +384,57 @@ fn sync_objective_chips(
     let Ok(stack) = q_stack.single() else {
         return;
     };
-    commands.entity(stack).despawn_related::<Children>();
-    if notifications.shown.is_empty() {
-        return;
-    }
-
     let key = novaos_key_label(bindings.as_deref());
     let tab_cap = assets
         .as_deref()
         .and_then(|assets| assets.key_glyphs.get(&key));
-    commands.entity(stack).with_children(|stack| {
-        // Newest on top: the freshest posting is the one to read first.
-        for shown in notifications.shown.iter().rev() {
-            stack.spawn(objective_chip(shown, &theme));
+    commands
+        .entity(stack)
+        .queue_silenced(rebuild_objective_stack_children(
+            notifications.shown.clone(),
+            theme.clone(),
+            key,
+            tab_cap,
+        ));
+}
+
+/// The stack rebuild, as ONE entity command.
+///
+/// It is one command, and a SILENCED one, on purpose. `remove_objective_stack`
+/// can despawn this same stack in the same frame - a ship destroy or a scenario
+/// unload fires `On<Remove, PlayerSpaceshipMarker>`, and no ordering edge forces
+/// a flush between that observer and this rebuild - so neither half may act on
+/// an already-dead entity. Splitting it as `despawn_related()` plus
+/// `with_children(..)` does NOT achieve that: `despawn_related` queues through
+/// the default handler, which scripted runs escalate to a panic (see
+/// examples/systems/system_menu_boot.rs), killing the proof process.
+///
+/// Pinned by `the_rebuild_survives_a_stack_despawned_in_the_same_frame`. This is
+/// the slider track's remedy (`nova_ui::widget::slider`), for the same race.
+fn rebuild_objective_stack_children(
+    shown: Vec<ObjectiveNotification>,
+    theme: ActiveUiTheme,
+    key: String,
+    tab_cap: Option<KeyCap>,
+) -> impl EntityCommand {
+    move |mut entity: EntityWorldMut| {
+        entity.despawn_related::<Children>();
+        if shown.is_empty() {
+            return;
         }
-        // One TAB affordance for the whole stack, riding it: it says "the full
-        // list is in the computer", and it leaves when the last chip does.
-        stack.spawn(tab_footer(&key, tab_cap.clone()));
-    });
+        entity.insert(Children::spawn(SpawnWith(
+            move |stack: &mut RelatedSpawner<ChildOf>| {
+                // Newest on top: the freshest posting is the one to read first.
+                for shown in shown.iter().rev() {
+                    stack.spawn(objective_chip(shown, &theme));
+                }
+                // One TAB affordance for the whole stack, riding it: it says
+                // "the full list is in the computer", and it leaves when the
+                // last chip does.
+                stack.spawn(tab_footer(&key, tab_cap));
+            },
+        )));
+    }
 }
 
 /// The keycap the affordance draws: whatever `novaos_toggle` holds NOW, not the
@@ -1095,6 +1128,58 @@ mod tests {
             chip_labels(&mut app),
             vec!["CRATES: 1/3".to_string()],
             "the re-worded posting is up immediately, with the new words"
+        );
+    }
+
+    /// The stack rebuild must be ONE silenced command, so a stack despawned in
+    /// the same frame - after `sync_objective_chips` queued its rebuild, before
+    /// that rebuild applies - no-ops instead of panicking.
+    /// `remove_objective_stack`, the `On<Remove, PlayerSpaceshipMarker>`
+    /// observer, is that despawner in production: no ordering edge covers every
+    /// ship-destroy and scenario-unload path, so which of the two lands first is
+    /// a system-index accident. A `despawn_related()` plus `with_children(..)`
+    /// split cannot survive it - `despawn_related` queues through the fallback
+    /// error handler, which scripted runs escalate to a panic (see
+    /// examples/systems/system_menu_boot.rs).
+    ///
+    /// `auto_insert_apply_deferred: false` is what makes the race
+    /// deterministic: with the default ON, the `.before` edge inserts a flush,
+    /// the despawn lands first, `sync_objective_chips` no longer matches a
+    /// stack and the race cannot happen at all.
+    #[test]
+    fn the_rebuild_survives_a_stack_despawned_in_the_same_frame() {
+        use bevy::ecs::{
+            error::{panic, FallbackErrorHandler},
+            schedule::ScheduleBuildSettings,
+        };
+
+        fn despawn_the_stack(
+            mut commands: Commands,
+            q_stack: Query<Entity, With<ObjectiveStackHudMarker>>,
+        ) {
+            for stack in &q_stack {
+                commands.entity(stack).despawn();
+            }
+        }
+
+        let mut app = stack_app();
+        // The handler the game installs under `NOVA_AUTOPILOT`, which is how
+        // every scripted run works - the configuration this bites in.
+        app.insert_resource(FallbackErrorHandler(panic));
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_build_settings(ScheduleBuildSettings {
+                auto_insert_apply_deferred: false,
+                ..default()
+            });
+        });
+        app.add_systems(Update, despawn_the_stack.before(sync_objective_chips));
+
+        post(&mut app, "salvage", "Salvage the wreck");
+        app.update();
+
+        assert!(
+            chip_ids(&mut app).is_empty(),
+            "the stack is gone, so its rebuild spawned nothing"
         );
     }
 }

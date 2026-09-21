@@ -63,7 +63,17 @@ before adding a type, function, or test. Continue an approved design directly.
 - Edit Rust builders; regenerate, lint, and run content. Never hand-edit
   generated base RON. Search every runtime-ID consumer.
 - Put shared IDs in the lowest shared crate. Keep fixture IDs local.
-- Ship invalidated docs with code. Do not cite tasks in durable docs except an
-  active `TODO(<task-id>)`.
-- Base changelog entries on the last release. Mark format breaks as
-  `**(breaking)**`. Remove docs for removed unshipped behavior.
+- Ship invalidated docs with code. Remove docs for removed unshipped behavior.
+  Do not cite tasks in durable docs except an active `TODO(<task-id>)`.
+
+## Changelog
+- This section owns changelog policy. Other docs may point here but must not
+  define conflicting rules.
+- Add one entry per released change under `## [Unreleased]`.
+- Base entries on the last release. Group them under the subsystem headings
+  that the `CHANGELOG.md` banner names.
+- Keep each entry at most 200 characters with its lines joined.
+- Mark a format break `**(breaking)**`.
+- Collapse pre-release revisions. Omit a bug that was introduced and fixed
+  since the last release.
+- Reread all `[Unreleased]` entries after several edits.

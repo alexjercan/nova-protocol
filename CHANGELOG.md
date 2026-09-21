@@ -11,9 +11,19 @@ than by Added/Changed/Fixed. This project adheres to
 
 **Before editing this file, read the Changelog section of `AGENTS.md`.**
 It owns the rules - the release baseline, the 200-character limit, and what
-does NOT get an entry - and it is the only place they are written down.
+does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
+
+### Interface & HUD
+
+- Objective notification rebuilding now survives same-frame ship teardown, and
+  buffered keys after launching a NOVA OS app no longer edit the hidden prompt.
+
+### Internals & Tooling
+
+- Agent Bench enforces post-run grace on persistent clients and rejects
+  shared-key gestures that conflict with actions held from prior acts.
 
 ## [0.14.0] - 2026-09-19
 

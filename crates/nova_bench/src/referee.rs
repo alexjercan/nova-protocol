@@ -270,7 +270,7 @@ impl<G: GameChannel> Referee<G> {
             // The world says which actions share a physical key, so a game
             // that declares a new shadow is guarded here without an edit.
             let shared = self.last.as_ref().map(shared_keys).unwrap_or_default();
-            if let Err(error) = check_shared_keys(&gestures, &shared) {
+            if let Err(error) = check_shared_keys(&gestures, &self.held, &shared) {
                 return json!({ "error": error });
             }
             let ticks = match act.get("ticks") {

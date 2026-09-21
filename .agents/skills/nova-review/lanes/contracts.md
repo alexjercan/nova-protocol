@@ -26,8 +26,8 @@ Read `docs/keeping-docs-in-sync.md` for the documentation map.
 - Documentation the change invalidated: player behavior in `web/src/wiki/`,
   creator contracts in `web/src/create/`, developer mechanisms in `docs/`.
   Re-derive a claim from the code; do not only grep for the name.
-- `CHANGELOG.md`: apply AGENTS.md's release-baseline and entry rules. Collapse
-  pre-release revisions; omit bugs introduced and fixed inside the cycle.
+- `CHANGELOG.md`: apply the Changelog section of `AGENTS.md`, which owns the
+  release-baseline and entry rules.
 
 ## Verifying
 
