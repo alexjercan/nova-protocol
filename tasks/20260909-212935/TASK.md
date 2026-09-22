@@ -46,9 +46,10 @@ can be uploaded before an app exists.
    - [x] at least five 1920x1080, 16:9 gameplay screenshots, with at least four
      suitable-for-all-ages images marked where their content permits - ten are
      shot and five are all-ages, in carousel order, same upload;
-   - [x] the gameplay-first 1920x1080 MP4 uploaded to Steam, not linked from
+   - [ ] the gameplay-first 1920x1080 MP4 uploaded to Steam, not linked from
      another video host - the cut is built and approved (68.5 s; see
-     `20260909-212954`), so this is an upload once the app exists;
+     `20260909-212954`), and this item stays unchecked until the upload itself
+     lands, which needs the app ID above;
    - [ ] approved short and long descriptions.
 2. Fill the creator, supported language, Windows/macOS/Linux requirements,
    genre, tags, supported features, mature-content survey, legal, and release

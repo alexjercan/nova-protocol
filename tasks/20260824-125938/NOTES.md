@@ -567,9 +567,14 @@ superseded.
 - **Prepared work needs an owner the scenario sweep does not have.** A pending
   job entity and a prepared-but-unspawned sector are not scenario objects, so
   `teardown_scenario_entities` cannot see them. The spike adds one stage that
-  runs ONLY while no scenario is live and drops both. Without it an unloaded
-  session leaves workers running and the next session materializes sectors the
-  previous one asked for. A real world plugin has the same hole.
+  drops both, ahead of the streaming stages, whenever the session ends or is
+  replaced. Liveness alone is not enough: `on_load_scenario` tears the old
+  session down and writes the new `CurrentScenario` inside one observer call,
+  so a scenario-to-scenario reload never passes through a frame where
+  `scenario_is_live` is false. The condition therefore also fires on
+  `CurrentScenario` changing. Without it an unloaded or reloaded session leaves
+  workers running and the next session materializes sectors the previous one
+  asked for. A real world plugin has the same hole.
 - **One materialization a frame is the affordable shape.** Spawning is what is
   left on the main thread, and it is a command batch per body. A 125-cell
   window therefore costs 125 spawn frames after its preparations land. No

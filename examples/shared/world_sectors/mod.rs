@@ -101,20 +101,25 @@
 //! - the plugin owns the WORK. A pending [`SectorJob`] and a prepared
 //!   [`ReadySectors`] payload are not scenario objects and the scenario sweep
 //!   cannot see them, so [`clear_sector_work`] drops them the moment the
-//!   session stops being live. Without it a reloaded session would materialize
-//!   sectors the session before it asked for.
+//!   session STOPS BEING THIS SESSION. That is two events, not one: an
+//!   unload, and a `LoadScenario` that replaces a live scenario. The second
+//!   one never passes through a no-scenario frame - `on_load_scenario` tears
+//!   the old session down and writes the new `CurrentScenario` in one observer
+//!   call - so liveness alone cannot see it and the condition reads
+//!   `CurrentScenario` CHANGING as well. Without that a reloaded session would
+//!   materialize sectors the session before it asked for.
 //!
 //! Shared by three examples on purpose: `system_world_sectors` asserts what
 //! `world_sectors` and `world_features` show a human, and a copied generator
 //! would let them drift into proving nothing about each other.
 
 // Three example targets, one kit: what one leaves unused another needs.
-#![allow(
+#![expect(
     dead_code,
     reason = "one source, three example targets: what one range leaves unused the playable observers need"
 )]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use bevy::{
     prelude::*,
@@ -1280,11 +1285,13 @@ fn cached_candidate<'a>(
     edge: Meters,
     cache: &'a mut BTreeMap<(FeatureLayer, [i32; 3]), Option<FeatureSphere>>,
 ) -> Result<&'a Option<FeatureSphere>, SectorFault> {
-    if !cache.contains_key(&(layer, node)) {
-        let candidate = feature_candidate(fields, world_seed, layer, node, edge)?;
-        cache.insert((layer, node), candidate);
+    match cache.entry((layer, node)) {
+        Entry::Occupied(slot) => Ok(slot.into_mut()),
+        Entry::Vacant(slot) => {
+            let candidate = feature_candidate(fields, world_seed, layer, node, edge)?;
+            Ok(slot.insert(candidate))
+        }
     }
-    Ok(&cache[&(layer, node)])
 }
 
 /// Every accepted feature sphere that reaches `coord`, ordered by layer and
@@ -2165,6 +2172,13 @@ pub fn retire_sectors(
 /// nothing else can: without this an unloaded session would leave workers
 /// running, and the next session would materialize sectors the previous one
 /// asked for.
+///
+/// Runs on both ways a session ends, which is why its condition is not just
+/// `not(scenario_is_live)`: `LoadScenario` over a LIVE scenario swaps the two
+/// inside one observer call, so there is no frame where liveness is false to
+/// catch it. It runs before the streaming stages, so a session that is
+/// replaced and re-armed in one frame cannot spawn the old session's prepared
+/// sectors into the new one.
 pub fn clear_sector_work(
     mut commands: Commands,
     jobs: Query<Entity, With<SectorJob>>,
@@ -2210,21 +2224,25 @@ pub fn free_play_scenario(game_assets: &GameAssets, id: &str, name: &str) -> Sce
 /// Ordering inside the frame, chained so bevy applies each stage's commands
 /// before the next one queries:
 ///
-/// `track_current_sector` -> [`request_sectors`] -> [`collect_sector_jobs`] ->
-/// [`materialize_ready_sector`] -> [`retire_sectors`]
+/// [`clear_sector_work`] -> `track_current_sector` -> [`request_sectors`] ->
+/// [`collect_sector_jobs`] -> [`materialize_ready_sector`] ->
+/// [`retire_sectors`]
 ///
-/// The observer is read first, so a crossing is acted on in the frame it is
-/// noticed; requesting before polling is what lets a job be started and
-/// collected in the same frame if a worker is that fast; retiring last is what
-/// keeps a sector materialized this frame from being taken back by the same
-/// frame that made it. A job that finishes or is cancelled frees its slot for
+/// The session check is first, so no frame can hand a new session work the
+/// previous one asked for. The observer is read next, so a crossing is acted
+/// on in the frame it is noticed; requesting before polling is what lets a job
+/// be started and collected in the same frame if a worker is that fast;
+/// retiring last is what keeps a sector materialized this frame from being
+/// taken back by the same frame that made it. A job that finishes or is cancelled frees its slot for
 /// the NEXT frame's [`request_sectors`], which is how a capped window walks
 /// through a 125-cell set a few sectors at a time instead of stalling once the
 /// first batch lands.
 ///
-/// [`clear_sector_work`] is the ONLY stage that runs while no scenario is
-/// live. Everything else is gated on the session, which is also what stops the
-/// loop from rebuilding the world the frame after `UnloadScenario` swept it.
+/// [`clear_sector_work`] is the only stage that runs while no scenario is
+/// live, and it is also the only one that runs on the frame the session is
+/// REPLACED. Everything else is gated on the session, which is also what stops
+/// the loop from rebuilding the world the frame after `UnloadScenario` swept
+/// it.
 pub struct WorldSectorsPlugin;
 
 impl Plugin for WorldSectorsPlugin {
@@ -2237,23 +2255,26 @@ impl Plugin for WorldSectorsPlugin {
         app.add_systems(
             Update,
             (
-                track_current_sector.run_if(resource_exists::<SectorSettings>),
+                clear_sector_work
+                    .run_if(not(scenario_is_live).or_else(resource_changed::<CurrentScenario>)),
                 (
-                    request_sectors,
-                    collect_sector_jobs,
-                    materialize_ready_sector,
-                    retire_sectors,
+                    track_current_sector.run_if(resource_exists::<SectorSettings>),
+                    (
+                        request_sectors,
+                        collect_sector_jobs,
+                        materialize_ready_sector,
+                        retire_sectors,
+                    )
+                        .chain()
+                        .run_if(
+                            resource_exists::<SectorSettings>
+                                .and_then(resource_exists::<CurrentSector>),
+                        ),
                 )
                     .chain()
-                    .run_if(
-                        resource_exists::<SectorSettings>
-                            .and_then(resource_exists::<CurrentSector>),
-                    ),
+                    .run_if(scenario_is_live),
             )
-                .chain()
-                .run_if(scenario_is_live),
+                .chain(),
         );
-
-        app.add_systems(Update, clear_sector_work.run_if(not(scenario_is_live)));
     }
 }
