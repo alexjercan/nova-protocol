@@ -199,8 +199,14 @@ impl SectorCoord {
     /// That keeps cell (0, 0, 0) around the world origin, which is where the
     /// scenario loader parks a cameraless scene's free-fly camera: a cornered
     /// grid would open every run looking out of the field instead of into it.
+    ///
+    /// `floor` after the half-cell shift rather than `round`: `f32::round`
+    /// goes half AWAY FROM ZERO, so it put `-edge/2` in cell -1 while the span
+    /// above says cell 0 owns it. That broke the interval on the negative face
+    /// only, and the face a sphere's centre lands on decides which cell owns
+    /// the sphere.
     pub fn containing(position: Meters3, edge: Meters) -> Self {
-        let cell = |meters: Meters| (meters.get() / edge.get()).round() as i32;
+        let cell = |meters: Meters| (meters.get() / edge.get() + 0.5).floor() as i32;
         Self {
             x: cell(position.x()),
             y: cell(position.y()),
@@ -1584,13 +1590,18 @@ pub fn generate_sector(
                     }
                 }
 
-                // Rocks come off the COMBINED asteroid influence, so two
-                // spheres overlapping a cell fill it more than either would
-                // alone and a cell no sphere reaches gets none at all.
-                // CEILING, not rounding: a cell a belt reaches at all holds
-                // at least one rock. Rounding put a whole outer shell of a
-                // sphere at zero rocks, so the belt had a hard edge one cell
-                // inside its own rim and the falloff bought nothing.
+                // Rocks come off the COMBINED asteroid influence AT THE CELL
+                // CENTRE, so two spheres covering that one point fill the cell
+                // more than either would alone. A sphere contributes nothing
+                // to a cell whose centre it does not reach - including a
+                // fringe cell it only clips a corner of, which
+                // `sector_features_from` still lists among the cell's spheres
+                // because `reaches_box` tests the whole box.
+                // CEILING, not rounding, over the cells that ARE covered: one
+                // whose centre a belt reaches at all holds at least one rock.
+                // Rounding put a whole outer shell of covered cells at zero
+                // rocks, so the belt had a hard edge one cell inside its own
+                // rim and the falloff bought nothing.
                 let count = (strengths[FeatureLayer::Asteroid.index()]
                     * MAX_SECTOR_ASTEROIDS as f32)
                     .ceil() as usize;

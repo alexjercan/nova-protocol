@@ -310,8 +310,14 @@ fn update_readout(
     );
 }
 
-/// Log one census line per crossing: what the field put in the window the
-/// observer just entered.
+/// Log one census line per crossing: a SNAPSHOT of the live roots at the
+/// moment the observer entered a new window, not the finished window.
+///
+/// `materialize_ready_sector` spawns ONE sector a frame, so a window is still
+/// filling when this fires: the live set mixes the cells the new window has
+/// reached with the ones the old window has not retired yet. That is why the
+/// line carries its own `live of total` count - the count is what makes the
+/// snapshot readable as evidence instead of a claim about a whole window.
 ///
 /// A log rather than a readout line because it is the thing a run is READ
 /// afterwards for - a headless run of this example leaves behind the census of
