@@ -2233,16 +2233,17 @@ pub fn free_play_scenario(game_assets: &GameAssets, id: &str, name: &str) -> Sce
 /// on in the frame it is noticed; requesting before polling is what lets a job
 /// be started and collected in the same frame if a worker is that fast;
 /// retiring last is what keeps a sector materialized this frame from being
-/// taken back by the same frame that made it. A job that finishes or is cancelled frees its slot for
-/// the NEXT frame's [`request_sectors`], which is how a capped window walks
-/// through a 125-cell set a few sectors at a time instead of stalling once the
-/// first batch lands.
+/// taken back by the same frame that made it. A job that finishes or is
+/// cancelled frees its slot for the NEXT frame's [`request_sectors`], which is
+/// how a capped window walks through a 125-cell set a few sectors at a time
+/// instead of stalling once the first batch lands.
 ///
-/// [`clear_sector_work`] is the only stage that runs while no scenario is
-/// live, and it is also the only one that runs on the frame the session is
-/// REPLACED. Everything else is gated on the session, which is also what stops
-/// the loop from rebuilding the world the frame after `UnloadScenario` swept
-/// it.
+/// [`clear_sector_work`] is the only stage NOT gated on the session being
+/// live: it runs while no scenario is live, and it also runs on the frame a
+/// live session is replaced - ahead of the streaming stages, which serve the
+/// NEW session on that same frame. Everything else is gated on the session,
+/// which is also what stops the loop from rebuilding the world the frame after
+/// `UnloadScenario` swept it.
 pub struct WorldSectorsPlugin;
 
 impl Plugin for WorldSectorsPlugin {
