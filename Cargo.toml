@@ -206,6 +206,23 @@ path = "examples/playable/world_sectors.rs"
 name = "world_features"
 path = "examples/playable/world_features.rs"
 
+# The field itself rather than what it built: one flat plane through the world
+# sampled on the CPU at a kilometre a sample and painted as a heatmap, with the
+# layer's gate drawn on it as a contour. What a tuning pass judges here is how
+# much of the world sits just under a threshold, which no picture of the
+# accepted spheres can show.
+[[example]]
+name = "world_field_slices"
+path = "examples/playable/world_field_slices.rs"
+
+# The same raw field read in three dimensions: a bounded sample lattice around
+# the feature home cell, drawn as sparse crosses wherever a layer clears its
+# gate. What a human judges here is whether the gated regions are BLOBS with
+# shape and overlap or a scatter, which a flat slice cannot answer.
+[[example]]
+name = "world_field_clouds"
+path = "examples/playable/world_field_clouds.rs"
+
 # systems/ - the section curriculum first: one range per ship section, each
 # walking a named roster of invariants across several rounds.
 [[example]]

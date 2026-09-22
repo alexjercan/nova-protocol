@@ -289,6 +289,10 @@ example targets that share one kit:
 - `examples/playable/world_sectors.rs` - the uniform generator, flown by hand.
 - `examples/playable/world_features.rs` - the featured generator, flown by
   hand, with the feature spheres drawn.
+- `examples/playable/world_field_slices.rs` - the raw field of one layer on one
+  plane, painted as a heatmap with its gate drawn on it.
+- `examples/playable/world_field_clouds.rs` - the same raw field in three
+  dimensions, as sparse marks wherever a layer clears its gate.
 
 Owner decisions taken on 2026-09-22, after the first synchronous version ran:
 

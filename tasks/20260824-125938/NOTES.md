@@ -466,8 +466,10 @@ lifetime; `examples/shared/world_fixture/mod.rs` decides the seed, the cell edge
 and the content the examples fill a world from;
 `examples/systems/system_world_sectors.rs` asserts the lifetime;
 `examples/playable/world_sectors.rs` and `examples/playable/world_features.rs`
-let a human fly its two generators. Two production interfaces moved - the
-asteroid split (see the async entry below) and the same split for planets,
+let a human fly its two generators; and `examples/playable/world_field_slices.rs`
+and `examples/playable/world_field_clouds.rs` look straight at the raw field
+the generators are gated on. Two production interfaces moved - the asteroid
+split (see the async entry below) and the same split for planets,
 `prepare_planet` plus `planet_scenario_object_prepared`. `noise` moved from a
 root dev dependency to a `nova_world` production dependency, and the crate is
 opt-in: nothing adds `NovaWorldPlugin` to `AppBuilder`.

@@ -34,6 +34,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New opt-in `nova_world` crate: a plugin streams a 5x5x5 window of 32 km cells
   over one live scenario and fills each from noise-gated asteroid, planet and
   anchorage features prepared off the frame.
+- Two debug examples draw the world feature field itself: a CPU-sampled heatmap
+  of one plane with the layer's gate as a contour, and a 3D cloud of where each
+  layer clears.
 
 ## [0.14.0] - 2026-09-19
 

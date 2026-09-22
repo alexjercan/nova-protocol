@@ -204,7 +204,7 @@ jobs:
               greeble_catalog block_bench wfc_arena wfc_ships first_shift_ships
               loop_belt_compare loop_derived_skin screenshot_hero_ship
               screenshot_thruster_gallery world_sectors world_features
-              system_world_sectors
+              world_field_slices world_field_clouds system_world_sectors
     steps:
       - uses: actions/checkout@v4
 
