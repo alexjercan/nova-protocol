@@ -875,10 +875,29 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the chapter ends in victory with the board clear and both hulls alive",
         ],
     ),
+    (
+        "system_world_sectors",
+        &[
+            "the free-play bootstrap authors no objects",
+            "a sector is the same sector in any visit order",
+            "invalid sector geometry refuses before materialization",
+            "one feature sphere is one sphere from every cell that sees it",
+            "same-layer feature spheres never overlap",
+            "independent feature layers may overlap",
+            "every physical object stands clear inside its own sector",
+            "arming the stream materializes the whole desired set",
+            "every sector is requested and prepared before it is materialized",
+            "a featured sector owns real planetoids and inert neutral hulls",
+            "crossing one boundary retains the shared slab and swaps a face",
+            "the return trip leaves no duplicate root",
+            "work for an undesired sector never materializes",
+            "unloading the session removes every sector root",
+        ],
+    ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 419;
+const SYSTEMS_INVARIANTS: usize = 433;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

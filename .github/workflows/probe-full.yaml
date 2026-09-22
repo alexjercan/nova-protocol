@@ -195,13 +195,16 @@ jobs:
               lesson_build_sections lesson_build_geometry lesson_build_generate
               lesson_build_rail lesson_build_flight_test
           # Everything a generator makes before a scenario picks it up:
-          # asteroids, planets, greebles, WFC ships, thrusters. 867 s.
+          # asteroids, planets, greebles, WFC ships, thrusters and sectors.
+          # 867 s for the first thirteen; the three sector examples joined
+          # after that sweep and are not yet measured.
           - shard: worldgen
             examples: >-
               asteroid_kinds compare_asteroids planet_types compare_planets
               greeble_catalog block_bench wfc_arena wfc_ships first_shift_ships
               loop_belt_compare loop_derived_skin screenshot_hero_ship
-              screenshot_thruster_gallery
+              screenshot_thruster_gallery world_sectors world_features
+              system_world_sectors
     steps:
       - uses: actions/checkout@v4
 

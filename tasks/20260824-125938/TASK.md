@@ -275,6 +275,58 @@ the owner to validate. Nothing in it is committed by being written here.
 
 Each entry names the child task it would become.
 
+## Spike evidence, 2026-09-22
+
+The streaming lifetime is no longer argued from code reading. It runs, in two
+example targets that share one kit:
+
+- `examples/shared/world_sectors/mod.rs` - two generators, the feature field
+  and the job lifetime.
+- `examples/systems/system_world_sectors.rs` - fourteen asserted claims, from
+  an empty bootstrap to a swept unload.
+- `examples/playable/world_sectors.rs` - the uniform generator, flown by hand.
+- `examples/playable/world_features.rs` - the featured generator, flown by
+  hand, with the feature spheres drawn.
+
+Owner decisions taken on 2026-09-22, after the first synchronous version ran:
+
+- **Spike cell edge: 32 km**. A travel-scale cell, so a boundary is crossed
+  under way (about 17 s held on the free-fly ramp) rather than drifted over.
+- **Active window: 5x5x5, radius 2** - 125 sectors and 500 bodies across a
+  160 km cube, leaving at least 64 km of live world on every axis ahead of an
+  observer standing anywhere in the centre cell.
+- **Sector preparation is asynchronous**, on `AsyncComputeTaskPool`. On wasm
+  that pool is the page's own task queue on the one thread it has; that is
+  accepted for the spike.
+- **In-flight preparation is bounded** to one job per pool thread. A window
+  this size wants far more work than a machine can run, so the rest of the
+  desired set stays unrequested - not queued - and the nearest missing cell
+  takes the next slot that opens.
+
+These correct earlier text in `NOTES.md`, which said 2 km and "no async". What
+the runs established, including the two production-interface findings, is
+recorded in the `Spike evidence` section of `NOTES.md`. The 32 km edge and the
+125-cell window are the selected baseline; production density, activation
+horizon, and body sizes remain open.
+
+Owner decisions taken on 2026-09-22, after the uniform generator ran:
+
+- **What a cell holds comes from a world above it**, not from the cell. Three
+  independent global `Fbm<Perlin>` fields gate feature spheres on a coarse
+  128 km lattice, and a cell contains whatever reaches it. The layers are
+  independent on purpose: an asteroid belt, a planet and an anchorage may
+  share ground, which is what makes a place read as a place.
+- **A feature sphere is pure data** - id, owner cell, centre, radius,
+  strength - so the cell that owns one and the five that only see it agree
+  without talking to each other.
+- **Same-layer spheres are thinned by rank** against a finite halo, never by
+  visit order. `system_world_sectors` asserts both the thinning and the
+  cross-layer overlap.
+- **Density is tuned, not authored.** The fixed thresholds were moved until
+  the pinned seed gives empty, single-layer and blended cells near the
+  origin. The window at `(-2, -2, 2)` holds all three layers, which is where
+  both hand-run examples open.
+
 ## Done when
 
 - The three architecture options are compared against verified code seams,
@@ -293,4 +345,10 @@ Each entry names the child task it would become.
 - The shared boundaries with `20260824-125943` each carry an agreed decision
   or a recorded open decision on both tasks.
 - Child tasks exist, each in one of the three classification lists.
-- No open-world code, content, or schema has been written by this task.
+- No open-world runtime, content, or schema has been written by this task.
+  The spike kit lives in `examples/` and is not wired into a game plugin. The
+  two production changes it forced - splitting the asteroid spawn into
+  `prepare_asteroid_geometry` and `asteroid_scenario_object_prepared`, and the
+  planet spawn into `prepare_planet` and `planet_scenario_object_prepared` -
+  are refactors: authored scenario spawning takes the same path and spawns the
+  same rock and the same world.

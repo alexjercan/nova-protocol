@@ -101,10 +101,13 @@ Names and Rust representation remain open. The important invariant is that a
 sector is not traversable or targetable until collision-relevant content is
 ready. Decorative materialization may finish later.
 
-The first implementation should remain synchronous and frame-budgeted. Nova
-has no gameplay-entity async spawning precedent. Background computation may
-be investigated later, but ECS entity creation must still return to the main
-world with explicit ordering and cancellation.
+This was written as "keep the first implementation synchronous and
+frame-budgeted; Nova has no gameplay-entity async spawning precedent". The
+2026-09-22 spike run below RETIRES the first half and corrects the second:
+`asteroid_carve` was already the precedent, the split is cheap, and the spike
+now prepares a whole sector on `AsyncComputeTaskPool`. What survives unchanged
+is the requirement this paragraph was protecting - ECS entity creation returns
+to the main world with explicit ordering and cancellation.
 
 ## Coordinate model
 
@@ -454,6 +457,193 @@ The web pass found no official Avian 0.7 floating-origin procedure. It also did
 not justify the earlier agents' exact millisecond or line-count estimates.
 Those estimates are excluded. Claims about named commercial games' internal
 algorithms are also excluded unless a primary source is found.
+
+## Spike evidence: the two world-sector examples, 2026-09-22
+
+An example-local spike now runs the streaming lifecycle for real:
+`examples/shared/world_sectors/mod.rs` holds the kit,
+`examples/systems/system_world_sectors.rs` asserts it, and
+`examples/playable/world_sectors.rs` and `examples/playable/world_features.rs`
+let a human fly its two generators. Two production interfaces moved - the
+asteroid split (see the async entry below) and the same split for planets,
+`prepare_planet` plus `planet_scenario_object_prepared` - and `noise` was added
+as a root dev dependency; nothing else in a crate changed.
+Only what the runs CHANGED about the notes above is recorded here.
+
+Owner decisions taken on 2026-09-22, after the first synchronous version ran:
+the spike cell is 32 km, the active window is 5x5x5 at radius 2 (125 sectors,
+500 bodies, a 160 km cube, at least 64 km of live world on every axis ahead of
+an observer anywhere in the centre cell), sector preparation moves to
+`AsyncComputeTaskPool`, and in-flight preparation is bounded to one job per
+pool thread. Earlier text in this section said 2 km and "no async"; both are
+superseded.
+
+### Confirmed by a run
+
+- The empty free-play bootstrap is real: the loader accepts a `ScenarioConfig`
+  with zero events and zero objects, logs `0 handler(s) and 0 object(s)`,
+  releases the load gate, and gives the session a skybox and a free-fly camera.
+- Streaming over that live scenario needs neither `LoadScenario` nor a scenario
+  event action. Arming brings up 125 roots; a one-cell +X crossing keeps 100 as
+  the SAME entities, retires 25 and adds 25; the return set is the original 125
+  with no duplicate; `UnloadScenario` leaves zero sector roots, zero scenario
+  objects, zero pending jobs and zero prepared results. R8's proof shape holds
+  at this scale.
+- Nested ownership works as written: a root carrying both `ScenarioScopedMarker`
+  and a narrow sector marker retires alone under `Entity::despawn` (recursive,
+  so its bodies go with it) and is still swept by scenario teardown.
+- Coordinate-derived seed domains give visit-order independence directly. The
+  125 cells describe identically generated forward, reversed and by stride.
+
+### New facts, not in the notes above
+
+- **A sector root cannot be posed.** `base_scenario_object` seeds a
+  `GlobalTransform` from the entity's own `Transform`
+  (`crates/nova_scenario/src/actions/spawn.rs:102`), and avian's
+  `transform_to_position` reads that seed in `FixedPostUpdate`, ahead of bevy's
+  `TransformSystems::Propagate` in `PostUpdate`. A root posed at the sector
+  centre therefore hands every child body a global `Position` equal to its
+  LOCAL offset, and `Position` is authoritative from then on. The spike keeps
+  roots at the world origin as pure ownership nodes. A real materializer must
+  either do the same or seed each child's global pose itself. This belongs
+  beside R1 and R5: it is a coordinate-space bug that never reaches the
+  physics rebase, it happens at spawn.
+- **`assert_scenario_loaded` cannot gate a free-play bootstrap.** Its smoke
+  contract (`crates/nova_debug/src/harness.rs:488`) FAILS a scenario with zero
+  handlers or zero objects. An intentionally empty bootstrap needs a different
+  smoke gate, and the existing one would have to learn about free play.
+- **Placing a free-fly camera takes a rig re-insert.** The rig's pose lives in
+  a private `WASDCameraTarget` (`crates/nova_ship/src/camera/wasd.rs`) and
+  `sync_transform` rewrites the transform from it every frame, so a
+  `Transform` write from outside is discarded within one frame. Reproduced:
+  `world_features` wrote the transform, the observer stayed at the origin, the
+  window streamed around the origin, and the run hung waiting for a window
+  that was never asked for. The public lever that KEEPS free flight is
+  re-inserting the `WASDCamera` component together with the new transform -
+  `initialize_wasd_camera` is an `On<Insert, WASDCamera>` observer and re-reads
+  the transform it is given. `pose_camera` is the other lever and REMOVES
+  `WASDCameraController`, ending free flight. A world plugin that places the
+  player's free camera - at a save point, or after a rebase - should get a
+  named seam rather than each caller knowing to re-insert the rig.
+- **Sector geometry has to be sized against the DRAWN body, not the authored
+  radius.** The mesh reaches 3.5-6x the nominal radius, so 60-120 m nominal
+  rocks span about 420-1,440 m in diameter and the first hand-run frame was one
+  rock's face. The approved 30-60 m spike range spans about 210-720 m and reads
+  as a field. At the approved 32 km cell the same four bodies read as
+  scattered landmarks rather than a belt, which is what a travel-scale cell
+  looks like and is the reason the cell was raised: 32 km is about 530 s at the
+  60 m/s free-fly base and about 17 s held on the 32x ramp, so a boundary is
+  crossed under way rather than drifted over. The 32 km edge and the 125-cell
+  window are the selected baseline; the body count and radius remain
+  visualization defaults.
+- **The validation boundary R9 asks for is cheap.** One `SectorFault`
+  vocabulary covers invalid settings, an unknown kind, a duplicate body id, a
+  duplicate root and an absent observer, and `generate_sector` returning
+  `Result` makes "described" the readiness gate. Two of the five - unknown kind
+  and duplicate id - are guards over the spike's own tables and are unreachable
+  by construction today; they exist because a mod content table and a changed
+  id scheme are exactly what would reach them.
+
+- **Async sector preparation is cheap, and the split is a two-function
+  interface.** `asteroid_scenario_object` used to mesh a rock, hull it and
+  insert the whole bundle in one call. It now prepares and delegates:
+  `prepare_asteroid_geometry(seed, radius) -> PreparedAsteroidGeometry` is the
+  pure, `World`-free half (noise mesh, convex hull, geometric extent), and
+  `asteroid_scenario_object_prepared(entity, config, seed, geometry)` is the
+  insert. The prepared value carries the seed and radius it answers for and the
+  insert refuses a mismatch, because a rock drawn as one shape and collided as
+  another is undetectable downstream. Authored scenario spawning is byte-for-
+  byte the same path - it prepares inline.
+- **A sector's whole preparation fits in one job.** `SectorJob` describes,
+  validates and meshes all four bodies of a cell on `AsyncComputeTaskPool` and
+  returns `Result<PreparedSector, SectorFault>`; the fault crosses back as a
+  VALUE and fails on the main thread where it can name the cell, instead of
+  poisoning a pool thread. Four explicit stages - request, collect,
+  materialize, retire - and every decision taken over one total order,
+  distance from the observer's cell before the coordinate itself, so which
+  worker finished first cannot change which sector comes up or which one a
+  frame spends its budget on. The range proves preparations overlap, which a
+  generate-and-spawn loop cannot produce.
+- **Prepared work needs an owner the scenario sweep does not have.** A pending
+  job entity and a prepared-but-unspawned sector are not scenario objects, so
+  `teardown_scenario_entities` cannot see them. The spike adds one stage that
+  runs ONLY while no scenario is live and drops both. Without it an unloaded
+  session leaves workers running and the next session materializes sectors the
+  previous one asked for. A real world plugin has the same hole.
+- **One materialization a frame is the affordable shape.** Spawning is what is
+  left on the main thread, and it is a command batch per body. A 125-cell
+  window therefore costs 125 spawn frames after its preparations land. No
+  wall-clock claim is attached to that, and the range asserts none.
+- **A window is a priority, not a work queue.** 125 cells is far more
+  preparation than a machine can run, and the first version asked for all of
+  it: one job entity per missing cell, every one of them carrying a task.
+  In-flight jobs are now bounded to one per pool thread, and the desired cells
+  with no slot are left implicit - unrequested, with nothing holding them. The
+  nearest missing cell takes the next slot that opens, so a moving observer
+  re-aims the work by standing somewhere else rather than by cancelling a
+  queue, and materialization drains the same way, nearest ready cell first.
+  The range asserts the peak in flight never passes the cap, and still passes
+  two where the pool has the threads for it.
+
+### The feature field, 2026-09-22
+
+The second generator replaced fixed per-cell body counts with three
+independent global `Fbm<Perlin>` fields on a 128 km lattice. Two defects were
+found by a throwaway out-of-repo spike on the same `noise` version, before any
+of it reached a Bevy build, and neither could have been tuned away:
+
+- **A lattice that lands on the noise grid reads zero.** The macro wavelength
+  (256 km) is exactly two lattice spacings, so every node with all-even indices
+  - half the lattice, including `(0, 0, 0)` - sampled a Perlin GRIDPOINT, where
+  Perlin is identically zero, on all three layers at once. Half the world was
+  rejected whatever the thresholds said. Fixed by sampling the field at an
+  origin offset that is a multiple of neither the lattice nor the wavelength.
+- **A field normalized against its theoretical range is a dead field.**
+  `Fbm` scales into [-1, 1], but the practical maximum of this field is about
+  0.57 and an accepted node reads 0.20 to 0.35. Strength normalized against 1.0
+  put every cell at zero rocks. Fixed with a measured ceiling, and with a
+  rounding rule that gives any cell a belt reaches at least one rock.
+
+Both are general: a coarse decision lattice over a gradient-noise field has to
+be offset off the noise grid, and any strength derived from it has to be
+normalized against the field's MEASURED range, not its declared one.
+
+### Runs behind this section, 2026-09-22
+
+All under `nix develop --command`, in the sprout worktree, on the box's
+RTX 3060 Ti through `DISPLAY=:99`:
+
+- `cargo test -p nova_scenario --lib objects::planet` - 24 passed. The
+  determinism proof now compares the inline planet path against the prepared
+  one.
+- `cargo test -p nova_probe_cli --test catalog_drift` - 2 passed, with the
+  `system_world_sectors` roster at 14 claims and `SYSTEMS_INVARIANTS` at 433.
+- `NOVA_AUTOPILOT=1 cargo run --example system_world_sectors --features debug`
+  - all 14 claims held, `cycle complete, no panic (t=3.8s)`. The armed window
+  holds 7 spheres (4 asteroid, 2 planet, 1 anchorage), every one of them seen
+  from more than one cell and agreeing everywhere; 7 same-layer pairs all
+  clear; 4 cross-layer pairs overlap; 52 placed objects, 24 same-cell pairs,
+  all inside the inset and clear; 1 planetoid and 2 inert neutral hulls live.
+- `NOVA_AUTOPILOT=1 cargo run --example world_sectors --features debug` -
+  `cycle complete, no panic (t=4.1s)`. The uniform generator is unchanged.
+- `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 cargo run --example world_features
+  --features debug` - `cycle complete, no panic (t=8.2s)`, three pictures
+  written and read: the field (rings and the readout over a 125-cell window),
+  the planetoid (a real world, `planet 0.97` in cell `(0, 0, 0)`), and a moored
+  block hauler in a blended cell (`asteroid 0.26  anchorage 0.51`). The rings
+  and the hull confirm what the range counts. The three pictures are kept
+  beside this file as `world-features-field.png`,
+  `world-features-planetoid.png` and `world-features-mooring.png`.
+
+### Still unproven, and deliberately out of this spike
+
+No floating origin, no rebase, no persistence, no player ship, and no frame
+budget - the async split moves work off the frame but nothing here measures a
+frame. The normal run's cell coordinate never leaves f32 range, so it says
+nothing about R1-R5. The approved 32 km edge and 125-cell window are the
+selected baseline but are not proven under production load, and nothing here
+measures how long a 125-cell window takes to fill. Four bodies and 30-60 m
+nominal radii tune only these examples; production density remains open.
 
 ## Research conclusions
 

@@ -31,6 +31,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Agent Bench enforces post-run grace on persistent clients and rejects
   shared-key gestures that conflict with actions held from prior acts.
 - PR and master-push CI run a twelve-example probe smoke instead of the whole catalog. The complete sharded suite remains manual and gates every release platform build.
+- Asteroid and planet geometry can be prepared off the frame. New world-sector
+  spike: a 5x5x5 window of 32 km cells streams noise-gated asteroid, planet and
+  anchorage features over one empty scenario.
 
 ## [0.14.0] - 2026-09-19
 
