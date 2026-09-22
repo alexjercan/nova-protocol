@@ -7,7 +7,8 @@
 Rewritten in place on 2026-09-21 at owner direction. This was an ideation
 note carrying a 2026-09-06 research document whose direction was called
 "agreed"; it is now one of the two v0.15.0 spikes that decide what a finished
-Nova is. Epic: `20260921-231507`.
+Nova is. The owner selected continuous streamed sectors on 2026-09-22 after a
+new architecture and risk pass. Epic: `20260921-231507`.
 
 This is a SPIKE. It produces decisions, recorded open choices, and child
 tasks. It does not implement the mode.
@@ -15,10 +16,13 @@ tasks. It does not implement the mode.
 ## What the mode is
 
 A seeded procedural free/open-world mode: the player flies a persistent ship
-through a world generated from a seed, rather than through a fixed authored
-sequence.
+through a procedurally unbounded fictional 3D world, rather than through a
+fixed authored sequence. It takes inspiration from Solar-System objects and
+plausible near-future technology; it is not a replica of the Solar System.
+Nearby sectors stream during flight. The map records explored space and may
+show a graph of important places and routes over the spatial sector grid.
 
-Two constraints from the owner shape every architecture option below:
+Three constraints from the owner shape the architecture:
 
 1. **Bootstrapped through a scenario, but not a scripted scenario.** The mode
    starts by loading something the scenario layer understands, because that is
@@ -26,13 +30,16 @@ Two constraints from the owner shape every architecture option below:
    be a linear RON script with an authored beat list.
 2. **The ongoing simulation is programmatic and Bevy-owned.** Faction state,
    travel, encounters, economy, and progression are systems and resources in
-   Rust, not scenario event chains. The scenario layer is the bootstrap and
-   possibly the per-place scene; it is not the world.
+   Rust, not scenario event chains. The free-play bootstrap is intentionally
+   empty: no authored filters, events, actions, or beat list drive the world.
+3. **Routine travel is continuous.** Nearby sectors load and retire in the
+   live world. Crossing an ordinary sector boundary does not call
+   `LoadScenario` and does not show a loading screen.
 
 ## Mods keep clear extension points
 
-Whatever architecture wins, a mod must still have SUPPORTED, documented ways
-in. The spike must name them explicitly and say what each one can and cannot
+The selected architecture must still give mods SUPPORTED, documented ways in.
+The spike must name them explicitly and say what each one can and cannot
 reach:
 
 - **Content**: new prototypes, hulls, and object kinds the generator can pick.
@@ -97,51 +104,145 @@ re-verified.
 - `crates/nova_core/src/lib.rs` `AppBuilder` fixes plugin order: Bevy ->
   input -> assets -> gameplay -> scenario -> UI -> debug. A world plugin has
   to declare where it sits in that order and what it may observe.
+- `crates/nova_gameplay/src/hash.rs` owns stable FNV-1a hashes and
+  `SeedStream`. Its contract explicitly rejects ambient RNG and schedule draw
+  order for reproducible generated content.
+- Avian is pinned to 0.7 and this build uses f32 physics positions. Nova has
+  no floating-origin, global-sector-coordinate, or world-streaming runtime.
+- `crates/nova_modding/src/lib.rs:77` currently has seven content variants:
+  Section, Scenario, Campaign, Style, Ship, Lesson, and UiTheme. The older
+  research's content inventory is stale.
+- `crates/nova_assets/src/storage.rs:41` has atomic `read`/`write` for small
+  key-value state and no `remove`. Its web backend is localStorage. It is not
+  yet a save-slot or unbounded world-state store.
 
-## The architecture question
+## Architecture decision: continuous streamed sectors
 
-Compare at least these three, on evidence, and pick one or record why the
-choice is still open:
+Owner decision, 2026-09-22: choose a refined form of option B. One empty
+free-play scenario stays live while a world plugin streams nearby sectors.
+Routine sector activation and retirement do not use `LoadScenario`.
 
-**A. Scenario-per-place, reload on travel.** Each station, belt, or
-encounter is a `ScenarioConfig` generated at runtime and loaded through
-`LoadScenario`. Travel is an unload plus a load.
-- Buys: the existing loader, teardown, and scoping do the work unchanged.
-- Costs: every piece of world state must live ABOVE the scenario and survive
-  `teardown_scenario_entities` and `NovaEventWorld::clear`. A load screen or
-  a hitch sits on every transition.
+Evidence for the choice:
 
-**B. One long-lived bootstrap scenario.** Load once; the world plugin
-spawns, streams, and despawns inside that single live scenario for the whole
-session.
-- Buys: no transition teardown, no state-rescue problem, continuous
-  simulation.
-- Costs: the world plugin now owns lifetime and cleanup that the scenario
-  layer owns everywhere else, and two cleanup owners is exactly the kind of
-  split that leaks entities. Needs an explicit answer for what
-  `ScenarioScopedMarker` means in this mode.
+- `LoadScenario` is an atomic replacement. It tears down every
+  `ScenarioScopedMarker`, clears `NovaEventWorld`, freezes clocks through the
+  load gate, and gates input and cameras. Those semantics conflict with
+  background streaming during flight.
+- Nova can reuse the loader's lower-level patterns - deterministic object
+  construction, validation, preloading, and scoped recursive cleanup -
+  without reusing the load event or global gate.
+- The selected player experience values continuous flight and permits a new
+  world-owned lifetime boundary.
 
-**C. Hybrid areas.** A persistent world shell plus scenario-scoped areas for
-places that want authored or generated scenes.
-- Buys: cheap local transitions, authored missions stay authored.
-- Costs: the boundary between shell-owned and area-owned state is a new
-  contract that must be written down, or it becomes ambiguous per-system.
+The cleanup owners are nested, not competing:
 
-Do not pick on aesthetics. Pick on what each option does to state ownership
-and cleanup, and say what evidence decided it.
+- **Scenario scope** owns the whole free-play session and remains the final
+  sweep when the mode ends.
+- **Sector scope** owns generated local roots for one sector and retires only
+  that subset while the scenario stays live.
+- A streamed entity may carry both scopes. Session roots such as the player,
+  camera, and UI do not carry sector ownership.
+
+Use `sector`, not `chunk`, for this spatial unit. `CarvedChunkMarker` and
+`ChunkGrace` already use chunk for carved asteroid debris.
+
+Option A dies for routine open-world travel. It remains valid for existing
+standalone scenarios. Option C remains possible later for exceptional authored
+missions, but it is not the sector-streaming mechanism.
+
+### Coordinate direction
+
+Owner decision, 2026-09-22: global space is an integer 3D sector coordinate
+plus local f32 physics positions. Crossing an origin-sector boundary performs
+a discrete rebase so Avian and rendering stay near local zero. Exact types,
+sector dimensions, active radius, and rebase schedule remain open.
+
+This is new engine work. Nova has no floating-origin code, and Avian 0.7 has
+no documented origin-rebase procedure. `NOTES.md` records the risk register
+and the proofs needed before this direction can become an implementation
+specification.
+
+### Streaming lifecycle direction
+
+A sector moves through absent, requested, generated, validated,
+materializing, active, and retiring states. Exact names remain open. The
+invariant is not open: a sector cannot become traversable until its required
+collision and gameplay content has validated and materialized. Decorative
+content may finish later. Generation and materialization are frame-budgeted;
+the player does not silently enter incomplete space.
+
+## Agent findings and risks, 2026-09-22
+
+Three local research passes covered ECS/Avian risks, generation algorithms,
+and persistence/mod contracts. A web pass checked public Avian, Bevy,
+procedural-generation, and floating-point sources. Detailed notes and source
+links are in `NOTES.md`.
+
+Critical risks to retire before implementation:
+
+- A rebase must update every relevant physics body and cached pose in one
+  ordered operation. Broadphase proxies, CCD, interpolation, sleeping bodies,
+  and transform synchronization need direct proof against Avian 0.7.
+- Docked and joint-connected bodies must never split across coordinate frames
+  or sector ownership during a crossing.
+- Camera, HUD, targeting, audio, projectiles, and world-space effects must
+  preserve relative measurements across a rebase.
+- Every generated root needs sector ownership. Repeated travel must return
+  live entity and collider counts to the same baseline.
+- Streaming bypasses the scenario-load lint gate. Generated descriptions need
+  an equivalent fail-before-spawn validation boundary.
+- A player cannot enter an unready sector. Load-ahead failure needs a visible,
+  deterministic stop rather than missing collision content.
+- Same seed must not depend on visit order, ECS schedule order, or the ambient
+  gameplay RNG. Native/web identity needs proof before it is promised.
+- A procedural infinity makes visited-sector summaries and per-object
+  tombstones unbounded. Persistence needs compaction and explicit reset
+  promises.
+- The current settings store is not yet a world-save store, especially on the
+  web. Save-write failure must be player-visible.
+
+Generation direction to evaluate:
+
+- Derive independent named seed domains from world seed, generator version,
+  integer macro/sector coordinates, purpose, and stable object identity.
+- Use hierarchical random-access fields: macro regions for broad character,
+  continuous global-coordinate noise for local variation, and stable discrete
+  decisions for persistent structures.
+- Treat sectors as query windows into one field. Do not reset noise phase or
+  independently roll boundary features per sector.
+- Generate sparse landmarks from coordinate-addressable candidates whose
+  priority is compared with neighboring cells. Sequential Poisson sampling
+  alone does not provide visit-order-independent infinite random access.
+- Generate planets and other multi-sector anchors once at macro-region scope;
+  sectors reference their stable identity rather than rolling duplicates.
+- Keep the spatial grid separate from the explored map graph. Graph nodes are
+  notable places and useful routes, not every empty cell.
+
+Excluded from the specification: agent estimates for milliseconds, lines of
+code, or delivery duration; unverified claims about commercial games'
+algorithms; byte-identical floating noise without a native/web proof.
 
 ## Decisions the spike must reach or explicitly leave open
 
-- **State ownership**: what the world plugin owns, what a scenario owns, and
-  where the line is. Name the resources and components.
-- **Cleanup**: who despawns what, and what survives a place transition.
-  Reconcile with `teardown_scenario_entities` rather than working around it.
-- **Persistence**: what a save IS (world dump vs. seed plus deltas), when it
-  is written, where it lives on each platform, and what a mod change does to
-  an existing save.
-- **Deterministic seed**: how the world seed is stored and threaded, given
-  that the global RNG seed is environment-only today and re-seeded from the
-  OS on the web. Same seed must mean the same world.
+- **State ownership**: the world plugin owns streaming and durable state; the
+  bootstrap scenario owns session liveness. Name the exact resources and
+  components without weakening the nested cleanup rule.
+- **Cleanup**: define the sector owner, moving-entity transfer, joint-group
+  ownership, and retirement sequence. Reconcile the final session sweep with
+  `teardown_scenario_entities`.
+- **Coordinates and scale**: sector dimensions, active and retention radii,
+  boundary hysteresis, rebase ordering, and how multi-sector anchors and
+  gravity work.
+- **Persistence**: a full ECS/world dump is rejected. Decide the exact
+  seed-plus-sparse-state tiers, valid save points, compaction, platform store,
+  compatibility policy, and what a mod change does to an existing save.
+- **Deterministic seed**: how the world seed, generator version, coordinate
+  bytes, and named domains are stored and threaded, given that the global RNG
+  seed is environment-only today. Same seed and content set must mean the
+  same structural world independent of visit order.
+- **Generation**: choose the first hierarchical algorithm, biome meaning,
+  landmark-spacing rule, station/planet ownership, and authored tuning
+  surface. Separate persistent structural decisions from visual float noise.
 - **Mod contract**: the three doors above, concretely - what a mod may add,
   at what scope, and what breaks a save.
 
@@ -181,6 +282,11 @@ Each entry names the child task it would become.
   left open with the options and consequences written down.
 - Every decision above is either decided with evidence or recorded as an open
   decision with options and consequences.
+- Each critical risk in `NOTES.md` has an owner, a chosen mitigation, and a
+  named proof, or is explicitly deferred with its consequence.
+- The first generation stack is selected with rules for seed domains,
+  cross-sector coherence, stable identity, multi-sector anchors, and
+  native/web determinism claims.
 - The stale `RESEARCH.md` citations are marked in place, and any claim reused
   from that file has been re-verified against master.
 - The three mod doors are named with what each can and cannot reach.
