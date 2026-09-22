@@ -30,6 +30,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Agent Bench enforces post-run grace on persistent clients and rejects
   shared-key gestures that conflict with actions held from prior acts.
+- PR CI runs a twelve-example probe smoke instead of the whole catalog, and
+  no longer repeats on master. The complete sharded suite is a manual
+  workflow that every release platform build now waits on.
 
 ## [0.14.0] - 2026-09-19
 

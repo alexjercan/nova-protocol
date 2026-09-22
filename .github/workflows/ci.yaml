@@ -1,8 +1,11 @@
 name: CI
 
+# PULL REQUESTS ONLY. The push-to-master trigger ran this whole workflow a
+# second time on the merge commit of a branch it had already graded - the same
+# tree, the same verdict, at full runner cost. Release evidence comes from
+# `release.yaml`, which gates every platform build on the complete
+# `probe-full.yaml` suite, so nothing depended on the master run.
 on:
-  push:
-    branches: [master]
   pull_request:
 
 # Cancel superseded runs on the same ref to save runner time.
@@ -77,17 +80,18 @@ jobs:
           python3 scripts/gen-lore-designs.py --check
           python3 scripts/gen-lore-portraits.py --check
 
-      # The probe job shards by NAMING its examples, so an example that joins
-      # the catalog and no shard would never run and nothing would say so -
+      # Both runtime suites NAME their examples, so an example that joins the
+      # catalog and neither list would never run and nothing would say so -
       # every shard would still report green over the names it knows. The
-      # script expands the shard lists out of the matrix in this same file and
-      # fails unless they partition the `[[example]]` catalog exactly. Cheap,
-      # runs before the expensive steps, and runnable locally before a push.
+      # script reads the lists out of the two workflow sources and fails unless
+      # `probe-full.yaml`'s shards partition the `[[example]]` catalog exactly
+      # and this file's smoke set is a non-empty subset of them. Cheap, runs
+      # before the expensive steps, and runnable locally before a push.
       # `nova_probe_cli`'s `catalog_drift.rs` owns the other half of the chain
       # (examples/ on disk <-> Cargo.toml), so the two together mean every
-      # example file runs in exactly one shard.
-      - name: Probe shards partition the example catalog
-        run: python3 scripts/check-probe-shards.py
+      # example file runs in exactly one full shard.
+      - name: Probe suites cover the example catalog
+        run: python3 scripts/check-probe-suites.py
 
       # One clippy pass, workspace-wide, with the debug feature on. `debug`
       # fans out to every crate's debug feature (nova_debug has none - it IS
@@ -208,180 +212,44 @@ jobs:
           PYTHONHASHSEED=524287 npm run build:story
           diff -r "$RUNNER_TEMP/comic-seed-0" .cache/story/release/generated
 
-  # SHARDED BY SUBJECT, and the shard axis is across RUNNERS on purpose. Under
-  # lavapipe the render is CPU work, so running several examples at once on one
-  # runner would make them fight for the same cores - slower overall, and a
-  # starved run can trip the fixed-step clamp spiral and fail for a reason that
-  # has nothing to do with the code. Each shard gets its own machine instead.
+  # The PR-time runtime gate: twelve examples on ONE runner, not the whole
+  # catalog on twelve. The complete subject-sharded suite moved to
+  # `probe-full.yaml`, where a release calls it and a maintainer can dispatch
+  # it; it costs a dozen-plus runners and ~15-21 min of runs per shard, which
+  # is not what a one-line PR should wait for or spend.
   #
-  # The shards used to BE the three examples/ directories, which needed no list
-  # but could not be balanced: measured on run 34521413852 (2026-09-10, warm
-  # cache, all green, 99 examples) screenshots ran 54.6 min against playable's
-  # 21.2, so one directory was the whole critical path and every new screenshot
-  # made it worse. `probe run` takes a comma list of example names as readily as
-  # a directory (`native/spec.rs::resolve_spec`), so the shards are SUBJECTS
-  # now, sized off that run's per-example times: nine lists of 15-21 min each,
-  # against a 21-min `check` job that is the floor worth aiming at. A red shard
-  # also says "gunnery is red" rather than "screenshots is red".
+  # The twelve are picked to touch every subsystem a compile gate cannot see at
+  # least once - boot and session lifecycle, the scenario grammar, flight,
+  # turrets, torpedoes, hull damage, the HUD shell, NOVA OS, the training
+  # journey, the headless replay path, and one refusal - so a change that
+  # breaks the game at runtime is very likely to be red here rather than at
+  # release time. It is a SMOKE set, not a partition: the guarantee that every
+  # cataloged example still runs somewhere belongs to `probe-full.yaml`, and
+  # `scripts/check-probe-suites.py` is what keeps these names inside it.
   #
-  # The cost of a named list is that a new example must be given a home. That is
-  # the `check` job's "Probe shards partition the example catalog" step, which
-  # fails the build until it has one - the list can go stale loudly, never
-  # silently. Rebalance by moving names between shards when a re-measure says a
-  # shard has drifted; add a shard when the set no longer fits in ~20 min.
-  probe:
-    name: probe / ${{ matrix.shard }}
+  # One runner on purpose. Under lavapipe the render is CPU work, so these run
+  # one after another in a single `probe run`; a matrix across twelve runners
+  # would pay twelve cold builds to save serial run time that the build itself
+  # dwarfs.
+  probe-smoke:
+    name: probe / smoke
     runs-on: ubuntu-latest
-    # Sized for a COLD cache, which is the case that bites: the first sharded
-    # run had no `probe-debug` cache to restore, so every shard paid a full
-    # ~20-minute build before running anything, and screenshots (the longest at
-    # 17.7 min of runs) hit 45.7 and was killed by a 45-minute cap. A warm shard
-    # is closer to 20 minutes end to end; this has to cover the cold one, which
-    # recurs whenever Cargo.lock moves or the cache is evicted.
-    timeout-minutes: 75
-    strategy:
-      # One red shard must not cancel the others - the whole point is to learn
-      # about every subject from one run.
-      fail-fast: false
-      # Each entry is `probe run`'s spec for that shard, space separated (the
-      # step turns the whitespace into the commas the CLI splits on). The
-      # trailing number on each comment is that shard's measured run time on
-      # 2026-09-10's green sweep, in seconds, before the ~6 min every shard
-      # spends on checkout, apt, cache restore and linking its binaries.
-      matrix:
-        include:
-          # Both editor outliers sit here (`screenshot_editor` 185 s and
-          # `system_ship_editor` 245 s), so this is the shard to watch. 705 s.
-          - shard: editor
-            examples: >-
-              screenshot_editor screenshot_planet_editor system_ship_editor
-              system_field_controls bug_sandbox_soak parts_viewer widget_zoo
-          # The front end a player boots into: main menu, scenario picker,
-          # NOVA OS, settings, and the refusals that keep it standing. 694 s.
-          - shard: menu
-            examples: >-
-              screenshot_menu screenshot_scenario_picker screenshot_comms
-              screenshot_nova_os_apps screenshot_nova_os_terminal
-              loop_command_shell system_menu_boot system_nova_os
-              system_command_shell system_scenario_picker system_session_loop
-              system_settings_persist system_pause_settings bug_failed_assets
-              bug_menu_fallback bug_outcome_pause bug_refused_scenario
-          # The in-flight readout and the input paths that drive it, including
-          # every headless spike - they are cheap and they belong here. 550 s.
-          - shard: hud
-            examples: >-
-              screenshot_hud_shell screenshot_contextual_hud system_hud_shell
-              system_hud_scales system_hud_indicators system_mission_hud
-              system_ui_scale system_input_modes system_headless_crt
-              system_headless_drag system_headless_novaos
-              system_headless_pointer system_headless_rebind
-              system_headless_replay
-          # Aiming and holding a target: turrets, the railgun, the lock chain
-          # and the AI that flies against it. 828 s.
-          - shard: gunnery
-            examples: >-
-              screenshot_combat_hud screenshot_combat_lock
-              screenshot_combat_wide screenshot_radar_lock screenshot_railgun
-              railgun_wake_bench system_railgun_hulls system_railgun_lance
-              system_turret_gunnery system_borrowed_battery
-              system_lock_line_of_sight system_wreck_lock system_ai_combat
-              system_ai_evade system_ai_patrol bug_neutralized_quiet
-          # What leaves the tube and what it does on arrival: rounds, torpedoes,
-          # blast, and the VFX range that draws them. 799 s.
-          - shard: ordnance
-            examples: >-
-              loop_round_types loop_torpedo_blast loop_turret_stow
-              loop_vfx_range screenshot_torpedo_run system_torpedo_launch
-              system_torpedo_capital system_blast_penetration stress_torpedoes
-              stress_point_defense stress_bullets
-          # The ship as metal: section galleries, hull generation, and damage
-          # read off a hull that is still standing. 711 s.
-          - shard: hull
-            examples: >-
-              screenshot_section_frame screenshot_section_gallery
-              screenshot_section_drives screenshot_section_weapons
-              screenshot_section_trials screenshot_hull_juice
-              screenshot_damage_levels loop_sections_compare loop_spine_cut
-              loop_hull_generate loop_damage_sequence loop_death_compare
-              system_section_severing system_hull_damage system_hull_scaling
-          # The same metal coming apart, which is where the heavy stress ranges
-          # live. 753 s, and the least certain: `system_collision_damage`'s
-          # 289 s is a FAILED run's clock, not a healthy one.
-          - shard: destruction
-            examples: >-
-              stress_hull_collapse stress_one_structure stress_many_structures
-              system_collision_damage system_destruction_finale
-              carve_asteroids bug_carve_apply shape_bench
-          # Moving through the world: burns, orbits, helm orders, gravity, and
-          # the scenario grammar that scores the trip. 848 s.
-          - shard: flight
-            examples: >-
-              screenshot_flip_burn screenshot_goto_burn screenshot_orbit
-              loop_cockpit loop_goto_arrival loop_goto_standoff
-              loop_helm_orders loop_player_flight docking_approach
-              system_docking_ports system_attitude_hold
-              system_flight_legs system_gravity_wells system_helm_orders
-              system_turn_limit system_thrust_and_plume system_player_path
-              system_cinematic system_scenario_grammar system_outcomes
-              system_chapter_one system_ship_audio first_shift_map
-          # The training handbook itself: the screens a new player is sent to
-          # first and the journey through them. The lesson PRODUCERS that
-          # record the demonstrations those screens show are four shards of
-          # their own below - all 33 joined the catalog over 2026-09-16..18 and
-          # they do not fit here. 285 s, and the handbook walk is most of it.
-          - shard: training
-            examples: >-
-              screenshot_training screenshot_loading_fact
-              system_training_journey
-          # The four lesson shards are split on the chapter prefix the lesson
-          # ids themselves carry (`start_`, `flight_`, `combat_`, `build_`), so
-          # a red shard names a chapter of the handbook rather than a
-          # directory. Each producer boots the game, walks it under the
-          # autopilot and records a still or a 4x5 sheet; the three that had
-          # been measured cost 29 s, 44 s and 116 s, so these are sized by
-          # count until a green sweep gives them real times.
-          #
-          # Everything the reader meets before leaving the menu: the opening
-          # lessons, the NOVA OS screens, the settings tabs and the HUD
-          # readouts. Not yet measured.
-          - shard: lessons-start
-            examples: >-
-              lesson_start_welcome lesson_start_scene lesson_start_dock
-              lesson_start_pause lesson_readouts lesson_novaos
-              lesson_novaos_contacts lesson_novaos_prompt lesson_novaos_ship
-              lesson_menu_advanced lesson_menu_mouse lesson_menu_quality
-          # Moving the ship: the flight chapter, the docking envelope, and the
-          # one advanced lesson that is a flight demonstration. Not yet
-          # measured.
-          - shard: lessons-flight
-            examples: >-
-              lesson_flight_aim lesson_flight_basics lesson_flight_orders
-              lesson_flight_cancel lesson_flight_well lesson_dock_envelope
-              lesson_advanced_ai_flight
-          # The combat chapter: the radar, the guns, the rounds and both
-          # torpedo run-ins. Not yet measured.
-          - shard: lessons-combat
-            examples: >-
-              lesson_combat_radar lesson_combat_moves lesson_combat_rounds
-              lesson_combat_battery lesson_combat_reach lesson_combat_field
-              lesson_combat_lance lesson_combat_torpedoes
-              lesson_combat_torpedo_types
-          # The build chapter, which runs the ship editor - `lesson_build_
-          # sections` measured 116 s, the most expensive lesson so far, so
-          # expect this shard to cost more per example than its count says.
-          # Not yet measured.
-          - shard: lessons-build
-            examples: >-
-              lesson_build_sections lesson_build_geometry lesson_build_generate
-              lesson_build_rail lesson_build_flight_test
-          # Everything a generator makes before a scenario picks it up:
-          # asteroids, planets, greebles, WFC ships, thrusters. 867 s.
-          - shard: worldgen
-            examples: >-
-              asteroid_kinds compare_asteroids planet_types compare_planets
-              greeble_catalog block_bench wfc_arena wfc_ships first_shift_ships
-              loop_belt_compare loop_derived_skin screenshot_hero_ship
-              screenshot_thruster_gallery
+    # Sized for a COLD cache: no `probe-debug` cache to restore means a full
+    # ~20-minute build before anything runs, on top of the twelve walks. A warm
+    # run is far under this. The cap is a hang backstop for the job as a whole;
+    # `--timeout` below is the per-example one.
+    timeout-minutes: 60
+    env:
+      # `probe run`'s spec, space separated - the step folds the whitespace
+      # into the commas the CLI splits on. `scripts/check-probe-suites.py`
+      # reads THIS list and fails the build if a name is not a cataloged
+      # example or is missing from `probe-full.yaml`'s shards, so it cannot
+      # drift into naming something that no longer exists.
+      SMOKE_EXAMPLES: >-
+        system_menu_boot system_session_loop system_scenario_grammar
+        system_attitude_hold system_turret_gunnery system_torpedo_launch
+        system_hull_damage system_hud_shell system_nova_os
+        system_training_journey system_headless_replay bug_refused_scenario
     steps:
       - uses: actions/checkout@v4
 
@@ -398,27 +266,21 @@ jobs:
       - name: Install Rust nightly toolchain
         run: rustup show active-toolchain
 
-      # One cache for every shard (`shared-key`), not one each: they build the
-      # same `--features debug` graph, and nine separate Rust caches would
-      # crowd the repository's cache budget and evict each other. A shard still
-      # links its own example binaries, but that is ~3s apiece once the
-      # dependency graph is warm - far cheaper than the eviction.
+      # The SAME `shared-key` as `probe-full.yaml`'s shards: both build the
+      # identical `--features debug` graph, so they should restore one cache
+      # rather than evict each other out of the repository's cache budget.
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: probe-debug
           cache-on-failure: true
 
-      # The windowed run gate: correctness-only probe spawns every cataloged
-      # example in this category under NOVA_AUTOPILOT/Xvfb (lavapipe renders)
-      # and grades process exit, run completion, reached-Playing, invariants,
-      # and log cleanliness. It skips the separate FPS and traced passes; full
-      # local/release probe runs own performance evidence.
-      # `aggregate_exit` returns FAILURE on anything past OK/WARN/UNPROBEABLE
-      # (UNPROBEABLE is the sanctioned no-probe-plugin opt-out, still gated on
-      # its smoke checks), so this is a blocking gate. It REPLACED
-      # tests/examples_smoke.rs: probe asserted a superset of what the smoke
-      # suite covered, and one verdict implementation beats two that could
-      # disagree.
+      # The windowed run gate: correctness-only probe spawns each named example
+      # under NOVA_AUTOPILOT/Xvfb (lavapipe renders) and grades process exit,
+      # run completion, reached-Playing, invariants, and log cleanliness. It
+      # skips the separate FPS and traced passes; full local/release probe runs
+      # own performance evidence. `aggregate_exit` returns FAILURE on anything
+      # past OK/WARN/UNPROBEABLE (UNPROBEABLE is the sanctioned no-probe-plugin
+      # opt-out, still gated on its smoke checks), so this is a blocking gate.
       #
       # BLOCKING because of the taffy panic: a panic inside taffy's `resolve.rs`
       # that is unreachable locally and appears on GitHub runners only. It was
@@ -426,10 +288,9 @@ jobs:
       # survive the examples rework - the full reworked suite ran green on
       # ubuntu-latest (run 29283727248, 2026-07-13). If it ever resurfaces, this
       # step fails loudly with RUST_BACKTRACE=full.
-      - name: Probe correctness sweep
+      - name: Probe correctness smoke
         env:
           RUST_BACKTRACE: full
-          SHARD_EXAMPLES: ${{ matrix.examples }}
         # probe is the game binary's `probe` subcommand, which only exists
         # under --features debug. That flag is also what keeps this step on ONE
         # Bevy variant: probe builds each example itself with --features debug,
@@ -449,29 +310,28 @@ jobs:
         # - so it is sized to let the longest healthy walk finish rather than to
         # police it. Software rendering is what makes that walk long: two
         # carriers meeting nose to nose cost `system_collision_damage` 24 real
-        # seconds per simulated one on a two-core runner, and it was still
-        # pressing them together when the old 280 s deadline expired at
-        # simulated 15.25 s (run 34959859343). 510 leaves it about a quarter
-        # over the ~400 s it wants.
+        # seconds per simulated one on a two-core runner (run 34959859343). 510
+        # is the same bound the full suite uses; keep the two equal so an
+        # example that passes here cannot time out there.
         #
-        # The shard's list arrives whitespace separated and folded onto one
-        # line by YAML; `probe run` wants one comma-separated token, and it
-        # drops empty ones, so squeezing the whitespace into commas is the
-        # whole conversion. It goes through the environment rather than into
-        # the command line so the list is never re-split by the shell.
+        # The list arrives whitespace separated and folded onto one line by
+        # YAML; `probe run` wants one comma-separated token, and it drops empty
+        # ones, so squeezing the whitespace into commas is the whole
+        # conversion. It goes through the environment rather than into the
+        # command line so the list is never re-split by the shell.
         run: |
-          spec=$(printf '%s' "$SHARD_EXAMPLES" | tr -s '[:space:]' ',')
+          spec=$(printf '%s' "$SMOKE_EXAMPLES" | tr -s '[:space:]' ',')
           xvfb-run --auto-servernum \
             cargo run --features debug -- \
             probe run "$spec" --correctness-only --timeout 510 \
             --out "$RUNNER_TEMP/probe-runs"
 
-      # The shard's verdict table, ON the run page. Artifacts are auth-gated
-      # zips that GitHub never renders, so index.html is unreadable without a
-      # download; this puts the same rows (verdict, measured n/total, the
-      # failing check names) in the job summary, which GitHub renders inline.
-      # Sanitized markdown - the report's own CSS cannot come along, so this is
-      # a second RENDERING of index.json, never a second verdict.
+      # The verdict table, ON the run page. Artifacts are auth-gated zips that
+      # GitHub never renders, so index.html is unreadable without a download;
+      # this puts the same rows (verdict, measured n/total, the failing check
+      # names) in the job summary, which GitHub renders inline. Sanitized
+      # markdown - the report's own CSS cannot come along, so this is a second
+      # RENDERING of index.json, never a second verdict.
       #
       # `if: always()` and the script's own exit-0-on-missing-index are both
       # load-bearing: the summary is worth most on the runs that failed, and it
@@ -481,18 +341,18 @@ jobs:
         run: >-
           python3 scripts/probe-summary.py
           --runs "$RUNNER_TEMP/probe-runs"
-          --title "probe / ${{ matrix.shard }}"
-          --artifact "probe-runs-${{ matrix.shard }}"
+          --title "probe / smoke"
+          --artifact "probe-runs-smoke"
           >> "$GITHUB_STEP_SUMMARY"
 
-      # The reports and logs for whatever the sweep graded, green or not: a
+      # The reports and logs for whatever the smoke graded, green or not: a
       # failing check is diagnosed from its run.log, which the step output only
-      # tails. Named per shard - artifact names must be unique within a run.
+      # tails.
       - name: Upload probe reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: probe-runs-${{ matrix.shard }}
+          name: probe-runs-smoke
           path: ${{ runner.temp }}/probe-runs
           if-no-files-found: ignore
           retention-days: 7

@@ -32,6 +32,19 @@ jobs:
     outputs:
       version: ${{ inputs.version || steps.tag.outputs.tag }}
 
+  # The runtime gate on a release. PR CI only runs a twelve-example smoke, so
+  # this is where the whole cataloged suite is proved, and every platform build
+  # below waits on it: a tag must not ship binaries past an example that no
+  # longer reaches `Playing`.
+  #
+  # Called rather than triggered. `probe-full.yaml` carries `workflow_call` and
+  # `workflow_dispatch` and NO tag trigger on purpose - a `push: tags:` there
+  # would start a second, independent run for the same tag, racing this one and
+  # doubling the runner cost while gating nothing.
+  probe-full:
+    name: full probe suite
+    uses: ./.github/workflows/probe-full.yaml
+
   # The two halves of the universal binary, built CONCURRENTLY. They used to be
   # two steps of one job, which made macOS the whole release's critical path:
   # 65.2 min for Apple Silicon plus 51.5 min for x86 was a 120.4-minute job
@@ -46,7 +59,7 @@ jobs:
   build-macOS-binary:
     name: build-macOS (${{ matrix.target }})
     runs-on: macos-latest
-    needs: get-version
+    needs: [get-version, probe-full]
     strategy:
       # One failed arch should still let the other finish, so a re-run only
       # needs the half that broke.
@@ -150,7 +163,7 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
-    needs: get-version
+    needs: [get-version, probe-full]
     env:
       VERSION: ${{needs.get-version.outputs.version}}
     steps:
@@ -191,7 +204,7 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
-    needs: get-version
+    needs: [get-version, probe-full]
     env:
       VERSION: ${{needs.get-version.outputs.version}}
       BUILD_INSTALLER: ${{ false }}
@@ -237,7 +250,7 @@ jobs:
 
   build-web:
     runs-on: ubuntu-latest
-    needs: get-version
+    needs: [get-version, probe-full]
     env:
       VERSION: ${{needs.get-version.outputs.version}}
       # Fat LTO spent 43 minutes in nova_core's final wasm link before the

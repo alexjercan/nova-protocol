@@ -417,7 +417,9 @@ Every example is HARNESSED: it drives itself under
 `NOVA_AUTOPILOT=1`, and probe is the regression suite over all of them -
 `cargo run --features debug probe run systems` (or `screenshots`, or
 `playable`) runs one category alone, and `--all` is the whole catalog, which is
-what CI runs. Each example must reach `Playing` and exit without panic; every
+what `probe-full.yaml` runs, sharded by subject, on a release and on manual
+dispatch; a pull request runs a twelve-example smoke out of that same catalog.
+Each example must reach `Playing` and exit without panic; every
 `systems/` range additionally carries panic-on-failure behavior assertions with
 completion backstops (a stalled script fails instead of passing vacuously). The
 rosters are pinned by the display-free
@@ -468,7 +470,8 @@ autopilot-script assertion (a named step whose `on_enter` asserts, reached only
 once the steps before it have waited on the world - see
 `system_hull_damage`/`system_hud_indicators` for the style) carrying an
 `outcome: <slug>`
-marker on the roster; CI's probe sweep runs it on every push. Caveat: the handler swap
+marker on the roster; the release's full probe suite runs every one of them,
+and a pull request runs the twelve in the smoke set. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).
 
@@ -1277,10 +1280,11 @@ The everyday loop for landing a change:
    `examples/` example that exercises it, with a harnessed autopilot assertion
    (see [Examples](#examples)) - this repo prefers a runnable example over an
    isolated unit test.
-4. **Open a PR.** CI (`.github/workflows/ci.yaml`) runs on every PR and push to
-   `master`: `cargo fmt --check`, `cargo clippy --workspace --all-targets
+4. **Open a PR.** CI (`.github/workflows/ci.yaml`) runs on PULL REQUESTS only -
+   there is no master-push run, because it would grade the same tree twice:
+   `cargo fmt --check`, `cargo clippy --workspace --all-targets
    --features debug -- -D warnings`, `cargo test --workspace --features debug`,
-   then the windowed `probe run --all --correctness-only` sweep under
+   then a windowed twelve-example `probe run --correctness-only` smoke under
    Xvfb/lavapipe plus the
    `nova_autopilot` example test under Xvfb. Three more
    jobs run in parallel with that one: a default-features
@@ -1290,6 +1294,14 @@ The everyday loop for landing a change:
    to catch dead code and unused imports that only appear with `debug` off or
    on wasm - neither configuration is otherwise built. All of it must be green
    to merge.
+
+   The COMPLETE catalog lives in `.github/workflows/probe-full.yaml`, a
+   subject-sharded suite with no trigger of its own. `release.yaml` calls it and
+   every platform build waits on it, so a tag cannot ship past a red example;
+   run it by hand from any ref with `workflow_dispatch`. Both example lists are
+   named, so `scripts/check-probe-suites.py` (a step in the `check` job) fails
+   the build unless the full shards partition the `[[example]]` catalog exactly
+   and every smoke name sits inside them.
 
    The wasm job is CLIPPY rather than `check`, and it points `CLIPPY_CONF_DIR`
    at `ci/wasm-clippy/`, whose `clippy.toml` bans the std APIs that COMPILE for
