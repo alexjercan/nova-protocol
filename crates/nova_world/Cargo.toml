@@ -1,0 +1,37 @@
+[package]
+name = "nova_world"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "Deterministic sector generation and streaming for the Nova Protocol open world"
+
+[dependencies]
+# Components, resources, system sets and `AsyncComputeTaskPool`. This crate
+# owns systems, so it builds a plugin - but nothing adds it yet.
+bevy = { version = "0.19.0" }
+# The feature field: three global `Fbm<Perlin>` layers gate the candidate
+# lattice a streamed cell reads. Same crate and version the planet and
+# asteroid surfaces already generate from, so a world field and a shipped
+# surface cannot drift onto two noise implementations.
+noise = { version = "0.9" }
+# `GameAssets`: the asteroid texture and the cubemap a materialized sector
+# hands the object factories.
+nova_assets = { path = "../nova_assets" }
+# `Meters` and `Meters3`: every world quantity here is authored in meters and
+# converted at the engine edge.
+nova_events = { path = "../nova_events" }
+# `Fnv32` and `SeedStream`: the stable hash and the deterministic draw a
+# coordinate-addressable world is built on. Never the ambient RNG.
+nova_gameplay = { path = "../nova_gameplay" }
+# The object factories a streamed sector spawns through - the same ones the
+# scenario loader calls - plus `PlanetType`, `ShipDesignId`, the asteroid kind
+# table and the session liveness the outer cleanup is gated on.
+nova_scenario = { path = "../nova_scenario" }
+
+[lints]
+workspace = true
+
+[features]
+# Debug-build extras, fanned out so the whole tree resolves ONE bevy variant.
+debug = ["bevy/track_location", "nova_scenario/debug"]

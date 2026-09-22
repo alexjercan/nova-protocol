@@ -4,8 +4,8 @@
 //! The streamed-world direction rests on a lifetime that does not exist in
 //! the game yet: a sector that is prepared off the frame, comes up, and goes
 //! away again while the scenario it lives in never reloads. This range walks
-//! that lifetime end to end on the spike kit in
-//! `examples/shared/world_sectors/` - bootstrap, arm, cross a boundary, come
+//! that lifetime end to end on `nova_world` and the fixture in
+//! `examples/shared/world_fixture/mod.rs` - bootstrap, arm, cross a boundary, come
 //! back, abandon work, and unload - and asserts what survives each step.
 //! Nothing here routes through `LoadScenario` except the one empty bootstrap,
 //! and nothing routes through a scenario event action at all.
@@ -25,7 +25,7 @@
 //! | - | - | - |
 //! | 1 | `outcome: the free-play bootstrap authors no objects` | the loaded scenario declares zero objects and zero handlers, and no scenario object entity, job or prepared result exists before streaming is armed |
 //! | 2 | `outcome: a sector is the same sector in any visit order` | the 125 cells generated forward, backward and by stride give three identical canonical manifests, under both generators |
-//! | 3 | `outcome: invalid sector geometry refuses before materialization` | finite settings whose coordinate conversion overflows return an error rather than a partial description |
+//! | 3 | `outcome: invalid sector geometry refuses before materialization` | a finite config whose coordinate conversion overflows returns an error rather than a partial description |
 //! | 4 | `outcome: one feature sphere is one sphere from every cell that sees it` | every sphere two or more cells can see carries the same id, owner, centre, radius and strength in each of them, and exactly one cell owns it |
 //! | 5 | `outcome: same-layer feature spheres never overlap` | no two accepted spheres of one layer claim the same ground anywhere in the window |
 //! | 6 | `outcome: independent feature layers may overlap` | spheres of different layers do overlap, so blended places exist rather than a mosaic of single-purpose tiles |
@@ -51,8 +51,8 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "../shared/world_sectors/mod.rs"]
-mod world_sectors;
+#[path = "../shared/world_fixture/mod.rs"]
+pub mod world_fixture;
 
 #[cfg(feature = "debug")]
 use std::{
@@ -63,14 +63,12 @@ use std::{
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
+use nova_world::prelude::*;
 #[cfg(feature = "debug")]
-use world_sectors::{
-    desired_sectors, generate_sector, prepare_sector, FeatureLayer, FeatureSphere, ReadySectors,
-    SectorCoord, SectorDescription, SectorFault, SectorGeneration, SectorJob, SectorJobStats,
-    SectorRoot, SectorSettings, CLEARANCE_MARGIN, FEATURE_HOME, HULL_CLEARANCE, PLACEMENT_INSET,
-    WORLD_SEED,
+use world_fixture::{
+    featured_world_config, uniform_world_config, EXAMPLE_ACTIVE_RADIUS, FEATURE_HOME,
 };
-use world_sectors::{free_play_scenario, WorldSectorsPlugin};
+use world_fixture::{free_play_scenario, world_observer_plugin};
 
 #[derive(Parser)]
 #[command(name = "system_world_sectors")]
@@ -152,7 +150,7 @@ const ABANDONED_WORK: usize = 2;
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new()
-        .with_game_plugins((range_plugin, WorldSectorsPlugin))
+        .with_game_plugins((range_plugin, world_observer_plugin, NovaWorldPlugin))
         .build();
 
     #[cfg(feature = "debug")]
@@ -212,17 +210,16 @@ fn scenario_objects(world: &World) -> usize {
 
 /// Describe one cell, or fail the run naming the fault.
 #[cfg(feature = "debug")]
-fn describe(coord: SectorCoord, settings: &SectorSettings) -> SectorDescription {
-    generate_sector(WORLD_SEED, coord, settings)
-        .unwrap_or_else(|fault| panic!("world sectors: {fault}"))
+fn describe(coord: SectorCoord, config: &WorldConfig) -> SectorDescription {
+    generate_sector(config, coord).unwrap_or_else(|fault| panic!("world sectors: {fault}"))
 }
 
 /// Every cell of the armed window, described.
 #[cfg(feature = "debug")]
-fn describe_window(centre: SectorCoord, settings: &SectorSettings) -> Vec<SectorDescription> {
-    desired_sectors(centre, settings.radius)
+fn describe_window(centre: SectorCoord, config: &WorldConfig) -> Vec<SectorDescription> {
+    desired_sectors(centre, config.active_radius)
         .into_iter()
-        .map(|coord| describe(coord, settings))
+        .map(|coord| describe(coord, config))
         .collect()
 }
 
@@ -230,14 +227,11 @@ fn describe_window(centre: SectorCoord, settings: &SectorSettings) -> Vec<Sector
 #[cfg(feature = "debug")]
 fn sector_set_is(centre: SectorCoord) -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     Arc::new(move |world: &World| {
-        let Some(settings) = world.get_resource::<SectorSettings>() else {
-            return false;
-        };
         let Some(mut query) = world.try_query::<&SectorRoot>() else {
             return false;
         };
         let live: BTreeSet<SectorCoord> = query.iter(world).map(|root| root.0).collect();
-        live == desired_sectors(centre, settings.radius)
+        live == desired_sectors(centre, EXAMPLE_ACTIVE_RADIUS)
     })
 }
 
@@ -294,18 +288,18 @@ fn sector_work_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync>
 
 /// Hand the streaming loop work for cells `coords` name, as a running job and
 /// a prepared result. Counts the job as requested, the way
-/// [`world_sectors::request_sectors`] does.
+/// [`nova_world::request_sectors`] does.
 #[cfg(feature = "debug")]
 fn hand_in_work(world: &mut World, job_cell: SectorCoord, ready_cell: SectorCoord) {
-    let settings = *world.resource::<SectorSettings>();
+    let config = world.resource::<WorldConfig>().clone();
     world.spawn((
         Name::new(format!("Sector Job {job_cell}")),
-        SectorJob::start(job_cell, settings),
+        SectorJob::start(config.clone(), job_cell),
     ));
     world.resource_mut::<SectorJobStats>().requested += 1;
 
-    let prepared = prepare_sector(WORLD_SEED, ready_cell, settings)
-        .unwrap_or_else(|fault| panic!("world sectors: {fault}"));
+    let prepared =
+        prepare_sector(config, ready_cell).unwrap_or_else(|fault| panic!("world sectors: {fault}"));
     world
         .resource_mut::<ReadySectors>()
         .0
@@ -335,7 +329,7 @@ fn observer_at(position: Meters3) -> std::sync::Arc<dyn Fn(&World) -> bool + Sen
 #[cfg(feature = "debug")]
 fn park_observer(coord: SectorCoord) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| {
-        let edge = SectorSettings::FEATURES.edge;
+        let edge = featured_world_config().sector_edge;
         pose_camera(
             world,
             coord.centre(edge),
@@ -348,7 +342,7 @@ fn park_observer(coord: SectorCoord) -> impl Fn(&mut World) + Send + Sync + 'sta
 fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let home = FEATURE_HOME;
     let across = home.offset(1, 0, 0);
-    let edge = SectorSettings::FEATURES.edge;
+    let edge = featured_world_config().sector_edge;
 
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("load the free-play bootstrap")
@@ -378,7 +372,7 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .add()
         .step("arm the stream")
         .on_enter(|world: &mut World| {
-            world.insert_resource(SectorSettings::FEATURES);
+            world.insert_resource(featured_world_config());
         })
         .until(sector_set_is(home))
         .deadline(STEP_DEADLINE_SECS)
@@ -501,19 +495,19 @@ fn report_empty_bootstrap(world: &mut World) {
 #[cfg(feature = "debug")]
 fn report_visit_order(world: &mut World) {
     let mut compared = 0;
-    for settings in [SectorSettings::SPIKE, SectorSettings::FEATURES] {
-        let centre = match settings.generation {
-            SectorGeneration::UniformAsteroids { .. } => SectorCoord::ORIGIN,
-            SectorGeneration::LayeredFeatures => FEATURE_HOME,
+    for config in [uniform_world_config(), featured_world_config()] {
+        let centre = match config.generation {
+            SectorGeneration::UniformAsteroids(_) => SectorCoord::ORIGIN,
+            SectorGeneration::LayeredFeatures(_) => FEATURE_HOME,
         };
-        let cells: Vec<SectorCoord> = desired_sectors(centre, settings.radius)
+        let cells: Vec<SectorCoord> = desired_sectors(centre, config.active_radius)
             .into_iter()
             .collect();
 
         let describe_all = |order: &[SectorCoord]| {
             let mut described: BTreeMap<SectorCoord, String> = BTreeMap::new();
             for coord in order {
-                described.insert(*coord, describe(*coord, &settings).canonical());
+                described.insert(*coord, describe(*coord, &config).canonical());
             }
             described
         };
@@ -537,12 +531,12 @@ fn report_visit_order(world: &mut World) {
             forward, backward,
             "world sectors: reversing the walk must not change a single sector under \
              {:?}",
-            settings.generation
+            config.generation
         );
         assert_eq!(
             forward, strided,
             "world sectors: striding the walk must not change a single sector under {:?}",
-            settings.generation
+            config.generation
         );
         compared += forward.len();
     }
@@ -556,11 +550,11 @@ fn report_visit_order(world: &mut World) {
         "world sectors: {compared} manifests describe identically in three walks, two generators"
     );
 
-    let overflow = SectorSettings {
-        edge: Meters(f32::MAX),
-        ..SectorSettings::SPIKE
+    let overflow = WorldConfig {
+        sector_edge: Meters(f32::MAX),
+        ..uniform_world_config()
     };
-    let fault = generate_sector(WORLD_SEED, SectorCoord::new(i32::MAX, 0, 0), &overflow);
+    let fault = generate_sector(&overflow, SectorCoord::new(i32::MAX, 0, 0));
     assert!(
         matches!(fault, Err(SectorFault::InvalidGeometry { .. })),
         "world sectors: coordinate-to-meter overflow must refuse before materialization, got {fault:?}"
@@ -577,8 +571,8 @@ fn report_visit_order(world: &mut World) {
 /// and free across layers.
 #[cfg(feature = "debug")]
 fn report_feature_field(world: &mut World) {
-    let settings = SectorSettings::FEATURES;
-    let described = describe_window(FEATURE_HOME, &settings);
+    let config = featured_world_config();
+    let described = describe_window(FEATURE_HOME, &config);
 
     // One sphere, however many cells can see it. Built as id -> every copy
     // handed out, so a disagreement names the sphere rather than the cell.
@@ -699,14 +693,14 @@ fn report_feature_field(world: &mut World) {
 /// the rule instead of a restatement of whatever the generator did.
 #[cfg(feature = "debug")]
 fn report_clearance(world: &mut World) {
-    let settings = SectorSettings::FEATURES;
-    let inset = settings.edge.get() * 0.5 * PLACEMENT_INSET;
-    let described = describe_window(FEATURE_HOME, &settings);
+    let config = featured_world_config();
+    let inset = config.sector_edge.get() * 0.5 * PLACEMENT_INSET;
+    let described = describe_window(FEATURE_HOME, &config);
 
     let mut objects = 0;
     let mut pairs = 0;
     for description in &described {
-        let cell_centre = description.coord.centre(settings.edge);
+        let cell_centre = description.coord.centre(config.sector_edge);
         let placed: Vec<(String, Meters3, Meters)> = description
             .asteroids
             .iter()
@@ -730,7 +724,7 @@ fn report_clearance(world: &mut World) {
                 description
                     .anchorages
                     .iter()
-                    .map(|hull| (hull.id.clone(), hull.position, HULL_CLEARANCE)),
+                    .map(|hull| (hull.id.clone(), hull.position, MOORED_HULL_CLEARANCE)),
             )
             .collect();
         objects += placed.len();
@@ -783,7 +777,7 @@ fn report_clearance(world: &mut World) {
 /// exactly what its manifest names.
 #[cfg(feature = "debug")]
 fn report_initial_set(world: &mut World) {
-    let settings = *world.resource::<SectorSettings>();
+    let config = world.resource::<WorldConfig>().clone();
     let live = live_roots(world);
     assert_eq!(
         live.len(),
@@ -792,7 +786,7 @@ fn report_initial_set(world: &mut World) {
     );
     assert_eq!(
         live.keys().copied().collect::<BTreeSet<_>>(),
-        desired_sectors(FEATURE_HOME, settings.radius),
+        desired_sectors(FEATURE_HOME, config.active_radius),
         "world sectors: the live set must be the desired set"
     );
 
@@ -803,7 +797,7 @@ fn report_initial_set(world: &mut World) {
             "world sectors: the root for {coord} must be scenario-scoped, or the \
              session sweep cannot reach it"
         );
-        let expected = describe(*coord, &settings).object_count();
+        let expected = describe(*coord, &config).object_count();
         let children = world
             .get::<Children>(*entity)
             .map_or(0, |children| children.len());
@@ -838,7 +832,7 @@ fn report_initial_set(world: &mut World) {
 /// have an exact expected value: the desired set is live, nothing has left it,
 /// and nothing else has ever been asked for. `peak_pending` carries two
 /// claims. It must never exceed the job cap
-/// [`world_sectors::request_sectors`] enforces, which is what makes 125
+/// [`nova_world::request_sectors`] enforces, which is what makes 125
 /// desired cells cost a poolful of preparations rather than 125 of them at
 /// once. And where the pool has more than one thread it must reach at least
 /// two, which is the overlap a `generate-and-spawn` loop cannot produce. A
@@ -912,13 +906,13 @@ fn report_preparation(world: &mut World) {
 /// and each of them under the root of the cell whose sphere placed it.
 #[cfg(feature = "debug")]
 fn report_places(world: &mut World) {
-    let settings = *world.resource::<SectorSettings>();
+    let config = world.resource::<WorldConfig>().clone();
     let live = live_roots(world);
 
     let mut planets = 0;
     let mut hulls = 0;
     for (coord, root) in &live {
-        let description = describe(*coord, &settings);
+        let description = describe(*coord, &config);
         if description.planets.is_empty() && description.anchorages.is_empty() {
             continue;
         }
@@ -1061,11 +1055,11 @@ fn report_crossing(world: &mut World) {
 /// Claim 12: coming back is the same place, not a second copy of it.
 #[cfg(feature = "debug")]
 fn report_return(world: &mut World) {
-    let settings = *world.resource::<SectorSettings>();
+    let config = world.resource::<WorldConfig>().clone();
     let live = live_roots(world);
     assert_eq!(
         live.keys().copied().collect::<BTreeSet<_>>(),
-        desired_sectors(FEATURE_HOME, settings.radius),
+        desired_sectors(FEATURE_HOME, config.active_radius),
         "world sectors: the return must be the original set"
     );
     assert_eq!(
@@ -1078,7 +1072,7 @@ fn report_return(world: &mut World) {
     // else's rocks would still count 125. Each returned root has to hold the
     // objects its own manifest names.
     for (coord, entity) in &live {
-        let described = describe(*coord, &settings)
+        let described = describe(*coord, &config)
             .object_ids()
             .into_iter()
             .collect::<BTreeSet<String>>();
@@ -1113,15 +1107,15 @@ fn report_return(world: &mut World) {
 /// The two pieces cover the two ways prepared work can go stale: a job still
 /// running when its cell stops being wanted, and a result that finished and
 /// then had nowhere to go. Which of the two paths took the job - cancelled by
-/// [`world_sectors::retire_sectors`] or dropped on arrival by
-/// [`world_sectors::collect_sector_jobs`] - depends on how fast the worker was
+/// [`nova_world::retire_sectors`] or dropped on arrival by
+/// [`nova_world::collect_sector_jobs`] - depends on how fast the worker was
 /// and is deliberately NOT asserted. What is asserted is that neither ever
 /// became a sector.
 #[cfg(feature = "debug")]
 fn report_abandoned_work(world: &mut World) {
     let baseline = world.resource::<AbandonBaseline>().0;
     let stats = *world.resource::<SectorJobStats>();
-    let settings = *world.resource::<SectorSettings>();
+    let config = world.resource::<WorldConfig>().clone();
 
     assert_eq!(
         stats.materialized, baseline.materialized,
@@ -1137,7 +1131,7 @@ fn report_abandoned_work(world: &mut World) {
     let live = live_roots(world);
     assert_eq!(
         live.keys().copied().collect::<BTreeSet<_>>(),
-        desired_sectors(FEATURE_HOME, settings.radius),
+        desired_sectors(FEATURE_HOME, config.active_radius),
         "world sectors: abandoned work must not move the live set"
     );
     for cell in [ABANDONED_JOB_CELL, ABANDONED_READY_CELL] {

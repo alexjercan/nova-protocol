@@ -1,6 +1,6 @@
 //! world_features: fly a streamed world that has PLACES in it.
 //!
-//! The second hand-driven half of the streamed-world spike, and the one that
+//! The second hand-driven half of the streamed-world work, and the one that
 //! answers a different question from `world_sectors`. That example shows the
 //! streaming lifetime with every cell filled the same way, so a missing sector
 //! is obvious. This one fills a cell from a world that exists above it: three
@@ -14,9 +14,10 @@
 //! a world with a mooring beside it - or as noise scattered evenly over a
 //! grid. `system_world_sectors` owns the counts and the identities.
 //!
-//! The kit is shared with that range and with `world_sectors`
-//! (`examples/shared/world_sectors/`), so what is flown here is what is
-//! asserted there.
+//! The generator and the streaming loop are `nova_world`'s; the seed, the
+//! cell edge and the content tables are `examples/shared/world_fixture/mod.rs`'s,
+//! shared with that range and with `world_sectors`, so what is flown here is
+//! what is asserted there.
 //!
 //! Drawn every frame, so the field is visible and not only its consequences:
 //!
@@ -45,17 +46,17 @@
 //!   field shot is the diagnostic rings; the other two are the objects only
 //!   this generator makes, which is what a reviewer has to look at.
 
-#[path = "../shared/world_sectors/mod.rs"]
-mod world_sectors;
+#[path = "../shared/world_fixture/mod.rs"]
+pub mod world_fixture;
 
 use bevy::{color::palettes::tailwind, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
+use nova_world::prelude::*;
 #[cfg(feature = "debug")]
-use world_sectors::{desired_sectors, SectorCoord};
-use world_sectors::{
-    free_play_scenario, CurrentSector, FeatureLayer, ReadySectors, SectorFeatureSpheres, SectorJob,
-    SectorRoot, SectorSettings, SectorStrengths, WorldSectorsPlugin, FEATURE_HOME,
+use world_fixture::EXAMPLE_ACTIVE_RADIUS;
+use world_fixture::{
+    featured_world_config, free_play_scenario, world_observer_plugin, FEATURE_HOME,
 };
 
 #[derive(Parser)]
@@ -102,7 +103,7 @@ const STEP_DEADLINE_SECS: f32 = 300.0;
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new()
-        .with_game_plugins((observer_plugin, WorldSectorsPlugin))
+        .with_game_plugins((observer_plugin, world_observer_plugin, NovaWorldPlugin))
         .build();
 
     #[cfg(feature = "debug")]
@@ -135,7 +136,7 @@ fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
         SCENARIO_ID,
         "World Features Observer",
     )));
-    commands.insert_resource(SectorSettings::FEATURES);
+    commands.insert_resource(featured_world_config());
 
     commands.spawn((
         Name::new("Observer Key Light"),
@@ -189,14 +190,14 @@ fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
 /// power.
 fn park_at_home(
     mut parked: Local<bool>,
-    settings: Option<Res<SectorSettings>>,
+    config: Option<Res<WorldConfig>>,
     observer: Query<(Entity, &WASDCamera), With<ScenarioCameraMarker>>,
     mut commands: Commands,
 ) {
     if *parked {
         return;
     }
-    let Some(settings) = settings else {
+    let Some(config) = config else {
         return;
     };
     // The rig lands a frame after the camera does, so this waits for it
@@ -206,10 +207,10 @@ fn park_at_home(
     };
 
     // Engine boundary: a cell centre is in meters, a transform in world units.
-    let position = FEATURE_HOME.centre(settings.edge).to_engine();
+    let position = FEATURE_HOME.centre(config.sector_edge).to_engine();
     let look_at = FEATURE_HOME
         .offset(1, 0, 0)
-        .centre(settings.edge)
+        .centre(config.sector_edge)
         .to_engine();
     commands.entity(entity).insert((
         Transform::from_translation(position).looking_at(look_at, Vec3::Y),
@@ -255,10 +256,10 @@ fn draw_feature_spheres(mut gizmos: Gizmos, roots: Query<(&SectorRoot, &SectorFe
 /// Name the cell the observer is in, what the three layers read there, and
 /// what the window is holding.
 fn update_readout(
-    settings: Option<Res<SectorSettings>>,
+    config: Option<Res<WorldConfig>>,
     current: Option<Res<CurrentSector>>,
     ready: Res<ReadySectors>,
-    observer: Query<&GlobalTransform, With<ScenarioCameraMarker>>,
+    observer: Query<&GlobalTransform, With<WorldObserver>>,
     roots: Query<(&SectorRoot, &SectorStrengths)>,
     jobs: Query<&SectorJob>,
     rocks: Query<&AsteroidMarker>,
@@ -266,7 +267,7 @@ fn update_readout(
     hulls: Query<&SpaceshipRootMarker>,
     mut readout: Query<&mut Text, With<FeatureReadout>>,
 ) {
-    let (Some(settings), Some(current)) = (settings, current) else {
+    let (Some(config), Some(current)) = (config, current) else {
         return;
     };
     let Ok(transform) = observer.single() else {
@@ -279,7 +280,7 @@ fn update_readout(
     // Engine boundary: a bevy transform counts world units, the readout is in
     // meters.
     let position = Meters3::from_engine(transform.translation());
-    let centre = current.0.centre(settings.edge);
+    let centre = current.0.centre(config.sector_edge);
     let offset = position - centre;
     let here = roots
         .iter()
@@ -299,7 +300,7 @@ fn update_readout(
         offset.x().get(),
         offset.y().get(),
         offset.z().get(),
-        settings.edge.get(),
+        config.sector_edge.get(),
         roots.iter().count(),
         rocks.iter().count(),
         planets.iter().count(),
@@ -326,9 +327,9 @@ fn update_readout(
 fn report_census(
     current: Option<Res<CurrentSector>>,
     roots: Query<(&SectorRoot, &SectorStrengths, &SectorFeatureSpheres)>,
-    settings: Option<Res<SectorSettings>>,
+    config: Option<Res<WorldConfig>>,
 ) {
-    let (Some(current), Some(settings)) = (current, settings) else {
+    let (Some(current), Some(config)) = (current, config) else {
         return;
     };
     if !current.is_changed() {
@@ -372,7 +373,7 @@ fn report_census(
          {empty} empty, {single} single-layer, {blended} blended",
         current.0,
         live,
-        desired_cells(settings.radius),
+        desired_cells(config.active_radius),
     );
 }
 
@@ -388,7 +389,7 @@ fn desired_cells(radius: i32) -> usize {
 fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let home = FEATURE_HOME;
     let across = home.offset(1, 0, 0);
-    let edge = SectorSettings::FEATURES.edge;
+    let edge = featured_world_config().sector_edge;
 
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("wait for the streamed world")
@@ -540,8 +541,8 @@ fn pick_shot_targets(world: &mut World) {
         .expect("world features: the home window must hold a moored hull to shoot");
     info!(
         "world features: shooting the planetoid in {} and the mooring in {}",
-        SectorCoord::containing(planetoid, SectorSettings::FEATURES.edge),
-        SectorCoord::containing(mooring, SectorSettings::FEATURES.edge),
+        SectorCoord::containing(planetoid, featured_world_config().sector_edge),
+        SectorCoord::containing(mooring, featured_world_config().sector_edge),
     );
     world.insert_resource(ShotTargets {
         planetoid,
@@ -608,10 +609,7 @@ fn mooring_in_view(world: &mut World) -> Option<Meters3> {
 #[cfg(feature = "debug")]
 fn window_is_settled() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     std::sync::Arc::new(|world: &World| {
-        let (Some(settings), Some(current)) = (
-            world.get_resource::<SectorSettings>(),
-            world.get_resource::<CurrentSector>(),
-        ) else {
+        let Some(current) = world.get_resource::<CurrentSector>() else {
             return false;
         };
         let Some(mut query) = world.try_query::<&SectorRoot>() else {
@@ -619,7 +617,7 @@ fn window_is_settled() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
         };
         let live: std::collections::BTreeSet<SectorCoord> =
             query.iter(world).map(|root| root.0).collect();
-        live == desired_sectors(current.0, settings.radius)
+        live == desired_sectors(current.0, EXAMPLE_ACTIVE_RADIUS)
     })
 }
 
@@ -627,14 +625,11 @@ fn window_is_settled() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
 #[cfg(feature = "debug")]
 fn sector_set_is(centre: SectorCoord) -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     std::sync::Arc::new(move |world: &World| {
-        let Some(settings) = world.get_resource::<SectorSettings>() else {
-            return false;
-        };
         let Some(mut query) = world.try_query::<&SectorRoot>() else {
             return false;
         };
         let live: std::collections::BTreeSet<SectorCoord> =
             query.iter(world).map(|root| root.0).collect();
-        live == desired_sectors(centre, settings.radius)
+        live == desired_sectors(centre, EXAMPLE_ACTIVE_RADIUS)
     })
 }

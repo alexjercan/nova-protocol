@@ -458,16 +458,19 @@ not justify the earlier agents' exact millisecond or line-count estimates.
 Those estimates are excluded. Claims about named commercial games' internal
 algorithms are also excluded unless a primary source is found.
 
-## Spike evidence: the two world-sector examples, 2026-09-22
+## Spike evidence: the world-sector examples, 2026-09-22
 
-An example-local spike now runs the streaming lifecycle for real:
-`examples/shared/world_sectors/mod.rs` holds the kit,
-`examples/systems/system_world_sectors.rs` asserts it, and
+The streaming lifecycle runs for real, and it now runs from a crate:
+`crates/nova_world` owns the generator, the feature field and the job
+lifetime; `examples/shared/world_fixture/mod.rs` decides the seed, the cell edge
+and the content the examples fill a world from;
+`examples/systems/system_world_sectors.rs` asserts the lifetime;
 `examples/playable/world_sectors.rs` and `examples/playable/world_features.rs`
 let a human fly its two generators. Two production interfaces moved - the
 asteroid split (see the async entry below) and the same split for planets,
-`prepare_planet` plus `planet_scenario_object_prepared` - and `noise` was added
-as a root dev dependency; nothing else in a crate changed.
+`prepare_planet` plus `planet_scenario_object_prepared`. `noise` moved from a
+root dev dependency to a `nova_world` production dependency, and the crate is
+opt-in: nothing adds `NovaWorldPlugin` to `AppBuilder`.
 Only what the runs CHANGED about the notes above is recorded here.
 
 Owner decisions taken on 2026-09-22, after the first synchronous version ran:
