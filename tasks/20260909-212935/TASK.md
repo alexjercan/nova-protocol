@@ -23,27 +23,33 @@ the final authority.
 
 ### Owner account work
 
-1. Complete Steamworks onboarding as an individual or legal entity, including
-   identity, bank, and tax information.
-2. Buy one Steam Direct app credit. Valve currently charges 100 USD plus
+OWNER ONLY, and it blocks everything under `Populate the store page`. No asset
+can be uploaded before an app exists.
+
+1. [ ] Complete Steamworks onboarding as an individual or legal entity,
+   including identity, bank, and tax information.
+2. [ ] Buy one Steam Direct app credit. Valve currently charges 100 USD plus
    applicable tax; it is recouped only after the product reaches 1,000 USD in
    adjusted Steam gross revenue. This fee applies even while only a Coming Soon
    page is public.
-3. Create the app and record its app ID, owner account, public URL, developer
-   name, and publisher name on this task.
+3. [ ] Create the app and record its app ID, owner account, public URL,
+   developer name, and publisher name on this task.
 
 ### Populate the store page
 
 1. Import the approved task `20260909-212954` outputs:
-   - store header 920x430, small capsule 462x174, main capsule 1232x706, and
-     vertical capsule 748x896;
-   - library capsule 600x900, library header 920x430, hero 3840x1240, and
-     transparent library logo;
-   - at least five 1920x1080, 16:9 gameplay screenshots, with at least four
-     suitable-for-all-ages images marked where their content permits;
-   - the gameplay-first 1920x1080 MP4 uploaded to Steam, not linked from
-     another video host;
-   - approved short and long descriptions.
+   - [x] store header 920x430, small capsule 462x174, main capsule 1232x706,
+     and vertical capsule 748x896 - built and approved (see
+     `20260909-212954`), so this is an upload once the app exists;
+   - [x] library capsule 600x900, library header 920x430, hero 3840x1240, and
+     transparent library logo - built and approved, same upload;
+   - [x] at least five 1920x1080, 16:9 gameplay screenshots, with at least four
+     suitable-for-all-ages images marked where their content permits - ten are
+     shot and five are all-ages, in carousel order, same upload;
+   - [x] the gameplay-first 1920x1080 MP4 uploaded to Steam, not linked from
+     another video host - the cut is built and approved (68.5 s; see
+     `20260909-212954`), so this is an upload once the app exists;
+   - [ ] approved short and long descriptions.
 2. Fill the creator, supported language, Windows/macOS/Linux requirements,
    genre, tags, supported features, mature-content survey, legal, and release
    date fields. List only features that will exist when a Steam build launches.
@@ -66,6 +72,21 @@ the final authority.
    post only if it improves the page rather than duplicating that action.
 5. Record the publication time, public URL, app ID, review outcome, and proof of
    the working website link and wishlist action.
+
+## Waiting on the app
+
+Asset production runs ahead of the account work, so the page can be filled in
+one sitting once the app ID exists. Ready now:
+
+- The trailer, rendered and approved.
+- Five description-body loops, sized to Steam's 616 px description column.
+- The shot list for the carousel stills, in
+  `~/personal/content-machine/projects/nova-v014-store/SHOTS.md`.
+
+A page LAYOUT document is being prepared alongside these: which asset goes in
+which slot, in what order, with the copy that sits beside it. It is written
+against the Steamworks field names so it can be worked through top to bottom
+in the dashboard rather than reverse-engineered from a mock.
 
 ## Not in scope
 
