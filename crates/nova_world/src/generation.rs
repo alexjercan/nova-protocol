@@ -971,11 +971,24 @@ pub(crate) fn widest_body_clearance(generation: &SectorGeneration) -> (Meters, S
                 uniform.radius_max.get()
             ),
         ),
-        SectorGeneration::LayeredFeatures(_) => {
+        SectorGeneration::LayeredFeatures(layered) => {
             let rock = Meters(FEATURE_ASTEROID_RADIUS.1.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
-            let planet = PLANETOID_RADIUS.1;
+            // The OUTER radius, not the mean band: a planetoid's mesh spans
+            // `1 +/- relief` and `body_radius` is what the placement above
+            // spaces by, so the band alone would under-measure every type by
+            // its relief - 5.5% for barren rock.
+            let planet = layered
+                .planet_types
+                .iter()
+                .map(|planet_type| {
+                    PlanetConfig::new(*planet_type, PLANETOID_RADIUS.1, 0).body_radius()
+                })
+                .fold(Meters(0.0), |widest, radius| widest.max(radius));
             if planet >= rock && planet >= MOORED_HULL_CLEARANCE {
-                (planet, format!("a gated planetoid at {} m", planet.get()))
+                (
+                    planet,
+                    format!("a gated planetoid reaching {} m", planet.get()),
+                )
             } else if rock >= MOORED_HULL_CLEARANCE {
                 (
                     rock,

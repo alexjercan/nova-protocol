@@ -299,33 +299,38 @@ fn a_uniform_edge_too_narrow_to_own_its_rocks_is_refused() {
     );
 }
 
-/// The layered floor is set by the planetoid, not the rock or the hull.
+/// The layered floor is set by the planetoid, at its OUTER radius.
 ///
-/// 8 km, because a gated planetoid draws up to 1,200 m of REAL radius against
-/// a gated rock's 360 m of meshed reach and a moored hull's 400 m. Naming
-/// which body sets the floor is the point: a caller who narrows the cell is
-/// told what they would have to shrink first.
+/// About 8.44 km for a barren rock: the 1,200 m band is a MEAN radius and the
+/// mesh spans `1 +/- relief`, so the body reaches 1,266 m - the same
+/// `body_radius` the placement spaces by. 8,100 m is the pin: it clears the
+/// floor the mean band alone would give and is still a cell the planetoid
+/// crosses. A gated rock reaches 360 m and a moored hull 400 m, so naming
+/// which body set the floor tells a caller what they would have to shrink.
 #[test]
 fn a_layered_edge_too_narrow_to_own_its_planetoids_is_refused() {
-    let fault = fault_of(&WorldConfig {
-        sector_edge: Meters(7_999.0),
-        ..layered()
-    });
-    assert!(
-        matches!(
-            &fault,
-            SectorFault::Config { field: "sector_edge", value }
-                if value.contains("planetoid")
-        ),
-        "a cell narrower than its own planetoids must refuse and name them, got {fault:?}"
-    );
+    for edge in [Meters(7_999.0), Meters(8_100.0)] {
+        let fault = fault_of(&WorldConfig {
+            sector_edge: edge,
+            ..layered()
+        });
+        assert!(
+            matches!(
+                &fault,
+                SectorFault::Config { field: "sector_edge", value }
+                    if value.contains("planetoid")
+            ),
+            "a {edge:?} cell is narrower than its own planetoids and must refuse \
+             by naming them, got {fault:?}"
+        );
+    }
     let wide_enough = WorldConfig {
-        sector_edge: Meters(8_001.0),
+        sector_edge: Meters(8_441.0),
         ..layered()
     };
     assert!(
         wide_enough.validate().is_ok(),
-        "a cell just wide enough to own a 1,200 m planetoid must arm"
+        "a cell just wide enough to own a 1,266 m planetoid must arm"
     );
 }
 
