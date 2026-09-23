@@ -21,8 +21,11 @@
 //! two same-layer spheres can only overlap if their centres are within
 //! `2 * FEATURE_RADIUS_MAX`, and a centre moves off its node by one jitter
 //! draw and one inset pull, so [`FEATURE_HALO`] nodes is provably enough.
-//! [`feature_halo_covers_overlap`] is the arithmetic, checked in a debug
-//! build.
+//! [`feature_halo_covers_overlap`] is the arithmetic, and the inset pull grows
+//! with the cell edge, so a wide enough edge outruns the halo:
+//! [`crate::WorldConfig::validate`] REFUSES such a config in every build. A
+//! debug assertion would have let a release run ship a world with two belts
+//! inside each other.
 
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
@@ -199,17 +202,22 @@ pub(crate) const FEATURE_CEILING: f32 = 0.22;
 /// Two same-layer spheres overlap only if their centres are within
 /// `2 * FEATURE_RADIUS_MAX`, and a centre sits within one jitter draw plus one
 /// inset pull of its node, so a node further out than this cannot hold a
-/// rival.
+/// rival. The inset pull grows with the cell edge, which is why a layered
+/// [`crate::WorldConfig`] with too wide an edge is refused rather than thinned
+/// against a halo that no longer reaches.
 pub const FEATURE_HALO: i32 = 2;
 
 /// Whether [`FEATURE_HALO`] really covers every node that can hold an
 /// overlapping same-layer rival.
 ///
 /// The arithmetic the halo constant is derived from, written as a function so
-/// it is checked rather than asserted in a comment. [`generate_sector`] debug-
-/// asserts it, so raising a radius band or the jitter without widening the
-/// halo fails a debug run instead of silently letting two belts overlap.
-fn feature_halo_covers_overlap(edge: Meters) -> bool {
+/// it is checked rather than asserted in a comment.
+/// [`crate::WorldConfig::validate`] calls it for every layered config in every
+/// build, so raising a radius band or the jitter without widening the halo
+/// refuses at the config instead of silently letting two belts overlap, and an
+/// authored cell edge too wide for the halo is refused before a cell is
+/// described.
+pub(crate) fn feature_halo_covers_overlap(edge: Meters) -> bool {
     // A centre leaves its node twice: the jitter draw, and then the pull onto
     // its owner cell's inset, which can move it another `1 - PLACEMENT_INSET`
     // of a half-edge on an axis.
@@ -952,17 +960,6 @@ fn layered_contents(
 ) -> Result<LayeredContents, SectorFault> {
     let edge = config.sector_edge;
     let centre = coord.centre(edge);
-    // Here rather than at the top of the call: the halo is arithmetic about
-    // THIS generator, and the drift term it covers grows with the cell edge,
-    // so a uniform sector with a deliberately absurd edge is not this
-    // assertion's business.
-    debug_assert!(
-        feature_halo_covers_overlap(edge),
-        "nova_world: FEATURE_HALO of {FEATURE_HALO} node(s) cannot reach every same-layer \
-         rival a {} m radius, {FEATURE_JITTER} jitter and a {} m cell can put outside it",
-        FEATURE_RADIUS_MAX.get(),
-        edge.get()
-    );
     let fields = FeatureFields::new(config.seed);
     let features = sector_features_from(&fields, config.seed, coord, edge)?;
     let mut strengths = [0.0; FeatureLayer::COUNT];

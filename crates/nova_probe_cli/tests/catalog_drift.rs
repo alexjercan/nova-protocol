@@ -891,13 +891,14 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "crossing one boundary retains the shared slab and swaps a face",
             "the return trip leaves no duplicate root",
             "work for an undesired sector never materializes",
+            "replacing the world config retires the world it built",
             "unloading the session removes every sector root",
         ],
     ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 433;
+const SYSTEMS_INVARIANTS: usize = 434;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

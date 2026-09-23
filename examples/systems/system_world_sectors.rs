@@ -147,6 +147,32 @@ const SWEPT_READY_CELL: SectorCoord = SectorCoord::new(9, 9, 0);
 #[cfg(feature = "debug")]
 const ABANDONED_WORK: usize = 2;
 
+/// The cell whose job is running when the `WorldConfig` is replaced.
+///
+/// INSIDE the desired window, unlike the abandoned cells: a completion the
+/// window still wants is the one a coordinate-keyed loop would accept, so this
+/// is the piece of work that would carry the old seed into the new world.
+#[cfg(feature = "debug")]
+const REPLACED_JOB_CELL: SectorCoord = SectorCoord::new(0, -2, 2);
+
+/// The cell whose prepared result is waiting when the `WorldConfig` is
+/// replaced. Inside the desired window for the same reason.
+#[cfg(feature = "debug")]
+const REPLACED_READY_CELL: SectorCoord = SectorCoord::new(-4, -2, 2);
+
+/// The seed the world is replaced WITH, mid-session.
+///
+/// A different world and not a different dial: the claim is that nothing built
+/// from the first seed survives into the second, and two configs that agreed
+/// about every cell would not observe it.
+#[cfg(feature = "debug")]
+const REPLACEMENT_SEED: u32 = 20_260_923;
+
+/// How many pieces of work the replacement beat hands in: one running job and
+/// one prepared sector, both for cells the window still wants.
+#[cfg(feature = "debug")]
+const REPLACED_WORK: usize = 2;
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new()
@@ -272,6 +298,34 @@ fn abandoned_work_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sy
     })
 }
 
+/// Advance once nothing the previous `WorldConfig` built is left anywhere in
+/// the world, and the new one has started building.
+///
+/// Reads ENTITIES, not coordinates: the replaced window wants the same 125
+/// cells the old one did, so a coordinate test could not tell an old root from
+/// the new root that replaced it, and both handed-in cells are re-requested
+/// under the new config within a frame or two. What became of the prepared
+/// payload is a question about CONTENT rather than presence, so
+/// `report_world_replacement` asks that one instead.
+#[cfg(feature = "debug")]
+fn replaced_world_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
+    Arc::new(|world: &World| {
+        let Some(replaced) = world.get_resource::<ReplacedWorld>() else {
+            return false;
+        };
+        let Some(mut roots) = world.try_query::<(Entity, &SectorRoot)>() else {
+            return false;
+        };
+        let mut standing = roots.iter(world).map(|(entity, _)| entity).peekable();
+        let rebuilt = standing.peek().is_some();
+        let old_roots_gone = standing.all(|entity| !replaced.roots.contains(&entity));
+        let old_job_gone = world
+            .try_query::<(Entity, &SectorJob)>()
+            .is_some_and(|mut query| query.iter(world).all(|(entity, _)| entity != replaced.job));
+        rebuilt && old_roots_gone && old_job_gone
+    })
+}
+
 /// Advance once no job is running and nothing is waiting to be spawned.
 #[cfg(feature = "debug")]
 fn sector_work_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
@@ -288,14 +342,18 @@ fn sector_work_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync>
 
 /// Hand the streaming loop work for cells `coords` name, as a running job and
 /// a prepared result. Counts the job as requested, the way
-/// [`nova_world::request_sectors`] does.
+/// [`nova_world::request_sectors`] does, and returns the job's entity so a
+/// caller can name THAT job again rather than whichever job holds the cell
+/// next.
 #[cfg(feature = "debug")]
-fn hand_in_work(world: &mut World, job_cell: SectorCoord, ready_cell: SectorCoord) {
+fn hand_in_work(world: &mut World, job_cell: SectorCoord, ready_cell: SectorCoord) -> Entity {
     let config = world.resource::<WorldConfig>().clone();
-    world.spawn((
-        Name::new(format!("Sector Job {job_cell}")),
-        SectorJob::start(config.clone(), job_cell),
-    ));
+    let job = world
+        .spawn((
+            Name::new(format!("Sector Job {job_cell}")),
+            SectorJob::start(config.clone(), job_cell),
+        ))
+        .id();
     world.resource_mut::<SectorJobStats>().requested += 1;
 
     let prepared =
@@ -304,6 +362,7 @@ fn hand_in_work(world: &mut World, job_cell: SectorCoord, ready_cell: SectorCoor
         .resource_mut::<ReadySectors>()
         .0
         .insert(ready_cell, prepared);
+    job
 }
 
 /// Advance once the observer has reached its commanded pose.
@@ -414,6 +473,31 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .step("report the abandoned work")
         .on_enter(report_abandoned_work)
         .add()
+        // The config is swapped in the SAME beat the work is handed in, so the
+        // only thing that can take either is `clear_sector_work` running in
+        // `NovaWorldSystems::Cleanup`, ahead of the stages that would
+        // otherwise accept them by coordinate.
+        .step("replace the world under the live session")
+        .on_enter(|world: &mut World| {
+            let roots = live_roots(world).values().copied().collect::<BTreeSet<_>>();
+            let discarded = world.resource::<SectorJobStats>().discarded;
+            let job = hand_in_work(world, REPLACED_JOB_CELL, REPLACED_READY_CELL);
+            world.insert_resource(ReplacedWorld {
+                roots,
+                job,
+                discarded,
+            });
+            world.insert_resource(WorldConfig {
+                seed: REPLACEMENT_SEED,
+                ..featured_world_config()
+            });
+        })
+        .until(replaced_world_is_gone())
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("report the world replacement")
+        .on_enter(report_world_replacement)
+        .add()
         // The work is handed in and the session is killed in the SAME beat, so
         // the streaming stages - all gated on a live scenario - never run
         // again and `clear_sector_work` is the only thing left that can take
@@ -437,6 +521,20 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
 #[cfg(feature = "debug")]
 #[derive(Resource)]
 struct AbandonBaseline(SectorJobStats);
+
+/// Everything the OLD `WorldConfig` had on hand when it was replaced, named by
+/// entity so the replacement can be judged on identity rather than on a cell
+/// index the new world reuses.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct ReplacedWorld {
+    /// Every live sector root the old config built.
+    roots: BTreeSet<Entity>,
+    /// The job that was running when the config changed.
+    job: Entity,
+    /// What `discarded` read before the beat handed its work in.
+    discarded: usize,
+}
 
 /// Claim 1: the session starts empty.
 #[cfg(feature = "debug")]
@@ -1157,7 +1255,111 @@ fn report_abandoned_work(world: &mut World) {
     );
 }
 
-/// Claim 14: the session sweep is still the outer owner, and it reaches the
+/// Claim 14: replacing the `WorldConfig` replaces the WORLD, and nothing the
+/// old one built or had in flight crosses over.
+///
+/// The hole this closes is that every piece of streaming state is keyed by
+/// CELL and the replaced window wants the same 125 cells: a root, a running
+/// job and a prepared payload built from the old seed all look exactly like
+/// the new world's own work to a loop that only compares coordinates. So the
+/// assertions read entities, and the two configs are first shown to disagree
+/// about the cell they share - a claim about a swap nobody could observe would
+/// be no claim at all.
+#[cfg(feature = "debug")]
+fn report_world_replacement(world: &mut World) {
+    let replaced = world.resource::<ReplacedWorld>();
+    let baseline_roots = replaced.roots.clone();
+    let baseline_discarded = replaced.discarded;
+    let old_job = replaced.job;
+
+    let old_config = featured_world_config();
+    let new_config = world.resource::<WorldConfig>().clone();
+    assert_eq!(
+        new_config.seed, REPLACEMENT_SEED,
+        "world sectors: the replacement beat must leave the new config in place"
+    );
+    assert_ne!(
+        describe(FEATURE_HOME, &old_config).canonical(),
+        describe(FEATURE_HOME, &new_config).canonical(),
+        "world sectors: the two configs must describe {FEATURE_HOME} differently, or the \
+         replacement claim observes nothing"
+    );
+
+    let live = live_roots(world);
+    assert!(
+        !live.is_empty(),
+        "world sectors: the new config must start building its own world"
+    );
+    let survivors: Vec<SectorCoord> = live
+        .iter()
+        .filter(|(_, entity)| baseline_roots.contains(entity))
+        .map(|(coord, _)| *coord)
+        .collect();
+    assert!(
+        survivors.is_empty(),
+        "world sectors: no root the old config built may survive the swap, found {survivors:?}"
+    );
+    let desired = desired_sectors(FEATURE_HOME, new_config.active_radius);
+    for coord in live.keys() {
+        assert!(
+            desired.contains(coord),
+            "world sectors: {coord} is live but outside the replaced window"
+        );
+    }
+
+    let old_job_alive = world
+        .get_entity(old_job)
+        .is_ok_and(|entity| entity.contains::<SectorJob>());
+    assert!(
+        !old_job_alive,
+        "world sectors: the job started under the old config must be dropped, not collected \
+         into the new world"
+    );
+    // Presence is the wrong question: the cell is inside the replaced window,
+    // so the new config re-prepares it within a frame or two and a test for an
+    // empty slot would fail on a payload that is perfectly correct. What may
+    // never be waiting there is the OLD config's description of it.
+    let waiting = world
+        .resource::<ReadySectors>()
+        .0
+        .get(&REPLACED_READY_CELL)
+        .map(|prepared| prepared.description.canonical());
+    if let Some(waiting) = waiting {
+        assert_eq!(
+            waiting,
+            describe(REPLACED_READY_CELL, &new_config).canonical(),
+            "world sectors: the payload waiting for {REPLACED_READY_CELL} must be the new \
+             config's, not the one prepared before the swap"
+        );
+    }
+
+    let stats = *world.resource::<SectorJobStats>();
+    assert_eq!(
+        stats.discarded,
+        baseline_discarded + REPLACED_WORK,
+        "world sectors: exactly the {REPLACED_WORK} pieces of work the old config had in hand \
+         must be discarded, {baseline_discarded} -> {}",
+        stats.discarded
+    );
+
+    nova_probe::probe_marker(
+        world,
+        "outcome: replacing the world config retires the world it built",
+        serde_json::json!({
+            "retired": baseline_roots.len(),
+            "discarded": REPLACED_WORK,
+            "survivors": 0,
+        }),
+    );
+    info!(
+        "world sectors: the swap retired {} roots and dropped {REPLACED_WORK} pieces of work, \
+         and {} new roots stand",
+        baseline_roots.len(),
+        live.len()
+    );
+}
+
+/// Claim 15: the session sweep is still the outer owner, and it reaches the
 /// work as well as the world.
 #[cfg(feature = "debug")]
 fn report_unload(world: &mut World) {

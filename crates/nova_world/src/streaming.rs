@@ -65,7 +65,22 @@ pub struct CurrentSector(pub SectorCoord);
 
 /// The cells the observer wants live: the cube of side `2 * radius + 1`
 /// centred on `centre`.
+///
+/// Built whole, and built again by three stages of every frame, so the cost is
+/// cubic in `radius`.
+///
+/// # Panics
+///
+/// [`SectorFault::Config`] on a window above
+/// [`crate::ACTIVE_WINDOW_SECTORS_MAX`], refused HERE and not only in
+/// [`WorldConfig::validate`]. This is the allocation, and the resource can be
+/// swapped by a caller's own system between the stage that validates a change
+/// and the stage that reads it, so a bound that lived only in the config would
+/// be a bound the allocation never saw.
 pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord> {
+    if let Err(fault) = crate::window_cells(radius) {
+        panic!("nova_world: {fault}");
+    }
     let mut desired = BTreeSet::new();
     for x in -radius..=radius {
         for y in -radius..=radius {
@@ -243,19 +258,34 @@ pub fn live_sectors(roots: &Query<(Entity, &SectorRoot)>) -> BTreeMap<SectorCoor
     live
 }
 
-/// Follow the observer: write which cell the [`WorldObserver`] stands in.
+/// Follow the observer: write which cell the [`WorldObserver`] stands in, and
+/// refuse a config the rest of the frame cannot afford.
+///
+/// The first stage a newly armed [`WorldConfig`] reaches, which is why the
+/// validation is HERE as well as inside the generator.
+/// [`crate::generate_sector`] refuses on a WORKER, one job too late for the
+/// dials whose cost the main thread pays first: [`desired_sectors`] enumerates
+/// the whole window three times a frame, starting in the very next stage. Only a changed config is
+/// re-read, so an armed world costs one content check per swap and nothing per
+/// frame.
 ///
 /// # Panics
 ///
 /// [`SectorFault::AbsentObserver`] unless there is exactly one
 /// [`WorldObserver`]. Streaming around a guessed centre would move the world
-/// without saying so.
+/// without saying so. And on whatever [`WorldConfig::validate`] refuses, on
+/// the frame the config is armed or replaced.
 pub fn track_current_sector(
     mut commands: Commands,
     config: Res<WorldConfig>,
     observer: Query<&GlobalTransform, With<WorldObserver>>,
     current: Option<ResMut<CurrentSector>>,
 ) {
+    if config.is_changed() {
+        if let Err(fault) = config.validate() {
+            panic!("nova_world: {fault}");
+        }
+    }
     let Ok(transform) = observer.single() else {
         panic!("nova_world: {}", SectorFault::AbsentObserver);
     };
@@ -298,6 +328,9 @@ impl SectorJob {
     /// The config is MOVED into the task rather than read from the resource
     /// when it finishes: a job answers the question it was asked, and a dial
     /// changed mid-flight must not silently re-aim work already in the air.
+    /// The other half of that rule is [`clear_sector_work`], which drops every
+    /// job in the air on the frame the config changes - a job that answers the
+    /// old question must not be ACCEPTED under the new one either.
     pub fn start(config: WorldConfig, coord: SectorCoord) -> Self {
         let task = AsyncComputeTaskPool::get().spawn(async move { prepare_sector(config, coord) });
         Self { coord, task }
@@ -531,31 +564,55 @@ pub fn retire_sectors(
     });
 }
 
-/// Drop the work the session no longer owns.
+/// Drop the work the session no longer owns, and the world a replaced
+/// [`WorldConfig`] no longer describes.
 ///
-/// Sector roots are scenario objects and the scenario sweep takes them. A
-/// pending [`SectorJob`] and a prepared [`ReadySectors`] payload are NOT, so
-/// nothing else can: without this an unloaded session would leave workers
-/// running, and the next session would materialize sectors the previous one
-/// asked for.
+/// Sector roots are scenario objects and the scenario sweep takes them when a
+/// SESSION ends. A pending [`SectorJob`] and a prepared [`ReadySectors`]
+/// payload are NOT, so nothing else can: without this an unloaded session
+/// would leave workers running, and the next session would materialize sectors
+/// the previous one asked for.
 ///
-/// Runs on both ways a session ends, which is why the plugin's condition is
-/// not just `not(scenario_is_live)`: `LoadScenario` over a LIVE scenario swaps
-/// the two inside one observer call, so there is no frame where liveness is
-/// false to catch it. It runs before the streaming stages, so a session that
-/// is replaced and re-armed in one frame cannot spawn the old session's
-/// prepared sectors into the new one.
+/// Runs on every way the work on hand stops belonging to the world that asked
+/// for it, which is why the plugin's condition is not just
+/// `not(scenario_is_live)`:
+///
+/// - `LoadScenario` over a LIVE scenario swaps the two inside one observer
+///   call, so there is no frame where liveness is false to catch it and the
+///   condition reads `CurrentScenario` changing as well.
+/// - the [`WorldConfig`] itself is inserted, replaced or removed. A job
+///   carries the config it was STARTED with and everything on hand is keyed by
+///   coordinate alone, so an old seed, edge or content table would otherwise
+///   materialize into the new world looking like the new world's own cell.
+///   That case is the only one that also takes the LIVE ROOTS: they describe a
+///   world nobody configured any more, and no other system would ever retire
+///   them, because the desired set names the same coordinates either way.
+///
+/// It runs before the streaming stages, so a world that is replaced and
+/// re-armed in one frame cannot spawn the old world's prepared sectors into
+/// the new one.
 pub fn clear_sector_work(
     mut commands: Commands,
+    config: Option<Res<WorldConfig>>,
+    roots: Query<Entity, With<SectorRoot>>,
     jobs: Query<Entity, With<SectorJob>>,
     mut ready: ResMut<ReadySectors>,
     mut stats: ResMut<SectorJobStats>,
 ) {
-    if jobs.is_empty() && ready.0.is_empty() {
+    // Absent OR new this frame. The two are the same event seen from either
+    // side of a swap, and on the arming frame there is nothing live to take.
+    let world_replaced = config.is_none_or(|config| config.is_changed());
+    let retiring = if world_replaced {
+        roots.iter().len()
+    } else {
+        0
+    };
+    if jobs.is_empty() && ready.0.is_empty() && retiring == 0 {
         return;
     }
     debug!(
-        "nova_world: the session is gone, dropping {} job(s) and {} prepared sector(s)",
+        "nova_world: the world on hand is gone, dropping {} job(s) and {} prepared sector(s) \
+         and retiring {retiring} live sector(s)",
         jobs.iter().len(),
         ready.0.len()
     );
@@ -564,4 +621,12 @@ pub fn clear_sector_work(
         commands.entity(entity).despawn();
     }
     ready.0.clear();
+    if world_replaced {
+        for entity in &roots {
+            // try_despawn: a scenario replaced on the same frame the config is
+            // has already queued the same root through the scoped sweep, and
+            // the probe's clean pass fails a run that warns on the second one.
+            commands.entity(entity).try_despawn();
+        }
+    }
 }

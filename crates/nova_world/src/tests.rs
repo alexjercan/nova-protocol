@@ -13,7 +13,7 @@ use nova_scenario::prelude::{PlanetType, KIND_ICE, KIND_ROCK};
 
 use crate::{
     generate_sector, LayeredFeatureConfig, SectorCoord, SectorFault, SectorGeneration,
-    UniformAsteroidConfig, WorldConfig,
+    UniformAsteroidConfig, WorldConfig, ACTIVE_WINDOW_SECTORS_MAX,
 };
 
 /// A config that describes a sector, and the base every refusal below breaks
@@ -196,6 +196,128 @@ fn a_negative_active_radius_is_refused() {
             value: "-1".to_string(),
         }
     );
+}
+
+#[test]
+fn a_window_above_the_cell_maximum_is_refused() {
+    // Radius 2 is 125 cells, the measured window, and radius 3 is 343. The
+    // huge one is the shape of the finding: the cube overflows the count
+    // itself, so the refusal has to come from checked arithmetic rather than
+    // from an allocation nobody survives.
+    for radius in [3, 1_000, i32::MAX] {
+        let config = WorldConfig {
+            active_radius: radius,
+            ..uniform()
+        };
+        assert!(
+            matches!(
+                fault_of(&config),
+                SectorFault::Config {
+                    field: "active_radius",
+                    ..
+                }
+            ),
+            "a radius of {radius} asks for more than {ACTIVE_WINDOW_SECTORS_MAX} cells and must \
+             refuse before the desired set is built, not be clamped to one that fits"
+        );
+    }
+    generate_sector(
+        &WorldConfig {
+            active_radius: 2,
+            ..uniform()
+        },
+        SectorCoord::ORIGIN,
+    )
+    .expect("the measured 5x5x5 window must still describe");
+}
+
+#[test]
+#[should_panic(expected = "WorldConfig::active_radius")]
+fn the_desired_window_refuses_a_radius_it_was_never_validated_for() {
+    // The bound has to live at the ALLOCATION and not only in the config: a
+    // caller can swap the resource between the stage that validates a change
+    // and the stage that reads it, and this function is where the memory goes.
+    let _ = crate::streaming::desired_sectors(SectorCoord::ORIGIN, 1_000);
+}
+
+#[test]
+fn a_layered_edge_wider_than_the_thinning_halo_is_refused() {
+    // In EVERY build, not a debug assertion: a release run that accepted this
+    // edge would inspect the same 2-node halo and ship a world where two
+    // same-layer spheres outside it both survive the thinning.
+    let config = WorldConfig {
+        sector_edge: Meters(500_000.0),
+        ..layered()
+    };
+    assert!(
+        matches!(
+            fault_of(&config),
+            SectorFault::Config {
+                field: "sector_edge",
+                ..
+            }
+        ),
+        "a cell edge the thinning halo cannot reach across must refuse the config"
+    );
+    generate_sector(
+        &WorldConfig {
+            sector_edge: Meters(500_000.0),
+            ..uniform()
+        },
+        SectorCoord::ORIGIN,
+    )
+    .expect("the uniform generator has no halo and no thinning, so the same edge is fine");
+}
+
+/// The refusal the ARMING frame owes the main thread.
+///
+/// [`crate::WorldConfig::validate`] also runs inside [`generate_sector`], but
+/// that is on a WORKER and one job too late for a dial the main thread pays
+/// for first: `desired_sectors` enumerates the whole window three times a
+/// frame, starting in the stage right after the observer is read. So the
+/// window bound is only a bound if the config is refused HERE.
+mod arming {
+    use bevy::{ecs::system::RunSystemOnce, prelude::*};
+    use nova_events::prelude::Meters;
+
+    use super::{layered, uniform};
+    use crate::{prelude::WorldObserver, WorldConfig};
+
+    /// A world with `config` armed and exactly one observer standing in it.
+    fn armed(config: WorldConfig) -> World {
+        let mut world = World::new();
+        world.insert_resource(config);
+        world.spawn((WorldObserver, GlobalTransform::default()));
+        world
+    }
+
+    #[test]
+    #[should_panic(expected = "WorldConfig::active_radius")]
+    fn an_oversized_window_is_refused_before_it_is_enumerated() {
+        let mut world = armed(WorldConfig {
+            active_radius: 1_000,
+            ..uniform()
+        });
+        let _ = world.run_system_once(crate::streaming::track_current_sector);
+    }
+
+    #[test]
+    #[should_panic(expected = "WorldConfig::sector_edge")]
+    fn a_layered_edge_the_halo_cannot_cover_is_refused_when_it_is_armed() {
+        let mut world = armed(WorldConfig {
+            sector_edge: Meters(500_000.0),
+            ..layered()
+        });
+        let _ = world.run_system_once(crate::streaming::track_current_sector);
+    }
+
+    #[test]
+    fn the_measured_window_arms() {
+        let mut world = armed(uniform());
+        world
+            .run_system_once(crate::streaming::track_current_sector)
+            .expect("the measured 5x5x5 window must arm");
+    }
 }
 
 /// The observer rule, which is the one thing a caller MUST wire.

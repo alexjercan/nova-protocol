@@ -40,12 +40,15 @@
 //!
 //! 1. [`NovaWorldSystems::Cleanup`] drops the work the session no longer owns.
 //!    It is the only stage NOT gated on the session being live: it runs while
-//!    no scenario is live, and it runs on the frame a live session is
-//!    replaced, ahead of the streaming stages, which serve the NEW session on
-//!    that same frame. So no frame can hand a new session work the previous
-//!    one asked for.
+//!    no scenario is live, it runs on the frame a live session is replaced,
+//!    and it runs on the frame the [`WorldConfig`] itself is replaced or
+//!    removed - all of them ahead of the streaming stages, which serve the NEW
+//!    world on that same frame. So no frame can hand a new world work the
+//!    previous one asked for.
 //! 2. [`NovaWorldSystems::Observe`] writes which cell the [`WorldObserver`]
-//!    stands in.
+//!    stands in, and refuses a newly armed config. The generator validates
+//!    too, but on a worker, which is one job too late for a window the main
+//!    thread enumerates whole in the very next stage.
 //! 3. [`NovaWorldSystems::Request`] starts jobs for the desired cells that are
 //!    not already live, running or prepared, NEAREST FIRST and only as many as
 //!    the task pool has threads. The rest of the window stays unrequested -
@@ -90,6 +93,23 @@
 //!   call - so liveness alone cannot see it and the condition reads
 //!   `CurrentScenario` CHANGING as well. Without that a replaced session would
 //!   materialize sectors the session before it asked for.
+//!
+//! # Replacing the world under a live session
+//!
+//! A [`WorldConfig`] is a resource a caller can swap, and a job carries the
+//! config it was STARTED with, so a swap is a third way the work on hand stops
+//! belonging to the world that asked for it. Nothing downstream could catch
+//! it: a root, a running job and a prepared payload are all keyed by
+//! coordinate alone, so an old seed, edge or content table would materialize
+//! into the new world looking exactly like the new world's own cell.
+//!
+//! So a swap is a CLEAR SESSION, not a merge. On the frame the resource is
+//! inserted, replaced or removed, [`NovaWorldSystems::Cleanup`] retires every
+//! live [`SectorRoot`] and drops every job and prepared result - and because
+//! the stages are chained, all of that lands before
+//! [`NovaWorldSystems::Request`] asks the new world for anything. The window
+//! refills from the new config over the following frames at the usual one
+//! sector a frame.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
@@ -126,8 +146,9 @@ pub mod prelude {
         generate_sector, prepare_sector, sector_features, FeatureFields, FeatureLayer,
         FeatureSphere, LayeredFeatureConfig, NovaWorldPlugin, NovaWorldSystems, PreparedSector,
         SectorAnchorage, SectorAsteroid, SectorCoord, SectorDescription, SectorFault,
-        SectorGeneration, SectorPlanet, UniformAsteroidConfig, WorldConfig, CLEARANCE_MARGIN,
-        FEATURE_HALO, FEATURE_LATTICE, FEATURE_WAVELENGTH, MOORED_HULL_CLEARANCE, PLACEMENT_INSET,
+        SectorGeneration, SectorPlanet, UniformAsteroidConfig, WorldConfig,
+        ACTIVE_WINDOW_SECTORS_MAX, CLEARANCE_MARGIN, FEATURE_HALO, FEATURE_LATTICE,
+        FEATURE_WAVELENGTH, MOORED_HULL_CLEARANCE, PLACEMENT_INSET,
     };
     pub use crate::streaming::{
         desired_sectors, CurrentSector, ReadySectors, SectorFeatureSpheres, SectorJob,
@@ -143,6 +164,56 @@ pub mod prelude {
 /// planetoid too, which is why a feature sphere's centre is pulled onto its
 /// owner's inset rather than clamped there after the fact.
 pub const PLACEMENT_INSET: f32 = 0.7;
+
+/// The most cells one desired window may hold.
+///
+/// 125, which is the 5x5x5 window this crate has actually measured, and not a
+/// round number with headroom in it. The desired set is built as a WHOLE set
+/// by three stages of every frame, so the cost of `active_radius` is cubic in
+/// a field a caller types: radius 1,000 is eight billion coordinates and the
+/// job cap never gets a chance to help. A wider production window is a new
+/// measurement and a deliberate change to this constant, not something a
+/// config can reach at runtime.
+pub const ACTIVE_WINDOW_SECTORS_MAX: usize = 125;
+
+/// How many cells a window of this radius holds, refusing one nobody can
+/// afford to enumerate.
+///
+/// CHECKED, and the one place the arithmetic lives: `(2 * radius + 1)^3`
+/// leaves `i32` at radius 812 and `u64` well before `i32::MAX`, so the count
+/// has to be the thing that is bounded rather than the radius. Both callers
+/// need it for the same reason and at different moments -
+/// [`WorldConfig::validate`] refuses a config, and [`desired_sectors`] is the
+/// allocation itself and cannot be reached with a config it never saw.
+///
+/// # Errors
+///
+/// [`SectorFault::Config`] on a negative radius, on a count that overflows,
+/// and on any window above [`ACTIVE_WINDOW_SECTORS_MAX`].
+pub(crate) fn window_cells(radius: i32) -> Result<usize, SectorFault> {
+    let refuse = |value: String| SectorFault::Config {
+        field: "active_radius",
+        value,
+    };
+    if radius < 0 {
+        return Err(refuse(radius.to_string()));
+    }
+    let side = i64::from(radius) * 2 + 1;
+    match usize::try_from(side)
+        .ok()
+        .and_then(|side| side.checked_pow(3))
+    {
+        Some(cells) if cells <= ACTIVE_WINDOW_SECTORS_MAX => Ok(cells),
+        Some(cells) => Err(refuse(format!(
+            "{radius}, a desired window of {cells} cells, above the \
+             {ACTIVE_WINDOW_SECTORS_MAX} cell maximum"
+        ))),
+        None => Err(refuse(format!(
+            "{radius}, a desired window of more cells than this machine can count, above the \
+             {ACTIVE_WINDOW_SECTORS_MAX} cell maximum"
+        ))),
+    }
+}
 
 /// An integer sector coordinate: which cell of the world grid, never where in
 /// meters.
@@ -303,7 +374,9 @@ pub struct WorldConfig {
     /// Sector edge length.
     pub sector_edge: Meters,
     /// How many cells out from the current one the desired set reaches. The
-    /// desired set is the cube of side `2 * active_radius + 1`.
+    /// desired set is the cube of side `2 * active_radius + 1`, and
+    /// [`WorldConfig::validate`] refuses a radius whose cube is above
+    /// [`ACTIVE_WINDOW_SECTORS_MAX`].
     pub active_radius: i32,
     /// What fills a cell.
     pub generation: SectorGeneration,
@@ -313,8 +386,11 @@ impl WorldConfig {
     /// Refuse dials that cannot describe a sector, and content ids the game
     /// does not ship.
     ///
-    /// Called by [`generate_sector`], so an invalid value stops the run before
-    /// anything is spawned rather than producing a sector nobody can stand in.
+    /// Called by [`generate_sector`] on a worker, and again by
+    /// [`track_current_sector`] on the frame a config is armed or replaced, so
+    /// an invalid value stops the run before anything is spawned rather than
+    /// producing a sector nobody can stand in - and before the main thread
+    /// enumerates a window it cannot afford.
     ///
     /// # Errors
     ///
@@ -322,15 +398,17 @@ impl WorldConfig {
     /// sector, and [`SectorFault::UnknownKind`] for an asteroid kind id the
     /// game does not ship. An empty list is a refusal and never a silent
     /// fallback: a generator that quietly drew `rock` because nobody named a
-    /// kind would hide the authoring mistake it was handed.
+    /// kind would hide the authoring mistake it was handed. A window above
+    /// [`ACTIVE_WINDOW_SECTORS_MAX`] and a layered cell edge wider than the
+    /// thinning halo covers are refused the same way, and neither is clamped:
+    /// a clamp would stream a window nobody asked for and thin a field nobody
+    /// could reason about.
     pub fn validate(&self) -> Result<(), SectorFault> {
         let refuse = |field: &'static str, value: String| Err(SectorFault::Config { field, value });
         if !self.sector_edge.get().is_finite() || self.sector_edge.get() <= 0.0 {
             return refuse("sector_edge", format!("{} m", self.sector_edge.get()));
         }
-        if self.active_radius < 0 {
-            return refuse("active_radius", self.active_radius.to_string());
-        }
+        window_cells(self.active_radius)?;
         let kinds = match &self.generation {
             SectorGeneration::UniformAsteroids(uniform) => {
                 if uniform.body_count == 0 {
@@ -356,6 +434,25 @@ impl WorldConfig {
                 &uniform.asteroid_kinds
             }
             SectorGeneration::LayeredFeatures(layered) => {
+                // Release-visible, not a debug assertion: the thinning halo is
+                // a FINITE node search sized from the widest radius, the
+                // jitter draw and the inset pull, and the inset pull grows
+                // with the cell edge. Past the edge the halo covers, two
+                // same-layer spheres can both survive and the world ships with
+                // belts sitting inside each other. The uniform generator has
+                // no halo and no thinning, so its edge is not this refusal's
+                // business.
+                if !generation::feature_halo_covers_overlap(self.sector_edge) {
+                    return refuse(
+                        "sector_edge",
+                        format!(
+                            "{} m, wider than a {FEATURE_HALO}-node thinning halo can reach \
+                             across at a {} m feature lattice",
+                            self.sector_edge.get(),
+                            FEATURE_LATTICE.get()
+                        ),
+                    );
+                }
                 if layered.planet_types.is_empty() {
                     return refuse("generation.planet_types", "an empty list".to_string());
                 }
@@ -514,12 +611,15 @@ impl std::fmt::Display for SectorFault {
 /// rather than guessing. Every stage but [`Self::Cleanup`] runs only behind a
 /// live scenario and an inserted [`WorldConfig`]; [`Self::Cleanup`] is the one
 /// stage not gated on the session being live, so it runs while no scenario is
-/// live AND on the frame a live one is replaced.
+/// live, on the frame a live one is replaced, and on the frame the
+/// [`WorldConfig`] is inserted, replaced or removed.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NovaWorldSystems {
-    /// Drop the work the session no longer owns.
+    /// Drop the work the session no longer owns, and the world a replaced
+    /// [`WorldConfig`] no longer describes.
     Cleanup,
-    /// Write which cell the [`WorldObserver`] stands in.
+    /// Write which cell the [`WorldObserver`] stands in, and refuse a
+    /// [`WorldConfig`] the stages after it cannot afford.
     Observe,
     /// Start preparation jobs for the nearest desired cells with a free slot.
     Request,
@@ -557,8 +657,18 @@ impl Plugin for NovaWorldPlugin {
         app.configure_sets(
             Update,
             (
-                NovaWorldSystems::Cleanup
-                    .run_if(not(scenario_is_live).or_else(resource_changed::<CurrentScenario>)),
+                // `resource_removed` reads a `Local` that only advances on the
+                // frames the condition is EVALUATED, and `or_else` short-
+                // circuits, so it goes FIRST. Behind any other term it would
+                // miss a removal that lands on the frame after a scenario
+                // change, and the roots the old config built would stand in an
+                // unconfigured world until something else re-armed it.
+                NovaWorldSystems::Cleanup.run_if(
+                    resource_removed::<WorldConfig>
+                        .or_else(not(scenario_is_live))
+                        .or_else(resource_changed::<CurrentScenario>)
+                        .or_else(resource_exists_and_changed::<WorldConfig>),
+                ),
                 (
                     NovaWorldSystems::Observe.run_if(resource_exists::<WorldConfig>),
                     (

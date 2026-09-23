@@ -63,7 +63,8 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 use world_fixture::{
-    featured_world_config, free_play_scenario, EXAMPLE_ACTIVE_RADIUS, FEATURE_HOME,
+    featured_world_config, free_play_scenario, EXAMPLE_ACTIVE_RADIUS, EXAMPLE_SECTOR_EDGE,
+    FEATURE_HOME,
 };
 
 #[derive(Parser)]
@@ -85,7 +86,7 @@ const SCENARIO_ID: &str = "world_field_clouds_observer";
 
 /// How many samples along each axis of the lattice.
 ///
-/// 11 cubed is 1,331 readings, taken once, over a 320 km cube. Coarse ON
+/// 11 cubed is 1,331 sample points, taken once, over a 320 km cube. Coarse ON
 /// PURPOSE: the three gates together clear on about a third of the world, so a
 /// fine lattice of this volume is a solid fog no matter how small the marks
 /// are drawn. A sample a sector is the coarsest reading that still resolves a
@@ -94,12 +95,13 @@ const CLOUD_EDGE_SAMPLES: usize = 11;
 
 /// The spacing between two samples, on every axis.
 ///
-/// One sector edge, so every mark sits at the centre of a cell of the drawn
-/// cage and a mark's position is readable in CELLS. Note the gates are not
-/// read per cell by the generator - they are read at the 128 km
-/// [`FEATURE_LATTICE`] nodes - so this spacing is the picture's resolution,
-/// not the field's.
-const CLOUD_SPACING: Meters = Meters(32_000.0);
+/// The fixture's sector edge itself, not a second copy of the number: every
+/// mark sits at the centre of a cell of the drawn cage and a mark's position
+/// is readable in CELLS, and that only stays true if the picture's lattice and
+/// the streaming cage are the same edge. Note the gates are not read per cell
+/// by the generator - they are read at the 128 km [`FEATURE_LATTICE`] nodes -
+/// so this spacing is the picture's resolution, not the field's.
+const CLOUD_SPACING: Meters = EXAMPLE_SECTOR_EDGE;
 
 /// The most samples this example will ever take.
 ///
@@ -342,9 +344,9 @@ const fn window_segments() -> usize {
 /// Read all three layers at every lattice point, keep the strongest hits, and
 /// collect the spheres the window actually accepted.
 ///
-/// PURE, and run once on a worker: 15,625 points times three layers is
-/// 46,875 three-octave readings, which is a visible stall on the frame budget
-/// and unnoticeable off it.
+/// PURE, and run once on a worker: 1,331 points times three layers is 3,993
+/// three-octave readings, which is a visible stall on the frame budget and
+/// unnoticeable off it.
 ///
 /// # Panics
 ///
