@@ -13,6 +13,14 @@ use nova_world::prelude::*;
 /// the draw is deterministic and a cell with no room would never finish.
 const PLACEMENT_ATTEMPTS: usize = 64;
 
+/// How much of a sector's half-edge a rock's centre is drawn across. The rest
+/// is the room that keeps the whole rock inside its own cell.
+const PLACEMENT_INSET: f32 = 0.7;
+
+/// Extra room every pair of rocks keeps between their clearance spheres, so a
+/// cell reads as placed rather than piled.
+const CLEARANCE_MARGIN: Meters = Meters(500.0);
+
 /// Every cell gets the same treatment out of its own seed: `body_count` rocks
 /// scattered across its inset, nominal radius drawn from the band.
 ///
@@ -21,7 +29,8 @@ const PLACEMENT_ATTEMPTS: usize = 64;
 /// crossing.
 ///
 /// Its placement is its own and deliberately plain: each rock draws candidates
-/// across the cell's inset until one clears every rock before it.
+/// across [`PLACEMENT_INSET`] of the cell until one keeps [`CLEARANCE_MARGIN`]
+/// from every rock before it.
 ///
 /// No `Default`: a body count and a radius band nobody chose are how a number
 /// nobody chose reaches a frame.
@@ -81,6 +90,7 @@ impl SectorGenerator for UniformAsteroids {
             });
         }
         geometry.require_owning_edge(
+            PLACEMENT_INSET,
             Meters(self.radius_max.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
             &format!(
                 "an asteroid drawn at generator.radius_max {} m",
@@ -112,7 +122,13 @@ impl SectorGenerator for UniformAsteroids {
                     asteroids.iter().all(|rock| {
                         let rock_clearance =
                             Meters(rock.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
-                        bodies_clear(rock.position, rock_clearance, *candidate, clearance)
+                        bodies_clear(
+                            rock.position,
+                            rock_clearance,
+                            *candidate,
+                            clearance,
+                            CLEARANCE_MARGIN,
+                        )
                     })
                 })
             else {
@@ -132,8 +148,6 @@ impl SectorGenerator for UniformAsteroids {
         }
         Ok(SectorManifest {
             coord: input.coord,
-            features: Vec::new(),
-            strengths: [0.0; FeatureLayer::COUNT],
             asteroids,
             planets: Vec::new(),
             ships: Vec::new(),

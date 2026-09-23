@@ -8,7 +8,7 @@
 //! a world nobody authored in front of a player.
 //!
 //! The generators here are test-local. The shipped policies live outside this
-//! crate - the base game's in `nova_authoring`, the uniform baseline with the
+//! crate - the base game's in `nova_world_base`, the uniform baseline with the
 //! examples - and are proved where they live.
 
 use bevy::prelude::*;
@@ -16,12 +16,15 @@ use nova_events::prelude::{Meters, Meters3};
 use nova_scenario::prelude::{PlanetConfig, PlanetType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK};
 
 use crate::{
-    generate_sector, prepare_sector, sector_features, sector_id, validate_feature_geometry,
-    validate_manifest, FeatureLayer, FeatureSphere, NovaWorldPlugin, SectorAsteroid, SectorCoord,
-    SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet, SectorShip,
-    WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX, SECTOR_BODIES_MAX,
-    SECTOR_FEATURES_MAX,
+    generate_sector, prepare_sector, sector_id, validate_manifest, NovaWorldPlugin, SectorAsteroid,
+    SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet,
+    SectorShip, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX,
+    SECTOR_BODIES_MAX,
 };
+
+/// The fixture generator's placement inset: its rocks stand at a quarter
+/// edge from the centre, well inside it.
+const ROCKS_INSET: f32 = 0.7;
 
 /// Stands the measured rock cap at the corners of a square around each cell's
 /// centre, and refuses an edge too narrow to own its widest rock. No draw and
@@ -34,6 +37,7 @@ struct Rocks {
 impl SectorGenerator for Rocks {
     fn validate(&self, geometry: WorldGeometry) -> Result<(), SectorFault> {
         geometry.require_owning_edge(
+            ROCKS_INSET,
             Meters(self.radius_max.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
             "a test rock",
         )
@@ -77,8 +81,6 @@ impl SectorGenerator for Answers {
 fn empty(coord: SectorCoord, asteroids: Vec<SectorAsteroid>) -> SectorManifest {
     SectorManifest {
         coord,
-        features: Vec::new(),
-        strengths: [0.0; FeatureLayer::COUNT],
         asteroids,
         planets: Vec::new(),
         ships: Vec::new(),
@@ -126,9 +128,9 @@ fn a_valid_config_describes_a_sector() {
 /// is refused by [`prepare_sector`] - the function a worker runs - so the
 /// refusal lands before a mesh is built or an entity exists. A rock across a
 /// face would be retired with the neighbour; two ids in one cell cannot be
-/// found again; a ship naming a sphere another cell owns would be spawned by
-/// both. A planetoid is refused by the same [`PlanetConfig::validate`] an
-/// authored planet meets in the lint.
+/// found again; a ship with no design cannot be resolved. A planetoid is
+/// refused by the same [`PlanetConfig::validate`] an authored planet meets in
+/// the lint.
 #[test]
 fn a_malformed_generator_answer_is_refused_before_preparation() {
     fn rock(input: SectorGenerationInput, id: &str, offset: f32) -> SectorAsteroid {
@@ -139,21 +141,6 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             radius: Meters(40.0),
             kind: KIND_ROCK.to_string(),
             seed: 7,
-        }
-    }
-    fn sphere(
-        input: SectorGenerationInput,
-        layer: FeatureLayer,
-        owner: SectorCoord,
-    ) -> FeatureSphere {
-        let edge = input.geometry.sector_edge;
-        FeatureSphere {
-            id: format!("feature_{layer}_{}", owner.slug()),
-            layer,
-            owner,
-            centre: owner.centre(edge),
-            radius: Meters(edge.get() * 2.0),
-            strength: 0.5,
         }
     }
     let cases: [(
@@ -199,7 +186,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             },
         ),
         (
-            "two rocks inside each other's margin",
+            "two overlapping rocks",
             |input| {
                 empty(
                     input.coord,
@@ -250,57 +237,37 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             },
         ),
         (
-            "a planetoid placed by a sphere another cell owns",
-            |input| {
-                let owner = input.coord.offset(1, 0, 0);
-                let mut manifest = empty(input.coord, Vec::new());
-                let feature = sphere(input, FeatureLayer::Planet, owner);
-                manifest.planets.push(SectorPlanet {
-                    id: format!("{}_planet_0", input.coord.slug()),
-                    feature: feature.id.clone(),
-                    position: input.coord.centre(input.geometry.sector_edge),
-                    config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3),
-                });
-                manifest.features.push(feature);
-                manifest
-            },
-            |fault| {
-                matches!(
-                    fault,
-                    SectorFault::Manifest {
-                        field: "feature",
-                        ..
-                    }
-                )
-            },
-        ),
-        (
             "a planetoid whose well has a NaN mass",
             |input| {
                 let mut manifest = empty(input.coord, Vec::new());
-                let feature = sphere(input, FeatureLayer::Planet, input.coord);
                 manifest.planets.push(SectorPlanet {
                     id: format!("{}_planet_0", input.coord.slug()),
-                    feature: feature.id.clone(),
                     position: input.coord.centre(input.geometry.sector_edge),
                     config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3)
                         .anchored(f32::NAN),
                 });
-                manifest.features.push(feature);
                 manifest
             },
             |fault| matches!(fault, SectorFault::Manifest { field: "mass", .. }),
         ),
         (
-            "a ship placed by a sphere the manifest does not list",
+            "a rock at a non-finite position",
+            |input| {
+                let mut body = rock(input, "body_0", 0.0);
+                body.position = Meters3::new(f32::NAN, 0.0, 0.0);
+                empty(input.coord, vec![body])
+            },
+            |fault| matches!(fault, SectorFault::InvalidGeometry { id } if id.ends_with("body_0")),
+        ),
+        (
+            "a ship with a blank design",
             |input| {
                 let mut manifest = empty(input.coord, Vec::new());
                 manifest.ships.push(SectorShip {
                     id: format!("{}_ship_0", input.coord.slug()),
-                    feature: "feature_derelict_nowhere".to_string(),
                     position: input.coord.centre(input.geometry.sector_edge),
                     yaw: 0.0,
-                    design: "block_wreck_plate".to_string(),
+                    design: " ".to_string(),
                 });
                 manifest
             },
@@ -308,7 +275,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                 matches!(
                     fault,
                     SectorFault::Manifest {
-                        field: "feature",
+                        field: "design",
                         ..
                     }
                 )
@@ -325,49 +292,6 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
     }
 }
 
-/// `count` distinct spheres at the cell's centre, each reaching the whole cell.
-fn listing(input: SectorGenerationInput, count: usize) -> SectorManifest {
-    let edge = input.geometry.sector_edge;
-    let mut manifest = empty(input.coord, Vec::new());
-    manifest.features = (0..count)
-        .map(|index| FeatureSphere {
-            id: format!("feature_{index}"),
-            layer: FeatureLayer::Asteroid,
-            owner: input.coord,
-            centre: input.coord.centre(edge),
-            radius: edge,
-            strength: 0.5,
-        })
-        .collect();
-    manifest
-}
-
-/// One sphere past the cap is refused as too many, and the cap itself is a
-/// cell the world accepts.
-#[test]
-fn a_manifest_listing_more_spheres_than_a_cell_holds_is_refused() {
-    generate_sector(
-        &answering(|input| listing(input, SECTOR_FEATURES_MAX)),
-        SectorCoord::ORIGIN,
-    )
-    .expect("a manifest listing the sphere cap must describe");
-    let fault = prepare_sector(
-        answering(|input| listing(input, SECTOR_FEATURES_MAX + 1)),
-        SectorCoord::ORIGIN,
-    )
-    .expect_err("a manifest listing one sphere past the cap must not be prepared");
-    assert!(
-        matches!(
-            &fault,
-            SectorFault::Manifest {
-                field: "features",
-                ..
-            }
-        ),
-        "one sphere past the cap must be refused as too many, got {fault:?}"
-    );
-}
-
 /// The rock cap's rocks, one planetoid and ships to fill `count` bodies, each
 /// on its own 3 km grid point inside the cell's inset.
 fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
@@ -381,19 +305,6 @@ fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
                 (index / 5) as f32 * 3_000.0 - 6_000.0,
             )
     };
-    let planet_sphere = FeatureSphere {
-        id: "feature_planet".to_string(),
-        layer: FeatureLayer::Planet,
-        owner: coord,
-        centre,
-        radius: input.geometry.sector_edge,
-        strength: 0.5,
-    };
-    let derelict_sphere = FeatureSphere {
-        id: "feature_derelict".to_string(),
-        layer: FeatureLayer::Derelict,
-        ..planet_sphere.clone()
-    };
     let asteroids = (0..SECTOR_ASTEROIDS_MAX)
         .map(|index| SectorAsteroid {
             id: sector_id(coord, "body", index),
@@ -406,20 +317,17 @@ fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
     let mut manifest = empty(coord, asteroids);
     manifest.planets.push(SectorPlanet {
         id: sector_id(coord, "planet", 0),
-        feature: planet_sphere.id.clone(),
         position: point(SECTOR_ASTEROIDS_MAX),
         config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3),
     });
     manifest.ships = (SECTOR_ASTEROIDS_MAX + 1..count)
         .map(|index| SectorShip {
             id: sector_id(coord, "ship", index),
-            feature: derelict_sphere.id.clone(),
             position: point(index),
             yaw: 0.0,
             design: "block_wreck_plate".to_string(),
         })
         .collect();
-    manifest.features = vec![planet_sphere, derelict_sphere];
     manifest
 }
 
@@ -550,10 +458,10 @@ fn the_desired_window_refuses_a_radius_it_was_never_validated_for() {
 ///
 /// 2.4 km for the fixture's 60 m band: a rock meshes out to
 /// `ASTEROID_GEOMETRIC_FACTOR_MAX` times its nominal radius, and
-/// `PLACEMENT_INSET` leaves only the outer 15% of each half edge for it to
-/// occupy. Under that floor the body crosses a face its cell does not own, and
-/// retiring the neighbour takes geometry standing beside the observer - the
-/// one thing `PLACEMENT_INSET` is documented to prevent.
+/// the fixture's 0.7 inset leaves only the outer 15% of each half edge for it
+/// to occupy. Under that floor the body crosses a face its cell does not own,
+/// and retiring the neighbour takes geometry standing beside the observer -
+/// the one thing a placement inset is for.
 #[test]
 fn an_edge_too_narrow_to_own_its_rocks_is_refused() {
     let fault = fault_of(&WorldConfig {
@@ -576,6 +484,33 @@ fn an_edge_too_narrow_to_own_its_rocks_is_refused() {
         wide_enough.validate().is_ok(),
         "a cell just wide enough to own a 60 m rock must arm"
     );
+}
+
+/// A generator's placement inset outside `[0, 1)` is refused, not trusted:
+/// a `NaN` inset makes the edge floor `NaN`, and every edge would pass it.
+#[test]
+fn a_placement_inset_outside_zero_to_one_is_refused() {
+    let geometry = WorldGeometry {
+        sector_edge: Meters(32_000.0),
+    };
+    for inset in [f32::NAN, -0.1, 1.0, f32::INFINITY] {
+        let fault = geometry
+            .require_owning_edge(inset, Meters(360.0), "a test rock")
+            .expect_err("an inset outside 0 to under 1 must refuse");
+        assert!(
+            matches!(
+                &fault,
+                SectorFault::Config {
+                    field: "generator.placement_inset",
+                    ..
+                }
+            ),
+            "a {inset} inset must refuse on the inset, got {fault:?}"
+        );
+    }
+    geometry
+        .require_owning_edge(0.0, Meters(360.0), "a test rock")
+        .expect("a zero inset keeps every centre at the cell centre");
 }
 
 /// A cell edge so wide that the ORIGIN window has no representable face must
@@ -657,64 +592,6 @@ fn a_manifest_for_a_cell_with_no_valid_geometry_is_refused() {
     )
     .expect_err("a manifest for a cell with no finite centre must refuse");
     assert_eq!(fault, SectorFault::InvalidGeometry { id: far.slug() });
-}
-
-/// A cell whose node range runs off the lattice is refused, not clipped.
-///
-/// A clipped range would sweep the whole lattice from one far cell and answer
-/// for ground that cell never reaches. 400 km is inside the thinning halo's
-/// span, so the geometry itself is valid; it is the CELL, out at the end of
-/// the i32 grid, that has no node range anyone can address.
-#[test]
-fn a_feature_query_that_runs_off_the_node_lattice_is_refused() {
-    let geometry = WorldGeometry {
-        sector_edge: Meters(400_000.0),
-    };
-    validate_feature_geometry(geometry).expect("a 400 km cell is inside the thinning halo's reach");
-    let fault = sector_features(SectorGenerationInput {
-        seed: 20_260_922,
-        geometry,
-        coord: SectorCoord::new(i32::MAX, 0, 0),
-    })
-    .expect_err("a cell at the end of the grid has no representable node range");
-    assert!(
-        matches!(&fault, SectorFault::InvalidGeometry { .. }),
-        "a node range off the lattice must refuse, got {fault:?}"
-    );
-}
-
-#[test]
-fn a_feature_edge_wider_than_the_thinning_halo_is_refused() {
-    // In EVERY build, not a debug assertion: a release run that accepted this
-    // edge would inspect the same 2-node halo and ship a world where two
-    // same-layer spheres outside it both survive the thinning.
-    let geometry = WorldGeometry {
-        sector_edge: Meters(500_000.0),
-    };
-    let fault = sector_features(SectorGenerationInput {
-        seed: 20_260_922,
-        geometry,
-        coord: SectorCoord::ORIGIN,
-    })
-    .expect_err("a cell edge the thinning halo cannot reach across must refuse");
-    assert!(
-        matches!(
-            fault,
-            SectorFault::Config {
-                field: "sector_edge",
-                ..
-            }
-        ),
-        "the halo refusal must name the edge, got {fault:?}"
-    );
-    generate_sector(
-        &WorldConfig {
-            sector_edge: Meters(500_000.0),
-            ..rocks()
-        },
-        SectorCoord::ORIGIN,
-    )
-    .expect("a generator that reads no field has no halo, so the same edge is fine");
 }
 
 /// The refusal the ARMING frame owes the main thread.

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use bevy::ecs::system::RunSystemOnce;
+use nova_gameplay::prelude::Fnv64;
 use nova_scenario::prelude::ScenarioConfig;
 
 use super::*;
@@ -71,6 +72,35 @@ fn the_open_world_describes_the_same_sectors_in_any_visit_order() {
     assert_eq!(forward.len(), 125, "radius 2 keeps a 5x5x5 window live");
     assert_eq!(forward, reverse, "a reverse walk changed a sector");
     assert_eq!(forward, strided, "a strided walk changed a sector");
+}
+
+/// A pinned window generates the bodies it was recorded with: every rock,
+/// planetoid and ship, to the canonical text, in the window the examples fly.
+///
+/// The digest is FNV-1a 64 over the concatenated canonical descriptions of
+/// the 125 cells around `(2, 1, 2)`, walked in `desired_sectors` order, for
+/// seed 20,260,922 at a 32 km edge. A deliberate change to the generator's
+/// output changes this digest; record the new value from the left side of
+/// this test's failure message.
+#[test]
+fn a_pinned_window_generates_the_recorded_bodies() {
+    let config = WorldConfig {
+        seed: 20_260_922,
+        ..session_config()
+    };
+    let canonical: String = desired_sectors(SectorCoord::new(2, 1, 2), config.active_radius)
+        .into_iter()
+        .map(|coord| {
+            generate_sector(&config, coord)
+                .unwrap_or_else(|fault| panic!("sector {coord:?}: {fault}"))
+                .canonical()
+        })
+        .collect();
+    assert_eq!(
+        Fnv64::new().write(canonical.as_bytes()).finish(),
+        0x1384_6dca_698c_e11a,
+        "the pinned window's bodies changed"
+    );
 }
 
 #[test]

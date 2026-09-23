@@ -691,19 +691,25 @@ fn assert_visit_order<G: SectorGenerator>(config: &WorldConfig<G>, centre: Secto
 
 /// Claims 4, 5 and 6: the feature field is one world, thinned within a layer
 /// and free across layers.
+///
+/// The field is the base generator's, not the streamed world's: a manifest
+/// carries bodies only, so each cell's spheres are asked of
+/// `nova_world_base::sector_features` directly, with the same input the
+/// generator was given.
 #[cfg(feature = "debug")]
 fn report_feature_field(world: &mut World) {
     let config = featured_world_config();
-    let described = describe_window(FEATURE_HOME, &config);
 
     // One sphere, however many cells can see it. Built as id -> every copy
     // handed out, so a disagreement names the sphere rather than the cell.
     let mut seen: BTreeMap<String, Vec<(SectorCoord, FeatureSphere)>> = BTreeMap::new();
-    for description in &described {
-        for sphere in description.features() {
+    for coord in desired_sectors(FEATURE_HOME, config.active_radius) {
+        let spheres = sector_features(config.input(coord))
+            .unwrap_or_else(|fault| panic!("world sectors: {coord}: {fault}"));
+        for sphere in spheres {
             seen.entry(sphere.id.clone())
                 .or_default()
-                .push((description.coord(), sphere.clone()));
+                .push((coord, sphere));
         }
     }
     assert!(
@@ -812,7 +818,9 @@ fn report_feature_field(world: &mut World) {
 ///
 /// The clearance radii are recomputed HERE from the published constants rather
 /// than read back off the generator, so the claim is a second opinion about
-/// the rule instead of a restatement of whatever the generator did.
+/// the rule instead of a restatement of whatever the generator did. The inset
+/// and the margin are the base generator's own `PLACEMENT_INSET` and
+/// `CLEARANCE_MARGIN`: `nova_world` itself refuses only an overlap.
 #[cfg(feature = "debug")]
 fn report_clearance(world: &mut World) {
     let config = featured_world_config();
@@ -1053,8 +1061,8 @@ fn report_places(world: &mut World) {
         for planet in description.planets() {
             let entity = *by_id.get(&planet.id).unwrap_or_else(|| {
                 panic!(
-                    "world sectors: {coord} owns planet sphere '{}' but spawned no '{}'",
-                    planet.feature, planet.id
+                    "world sectors: {coord} describes planetoid '{}' but spawned none",
+                    planet.id
                 )
             });
             assert!(
@@ -1073,8 +1081,8 @@ fn report_places(world: &mut World) {
         for ship in description.ships() {
             let entity = *by_id.get(&ship.id).unwrap_or_else(|| {
                 panic!(
-                    "world sectors: {coord} owns derelict sphere '{}' but spawned no '{}'",
-                    ship.feature, ship.id
+                    "world sectors: {coord} describes derelict '{}' but spawned none",
+                    ship.id
                 )
             });
             assert!(
@@ -1287,7 +1295,7 @@ fn report_abandoned_work(world: &mut World) {
 /// job and a prepared payload built from the old seed all look exactly like
 /// the new world's own work to a loop that only compares coordinates. So the
 /// assertions read entities, and the two configs are first shown to disagree
-/// about the cell they share - a claim about a swap nobody could observe would
+/// about the cells they share - a claim about a swap nobody could observe would
 /// be no claim at all.
 #[cfg(feature = "debug")]
 fn report_world_replacement(world: &mut World) {
@@ -1302,11 +1310,19 @@ fn report_world_replacement(world: &mut World) {
         new_config.seed, REPLACEMENT_SEED,
         "world sectors: the replacement beat must leave the new config in place"
     );
+    // The whole window and not the home cell: (2, 1, 2) holds no body under
+    // either seed.
+    let canonical_window = |config: &WorldConfig<NovaLayeredWorld>| {
+        describe_window(FEATURE_HOME, config)
+            .iter()
+            .map(SectorDescription::canonical)
+            .collect::<Vec<_>>()
+    };
     assert_ne!(
-        describe(FEATURE_HOME, &old_config).canonical(),
-        describe(FEATURE_HOME, &new_config).canonical(),
-        "world sectors: the two configs must describe {FEATURE_HOME} differently, or the \
-         replacement claim observes nothing"
+        canonical_window(&old_config),
+        canonical_window(&new_config),
+        "world sectors: the two configs must describe the window around {FEATURE_HOME} \
+         differently, or the replacement claim observes nothing"
     );
 
     let live = live_roots(world);

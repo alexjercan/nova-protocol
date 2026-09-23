@@ -15,7 +15,9 @@
 //! grid. `system_world_sectors` owns the counts and the identities.
 //!
 //! The streaming loop is `nova_world`'s and the generator is the base game's
-//! `NovaLayeredWorld`; the seed and the cell edge are
+//! `NovaLayeredWorld`. A streamed manifest carries bodies only, so the rings
+//! and the readout ask `nova_world_base`'s feature field for each live root,
+//! with the same input the generator was given. The seed and the cell edge are
 //! `examples/shared/world_fixture/mod.rs`'s, shared with that range and with
 //! `world_sectors`, so what is flown here is what is asserted there.
 //!
@@ -75,6 +77,18 @@ const SCENARIO_ID: &str = "world_features_observer";
 #[derive(Component)]
 struct FeatureReadout;
 
+/// The feature spheres that reach one live sector and the layer strengths at
+/// its centre, on its root.
+///
+/// Example-owned: a streamed manifest carries bodies only, so this view asks
+/// the base generator's field for the same numbers the generator used, once
+/// per root as it comes up.
+#[derive(Component)]
+struct RootFeatures {
+    spheres: Vec<FeatureSphere>,
+    strengths: [f32; FeatureLayer::COUNT],
+}
+
 /// How bright the observer's key light is.
 ///
 /// The example lights itself instead of authoring `Light` objects into the
@@ -125,9 +139,8 @@ fn observer_plugin(app: &mut App) {
         Update,
         (
             park_at_home,
-            draw_feature_spheres,
-            update_readout,
-            report_census,
+            describe_root_features.after(NovaWorldSystems::Retire),
+            (draw_feature_spheres, update_readout, report_census).after(describe_root_features),
         ),
     );
 }
@@ -237,15 +250,38 @@ fn layer_colour(layer: FeatureLayer) -> Srgba {
     }
 }
 
+/// Ask the field what reaches each root that came up this frame.
+///
+/// After `Retire`, so a root is described in the frame it is spawned and
+/// never after it is taken back.
+fn describe_root_features(
+    mut commands: Commands,
+    config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
+    roots: Query<(Entity, &SectorRoot), Added<SectorRoot>>,
+) {
+    let Some(config) = config else {
+        return;
+    };
+    for (entity, root) in &roots {
+        let spheres = sector_features(config.input(root.0))
+            .unwrap_or_else(|fault| panic!("world features: {}: {fault}", root.0));
+        let strengths = sector_strengths(&spheres, root.0.centre(config.sector_edge));
+        // A scenario swap can despawn the root on this frame.
+        commands
+            .entity(entity)
+            .try_insert(RootFeatures { spheres, strengths });
+    }
+}
+
 /// Ring every feature sphere the live window can see.
 ///
 /// The OWNER's ring is drawn at full strength and every other cell that the
 /// sphere reaches outlines it faintly, so one sphere seen from six cells
 /// reads as one sphere with six faint echoes rather than six spheres. That is
 /// the cross-boundary identity claim, made visible.
-fn draw_feature_spheres(mut gizmos: Gizmos, roots: Query<(&SectorRoot, &SectorFeatureSpheres)>) {
-    for (root, spheres) in &roots {
-        for sphere in &spheres.0 {
+fn draw_feature_spheres(mut gizmos: Gizmos, roots: Query<(&SectorRoot, &RootFeatures)>) {
+    for (root, features) in &roots {
+        for sphere in &features.spheres {
             let owned = sphere.owner == root.0;
             let colour = layer_colour(sphere.layer).with_alpha(if owned { 0.9 } else { 0.12 });
             gizmos
@@ -268,7 +304,7 @@ fn update_readout(
     current: Option<Res<CurrentSector>>,
     ready: Res<ReadySectors>,
     observer: Query<&GlobalTransform, With<WorldObserver>>,
-    roots: Query<(&SectorRoot, &SectorStrengths)>,
+    roots: Query<(&SectorRoot, &RootFeatures)>,
     jobs: Query<&SectorJob>,
     rocks: Query<&AsteroidMarker>,
     planets: Query<&PlanetMarker>,
@@ -293,7 +329,7 @@ fn update_readout(
     let here = roots
         .iter()
         .find(|(root, _)| root.0 == current.0)
-        .map(|(_, strengths)| strengths.0);
+        .map(|(_, features)| features.strengths);
     let layers = FeatureLayer::ALL
         .map(|layer| {
             let value = here.map_or(0.0, |strengths| strengths[layer.index()]);
@@ -334,7 +370,7 @@ fn update_readout(
 /// against.
 fn report_census(
     current: Option<Res<CurrentSector>>,
-    roots: Query<(&SectorRoot, &SectorStrengths, &SectorFeatureSpheres)>,
+    roots: Query<(&SectorRoot, &RootFeatures)>,
     config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
 ) {
     let (Some(current), Some(config)) = (current, config) else {
@@ -353,14 +389,19 @@ fn report_census(
     let mut empty = 0usize;
     let mut single = 0usize;
     let mut blended = 0usize;
-    for (root, strengths, spheres) in &roots {
-        for sphere in &spheres.0 {
+    for (root, features) in &roots {
+        for sphere in &features.spheres {
             reached[sphere.layer.index()] += 1;
             if sphere.owner == root.0 {
                 owned[sphere.layer.index()] += 1;
             }
         }
-        match strengths.0.iter().filter(|value| **value > 0.0).count() {
+        match features
+            .strengths
+            .iter()
+            .filter(|value| **value > 0.0)
+            .count()
+        {
             0 => empty += 1,
             1 => single += 1,
             _ => blended += 1,
@@ -575,12 +616,12 @@ struct ShotTargets {
 #[cfg(feature = "debug")]
 fn pick_shot_targets(world: &mut World) {
     let home = FEATURE_HOME.centre(featured_world_config().sector_edge);
-    let mut spheres = world.query::<&SectorFeatureSpheres>();
+    let mut spheres = world.query::<&RootFeatures>();
     // Nearest rim to the home centre, then id: every cell a sphere reaches
     // hands back the same data, so the pick does not depend on query order.
     let field = spheres
         .iter(world)
-        .flat_map(|spheres| &spheres.0)
+        .flat_map(|features| &features.spheres)
         .filter(|sphere| sphere.layer == FeatureLayer::Asteroid)
         .min_by(|a, b| {
             let rim =

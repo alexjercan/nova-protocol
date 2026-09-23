@@ -99,8 +99,8 @@ const CLOUD_EDGE_SAMPLES: usize = 11;
 /// mark sits at the centre of a cell of the drawn cage and a mark's position
 /// is readable in CELLS, and that only stays true if the picture's lattice and
 /// the streaming cage are the same edge. Note the gates are not read per cell
-/// by the generator - they are read at the 128 km [`FEATURE_LATTICE`] nodes -
-/// so this spacing is the picture's resolution, not the field's.
+/// by the generator - they are read at the base generator's 128 km lattice
+/// nodes - so this spacing is the picture's resolution, not the field's.
 const CLOUD_SPACING: Meters = EXAMPLE_SECTOR_EDGE;
 
 /// The most samples this example will ever take.

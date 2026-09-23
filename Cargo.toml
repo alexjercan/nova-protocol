@@ -978,12 +978,12 @@ nova_training = { path = "crates/nova_training" }
 # The wfc examples collapse their hulls through the shared generator; the
 # arena's own large-drive and spinal-lance stamps stay in the example.
 nova_wfc = { path = "crates/nova_wfc" }
-# The streamed open world's mechanism. Two of the five world examples call the
-# feature field ONLY, to draw the feature field as a picture
-# (`world_field_slices`, `world_field_clouds`); the job lifetime is driven by
-# the two playable streaming examples and by the `system_world_sectors` range.
-# The game reaches it through `nova_core`, which adds the base world's plugin;
-# the examples name its types directly.
+# The streamed open world's mechanism. The two field pictures
+# (`world_field_slices`, `world_field_clouds`) use only its grid types and read
+# the base generator's feature field through the `nova_core` prelude; the job
+# lifetime is driven by the two playable streaming examples and by the
+# `system_world_sectors` range. The game reaches it through `nova_core`, which
+# adds the base world's plugin; the examples name its types directly.
 nova_world = { path = "crates/nova_world" }
 # wfc_ships seeds its collapse from a pinned StdRng, the same generator the
 # scenario engine's scatter uses - same crate, same version, same rolls.
@@ -1197,12 +1197,12 @@ members = [
   # nova_scenario: it builds no App, so the editor, the examples and the
   # content tools can all reach it without any of them reaching each other.
   "crates/nova_wfc",
-  # The streamed open world's mechanism: deterministic sector generation, the
-  # feature field, and the bounded job lifetime that materializes and retires
-  # cells. Names no content.
+  # The streamed open world's mechanism: deterministic sector generation and
+  # the bounded job lifetime that materializes and retires cells. Names no
+  # content.
   "crates/nova_world",
-  # The base game's open world over it: `NovaLayeredWorld`, the New Game
-  # session, and the ids both name. `AppBuilder` adds its plugin on the
+  # The base game's open world over it: `NovaLayeredWorld`, its feature field,
+  # the New Game session, and the ids both name. `AppBuilder` adds its plugin on the
   # default game path, so it builds for wasm as well.
   "crates/nova_world_base",
   # Web-build tooling, not a game crate. `nova_meta_gen` stays a workspace

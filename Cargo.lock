@@ -4979,7 +4979,6 @@ name = "nova_world"
 version = "0.14.0"
 dependencies = [
  "bevy",
- "noise",
  "nova_assets",
  "nova_events",
  "nova_gameplay",
@@ -4991,6 +4990,7 @@ name = "nova_world_base"
 version = "0.14.0"
 dependencies = [
  "bevy",
+ "noise",
  "nova_events",
  "nova_gameplay",
  "nova_scenario",

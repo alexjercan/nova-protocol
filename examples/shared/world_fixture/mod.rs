@@ -2,13 +2,13 @@
 //! generator, the empty bootstrap they run inside, and the cell the featured
 //! ones open in.
 //!
-//! `nova_world` owns the streaming loop and the generation mechanisms and
-//! names no content. The featured world is the base game's generator,
-//! `NovaLayeredWorld` from `nova_world_base`; the uniform baseline is
-//! example-owned and lives beside this file. Everything else `nova_world`
-//! refuses to assume - a seed, a cell edge, an active radius - is decided
-//! HERE, once, so the five example targets that share it are looking at one
-//! world rather than five that happen to agree.
+//! `nova_world` owns the streaming loop and the manifest check and names no
+//! content. The featured world is the base game's generator,
+//! `NovaLayeredWorld`, and its feature field, both from `nova_world_base`; the
+//! uniform baseline is example-owned and lives beside this file. Everything
+//! else `nova_world` refuses to assume - a seed, a cell edge, an active
+//! radius - is decided HERE, once, so the five example targets that share it
+//! are looking at one world rather than five that happen to agree.
 //!
 //! Included with
 //! `#[path = "../shared/world_fixture/mod.rs"] pub mod world_fixture;` - PUB,

@@ -46,11 +46,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
   shared-key gestures that conflict with actions held from prior acts.
 - PR and master-push CI run a twelve-example probe smoke instead of the whole catalog. The complete sharded suite remains manual and gates every release platform build.
 - New opt-in `nova_world` crate: a plugin streams a 5x5x5 window of 32 km cells
-  over one live scenario, filled by a checked sector generator from noise-gated
-  asteroid, planet and derelict features.
-- New `nova_world_base` crate owns the layered world generator and arms
-  `nova_world` only while an open-world scenario and exactly one player ship are
-  live.
+  over one live scenario, filled by a sector generator whose bodies it checks
+  before they spawn.
+- New `nova_world_base` crate owns the layered generator and its noise-gated
+  asteroid, planet and derelict features, and arms `nova_world` only while an
+  open-world scenario and one player ship are live.
 - Two debug examples draw the world feature field itself: a CPU-sampled heatmap
   of one plane with the layer's gate as a contour, and a 3D cloud of where each
   layer clears.

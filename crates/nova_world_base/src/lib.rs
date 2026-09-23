@@ -2,9 +2,16 @@
 //! fills it from shipped content, and the session integration that streams it
 //! around the player while an open-world scenario runs.
 //!
-//! `nova_world` owns the mechanism and names no content. This crate names base
-//! content, so the stable ids the world and its bootstrap are built from live
-//! here too: the authoring builders and the generator read the same constants.
+//! `nova_world` owns the mechanism and names no content. This crate is the
+//! complete concrete generator: its feature field, its placement inset and
+//! spacing, and the base content it fills cells from. It names base content,
+//! so the stable ids the world and its bootstrap are built from live here too:
+//! the authoring builders and the generator read the same constants.
+//!
+//! The feature field is diagnosable from outside: [`sector_features`] and
+//! [`sector_strengths`] answer what reaches a cell and how strongly, with the
+//! same numbers the generator used. Nothing puts them on a streamed entity; a
+//! debug view asks for them.
 //!
 //! The one promise a world seed makes: the same build on the same platform
 //! generates the same pristine sectors from it, in any exploration order.
@@ -18,20 +25,26 @@ use nova_gameplay::prelude::PlayerSpaceshipMarker;
 use nova_scenario::prelude::{CurrentScenario, ScenarioRole};
 use nova_world::prelude::*;
 
+mod features;
 mod layered;
 
 #[cfg(test)]
 mod tests;
 
-pub use crate::layered::NovaLayeredWorld;
+pub use crate::{
+    features::{sector_features, sector_strengths, FeatureFields, FeatureLayer, FeatureSphere},
+    layered::{NovaLayeredWorld, CLEARANCE_MARGIN, PLACEMENT_INSET},
+};
 
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
-/// the session, the generator and the base-world ids into scope.
+/// the session, the generator, its placement constants, the feature-field
+/// diagnostics and the base-world ids into scope.
 pub mod prelude {
     pub use super::{
+        sector_features, sector_strengths, FeatureFields, FeatureLayer, FeatureSphere,
         NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession,
         BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID,
-        OPEN_WORLD_SCENARIO_ID,
+        CLEARANCE_MARGIN, OPEN_WORLD_SCENARIO_ID, PLACEMENT_INSET,
     };
 }
 

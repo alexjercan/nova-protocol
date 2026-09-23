@@ -1,9 +1,9 @@
 //! The base game's streamed world: which rocks, worlds and ships a cell holds.
 //!
-//! Policy, not mechanism. `nova_world` owns the feature field, the placement
-//! rules and the check every manifest passes; this module decides what the
-//! field's places are FILLED with, out of shipped content, and takes no list
-//! from a caller.
+//! Policy, not mechanism. `nova_world` owns the check every manifest passes;
+//! this module and the feature field beside it decide where the world's places
+//! are, what they are FILLED with out of shipped content, and how far apart
+//! it stands them. It takes no list from a caller.
 
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::SeedStream;
@@ -13,7 +13,33 @@ use nova_scenario::prelude::{
 };
 use nova_world::prelude::*;
 
-use crate::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID};
+use crate::{
+    features::{sector_features, sector_strengths, validate_feature_geometry, FeatureLayer},
+    BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID,
+};
+
+/// How much of a sector's half-edge this generator places a PHYSICAL
+/// object's centre along.
+///
+/// Objects are owned by a cell, so they have to stay inside it: a rock placed
+/// at the face would be half in the neighbour, and retiring the neighbour
+/// would look like retiring the wrong sector. It applies to a feature-owned
+/// planetoid too, which is why a feature sphere's centre is pulled onto its
+/// owner's inset rather than clamped there after the fact.
+///
+/// An inset constrains a CENTRE, so it owns the body only while the body fits
+/// in the margin it leaves. [`NovaLayeredWorld`] refuses a `sector_edge` under
+/// `2 * clearance / (1 - PLACEMENT_INSET)` for the widest body it can draw
+/// through `WorldGeometry::require_owning_edge`, and `validate_manifest`
+/// refuses any body whose clearance crosses a face.
+pub const PLACEMENT_INSET: f32 = 0.7;
+
+/// Extra room this generator keeps between every pair of clearance spheres.
+///
+/// A sector whose bodies merely fail to intersect still reads as a pile. The
+/// margin is what makes a generated cell look placed. `validate_manifest`
+/// refuses only an overlap; this margin is the generator's own.
+pub const CLEARANCE_MARGIN: Meters = Meters(500.0);
 
 /// Every natural asteroid kind the game ships. `plain` is absent because it is
 /// the rendering control, not a rock a world would contain.
@@ -59,13 +85,18 @@ const DERELICT_SPREAD: Meters = Meters(6_000.0);
 /// than a cell can hold.
 const PLACEMENT_ATTEMPTS: usize = 64;
 
-/// The widest cell edge this generator fills: the widest edge
-/// [`SECTOR_FEATURES_MAX`] and [`SECTOR_BODIES_MAX`] were measured at.
+/// The widest cell edge this generator fills.
 ///
-/// A cell lists more spheres and places more bodies as its volume grows, up
-/// to 31 spheres and 47 bodies at the 447 km edge the thinning halo allows.
-/// Refusing the edge at the config fails before anything streams, where a
-/// cap refusing a drawn cell would fail mid-stream.
+/// Two reasons, and [`NovaLayeredWorld`] checks both when the world is armed.
+/// The feature field is complete only while its thinning halo reaches across
+/// the edge, which the field's own geometry check refuses past about 447 km.
+/// Inside that, the body budget: 128 km is the widest edge this generator's
+/// body counts were measured at - at most eight bodies over 32 seeds and
+/// 2,331 cells a seed at five edges from 8.5 km to 128 km, against the
+/// [`SECTOR_BODIES_MAX`] of sixteen. A cell places more bodies as its volume
+/// grows, up to 47 at 447 km. Refusing the edge at the config fails before
+/// anything streams, where the body cap refusing a drawn cell would fail
+/// mid-stream.
 const SECTOR_EDGE_MAX: Meters = Meters(128_000.0);
 
 /// The base game's sector generator: a cell filled from the feature field.
@@ -85,8 +116,8 @@ pub struct NovaLayeredWorld;
 
 impl SectorGenerator for NovaLayeredWorld {
     /// Refuse an edge the feature field cannot be thinned at, one wider than
-    /// [`SECTOR_EDGE_MAX`], and one too narrow to own the widest body this
-    /// generator places.
+    /// the 128 km `SECTOR_EDGE_MAX`, and one too narrow to own the widest body
+    /// this generator places.
     fn validate(&self, geometry: WorldGeometry) -> Result<(), SectorFault> {
         validate_feature_geometry(geometry)?;
         if geometry.sector_edge > SECTOR_EDGE_MAX {
@@ -100,20 +131,14 @@ impl SectorGenerator for NovaLayeredWorld {
             });
         }
         let (clearance, body) = widest_body();
-        geometry.require_owning_edge(clearance, &body)
+        geometry.require_owning_edge(PLACEMENT_INSET, clearance, &body)
     }
 
     fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
         let coord = input.coord;
         let centre = coord.centre(input.geometry.sector_edge);
         let features = sector_features(input)?;
-        let mut strengths = [0.0; FeatureLayer::COUNT];
-        for sphere in &features {
-            strengths[sphere.layer.index()] += sphere.influence(centre);
-        }
-        for strength in &mut strengths {
-            *strength = strength.min(1.0);
-        }
+        let strengths = sector_strengths(&features, centre);
         let owned = |layer: FeatureLayer| {
             features
                 .iter()
@@ -135,7 +160,6 @@ impl SectorGenerator for NovaLayeredWorld {
             layout.stand_at(&id, sphere.centre, config.body_radius())?;
             planets.push(SectorPlanet {
                 id,
-                feature: sphere.id.clone(),
                 position: sphere.centre,
                 config,
             });
@@ -159,7 +183,6 @@ impl SectorGenerator for NovaLayeredWorld {
                 let design = DERELICT_DESIGNS[stream.next_u32() as usize % DERELICT_DESIGNS.len()];
                 ships.push(SectorShip {
                     id,
-                    feature: sphere.id.clone(),
                     position,
                     yaw,
                     design: design.to_string(),
@@ -202,8 +225,6 @@ impl SectorGenerator for NovaLayeredWorld {
 
         Ok(SectorManifest {
             coord,
-            features,
-            strengths,
             asteroids,
             planets,
             ships,
@@ -214,11 +235,11 @@ impl SectorGenerator for NovaLayeredWorld {
 /// The clearance spheres already standing in one cell while
 /// [`NovaLayeredWorld`] describes it.
 ///
-/// It keeps the placement rules `validate_manifest` checks afterwards - a body
-/// inside the cell's inset, clear of everything placed before it by the same
-/// [`bodies_clear`] - while the cell is built, so a crowded cell is reported
-/// as the object that did not fit rather than as a manifest refused after the
-/// fact.
+/// It keeps this generator's placement rules while the cell is built - a body
+/// inside [`PLACEMENT_INSET`], [`CLEARANCE_MARGIN`] clear of everything placed
+/// before it by the same [`bodies_clear`] `validate_manifest` asks - so a
+/// crowded cell is reported as the object that did not fit rather than as a
+/// manifest refused after the fact.
 struct Layout {
     input: SectorGenerationInput,
     standing: Vec<(Meters3, Meters)>,
@@ -236,7 +257,7 @@ impl Layout {
     /// everything already standing.
     fn clears(&self, centre: Meters3, clearance: Meters) -> bool {
         self.standing.iter().all(|&(other, other_clearance)| {
-            bodies_clear(other, other_clearance, centre, clearance)
+            bodies_clear(other, other_clearance, centre, clearance, CLEARANCE_MARGIN)
         })
     }
 

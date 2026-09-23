@@ -27,8 +27,7 @@ use nova_scenario::prelude::{
 };
 
 use crate::{
-    prepare_sector, FeatureLayer, FeatureSphere, PreparedSector, SectorCoord, SectorFault,
-    SectorGenerator, WorldConfig,
+    prepare_sector, PreparedSector, SectorCoord, SectorFault, SectorGenerator, WorldConfig,
 };
 
 /// Marks the entity the desired set is centred on.
@@ -49,17 +48,6 @@ pub struct WorldObserver;
 /// also carries keeps the session sweep able to take it.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct SectorRoot(pub SectorCoord);
-
-/// The feature spheres that reach this sector, on its root. DIAGNOSTIC: the
-/// generator already used them, and this is how a caller draws the field and
-/// how a range reads one sphere from two cells.
-#[derive(Component, Clone, Debug)]
-pub struct SectorFeatureSpheres(pub Vec<FeatureSphere>);
-
-/// The combined per-layer influence at this sector's centre, on its root.
-/// DIAGNOSTIC, indexed by [`FeatureLayer::index`].
-#[derive(Component, Clone, Copy, Debug)]
-pub struct SectorStrengths(pub [f32; FeatureLayer::COUNT]);
 
 /// Which cell the [`WorldObserver`] is in. Written by
 /// [`track_current_sector`], and the centre every desired-set decision in the
@@ -189,8 +177,6 @@ pub fn materialize_sector(
                 rotation: Quat::IDENTITY,
             }),
             SectorRoot(coord),
-            SectorStrengths(description.strengths),
-            SectorFeatureSpheres(description.features),
         ))
         .id();
 
