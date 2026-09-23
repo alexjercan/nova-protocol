@@ -51,7 +51,6 @@ pub mod world_fixture;
 
 use bevy::{color::palettes::tailwind, prelude::*};
 use clap::Parser;
-use nova_authoring::prelude::NovaLayeredWorld;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 #[cfg(feature = "debug")]

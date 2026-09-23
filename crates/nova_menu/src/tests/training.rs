@@ -460,17 +460,19 @@ fn a_binding_chip_says_what_the_action_is_bound_to_now() {
     );
 }
 
-/// `Start Basic Training` is the base bundle's declared start - the same thing
-/// New Game plays. A second launch path would be a second answer to what Basic
-/// Training is.
+/// `Start Basic Training` plays Basic Training, whatever the picker held and
+/// whatever the bundle declares New Game to start.
 #[test]
-fn start_training_plays_the_declared_start_and_answers_the_offer() {
+fn start_training_plays_basic_training_and_answers_the_offer() {
     let mut app = training_app();
     app.world_mut().resource_mut::<NewGameScenario>().0 = Some("something_else".to_string());
 
     click(&mut app, "Training Prompt Start");
 
-    assert!(app.world().resource::<NewGameScenario>().0.is_none());
+    assert_eq!(
+        app.world().resource::<NewGameScenario>().0.as_deref(),
+        Some(TUTORIAL_SCENARIO_ID)
+    );
     assert_eq!(*app.world().resource::<GameMode>(), GameMode::NewGame);
     assert_eq!(
         *app.world().resource::<State<GameStates>>().get(),

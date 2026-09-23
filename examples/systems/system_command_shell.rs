@@ -57,6 +57,10 @@ const PLAYER_ID_PREFIX: &str = "tr";
 /// The main menu's first button, and the one the open computer must cover.
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";
+
+/// What the New Game click opens: the world setup modal's start button.
+#[cfg(feature = "debug")]
+const CREATE_WORLD_BUTTON: &str = "Create World Button";
 /// The pause menu's way back into the game.
 #[cfg(feature = "debug")]
 const RESUME_BUTTON: &str = "Resume Button";
@@ -407,7 +411,7 @@ fn main() -> bevy::app::AppExit {
             .click_named(
                 "command shell: New Game once the computer is closed",
                 NEW_GAME_BUTTON,
-                state_is(GameStates::Playing),
+                ui_node_present(CREATE_WORLD_BUTTON),
                 SESSION_SECS,
             )
             .step("command shell: the menu takes the click again")
@@ -657,12 +661,12 @@ fn assert_the_menu_was_blocked(world: &mut World) {
     );
 }
 
-/// ...and the same click lands once the computer is gone.
+/// ...and the same click lands once the computer is gone: New Game opens the
+/// world setup modal over the menu.
 #[cfg(feature = "debug")]
 fn assert_the_menu_takes_clicks_again(world: &mut World) {
-    assert_eq!(
-        *world.resource::<State<GameStates>>().get(),
-        GameStates::Playing,
+    assert!(
+        ui_node_present(CREATE_WORLD_BUTTON)(world),
         "the menu must take the click the closed computer no longer blocks"
     );
     info!("command shell: PASS the menu took New Game once the computer closed");

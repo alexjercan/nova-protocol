@@ -217,11 +217,20 @@ pub enum ScenarioRole {
     /// whole enforcement of "a practice range is purpose-built": without it a
     /// lesson could hand the player the campaign start and call it practice.
     Lesson,
+    /// The bootstrap of a streamed open world: the player's ship, the lights
+    /// and the sky, with every sector generated around them while it runs.
+    /// Reached from New Game, which the base bundle points at it, so the
+    /// picker renders no row for one.
+    ///
+    /// The world needs a seed, so it is only started through New Game, and it
+    /// streams around its ONE player ship. The base game's open world fails
+    /// loudly on either missing.
+    OpenWorld,
 }
 
 impl ScenarioRole {
     /// Whether the Scenarios picker offers this scenario as a row. Only a
-    /// [`Chapter`](ScenarioRole::Chapter) is browsed for; the other two are
+    /// [`Chapter`](ScenarioRole::Chapter) is browsed for; the others are
     /// reached from the surface that owns them.
     pub fn picker_lists(self) -> bool {
         matches!(self, ScenarioRole::Chapter)
@@ -292,12 +301,14 @@ pub struct ScenarioConfig {
     )]
     pub thumbnail: Option<AssetRef<Image>>,
     /// What this scenario is, and therefore where it is offered: a picker
-    /// chapter, menu scenery, or a lesson's practice range. See
-    /// [`ScenarioRole`]. A non-chapter stays loadable by id - by the ambience
-    /// system, by a lesson's Practice action, by a test and by a tool.
+    /// chapter, menu scenery, a lesson's practice range, or the open world's
+    /// bootstrap. See [`ScenarioRole`]. A non-chapter stays loadable by id -
+    /// by the ambience system, by a lesson's Practice action, by a test and by
+    /// a tool.
     ///
     /// Serde-defaulted to [`ScenarioRole::Chapter`], so an unflagged scenario
-    /// writes no field; author the others as `role: Backdrop` / `role: Lesson`.
+    /// writes no field; author the others as `role: Backdrop`, `role: Lesson` or
+    /// `role: OpenWorld`.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_chapter"))]
     pub role: ScenarioRole,
     /// Read-only queries sampled into auto-updating scenario variables.

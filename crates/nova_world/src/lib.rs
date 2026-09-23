@@ -733,7 +733,9 @@ pub enum NovaWorldSystems {
 
 /// The streamed world, in `Update`, filled by the generator `G`.
 ///
-/// OPT-IN: `AppBuilder` does not add it.
+/// Not added by `AppBuilder` itself: the game's default path gets it through
+/// `nova_world_base`'s plugin, and an example with its own game plugins adds
+/// the generator it wants.
 ///
 /// ONE per app. [`WorldConfig<G>`] is a resource per `G`, so two plugins of
 /// different generators would stream two worlds over the same roots, jobs and

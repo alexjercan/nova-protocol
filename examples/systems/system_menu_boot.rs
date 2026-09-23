@@ -5,11 +5,12 @@
 //! the way a player would - by name, at the button's own screen position, not
 //! by triggering its observer.
 //!
-//! ONE SUBJECT: the boot flow. The run asserts that clicking New Game tears the
-//! menu down and reaches gameplay state, and NOTHING about what the training
-//! range (`tutorial`) then contains - the range is covered by its own tests,
-//! the story by the `story/` examples. An assertion here that grew into
-//! scenario content would mean this run had drifted.
+//! ONE SUBJECT: the boot flow. The run asserts that clicking New Game opens the
+//! world setup modal, that its Create tears the menu down and reaches gameplay
+//! state, and NOTHING about what the open world then contains - the world is
+//! covered by `system_open_world`, the story by the `story/` examples. An
+//! assertion here that grew into scenario content would mean this run had
+//! drifted.
 //!
 //! No `NOVA_MENU_PATH=editorplay` branch: `examples/ui/editor.rs` owns the
 //! create-a-ship-and-Play sequence end to end, and two runs covering one
@@ -31,6 +32,7 @@
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_menu_boot --features debug
 //! # look for: `menu_boot: clicked New Game`,
+//! #           `menu_boot: clicked Create`,
 //! #           `nova harness: reached Playing`,
 //! #           `menu_boot: the menu tore down and gameplay state is up`,
 //! #           `autopilot: cycle complete, no panic`
@@ -77,6 +79,10 @@ fn main() -> bevy::app::AppExit {
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";
 
+/// The world setup modal's button that starts the game.
+#[cfg(feature = "debug")]
+const CREATE_WORLD_BUTTON: &str = "Create World Button";
+
 /// How many nodes carry [`NEW_GAME_BUTTON`], visible or not.
 ///
 /// Counted by `Name` rather than by layout: a menu that merely HID itself is
@@ -97,8 +103,8 @@ fn the_menu_tore_down() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pr
     std::sync::Arc::new(|world: &World| menu_buttons(world) == 0)
 }
 
-/// Seconds the run gives the New Game click to reach gameplay state. Sized to
-/// outlast the training range's load on a software-rendered CI GPU, and kept UNDER
+/// Seconds the run gives the Create click to reach gameplay state. Sized to
+/// outlast the open world's load on a software-rendered CI GPU, and kept UNDER
 /// the harness completion deadline (`NOVA_AUTOPILOT_DEADLINE`, default 120 s)
 /// so a stall is an error naming THIS beat rather than a generic deadline.
 #[cfg(feature = "debug")]
@@ -166,8 +172,19 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         release_mouse(MouseButton::Left)(world);
         info!("menu_boot: clicked New Game");
     })
-    .until(state_is(GameStates::Playing))
-    .deadline(BOOT_SECS)
+    .until(ui_node_present(CREATE_WORLD_BUTTON))
+    .deadline(BEAT_DEADLINE_SECS)
+    .add()
+    // New Game opens the world setup modal over the menu; Create is the
+    // gesture that leaves it.
+    .click_named(
+        "menu_boot: click Create",
+        CREATE_WORLD_BUTTON,
+        state_is(GameStates::Playing),
+        BOOT_SECS,
+    )
+    .step("menu_boot: clicked Create")
+    .on_enter(|_: &mut World| info!("menu_boot: clicked Create"))
     .add()
     .step("menu_boot: let the teardown finish")
     .until(the_menu_tore_down())

@@ -59,7 +59,6 @@ use bevy::{
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
 use clap::Parser;
-use nova_authoring::prelude::NovaLayeredWorld;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 use world_fixture::{featured_world_config, free_play_scenario, EXAMPLE_SECTOR_EDGE};

@@ -70,6 +70,7 @@ practise in a `Lesson`.
 | `Chapter` | A level. The default, and what you want unless you are writing menu scenery or a training range. | The Scenarios list, and campaigns. |
 | `Backdrop` | Menu scenery: it poses its own camera and hands the player no ship. | The random main-menu backdrop rotation, and nowhere else. |
 | `Lesson` | A focused practice range for one handbook [lesson](../lessons/). | That lesson's Practice button, and nowhere else. |
+| `OpenWorld` | The base New Game start: it spawns the one player ship the generated world streams around. | New Game's Create, and nowhere else. |
 
 Omit `role` and the scenario is a `Chapter`.
 

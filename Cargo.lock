@@ -4591,7 +4591,7 @@ dependencies = [
  "nova_ship",
  "nova_training",
  "nova_ui",
- "nova_world",
+ "nova_world_base",
  "ron",
  "serde",
  "tempfile",
@@ -4669,6 +4669,7 @@ dependencies = [
  "nova_ship",
  "nova_training",
  "nova_ui",
+ "nova_world_base",
 ]
 
 [[package]]
@@ -4795,6 +4796,7 @@ dependencies = [
  "nova_ship",
  "nova_training",
  "nova_ui",
+ "nova_world_base",
  "rand 0.10.2",
  "serde",
 ]
@@ -4982,6 +4984,17 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_scenario",
+]
+
+[[package]]
+name = "nova_world_base"
+version = "0.14.0"
+dependencies = [
+ "bevy",
+ "nova_events",
+ "nova_gameplay",
+ "nova_scenario",
+ "nova_world",
 ]
 
 [[package]]

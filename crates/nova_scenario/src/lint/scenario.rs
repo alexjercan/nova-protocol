@@ -57,9 +57,10 @@ struct SpawnedShip {
 ///   the same class as a `NextScenario` targeting a missing scenario;
 /// - a member that is not a [`ScenarioRole::Chapter`] is an Error: a campaign
 ///   member is a player-launchable chapter, while a backdrop is scenery that
-///   poses its own camera and a lesson range belongs to one lesson's Practice
-///   action. The picker renders no row for either, so a header listing one
-///   would be a chapter nobody can reach;
+///   poses its own camera, a lesson range belongs to one lesson's Practice
+///   action and an open-world bootstrap belongs to New Game. The picker renders
+///   no row for any of them, so a header listing one would be a chapter nobody
+///   can reach;
 /// - a member id listed more than once in the campaign is a duplicate (Warn) -
 ///   almost certainly an authoring slip, but the campaign still lists.
 pub fn lint_campaign(
@@ -82,6 +83,7 @@ pub fn lint_campaign(
             let what = match role {
                 ScenarioRole::Backdrop => "a menu backdrop (`role: Backdrop`)",
                 ScenarioRole::Lesson => "a lesson practice range (`role: Lesson`)",
+                ScenarioRole::OpenWorld => "an open-world bootstrap (`role: OpenWorld`)",
                 ScenarioRole::Chapter => unreachable!("filtered to non-chapters above"),
             };
             issues.push(LintIssue::error(
@@ -89,7 +91,7 @@ pub fn lint_campaign(
                 format!(
                     "campaign '{id}' lists member scenario '{member}', which is {what}; a \
                      campaign member is a launchable chapter, and the Scenarios picker renders \
-                     no row for either"
+                     no row for it"
                 ),
             ));
         }
@@ -1778,9 +1780,9 @@ mod tests {
         );
     }
 
-    /// The same exclusion for the other non-chapter role: a lesson's practice
-    /// range belongs to that lesson's Practice action, so a campaign listing
-    /// one would offer a chapter the picker renders no row for.
+    /// The same exclusion for a lesson's practice range: it belongs to that
+    /// lesson's Practice action, so a campaign listing one would offer a
+    /// chapter the picker renders no row for.
     #[test]
     fn campaign_flags_a_member_that_is_a_lesson_range() {
         let c = campaign("nova_protocol", &["shakedown_run", "drill_stop"]);

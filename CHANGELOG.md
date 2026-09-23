@@ -15,6 +15,20 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Ships & Sections
+
+- New `block_line_warship` Line Warship: six PDC mounts on the trigger, a bow
+  railgun on R and two torpedo bays on F.
+
+### Scenarios & Objectives
+
+- New Game opens a world setup modal with a seed field. Create flies a line
+  warship into an open world generated from the seed and streamed around it.
+  Retry keeps the seed.
+- Basic Training is offered by the first-launch card and the Scenarios list. The
+  base `new_game_scenario` is now `open_world`, a new `role: OpenWorld` scenario
+  kept off the picker.
+
 ### Interface & HUD
 
 - Objective notification rebuilding now survives same-frame ship teardown, and
@@ -34,6 +48,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New opt-in `nova_world` crate: a plugin streams a 5x5x5 window of 32 km cells
   over one live scenario, filled by a checked sector generator from noise-gated
   asteroid, planet and derelict features.
+- New `nova_world_base` crate owns the layered world generator and arms
+  `nova_world` only while an open-world scenario and exactly one player ship are
+  live.
 - Two debug examples draw the world feature field itself: a CPU-sampled heatmap
   of one plane with the layer's gate as a contour, and a 3D cloud of where each
   layer clears.

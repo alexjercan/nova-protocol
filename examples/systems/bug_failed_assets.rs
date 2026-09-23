@@ -71,6 +71,10 @@ const REPORT_ACKNOWLEDGE: &str = "Mods Disabled Acknowledge Button";
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";
 
+/// The world setup modal's button that starts the game.
+#[cfg(feature = "debug")]
+const CREATE_WORLD_BUTTON: &str = "Create World Button";
+
 /// Seconds a boot or a scenario load is given. Sized to outlast a
 /// software-rendered CI GPU and kept under the harness completion deadline, so
 /// a stall names THIS beat.
@@ -385,9 +389,15 @@ fn failed_assets_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         .add()
         .step("failed_assets: release New Game")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(state_is(GameStates::Playing))
-        .deadline(BOOT_SECS)
+        .until(ui_node_present(CREATE_WORLD_BUTTON))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
+        .click_named(
+            "failed_assets: create the world",
+            CREATE_WORLD_BUTTON,
+            state_is(GameStates::Playing),
+            BOOT_SECS,
+        )
         .step("failed_assets: the recovered game plays")
         .on_enter(|world: &mut World| {
             let disabled = quarantined(world).len();

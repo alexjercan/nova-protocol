@@ -539,8 +539,9 @@ pub(crate) fn on_lesson_practice(
     state.set(GameStates::Playing);
 }
 
-/// `Start Basic Training` plays the base bundle's declared start - the same
-/// thing New Game does, and deliberately not a competing launch path.
+/// `Start Basic Training` plays Basic Training through the same New Game
+/// hand-off the Scenarios picker uses. New Game itself opens the world setup
+/// modal, so the offer names its scenario instead of taking the declared start.
 ///
 /// Taking the offer answers it: the prompt does not come back on the next
 /// launch, and Settings > Interface is where a player who wants it back goes.
@@ -552,7 +553,7 @@ pub(crate) fn on_first_pilot_start(
     mut prompt: ResMut<TrainingPromptSetting>,
 ) {
     *prompt = TrainingPromptSetting::Hidden;
-    pick.0 = None;
+    pick.0 = Some(TUTORIAL_SCENARIO_ID.to_string());
     *mode = GameMode::NewGame;
     state.set(GameStates::Playing);
 }

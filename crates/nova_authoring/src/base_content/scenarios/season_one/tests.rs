@@ -13,6 +13,7 @@ use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{Allegiance, GravitySettings, GravityWell};
 #[cfg(doc)]
 use nova_hud::prelude::COMMS_DWELL_SECS;
+use nova_world_base::prelude::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID};
 
 use super::*;
 use crate::base_content::{scenarios::marks::Mark, ships};
@@ -646,8 +647,8 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
     let catalog = ships::ship_catalog(&assets);
     for id in [
         ships::BLOCK_WORKSHIP_SHIP_ID,
-        ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
-        ships::BLOCK_WRECK_PLATE_SHIP_ID,
+        BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+        BLOCK_WRECK_PLATE_SHIP_ID,
     ] {
         let design = catalog
             .iter()
@@ -668,7 +669,7 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
 
     for id in [
         ships::BLOCK_WORKSHIP_SHIP_ID,
-        ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+        BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
     ] {
         let design = catalog
             .iter()
@@ -714,7 +715,7 @@ fn gantrys_damage_is_aft_of_everything_the_rescue_touches() {
     )
     .expect("the tender carries a collar");
     let hurt = section(
-        ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+        BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
         ships::BLOCK_PORT_COLLAR_SECTION_ID,
     )
     .expect("the damaged tender still carries it");
@@ -727,7 +728,7 @@ fn gantrys_damage_is_aft_of_everything_the_rescue_touches() {
 
     assert!(
         section(ships::BLOCK_FRAME_TENDER_SHIP_ID, "main_drive").is_some()
-            && section(ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, "main_drive").is_none(),
+            && section(BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, "main_drive").is_none(),
         "the raid took the main drive, which is what the mayday says it took"
     );
 }

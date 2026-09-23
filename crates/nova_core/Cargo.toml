@@ -32,6 +32,9 @@ nova_training = { path = "../nova_training" }
 nova_events = { path = "../nova_events" }
 # The boot loading screen reads the preloaded `UiFont` for its phosphor text.
 nova_ui = { path = "../nova_ui" }
+# The base game's open world. Added HERE, on the default game path only: an
+# app with its own game plugins installs its own generator.
+nova_world_base = { path = "../nova_world_base" }
 
 # The web build must use the WebGPU render backend, not the default WebGL2:
 # bevy_hanabi's particle effects run on compute shaders, which on wasm exist only
@@ -52,4 +55,4 @@ workspace = true
 # is a dev-dependency, and a `cargo build --bin` never resolves those. Routing
 # the feature here is what puts the per-system spans in the binary probe runs.
 trace = ["bevy/trace", "bevy/trace_chrome"]
-debug = ["nova_debug", "bevy/track_location", "nova_console/debug", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_info/debug", "nova_os_ui/debug", "nova_menu/debug", "nova_scenario/debug"]
+debug = ["nova_debug", "bevy/track_location", "nova_console/debug", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_info/debug", "nova_os_ui/debug", "nova_menu/debug", "nova_scenario/debug", "nova_world_base/debug"]

@@ -895,10 +895,24 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "unloading the session removes every sector root",
         ],
     ),
+    (
+        "system_open_world",
+        &[
+            "new game opens the world setup modal without leaving the menu",
+            "create starts the open world on the modal's seed",
+            "the world arms on the session seed around the one player ship",
+            "the open world spawns one line warship with its weapons bound",
+            "the sectors around the player stream in",
+            "each bound weapon fires from the warship",
+            "retry keeps the world seed",
+            "every armed frame ran the observe stage",
+            "no other scenario runs over an armed world or a sector root",
+        ],
+    ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 434;
+const SYSTEMS_INVARIANTS: usize = 443;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

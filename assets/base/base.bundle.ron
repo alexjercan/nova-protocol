@@ -38,6 +38,9 @@
         "scenarios/drill_stop.content.ron",
         "scenarios/drill_autopilot.content.ron",
         "scenarios/drill_gunnery.content.ron",
+        // The open world's bootstrap, and New Game's start below. Not a
+        // chapter: it is `role: OpenWorld`, so the picker renders no row.
+        "scenarios/open_world.content.ron",
         // The training handbook itself: one item per lesson.
         "training/base.content.ron",
         // The campaigns, last: a campaign is a list of scenario ids, so it
@@ -286,5 +289,5 @@
     ),
     // The New Game start. Honored ONLY from the base bundle; the merge warns
     // and ignores it on any other bundle (mods cannot redirect New Game).
-    new_game_scenario: Some("tutorial"),
+    new_game_scenario: Some("open_world"),
 )

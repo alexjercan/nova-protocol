@@ -172,6 +172,7 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .add()
         .click("close Settings", "Settings Back Button")
         .click("start a new game", "New Game Button")
+        .click("create the world", "Create World Button")
         .step("reach the first flight")
         .until(state_is(GameStates::Playing))
         .deadline(STEP_DEADLINE_SECS)

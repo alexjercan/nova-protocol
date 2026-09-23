@@ -37,6 +37,8 @@ nova_scenario = { path = "../nova_scenario" }
 # The handbook's material: lessons, the progress record, the field notes.
 nova_training = { path = "../nova_training" }
 nova_ui = { path = "../nova_ui" }
+# New Game's Create inserts the open-world session the base world streams from.
+nova_world_base = { path = "../nova_world_base" }
 # serde derives PersistedSettings; the storage backend behind it lives in
 # nova_assets::persist.
 serde = { version = "1", features = ["derive"] }

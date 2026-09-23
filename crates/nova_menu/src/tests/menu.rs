@@ -1,6 +1,6 @@
 //! The main menu buttons: that an activation only counts as a click when it
-//! really was one, and that New Game and Sandbox set the mode, resolve the
-//! scenario override and fall back past a bad declaration.
+//! really was one, that Sandbox sets the mode, and that the New Game start
+//! resolves the scenario override and falls back past a bad declaration.
 
 use bevy::{
     prelude::*,
@@ -15,7 +15,7 @@ use super::support::{
     take_cues, LoadedScenario, PlayedCues, Unloaded, TEST_BACKDROP_ID, TEST_START_ID,
 };
 use crate::{
-    menu_ui::{on_new_game, on_sandbox, setup_menu_ui},
+    menu_ui::on_sandbox,
     scenarios::NewGameScenario,
     widgets::{button, on_menu_button_activate},
 };
@@ -50,30 +50,6 @@ fn a_menu_button_activation_clicks_and_a_bare_activation_does_not() {
 }
 
 #[test]
-fn new_game_button_sets_mode_and_hands_off_to_playing() {
-    let mut app = app();
-    app.insert_resource(dummy_scenarios());
-    observe_load_scenario(&mut app);
-    let button = app.world_mut().spawn(observe(on_new_game)).id();
-    app.update();
-
-    app.world_mut().trigger(Activate { entity: button });
-    app.update();
-
-    assert_eq!(*app.world().resource::<GameMode>(), GameMode::NewGame);
-    assert_eq!(
-        *app.world().resource::<State<GameStates>>().get(),
-        GameStates::Playing
-    );
-    // Delivery guard: the handoff must actually load the scenario, not just
-    // flip states.
-    assert_eq!(
-        app.world().resource::<LoadedScenario>().0.as_deref(),
-        Some(TEST_START_ID)
-    );
-}
-
-#[test]
 fn sandbox_button_sets_mode_and_loads_no_scenario() {
     let mut app = app();
     app.insert_resource(dummy_scenarios());
@@ -103,44 +79,6 @@ fn sandbox_button_sets_mode_and_loads_no_scenario() {
     assert!(app.world().resource::<Unloaded>().0);
     // Leaving the menu restores the HUD level.
     assert_eq!(*app.world().resource::<HudVisibility>(), HudVisibility::On);
-}
-
-/// Exercise the REAL New Game button, not just the handler fn.
-/// Builds the actual menu UI headless, finds the button by Name, and clicks
-/// it - so dropping the observe(on_new_game) wiring from setup_menu_ui fails
-/// this test.
-#[test]
-fn real_new_game_button_is_wired() {
-    use bevy::ecs::system::RunSystemOnce;
-
-    let mut app = app();
-    app.insert_resource(dummy_scenarios());
-    observe_load_scenario(&mut app);
-    app.world_mut()
-        .run_system_once(setup_menu_ui)
-        .expect("setup_menu_ui runs headless");
-    app.update();
-
-    let button = {
-        let mut names = app.world_mut().query::<(Entity, &Name)>();
-        names
-            .iter(app.world())
-            .find(|(_, name)| name.as_str() == "New Game Button")
-            .map(|(entity, _)| entity)
-            .expect("the menu spawns a 'New Game Button'")
-    };
-    app.world_mut().trigger(Activate { entity: button });
-    app.update();
-
-    assert_eq!(*app.world().resource::<GameMode>(), GameMode::NewGame);
-    assert_eq!(
-        *app.world().resource::<State<GameStates>>().get(),
-        GameStates::Playing
-    );
-    assert_eq!(
-        app.world().resource::<LoadedScenario>().0.as_deref(),
-        Some(TEST_START_ID)
-    );
 }
 
 /// `start_new_game_scenario` reads the override: `Some(existing)` loads that
@@ -207,26 +145,6 @@ fn start_new_game_scenario_falls_back_past_a_bad_declaration() {
         loaded_with(Some("gone"), GameScenarios::default()),
         None,
         "an empty registry loads nothing - and must not panic"
-    );
-}
-
-/// New Game clears any override the picker left, so it always starts the
-/// main story even after the player used the Scenarios picker.
-#[test]
-fn new_game_button_clears_the_scenario_override() {
-    let mut app = app();
-    app.insert_resource(dummy_scenarios());
-    app.insert_resource(NewGameScenario(Some("practice_run".to_string())));
-    let button = app.world_mut().spawn(observe(on_new_game)).id();
-    app.update();
-
-    app.world_mut().trigger(Activate { entity: button });
-    app.update();
-
-    assert_eq!(
-        app.world().resource::<NewGameScenario>().0,
-        None,
-        "New Game resets the picker override to None"
     );
 }
 

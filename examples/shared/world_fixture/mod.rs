@@ -4,7 +4,7 @@
 //!
 //! `nova_world` owns the streaming loop and the generation mechanisms and
 //! names no content. The featured world is the base game's generator,
-//! `NovaLayeredWorld` from `nova_authoring`; the uniform baseline is
+//! `NovaLayeredWorld` from `nova_world_base`; the uniform baseline is
 //! example-owned and lives beside this file. Everything else `nova_world`
 //! refuses to assume - a seed, a cell edge, an active radius - is decided
 //! HERE, once, so the five example targets that share it are looking at one
@@ -20,7 +20,6 @@
 //! Anything genuinely private in here is still linted.
 
 use bevy::prelude::*;
-use nova_authoring::prelude::NovaLayeredWorld;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 

@@ -14,8 +14,8 @@
 //! button that changes a setting.
 //!
 //! The SCENARIO loading screen rather than the boot one, because this walk can
-//! ask for it: `Start Training` hands off to the base bundle's declared start,
-//! and the panel is up for as long as that scenario is settling. The boot panel
+//! ask for it: `Start Training` hands off to Basic Training, and the panel is
+//! up for as long as that scenario is settling. The boot panel
 //! wears the same slot from the same builder, so what is checked here is what
 //! boot draws.
 //!
@@ -41,7 +41,7 @@ use nova_autopilot::predicate;
 use nova_protocol::nova_debug::harness::CAPTURE_RESOLUTION;
 use nova_protocol::prelude::*;
 #[cfg(feature = "debug")]
-use nova_training::prelude::{notes_for_scenario, TrainingCatalog};
+use nova_training::prelude::{notes_for_scenario, TrainingCatalog, TUTORIAL_SCENARIO_ID};
 
 #[cfg(feature = "debug")]
 #[path = "shared/ui_walk.rs"]
@@ -106,18 +106,12 @@ fn force_shot_window(mut windows: Query<&mut Window, With<PrimaryWindow>>, shot:
 
 /// The note on screen must be one the DESTINATION teaches.
 ///
-/// The destination is read from the declared start rather than named here: this
-/// walk pressed `Start Basic Training`, which is the same hand-off New Game
-/// takes, and an example that spelled a content id would keep passing after the
-/// bundle renamed its start.
+/// The destination is the shared Basic Training id the button starts, so a
+/// renamed tutorial moves this walk with it.
 #[cfg(feature = "debug")]
 fn assert_the_note_belongs_to_the_destination(world: &mut World) {
-    let destination = world
-        .resource::<NewGameStart>()
-        .0
-        .clone()
-        .expect("the base bundle declares a start");
-    let wanted = notes_for_scenario(world.resource::<TrainingCatalog>(), &destination);
+    let destination = TUTORIAL_SCENARIO_ID;
+    let wanted = notes_for_scenario(world.resource::<TrainingCatalog>(), destination);
     assert!(
         !wanted.is_empty(),
         "no lesson teaches '{destination}', so this walk cannot check destination context"

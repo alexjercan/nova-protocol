@@ -8,7 +8,7 @@ description = "Deterministic sector generation and streaming for the Nova Protoc
 
 [dependencies]
 # Components, resources, system sets and `AsyncComputeTaskPool`. This crate
-# owns systems, so it builds a plugin - but nothing adds it yet.
+# owns systems, so it builds a plugin; `nova_world_base` adds it for the game.
 bevy = { version = "0.19.0" }
 # The feature field: three global `Fbm<Perlin>` layers gate the candidate
 # lattice a streamed cell reads. Same crate and version the planet and

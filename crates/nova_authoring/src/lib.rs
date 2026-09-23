@@ -4,10 +4,6 @@
 //! lint/balance walk that validates a content tree. None of that runs in the
 //! game: the runtime loads the serialized RON instead.
 //!
-//! The one runtime exception is [`world`], the base game's sector generator.
-//! It names shipped ship designs, and those ids live here, so the generator
-//! does too.
-//!
 //! Touch this crate to change what built-in content IS (a builder under
 //! `base_content`, then `content gen`), or to change what the `content lint`
 //! gate accepts.
@@ -24,11 +20,6 @@
 mod base_content;
 
 pub mod balance;
-/// Narrow runtime-neutral access to the built-in scenarios: the id New Game
-/// starts.
-pub mod built_in_scenarios {
-    pub use crate::base_content::scenarios::tutorial::TUTORIAL_SCENARIO_ID;
-}
 /// Narrow runtime-neutral access to the shipped fleet: the ids a scenario
 /// spawns each craft by, and the section ids its weapons answer to.
 ///
@@ -38,7 +29,7 @@ pub mod built_in_scenarios {
 pub mod built_in_ships {
     pub use crate::base_content::ships::{
         design, BLOCK_CUTTER_SHIP_ID, BLOCK_GUNSHIP_SHIP_ID, BLOCK_HAULER_SHIP_ID,
-        BLOCK_PICKET_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID,
+        BLOCK_PICKET_SHIP_ID,
     };
 }
 /// Generic constructors for Rust-authored scenario configuration.
@@ -53,15 +44,13 @@ pub mod content_report;
 /// Deterministic serialization of the private built-in content inventory.
 pub mod generation;
 pub mod lint_walk;
-pub mod world;
 
 /// Glob-import surface: `use nova_authoring::prelude::*` brings the content
-/// report model, the lint/balance walk entry points, the RON generation
-/// surface and the base game's sector generator into scope.
+/// report model, the lint/balance walk entry points and the RON generation
+/// surface into scope.
 pub mod prelude {
     pub use super::{
-        balance::prelude::*, built_in_scenarios::*, built_in_ships::*, content_report::prelude::*,
-        generation::prelude::*, lint_walk::prelude::*, scenario_helpers::prelude::*,
-        world::prelude::*,
+        balance::prelude::*, built_in_ships::*, content_report::prelude::*, generation::prelude::*,
+        lint_walk::prelude::*, scenario_helpers::prelude::*,
     };
 }

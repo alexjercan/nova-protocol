@@ -196,6 +196,7 @@ fn menu_advanced_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         // `reached_playing` is there to catch.
         .click("close Settings", "Settings Back Button")
         .click("start a new game", "New Game Button")
+        .click("create the world", "Create World Button")
         .step("reach the first flight")
         .until(state_is(GameStates::Playing))
         .deadline(STEP_DEADLINE_SECS)

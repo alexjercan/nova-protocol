@@ -3,8 +3,7 @@
 //! Policy, not mechanism. `nova_world` owns the feature field, the placement
 //! rules and the check every manifest passes; this module decides what the
 //! field's places are FILLED with, out of shipped content, and takes no list
-//! from a caller. It lives here rather than in `nova_world` because the ship
-//! designs it names are base content, and base content ids live in this crate.
+//! from a caller.
 
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::SeedStream;
@@ -14,12 +13,7 @@ use nova_scenario::prelude::{
 };
 use nova_world::prelude::*;
 
-use crate::base_content::ships::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID};
-
-/// Glob-import surface for the base game's sector generator.
-pub mod prelude {
-    pub use super::NovaLayeredWorld;
-}
+use crate::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID};
 
 /// Every natural asteroid kind the game ships. `plain` is absent because it is
 /// the rendering control, not a rock a world would contain.

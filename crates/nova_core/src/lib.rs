@@ -44,6 +44,8 @@ use nova_ui::status_bar::{
     status_version_value_fn, StatusBarItemConfig, StatusBarItemMarker, StatusBarRootConfig,
     StatusBarRootMarker,
 };
+pub use nova_world_base;
+use nova_world_base::prelude::*;
 
 pub mod loading_screen;
 use loading_screen::LoadingScreenPlugin;
@@ -63,6 +65,7 @@ pub mod prelude {
     pub use nova_menu::prelude::*;
     pub use nova_scenario::prelude::*;
     pub use nova_ship::prelude::*;
+    pub use nova_world_base::prelude::*;
 
     pub use super::{
         editor_app,
@@ -329,7 +332,8 @@ impl AppBuilder {
     }
 
     /// Supply custom game plugins in place of the default editor app; this also
-    /// suppresses the main menu, so the examples boot straight into gameplay.
+    /// suppresses the main menu, so the examples boot straight into gameplay,
+    /// and the base open world, so an example may install its own generator.
     pub fn with_game_plugins<M>(mut self, plugins: impl Plugins<M>) -> Self {
         self.app.add_plugins(plugins);
         self.use_default_plugins = false;
@@ -387,7 +391,8 @@ impl AppBuilder {
     }
 
     /// Resolve the builder into a runnable [`App`]: adds the gameplay, scenario,
-    /// asset, editor (when no game plugins were given), menu, and debug plugins,
+    /// asset, open-world and editor (when no game plugins were given), menu, and
+    /// debug plugins,
     /// and installs the `Loaded -> MainMenu`/`Playing` handoff.
     pub fn build(mut self) -> App {
         // UiWidgetsPlugins is part of Bevy's DefaultPlugins as of 0.19 (it was an
@@ -416,6 +421,13 @@ impl AppBuilder {
         self.app.add_plugins(NovaScenarioPlugin {
             render: self.render,
         });
+        // The base open world, on the default game path only: an app that
+        // brings its own game plugins may install a generator of its own, and
+        // an app holds one. After the scenario plugin, whose live scenario
+        // role arms it.
+        if self.use_default_plugins {
+            self.app.add_plugins(NovaWorldBasePlugin);
+        }
 
         // The flight HUD and the NOVA OS cockpit monitor are peers, each its own
         // crate above gameplay - so the crate that orders them adds them. The

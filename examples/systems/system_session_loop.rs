@@ -14,8 +14,8 @@
 //! gameplay the player left and the loading screen. The range holds the count
 //! of each at one.
 //!
-//! Nothing here asserts what the training range CONTAINS - `system_menu_boot`
-//! owns the New Game click and the range owns itself.
+//! Nothing here asserts what the open world CONTAINS - `system_menu_boot`
+//! owns the New Game click and `system_open_world` owns the world.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -139,6 +139,10 @@ fn census(world: &World) -> (u32, u32, u32) {
 /// The New Game button, and the node whose absence proves the menu tore down.
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";
+
+/// The world setup modal's button that starts the game.
+#[cfg(feature = "debug")]
+const CREATE_WORLD_BUTTON: &str = "Create World Button";
 /// The pause overlay's way out.
 #[cfg(feature = "debug")]
 const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
@@ -338,9 +342,15 @@ fn session_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("session_loop: release New Game")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(state_is(GameStates::Playing))
-        .deadline(SESSION_SECS)
+        .until(ui_node_present(CREATE_WORLD_BUTTON))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
+        .click_named(
+            "session_loop: create the world",
+            CREATE_WORLD_BUTTON,
+            state_is(GameStates::Playing),
+            SESSION_SECS,
+        )
         .step("session_loop: the second session is a NEW session")
         .on_enter(|world: &mut World| {
             let current = current_scenario_id(world);

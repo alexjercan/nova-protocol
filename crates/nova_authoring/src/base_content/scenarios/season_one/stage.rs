@@ -9,6 +9,7 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
+use nova_world_base::prelude::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID};
 
 use super::super::{marks::Mark, SCATTER_SEED};
 use crate::base_content::ships;
@@ -96,7 +97,7 @@ pub(crate) fn gantry() -> ScenarioObjectConfig {
             controller: SpaceshipController::None,
             capabilities: ShipCapabilities::default(),
             design: ships::patched_design(
-                ships::BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+                BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
                 [ships::on_section(
                     ships::BLOCK_PORT_COLLAR_SECTION_ID,
                     ships::section_health(GANTRY_COLLAR_HEALTH),
@@ -149,7 +150,7 @@ pub(crate) fn wreckage() -> Vec<ScenarioObjectConfig> {
                 allegiance: Some(Allegiance::Neutral),
                 controller: SpaceshipController::None,
                 capabilities: ShipCapabilities::default(),
-                design: ships::design(ships::BLOCK_WRECK_PLATE_SHIP_ID),
+                design: ships::design(BLOCK_WRECK_PLATE_SHIP_ID),
             }),
         })
         .collect()
