@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nova_world and nova_world_base - architecture explainer</title>
+<style>
+:root {
+  --bg: #eef0f2;
+  --panel: #ffffff;
+  --panel-2: #f5f6f8;
+  --ink: #15191d;
+  --ink-2: #434c55;
+  --rule: #c5cbd1;
+  --dep: #1f5fa8;
+  --plugin: #8a5a00;
+  --ecs: #0f7a55;
+  --main: #a8342a;
+  --worker: #5b3f9e;
+  --mono: ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, "Segoe UI", "Noto Sans", "DejaVu Sans", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111416;
+    --panel: #181c20;
+    --panel-2: #1f2428;
+    --ink: #e4e8eb;
+    --ink-2: #a6b0b8;
+    --rule: #37404a;
+    --dep: #6ea8f0;
+    --plugin: #d9a441;
+    --ecs: #4cc08f;
+    --main: #ec7a68;
+    --worker: #b39ae8;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+* { box-sizing: border-box; }
+html { font-size: 16px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  line-height: 1.5;
+}
+header, main, footer { max-width: 72rem; margin: 0 auto; padding: 0 1rem; }
+header { padding-top: 1.5rem; }
+h1 { font-size: 1.6rem; margin: 0 0 .5rem; line-height: 1.25; }
+h2 { font-size: 1.25rem; margin: 2.25rem 0 .75rem; border-bottom: 2px solid var(--rule); padding-bottom: .25rem; }
+h3 { font-size: 1.05rem; margin: 1.25rem 0 .5rem; }
+p, li { max-width: 62rem; }
+code, pre, kbd { font-family: var(--mono); font-size: .88em; }
+code { overflow-wrap: anywhere; }
+a { color: var(--dep); }
+.meta { color: var(--ink-2); font-size: .95rem; }
+.meta code { color: var(--ink); }
+.note {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--ink-2);
+  padding: .75rem 1rem;
+  margin: 1rem 0;
+}
+nav.toc {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  padding: .5rem 1rem;
+  margin: 1rem 0;
+}
+nav.toc ol { margin: .25rem 0; padding-left: 1.5rem; columns: 2 16rem; }
+.src {
+  font-family: var(--mono);
+  font-size: .78rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.src::before { content: "["; }
+.src::after { content: "]"; }
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { border: 1px solid var(--rule); padding: .45rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--panel-2); }
+caption { text-align: left; font-weight: 600; padding: .25rem 0 .5rem; }
+pre {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  padding: .85rem 1rem;
+  overflow-x: auto;
+  line-height: 1.4;
+  margin: .75rem 0;
+}
+pre.decl { border-left: 4px solid var(--dep); }
+.label-abridged {
+  display: inline-block;
+  font-size: .75rem;
+  font-family: var(--mono);
+  border: 1px solid var(--rule);
+  padding: 0 .35rem;
+  margin-left: .5rem;
+  color: var(--ink-2);
+}
+
+/* Flow diagrams: boxes and ASCII arrows as text. */
+.flow { list-style: none; padding: 0; margin: 1rem 0; }
+.flow > li { max-width: none; }
+.step {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: 6px solid var(--ink-2);
+  padding: .6rem .85rem;
+}
+.step h3, .step h4 { margin: 0 0 .25rem; font-size: 1rem; }
+.step p { margin: .25rem 0; }
+.arrow {
+  font-family: var(--mono);
+  color: var(--ink-2);
+  padding: .15rem 0 .15rem 1.5rem;
+  font-size: .85rem;
+}
+.tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 0 .35rem;
+  margin-right: .35rem;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  vertical-align: 1px;
+}
+.tag.main { color: var(--main); }
+.tag.worker { color: var(--worker); border-style: dashed; }
+.tag.dep { color: var(--dep); }
+.tag.plugin { color: var(--plugin); border-style: double; border-width: 3px; }
+.tag.ecs { color: var(--ecs); border-style: dotted; }
+.tag.catalog { color: var(--main); border-style: dashed; }
+.step.main { border-left-color: var(--main); }
+.step.worker { border-left-color: var(--worker); border-left-style: dashed; }
+.step.menu { border-left-color: var(--plugin); }
+.step.ecs { border-left-color: var(--ecs); border-left-style: dotted; }
+
+/* Stage diagram: a horizontal chain on wide screens, a column on narrow. */
+.stages {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: .5rem;
+  margin: 1rem 0;
+  list-style: none;
+  padding: 0;
+}
+.stages > li { max-width: none; }
+.stage {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-top: 5px solid var(--main);
+  padding: .5rem .6rem;
+  height: 100%;
+  font-size: .85rem;
+}
+.stage h3 { margin: 0 0 .2rem; font-size: .95rem; }
+.stage .n { font-family: var(--mono); color: var(--ink-2); }
+.stage dl { margin: .35rem 0 0; }
+.stage dt { font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-2); margin-top: .35rem; }
+.stage dd { margin: 0; overflow-wrap: anywhere; }
+.stage.gate0 { border-top-style: double; border-top-width: 6px; }
+.stage .src, .crate .src { white-space: normal; overflow-wrap: anywhere; }
+
+/* Crate diagram. */
+.crates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+  margin: 1rem 0;
+}
+.crate {
+  background: var(--panel);
+  border: 2px solid var(--rule);
+  padding: .6rem .75rem;
+  font-size: .88rem;
+}
+.crate h3 { margin: 0 0 .25rem; font-family: var(--mono); font-size: .95rem; }
+.crate ul { margin: .25rem 0 0; padding-left: 1.1rem; }
+.crate.focus { border-color: var(--ink); border-width: 3px; }
+.tier { font-size: .75rem; color: var(--ink-2); font-family: var(--mono); }
+.legend { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: .5rem 0; padding: 0; list-style: none; font-size: .88rem; }
+.legend li { max-width: none; }
+.edges td:first-child { white-space: nowrap; }
+
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+
+@media (max-width: 64rem) {
+  .stages { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .crates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 40rem) {
+  html { font-size: 15px; }
+  .stages, .crates, .grid2 { grid-template-columns: minmax(0, 1fr); }
+  nav.toc ol { columns: 1; }
+  th, td { padding: .35rem .4rem; }
+  .src { white-space: normal; overflow-wrap: anywhere; }
+  table.stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.stack, table.stack tbody, table.stack tr, table.stack td, table.stack th { display: block; width: 100%; }
+  table.stack caption { display: block; width: 100%; }
+  table.stack tr { border: 1px solid var(--rule); margin-bottom: .75rem; background: var(--panel); }
+  table.stack td, table.stack th { border: 0; border-top: 1px solid var(--rule); }
+  table.stack td::before, table.stack th[scope="row"]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>How <code>nova_world</code> and <code>nova_world_base</code> work</h1>
+  <p class="meta">
+    Generated from commit <code>d1c583213</code> on branch <code>nova-world-foundation</code> (PR #59).
+    Every source reference is <code>path:line</code> at that commit.
+  </p>
+  <div class="note">
+    <strong>Scope.</strong> This page explains the code at <code>d1c583213</code>.
+    It covers the streamed open world, from the New Game seed to the ECS entities.
+    It includes the generic mechanism (<code>nova_world</code>), the base generator
+    (<code>nova_world_base</code>), and the <code>nova_scenario</code> object
+    factories that the mechanism calls. It does not describe planned work. It
+    does not change runtime behavior.
+  </div>
+  <nav class="toc" aria-label="Sections">
+    <ol>
+      <li><a href="#verdict">Verdict and corrections</a></li>
+      <li><a href="#user-flow">User flow: menu seed to entities</a></li>
+      <li><a href="#stages">Streaming stages</a></li>
+      <li><a href="#worker">Worker pipeline</a></li>
+      <li><a href="#objects">Description to object</a></li>
+      <li><a href="#crates">Crates and components</a></li>
+      <li><a href="#types">Main types and functions</a></li>
+      <li><a href="#graph">ASCII knowledge graph</a></li>
+      <li><a href="#limits">Invariants and limits</a></li>
+      <li><a href="#sources">Source map</a></li>
+    </ol>
+  </nav>
+</header>
+
+<main>
+
+<section id="verdict" aria-labelledby="verdict-h">
+<h2 id="verdict-h">1. Verdict: what the model gets right, and the corrections</h2>
+
+<h3>Correct</h3>
+<ul>
+  <li>Sectors are generated on async worker tasks and turned into ECS entities later, on the main thread.
+    <span class="src">crates/nova_world/src/streaming.rs:360</span></li>
+  <li>The generator only describes a cell. Preparation and spawning are one shared implementation in <code>nova_world</code>.
+    <span class="src">crates/nova_world/src/lib.rs:421</span></li>
+  <li>Asteroids and planetoids spawn through the same <code>nova_scenario</code> object factories that the scenario loader uses.
+    <span class="src">crates/nova_world/src/streaming.rs:4</span></li>
+</ul>
+
+<h3>Corrections</h3>
+<table class="stack">
+  <caption>Mental model vs code at <code>d1c583213</code></caption>
+  <thead><tr><th scope="col">Assumption</th><th scope="col">What the code does</th><th scope="col">Evidence</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Assumption">A request component such as <code>SpawnChunkCompute</code> starts the work.</td>
+      <td data-label="What the code does">There is no such component. The trigger is <strong>position</strong>. <code>track_current_sector</code> reads the <code>GlobalTransform</code> of the one <code>WorldObserver</code> and writes the <code>CurrentSector</code> resource. Then <code>request_sectors</code> compares the desired window with the live <code>SectorRoot</code>s, the running <code>SectorJob</code>s and the <code>ReadySectors</code> map. It spawns one internal <code>SectorJob</code> entity per missing cell, nearest first, up to the task pool thread count. <code>SectorJob::start</code> spawns the async task.</td>
+      <td data-label="Evidence"><span class="src">crates/nova_world/src/streaming.rs:302</span> <span class="src">crates/nova_world/src/streaming.rs:494</span> <span class="src">crates/nova_world/src/streaming.rs:360</span></td>
+    </tr>
+    <tr>
+      <td data-label="Assumption"><code>NovaWorldPlugin&lt;G&gt;</code> inserts the world config.</td>
+      <td data-label="What the code does"><code>WorldConfig&lt;G&gt;</code> is a <code>Resource</code> that holds <code>seed</code>, <code>sector_edge</code>, <code>active_radius</code> and the concrete <code>generator: G</code>. The plugin does not insert it. The plugin installs the generic stages, <code>ReadySectors</code>, <code>SectorJobStats</code> and a one-generator guard. The config is the arming switch. In the game, <code>sync_open_world</code> in <code>nova_world_base</code> inserts it and removes it.</td>
+      <td data-label="Evidence"><span class="src">crates/nova_world/src/lib.rs:464</span> <span class="src">crates/nova_world/src/lib.rs:741</span> <span class="src">crates/nova_world_base/src/lib.rs:133</span></td>
+    </tr>
+    <tr>
+      <td data-label="Assumption">The worker returns one kind of sector data.</td>
+      <td data-label="What the code does">Three types: <code>SectorManifest</code> is the untrusted, body-only generator output with public fields. <code>SectorDescription</code> is the trusted result of <code>validate_manifest</code>, with <code>pub(crate)</code> fields and no other constructor. <code>PreparedSector</code> is the description plus worker-prepared asteroid geometry and planet surfaces. Ships stay descriptors inside the description. Its fields are <code>pub(crate)</code> and only <code>prepare_sector</code> builds it.</td>
+      <td data-label="Evidence"><span class="src">crates/nova_world/src/generation.rs:67</span> <span class="src">crates/nova_world/src/generation.rs:85</span> <span class="src">crates/nova_world/src/generation.rs:186</span></td>
+    </tr>
+    <tr>
+      <td data-label="Assumption">Ships are prepared on the worker like rocks.</td>
+      <td data-label="What the code does">The worker does no work for a ship. On the main thread, <code>materialize_sector</code> checks each design against <code>GameShipDesigns</code> before it spawns the root, and panics on an unknown id. It then spawns <code>spaceship_scenario_object</code>. In the same command flush, the <code>nova_scenario</code> observer <code>insert_spaceship_sections</code> resolves the design and spawns the section children with <code>nova_ship</code> section bundles.</td>
+      <td data-label="Evidence"><span class="src">crates/nova_world/src/streaming.rs:159</span> <span class="src">crates/nova_scenario/src/objects/spaceship.rs:514</span></td>
+    </tr>
+    <tr>
+      <td data-label="Assumption">Content appears by a fixed percentage chance per cell.</td>
+      <td data-label="What the code does">No percentage exists. Three independent fBm Perlin layers are sampled on a 128 km lattice against fixed thresholds. A node above its threshold becomes a candidate sphere. Same-layer thinning removes overlapped weaker candidates. The rock count is the ceiling of 4 times the summed, falloff-weighted asteroid influence at the cell centre.</td>
+      <td data-label="Evidence"><span class="src">crates/nova_world_base/src/features.rs:98</span> <span class="src">crates/nova_world_base/src/features.rs:502</span> <span class="src">crates/nova_world_base/src/layered.rs:203</span></td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<section id="user-flow" aria-labelledby="user-flow-h">
+<h2 id="user-flow-h">2. End-to-end user flow: menu seed to streamed ECS entities</h2>
+<ul class="legend" aria-label="Legend">
+  <li><span class="tag plugin">MENU</span> menu and scenario load</li>
+  <li><span class="tag ecs">ECS</span> resource or component handoff</li>
+  <li><span class="tag main">MAIN</span> main-thread system</li>
+  <li><span class="tag worker">WORKER</span> <code>AsyncComputeTaskPool</code> task</li>
+</ul>
+<ol class="flow">
+  <li><div class="step menu">
+    <h3><span class="tag plugin">MENU</span>New Game opens the seed modal</h3>
+    <p><code>on_new_game</code> draws a fresh seed with <code>rng.next_u32()</code> from the <code>GlobalRng</code> <code>WyRand</code>. <code>on_randomize_seed</code> draws again. <code>parse_world_seed</code> accepts only decimal digits that parse as <code>u32</code>.</p>
+    <p><span class="src">crates/nova_menu/src/world_setup.rs:62</span> <span class="src">crates/nova_menu/src/world_setup.rs:201</span> <span class="src">crates/nova_menu/src/world_setup.rs:53</span></p>
+  </div></li>
+  <li class="arrow" aria-hidden="true">| Create pressed<br>v</li>
+  <li><div class="step menu">
+    <h3><span class="tag plugin">MENU</span><code>on_create_world</code></h3>
+    <p>Inserts <code>OpenWorldSession { seed }</code>, clears the Scenarios picker override, sets <code>GameMode::NewGame</code> and <code>GameStates::Playing</code>.</p>
+    <p><span class="src">crates/nova_menu/src/world_setup.rs:216</span> <span class="src">crates/nova_menu/src/world_setup.rs:228</span></p>
+  </div></li>
+  <li class="arrow" aria-hidden="true">| OnEnter(GameStates::Playing)<br>v</li>
+  <li><div class="step menu">
+    <h3><span class="tag plugin">MENU</span><code>start_new_game_scenario</code> loads <code>open_world</code></h3>
+    <p>With no override, it reads the base bundle's <code>new_game_scenario: Some("open_world")</code> and triggers <code>LoadScenario</code>. <code>on_load_scenario</code> writes <code>CurrentScenario</code>.</p>
+    <p><span class="src">crates/nova_menu/src/lib.rs:292</span> <span class="src">assets/base/base.bundle.ron:292</span> <span class="src">crates/nova_menu/src/menu_ui.rs:529</span> <span class="src">crates/nova_scenario/src/loader/lifecycle.rs:403</span></p>
+  </div></li>
+  <li class="arrow" aria-hidden="true">| OnStart actions<br>v</li>
+  <li><div class="step ecs">
+    <h3><span class="tag ecs">ECS</span>The authored bootstrap is empty of bodies</h3>
+    <p>The <code>open_world</code> scenario has <code>role: ScenarioRole::OpenWorld</code>. Its OnStart actions spawn the player line warship at the origin and a light rig. It spawns no rock, planet or derelict. The RON file is generated from the Rust builder.</p>
+    <p><span class="src">crates/nova_authoring/src/base_content/scenarios/open_world.rs:33</span> <span class="src">crates/nova_authoring/src/base_content/scenarios/open_world.rs:41</span> <span class="src">assets/base/scenarios/open_world.content.ron:1</span></p>
+  </div></li>
+  <li class="arrow" aria-hidden="true">| every Update, before NovaWorldSystems::Cleanup<br>v</li>
+  <li><div class="step main">
+    <h3><span class="tag main">MAIN</span><code>sync_open_world</code> (exclusive system)</h3>
+    <p>Not an OpenWorld scenario: remove the config. OpenWorld with no <code>OpenWorldSession</code>: panic. Zero player ships: remove the config. Two or more: panic. Exactly one: insert <code>WorldObserver</code> on it, and insert <code>WorldConfig { seed, sector_edge: 32 km, active_radius: 2, generator: NovaLayeredWorld }</code> only if it differs from the armed one.</p>
+    <p><span class="src">crates/nova_world_base/src/lib.rs:114</span> <span class="src">crates/nova_world_base/src/lib.rs:133</span> <span class="src">crates/nova_world_base/src/lib.rs:170</span></p>
+  </div></li>
+  <li class="arrow" aria-hidden="true">| WorldConfig&lt;NovaLayeredWorld&gt; + WorldObserver<br>v</li>
+  <li><div class="step main">
+    <h3><span class="tag main">MAIN</span>Streaming stages (section 3)</h3>
+    <p>Cleanup, Observe, Request, Collect, Materialize, Retire, chained in <code>Update</code>.</p>
+    <p><span class="src">crates/nova_world/src/lib.rs:768</span></p>
+  </div></li>
+  <li class="arrow" aria-hidden="true">| SectorJob::start<br>v</li>
+  <li><div class="step worker">
+    <h3><span class="tag worker">WORKER</span><code>prepare_sector(config, coord)</code> (section 4)</h3>
+    <p>Generate, validate, and prepare meshes and surfaces off the frame.</p>
+    <p><span class="src">crates/nova_world/src/generation.rs:528</span></p>
+  </div></li>
+  <li class="arrow" aria-hidden="true">| Task result -&gt; ReadySectors<br>v</li>
+  <li><div class="step main">
+    <h3><span class="tag main">MAIN</span><code>materialize_sector</code></h3>
+    <p>One <code>SectorRoot</code> at the origin, then children: rocks, then planetoids, then ships. At most one sector each frame.</p>
+    <p><span class="src">crates/nova_world/src/streaming.rs:133</span> <span class="src">crates/nova_world/src/streaming.rs:605</span></p>
+  </div></li>
+</ol>
+</section>
+
+<section id="stages" aria-labelledby="stages-h">
+<h2 id="stages-h">3. Streaming stages: Cleanup -&gt; Observe -&gt; Request -&gt; Collect -&gt; Materialize -&gt; Retire</h2>
+<p>All six are <code>NovaWorldSystems</code> sets in <code>Update</code>, chained, so the commands of each stage apply before the next one queries.
+  Cleanup has its own run condition and ignores session liveness. Observe needs a live scenario and a <code>WorldConfig&lt;G&gt;</code>.
+  Request through Retire also need <code>CurrentSector</code>.
+  <span class="src">crates/nova_world/src/lib.rs:768</span> <span class="src">crates/nova_world/src/lib.rs:803</span></p>
+<ol class="stages" aria-label="Stage chain, in frame order">
+  <li><div class="stage gate0">
+    <h3><span class="n">1</span> Cleanup</h3>
+    <code>clear_sector_work&lt;G&gt;</code>
+    <dl>
+      <dt>Runs if</dt><dd><code>WorldConfig</code> removed, OR no live scenario, OR <code>CurrentScenario</code> changed, OR <code>WorldConfig</code> inserted or changed</dd>
+      <dt>Reads</dt><dd><code>Option&lt;Res&lt;WorldConfig&gt;&gt;</code>, <code>SectorRoot</code>, <code>SectorJob</code></dd>
+      <dt>Writes</dt><dd>despawns every <code>SectorJob</code> (drops the task), clears <code>ReadySectors</code>, records <code>ClearedConfig</code>, bumps <code>discarded</code>. On config absent or changed: <code>try_despawn</code> every <code>SectorRoot</code></dd>
+    </dl>
+    <p><span class="src">crates/nova_world/src/lib.rs:777</span> <span class="src">crates/nova_world/src/streaming.rs:724</span></p>
+  </div></li>
+  <li><div class="stage">
+    <h3><span class="n">2</span> Observe</h3>
+    <code>track_current_sector&lt;G&gt;</code>
+    <dl>
+      <dt>Reads</dt><dd><code>WorldConfig</code>, <code>ClearedConfig</code>, <code>GlobalTransform</code> with <code>WorldObserver</code></dd>
+      <dt>Writes</dt><dd><code>CurrentSector</code> (insert or update)</dd>
+      <dt>Refuses</dt><dd>a changed config that fails <code>validate()</code>; not exactly one observer; a config written after Cleanup</dd>
+    </dl>
+    <p><span class="src">crates/nova_world/src/streaming.rs:302</span></p>
+  </div></li>
+  <li><div class="stage">
+    <h3><span class="n">3</span> Request</h3>
+    <code>request_sectors&lt;G&gt;</code>
+    <dl>
+      <dt>Reads</dt><dd><code>WorldConfig</code>, <code>CurrentSector</code>, <code>SectorRoot</code>, <code>SectorJob</code>, <code>ReadySectors</code></dd>
+      <dt>Writes</dt><dd>spawns <code>(Name, SectorJob)</code> for desired cells not live, running or ready; nearest first; at most <code>thread_num() - running</code>; <code>requested += 1</code></dd>
+    </dl>
+    <p><span class="src">crates/nova_world/src/streaming.rs:494</span> <span class="src">crates/nova_world/src/streaming.rs:455</span></p>
+  </div></li>
+  <li><div class="stage">
+    <h3><span class="n">4</span> Collect</h3>
+    <code>collect_sector_jobs&lt;G&gt;</code>
+    <dl>
+      <dt>Reads</dt><dd><code>SectorJob</code> tasks via <code>block_on(poll_once(..))</code> (no wait), <code>CurrentSector</code></dd>
+      <dt>Writes</dt><dd>despawns finished jobs; <code>SectorFault</code> -&gt; panic; undesired coord -&gt; dropped; else <code>ReadySectors.insert</code>; <code>completed</code>, <code>peak_pending</code></dd>
+    </dl>
+    <p><span class="src">crates/nova_world/src/streaming.rs:551</span></p>
+  </div></li>
+  <li><div class="stage">
+    <h3><span class="n">5</span> Materialize</h3>
+    <code>materialize_ready_sector&lt;G&gt;</code>
+    <dl>
+      <dt>Reads</dt><dd><code>ReadySectors</code>, <code>SectorRoot</code>, <code>GameAssets</code>, <code>GameShipDesigns</code></dd>
+      <dt>Writes</dt><dd>removes the ONE nearest desired, not-live ready sector; calls <code>materialize_sector</code>; <code>materialized += 1</code></dd>
+    </dl>
+    <p><span class="src">crates/nova_world/src/streaming.rs:605</span> <span class="src">crates/nova_world/src/streaming.rs:624</span></p>
+  </div></li>
+  <li><div class="stage">
+    <h3><span class="n">6</span> Retire</h3>
+    <code>retire_sectors&lt;G&gt;</code>
+    <dl>
+      <dt>Reads</dt><dd><code>CurrentSector</code>, <code>SectorRoot</code>, <code>SectorJob</code>, <code>ReadySectors</code></dd>
+      <dt>Writes</dt><dd>despawns roots and jobs outside the desired set; drops ready sectors outside it; <code>discarded</code></dd>
+    </dl>
+    <p><span class="src">crates/nova_world/src/streaming.rs:654</span></p>
+  </div></li>
+</ol>
+
+<h3>Cleanup, replacement and stale-result rejection</h3>
+<div class="scroll">
+<table class="stack">
+  <thead><tr><th scope="col">Case</th><th scope="col">Who takes the work</th><th scope="col">Evidence</th></tr></thead>
+  <tbody>
+    <tr><td data-label="Case">Observer moves; a live cell leaves the window</td><td data-label="Who takes the work">Retire despawns its <code>SectorRoot</code>. The children go with it through <code>ChildOf</code>.</td><td data-label="Evidence"><span class="src">crates/nova_world/src/streaming.rs:667</span></td></tr>
+    <tr><td data-label="Case">A running job's cell leaves the window</td><td data-label="Who takes the work">Retire despawns the job entity. Dropping a <code>Task</code> cancels it.</td><td data-label="Evidence"><span class="src">crates/nova_world/src/streaming.rs:674</span> <span class="src">crates/nova_world/src/streaming.rs:338</span></td></tr>
+    <tr><td data-label="Case">A job finishes for a cell nobody wants now</td><td data-label="Who takes the work">Collect drops the result and counts it as discarded.</td><td data-label="Evidence"><span class="src">crates/nova_world/src/streaming.rs:573</span></td></tr>
+    <tr><td data-label="Case">A ready sector leaves the window</td><td data-label="Who takes the work">Retire drops it from <code>ReadySectors</code>. Materialize also only picks desired cells that are not live.</td><td data-label="Evidence"><span class="src">crates/nova_world/src/streaming.rs:682</span> <span class="src">crates/nova_world/src/streaming.rs:628</span></td></tr>
+    <tr><td data-label="Case">Scenario unloaded, or replaced by <code>LoadScenario</code></td><td data-label="Who takes the work">Cleanup drops jobs and ready sectors. The scenario sweep takes the roots, because every root carries <code>ScenarioScopedMarker</code>.</td><td data-label="Evidence"><span class="src">crates/nova_world/src/lib.rs:779</span> <span class="src">crates/nova_scenario/src/actions/spawn.rs:107</span></td></tr>
+    <tr><td data-label="Case"><code>WorldConfig</code> inserted, replaced or removed</td><td data-label="Who takes the work">Cleanup clears the session. Jobs, ready sectors AND live roots all go before Request runs. The window refills from the new config.</td><td data-label="Evidence"><span class="src">crates/nova_world/src/streaming.rs:735</span> <span class="src">crates/nova_world/src/streaming.rs:762</span></td></tr>
+    <tr><td data-label="Case">A config written after Cleanup ran</td><td data-label="Who takes the work"><code>assert_world_was_cleared</code> panics in every later stage. Writers must be ordered <code>.before(NovaWorldSystems::Cleanup)</code>.</td><td data-label="Evidence"><span class="src">crates/nova_world/src/streaming.rs:418</span> <span class="src">crates/nova_world/src/lib.rs:122</span></td></tr>
+    <tr><td data-label="Case">A dial changes while a job runs</td><td data-label="Who takes the work">The job keeps the config it was started with: <code>SectorJob::start</code> moves a clone into the task. The change also triggers Cleanup, which drops that job.</td><td data-label="Evidence"><span class="src">crates/nova_world/src/streaming.rs:360</span></td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<section id="worker" aria-labelledby="worker-h">
+<h2 id="worker-h">4. Worker pipeline</h2>
+<p>Everything from the input to the <code>Task</code> result runs inside one <code>AsyncComputeTaskPool</code> task. Nothing in <code>generation.rs</code> reads a <code>World</code>.
+  <span class="src">crates/nova_world/src/generation.rs:5</span></p>
+<ol class="flow">
+  <li><div class="step main"><h4><span class="tag main">MAIN</span>Input</h4>
+    <p><code>SectorJob::start(config.clone(), coord)</code> moves the config into <code>async move { prepare_sector(config, coord) }</code>.</p>
+    <p><span class="src">crates/nova_world/src/streaming.rs:525</span> <span class="src">crates/nova_world/src/streaming.rs:361</span></p></div></li>
+  <li class="arrow" aria-hidden="true">v</li>
+  <li><div class="step worker"><h4><span class="tag worker">WORKER</span><code>generate_sector</code>: config check, then the generator</h4>
+    <p><code>config.validate()</code>, a finite cell centre, then <code>config.input(coord)</code> -&gt; <code>SectorGenerationInput { seed, geometry, coord }</code> -&gt; <code>G::generate(input)</code>.</p>
+    <p><span class="src">crates/nova_world/src/generation.rs:503</span> <span class="src">crates/nova_world/src/lib.rs:487</span></p></div></li>
+  <li class="arrow" aria-hidden="true">v SectorManifest (untrusted, pub fields)</li>
+  <li><div class="step worker"><h4><span class="tag worker">WORKER</span><code>validate_manifest(input, manifest)</code></h4>
+    <p>Finite edge and centre; the requested coord; at most 16 bodies and 4 rocks; ids unique and prefixed with the cell slug; finite geometry; shipped asteroid kinds; <code>PlanetConfig::validate</code>; non-blank ship design; every clearance sphere inside the cell and no overlap (zero margin).</p>
+    <p><span class="src">crates/nova_world/src/generation.rs:296</span> <span class="src">crates/nova_world/src/generation.rs:437</span></p></div></li>
+  <li class="arrow" aria-hidden="true">v SectorDescription (trusted, pub(crate) fields)</li>
+  <li><div class="step worker"><h4><span class="tag worker">WORKER</span>Preparation in <code>prepare_sector</code></h4>
+    <p>Each rock: <code>prepare_asteroid_geometry(body.seed, body.radius)</code> -&gt; <code>PreparedAsteroid</code> (mesh and collider). Each planetoid: <code>prepare_planet(planet.config.clone())</code> -&gt; <code>PreparedPlanet</code> (config and visual). Ships: nothing.</p>
+    <p><span class="src">crates/nova_world/src/generation.rs:533</span> <span class="src">crates/nova_scenario/src/objects/asteroid.rs:223</span> <span class="src">crates/nova_scenario/src/objects/planet.rs:109</span></p></div></li>
+  <li class="arrow" aria-hidden="true">v PreparedSector { description, asteroids, planets }</li>
+  <li><div class="step worker"><h4><span class="tag worker">WORKER</span>Task result</h4>
+    <p><code>Task&lt;Result&lt;PreparedSector, SectorFault&gt;&gt;</code>, held in the private <code>SectorJob::task</code> field.</p>
+    <p><span class="src">crates/nova_world/src/streaming.rs:348</span></p></div></li>
+  <li class="arrow" aria-hidden="true">v poll_once in Collect</li>
+  <li><div class="step main"><h4><span class="tag main">MAIN</span>Ready map</h4>
+    <p><code>ReadySectors(BTreeMap&lt;SectorCoord, PreparedSector&gt;)</code>. A fault panics here, on the main thread, with the fault text. Most faults name an object id that carries the cell slug. <code>Config</code> and <code>Generation</code> faults name no cell.</p>
+    <p><span class="src">crates/nova_world/src/streaming.rs:373</span> <span class="src">crates/nova_world/src/streaming.rs:572</span></p></div></li>
+  <li class="arrow" aria-hidden="true">v one per frame</li>
+  <li><div class="step main"><h4><span class="tag main">MAIN</span>Materialization</h4>
+    <p><code>materialize_sector(&amp;mut commands, prepared, &amp;texture, &amp;designs)</code> (section 5).</p>
+    <p><span class="src">crates/nova_world/src/streaming.rs:635</span></p></div></li>
+</ol>
+
+<h3>Inside <code>NovaLayeredWorld::generate</code></h3>
+<p>The base generator is a unit struct with no fields. Its policy lives in constants and in the feature field.
+  <span class="src">crates/nova_world_base/src/layered.rs:115</span> <span class="src">crates/nova_world_base/src/layered.rs:137</span></p>
+<ol>
+  <li><strong>Feature field.</strong> <code>sector_features(input)</code> builds three <code>Fbm&lt;Perlin&gt;</code> fields (one per <code>FeatureLayer</code>: Asteroid, Planet, Derelict), each seeded from the world seed and the layer slug, 3 octaves, 256 km wavelength.
+    <span class="src">crates/nova_world_base/src/features.rs:616</span> <span class="src">crates/nova_world_base/src/features.rs:238</span></li>
+  <li><strong>Candidates.</strong> One candidate per layer per lattice node (128 km spacing). The field is sampled at the node, with a fixed origin offset. At or below the layer threshold (Asteroid 0.02, Planet 0.16, Derelict 0.14) there is no candidate. Above it, strength is <code>(value - threshold) / (0.22 - threshold)</code>, clamped to <code>[0, 1]</code>. The node seed draws a jitter (up to 0.45 of a half-lattice) and a radius from the layer's band. The centre is then pulled onto its owner cell's 0.7 inset.
+    <span class="src">crates/nova_world_base/src/features.rs:439</span> <span class="src">crates/nova_world_base/src/features.rs:98</span> <span class="src">crates/nova_world_base/src/features.rs:292</span></li>
+  <li><strong>Thinning.</strong> A candidate loses to ANY same-layer candidate within 2 lattice nodes that overlaps it and outranks it (higher strength, then smaller id), whether or not that rival survives. Layers never thin each other, so a planet sphere may sit inside an asteroid sphere.
+    <span class="src">crates/nova_world_base/src/features.rs:502</span> <span class="src">crates/nova_world_base/src/features.rs:366</span></li>
+  <li><strong>Cell view.</strong> Every surviving sphere that reaches the cell's box is returned, ordered by layer, then node. Each sphere has one <code>owner</code> cell: the cell its centre falls in.
+    <span class="src">crates/nova_world_base/src/features.rs:622</span> <span class="src">crates/nova_world_base/src/features.rs:318</span></li>
+  <li><strong>Strengths.</strong> <code>sector_strengths</code> sums, per layer, <code>strength * (1 - t^2)^2</code> at the cell centre (<code>t</code> = distance / radius), capped at 1. The generator uses only the asteroid entry.
+    <span class="src">crates/nova_world_base/src/features.rs:696</span> <span class="src">crates/nova_world_base/src/features.rs:336</span></li>
+  <li><strong>Planetoids first</strong> (stream <code>"planets"</code>): one per planet sphere this cell owns, AT the sphere centre, mean radius 600 m to 1,200 m, a <code>PlanetType</code> and a seed.
+    <span class="src">crates/nova_world_base/src/layered.rs:152</span></li>
+  <li><strong>Derelicts</strong> (stream <code>"derelicts"</code>): 1 to 3 ships per derelict sphere this cell owns, within 6 km of its centre on each axis and inside the cell's 0.7 inset. Each has a random yaw and one of two shipped wreck designs.
+    <span class="src">crates/nova_world_base/src/layered.rs:168</span> <span class="src">crates/nova_world_base/src/layered.rs:50</span> <span class="src">crates/nova_world_base/src/layered.rs:299</span></li>
+  <li><strong>Rocks</strong> (stream <code>"bodies"</code>): count <code>= min(ceil(asteroid_strength * 4), 4)</code>. Each rock is 30 m to 60 m nominal, placed within the inset around the cell centre, as one of 4 kinds.
+    <span class="src">crates/nova_world_base/src/layered.rs:203</span> <span class="src">crates/nova_world_base/src/layered.rs:209</span></li>
+  <li><strong>Spacing.</strong> <code>Layout</code> keeps a 500 m <code>CLEARANCE_MARGIN</code> through the same <code>bodies_clear</code> the validator uses with a zero margin. Each derelict ship and rock gets 64 deterministic candidates, then <code>SectorFault::Clearance</code>. A planetoid stands at its sphere centre with one attempt.
+    <span class="src">crates/nova_world_base/src/layered.rs:243</span> <span class="src">crates/nova_world_base/src/layered.rs:287</span> <span class="src">crates/nova_world_base/src/layered.rs:266</span> <span class="src">crates/nova_world/src/generation.rs:236</span></li>
+</ol>
+</section>
+
+<section id="objects" aria-labelledby="objects-h">
+<h2 id="objects-h">5. Description to object</h2>
+<p>Every spawned entity starts from <code>base_scenario_object</code>. It adds <code>ScenarioScopedMarker</code>, <code>Name</code>, <code>EntityId</code>, and <code>Transform</code> through <code>Meters3::to_engine</code>. It does NOT add <code>ScenarioAddressableMarker</code>. The root spawns at the world origin as an ownership node. Every object is its <code>ChildOf(root)</code> with a world position.
+  <span class="src">crates/nova_scenario/src/actions/spawn.rs:102</span> <span class="src">crates/nova_world/src/streaming.rs:103</span> <span class="src">crates/nova_world/src/streaming.rs:171</span></p>
+<div class="scroll">
+<table class="stack">
+  <thead>
+    <tr>
+      <th scope="col">Body</th>
+      <th scope="col">Description entry</th>
+      <th scope="col"><span class="tag worker">WORKER</span> preparation</th>
+      <th scope="col"><span class="tag main">MAIN</span> spawn in <code>materialize_sector</code></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th scope="row" data-label="Body">Asteroid</th>
+      <td data-label="Description entry"><code>SectorAsteroid { id, position, radius, kind, seed }</code><br><span class="src">crates/nova_world/src/generation.rs:23</span></td>
+      <td data-label="WORKER preparation"><code>prepare_asteroid_geometry(seed, radius) -&gt; PreparedAsteroid</code> (private mesh, collider, seed, radius)<br><span class="src">crates/nova_scenario/src/objects/asteroid.rs:223</span></td>
+      <td data-label="MAIN spawn in materialize_sector"><code>base_scenario_object</code> + <code>ChildOf(root)</code>, then <code>asteroid_scenario_object_prepared(&amp;mut entity, AsteroidConfig { invulnerable: true, seed: Some(seed), texture, .. }, seed, rock)</code>. It panics if the geometry does not match the seed and radius.<br><span class="src">crates/nova_world/src/streaming.rs:183</span> <span class="src">crates/nova_scenario/src/objects/asteroid.rs:287</span></td>
+    </tr>
+    <tr>
+      <th scope="row" data-label="Body">Planetoid</th>
+      <td data-label="Description entry"><code>SectorPlanet { id, position, config: PlanetConfig }</code><br><span class="src">crates/nova_world/src/generation.rs:38</span></td>
+      <td data-label="WORKER preparation"><code>prepare_planet(config) -&gt; PreparedPlanet</code> (private config and visual)<br><span class="src">crates/nova_scenario/src/objects/planet.rs:109</span></td>
+      <td data-label="MAIN spawn in materialize_sector"><code>base_scenario_object</code> + <code>ChildOf(root)</code>, then <code>planet_scenario_object_prepared(&amp;mut entity, surface)</code><br><span class="src">crates/nova_world/src/streaming.rs:210</span> <span class="src">crates/nova_scenario/src/objects/planet.rs:130</span></td>
+    </tr>
+    <tr>
+      <th scope="row" data-label="Body">Ship</th>
+      <td data-label="Description entry"><code>SectorShip { id, position, yaw, design }</code><br><span class="src">crates/nova_world/src/generation.rs:49</span></td>
+      <td data-label="WORKER preparation">None. The catalog is a main-thread resource.<br><span class="src">crates/nova_world/src/generation.rs:183</span></td>
+      <td data-label="MAIN spawn in materialize_sector">
+        1. Before the root spawns: <code>designs.get_design(&amp;ship.design)</code> for every ship. A miss panics with <code>SectorFault::UnknownShip</code>.
+        <span class="src">crates/nova_world/src/streaming.rs:159</span><br>
+        2. Spawn <code>base_scenario_object</code> (yaw rotation) + <code>spaceship_scenario_object(SpaceshipConfig { design: Prototype { id, section_patches: empty }, controller: None, allegiance: Some(Neutral), .. })</code> + <code>Allegiance::Neutral</code> + <code>ChildOf(root)</code>.
+        <span class="src">crates/nova_world/src/streaming.rs:223</span> <span class="src">crates/nova_scenario/src/objects/spaceship.rs:470</span><br>
+        3. On <code>Add&lt;SpaceshipRootMarker&gt;</code>, the <code>nova_scenario</code> observer <code>insert_spaceship_sections</code> calls <code>resolve_ship_design</code> against <code>GameShipDesigns</code> and <code>GameSections</code>. It inserts the design components and spawns one child per section with <code>nova_ship</code> bundles such as <code>hull_section</code>. A <code>None</code> controller adds no player or AI marker.
+        <span class="src">crates/nova_scenario/src/objects/spaceship.rs:514</span> <span class="src">crates/nova_scenario/src/objects/spaceship.rs:545</span> <span class="src">crates/nova_ship/src/sections/hull_section.rs:38</span>
+      </td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<section id="crates" aria-labelledby="crates-h">
+<h2 id="crates-h">6. Crates and components</h2>
+<p>Relevant crates only. Edge kinds carry a text tag and a border style, so the diagram does not depend on colour.</p>
+<ul class="legend" aria-label="Edge legend">
+  <li><span class="tag dep">DEP</span> Cargo compile-time dependency</li>
+  <li><span class="tag plugin">PLUGIN</span> plugin composition (<code>add_plugins</code>)</li>
+  <li><span class="tag ecs">ECS</span> runtime data through a resource or component</li>
+  <li><span class="tag catalog">CATALOG</span> main-thread-only catalog or asset read</li>
+</ul>
+<div class="crates">
+  <div class="crate"><p class="tier">app root</p><h3>nova_core</h3>
+    <ul><li><span class="tag dep">DEP</span> nova_world_base, nova_menu</li>
+    <li><span class="tag plugin">PLUGIN</span> <code>AppBuilder</code> adds <code>NovaScenarioPlugin</code>, then <code>NovaWorldBasePlugin</code> (default game path only)</li></ul>
+    <p><span class="src">crates/nova_core/Cargo.toml:37</span> <span class="src">crates/nova_core/src/lib.rs:421</span> <span class="src">crates/nova_core/src/lib.rs:429</span></p></div>
+  <div class="crate"><p class="tier">UI</p><h3>nova_menu</h3>
+    <ul><li><span class="tag dep">DEP</span> nova_world_base (for <code>OpenWorldSession</code>)</li>
+    <li><span class="tag ecs">ECS</span> inserts <code>OpenWorldSession</code>; triggers <code>LoadScenario</code></li></ul>
+    <p><span class="src">crates/nova_menu/Cargo.toml:41</span> <span class="src">crates/nova_menu/src/world_setup.rs:228</span></p></div>
+  <div class="crate"><p class="tier">content builders</p><h3>nova_authoring</h3>
+    <ul><li><span class="tag dep">DEP</span> nova_world_base (shared ids: <code>OPEN_WORLD_SCENARIO_ID</code>, <code>BLOCK_LINE_WARSHIP_SHIP_ID</code>)</li>
+    <li>authors <code>open_world</code> with <code>ScenarioRole::OpenWorld</code></li></ul>
+    <p><span class="src">crates/nova_authoring/Cargo.toml:42</span> <span class="src">crates/nova_authoring/src/base_content/scenarios/open_world.rs:16</span></p></div>
+  <div class="crate focus"><p class="tier">base policy</p><h3>nova_world_base</h3>
+    <ul><li><span class="tag dep">DEP</span> nova_world, nova_scenario, nova_gameplay, nova_events, noise, bevy</li>
+    <li><span class="tag plugin">PLUGIN</span> <code>NovaWorldBasePlugin</code> adds <code>NovaWorldPlugin::&lt;NovaLayeredWorld&gt;</code></li>
+    <li><span class="tag ecs">ECS</span> <code>sync_open_world</code>: reads <code>CurrentScenario</code>, <code>OpenWorldSession</code>, <code>PlayerSpaceshipMarker</code>; writes <code>WorldConfig</code>, <code>WorldObserver</code></li>
+    <li>owns <code>NovaLayeredWorld</code>, the feature field, <code>PLACEMENT_INSET</code>, <code>CLEARANCE_MARGIN</code></li></ul>
+    <p><span class="src">crates/nova_world_base/Cargo.toml:10</span> <span class="src">crates/nova_world_base/src/lib.rs:108</span></p></div>
+  <div class="crate focus"><p class="tier">generic mechanism</p><h3>nova_world</h3>
+    <ul><li><span class="tag dep">DEP</span> nova_scenario, nova_assets, nova_gameplay, nova_events, bevy. <strong>No</strong> <code>nova_ship</code> dependency.</li>
+    <li><span class="tag plugin">PLUGIN</span> <code>NovaWorldPlugin&lt;G&gt;</code>: six stage sets, <code>ReadySectors</code>, <code>SectorJobStats</code></li>
+    <li><span class="tag catalog">CATALOG</span> <code>GameShipDesigns</code> and <code>GameAssets</code> read in Materialize only</li></ul>
+    <p><span class="src">crates/nova_world/Cargo.toml:12</span> <span class="src">crates/nova_world/src/streaming.rs:613</span></p></div>
+  <div class="crate"><p class="tier">object factories</p><h3>nova_scenario</h3>
+    <ul><li><span class="tag dep">DEP</span> nova_ship, nova_gameplay, nova_events, nova_input, nova_hud</li>
+    <li>factories: <code>base_scenario_object</code>, <code>asteroid_scenario_object_prepared</code>, <code>planet_scenario_object_prepared</code>, <code>spaceship_scenario_object</code></li>
+    <li><span class="tag plugin">PLUGIN</span> <code>SpaceshipPlugin</code> registers <code>insert_spaceship_sections</code></li>
+    <li><span class="tag catalog">CATALOG</span> that observer reads <code>GameShipDesigns</code>, <code>GameSections</code></li></ul>
+    <p><span class="src">crates/nova_scenario/Cargo.toml:19</span> <span class="src">crates/nova_scenario/src/objects/mod.rs:81</span></p></div>
+  <div class="crate"><p class="tier">ship sections</p><h3>nova_ship</h3>
+    <ul><li>section bundles (<code>hull_section</code>, ...) used by the <code>nova_scenario</code> observer</li>
+    <li>reached from <code>nova_world</code> only through <code>nova_scenario</code></li></ul>
+    <p><span class="src">crates/nova_ship/src/sections/hull_section.rs:38</span></p></div>
+  <div class="crate"><p class="tier">shared primitives</p><h3>nova_gameplay / nova_events</h3>
+    <ul><li><code>Fnv32</code>, <code>SeedStream</code> (deterministic draws)</li>
+    <li><code>Meters</code>, <code>Meters3</code>, <code>from_engine</code> / <code>to_engine</code></li>
+    <li><code>PlayerSpaceshipMarker</code></li></ul>
+    <p><span class="src">crates/nova_world/src/lib.rs:147</span> <span class="src">crates/nova_world/src/streaming.rs:320</span></p></div>
+  <div class="crate"><p class="tier">examples (root package)</p><h3>nova-protocol examples</h3>
+    <ul><li><span class="tag dep">DEP</span> nova_world as a dev-dependency (examples only)</li>
+    <li>install their own generators, such as <code>UniformAsteroids</code></li></ul>
+    <p><span class="src">Cargo.toml:987</span> <span class="src">examples/shared/world_fixture/uniform_asteroids.rs:38</span></p></div>
+</div>
+
+<div class="scroll">
+<table class="edges stack">
+  <caption>Edges, by kind</caption>
+  <thead><tr><th scope="col">Kind</th><th scope="col">From -&gt; To</th><th scope="col">What travels</th></tr></thead>
+  <tbody>
+    <tr><td data-label="Kind"><span class="tag dep">DEP</span></td><td data-label="From -&gt; To">nova_world_base -&gt; nova_world</td><td data-label="What travels"><code>SectorGenerator</code>, <code>WorldConfig</code>, <code>NovaWorldPlugin</code></td></tr>
+    <tr><td data-label="Kind"><span class="tag dep">DEP</span></td><td data-label="From -&gt; To">nova_world -&gt; nova_scenario</td><td data-label="What travels">object factories, <code>prepare_*</code>, <code>GameShipDesigns</code>, <code>scenario_is_live</code></td></tr>
+    <tr><td data-label="Kind"><span class="tag dep">DEP</span></td><td data-label="From -&gt; To">nova_scenario -&gt; nova_ship</td><td data-label="What travels">section bundles and <code>GameSections</code></td></tr>
+    <tr><td data-label="Kind"><span class="tag plugin">PLUGIN</span></td><td data-label="From -&gt; To">AppBuilder -&gt; NovaWorldBasePlugin -&gt; NovaWorldPlugin&lt;NovaLayeredWorld&gt;</td><td data-label="What travels">one generator for each app; a second generator panics at build</td></tr>
+    <tr><td data-label="Kind"><span class="tag ecs">ECS</span></td><td data-label="From -&gt; To">nova_menu -&gt; nova_world_base</td><td data-label="What travels"><code>OpenWorldSession</code> resource</td></tr>
+    <tr><td data-label="Kind"><span class="tag ecs">ECS</span></td><td data-label="From -&gt; To">nova_scenario -&gt; nova_world_base</td><td data-label="What travels"><code>CurrentScenario.role == OpenWorld</code></td></tr>
+    <tr><td data-label="Kind"><span class="tag ecs">ECS</span></td><td data-label="From -&gt; To">nova_world_base -&gt; nova_world</td><td data-label="What travels"><code>WorldConfig&lt;NovaLayeredWorld&gt;</code> and the <code>WorldObserver</code> on the player ship</td></tr>
+    <tr><td data-label="Kind"><span class="tag ecs">ECS</span></td><td data-label="From -&gt; To">nova_world -&gt; world</td><td data-label="What travels"><code>SectorRoot</code> + children with <code>ScenarioScopedMarker</code></td></tr>
+    <tr><td data-label="Kind"><span class="tag catalog">CATALOG</span></td><td data-label="From -&gt; To">nova_world Materialize -&gt; <code>GameShipDesigns</code>, <code>GameAssets</code></td><td data-label="What travels">design-id check, asteroid texture</td></tr>
+    <tr><td data-label="Kind"><span class="tag catalog">CATALOG</span></td><td data-label="From -&gt; To">nova_scenario observer -&gt; <code>GameShipDesigns</code>, <code>GameSections</code></td><td data-label="What travels">section list for each ship</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<section id="types" aria-labelledby="types-h">
+<h2 id="types-h">7. Main types and functions</h2>
+<p>Declarations are copied from source with doc comments and bodies removed. Each block is labeled <em>abridged</em>. Field visibility is kept exactly.</p>
+
+<div class="grid2">
+<div>
+<h3><code>WorldConfig&lt;G&gt;</code> <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/lib.rs:464</span></p>
+<pre class="decl"><code>#[derive(Resource, Clone, Debug, PartialEq)]
+pub struct WorldConfig&lt;G: SectorGenerator&gt; {
+    pub seed: u32,
+    pub sector_edge: Meters,
+    pub active_radius: i32,
+    pub generator: G,
+}
+impl&lt;G: SectorGenerator&gt; WorldConfig&lt;G&gt; {
+    pub fn geometry(&amp;self) -&gt; WorldGeometry;
+    pub fn input(&amp;self, coord: SectorCoord) -&gt; SectorGenerationInput;
+    pub fn validate(&amp;self) -&gt; Result&lt;(), SectorFault&gt;;
+}</code></pre>
+</div>
+<div>
+<h3><code>SectorGenerator</code> <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/lib.rs:426</span></p>
+<pre class="decl"><code>pub trait SectorGenerator:
+    Clone + Debug + Send + Sync + 'static
+{
+    fn validate(&amp;self, geometry: WorldGeometry)
+        -&gt; Result&lt;(), SectorFault&gt;;
+    fn generate(&amp;self, input: SectorGenerationInput)
+        -&gt; Result&lt;SectorManifest, SectorFault&gt;;
+}</code></pre>
+</div>
+<div>
+<h3><code>SectorGenerationInput</code> <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/lib.rs:384</span></p>
+<pre class="decl"><code>#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SectorGenerationInput {
+    pub seed: u32,
+    pub geometry: WorldGeometry,
+    pub coord: SectorCoord,
+}
+impl SectorGenerationInput {
+    // Fnv32(seed, x, y, z, purpose) -&gt; SeedStream
+    pub fn stream(self, purpose: &amp;str) -&gt; SeedStream;
+}</code></pre>
+</div>
+<div>
+<h3><code>SectorManifest</code> (untrusted) <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/generation.rs:67</span></p>
+<pre class="decl"><code>#[derive(Clone, Debug)]
+pub struct SectorManifest {
+    pub coord: SectorCoord,
+    pub asteroids: Vec&lt;SectorAsteroid&gt;,
+    pub planets: Vec&lt;SectorPlanet&gt;,
+    pub ships: Vec&lt;SectorShip&gt;,
+}</code></pre>
+</div>
+<div>
+<h3><code>SectorDescription</code> (trusted, private fields) <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/generation.rs:85</span> <span class="src">crates/nova_world/src/generation.rs:296</span></p>
+<pre class="decl"><code>#[derive(Clone, Debug)]
+pub struct SectorDescription {
+    pub(crate) coord: SectorCoord,
+    pub(crate) asteroids: Vec&lt;SectorAsteroid&gt;,
+    pub(crate) planets: Vec&lt;SectorPlanet&gt;,
+    pub(crate) ships: Vec&lt;SectorShip&gt;,
+}
+impl SectorDescription {
+    pub fn coord(&amp;self) -&gt; SectorCoord;
+    pub fn asteroids(&amp;self) -&gt; &amp;[SectorAsteroid];
+    pub fn planets(&amp;self) -&gt; &amp;[SectorPlanet];
+    pub fn ships(&amp;self) -&gt; &amp;[SectorShip];
+    pub fn object_ids(&amp;self) -&gt; Vec&lt;String&gt;;
+    pub fn object_count(&amp;self) -&gt; usize;
+    pub fn canonical(&amp;self) -&gt; String;
+}
+// The only constructor:
+pub fn validate_manifest(
+    input: SectorGenerationInput,
+    manifest: SectorManifest,
+) -&gt; Result&lt;SectorDescription, SectorFault&gt;;</code></pre>
+</div>
+<div>
+<h3><code>PreparedSector</code> (private fields) <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/generation.rs:186</span> <span class="src">crates/nova_world/src/generation.rs:528</span></p>
+<pre class="decl"><code>#[derive(Debug)]
+pub struct PreparedSector {
+    pub(crate) description: SectorDescription,
+    pub(crate) asteroids: Vec&lt;PreparedAsteroid&gt;,
+    pub(crate) planets: Vec&lt;PreparedPlanet&gt;,
+}
+impl PreparedSector {
+    pub fn description(&amp;self) -&gt; &amp;SectorDescription;
+}
+// The only constructor:
+pub fn prepare_sector&lt;G: SectorGenerator&gt;(
+    config: WorldConfig&lt;G&gt;,
+    coord: SectorCoord,
+) -&gt; Result&lt;PreparedSector, SectorFault&gt;;</code></pre>
+</div>
+<div>
+<h3><code>WorldObserver</code>, <code>CurrentSector</code>, <code>SectorRoot</code> <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/streaming.rs:42</span> <span class="src">crates/nova_world/src/streaming.rs:56</span> <span class="src">crates/nova_world/src/streaming.rs:50</span></p>
+<pre class="decl"><code>#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct WorldObserver;
+
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct CurrentSector(pub SectorCoord);
+
+#[derive(Component, Clone, Copy, Debug)]
+pub struct SectorRoot(pub SectorCoord);</code></pre>
+</div>
+<div>
+<h3><code>SectorJob</code> (private task), <code>ReadySectors</code> <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/streaming.rs:342</span> <span class="src">crates/nova_world/src/streaming.rs:373</span></p>
+<pre class="decl"><code>#[derive(Component)]
+pub struct SectorJob {
+    pub coord: SectorCoord,
+    task: Task&lt;Result&lt;PreparedSector, SectorFault&gt;&gt;,
+}
+impl SectorJob {
+    pub fn start&lt;G: SectorGenerator&gt;(
+        config: WorldConfig&lt;G&gt;,
+        coord: SectorCoord,
+    ) -&gt; Self;
+}
+
+#[derive(Resource, Default, Debug)]
+pub struct ReadySectors(
+    pub BTreeMap&lt;SectorCoord, PreparedSector&gt;,
+);</code></pre>
+</div>
+<div>
+<h3><code>NovaWorldPlugin&lt;G&gt;</code>, <code>NovaWorldSystems</code> <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/lib.rs:725</span> <span class="src">crates/nova_world/src/lib.rs:682</span></p>
+<pre class="decl"><code>pub struct NovaWorldPlugin&lt;G: SectorGenerator&gt;(
+    PhantomData&lt;fn() -&gt; G&gt;,
+);
+
+#[derive(SystemSet, Clone, Copy, Debug,
+         PartialEq, Eq, Hash)]
+pub enum NovaWorldSystems {
+    Cleanup,
+    Observe,
+    Request,
+    Collect,
+    Materialize,
+    Retire,
+}</code></pre>
+</div>
+<div>
+<h3>Materialization entry point <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world/src/streaming.rs:133</span></p>
+<pre class="decl"><code>pub fn materialize_sector(
+    commands: &amp;mut Commands,
+    prepared: PreparedSector,
+    texture: &amp;AssetRef&lt;Image&gt;,
+    designs: &amp;GameShipDesigns,
+) -&gt; Entity;</code></pre>
+</div>
+<div>
+<h3><code>NovaLayeredWorld</code> <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world_base/src/layered.rs:115</span> <span class="src">crates/nova_world_base/src/layered.rs:35</span></p>
+<pre class="decl"><code>#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NovaLayeredWorld;
+
+impl SectorGenerator for NovaLayeredWorld { .. }
+
+pub const PLACEMENT_INSET: f32 = 0.7;
+pub const CLEARANCE_MARGIN: Meters = Meters(500.0);
+
+// features.rs
+pub fn sector_features(input: SectorGenerationInput)
+    -&gt; Result&lt;Vec&lt;FeatureSphere&gt;, SectorFault&gt;;
+pub fn sector_strengths(
+    features: &amp;[FeatureSphere],
+    centre: Meters3,
+) -&gt; [f32; FeatureLayer::COUNT];</code></pre>
+</div>
+<div>
+<h3><code>OpenWorldSession</code> <span class="label-abridged">abridged</span></h3>
+<p><span class="src">crates/nova_world_base/src/lib.rs:87</span> <span class="src">crates/nova_world_base/src/lib.rs:102</span></p>
+<pre class="decl"><code>#[derive(Resource, Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OpenWorldSession {
+    pub seed: u32,
+}
+
+pub struct NovaWorldBasePlugin;
+fn sync_open_world(world: &amp;mut World);
+const OPEN_WORLD_SECTOR_EDGE: Meters = Meters(32_000.0);
+const OPEN_WORLD_ACTIVE_RADIUS: i32 = 2;</code></pre>
+</div>
+</div>
+</section>
+
+<section id="graph" aria-labelledby="graph-h">
+<h2 id="graph-h">8. ASCII knowledge graph</h2>
+<p>Legend: <code>--dep--&gt;</code> Cargo dependency, <code>==plugin==&gt;</code> plugin composition, <code>..ecs..&gt;</code> ECS data, <code>~~cat~~&gt;</code> main-thread catalog read, <code>[W]</code> runs on a worker.</p>
+<pre aria-label="ASCII knowledge graph of the open world"><code>nova_menu::on_create_world
+  ..ecs..&gt; OpenWorldSession { seed }                  (resource)
+  ..ecs..&gt; GameStates::Playing -&gt; start_new_game_scenario -&gt; LoadScenario(open_world)
+               -&gt; CurrentScenario { role: OpenWorld }  + player ship (PlayerSpaceshipMarker)
+
+AppBuilder ==plugin==&gt; NovaScenarioPlugin ==plugin==&gt; SpaceshipPlugin (insert_spaceship_sections)
+AppBuilder ==plugin==&gt; NovaWorldBasePlugin ==plugin==&gt; NovaWorldPlugin&lt;NovaLayeredWorld&gt;
+
+nova_world_base::sync_open_world   (Update, exclusive, before NovaWorldSystems::Cleanup)
+  reads  CurrentScenario, OpenWorldSession, PlayerSpaceshipMarker
+  ..ecs..&gt; WorldObserver on the one player ship
+  ..ecs..&gt; WorldConfig&lt;NovaLayeredWorld&gt; { seed, 32 km, radius 2, NovaLayeredWorld }
+
+nova_world stages (Update, chained)
+  Cleanup     clear_sector_work      drop SectorJob + ReadySectors; config swap -&gt; drop SectorRoot
+  Observe     track_current_sector   WorldObserver GlobalTransform ..ecs..&gt; CurrentSector
+  Request     request_sectors        desired - live - running - ready, nearest first, cap = threads
+                                     ..ecs..&gt; SectorJob { coord, task }
+  Collect     collect_sector_jobs    poll_once ..ecs..&gt; ReadySectors (BTreeMap)
+  Materialize materialize_ready_sector  one nearest ready -&gt; materialize_sector
+  Retire      retire_sectors         outside window -&gt; despawn roots, jobs; drop ready
+
+SectorJob::start -&gt; [W] prepare_sector(config, coord)
+  [W] generate_sector: WorldConfig::validate -&gt; input(coord) -&gt; G::generate
+  [W]   NovaLayeredWorld::generate
+  [W]     sector_features: 3 Fbm&lt;Perlin&gt; layers -&gt; candidates (threshold) -&gt; thinning
+  [W]     sector_strengths: sum of strength * (1 - t^2)^2 at cell centre, cap 1
+  [W]     planets (owned planet spheres) -&gt; derelicts (owned derelict spheres) -&gt; rocks (ceil(4 * s))
+  [W]   -&gt; SectorManifest            (untrusted, pub fields)
+  [W] validate_manifest -&gt; SectorDescription   (trusted, pub(crate) fields)
+  [W] prepare_asteroid_geometry / prepare_planet -&gt; PreparedSector (pub(crate) fields)
+  -&gt; Task&lt;Result&lt;PreparedSector, SectorFault&gt;&gt;
+
+materialize_sector
+  ~~cat~~&gt; GameShipDesigns (unknown design -&gt; panic before root)
+  (materialize_ready_sector reads GameAssets and passes the asteroid texture in)
+  SectorRoot + base_scenario_object (ScenarioScopedMarker, at origin)
+    rocks   -&gt; asteroid_scenario_object_prepared   (nova_scenario)
+    planets -&gt; planet_scenario_object_prepared     (nova_scenario)
+    ships   -&gt; spaceship_scenario_object           (nova_scenario)
+                 -&gt; On&lt;Add, SpaceshipRootMarker&gt; insert_spaceship_sections
+                      ~~cat~~&gt; GameShipDesigns, GameSections -&gt; nova_ship section children
+
+nova_world_base --dep--&gt; nova_world --dep--&gt; nova_scenario --dep--&gt; nova_ship
+nova_menu --dep--&gt; nova_world_base     nova_authoring --dep--&gt; nova_world_base
+nova_core --dep--&gt; nova_world_base     (nova_world has no nova_ship dependency)</code></pre>
+</section>
+
+<section id="limits" aria-labelledby="limits-h">
+<h2 id="limits-h">9. Invariants and limits</h2>
+<h3>Invariants</h3>
+<ul>
+  <li>One generator for each app. A second <code>NovaWorldPlugin</code> with another <code>G</code> panics at build.
+    <span class="src">crates/nova_world/src/lib.rs:745</span></li>
+  <li>No config means no streaming. <code>WorldConfig</code> is the arming switch and has no <code>Default</code>.
+    <span class="src">crates/nova_world/src/lib.rs:457</span></li>
+  <li>Exactly one <code>WorldObserver</code> while armed, or <code>SectorFault::AbsentObserver</code> panics.
+    <span class="src">crates/nova_world/src/streaming.rs:315</span></li>
+  <li>Decisions use a total order: squared distance from <code>CurrentSector</code>, then the coordinate. <code>BTreeMap</code> and <code>BTreeSet</code> keep worker finish order out of the result.
+    <span class="src">crates/nova_world/src/streaming.rs:464</span></li>
+  <li>Generation is pure. Every draw comes from <code>SectorGenerationInput::stream(purpose)</code> or the node seed, never the ambient RNG.
+    <span class="src">crates/nova_world/src/lib.rs:400</span> <span class="src">crates/nova_world_base/src/features.rs:419</span></li>
+  <li>Each body is owned by one cell: its id has the cell slug as a prefix, and its whole clearance sphere is inside the cell.
+    <span class="src">crates/nova_world/src/generation.rs:355</span> <span class="src">crates/nova_world/src/generation.rs:449</span></li>
+  <li>Two live roots for one cell panic with <code>DuplicateRoot</code>.
+    <span class="src">crates/nova_world/src/streaming.rs:263</span></li>
+  <li>Every fault fails loudly on the main thread. No fault is converted to an empty cell.
+    <span class="src">crates/nova_world/src/streaming.rs:572</span></li>
+  <li>Streamed entities are scenario-scoped but not scenario-addressable.
+    <span class="src">crates/nova_world/src/streaming.rs:111</span></li>
+</ul>
+<h3>Budgets</h3>
+<ul>
+  <li>Window at most 125 cells (<code>ACTIVE_WINDOW_SECTORS_MAX</code>). The game uses radius 2, which is exactly 125.
+    <span class="src">crates/nova_world/src/lib.rs:196</span> <span class="src">crates/nova_world_base/src/lib.rs:79</span></li>
+  <li>At most 16 bodies and 4 rocks in each cell. The ship clearance is 400 m.
+    <span class="src">crates/nova_world/src/generation.rs:207</span> <span class="src">crates/nova_world/src/generation.rs:218</span> <span class="src">crates/nova_world/src/generation.rs:228</span></li>
+  <li>Jobs in flight are capped at the task pool thread count. On wasm the cap is 1 and there is no parallelism.
+    <span class="src">crates/nova_world/src/streaming.rs:455</span> <span class="src">crates/nova_world/src/lib.rs:80</span></li>
+  <li>At most one sector is materialized each frame.
+    <span class="src">crates/nova_world/src/lib.rs:69</span></li>
+  <li><code>NovaLayeredWorld</code> refuses edges wider than 128 km and edges too narrow for its widest body (about 8.48 km).
+    <span class="src">crates/nova_world_base/src/layered.rs:100</span> <span class="src">crates/nova_world_base/src/layered.rs:121</span></li>
+</ul>
+<h3>Current limits</h3>
+<ul>
+  <li><strong>Determinism scope.</strong> The documented promise is: the same build on the same platform generates the same pristine sectors from a seed, in any exploration order. The code does not claim a cross-platform or cross-build identity.
+    <span class="src">crates/nova_world_base/src/lib.rs:16</span></li>
+  <li><strong>No mutation persistence.</strong> Nothing a player changes is kept. A retired sector is generated again from the seed, so a destroyed derelict returns.
+    <span class="src">crates/nova_world_base/src/lib.rs:18</span></li>
+  <li><strong>No floating origin.</strong> Positions are world meters from the origin, and the root stays at the origin. A search of <code>crates/</code> and <code>docs/</code> for "floating origin" finds nothing.
+    <span class="src">crates/nova_world/src/streaming.rs:103</span></li>
+  <li><strong>No economy, factions or traffic.</strong> Generated ships are inert scenery: <code>SpaceshipController::None</code> and <code>Allegiance::Neutral</code>. A search of both world crates for faction, economy and traffic finds no such system.
+    <span class="src">crates/nova_world/src/streaming.rs:236</span></li>
+  <li><strong>Unknown ship designs fail late.</strong> The worker can refuse only a blank design. An id that is not in the catalog panics at materialization, not at arming.
+    <span class="src">crates/nova_world/src/lib.rs:35</span></li>
+  <li><strong>Only the base world is wired into the game.</strong> <code>AppBuilder</code> adds <code>NovaWorldBasePlugin</code> only on the default plugin path.
+    <span class="src">crates/nova_core/src/lib.rs:428</span></li>
+</ul>
+</section>
+
+<section id="sources" aria-labelledby="sources-h">
+<h2 id="sources-h">10. Source map</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th scope="col">File</th><th scope="col">What it owns</th></tr></thead>
+  <tbody>
+    <tr><td><code>crates/nova_world/src/lib.rs</code></td><td><code>SectorCoord</code>, <code>WorldGeometry</code>, <code>SectorGenerationInput</code>, <code>SectorGenerator</code>, <code>WorldConfig</code>, <code>SectorFault</code>, <code>NovaWorldSystems</code>, <code>NovaWorldPlugin</code> and the stage run conditions</td></tr>
+    <tr><td><code>crates/nova_world/src/generation.rs</code></td><td><code>SectorManifest</code>, <code>SectorDescription</code>, <code>PreparedSector</code>, <code>validate_manifest</code>, <code>generate_sector</code>, <code>prepare_sector</code>, <code>bodies_clear</code>, <code>sector_id</code>, body caps</td></tr>
+    <tr><td><code>crates/nova_world/src/streaming.rs</code></td><td><code>WorldObserver</code>, <code>SectorRoot</code>, <code>CurrentSector</code>, <code>SectorJob</code>, <code>ReadySectors</code>, <code>SectorJobStats</code>, the six stage systems, <code>materialize_sector</code></td></tr>
+    <tr><td><code>crates/nova_world_base/src/lib.rs</code></td><td><code>OpenWorldSession</code>, <code>NovaWorldBasePlugin</code>, <code>sync_open_world</code>, shared base ids, the 32 km and radius-2 dials</td></tr>
+    <tr><td><code>crates/nova_world_base/src/layered.rs</code></td><td><code>NovaLayeredWorld</code>, <code>PLACEMENT_INSET</code>, <code>CLEARANCE_MARGIN</code>, content bands, <code>Layout</code></td></tr>
+    <tr><td><code>crates/nova_world_base/src/features.rs</code></td><td><code>FeatureLayer</code>, <code>FeatureFields</code>, <code>FeatureSphere</code>, candidates, thinning, <code>sector_features</code>, <code>sector_strengths</code></td></tr>
+    <tr><td><code>crates/nova_scenario/src/actions/spawn.rs</code></td><td><code>base_scenario_object</code></td></tr>
+    <tr><td><code>crates/nova_scenario/src/objects/asteroid.rs</code></td><td><code>PreparedAsteroid</code>, <code>prepare_asteroid_geometry</code>, <code>asteroid_scenario_object_prepared</code></td></tr>
+    <tr><td><code>crates/nova_scenario/src/objects/planet.rs</code></td><td><code>PreparedPlanet</code>, <code>prepare_planet</code>, <code>planet_scenario_object_prepared</code></td></tr>
+    <tr><td><code>crates/nova_scenario/src/objects/spaceship.rs</code></td><td><code>spaceship_scenario_object</code>, <code>SpaceshipPlugin</code>, <code>insert_spaceship_sections</code></td></tr>
+    <tr><td><code>crates/nova_scenario/src/objects/ship_design.rs</code></td><td><code>GameShipDesigns::get_design</code>, <code>resolve_ship_design</code></td></tr>
+    <tr><td><code>crates/nova_scenario/src/loader/mod.rs</code>, <code>loader/lifecycle.rs</code></td><td><code>ScenarioRole::OpenWorld</code>, <code>CurrentScenario</code>, <code>ScenarioScopedMarker</code>, <code>scenario_is_live</code>, <code>on_load_scenario</code></td></tr>
+    <tr><td><code>crates/nova_menu/src/world_setup.rs</code>, <code>menu_ui.rs</code>, <code>lib.rs</code></td><td>seed modal, <code>on_create_world</code>, <code>start_new_game_scenario</code></td></tr>
+    <tr><td><code>crates/nova_authoring/src/base_content/scenarios/open_world.rs</code></td><td>the <code>open_world</code> bootstrap builder</td></tr>
+    <tr><td><code>crates/nova_core/src/lib.rs</code></td><td><code>AppBuilder</code> plugin order</td></tr>
+    <tr><td><code>crates/*/Cargo.toml</code>, root <code>Cargo.toml</code></td><td>compile-time dependencies shown in section 6</td></tr>
+  </tbody>
+</table>
+</div>
+<h3>Cited lines</h3>
+<ul>
+  <li><span class="src">crates/nova_world/src/lib.rs:196</span> <code>ACTIVE_WINDOW_SECTORS_MAX</code></li>
+  <li><span class="src">crates/nova_world/src/lib.rs:244</span> <code>SectorCoord</code>; <span class="src">crates/nova_world/src/lib.rs:275</span> <code>containing</code>; <span class="src">crates/nova_world/src/lib.rs:302</span> <code>slug</code></li>
+  <li><span class="src">crates/nova_world/src/lib.rs:355</span> <code>WorldGeometry::require_owning_edge</code></li>
+  <li><span class="src">crates/nova_world/src/lib.rs:512</span> <code>WorldConfig::validate</code>; <span class="src">crates/nova_world/src/lib.rs:545</span> <code>SectorFault</code></li>
+  <li><span class="src">crates/nova_world/src/generation.rs:503</span> <code>generate_sector</code>; <span class="src">crates/nova_world/src/generation.rs:263</span> <code>sector_id</code></li>
+  <li><span class="src">crates/nova_world/src/streaming.rs:79</span> <code>desired_sectors</code>; <span class="src">crates/nova_world/src/streaming.rs:437</span> <code>SectorJobStats</code></li>
+  <li><span class="src">crates/nova_world_base/src/features.rs:51</span> <code>FeatureLayer</code>; <span class="src">crates/nova_world_base/src/features.rs:116</span> <code>radius_band</code>; <span class="src">crates/nova_world_base/src/features.rs:141</span> <code>FEATURE_LATTICE</code>; <span class="src">crates/nova_world_base/src/features.rs:193</span> <code>FEATURE_CEILING</code>; <span class="src">crates/nova_world_base/src/features.rs:204</span> <code>FEATURE_HALO</code>; <span class="src">crates/nova_world_base/src/features.rs:309</span> <code>FeatureSphere</code>; <span class="src">crates/nova_world_base/src/features.rs:579</span> <code>validate_feature_geometry</code></li>
+  <li><span class="src">crates/nova_world_base/src/layered.rs:59</span> <code>ASTEROID_RADIUS</code>; <span class="src">crates/nova_world_base/src/layered.rs:67</span> <code>PLANETOID_RADIUS</code>; <span class="src">crates/nova_world_base/src/layered.rs:86</span> <code>PLACEMENT_ATTEMPTS</code>; <span class="src">crates/nova_world_base/src/layered.rs:327</span> <code>widest_body</code></li>
+  <li><span class="src">crates/nova_world_base/src/lib.rs:183</span> <code>disarm</code></li>
+  <li><span class="src">crates/nova_scenario/src/loader/mod.rs:228</span> <code>ScenarioRole::OpenWorld</code>; <span class="src">crates/nova_scenario/src/loader/mod.rs:610</span> <code>CurrentScenario</code>; <span class="src">crates/nova_scenario/src/loader/mod.rs:624</span> <code>scenario_is_live</code>; <span class="src">crates/nova_scenario/src/loader/lifecycle.rs:334</span> <code>on_load_scenario</code></li>
+  <li><span class="src">crates/nova_scenario/src/objects/ship_design.rs:328</span> <code>get_design</code>; <span class="src">crates/nova_scenario/src/objects/ship_design.rs:421</span> <code>resolve_ship_design</code>; <span class="src">crates/nova_scenario/src/objects/asteroid.rs:187</span> <code>PreparedAsteroid</code>; <span class="src">crates/nova_scenario/src/objects/planet.rs:95</span> <code>PreparedPlanet</code></li>
+  <li><span class="src">crates/nova_menu/src/menu_ui.rs:474</span> <code>start_new_game_scenario</code></li>
+</ul>
+</section>
+
+</main>
+<footer>
+  <p class="meta">Generated from <code>d1c583213</code>. This is a task artifact, not production documentation.</p>
+</footer>
+</body>
+</html>

@@ -112,3 +112,9 @@ Fix verification:
   margin, the zero-margin unit test fails.
 - Not rerun: the other five world example probes. Their code did not change
   and clippy covers them.
+
+## Architecture artifact
+
+- [world-architecture.html](world-architecture.html): how `nova_world` and
+  `nova_world_base` stream, validate, prepare and materialize sectors, from
+  the New Game seed to ECS entities. Generated from `d1c583213`.
