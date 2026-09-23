@@ -198,8 +198,8 @@ path = "examples/playable/world_sectors.rs"
 
 # The same streaming loop over a world that has PLACES in it: three independent
 # global noise fields gate feature spheres on a coarse lattice, and a cell
-# holds whatever reaches it - rock fields, a real planetoid, neutral moored
-# hulls. What a human judges here is whether the result reads as places or as
+# holds whatever reaches it - rock fields, a real planetoid, inert derelict
+# ships. What a human judges here is whether the result reads as places or as
 # noise on a grid; the spheres themselves are drawn as gizmos so the field is
 # visible and not only its consequences.
 [[example]]
@@ -967,8 +967,8 @@ nova_training = { path = "crates/nova_training" }
 # The wfc examples collapse their hulls through the shared generator; the
 # arena's own large-drive and spinal-lance stamps stay in the example.
 nova_wfc = { path = "crates/nova_wfc" }
-# The streamed open world. Two of the five world examples call the generator
-# ONLY, to draw the feature field as a picture (`world_field_slices`,
+# The streamed open world. Two of the five world examples call the feature
+# field ONLY, to draw the feature field as a picture (`world_field_slices`,
 # `world_field_clouds`); the job lifetime is driven by the two playable
 # streaming examples and by the `system_world_sectors` range. A
 # dev-dependency and nothing more - `AppBuilder` does not add

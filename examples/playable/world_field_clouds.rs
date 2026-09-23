@@ -28,7 +28,7 @@
 //!
 //! | what you see | what it means |
 //! | - | - |
-//! | amber / cyan / fuchsia cross | a sample where the asteroid / planet / anchorage field clears its gate |
+//! | amber / cyan / fuchsia cross | a sample where the asteroid / planet / derelict field clears its gate |
 //! | cross ARM LENGTH and brightness | how far above the gate, by the same normalization the generator ranks on |
 //! | white ring | an ACCEPTED feature sphere's centre - a sphere that survived thinning |
 //! | grey cage | the 32 km sector lattice of the 5x5x5 window around the home cell |
@@ -41,7 +41,7 @@
 //!
 //! | key | what it does |
 //! | - | - |
-//! | 1 / 2 / 3 | show or hide the asteroid / planet / anchorage marks |
+//! | 1 / 2 / 3 | show or hide the asteroid / planet / derelict marks |
 //! | O | only the samples where TWO OR MORE layers clear their gate |
 //! | R | show all three layers again |
 //!
@@ -60,6 +60,7 @@ use bevy::{
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
 use clap::Parser;
+use nova_authoring::prelude::NovaLayeredWorld;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 use world_fixture::{
@@ -352,7 +353,7 @@ const fn window_segments() -> usize {
 ///
 /// On a [`SectorFault`]. A refused config or a non-finite reading here is a
 /// bug, and a cloud drawn around it would be a picture of one.
-fn sample_volume(config: &WorldConfig) -> CloudField {
+fn sample_volume(config: &WorldConfig<NovaLayeredWorld>) -> CloudField {
     let fields = FeatureFields::new(config.seed);
     let home = FEATURE_HOME.centre(config.sector_edge).get();
     let span = CLOUD_SPACING.get() * (CLOUD_EDGE_SAMPLES - 1) as f32;
@@ -412,7 +413,7 @@ fn sample_volume(config: &WorldConfig) -> CloudField {
 
     let mut spheres = Vec::new();
     for coord in desired_sectors(FEATURE_HOME, EXAMPLE_ACTIVE_RADIUS) {
-        let found = sector_features(config, coord)
+        let found = sector_features(config.input(coord))
             .unwrap_or_else(|fault| panic!("world field clouds: {fault}"));
         // One sphere reaches several cells and is READ by all of them; keeping
         // only the owner's copy is what makes the ring count the accepted
@@ -493,7 +494,7 @@ fn read_keys(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<CloudView>) {
     for (key, layer) in [
         (KeyCode::Digit1, FeatureLayer::Asteroid),
         (KeyCode::Digit2, FeatureLayer::Planet),
-        (KeyCode::Digit3, FeatureLayer::Anchorage),
+        (KeyCode::Digit3, FeatureLayer::Derelict),
     ] {
         if keys.just_pressed(key) {
             next.layers[layer.index()] = !next.layers[layer.index()];
@@ -516,7 +517,7 @@ fn layer_colour(layer: FeatureLayer) -> Srgba {
     match layer {
         FeatureLayer::Asteroid => tailwind::AMBER_400,
         FeatureLayer::Planet => tailwind::CYAN_400,
-        FeatureLayer::Anchorage => tailwind::FUCHSIA_400,
+        FeatureLayer::Derelict => tailwind::FUCHSIA_400,
     }
 }
 

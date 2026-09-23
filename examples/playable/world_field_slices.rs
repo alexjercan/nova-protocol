@@ -1,7 +1,7 @@
 //! world_field_slices: look straight at the noise the world is gated on.
 //!
 //! `world_features` shows what the field DID - the spheres it accepted and the
-//! rocks, worlds and moorings they placed. This example shows the field
+//! rocks, worlds and derelicts they placed. This example shows the field
 //! itself: one flat plane through the world, sampled on the CPU at one sample
 //! per kilometre, painted into an image, and put on the screen.
 //!
@@ -37,7 +37,7 @@
 //!
 //! | key | what it does |
 //! | - | - |
-//! | 1 / 2 / 3 | asteroid / planet / anchorage layer |
+//! | 1 / 2 / 3 | asteroid / planet / derelict layer |
 //! | X / Y / Z | the XY, XZ or YZ plane |
 //! | Up / Down | step the plane one 32 km sector along its fixed axis |
 //! | R | back to the opening slice |
@@ -46,7 +46,7 @@
 //! - `NOVA_AUTOPILOT=1`: walk three representative slices and exit clean.
 //! - `NOVA_CAPTURE=1`: also writes `world-field-slice-asteroid-xy.png`,
 //!   `world-field-slice-planet-xz.png` and
-//!   `world-field-slice-anchorage-yz.png`.
+//!   `world-field-slice-derelict-yz.png`.
 
 #[path = "../shared/world_fixture/mod.rs"]
 pub mod world_fixture;
@@ -59,6 +59,7 @@ use bevy::{
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
 use clap::Parser;
+use nova_authoring::prelude::NovaLayeredWorld;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 use world_fixture::{featured_world_config, free_play_scenario, EXAMPLE_SECTOR_EDGE};
@@ -334,7 +335,7 @@ fn read_keys(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<SliceView>) {
     for (key, layer) in [
         (KeyCode::Digit1, FeatureLayer::Asteroid),
         (KeyCode::Digit2, FeatureLayer::Planet),
-        (KeyCode::Digit3, FeatureLayer::Anchorage),
+        (KeyCode::Digit3, FeatureLayer::Derelict),
     ] {
         if keys.just_pressed(key) {
             next.layer = layer;
@@ -427,7 +428,7 @@ fn collect_paint(
 ///
 /// On a [`SectorFault`] from the field. A non-finite reading is a refusal, and
 /// a heatmap that painted it as some colour would be a picture of a bug.
-fn paint_slice(config: &WorldConfig, view: SliceView) -> SlicePixels {
+fn paint_slice(config: &WorldConfig<NovaLayeredWorld>, view: SliceView) -> SlicePixels {
     let fields = FeatureFields::new(config.seed);
     let home = world_fixture::FEATURE_HOME.centre(config.sector_edge).get();
     let fixed = match view.plane {
@@ -549,7 +550,7 @@ fn layer_ramp(layer: FeatureLayer) -> (Srgba, Srgba) {
             Srgba::new(0.04, 0.26, 0.31, 1.0),
             Srgba::new(0.25, 0.92, 1.0, 1.0),
         ),
-        FeatureLayer::Anchorage => (
+        FeatureLayer::Derelict => (
             Srgba::new(0.30, 0.05, 0.30, 1.0),
             Srgba::new(1.0, 0.35, 1.0, 1.0),
         ),
@@ -626,11 +627,11 @@ const ASTEROID_SHOT: &str = "world-field-slice-asteroid-xy.png";
 #[cfg(feature = "debug")]
 const PLANET_SHOT: &str = "world-field-slice-planet-xz.png";
 
-/// The picture of the anchorage layer on the third plane, two sectors off the
+/// The picture of the derelict layer on the third plane, two sectors off the
 /// home cell - the slice that shows a stepped plane is a DIFFERENT field and
 /// not the same picture shifted.
 #[cfg(feature = "debug")]
-const ANCHORAGE_SHOT: &str = "world-field-slice-anchorage-yz.png";
+const DERELICT_SHOT: &str = "world-field-slice-derelict-yz.png";
 
 /// The run gate: three representative slices, one per layer and one per plane,
 /// with the last one stepped off the home cell.
@@ -674,18 +675,18 @@ fn slices_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written(PLANET_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        .step("paint the anchorage YZ slice two sectors out")
+        .step("paint the derelict YZ slice two sectors out")
         .on_enter(show_slice(SliceView {
-            layer: FeatureLayer::Anchorage,
+            layer: FeatureLayer::Derelict,
             plane: SlicePlane::Yz,
             step: 2,
         }))
         .until(and(slice_is_painted(), frames(SETTLE_FRAMES)))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("shoot the anchorage YZ slice")
-        .on_enter(|world: &mut World| shoot(world, ANCHORAGE_SHOT))
-        .until(shot_written(ANCHORAGE_SHOT))
+        .step("shoot the derelict YZ slice")
+        .on_enter(|world: &mut World| shoot(world, DERELICT_SHOT))
+        .until(shot_written(DERELICT_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
 }

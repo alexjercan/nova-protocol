@@ -87,7 +87,7 @@ const PLANET_SIGNATURE_PER_RADIUS: f32 = 10.0;
 /// same work done inline.
 ///
 /// The config travels WITH the visual rather than beside it, unlike
-/// [`PreparedAsteroidGeometry`](super::asteroid::PreparedAsteroidGeometry):
+/// [`PreparedAsteroid`](super::asteroid::PreparedAsteroid):
 /// a planet's radius, relief and seed are the only inputs the surface is drawn
 /// from, so carrying both halves in one value is what makes a mismatched pair
 /// unrepresentable instead of merely refused.

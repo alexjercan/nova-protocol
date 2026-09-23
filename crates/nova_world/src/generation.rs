@@ -1,9 +1,12 @@
-//! The generator: a world seed and a cell coordinate in, a validated manifest
-//! out.
+//! The generation mechanisms: the feature field, the placement rules, the
+//! untrusted [`SectorManifest`] a generator returns, and the check that turns
+//! it into a trusted [`SectorDescription`] before a worker prepares it.
 //!
 //! PURE. Nothing here touches a `World`, reads a resource or draws from the
 //! ambient RNG, which is what lets [`prepare_sector`] run on a worker and what
-//! makes a cell the same cell in any visit order.
+//! makes a cell the same cell in any visit order. A [`SectorGenerator`] is
+//! held to the same rule: it gets a seed, an edge and a coordinate, and
+//! nothing else.
 //!
 //! # The feature field
 //!
@@ -23,9 +26,9 @@
 //! draw and one inset pull, so [`FEATURE_HALO`] nodes is provably enough.
 //! [`feature_halo_covers_overlap`] is the arithmetic, and the inset pull grows
 //! with the cell edge, so a wide enough edge outruns the halo:
-//! [`crate::WorldConfig::validate`] REFUSES such a config in every build. A
-//! debug assertion would have let a release run ship a world with two belts
-//! inside each other.
+//! [`validate_feature_geometry`] REFUSES such an edge in every build. A debug
+//! assertion would have let a release run ship a world with two belts inside
+//! each other.
 
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
@@ -34,11 +37,14 @@ use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::{Fnv32, SeedStream};
 use nova_scenario::prelude::{
-    asteroid_seed_from_id, prepare_asteroid_geometry, prepare_planet, PlanetConfig,
-    PreparedAsteroidGeometry, PreparedPlanet, ASTEROID_GEOMETRIC_FACTOR_MAX,
+    is_asteroid_kind, prepare_asteroid_geometry, prepare_planet, PlanetConfig, PreparedAsteroid,
+    PreparedPlanet, ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
-use crate::{index_slug, SectorCoord, SectorFault, SectorGeneration, WorldConfig, PLACEMENT_INSET};
+use crate::{
+    index_slug, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, WorldConfig,
+    WorldGeometry, PLACEMENT_INSET,
+};
 
 /// The kinds of PLACE the feature field gates, one independent noise layer
 /// each.
@@ -57,14 +63,14 @@ pub enum FeatureLayer {
     Asteroid,
     /// A world: one planetoid, in the cell its centre falls in.
     Planet,
-    /// A mooring: a few neutral hulls parked with nobody aboard.
-    Anchorage,
+    /// A derelict field: a few dead hulls adrift with nobody aboard.
+    Derelict,
 }
 
 impl FeatureLayer {
     /// Every layer, in the order the diagnostics and the per-layer arrays
     /// read.
-    pub const ALL: [Self; 3] = [Self::Asteroid, Self::Planet, Self::Anchorage];
+    pub const ALL: [Self; 3] = [Self::Asteroid, Self::Planet, Self::Derelict];
 
     /// How many layers there are: the width of every per-layer array.
     pub const COUNT: usize = Self::ALL.len();
@@ -75,7 +81,7 @@ impl FeatureLayer {
         match self {
             Self::Asteroid => "asteroid",
             Self::Planet => "planet",
-            Self::Anchorage => "anchorage",
+            Self::Derelict => "derelict",
         }
     }
 
@@ -84,7 +90,7 @@ impl FeatureLayer {
         match self {
             Self::Asteroid => 0,
             Self::Planet => 1,
-            Self::Anchorage => 2,
+            Self::Derelict => 2,
         }
     }
 
@@ -107,10 +113,10 @@ impl FeatureLayer {
             // The rarest: a world is a landmark, and a landmark in every
             // second cell is scenery.
             Self::Planet => 0.16,
-            // In between, and deliberately not aligned with either - an
-            // anchorage that only ever appeared beside a world would be a
+            // In between, and deliberately not aligned with either - a
+            // derelict field that only ever appeared beside a world would be a
             // dependent layer wearing an independent one's clothes.
-            Self::Anchorage => 0.14,
+            Self::Derelict => 0.14,
         }
     }
 
@@ -124,8 +130,8 @@ impl FeatureLayer {
             // it.
             Self::Asteroid => (Meters(48_000.0), Meters(96_000.0)),
             Self::Planet => (Meters(48_000.0), Meters(80_000.0)),
-            // The tightest: a mooring is a place, not a region.
-            Self::Anchorage => (Meters(32_000.0), Meters(64_000.0)),
+            // The tightest: a derelict field is a place, not a region.
+            Self::Derelict => (Meters(32_000.0), Meters(64_000.0)),
         }
     }
 }
@@ -202,8 +208,8 @@ pub(crate) const FEATURE_CEILING: f32 = 0.22;
 /// Two same-layer spheres overlap only if their centres are within
 /// `2 * FEATURE_RADIUS_MAX`, and a centre sits within one jitter draw plus one
 /// inset pull of its node, so a node further out than this cannot hold a
-/// rival. The inset pull grows with the cell edge, which is why a layered
-/// [`crate::WorldConfig`] with too wide an edge is refused rather than thinned
+/// rival. The inset pull grows with the cell edge, which is why
+/// [`validate_feature_geometry`] refuses too wide an edge rather than thinning
 /// against a halo that no longer reaches.
 pub const FEATURE_HALO: i32 = 2;
 
@@ -212,11 +218,10 @@ pub const FEATURE_HALO: i32 = 2;
 ///
 /// The arithmetic the halo constant is derived from, written as a function so
 /// it is checked rather than asserted in a comment.
-/// [`crate::WorldConfig::validate`] calls it for every layered config in every
-/// build, so raising a radius band or the jitter without widening the halo
-/// refuses at the config instead of silently letting two belts overlap, and an
-/// authored cell edge too wide for the halo is refused before a cell is
-/// described.
+/// [`validate_feature_geometry`] calls it in every build, so raising a radius
+/// band or the jitter without widening the halo refuses at the config instead
+/// of silently letting two belts overlap, and an authored cell edge too wide
+/// for the halo is refused before a cell is described.
 pub(crate) fn feature_halo_covers_overlap(edge: Meters) -> bool {
     // A centre leaves its node twice: the jitter draw, and then the pull onto
     // its owner cell's inset, which can move it another `1 - PLACEMENT_INSET`
@@ -235,7 +240,7 @@ pub(crate) fn feature_halo_covers_overlap(edge: Meters) -> bool {
 ///
 /// `Fbm::new` seeds a permutation table per octave, so rebuilding the graph
 /// per sample would cost far more than sampling it. One set per
-/// [`generate_sector`] call, which is once per sector per worker.
+/// [`sector_features`] call, which is once per sector per worker.
 pub struct FeatureFields([Fbm<Perlin>; FeatureLayer::COUNT]);
 
 impl FeatureFields {
@@ -410,7 +415,7 @@ pub struct SectorAsteroid {
     pub position: Meters3,
     /// Its nominal radius.
     pub radius: Meters,
-    /// Its asteroid kind id, drawn from the config's table.
+    /// Its asteroid kind id, drawn from the generator's table.
     pub kind: String,
     /// Its silhouette seed.
     pub seed: u32,
@@ -421,42 +426,43 @@ pub struct SectorAsteroid {
 pub struct SectorPlanet {
     /// The planetoid's scenario id, prefixed with its owning cell's slug.
     pub id: String,
-    /// The planet sphere that placed it.
+    /// The planet sphere that placed it. The sphere is listed in the same
+    /// manifest and owned by the same cell.
     pub feature: String,
-    /// Where it stands: the sphere's centre, which is inside this cell's inset
-    /// by construction.
+    /// Where it stands, in meters from the world origin.
     pub position: Meters3,
     /// The world it is, ready for `prepare_planet`.
     pub config: PlanetConfig,
 }
 
-/// One moored hull: a neutral ship with nobody aboard.
+/// One generated ship: a hull with nobody aboard and nobody's side.
 #[derive(Clone, Debug)]
-pub struct SectorAnchorage {
-    /// The hull's scenario id, prefixed with its owning cell's slug.
+pub struct SectorShip {
+    /// The ship's scenario id, prefixed with its owning cell's slug.
     pub id: String,
-    /// The anchorage sphere that moored it.
+    /// The derelict sphere that placed it. The sphere is listed in the same
+    /// manifest and owned by the same cell.
     pub feature: String,
     /// Where it floats, in meters from the world origin.
     pub position: Meters3,
-    /// Which way it is pointing. Yaw only - a moored hull sits level.
+    /// Which way it is pointing. Yaw only - the hull sits level.
     pub yaw: f32,
-    /// The catalog design it is built from, from the config.
+    /// The catalog design it is built from.
     pub design: String,
 }
 
-/// One sector's validated contents: what `materialize_sector` is allowed to
-/// spawn, and the feature data that explains it.
+/// What a [`SectorGenerator`] says one cell holds. UNTRUSTED.
 ///
-/// Only [`generate_sector`] builds one, and it only returns one that passed
-/// every check. A description in hand IS the readiness gate.
+/// Public fields, because a generator outside this crate builds it. Nothing
+/// downstream reads one: [`validate_manifest`] checks it against every rule
+/// materialization relies on and only then hands back a
+/// [`SectorDescription`].
 #[derive(Clone, Debug)]
-pub struct SectorDescription {
+pub struct SectorManifest {
     /// The cell described.
     pub coord: SectorCoord,
-    /// Every feature sphere that reaches this cell, whoever owns it, ordered
-    /// by layer and then id. Empty under
-    /// [`SectorGeneration::UniformAsteroids`].
+    /// Every feature sphere that reaches this cell, whoever owns it. Empty for
+    /// a generator that reads no feature field.
     pub features: Vec<FeatureSphere>,
     /// The combined influence of each layer at the cell's centre, indexed by
     /// [`FeatureLayer::index`].
@@ -465,25 +471,67 @@ pub struct SectorDescription {
     pub asteroids: Vec<SectorAsteroid>,
     /// The planetoids this cell OWNS, in generation order.
     pub planets: Vec<SectorPlanet>,
-    /// The hulls this cell OWNS, in generation order.
-    pub anchorages: Vec<SectorAnchorage>,
+    /// The ships this cell OWNS, in generation order.
+    pub ships: Vec<SectorShip>,
+}
+
+/// One sector's contents after [`validate_manifest`] accepted them: what
+/// `materialize_sector` is allowed to spawn, and the feature data that
+/// explains it.
+///
+/// TRUSTED. The fields are private and there is no other constructor, so a
+/// value of this type is proof that every rule materialization relies on
+/// held, whichever generator wrote the manifest.
+#[derive(Clone, Debug)]
+pub struct SectorDescription {
+    pub(crate) coord: SectorCoord,
+    pub(crate) features: Vec<FeatureSphere>,
+    pub(crate) strengths: [f32; FeatureLayer::COUNT],
+    pub(crate) asteroids: Vec<SectorAsteroid>,
+    pub(crate) planets: Vec<SectorPlanet>,
+    pub(crate) ships: Vec<SectorShip>,
 }
 
 impl SectorDescription {
+    /// The cell described.
+    pub fn coord(&self) -> SectorCoord {
+        self.coord
+    }
+
+    /// Every feature sphere that reaches this cell, whoever owns it.
+    pub fn features(&self) -> &[FeatureSphere] {
+        &self.features
+    }
+
+    /// The rocks, in generation order.
+    pub fn asteroids(&self) -> &[SectorAsteroid] {
+        &self.asteroids
+    }
+
+    /// The planetoids this cell owns, in generation order.
+    pub fn planets(&self) -> &[SectorPlanet] {
+        &self.planets
+    }
+
+    /// The ships this cell owns, in generation order.
+    pub fn ships(&self) -> &[SectorShip] {
+        &self.ships
+    }
+
     /// Every object id this cell spawns, in spawn order: rocks, then
-    /// planetoids, then hulls.
+    /// planetoids, then ships.
     pub fn object_ids(&self) -> Vec<String> {
         self.asteroids
             .iter()
             .map(|body| body.id.clone())
             .chain(self.planets.iter().map(|planet| planet.id.clone()))
-            .chain(self.anchorages.iter().map(|hull| hull.id.clone()))
+            .chain(self.ships.iter().map(|ship| ship.id.clone()))
             .collect()
     }
 
     /// How many entities the cell's root will own.
     pub fn object_count(&self) -> usize {
-        self.asteroids.len() + self.planets.len() + self.anchorages.len()
+        self.asteroids.len() + self.planets.len() + self.ships.len()
     }
 
     /// The description as one comparable block of text.
@@ -536,81 +584,62 @@ impl SectorDescription {
                 planet.config.seed
             ));
         }
-        for hull in &self.anchorages {
+        for ship in &self.ships {
             out.push_str(&format!(
-                "hull {} {} {} y{:.4} {}\n",
-                hull.id,
-                hull.feature,
-                point(hull.position),
-                hull.yaw,
-                hull.design
+                "ship {} {} {} y{:.4} {}\n",
+                ship.id,
+                ship.feature,
+                point(ship.position),
+                ship.yaw,
+                ship.design
             ));
         }
         out
     }
 }
 
-/// One sector described, validated and meshed: everything
+/// One sector described, validated and prepared: everything
 /// `materialize_sector` needs that a worker can produce.
 ///
-/// Built only by [`prepare_sector`], so `asteroid_geometry` is one prepared
-/// rock per `description.asteroids` entry and `planet_surfaces` one prepared
-/// world per `description.planets` entry, both in order. A moored hull needs
-/// no preparation: its sections are resolved from the catalog on the main
+/// Built only by [`prepare_sector`], and the fields are private, so
+/// `asteroids` is always one prepared rock per description asteroid and
+/// `planets` one prepared world per description planetoid, both in order. The
+/// two halves are not the same shape: a [`PreparedAsteroid`] is the GEOMETRY
+/// only, and the rock's config is rebuilt from the description at spawn, while
+/// a [`PreparedPlanet`] carries its config beside its visual. A ship needs no
+/// preparation: its sections are resolved from the catalog on the main
 /// thread, which is the one place the catalog exists.
 #[derive(Debug)]
 pub struct PreparedSector {
-    /// The validated description this was prepared from.
-    pub description: SectorDescription,
-    /// One prepared rock per asteroid, in `description.asteroids` order.
-    pub asteroid_geometry: Vec<PreparedAsteroidGeometry>,
-    /// One prepared world per planetoid, in `description.planets` order.
-    pub planet_surfaces: Vec<PreparedPlanet>,
+    pub(crate) description: SectorDescription,
+    pub(crate) asteroids: Vec<PreparedAsteroid>,
+    pub(crate) planets: Vec<PreparedPlanet>,
 }
 
-/// The most rocks ANY cell holds - the featured generator's count at full
-/// asteroid influence, and the ceiling [`crate::WorldConfig::validate`] holds
-/// an authored `body_count` to.
+impl PreparedSector {
+    /// The validated description this was prepared from.
+    pub fn description(&self) -> &SectorDescription {
+        &self.description
+    }
+}
+
+/// The most rocks ANY cell holds, and the ceiling [`validate_manifest`] holds
+/// every manifest to.
 ///
 /// Four, which is the density the examples fly and the only one measured. It
-/// is one cap for both generators on purpose: a uniform cell is the streaming
-/// baseline a featured cell is judged against, so a baseline that could be
-/// denser than anything the field produces would be judging the loop against a
-/// world it never streams. A denser cell is a measurement and a change here,
-/// not a number a config can reach - and without the cap an authored
-/// `body_count` of `usize::MAX` reaches `Vec::with_capacity` on a worker.
+/// is one cap for every generator on purpose: the uniform baseline is what a
+/// featured cell is judged against, so a baseline that could be denser than
+/// anything the field produces would be judging the loop against a world it
+/// never streams. A denser cell is a measurement and a change here, not a
+/// number a generator can reach.
 pub const SECTOR_ASTEROIDS_MAX: usize = 4;
 
-/// The nominal radius band a featured cell draws rocks from.
+/// How much room a generated ship claims for clearance.
 ///
-/// The meshed rock reaches 3.5-6x past the nominal figure, so 30-60 m nominal
-/// draws about 210-720 m diameters - scattered landmarks in a 32 km cell.
-const FEATURE_ASTEROID_RADIUS: (Meters, Meters) = (Meters(30.0), Meters(60.0));
-
-/// The mean-radius band a gated planetoid is drawn from.
-///
-/// 600-1,200 m: big enough to read as a WORLD against a 60 m rock beside it,
-/// small enough that a 32 km cell is still a place you fly across rather than
-/// a place a single body fills. A planet's radius is its real size, not a
-/// designation, so this is what it draws.
-const PLANETOID_RADIUS: (Meters, Meters) = (Meters(600.0), Meters(1_200.0));
-
-/// How many hulls one anchorage sphere moors.
-const ANCHORAGE_HULLS: (usize, usize) = (1, 3);
-
-/// How far a moored hull may drift from its anchorage sphere's centre.
-///
-/// A CLUSTER radius, not a scatter: an anchorage reads as a place because its
-/// hulls are near each other. Wide enough that the hulls still clear a
-/// planetoid sharing the cell without exhausting their candidates.
-const ANCHORAGE_MOOR: Meters = Meters(6_000.0);
-
-/// How much room a moored hull claims for clearance.
-///
-/// A radius around the hull root, not a measured bound: a hull's sections are
+/// A radius around the ship root, not a measured bound: a ship's sections are
 /// resolved from the catalog on the main thread, and a worker deciding where
 /// it stands cannot see them. Generous on purpose.
-pub const MOORED_HULL_CLEARANCE: Meters = Meters(400.0);
+pub const SECTOR_SHIP_CLEARANCE: Meters = Meters(400.0);
 
 /// Extra room every pair of objects keeps between their clearance radii.
 ///
@@ -618,35 +647,27 @@ pub const MOORED_HULL_CLEARANCE: Meters = Meters(400.0);
 /// margin is what makes a generated cell look placed.
 pub const CLEARANCE_MARGIN: Meters = Meters(500.0);
 
-/// How many deterministic candidates an object gets before the sector refuses.
+/// Whether two bodies keep [`CLEARANCE_MARGIN`] between their clearance
+/// spheres.
 ///
-/// A cap rather than a loop until it fits: the draw is deterministic, so if
-/// the cell really has no room the search does not terminate on its own, and
-/// a sector that silently dropped the object would hide a field asking for
-/// more than a cell can hold.
-const PLACEMENT_ATTEMPTS: usize = 64;
+/// The one spacing formula: [`validate_manifest`] refuses a pair this calls
+/// crowded, and a generator's placement search asks the same question, so the
+/// two cannot drift apart and a search cannot accept a pose the check
+/// refuses.
+pub fn bodies_clear(
+    a_position: Meters3,
+    a_clearance: Meters,
+    b_position: Meters3,
+    b_clearance: Meters,
+) -> bool {
+    a_position.distance(b_position) >= a_clearance + b_clearance + CLEARANCE_MARGIN
+}
 
 /// One object already standing in the cell, and how much room it claims.
 #[derive(Clone, Copy, Debug)]
 struct Occupied {
     centre: Meters3,
     clearance: Meters,
-}
-
-/// The seed for one named domain of one cell.
-///
-/// Coordinate-derived and purpose-separated, so visit order cannot reach it
-/// and adding a second domain later cannot move the bodies this one placed.
-/// `SeedStream` is then walked in a fixed order within the sector, which is
-/// the only ordering the result depends on.
-fn sector_seed(world_seed: u32, coord: SectorCoord, purpose: &str) -> u32 {
-    Fnv32::new()
-        .write(&world_seed.to_le_bytes())
-        .write(&coord.x.to_le_bytes())
-        .write(&coord.y.to_le_bytes())
-        .write(&coord.z.to_le_bytes())
-        .write(purpose.as_bytes())
-        .finish()
 }
 
 /// The seed for one lattice node of one layer. The node's jitter, radius and
@@ -778,7 +799,7 @@ fn thinned_candidate(
     Ok(Some(candidate))
 }
 
-/// [`feature_candidate`], memoized for one [`generate_sector`] call.
+/// [`feature_candidate`], memoized for one [`sector_features`] call.
 ///
 /// The halo makes each node's candidate asked for up to `(2 * FEATURE_HALO +
 /// 1)^3` times. Sampling three octaves of Perlin that many times per node is
@@ -801,8 +822,45 @@ fn cached_candidate<'a>(
     }
 }
 
-/// Every accepted feature sphere that reaches `coord`, ordered by layer and
-/// then id.
+/// Refuse a cell edge the feature field cannot answer for.
+///
+/// Release-visible, not a debug assertion: the thinning halo is a FINITE node
+/// search sized from the widest radius, the jitter draw and the inset pull,
+/// and the inset pull grows with the cell edge. Past the edge the halo covers,
+/// two same-layer spheres can both survive and the world ships with belts
+/// sitting inside each other. [`sector_features`] refuses such an edge on
+/// every call; a generator that reads the field calls this from
+/// [`SectorGenerator::validate`] as well, so the refusal lands when the world
+/// is armed rather than on a worker.
+///
+/// # Errors
+///
+/// [`SectorFault::Config`] on `sector_edge` when it is not a finite positive
+/// length, or when it is wider than [`FEATURE_HALO`] nodes can cover.
+pub fn validate_feature_geometry(geometry: WorldGeometry) -> Result<(), SectorFault> {
+    let edge = geometry.sector_edge;
+    if !edge.get().is_finite() || edge.get() <= 0.0 {
+        return Err(SectorFault::Config {
+            field: "sector_edge",
+            value: format!("{} m", edge.get()),
+        });
+    }
+    if !feature_halo_covers_overlap(edge) {
+        return Err(SectorFault::Config {
+            field: "sector_edge",
+            value: format!(
+                "{} m, wider than a {FEATURE_HALO}-node thinning halo can reach across at a {} m \
+                 feature lattice",
+                edge.get(),
+                FEATURE_LATTICE.get()
+            ),
+        });
+    }
+    Ok(())
+}
+
+/// Every accepted feature sphere that reaches `input.coord`, ordered by layer
+/// and then lattice node.
 ///
 /// The cell asks the FIELD, not its neighbours: the node range is derived from
 /// the cell's own box and the widest radius any layer draws, so two adjacent
@@ -811,29 +869,14 @@ fn cached_candidate<'a>(
 ///
 /// # Errors
 ///
-/// [`SectorFault::Config`] on a [`SectorGeneration::UniformAsteroids`] world,
-/// which has no feature field to answer with, and
+/// Whatever [`validate_feature_geometry`] refuses, and
 /// [`SectorFault::InvalidGeometry`] for a cell whose node range runs off the
-/// lattice. Plus whatever [`WorldConfig::validate`], the field or a candidate
-/// refuses, and [`SectorFault::DuplicateFeature`] if two spheres ever claim
-/// one id.
-pub fn sector_features(
-    config: &WorldConfig,
-    coord: SectorCoord,
-) -> Result<Vec<FeatureSphere>, SectorFault> {
-    config.validate()?;
-    // A uniform world has no field to ask. Answering anyway would hand back
-    // spheres its generator never places, and it is the one config whose edge
-    // nothing bounds from above - the thinning halo is a layered concern - so
-    // the node loops below would have nothing holding them.
-    if let SectorGeneration::UniformAsteroids(_) = config.generation {
-        return Err(SectorFault::Config {
-            field: "generation",
-            value: "UniformAsteroids, a world with no feature field to query".to_string(),
-        });
-    }
-    let fields = FeatureFields::new(config.seed);
-    sector_features_from(&fields, config.seed, coord, config.sector_edge)
+/// lattice. Plus whatever the field or a candidate refuses, and
+/// [`SectorFault::DuplicateFeature`] if two spheres ever claim one id.
+pub fn sector_features(input: SectorGenerationInput) -> Result<Vec<FeatureSphere>, SectorFault> {
+    validate_feature_geometry(input.geometry)?;
+    let fields = FeatureFields::new(input.seed);
+    sector_features_from(&fields, input.seed, input.coord, input.geometry.sector_edge)
 }
 
 fn sector_features_from(
@@ -903,360 +946,309 @@ fn sector_features_from(
     Ok(spheres)
 }
 
-/// Draw a clear place for one object inside `coord`'s inset.
+/// The id `<cell slug>_<name>_<index>` of one object a generator places in
+/// `coord`.
 ///
-/// Candidates come off `stream` in a fixed order, so the placement is a
-/// function of the cell and not of the wall clock: `anchor` is what the object
-/// wants to be near (the cell's centre for a rock, an anchorage sphere's
-/// centre for a hull) and `reach` how far it may drift from it. A candidate is
-/// taken only if it is inside the cell's inset AND clears everything already
-/// standing.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "every argument is a distinct placement input; bundling them into a struct would name the same seven values twice"
-)]
-fn place_object(
-    stream: &mut SeedStream,
-    id: &str,
-    coord: SectorCoord,
-    edge: Meters,
-    anchor: Meters3,
-    reach: Meters,
-    clearance: Meters,
-    standing: &[Occupied],
-) -> Result<Meters3, SectorFault> {
-    let inset = edge.get() * 0.5 * PLACEMENT_INSET;
-    let cell_centre = coord.centre(edge);
-
-    for _ in 0..PLACEMENT_ATTEMPTS {
-        let candidate = anchor
-            + Meters3::new(
-                stream.signed() * reach.get(),
-                stream.signed() * reach.get(),
-                stream.signed() * reach.get(),
-            );
-        if !position_is_finite(candidate) {
-            return Err(SectorFault::InvalidGeometry { id: id.to_string() });
-        }
-        let offset = (candidate.get() - cell_centre.get()).abs();
-        if offset.max_element() > inset {
-            continue;
-        }
-        if standing.iter().any(|other| {
-            other.centre.distance(candidate) < other.clearance + clearance + CLEARANCE_MARGIN
-        }) {
-            continue;
-        }
-        return Ok(candidate);
-    }
-    Err(SectorFault::Clearance {
-        id: id.to_string(),
-        attempts: PLACEMENT_ATTEMPTS,
-    })
+/// Formatting only. The slug prefix is the cross-generator contract:
+/// [`validate_manifest`] refuses an id without it, so no two cells can claim
+/// one object, and refuses an id claimed twice inside the cell.
+pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
+    format!("{}_{name}_{index}", coord.slug())
 }
 
-/// The widest clearance sphere `generation` can put in one cell, and what
-/// draws it.
+/// Turn a generator's manifest into a trusted [`SectorDescription`], or refuse
+/// it. The only constructor a description has.
 ///
-/// Every quantity here is one the generator already places by: a rock's
-/// clearance is its nominal radius times [`ASTEROID_GEOMETRIC_FACTOR_MAX`],
-/// exactly as [`generate_asteroids`] computes it; a planetoid's is the real
-/// radius it draws at; a moored hull's is [`MOORED_HULL_CLEARANCE`].
-pub(crate) fn widest_body_clearance(generation: &SectorGeneration) -> (Meters, String) {
-    match generation {
-        SectorGeneration::UniformAsteroids(uniform) => (
-            Meters(uniform.radius_max.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
-            format!(
-                "an asteroid drawn at generation.radius_max {} m",
-                uniform.radius_max.get()
-            ),
-        ),
-        SectorGeneration::LayeredFeatures(layered) => {
-            let rock = Meters(FEATURE_ASTEROID_RADIUS.1.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
-            // The OUTER radius, not the mean band: a planetoid's mesh spans
-            // `1 +/- relief` and `body_radius` is what the placement above
-            // spaces by, so the band alone would under-measure every type by
-            // its relief - 5.5% for barren rock.
-            let planet = layered
-                .planet_types
-                .iter()
-                .map(|planet_type| {
-                    PlanetConfig::new(*planet_type, PLANETOID_RADIUS.1, 0).body_radius()
-                })
-                .fold(Meters(0.0), |widest, radius| widest.max(radius));
-            if planet >= rock && planet >= MOORED_HULL_CLEARANCE {
-                (
-                    planet,
-                    format!("a gated planetoid reaching {} m", planet.get()),
-                )
-            } else if rock >= MOORED_HULL_CLEARANCE {
-                (
-                    rock,
-                    format!(
-                        "a gated asteroid drawn at {} m",
-                        FEATURE_ASTEROID_RADIUS.1.get()
-                    ),
-                )
-            } else {
-                (
-                    MOORED_HULL_CLEARANCE,
-                    format!("a moored hull at {} m", MOORED_HULL_CLEARANCE.get()),
-                )
-            }
-        }
-    }
-}
-
-/// The narrowest cell that can OWN a body of this clearance.
-///
-/// [`place_object`] keeps a CENTRE within [`PLACEMENT_INSET`] of the half
-/// edge, so the body itself stays inside its cell only while its clearance
-/// sphere fits in the margin the inset leaves: `clearance <= half_edge * (1 -
-/// PLACEMENT_INSET)`. Under that a cell retires geometry standing in its
-/// neighbour, which is the one thing [`PLACEMENT_INSET`] is documented to
-/// prevent.
-pub(crate) fn smallest_owning_edge(clearance: Meters) -> Meters {
-    Meters(clearance.get() * 2.0 / (1.0 - PLACEMENT_INSET))
-}
-
-/// Take an object id for this sector, or refuse it to a second claimant.
-///
-/// Never resolved by spawn order: an id is how an object is found again, and
-/// two of them is a sector nobody can name their way back into.
-fn claim_id(id: String, claimed: &mut BTreeSet<String>) -> Result<String, SectorFault> {
-    if !claimed.insert(id.clone()) {
-        return Err(SectorFault::DuplicateId { id });
-    }
-    Ok(id)
-}
-
-/// The rocks, planetoids and hulls a layered cell holds.
-type LayeredContents = (
-    Vec<FeatureSphere>,
-    [f32; FeatureLayer::COUNT],
-    Vec<SectorPlanet>,
-    Vec<SectorAnchorage>,
-    usize,
-);
-
-/// Describe what the feature field puts in one cell.
-fn layered_contents(
-    config: &WorldConfig,
-    layered: &crate::LayeredFeatureConfig,
-    coord: SectorCoord,
-    claimed: &mut BTreeSet<String>,
-    standing: &mut Vec<Occupied>,
-) -> Result<LayeredContents, SectorFault> {
-    let edge = config.sector_edge;
-    let centre = coord.centre(edge);
-    let fields = FeatureFields::new(config.seed);
-    let features = sector_features_from(&fields, config.seed, coord, edge)?;
-    let mut strengths = [0.0; FeatureLayer::COUNT];
-    for sphere in &features {
-        strengths[sphere.layer.index()] += sphere.influence(centre);
-    }
-    for strength in &mut strengths {
-        *strength = strength.min(1.0);
-    }
-
-    // Planetoids first: a planet sphere places its world AT its centre, which
-    // is the one pose in a cell nothing else gets to move. Everything after it
-    // works around what is already there.
-    let mut stream = SeedStream::new(sector_seed(config.seed, coord, "planets"));
-    let mut planets = Vec::new();
-    for sphere in features
-        .iter()
-        .filter(|sphere| sphere.layer == FeatureLayer::Planet && sphere.owner == coord)
-    {
-        let id = claim_id(
-            format!("{}_planet_{}", coord.slug(), planets.len()),
-            claimed,
-        )?;
-        let (radius_min, radius_max) = PLANETOID_RADIUS;
-        let radius = radius_min + (radius_max - radius_min) * stream.unit();
-        let planet_type =
-            layered.planet_types[stream.next_u32() as usize % layered.planet_types.len()];
-        let config = PlanetConfig::new(planet_type, radius, stream.next_u32());
-        if !position_is_finite(sphere.centre) || !radius.get().is_finite() {
-            return Err(SectorFault::InvalidGeometry { id });
-        }
-        let clearance = config.body_radius();
-        if standing.iter().any(|other| {
-            other.centre.distance(sphere.centre) < other.clearance + clearance + CLEARANCE_MARGIN
-        }) {
-            return Err(SectorFault::Clearance { id, attempts: 1 });
-        }
-        standing.push(Occupied {
-            centre: sphere.centre,
-            clearance,
-        });
-        planets.push(SectorPlanet {
-            id,
-            feature: sphere.id.clone(),
-            position: sphere.centre,
-            config,
-        });
-    }
-
-    let mut stream = SeedStream::new(sector_seed(config.seed, coord, "anchorages"));
-    let mut anchorages = Vec::new();
-    for sphere in features
-        .iter()
-        .filter(|sphere| sphere.layer == FeatureLayer::Anchorage && sphere.owner == coord)
-    {
-        let (hulls_min, hulls_max) = ANCHORAGE_HULLS;
-        let span = hulls_max - hulls_min + 1;
-        let hulls = hulls_min + stream.next_u32() as usize % span;
-        for _ in 0..hulls {
-            let id = claim_id(
-                format!("{}_hull_{}", coord.slug(), anchorages.len()),
-                claimed,
-            )?;
-            let position = place_object(
-                &mut stream,
-                &id,
-                coord,
-                edge,
-                sphere.centre,
-                ANCHORAGE_MOOR,
-                MOORED_HULL_CLEARANCE,
-                standing,
-            )?;
-            standing.push(Occupied {
-                centre: position,
-                clearance: MOORED_HULL_CLEARANCE,
-            });
-            anchorages.push(SectorAnchorage {
-                id,
-                feature: sphere.id.clone(),
-                position,
-                yaw: stream.unit() * std::f32::consts::TAU,
-                design: layered.anchorage_design.clone(),
-            });
-        }
-    }
-
-    // Rocks come off the COMBINED asteroid influence AT THE CELL CENTRE, so
-    // two spheres covering that one point fill the cell more than either would
-    // alone. A sphere contributes nothing to a cell whose centre it does not
-    // reach - including a fringe cell it only clips a corner of, which
-    // `sector_features_from` still lists among the cell's spheres because
-    // `reaches_box` tests the whole box.
-    // CEILING, not rounding, over the cells that ARE covered: one whose centre
-    // a belt reaches at all holds at least one rock. Rounding put a whole
-    // outer shell of covered cells at zero rocks, so the belt had a hard edge
-    // one cell inside its own rim and the falloff bought nothing.
-    let count =
-        (strengths[FeatureLayer::Asteroid.index()] * SECTOR_ASTEROIDS_MAX as f32).ceil() as usize;
-    Ok((
-        features,
-        strengths,
-        planets,
-        anchorages,
-        count.min(SECTOR_ASTEROIDS_MAX),
-    ))
-}
-
-/// Describe one cell. PURE: the same config and coordinate give the same
-/// description, on any call, in any order, with nothing live.
+/// A generator is outside this crate, so its answer is checked against every
+/// rule `materialize_sector` and the streaming loop rely on: the cell it was
+/// asked for; feature spheres that are drawable, unique and really reach the
+/// cell; finite geometry; ids unique and prefixed with the cell's slug, so two
+/// cells never claim one object; every body standing inside its own cell with
+/// its whole clearance sphere, so retiring a neighbour never takes it; every
+/// pair of bodies [`CLEARANCE_MARGIN`] apart; shipped asteroid kinds and at
+/// most [`SECTOR_ASTEROIDS_MAX`] rocks; planet configs that
+/// [`PlanetConfig::validate`] accepts; and each planetoid and ship placed by a
+/// sphere of its own layer that THIS cell owns, so a feature reaching a dozen
+/// cells is spawned once. The ship design is only checked for a blank id
+/// here; the catalog lookup is main-thread work in `materialize_sector`.
 ///
 /// # Errors
 ///
-/// Every [`SectorFault`] a worker can raise: [`SectorFault::Config`] and
-/// [`SectorFault::UnknownKind`] for a config that cannot describe a sector,
-/// [`SectorFault::Noise`] and [`SectorFault::Feature`] from the feature field,
-/// [`SectorFault::DuplicateId`] and [`SectorFault::DuplicateFeature`] when two
-/// things claim one id, [`SectorFault::InvalidGeometry`] when finite inputs
-/// overflow while deriving a pose, and [`SectorFault::Clearance`] when a cell
-/// has no room left. All are refusals before anything spawns.
-pub fn generate_sector(
-    config: &WorldConfig,
-    coord: SectorCoord,
+/// [`SectorFault::Manifest`] for the wrong cell, an object outside its cell or
+/// crowding another, an id another cell owns, a feature reference this cell
+/// does not own, a strength outside `[0, 1]`, a planet config
+/// [`PlanetConfig::validate`] refuses, a blank ship design, or too many rocks;
+/// [`SectorFault::Feature`] and [`SectorFault::DuplicateFeature`] for its
+/// feature spheres; [`SectorFault::InvalidGeometry`] for non-finite
+/// geometry; [`SectorFault::DuplicateId`] and [`SectorFault::UnknownKind`].
+pub fn validate_manifest(
+    input: SectorGenerationInput,
+    manifest: SectorManifest,
 ) -> Result<SectorDescription, SectorFault> {
-    config.validate()?;
-    let edge = config.sector_edge;
+    let coord = input.coord;
+    let edge = input.geometry.sector_edge;
     let centre = coord.centre(edge);
-    let mut claimed = BTreeSet::new();
-    let mut standing: Vec<Occupied> = Vec::new();
-    let (features, strengths, planets, anchorages, asteroid_count, asteroid_radius, kinds) =
-        match &config.generation {
-            SectorGeneration::UniformAsteroids(uniform) => (
-                Vec::new(),
-                [0.0; FeatureLayer::COUNT],
-                Vec::new(),
-                Vec::new(),
-                uniform.body_count,
-                (uniform.radius_min, uniform.radius_max),
-                &uniform.asteroid_kinds,
-            ),
-            SectorGeneration::LayeredFeatures(layered) => {
-                let (features, strengths, planets, anchorages, count) =
-                    layered_contents(config, layered, coord, &mut claimed, &mut standing)?;
-                (
-                    features,
-                    strengths,
-                    planets,
-                    anchorages,
-                    count,
-                    FEATURE_ASTEROID_RADIUS,
-                    &layered.asteroid_kinds,
-                )
-            }
-        };
+    let half_edge = Meters(edge.get() * 0.5);
+    let refuse = |id: &str, field: &'static str, value: String| SectorFault::Manifest {
+        id: id.to_string(),
+        field,
+        value,
+    };
 
-    let mut stream = SeedStream::new(sector_seed(config.seed, coord, "bodies"));
-    let (radius_min, radius_max) = asteroid_radius;
-    let span = radius_max - radius_min;
-    let inset_reach = Meters(edge.get() * 0.5 * PLACEMENT_INSET);
-    let mut asteroids = Vec::with_capacity(asteroid_count);
-    for index in 0..asteroid_count {
-        let id = claim_id(format!("{}_body_{index}", coord.slug()), &mut claimed)?;
-        let radius = radius_min + span * stream.unit();
-        if !radius.get().is_finite() {
-            return Err(SectorFault::InvalidGeometry { id });
-        }
-        // The meshed rock reaches several times past its nominal radius, so
-        // clearance is measured on the WORST case a seed can draw - a sector
-        // spaced on the designation would still overlap on screen.
-        let clearance = Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
-        let position = place_object(
-            &mut stream,
-            &id,
-            coord,
-            edge,
-            centre,
-            inset_reach,
-            clearance,
-            &standing,
-        )?;
-        // The table was checked whole by `WorldConfig::validate`, so a draw
-        // from it cannot name a kind the game does not ship.
-        let kind = kinds[stream.next_u32() as usize % kinds.len()].clone();
-        standing.push(Occupied {
-            centre: position,
-            clearance,
-        });
-        asteroids.push(SectorAsteroid {
-            seed: asteroid_seed_from_id(&id),
-            id,
-            position,
-            radius,
-            kind,
-        });
+    if manifest.coord != coord {
+        return Err(refuse(
+            &coord.slug(),
+            "coord",
+            format!("{}, not the requested {coord}", manifest.coord),
+        ));
     }
 
+    let mut features = BTreeMap::new();
+    for sphere in &manifest.features {
+        sphere.validate(edge)?;
+        if !sphere.reaches_box(centre, half_edge) {
+            return Err(SectorFault::Feature {
+                id: sphere.id.clone(),
+                field: "radius",
+                value: format!("{} m, which does not reach {coord}", sphere.radius.get()),
+            });
+        }
+        if features.insert(sphere.id.as_str(), sphere).is_some() {
+            return Err(SectorFault::DuplicateFeature {
+                id: sphere.id.clone(),
+            });
+        }
+    }
+    for layer in FeatureLayer::ALL {
+        let strength = manifest.strengths[layer.index()];
+        if !strength.is_finite() || !(0.0..=1.0).contains(&strength) {
+            return Err(refuse(
+                &coord.slug(),
+                "strengths",
+                format!("{strength} on the {layer} layer, outside 0 to 1"),
+            ));
+        }
+    }
+    if manifest.asteroids.len() > SECTOR_ASTEROIDS_MAX {
+        return Err(refuse(
+            &coord.slug(),
+            "asteroids",
+            format!(
+                "{} rocks, above the {SECTOR_ASTEROIDS_MAX} a cell holds",
+                manifest.asteroids.len()
+            ),
+        ));
+    }
+
+    let mut ids = BTreeSet::new();
+    let mut standing = Vec::new();
+    let mut own = |id: &str| {
+        if !id.starts_with(&format!("{}_", coord.slug())) {
+            return Err(refuse(
+                id,
+                "id",
+                format!("'{id}', not prefixed with {}", coord.slug()),
+            ));
+        }
+        if !ids.insert(id.to_string()) {
+            return Err(SectorFault::DuplicateId { id: id.to_string() });
+        }
+        Ok(())
+    };
+
+    for body in &manifest.asteroids {
+        own(&body.id)?;
+        if !body.radius.get().is_finite() || body.radius.get() <= 0.0 {
+            return Err(SectorFault::InvalidGeometry {
+                id: body.id.clone(),
+            });
+        }
+        if !is_asteroid_kind(&body.kind) {
+            return Err(SectorFault::UnknownKind {
+                kind: body.kind.clone(),
+            });
+        }
+        let clearance = Meters(body.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
+        stand_inside(input, &mut standing, &body.id, body.position, clearance)?;
+    }
+    for planet in &manifest.planets {
+        own(&planet.id)?;
+        owned_feature(
+            &features,
+            coord,
+            &planet.id,
+            &planet.feature,
+            FeatureLayer::Planet,
+        )?;
+        planet
+            .config
+            .validate()
+            .map_err(|fault| refuse(&planet.id, fault.field, fault.value))?;
+        let clearance = planet.config.body_radius();
+        if !clearance.get().is_finite() || clearance.get() <= 0.0 {
+            return Err(SectorFault::InvalidGeometry {
+                id: planet.id.clone(),
+            });
+        }
+        stand_inside(input, &mut standing, &planet.id, planet.position, clearance)?;
+    }
+    for ship in &manifest.ships {
+        own(&ship.id)?;
+        owned_feature(
+            &features,
+            coord,
+            &ship.id,
+            &ship.feature,
+            FeatureLayer::Derelict,
+        )?;
+        if !ship.yaw.is_finite() {
+            return Err(SectorFault::InvalidGeometry {
+                id: ship.id.clone(),
+            });
+        }
+        if ship.design.trim().is_empty() {
+            return Err(refuse(&ship.id, "design", "an empty id".to_string()));
+        }
+        stand_inside(
+            input,
+            &mut standing,
+            &ship.id,
+            ship.position,
+            SECTOR_SHIP_CLEARANCE,
+        )?;
+    }
+    let SectorManifest {
+        coord,
+        features,
+        strengths,
+        asteroids,
+        planets,
+        ships,
+    } = manifest;
     Ok(SectorDescription {
         coord,
         features,
         strengths,
         asteroids,
         planets,
-        anchorages,
+        ships,
     })
 }
 
-/// Describe and prepare one cell: everything a sector costs except the
-/// spawning. PURE, so [`crate::SectorJob`] can run it on a worker.
+/// Refuse a planetoid or ship whose feature is not a listed sphere of `layer`
+/// that `coord` owns.
+fn owned_feature(
+    features: &BTreeMap<&str, &FeatureSphere>,
+    coord: SectorCoord,
+    id: &str,
+    feature: &str,
+    layer: FeatureLayer,
+) -> Result<(), SectorFault> {
+    match features.get(feature) {
+        Some(sphere) if sphere.layer == layer && sphere.owner == coord => Ok(()),
+        Some(sphere) => Err(SectorFault::Manifest {
+            id: id.to_string(),
+            field: "feature",
+            value: format!(
+                "'{feature}', a {} sphere owned by {}, not a {layer} sphere owned by {coord}",
+                sphere.layer, sphere.owner
+            ),
+        }),
+        None => Err(SectorFault::Manifest {
+            id: id.to_string(),
+            field: "feature",
+            value: format!("'{feature}', which the manifest does not list"),
+        }),
+    }
+}
+
+/// Refuse a body that does not stand wholly inside its own cell, or that
+/// crowds a body already checked.
+///
+/// The whole clearance sphere, not only the centre: [`PLACEMENT_INSET`] is how
+/// a generator keeps a body inside its cell, and this is the fact the inset
+/// exists for. A body across a face would be retired with the neighbour.
+fn stand_inside(
+    input: SectorGenerationInput,
+    standing: &mut Vec<Occupied>,
+    id: &str,
+    position: Meters3,
+    clearance: Meters,
+) -> Result<(), SectorFault> {
+    if !position_is_finite(position) {
+        return Err(SectorFault::InvalidGeometry { id: id.to_string() });
+    }
+    let edge = input.geometry.sector_edge;
+    let offset = (position.get() - input.coord.centre(edge).get()).abs();
+    if SectorCoord::containing(position, edge) != input.coord
+        || offset.max_element() + clearance.get() > edge.get() * 0.5
+    {
+        let at = position.get();
+        return Err(SectorFault::Manifest {
+            id: id.to_string(),
+            field: "position",
+            value: format!(
+                "{:.0} {:.0} {:.0} m with {} m of clearance, not inside {}",
+                at.x,
+                at.y,
+                at.z,
+                clearance.get(),
+                input.coord
+            ),
+        });
+    }
+    if let Some(other) = standing
+        .iter()
+        .find(|other| !bodies_clear(other.centre, other.clearance, position, clearance))
+    {
+        let at = other.centre.get();
+        return Err(SectorFault::Manifest {
+            id: id.to_string(),
+            field: "position",
+            value: format!(
+                "closer than {} m of margin to the body at {:.0} {:.0} {:.0} m",
+                CLEARANCE_MARGIN.get(),
+                at.x,
+                at.y,
+                at.z
+            ),
+        });
+    }
+    standing.push(Occupied {
+        centre: position,
+        clearance,
+    });
+    Ok(())
+}
+
+/// Describe one cell and refuse the answer unless the world can materialize
+/// it. PURE: the same config and coordinate give the same description, on any
+/// call, in any order, with nothing live.
+///
+/// # Errors
+///
+/// Whatever [`WorldConfig::validate`], the generator or [`validate_manifest`]
+/// refuses, and [`SectorFault::InvalidGeometry`] for a cell whose centre has
+/// no finite position in meters - refused before [`SectorGenerator::generate`]
+/// is asked, so no generator places around a centre that cannot exist. All
+/// are refusals before anything spawns.
+pub fn generate_sector<G: SectorGenerator>(
+    config: &WorldConfig<G>,
+    coord: SectorCoord,
+) -> Result<SectorDescription, SectorFault> {
+    config.validate()?;
+    if !position_is_finite(coord.centre(config.sector_edge)) {
+        return Err(SectorFault::InvalidGeometry { id: coord.slug() });
+    }
+    let input = config.input(coord);
+    validate_manifest(input, config.generator.generate(input)?)
+}
+
+/// Describe, check and prepare one cell: everything a sector costs except
+/// the spawning. PURE, so [`crate::SectorJob`] can run it on a worker.
+///
+/// ONE implementation for every generator: a generator describes, and the
+/// preparation of a checked description is the same work whoever wrote it.
 ///
 /// Takes the config by value because a job answers the question it was asked:
 /// a dial changed mid-flight must not silently re-aim work already in the air.
@@ -1265,24 +1257,24 @@ pub fn generate_sector(
 ///
 /// Whatever [`generate_sector`] refuses. A sector that cannot be described is
 /// never meshed, let alone spawned.
-pub fn prepare_sector(
-    config: WorldConfig,
+pub fn prepare_sector<G: SectorGenerator>(
+    config: WorldConfig<G>,
     coord: SectorCoord,
 ) -> Result<PreparedSector, SectorFault> {
     let description = generate_sector(&config, coord)?;
-    let asteroid_geometry = description
+    let asteroids = description
         .asteroids
         .iter()
         .map(|body| prepare_asteroid_geometry(body.seed, body.radius))
         .collect();
-    let planet_surfaces = description
+    let planets = description
         .planets
         .iter()
         .map(|planet| prepare_planet(planet.config.clone()))
         .collect();
     Ok(PreparedSector {
         description,
-        asteroid_geometry,
-        planet_surfaces,
+        asteroids,
+        planets,
     })
 }

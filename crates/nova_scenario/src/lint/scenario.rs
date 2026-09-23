@@ -1290,83 +1290,44 @@ fn check_spawned_arrival_standoff(
 
 /// Every authored figure on a planet has to be one the generator can use.
 ///
-/// A planet's radius is its REAL size, and the whole body - the mesh range,
-/// the derived body radius, the well clamp, the sphere of influence, an orbit
-/// ring - is measured off it. A zero or negative radius does not draw a small
-/// planet; it divides the authored relief by nothing. The generator will not
-/// paper over any of this, so the lint has to name the file first.
+/// [`PlanetConfig::validate`] owns the rules; this names the file and says how
+/// to fix the first field it refuses.
 fn check_planet(config: &ScenarioObjectConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
     let ScenarioObjectKind::Planet(planet) = &config.kind else {
         return;
     };
+    let Err(PlanetConfigFault { field, value }) = planet.validate() else {
+        return;
+    };
     let id = &config.base.id;
-
-    if !planet.radius.0.is_finite() || planet.radius.0 <= 0.0 {
-        issues.push(LintIssue::error(
-            scenario,
-            format!(
-                "planet '{id}' needs a positive finite mean radius in meters, got {}",
-                planet.radius.0
-            ),
-        ));
-    }
-    if !planet.invulnerable {
-        issues.push(LintIssue::error(
-            scenario,
-            format!(
-                "planet '{id}' authors `invulnerable: false`, and there is no destructible \
-                 planet: the body would take no damage marks, emit no collision events and \
-                 never fire OnDestroyed. Author `invulnerable: true`"
-            ),
-        ));
-    }
-    if let Some(relief) = planet.relief {
-        if !relief.0.is_finite() || relief.0 <= 0.0 || relief.0 >= planet.radius.0 {
-            issues.push(LintIssue::error(
-                scenario,
-                format!(
-                    "planet '{id}' authors {} m of relief against a {} m radius; relief is \
-                     a height above the mean surface, so it must be positive and smaller \
-                     than the radius",
-                    relief.0, planet.radius.0
-                ),
-            ));
+    let message = match field {
+        "radius" => {
+            format!("planet '{id}' needs a positive finite mean radius in meters, got {value}")
         }
-    }
-    if let Some(sea_level) = planet.sea_level {
-        if !(0.0..=1.0).contains(&sea_level) {
-            issues.push(LintIssue::error(
-                scenario,
-                format!(
-                    "planet '{id}' authors a sea level of {sea_level}; it is a fraction of \
-                     the height range, so it runs 0 to 1"
-                ),
-            ));
-        }
-    }
-    if let Some(mass) = planet.mass {
-        if !mass.is_finite() || mass <= 0.0 {
-            issues.push(LintIssue::error(
-                scenario,
-                format!(
-                    "planet '{id}' authors a mass of {mass}; a gravity well needs a \
-                     positive one"
-                ),
-            ));
-        }
-    }
-    if let Some(signature) = planet.lock_signature {
-        if !signature.0.is_finite() || signature.0 <= 0.0 {
-            issues.push(LintIssue::error(
-                scenario,
-                format!(
-                    "planet '{id}' authors a lock signature of {} m; drop the override to \
-                     read at the mean radius instead",
-                    signature.0
-                ),
-            ));
-        }
-    }
+        "invulnerable" => format!(
+            "planet '{id}' authors `invulnerable: false`, and there is no destructible \
+             planet: the body would take no damage marks, emit no collision events and \
+             never fire OnDestroyed. Author `invulnerable: true`"
+        ),
+        "relief" => format!(
+            "planet '{id}' authors a relief of {value}; relief is a height above the mean \
+             surface, so it must be positive and smaller than the radius"
+        ),
+        "sea_level" => format!(
+            "planet '{id}' authors a sea level of {value}; it is a fraction of the height \
+             range, so it runs 0 to 1"
+        ),
+        "mass" => format!(
+            "planet '{id}' authors a mass of {value}; a gravity well needs a positive finite \
+             one"
+        ),
+        "lock_signature" => format!(
+            "planet '{id}' authors a lock signature of {value}; drop the override to read at \
+             the mean radius instead"
+        ),
+        _ => format!("planet '{id}' authors {field} {value}, which no planet can be built from"),
+    };
+    issues.push(LintIssue::error(scenario, message));
 }
 
 /// A section-addressed weapon action must name a section the ship carries, of

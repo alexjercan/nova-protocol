@@ -13,9 +13,11 @@
 //! It runs the FEATURED generator, not the uniform one: a cell filled from
 //! three independent global noise fields is the harder claim, because two
 //! neighbouring cells now have to agree about a sphere neither of them owns,
-//! and a cell has to place a planetoid and a moored hull beside its rocks
+//! and a cell has to place a planetoid and a derelict ship beside its rocks
 //! without any of them intersecting. The uniform generator is still asserted
 //! where it is the sharper instrument - the visit-order claim compares both.
+//! Each is its own `WorldConfig<G>` type, and the app installs only the
+//! featured one: the uniform world is described here, never streamed.
 //!
 //! The observer is the scenario camera, which is also what a hand-run flies:
 //! the range poses it, the playable `world_features` example lets a human fly
@@ -29,10 +31,10 @@
 //! | 4 | `outcome: one feature sphere is one sphere from every cell that sees it` | every sphere two or more cells can see carries the same id, owner, centre, radius and strength in each of them, and exactly one cell owns it |
 //! | 5 | `outcome: same-layer feature spheres never overlap` | no two accepted spheres of one layer claim the same ground anywhere in the window |
 //! | 6 | `outcome: independent feature layers may overlap` | spheres of different layers do overlap, so blended places exist rather than a mosaic of single-purpose tiles |
-//! | 7 | `outcome: every physical object stands clear inside its own sector` | every rock, planetoid and hull is inside its owning cell's inset and clears every other object in that cell by the placement margin |
+//! | 7 | `outcome: every physical object stands clear inside its own sector` | every rock, planetoid and ship is inside its owning cell's inset and clears every other object in that cell by the placement margin |
 //! | 8 | `outcome: arming the stream materializes the whole desired set` | exactly the desired 5x5x5 set is live, one root each, every root scenario-scoped and owning exactly the objects its manifest names |
 //! | 9 | `outcome: every sector is requested and prepared before it is materialized` | arming started 125 jobs, never more at once than the task pool has threads, preparation overlapped where the pool has more than one, all 125 came back, all 125 were spawned from a prepared result, and none was discarded |
-//! | 10 | `outcome: a featured sector owns real planetoids and inert neutral hulls` | every planetoid the field placed is a real `PlanetMarker` body and every moored hull a `SpaceshipRootMarker` with no driver and neutral allegiance, each a child of the cell that owns its sphere |
+//! | 10 | `outcome: a featured sector owns real planetoids and inert derelict ships` | every planetoid the field placed is a real `PlanetMarker` body and every derelict a `SpaceshipRootMarker` with no driver and neutral allegiance, each a child of the cell that owns its sphere |
 //! | 11 | `outcome: crossing one boundary retains the shared slab and swaps a face` | after a +X crossing 100 roots are the SAME entities, 25 are gone and 25 are new |
 //! | 12 | `outcome: the return trip leaves no duplicate root` | coming back gives the original 125 cells, one root each, and the returned sectors hold the objects their manifests name |
 //! | 13 | `outcome: work for an undesired sector never materializes` | a job and a prepared result for cells outside the desired set are both discarded, nothing is spawned from them, and the live set does not move |
@@ -63,6 +65,7 @@ use std::{
 
 use bevy::prelude::*;
 use clap::Parser;
+use nova_authoring::prelude::NovaLayeredWorld;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 #[cfg(feature = "debug")]
@@ -177,7 +180,11 @@ const REPLACED_WORK: usize = 2;
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new()
-        .with_game_plugins((range_plugin, world_observer_plugin, NovaWorldPlugin))
+        .with_game_plugins((
+            range_plugin,
+            world_observer_plugin,
+            NovaWorldPlugin::<NovaLayeredWorld>::default(),
+        ))
         .build();
 
     #[cfg(feature = "debug")]
@@ -237,13 +244,16 @@ fn scenario_objects(world: &World) -> usize {
 
 /// Describe one cell, or fail the run naming the fault.
 #[cfg(feature = "debug")]
-fn describe(coord: SectorCoord, config: &WorldConfig) -> SectorDescription {
+fn describe<G: SectorGenerator>(coord: SectorCoord, config: &WorldConfig<G>) -> SectorDescription {
     generate_sector(config, coord).unwrap_or_else(|fault| panic!("world sectors: {fault}"))
 }
 
 /// Every cell of the armed window, described.
 #[cfg(feature = "debug")]
-fn describe_window(centre: SectorCoord, config: &WorldConfig) -> Vec<SectorDescription> {
+fn describe_window<G: SectorGenerator>(
+    centre: SectorCoord,
+    config: &WorldConfig<G>,
+) -> Vec<SectorDescription> {
     desired_sectors(centre, config.active_radius)
         .into_iter()
         .map(|coord| describe(coord, config))
@@ -348,7 +358,7 @@ fn sector_work_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync>
 /// next.
 #[cfg(feature = "debug")]
 fn hand_in_work(world: &mut World, job_cell: SectorCoord, ready_cell: SectorCoord) -> Entity {
-    let config = world.resource::<WorldConfig>().clone();
+    let config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
     let job = world
         .spawn((
             Name::new(format!("Sector Job {job_cell}")),
@@ -596,52 +606,8 @@ fn report_empty_bootstrap(world: &mut World) {
 /// single-generator check.
 #[cfg(feature = "debug")]
 fn report_visit_order(world: &mut World) {
-    let mut compared = 0;
-    for config in [uniform_world_config(), featured_world_config()] {
-        let centre = match config.generation {
-            SectorGeneration::UniformAsteroids(_) => SectorCoord::ORIGIN,
-            SectorGeneration::LayeredFeatures(_) => FEATURE_HOME,
-        };
-        let cells: Vec<SectorCoord> = desired_sectors(centre, config.active_radius)
-            .into_iter()
-            .collect();
-
-        let describe_all = |order: &[SectorCoord]| {
-            let mut described: BTreeMap<SectorCoord, String> = BTreeMap::new();
-            for coord in order {
-                described.insert(*coord, describe(*coord, &config).canonical());
-            }
-            described
-        };
-
-        let forward = describe_all(&cells);
-        let backward = describe_all(&cells.iter().rev().copied().collect::<Vec<_>>());
-        // A third walk that is neither the order the set iterates in nor its
-        // reverse: two coprime strides visit every cell in an order no
-        // collection here produces on its own.
-        let strided: Vec<SectorCoord> = (0..cells.len())
-            .map(|step| cells[step * 7 % cells.len()])
-            .collect();
-        let strided = describe_all(&strided);
-
-        assert_eq!(
-            forward.len(),
-            DESIRED_ROOTS,
-            "world sectors: the comparison must cover the whole desired set"
-        );
-        assert_eq!(
-            forward, backward,
-            "world sectors: reversing the walk must not change a single sector under \
-             {:?}",
-            config.generation
-        );
-        assert_eq!(
-            forward, strided,
-            "world sectors: striding the walk must not change a single sector under {:?}",
-            config.generation
-        );
-        compared += forward.len();
-    }
+    let compared = assert_visit_order(&uniform_world_config(), SectorCoord::ORIGIN)
+        + assert_visit_order(&featured_world_config(), FEATURE_HOME);
 
     nova_probe::probe_marker(
         world,
@@ -677,6 +643,53 @@ fn report_visit_order(world: &mut World) {
     info!("world sectors: invalid generated geometry refused before spawn");
 }
 
+/// Describe the window around `centre` forward, backward and by stride, fail
+/// the run unless all three walks give the same manifests, and return how
+/// many cells were compared.
+///
+/// Generic, and called once per generator: each generator is its own
+/// `WorldConfig<G>` type, so one array of both configs cannot exist.
+#[cfg(feature = "debug")]
+fn assert_visit_order<G: SectorGenerator>(config: &WorldConfig<G>, centre: SectorCoord) -> usize {
+    let generator = std::any::type_name::<G>();
+    let cells: Vec<SectorCoord> = desired_sectors(centre, config.active_radius)
+        .into_iter()
+        .collect();
+
+    let describe_all = |order: &[SectorCoord]| {
+        let mut described: BTreeMap<SectorCoord, String> = BTreeMap::new();
+        for coord in order {
+            described.insert(*coord, describe(*coord, config).canonical());
+        }
+        described
+    };
+
+    let forward = describe_all(&cells);
+    let backward = describe_all(&cells.iter().rev().copied().collect::<Vec<_>>());
+    // A third walk that is neither the order the set iterates in nor its
+    // reverse: two coprime strides visit every cell in an order no collection
+    // here produces on its own.
+    let strided: Vec<SectorCoord> = (0..cells.len())
+        .map(|step| cells[step * 7 % cells.len()])
+        .collect();
+    let strided = describe_all(&strided);
+
+    assert_eq!(
+        forward.len(),
+        DESIRED_ROOTS,
+        "world sectors: the comparison must cover the whole desired set"
+    );
+    assert_eq!(
+        forward, backward,
+        "world sectors: reversing the walk must not change a single sector under {generator}"
+    );
+    assert_eq!(
+        forward, strided,
+        "world sectors: striding the walk must not change a single sector under {generator}"
+    );
+    forward.len()
+}
+
 /// Claims 4, 5 and 6: the feature field is one world, thinned within a layer
 /// and free across layers.
 #[cfg(feature = "debug")]
@@ -688,10 +701,10 @@ fn report_feature_field(world: &mut World) {
     // handed out, so a disagreement names the sphere rather than the cell.
     let mut seen: BTreeMap<String, Vec<(SectorCoord, FeatureSphere)>> = BTreeMap::new();
     for description in &described {
-        for sphere in &description.features {
+        for sphere in description.features() {
             seen.entry(sphere.id.clone())
                 .or_default()
-                .push((description.coord, sphere.clone()));
+                .push((description.coord(), sphere.clone()));
         }
     }
     assert!(
@@ -785,13 +798,13 @@ fn report_feature_field(world: &mut World) {
         serde_json::json!({ "overlapping_pairs": crossing_pairs }),
     );
     info!(
-        "world sectors: {} spheres ({} asteroid, {} planet, {} anchorage), {shared} of them \
+        "world sectors: {} spheres ({} asteroid, {} planet, {} derelict), {shared} of them \
          seen from more than one cell; {same_layer_pairs} same-layer pairs all clear, \
          {crossing_pairs} cross-layer pairs overlap",
         spheres.len(),
         owned[FeatureLayer::Asteroid.index()],
         owned[FeatureLayer::Planet.index()],
-        owned[FeatureLayer::Anchorage.index()],
+        owned[FeatureLayer::Derelict.index()],
     );
 }
 
@@ -810,9 +823,9 @@ fn report_clearance(world: &mut World) {
     let mut objects = 0;
     let mut pairs = 0;
     for description in &described {
-        let cell_centre = description.coord.centre(config.sector_edge);
+        let cell_centre = description.coord().centre(config.sector_edge);
         let placed: Vec<(String, Meters3, Meters)> = description
-            .asteroids
+            .asteroids()
             .iter()
             .map(|body| {
                 (
@@ -823,7 +836,7 @@ fn report_clearance(world: &mut World) {
                     Meters(body.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
                 )
             })
-            .chain(description.planets.iter().map(|planet| {
+            .chain(description.planets().iter().map(|planet| {
                 (
                     planet.id.clone(),
                     planet.position,
@@ -832,9 +845,9 @@ fn report_clearance(world: &mut World) {
             }))
             .chain(
                 description
-                    .anchorages
+                    .ships()
                     .iter()
-                    .map(|hull| (hull.id.clone(), hull.position, MOORED_HULL_CLEARANCE)),
+                    .map(|ship| (ship.id.clone(), ship.position, SECTOR_SHIP_CLEARANCE)),
             )
             .collect();
         objects += placed.len();
@@ -846,7 +859,7 @@ fn report_clearance(world: &mut World) {
                 "world sectors: '{id}' stands {:.0} m off the centre of {}, past the \
                  {inset:.0} m inset - it would be half in the neighbour",
                 offset.max_element(),
-                description.coord
+                description.coord()
             );
         }
         for (index, (id, position, clearance)) in placed.iter().enumerate() {
@@ -858,7 +871,7 @@ fn report_clearance(world: &mut World) {
                     gap + CLEARANCE_SLACK.get() >= CLEARANCE_MARGIN.get(),
                     "world sectors: '{id}' and '{other_id}' in {} keep only {gap:.0} m \
                      between their surfaces, under the {:.0} m the placement rule promises",
-                    description.coord,
+                    description.coord(),
                     CLEARANCE_MARGIN.get()
                 );
                 pairs += 1;
@@ -887,7 +900,7 @@ fn report_clearance(world: &mut World) {
 /// exactly what its manifest names.
 #[cfg(feature = "debug")]
 fn report_initial_set(world: &mut World) {
-    let config = world.resource::<WorldConfig>().clone();
+    let config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
     let live = live_roots(world);
     assert_eq!(
         live.len(),
@@ -1006,24 +1019,24 @@ fn report_preparation(world: &mut World) {
     );
 }
 
-/// Claim 10: a planet sphere really made a world, and an anchorage sphere
-/// really made hulls nobody is flying.
+/// Claim 10: a planet sphere really made a world, and a derelict sphere
+/// really made ships nobody is flying.
 ///
 /// The counts alone would pass on a sector that spawned rocks named
 /// `..._planet_0`. What is read here is the COMPONENTS the game's own object
 /// factories insert: `PlanetMarker` for a world, `SpaceshipRootMarker` with
-/// `SpaceshipController::None` and `Allegiance::Neutral` for a moored hull -
+/// `SpaceshipController::None` and `Allegiance::Neutral` for a derelict -
 /// and each of them under the root of the cell whose sphere placed it.
 #[cfg(feature = "debug")]
 fn report_places(world: &mut World) {
-    let config = world.resource::<WorldConfig>().clone();
+    let config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
     let live = live_roots(world);
 
     let mut planets = 0;
-    let mut hulls = 0;
+    let mut ships = 0;
     for (coord, root) in &live {
         let description = describe(*coord, &config);
-        if description.planets.is_empty() && description.anchorages.is_empty() {
+        if description.planets().is_empty() && description.ships().is_empty() {
             continue;
         }
         let children: Vec<Entity> = world
@@ -1038,7 +1051,7 @@ fn report_places(world: &mut World) {
             })
             .collect();
 
-        for planet in &description.planets {
+        for planet in description.planets() {
             let entity = *by_id.get(&planet.id).unwrap_or_else(|| {
                 panic!(
                     "world sectors: {coord} owns planet sphere '{}' but spawned no '{}'",
@@ -1058,17 +1071,17 @@ fn report_places(world: &mut World) {
             planets += 1;
         }
 
-        for hull in &description.anchorages {
-            let entity = *by_id.get(&hull.id).unwrap_or_else(|| {
+        for ship in description.ships() {
+            let entity = *by_id.get(&ship.id).unwrap_or_else(|| {
                 panic!(
-                    "world sectors: {coord} owns anchorage sphere '{}' but spawned no '{}'",
-                    hull.feature, hull.id
+                    "world sectors: {coord} owns derelict sphere '{}' but spawned no '{}'",
+                    ship.feature, ship.id
                 )
             });
             assert!(
                 world.get::<SpaceshipRootMarker>(entity).is_some(),
                 "world sectors: '{}' must be a real ship root",
-                hull.id
+                ship.id
             );
             assert!(
                 matches!(
@@ -1076,15 +1089,15 @@ fn report_places(world: &mut World) {
                     Some(SpaceshipController::None)
                 ),
                 "world sectors: '{}' must have nobody aboard",
-                hull.id
+                ship.id
             );
             assert_eq!(
                 world.get::<Allegiance>(entity).copied(),
                 Some(Allegiance::Neutral),
                 "world sectors: '{}' must be neutral, or the AI will shoot the furniture",
-                hull.id
+                ship.id
             );
-            hulls += 1;
+            ships += 1;
         }
     }
 
@@ -1094,16 +1107,16 @@ fn report_places(world: &mut World) {
          or this claim proves nothing"
     );
     assert!(
-        hulls > 0,
-        "world sectors: the window around {FEATURE_HOME} must own at least one moored hull, \
+        ships > 0,
+        "world sectors: the window around {FEATURE_HOME} must own at least one derelict, \
          or this claim proves nothing"
     );
     nova_probe::probe_marker(
         world,
-        "outcome: a featured sector owns real planetoids and inert neutral hulls",
-        serde_json::json!({ "planetoids": planets, "hulls": hulls }),
+        "outcome: a featured sector owns real planetoids and inert derelict ships",
+        serde_json::json!({ "planetoids": planets, "ships": ships }),
     );
-    info!("world sectors: {planets} planetoid(s) and {hulls} inert neutral hull(s) are live");
+    info!("world sectors: {planets} planetoid(s) and {ships} inert derelict ship(s) are live");
 }
 
 /// Claim 11: a crossing moves the window, it does not rebuild it.
@@ -1165,7 +1178,7 @@ fn report_crossing(world: &mut World) {
 /// Claim 12: coming back is the same place, not a second copy of it.
 #[cfg(feature = "debug")]
 fn report_return(world: &mut World) {
-    let config = world.resource::<WorldConfig>().clone();
+    let config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
     let live = live_roots(world);
     assert_eq!(
         live.keys().copied().collect::<BTreeSet<_>>(),
@@ -1225,7 +1238,7 @@ fn report_return(world: &mut World) {
 fn report_abandoned_work(world: &mut World) {
     let baseline = world.resource::<AbandonBaseline>().0;
     let stats = *world.resource::<SectorJobStats>();
-    let config = world.resource::<WorldConfig>().clone();
+    let config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
 
     assert_eq!(
         stats.materialized, baseline.materialized,
@@ -1285,7 +1298,7 @@ fn report_world_replacement(world: &mut World) {
     let old_job = replaced.job;
 
     let old_config = featured_world_config();
-    let new_config = world.resource::<WorldConfig>().clone();
+    let new_config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
     assert_eq!(
         new_config.seed, REPLACEMENT_SEED,
         "world sectors: the replacement beat must leave the new config in place"
@@ -1335,7 +1348,7 @@ fn report_world_replacement(world: &mut World) {
         .resource::<ReadySectors>()
         .0
         .get(&REPLACED_READY_CELL)
-        .map(|prepared| prepared.description.canonical());
+        .map(|prepared| prepared.description().canonical());
     if let Some(waiting) = waiting {
         assert_eq!(
             waiting,

@@ -30,7 +30,7 @@ pub mod prelude {
         asteroid_scenario_object, asteroid_scenario_object_prepared, asteroid_seed_from_id,
         prepare_asteroid_geometry, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
         AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSeed,
-        AsteroidTexture, PlanetHeight, PlanetHeightNoise, PreparedAsteroidGeometry,
+        AsteroidTexture, PlanetHeight, PlanetHeightNoise, PreparedAsteroid,
         ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
     };
 }
@@ -167,6 +167,11 @@ fn rock_lock_signature(body_radius: f32) -> f32 {
 /// The world-free half of an asteroid: its meshed silhouette, the hull
 /// collided against it, and the geometric extent derived from it.
 ///
+/// GEOMETRY only. The [`AsteroidConfig`] is not carried: the caller passes it
+/// beside this value at spawn, where [`asteroid_scenario_object_prepared`]
+/// refuses a pair prepared for another seed or radius. A prepared planet is
+/// the other shape - it carries its config with its visual.
+///
 /// This is where a rock's spawn cost lives. It needs no `World`, no assets and
 /// no commands, so a caller that cannot afford it inside a frame - a streamed
 /// world bringing up a whole sector - can produce one on
@@ -179,7 +184,7 @@ fn rock_lock_signature(body_radius: f32) -> f32 {
 /// question: a rock given someone else's hull would be collided against a
 /// shape nobody can see.
 #[derive(Debug)]
-pub struct PreparedAsteroidGeometry {
+pub struct PreparedAsteroid {
     /// The silhouette seed this geometry answers for.
     seed: u32,
     /// The nominal radius this geometry answers for.
@@ -215,7 +220,7 @@ pub struct PreparedAsteroidGeometry {
 /// not. Trimesh against trimesh is the most expensive manifold parry can be
 /// asked for - over the editor sandbox's field the same 52 never-touching
 /// pairs cost 21.9 ms a step as trimeshes and 0.10 ms as hulls.
-pub fn prepare_asteroid_geometry(seed: u32, radius: Meters) -> PreparedAsteroidGeometry {
+pub fn prepare_asteroid_geometry(seed: u32, radius: Meters) -> PreparedAsteroid {
     let started = Instant::now();
     // Engine boundary: the rock is meshed and collided in world units.
     let mesh = pristine_rock_mesh(seed, radius.to_engine());
@@ -232,7 +237,7 @@ pub fn prepare_asteroid_geometry(seed: u32, radius: Meters) -> PreparedAsteroidG
         radius.get(),
         started.elapsed().as_secs_f32() * 1000.0
     );
-    PreparedAsteroidGeometry {
+    PreparedAsteroid {
         seed,
         radius,
         mesh,
@@ -283,7 +288,7 @@ pub fn asteroid_scenario_object_prepared(
     entity: &mut EntityCommands,
     config: AsteroidConfig,
     seed: u32,
-    geometry: PreparedAsteroidGeometry,
+    geometry: PreparedAsteroid,
 ) {
     trace!(
         "asteroid_scenario_object_prepared: config {:?} seed {seed}",
@@ -298,7 +303,7 @@ pub fn asteroid_scenario_object_prepared(
         geometry.radius.get(),
         config.radius.get()
     );
-    let PreparedAsteroidGeometry {
+    let PreparedAsteroid {
         mesh,
         collider,
         unit_extent,

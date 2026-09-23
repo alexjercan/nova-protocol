@@ -104,11 +104,11 @@ it is not a way around the first: it may hold a content input or a contract
 that several examples have to agree about, never a range's own wiring or its
 claims. `../shared/dev_fixtures/mod.rs` (the ship designs),
 `../screenshots/shared/kit.rs` (the photo kit) and
-`../shared/world_fixture/mod.rs` (the world seed, its two configs and the
-`WorldObserver` marking `nova_world` refuses without) are the ones that exist
-today, not a closed list. The test is whether copying it means
-two copies that can silently disagree - a ship design or a streamed world's
-seed - or just more lines that read fine apart.
+`../shared/world_fixture/mod.rs` (the world seed, its two configs, the uniform
+baseline generator and the `WorldObserver` marking `nova_world` refuses
+without) are the ones that exist today, not a closed list. The test is whether
+copying it means two copies that can silently disagree - a ship design or a
+streamed world's seed - or just more lines that read fine apart.
 
 ## Adding one
 

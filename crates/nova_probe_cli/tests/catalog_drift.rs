@@ -887,7 +887,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "every physical object stands clear inside its own sector",
             "arming the stream materializes the whole desired set",
             "every sector is requested and prepared before it is materialized",
-            "a featured sector owns real planetoids and inert neutral hulls",
+            "a featured sector owns real planetoids and inert derelict ships",
             "crossing one boundary retains the shared slab and swaps a face",
             "the return trip leaves no duplicate root",
             "work for an undesired sector never materializes",

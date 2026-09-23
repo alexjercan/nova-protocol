@@ -11,30 +11,38 @@
 //!
 //! # What a cell is FILLED with
 //!
-//! [`SectorGeneration`] is the one thing two worlds can disagree about; the
-//! window, the edge and the whole job lifetime are shared.
+//! A [`SectorGenerator`] is the one thing two worlds can disagree about; the
+//! window, the edge and the whole job lifetime are shared. The generator is a
+//! TYPE, named by [`WorldConfig<G>`] and [`NovaWorldPlugin<G>`], and an app
+//! installs exactly one: a world of another generator is another app, not a
+//! value swapped at runtime.
 //!
-//! - [`SectorGeneration::UniformAsteroids`] fills every cell the same way, out
-//!   of the cell's own seed. It is the streaming baseline: nothing about the
-//!   world can explain away a sector that failed to come up.
-//! - [`SectorGeneration::LayeredFeatures`] fills a cell from a world that
-//!   exists ABOVE it. Three independent global noise fields gate candidate
-//!   [`FeatureSphere`]s on a coarse lattice; the spheres are pure data,
-//!   addressed by lattice node rather than by sector, and a cell asks which of
-//!   them reach it. That is what makes two neighbouring cells agree about a
-//!   belt that crosses both of them without either one owning it.
+//! This crate owns the mechanisms and none of the content. The feature field
+//! is here: three independent global noise fields gate candidate
+//! [`FeatureSphere`]s on a coarse lattice, the spheres are pure data addressed
+//! by lattice node rather than by sector, and a cell asks which of them reach
+//! it ([`sector_features`]) - which is what makes two neighbouring cells agree
+//! about a belt that crosses both of them without either one owning it. What
+//! a cell holds, and where each object stands in it, is the generator's
+//! policy: its placement, retries, id bookkeeping and rock draw are its own.
+//! The base game's generator lives in `nova_authoring`, and the uniform
+//! streaming baseline lives with the examples. The shared primitives are
+//! stateless: the cell's seeded streams, [`sector_id`], the edge floor,
+//! [`bodies_clear`] and the spacing constants the check below holds every
+//! generator to.
 //!
-//! Neither generator has a hidden table: every content id a cell can draw is
-//! named in the config. Where the id is CHECKED differs, and the difference is
-//! what `validate` can reach. [`WorldConfig::validate`] is pure, because a
-//! worker calls it before describing a cell, so it settles the ids that have a
-//! pure answer - an asteroid kind against the shipped kind table, a planet
-//! archetype against its enum, and neither list may be empty. The moored
-//! hull's design is a key into the ship catalog, which is a Bevy resource, so
-//! `validate` can only refuse a blank one. The catalog lookup happens on the
-//! main thread in [`materialize_sector`], where an id the game does not ship
-//! is a [`SectorFault::UnknownShip`] panic - loud, and before the cell's
-//! entities exist, but at materialization and not at arming.
+//! A generator's answer is not trusted. It returns a [`SectorManifest`], and
+//! [`validate_manifest`] is the only way to turn one into the
+//! [`SectorDescription`] preparation and materialization accept: it checks the
+//! requested cell, finite geometry, unique ids the cell owns, bodies wholly
+//! inside the cell and clear of each other, shipped asteroid kinds, the
+//! measured rock cap, and feature references the cell owns - before a worker
+//! prepares anything. A ship's design is a key
+//! into the ship catalog, which is a Bevy resource, so the check can only
+//! refuse a blank one. The catalog lookup happens on the main thread in
+//! [`materialize_sector`], where an id the game does not ship is a
+//! [`SectorFault::UnknownShip`] panic - loud, and before the cell's entities
+//! exist, but at materialization and not at arming.
 //!
 //! # The job lifetime
 //!
@@ -86,7 +94,7 @@
 //!   `ScenarioScopedMarker`, so `UnloadScenario` is the final sweep and cannot
 //!   leave a sector behind.
 //! - [`SectorRoot`] owns one sector. Retiring it despawns that sector's
-//!   bodies, planetoids and moored hulls and nothing else. A feature sphere is
+//!   bodies, planetoids and ships and nothing else. A feature sphere is
 //!   owned by exactly ONE cell ([`FeatureSphere::owner`], the cell its centre
 //!   falls in) even where the sphere reaches across a dozen of them, so a
 //!   planetoid is spawned once and retired once.
@@ -107,7 +115,7 @@
 //! config it was STARTED with, so a swap is a third way the work on hand stops
 //! belonging to the world that asked for it. Nothing downstream could catch
 //! it: a root, a running job and a prepared payload are all keyed by
-//! coordinate alone, so an old seed, edge or content table would materialize
+//! coordinate alone, so an old seed, edge or generator value would materialize
 //! into the new world looking exactly like the new world's own cell.
 //!
 //! So a swap is a CLEAR SESSION, not a merge. On the frame the resource is
@@ -139,11 +147,12 @@
 //! ```
 #![warn(missing_docs)]
 
+use std::{any::type_name, fmt::Debug, marker::PhantomData};
+
 use bevy::{ecs::change_detection::CheckChangeTicks, prelude::*};
 use nova_events::prelude::{Meters, Meters3};
-use nova_scenario::prelude::{
-    is_asteroid_kind, scenario_is_live, CurrentScenario, PlanetType, ShipDesignId,
-};
+use nova_gameplay::prelude::{Fnv32, SeedStream};
+use nova_scenario::prelude::{scenario_is_live, CurrentScenario};
 
 mod generation;
 mod streaming;
@@ -153,10 +162,11 @@ mod tests;
 
 pub use crate::{
     generation::{
-        generate_sector, prepare_sector, sector_features, FeatureFields, FeatureLayer,
-        FeatureSphere, PreparedSector, SectorAnchorage, SectorAsteroid, SectorDescription,
-        SectorPlanet, CLEARANCE_MARGIN, FEATURE_HALO, FEATURE_LATTICE, FEATURE_WAVELENGTH,
-        MOORED_HULL_CLEARANCE, SECTOR_ASTEROIDS_MAX,
+        bodies_clear, generate_sector, prepare_sector, sector_features, sector_id,
+        validate_feature_geometry, validate_manifest, FeatureFields, FeatureLayer, FeatureSphere,
+        PreparedSector, SectorAsteroid, SectorDescription, SectorManifest, SectorPlanet,
+        SectorShip, CLEARANCE_MARGIN, FEATURE_HALO, FEATURE_LATTICE, FEATURE_WAVELENGTH,
+        SECTOR_ASTEROIDS_MAX, SECTOR_SHIP_CLEARANCE,
     },
     streaming::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
@@ -167,15 +177,17 @@ pub use crate::{
 };
 
 /// Glob-import surface: `use nova_world::prelude::*` brings the config, the
-/// generator, the streaming components and the plugin into scope.
+/// generator interface and the shared primitives it draws on, the streaming components
+/// and the plugin into scope.
 pub mod prelude {
     pub use super::{
-        generate_sector, prepare_sector, sector_features, FeatureFields, FeatureLayer,
-        FeatureSphere, LayeredFeatureConfig, NovaWorldPlugin, NovaWorldSystems, PreparedSector,
-        SectorAnchorage, SectorAsteroid, SectorCoord, SectorDescription, SectorFault,
-        SectorGeneration, SectorPlanet, UniformAsteroidConfig, WorldConfig,
-        ACTIVE_WINDOW_SECTORS_MAX, CLEARANCE_MARGIN, FEATURE_HALO, FEATURE_LATTICE,
-        FEATURE_WAVELENGTH, MOORED_HULL_CLEARANCE, PLACEMENT_INSET, SECTOR_ASTEROIDS_MAX,
+        bodies_clear, generate_sector, prepare_sector, sector_features, sector_id,
+        validate_feature_geometry, validate_manifest, FeatureFields, FeatureLayer, FeatureSphere,
+        NovaWorldPlugin, NovaWorldSystems, PreparedSector, SectorAsteroid, SectorCoord,
+        SectorDescription, SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest,
+        SectorPlanet, SectorShip, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
+        CLEARANCE_MARGIN, FEATURE_HALO, FEATURE_LATTICE, FEATURE_WAVELENGTH, PLACEMENT_INSET,
+        SECTOR_ASTEROIDS_MAX, SECTOR_SHIP_CLEARANCE,
     };
     pub use crate::streaming::{
         desired_sectors, CurrentSector, ReadySectors, SectorFeatureSpheres, SectorJob,
@@ -192,10 +204,11 @@ pub mod prelude {
 /// owner's inset rather than clamped there after the fact.
 ///
 /// An inset constrains a CENTRE, so it owns the body only while the body fits
-/// in the margin it leaves. [`WorldConfig::validate`] refuses a `sector_edge`
-/// under `2 * clearance / (1 - PLACEMENT_INSET)` for the widest body the
-/// chosen generator can draw, which is what makes the sentence above true
-/// rather than aspirational.
+/// in the margin it leaves. [`WorldGeometry::require_owning_edge`] is how a
+/// generator refuses a `sector_edge` under `2 * clearance / (1 -
+/// PLACEMENT_INSET)` for the widest body it can draw, and [`validate_manifest`]
+/// refuses any body whose clearance crosses a face, which is what makes the
+/// sentence above true rather than aspirational.
 pub const PLACEMENT_INSET: f32 = 0.7;
 
 /// The most cells one desired window may hold.
@@ -339,61 +352,121 @@ pub(crate) fn index_slug(index: i32) -> String {
     }
 }
 
-/// Every rock a [`SectorGeneration::UniformAsteroids`] cell draws from.
-///
-/// No `Default`: a body count and a radius band nobody chose are how a number
-/// nobody chose reaches a frame.
-#[derive(Clone, Debug, PartialEq)]
-pub struct UniformAsteroidConfig {
-    /// Rocks generated per sector. Zero is refused - a uniform world with no
-    /// bodies in it is a configuration mistake, not a world - and so is
-    /// anything above [`SECTOR_ASTEROIDS_MAX`], the one density either
-    /// generator has been measured at.
-    pub body_count: usize,
-    /// Smallest nominal body radius drawn.
-    pub radius_min: Meters,
-    /// Largest nominal body radius drawn.
-    pub radius_max: Meters,
-    /// The asteroid kind ids a body may be drawn from. Every id is checked
-    /// against the shipped kind table by [`WorldConfig::validate`].
-    pub asteroid_kinds: Vec<String>,
+/// The grid a world is cut into: what a generator may assume about every cell
+/// before it describes one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldGeometry {
+    /// Sector edge length.
+    pub sector_edge: Meters,
 }
 
-/// The content a [`SectorGeneration::LayeredFeatures`] cell draws from.
-///
-/// Content only. The lattice, the thresholds and the radius bands are
-/// properties of a [`FeatureLayer`] rather than dials here, because a
-/// per-caller override of a global field would be two worlds with one seed.
-#[derive(Clone, Debug, PartialEq)]
-pub struct LayeredFeatureConfig {
-    /// The asteroid kind ids a rock field may be drawn from.
-    pub asteroid_kinds: Vec<String>,
-    /// The archetypes a gated planetoid may be drawn from.
-    pub planet_types: Vec<PlanetType>,
-    /// The catalog design every moored hull is built from. Checked against the
-    /// loaded catalog on the main thread, which is the one place the catalog
-    /// exists.
-    pub anchorage_design: ShipDesignId,
-}
-
-/// What a cell is FILLED with.
-#[derive(Clone, Debug, PartialEq)]
-pub enum SectorGeneration {
-    /// Every cell gets the same treatment out of its own seed: `body_count`
-    /// rocks scattered across its inset, nominal radius drawn from the band.
+impl WorldGeometry {
+    /// Refuse a cell too narrow to OWN a body of this clearance.
     ///
-    /// The streaming baseline. Nothing about the WORLD can explain away a
-    /// sector that failed to come up, which is what makes it the right
-    /// generator for judging a retirement or a crossing.
-    UniformAsteroids(UniformAsteroidConfig),
-    /// The cell asks the feature field what reaches it, and fills itself from
-    /// the answer: rocks from the combined asteroid influence, one planetoid
-    /// per owned planet sphere, a few moored hulls per owned anchorage sphere.
-    LayeredFeatures(LayeredFeatureConfig),
+    /// A generator keeps a CENTRE within [`PLACEMENT_INSET`] of the half
+    /// edge, so the body itself stays inside its cell only while its clearance
+    /// sphere fits in the margin the inset leaves: `clearance <= half_edge *
+    /// (1 - PLACEMENT_INSET)`. A generator checks its widest body here, from
+    /// [`SectorGenerator::validate`], rather than per candidate on a worker: a
+    /// cell too narrow for its own bodies is one authored mistake, and the
+    /// placement would report it one refused sector at a time for the life of
+    /// the session.
+    ///
+    /// # Errors
+    ///
+    /// [`SectorFault::Config`] on `sector_edge`, naming `body` so a caller
+    /// knows what they would have to shrink.
+    pub fn require_owning_edge(self, clearance: Meters, body: &str) -> Result<(), SectorFault> {
+        let floor = Meters(clearance.get() * 2.0 / (1.0 - PLACEMENT_INSET));
+        if self.sector_edge < floor {
+            return Err(SectorFault::Config {
+                field: "sector_edge",
+                value: format!(
+                    "{} m, under the {} m a cell needs to hold {body} inside its own faces",
+                    self.sector_edge.get(),
+                    floor.get()
+                ),
+            });
+        }
+        Ok(())
+    }
+}
+
+/// What a generator is asked: one cell of one world.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SectorGenerationInput {
+    /// The world seed every coordinate-derived draw and every noise field is
+    /// keyed from.
+    pub seed: u32,
+    /// The grid the cell belongs to.
+    pub geometry: WorldGeometry,
+    /// The cell to describe.
+    pub coord: SectorCoord,
+}
+
+impl SectorGenerationInput {
+    /// The deterministic draw for one named purpose of this cell.
+    ///
+    /// Coordinate-derived and purpose-separated, so visit order cannot reach
+    /// it and adding a second purpose later cannot move what this one placed.
+    /// The stream is then walked in a fixed order within the sector, which is
+    /// the only ordering the result depends on.
+    pub fn stream(self, purpose: &str) -> SeedStream {
+        SeedStream::new(
+            Fnv32::new()
+                .write(&self.seed.to_le_bytes())
+                .write(&self.coord.x.to_le_bytes())
+                .write(&self.coord.y.to_le_bytes())
+                .write(&self.coord.z.to_le_bytes())
+                .write(purpose.as_bytes())
+                .finish(),
+        )
+    }
+}
+
+/// What fills a cell.
+///
+/// Static dispatch: the generator is the `G` of [`WorldConfig<G>`] and
+/// [`NovaWorldPlugin<G>`], so the streaming systems call it without a vtable
+/// and an app holds exactly one. The value is part of the config, so
+/// replacing a config with another of the same `G` is the same clear-session
+/// swap as a new seed.
+///
+/// A generator only DESCRIBES, and its answer is an untrusted
+/// [`SectorManifest`]. Preparing and spawning is one implementation in this
+/// crate for every generator, and [`validate_manifest`] refuses a manifest
+/// that breaks the rules those steps rely on, so a generator bug fails before
+/// a worker meshes anything.
+pub trait SectorGenerator: Clone + Debug + Send + Sync + 'static {
+    /// Refuse a world this generator cannot fill.
+    ///
+    /// Called from [`WorldConfig::validate`]: on the main thread on the frame
+    /// the config is armed or replaced, and on a worker before every cell. So
+    /// a refusal here stops the run before anything is spawned, and before
+    /// the main thread enumerates a window it cannot afford.
+    ///
+    /// # Errors
+    ///
+    /// A [`SectorFault`] naming what cannot describe a sector. Never a silent
+    /// fallback: a generator that quietly drew a house default would hide the
+    /// mistake it was handed.
+    fn validate(&self, geometry: WorldGeometry) -> Result<(), SectorFault>;
+
+    /// Describe one cell.
+    ///
+    /// Must be PURE: the same input gives the same description, on any call,
+    /// in any order, on any thread, with nothing live. Every draw comes off
+    /// [`SectorGenerationInput::stream`] or the feature field, never the
+    /// ambient RNG.
+    ///
+    /// # Errors
+    ///
+    /// A [`SectorFault`] for a cell this generator cannot describe.
+    fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault>;
 }
 
 /// The world's dials: its seed, how big a sector is, how far the desired set
-/// reaches, and what a sector is filled with.
+/// reaches, and the generator that fills a sector.
 ///
 /// A resource, and the ARMING switch: the streaming systems do nothing until
 /// it is inserted.
@@ -402,7 +475,7 @@ pub enum SectorGeneration {
 /// design; a config with no author is how a number nobody chose reaches a
 /// frame.
 #[derive(Resource, Clone, Debug, PartialEq)]
-pub struct WorldConfig {
+pub struct WorldConfig<G: SectorGenerator> {
     /// The world seed every coordinate-derived draw and every noise field is
     /// keyed from.
     pub seed: u32,
@@ -414,12 +487,28 @@ pub struct WorldConfig {
     /// [`ACTIVE_WINDOW_SECTORS_MAX`].
     pub active_radius: i32,
     /// What fills a cell.
-    pub generation: SectorGeneration,
+    pub generator: G,
 }
 
-impl WorldConfig {
-    /// Refuse dials that cannot describe a sector, and content ids the game
-    /// does not ship.
+impl<G: SectorGenerator> WorldConfig<G> {
+    /// The grid this config cuts the world into.
+    pub fn geometry(&self) -> WorldGeometry {
+        WorldGeometry {
+            sector_edge: self.sector_edge,
+        }
+    }
+
+    /// What the generator is asked for `coord`.
+    pub fn input(&self, coord: SectorCoord) -> SectorGenerationInput {
+        SectorGenerationInput {
+            seed: self.seed,
+            geometry: self.geometry(),
+            coord,
+        }
+    }
+
+    /// Refuse dials that cannot describe a sector, then whatever the
+    /// generator refuses.
     ///
     /// Called by [`generate_sector`] on a worker, and again by
     /// [`track_current_sector`] on the frame a config is armed or replaced, so
@@ -429,17 +518,12 @@ impl WorldConfig {
     ///
     /// # Errors
     ///
-    /// [`SectorFault::Config`] for a dial or a list that cannot describe a
-    /// sector, and [`SectorFault::UnknownKind`] for an asteroid kind id the
-    /// game does not ship. An empty list is a refusal and never a silent
-    /// fallback: a generator that quietly drew `rock` because nobody named a
-    /// kind would hide the authoring mistake it was handed. A window above
-    /// [`ACTIVE_WINDOW_SECTORS_MAX`] and a layered cell edge wider than the
-    /// thinning halo covers are refused the same way, and neither is clamped:
-    /// a clamp would stream a window nobody asked for and thin a field nobody
-    /// could reason about. So is an edge so wide that the window around the
-    /// origin has no representable face - that cell would fault on a worker,
-    /// long after the world armed.
+    /// [`SectorFault::Config`] for a cell edge that is not a finite positive
+    /// length, for a window above [`ACTIVE_WINDOW_SECTORS_MAX`], and for an
+    /// edge so wide that the window around the origin has no representable
+    /// face - that cell would fault on a worker, long after the world armed.
+    /// None of them is clamped: a clamp would stream a window nobody asked
+    /// for. Then whatever [`SectorGenerator::validate`] refuses.
     pub fn validate(&self) -> Result<(), SectorFault> {
         let refuse = |field: &'static str, value: String| Err(SectorFault::Config { field, value });
         if !self.sector_edge.get().is_finite() || self.sector_edge.get() <= 0.0 {
@@ -465,94 +549,7 @@ impl WorldConfig {
                 ),
             );
         }
-        let kinds = match &self.generation {
-            SectorGeneration::UniformAsteroids(uniform) => {
-                // Both ends, and both BEFORE `generate_sector` reserves a
-                // vector of this size on a worker. An authored count is the
-                // one number here a caller types straight into an allocation.
-                if uniform.body_count == 0 || uniform.body_count > SECTOR_ASTEROIDS_MAX {
-                    return refuse(
-                        "generation.body_count",
-                        format!(
-                            "{}, outside the 1 to {SECTOR_ASTEROIDS_MAX} rocks a cell holds",
-                            uniform.body_count
-                        ),
-                    );
-                }
-                if !uniform.radius_min.get().is_finite() || uniform.radius_min.get() <= 0.0 {
-                    return refuse(
-                        "generation.radius_min",
-                        format!("{} m", uniform.radius_min.get()),
-                    );
-                }
-                if !uniform.radius_max.get().is_finite() || uniform.radius_max < uniform.radius_min
-                {
-                    return refuse(
-                        "generation.radius_max",
-                        format!(
-                            "{} m, expected a finite value at least radius_min {} m",
-                            uniform.radius_max.get(),
-                            uniform.radius_min.get()
-                        ),
-                    );
-                }
-                &uniform.asteroid_kinds
-            }
-            SectorGeneration::LayeredFeatures(layered) => {
-                // Release-visible, not a debug assertion: the thinning halo is
-                // a FINITE node search sized from the widest radius, the
-                // jitter draw and the inset pull, and the inset pull grows
-                // with the cell edge. Past the edge the halo covers, two
-                // same-layer spheres can both survive and the world ships with
-                // belts sitting inside each other. The uniform generator has
-                // no halo and no thinning, so its edge is not this refusal's
-                // business.
-                if !generation::feature_halo_covers_overlap(self.sector_edge) {
-                    return refuse(
-                        "sector_edge",
-                        format!(
-                            "{} m, wider than a {FEATURE_HALO}-node thinning halo can reach \
-                             across at a {} m feature lattice",
-                            self.sector_edge.get(),
-                            FEATURE_LATTICE.get()
-                        ),
-                    );
-                }
-                if layered.planet_types.is_empty() {
-                    return refuse("generation.planet_types", "an empty list".to_string());
-                }
-                if layered.anchorage_design.trim().is_empty() {
-                    return refuse("generation.anchorage_design", "an empty id".to_string());
-                }
-                &layered.asteroid_kinds
-            }
-        };
-        // The floor the inset implies, checked here rather than per candidate
-        // on a worker: a cell too narrow for its own bodies is one authored
-        // mistake, and `place_object` would report it 32 attempts at a time,
-        // per cell, for the life of the session.
-        let (clearance, body) = generation::widest_body_clearance(&self.generation);
-        let floor = generation::smallest_owning_edge(clearance);
-        if self.sector_edge < floor {
-            return refuse(
-                "sector_edge",
-                format!(
-                    "{} m, under the {} m a cell needs to hold {} inside its own faces",
-                    self.sector_edge.get(),
-                    floor.get(),
-                    body
-                ),
-            );
-        }
-        if kinds.is_empty() {
-            return refuse("generation.asteroid_kinds", "an empty list".to_string());
-        }
-        for kind in kinds {
-            if !is_asteroid_kind(kind) {
-                return Err(SectorFault::UnknownKind { kind: kind.clone() });
-            }
-        }
-        Ok(())
+        self.generator.validate(self.geometry())
     }
 }
 
@@ -561,9 +558,10 @@ impl WorldConfig {
 /// the streaming loop will not spawn into a world it cannot read.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SectorFault {
-    /// A dial or a content list cannot describe a sector.
+    /// A dial cannot describe a sector.
     Config {
-        /// The [`WorldConfig`] field at fault.
+        /// The [`WorldConfig`] field at fault, dotted into the generator for
+        /// one of its own dials.
         field: &'static str,
         /// What it held.
         value: String,
@@ -592,17 +590,18 @@ pub enum SectorFault {
         /// The id claimed twice.
         id: String,
     },
-    /// The config names an asteroid kind the game does not ship. A mod's
-    /// content table is exactly where an id nobody registered comes from.
+    /// A generated rock names an asteroid kind the game does not ship. A
+    /// mod's content table is exactly where an id nobody registered comes
+    /// from.
     UnknownKind {
         /// The id nobody answers to.
         kind: String,
     },
-    /// A moored hull names a ship design the loaded catalog does not hold.
+    /// A generated ship names a design the loaded catalog does not hold.
     /// Checked on the main thread, where the catalog lives, and refused before
     /// the sector spawns anything.
     UnknownShip {
-        /// The hull that named it.
+        /// The ship that named it.
         id: String,
         /// The design id nobody answers to.
         design: String,
@@ -613,20 +612,36 @@ pub enum SectorFault {
         /// The id claimed twice.
         id: String,
     },
-    /// A generated object's pose or radius is not finite. This can occur even
-    /// with a valid config when a coordinate-to-meter conversion overflows.
+    /// A generated object's pose or radius is not finite, or the cell itself
+    /// has no finite centre in meters. This can occur even with a valid config
+    /// when a coordinate-to-meter conversion overflows.
     InvalidGeometry {
-        /// The object whose geometry cannot be materialized.
+        /// The object, or for a cell with no finite centre the cell's slug,
+        /// whose geometry cannot be materialized.
         id: String,
     },
     /// Every deterministic placement candidate for an object overlapped
-    /// something already placed. The cell is too full for what the field asked
-    /// of it, and a sector that quietly dropped the object would hide that.
+    /// something already placed, or fell outside the cell's inset. The cell is
+    /// too full for what the generator asked of it, and a sector that quietly
+    /// dropped the object would hide that.
     Clearance {
         /// The object with nowhere to stand.
         id: String,
         /// How many candidates were drawn and rejected.
         attempts: usize,
+    },
+    /// A generator returned a manifest the world cannot materialize: the
+    /// wrong cell, an object outside its cell or crowding another, an id
+    /// another cell owns, a feature reference this cell does not own, or more
+    /// than the measured rock cap. A generator is outside this crate, so its
+    /// answer is checked rather than trusted.
+    Manifest {
+        /// The object at fault, or the cell's slug for a cell-wide rule.
+        id: String,
+        /// Which of its fields.
+        field: &'static str,
+        /// What that field held.
+        value: String,
     },
     /// Two live roots claim the same cell. One of them is a leak, and which
     /// one is not decidable from here.
@@ -659,22 +674,25 @@ impl std::fmt::Display for SectorFault {
             }
             Self::UnknownKind { kind } => write!(
                 formatter,
-                "the config names asteroid kind '{kind}', which the game does not ship"
+                "a generated rock names asteroid kind '{kind}', which the game does not ship"
             ),
             Self::UnknownShip { id, design } => write!(
                 formatter,
-                "moored hull '{id}' names ship design '{design}', which the catalog does not hold"
+                "ship '{id}' names design '{design}', which the catalog does not hold"
             ),
             Self::DuplicateId { id } => {
                 write!(formatter, "two objects in one sector claim the id '{id}'")
             }
-            Self::InvalidGeometry { id } => write!(
-                formatter,
-                "object '{id}' generated a non-finite position or radius"
-            ),
+            Self::InvalidGeometry { id } => {
+                write!(formatter, "'{id}' has a non-finite position or radius")
+            }
             Self::Clearance { id, attempts } => write!(
                 formatter,
                 "object '{id}' found no clear place in its sector in {attempts} candidates"
+            ),
+            Self::Manifest { id, field, value } => write!(
+                formatter,
+                "sector object '{id}' has {field} {value}, which the world cannot materialize"
             ),
             Self::DuplicateRoot { coord } => {
                 write!(formatter, "two live sector roots claim the cell {coord}")
@@ -713,9 +731,15 @@ pub enum NovaWorldSystems {
     Retire,
 }
 
-/// The streamed world, in `Update`.
+/// The streamed world, in `Update`, filled by the generator `G`.
 ///
 /// OPT-IN: `AppBuilder` does not add it.
+///
+/// ONE per app. [`WorldConfig<G>`] is a resource per `G`, so two plugins of
+/// different generators would stream two worlds over the same roots, jobs and
+/// prepared payloads, each retiring the other's cells as a stranger's. So a
+/// second plugin of another generator panics while the app is being built,
+/// and bevy already refuses a second plugin of the same one.
 ///
 /// The dependency on the scenario plugins is a RUNTIME one, not a
 /// registration order: every stage but [`NovaWorldSystems::Cleanup`] is gated
@@ -731,12 +755,36 @@ pub enum NovaWorldSystems {
 /// lets a job be started and collected in the same frame if a worker is that
 /// fast; retiring last is what keeps a sector materialized this frame from
 /// being taken back by the same frame that made it.
-pub struct NovaWorldPlugin;
+pub struct NovaWorldPlugin<G: SectorGenerator>(PhantomData<fn() -> G>);
 
-impl Plugin for NovaWorldPlugin {
+impl<G: SectorGenerator> Default for NovaWorldPlugin<G> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+/// Which generator's [`NovaWorldPlugin`] this app installed.
+///
+/// Not generic on purpose: a second plugin of ANOTHER generator has to find
+/// the first one's marker, and a `Marker<G>` would be a different resource to
+/// it.
+#[derive(Resource)]
+struct InstalledGenerator(&'static str);
+
+impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
     fn build(&self, app: &mut App) {
-        trace!("NovaWorldPlugin: build");
+        trace!("NovaWorldPlugin<{}>: build", type_name::<G>());
 
+        if let Some(installed) = app.world().get_resource::<InstalledGenerator>() {
+            panic!(
+                "nova_world: NovaWorldPlugin<{}> is already installed, so NovaWorldPlugin<{}> \
+                 would stream a second world over the same sectors; an app holds exactly one \
+                 generator",
+                installed.0,
+                type_name::<G>()
+            );
+        }
+        app.insert_resource(InstalledGenerator(type_name::<G>()));
         app.init_resource::<ReadySectors>();
         app.init_resource::<SectorJobStats>();
         app.init_resource::<crate::streaming::ClearedConfig>();
@@ -760,13 +808,13 @@ impl Plugin for NovaWorldPlugin {
                 // change, and the roots the old config built would stand in an
                 // unconfigured world until something else re-armed it.
                 NovaWorldSystems::Cleanup.run_if(
-                    resource_removed::<WorldConfig>
+                    resource_removed::<WorldConfig<G>>
                         .or_else(not(scenario_is_live))
                         .or_else(resource_changed::<CurrentScenario>)
-                        .or_else(resource_exists_and_changed::<WorldConfig>),
+                        .or_else(resource_exists_and_changed::<WorldConfig<G>>),
                 ),
                 (
-                    NovaWorldSystems::Observe.run_if(resource_exists::<WorldConfig>),
+                    NovaWorldSystems::Observe.run_if(resource_exists::<WorldConfig<G>>),
                     (
                         NovaWorldSystems::Request,
                         NovaWorldSystems::Collect,
@@ -775,7 +823,7 @@ impl Plugin for NovaWorldPlugin {
                     )
                         .chain()
                         .run_if(
-                            resource_exists::<WorldConfig>
+                            resource_exists::<WorldConfig<G>>
                                 .and_then(resource_exists::<CurrentSector>),
                         ),
                 )
@@ -788,12 +836,12 @@ impl Plugin for NovaWorldPlugin {
         app.add_systems(
             Update,
             (
-                clear_sector_work.in_set(NovaWorldSystems::Cleanup),
-                track_current_sector.in_set(NovaWorldSystems::Observe),
-                request_sectors.in_set(NovaWorldSystems::Request),
-                collect_sector_jobs.in_set(NovaWorldSystems::Collect),
-                materialize_ready_sector.in_set(NovaWorldSystems::Materialize),
-                retire_sectors.in_set(NovaWorldSystems::Retire),
+                clear_sector_work::<G>.in_set(NovaWorldSystems::Cleanup),
+                track_current_sector::<G>.in_set(NovaWorldSystems::Observe),
+                request_sectors::<G>.in_set(NovaWorldSystems::Request),
+                collect_sector_jobs::<G>.in_set(NovaWorldSystems::Collect),
+                materialize_ready_sector::<G>.in_set(NovaWorldSystems::Materialize),
+                retire_sectors::<G>.in_set(NovaWorldSystems::Retire),
             ),
         );
     }

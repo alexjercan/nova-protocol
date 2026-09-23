@@ -1,8 +1,12 @@
 //! `nova_authoring` is the OFFLINE half of the content pipeline: the Rust
 //! builders that define every built-in scenario and section, the serializer
 //! that writes them to the committed `assets/base/**/*.content.ron`, and the
-//! lint/balance walk that validates a content tree. Nothing here runs in the
+//! lint/balance walk that validates a content tree. None of that runs in the
 //! game: the runtime loads the serialized RON instead.
+//!
+//! The one runtime exception is [`world`], the base game's sector generator.
+//! It names shipped ship designs, and those ids live here, so the generator
+//! does too.
 //!
 //! Touch this crate to change what built-in content IS (a builder under
 //! `base_content`, then `content gen`), or to change what the `content lint`
@@ -49,13 +53,15 @@ pub mod content_report;
 /// Deterministic serialization of the private built-in content inventory.
 pub mod generation;
 pub mod lint_walk;
+pub mod world;
 
 /// Glob-import surface: `use nova_authoring::prelude::*` brings the content
-/// report model, the lint/balance walk entry points and the RON generation
-/// surface into scope.
+/// report model, the lint/balance walk entry points, the RON generation
+/// surface and the base game's sector generator into scope.
 pub mod prelude {
     pub use super::{
         balance::prelude::*, built_in_scenarios::*, built_in_ships::*, content_report::prelude::*,
         generation::prelude::*, lint_walk::prelude::*, scenario_helpers::prelude::*,
+        world::prelude::*,
     };
 }

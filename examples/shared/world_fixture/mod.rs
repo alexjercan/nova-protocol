@@ -1,12 +1,14 @@
-//! The examples' world: the one seed, the two configs, the content ids they
-//! draw from, the empty bootstrap they run inside, and the cell the featured
+//! The examples' world: the one seed, the two configs, the uniform baseline
+//! generator, the empty bootstrap they run inside, and the cell the featured
 //! ones open in.
 //!
-//! `nova_world` owns the generator and the streaming loop and names no
-//! content. Everything it refuses to assume - a seed, a cell edge, an active
-//! radius, an asteroid kind table, a planet archetype table, a moored hull's
-//! design - is decided HERE, once, so the five example targets that share it
-//! are looking at one world rather than five that happen to agree.
+//! `nova_world` owns the streaming loop and the generation mechanisms and
+//! names no content. The featured world is the base game's generator,
+//! `NovaLayeredWorld` from `nova_authoring`; the uniform baseline is
+//! example-owned and lives beside this file. Everything else `nova_world`
+//! refuses to assume - a seed, a cell edge, an active radius - is decided
+//! HERE, once, so the five example targets that share it are looking at one
+//! world rather than five that happen to agree.
 //!
 //! Included with
 //! `#[path = "../shared/world_fixture/mod.rs"] pub mod world_fixture;` - PUB,
@@ -18,9 +20,13 @@
 //! Anything genuinely private in here is still linted.
 
 use bevy::prelude::*;
-use nova_authoring::prelude::BLOCK_HAULER_SHIP_ID;
+use nova_authoring::prelude::NovaLayeredWorld;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
+
+mod uniform_asteroids;
+
+pub use uniform_asteroids::UniformAsteroids;
 
 /// The examples' world seed.
 ///
@@ -45,36 +51,6 @@ pub const EXAMPLE_SECTOR_EDGE: Meters = Meters(32_000.0);
 /// anywhere in the centre cell.
 pub const EXAMPLE_ACTIVE_RADIUS: i32 = 2;
 
-/// The asteroid kinds the examples' generators draw bodies from.
-///
-/// Four of the five shipped kinds. `plain` is absent because it is the texture
-/// control, not a rock a world would contain.
-pub fn example_asteroid_kinds() -> Vec<String> {
-    vec![
-        KIND_ROCK.to_string(),
-        KIND_METAL.to_string(),
-        KIND_ICE.to_string(),
-        KIND_CARBON.to_string(),
-    ]
-}
-
-/// The worlds a feature-gated planetoid is drawn from.
-///
-/// Three of the six [`PlanetType`]s, and the three that read as DEAD ROCK at
-/// 600-1,200 m: a temperate ocean world the size of a city block is a joke,
-/// and a volcanic one at that radius is a lava ball.
-pub fn example_planet_types() -> Vec<PlanetType> {
-    vec![
-        PlanetType::BarrenRock,
-        PlanetType::DustWorld,
-        PlanetType::IceWorld,
-    ]
-}
-
-/// The catalog design every moored hull is built from: a shipped block hauler,
-/// so a mooring is a real ship and not a placeholder box.
-pub const EXAMPLE_ANCHORAGE_DESIGN: &str = BLOCK_HAULER_SHIP_ID;
-
 /// The streaming baseline: every cell filled the same way from its own seed.
 ///
 /// Nothing about the WORLD can explain away a sector that failed to come up,
@@ -86,41 +62,41 @@ pub const EXAMPLE_ANCHORAGE_DESIGN: &str = BLOCK_HAULER_SHIP_ID;
 /// 210-720 m diameters. Four bodies in a 32 km cell read as scattered
 /// landmarks rather than a belt, which is what the crossing claim needs and is
 /// not a claim about how dense a real sector should be. Four is also
-/// [`SECTOR_ASTEROIDS_MAX`], the density either generator has been measured
+/// [`SECTOR_ASTEROIDS_MAX`], the density every generator has been measured
 /// at, so the baseline and the feature field fill a cell to the same ceiling.
+/// The kinds are the four natural ones; `plain` is the texture control, not a
+/// rock a world would contain.
 ///
 /// Whoever arms this must write it ahead of `NovaWorldSystems::Cleanup`, which
 /// is nova_world's one ordering rule for a config writer. Every example here
 /// arms from `OnEnter` or from an autopilot beat, and both run before
 /// `Update`; an `Update` writer would have to say `.before(...)` and would be
 /// refused by the streaming stages if it did not.
-pub fn uniform_world_config() -> WorldConfig {
+pub fn uniform_world_config() -> WorldConfig<UniformAsteroids> {
     WorldConfig {
         seed: EXAMPLE_SEED,
         sector_edge: EXAMPLE_SECTOR_EDGE,
         active_radius: EXAMPLE_ACTIVE_RADIUS,
-        generation: SectorGeneration::UniformAsteroids(UniformAsteroidConfig {
+        generator: UniformAsteroids {
             body_count: 4,
             radius_min: Meters(30.0),
             radius_max: Meters(60.0),
-            asteroid_kinds: example_asteroid_kinds(),
-        }),
+            asteroid_kinds: vec![KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON],
+        },
     }
 }
 
-/// The same window and the same edge, filled from the feature field.
+/// The same seed, window and edge, filled by the base game's generator.
 ///
 /// Sharing the streaming dials with [`uniform_world_config`] is the point:
 /// what changes between two examples is what a cell CONTAINS, so a difference
 /// in how the window behaves cannot be blamed on a different window.
-pub fn featured_world_config() -> WorldConfig {
+pub fn featured_world_config() -> WorldConfig<NovaLayeredWorld> {
     WorldConfig {
-        generation: SectorGeneration::LayeredFeatures(LayeredFeatureConfig {
-            asteroid_kinds: example_asteroid_kinds(),
-            planet_types: example_planet_types(),
-            anchorage_design: EXAMPLE_ANCHORAGE_DESIGN.to_string(),
-        }),
-        ..uniform_world_config()
+        seed: EXAMPLE_SEED,
+        sector_edge: EXAMPLE_SECTOR_EDGE,
+        active_radius: EXAMPLE_ACTIVE_RADIUS,
+        generator: NovaLayeredWorld,
     }
 }
 
@@ -128,11 +104,12 @@ pub fn featured_world_config() -> WorldConfig {
 ///
 /// NOT the origin, and chosen rather than assumed: the window around it is the
 /// one near the origin that holds all three layers at once - two asteroid
-/// spheres, one planet sphere (owned by cell `(0, 0, 0)` itself) and one
-/// anchorage sphere - beside 67 cells the field leaves completely empty. A run
-/// that opened at the origin would see a planetoid and a handful of rocks and
+/// spheres, one planet sphere (owned by cell `(0, 0, 0)` itself) and three
+/// derelict spheres, one of which puts its hulls inside the window at
+/// `(4, 3, 0)` - beside cells that no feature sphere reaches. A run that
+/// opened at the origin would see a planetoid and a handful of rocks and
 /// nothing else, which proves a generator but not a WORLD.
-pub const FEATURE_HOME: SectorCoord = SectorCoord::new(-2, -2, 2);
+pub const FEATURE_HOME: SectorCoord = SectorCoord::new(2, 1, 2);
 
 /// The free-play bootstrap: an EMPTY scenario.
 ///

@@ -28,7 +28,7 @@ use nova_scenario::prelude::{
 
 use crate::{
     prepare_sector, FeatureLayer, FeatureSphere, PreparedSector, SectorCoord, SectorFault,
-    WorldConfig,
+    SectorGenerator, WorldConfig,
 };
 
 /// Marks the entity the desired set is centred on.
@@ -110,8 +110,7 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 }
 
 /// Spawn one prepared sector: the sector root, and one child per object the
-/// description names - rocks, then planetoids, then moored hulls. Returns the
-/// root.
+/// description names - rocks, then planetoids, then ships. Returns the root.
 ///
 /// The root is an OWNERSHIP node and not a pose - it stays at the world origin
 /// and its children carry world positions. `base_scenario_object` seeds a
@@ -139,8 +138,8 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 /// When `prepared` carries a different number of rocks than asteroids or a
 /// different number of surfaces than planetoids - zipping a short list would
 /// silently spawn a sector missing its tail - and on
-/// [`SectorFault::UnknownShip`] when a moored hull names a design the loaded
-/// catalog does not hold. The catalog is a main-thread resource, so this is
+/// [`SectorFault::UnknownShip`] when a ship names a design the loaded catalog
+/// does not hold. The catalog is a main-thread resource, so this is
 /// the first place the id CAN be checked, and it is checked before the root is
 /// spawned.
 pub fn materialize_sector(
@@ -151,31 +150,31 @@ pub fn materialize_sector(
 ) -> Entity {
     let PreparedSector {
         description,
-        asteroid_geometry,
-        planet_surfaces,
+        asteroids,
+        planets,
     } = prepared;
     let coord = description.coord;
     assert_eq!(
         description.asteroids.len(),
-        asteroid_geometry.len(),
+        asteroids.len(),
         "nova_world: {coord} was prepared with {} rocks for {} asteroids",
-        asteroid_geometry.len(),
+        asteroids.len(),
         description.asteroids.len()
     );
     assert_eq!(
         description.planets.len(),
-        planet_surfaces.len(),
+        planets.len(),
         "nova_world: {coord} was prepared with {} surfaces for {} planetoids",
-        planet_surfaces.len(),
+        planets.len(),
         description.planets.len()
     );
-    for hull in &description.anchorages {
+    for ship in &description.ships {
         assert!(
-            designs.get_design(&hull.design).is_some(),
+            designs.get_design(&ship.design).is_some(),
             "nova_world: {}",
             SectorFault::UnknownShip {
-                id: hull.id.clone(),
-                design: hull.design.clone(),
+                id: ship.id.clone(),
+                design: ship.design.clone(),
             }
         );
     }
@@ -195,7 +194,7 @@ pub fn materialize_sector(
         ))
         .id();
 
-    for (body, rock) in description.asteroids.into_iter().zip(asteroid_geometry) {
+    for (body, rock) in description.asteroids.into_iter().zip(asteroids) {
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
                 id: body.id.clone(),
@@ -222,7 +221,7 @@ pub fn materialize_sector(
         );
     }
 
-    for (planet, surface) in description.planets.into_iter().zip(planet_surfaces) {
+    for (planet, surface) in description.planets.into_iter().zip(planets) {
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
                 id: planet.id.clone(),
@@ -235,20 +234,20 @@ pub fn materialize_sector(
         planet_scenario_object_prepared(&mut entity, surface);
     }
 
-    for hull in description.anchorages {
+    for ship in description.ships {
         commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
-                id: hull.id.clone(),
-                name: hull.id.clone(),
-                position: hull.position,
-                rotation: Quat::from_rotation_y(hull.yaw),
+                id: ship.id.clone(),
+                name: ship.id.clone(),
+                position: ship.position,
+                rotation: Quat::from_rotation_y(ship.yaw),
             }),
             spaceship_scenario_object(SpaceshipConfig {
                 design: ShipDesignSource::Prototype {
-                    id: hull.design.clone(),
+                    id: ship.design.clone(),
                     section_patches: BTreeMap::new(),
                 },
-                // Nobody aboard and nobody's side: a moored hull is scenery
+                // Nobody aboard and nobody's side: a generated ship is scenery
                 // with a hull, and an AI that shot it would be shooting the
                 // furniture. The allegiance is inserted beside the bundle for
                 // the same reason the scenario loader does it - the controller
@@ -295,9 +294,9 @@ pub fn live_sectors(roots: &Query<(Entity, &SectorRoot)>) -> BTreeMap<SectorCoor
 /// validation is HERE as well as inside the generator.
 /// [`crate::generate_sector`] refuses on a WORKER, one job too late for the
 /// dials whose cost the main thread pays first: [`desired_sectors`] enumerates
-/// the whole window three times a frame, starting in the very next stage. Only a changed config is
-/// re-read, so an armed world costs one content check per swap and nothing per
-/// frame.
+/// the whole window three times a frame, starting in the very next stage. Only
+/// a changed config is re-read, so an armed world costs one generator check
+/// per swap and nothing per frame.
 ///
 /// # Panics
 ///
@@ -314,9 +313,9 @@ pub fn live_sectors(roots: &Query<(Entity, &SectorRoot)>) -> BTreeMap<SectorCoor
     reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
               caller-readable epoch"
 )]
-pub fn track_current_sector(
+pub fn track_current_sector<G: SectorGenerator>(
     mut commands: Commands,
-    config: Res<WorldConfig>,
+    config: Res<WorldConfig<G>>,
     cleared: Res<ClearedConfig>,
     observer: Query<&GlobalTransform, With<WorldObserver>>,
     current: Option<ResMut<CurrentSector>>,
@@ -372,7 +371,7 @@ impl SectorJob {
     /// The other half of that rule is [`clear_sector_work`], which drops every
     /// job in the air on the frame the config changes - a job that answers the
     /// old question must not be ACCEPTED under the new one either.
-    pub fn start(config: WorldConfig, coord: SectorCoord) -> Self {
+    pub fn start<G: SectorGenerator>(config: WorldConfig<G>, coord: SectorCoord) -> Self {
         let task = AsyncComputeTaskPool::get().spawn(async move { prepare_sector(config, coord) });
         Self { coord, task }
     }
@@ -430,7 +429,10 @@ impl ClearedConfig {
 /// # Panics
 ///
 /// When the config changed after `Cleanup` ran this frame.
-pub(crate) fn assert_world_was_cleared(config: &Res<WorldConfig>, cleared: &ClearedConfig) {
+pub(crate) fn assert_world_was_cleared<G: SectorGenerator>(
+    config: &Res<WorldConfig<G>>,
+    cleared: &ClearedConfig,
+) {
     assert!(
         config.last_changed() == cleared.0,
         "nova_world: the WorldConfig changed after NovaWorldSystems::Cleanup ran, so the world \
@@ -503,9 +505,9 @@ fn nearest_first(centre: SectorCoord, coord: SectorCoord) -> (i128, SectorCoord)
     reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
               caller-readable epoch"
 )]
-pub fn request_sectors(
+pub fn request_sectors<G: SectorGenerator>(
     mut commands: Commands,
-    config: Res<WorldConfig>,
+    config: Res<WorldConfig<G>>,
     cleared: Res<ClearedConfig>,
     current: Res<CurrentSector>,
     roots: Query<(Entity, &SectorRoot)>,
@@ -560,9 +562,9 @@ pub fn request_sectors(
     reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
               caller-readable epoch"
 )]
-pub fn collect_sector_jobs(
+pub fn collect_sector_jobs<G: SectorGenerator>(
     mut commands: Commands,
-    config: Res<WorldConfig>,
+    config: Res<WorldConfig<G>>,
     cleared: Res<ClearedConfig>,
     current: Res<CurrentSector>,
     mut jobs: Query<(Entity, &mut SectorJob)>,
@@ -604,7 +606,7 @@ pub fn collect_sector_jobs(
 /// # Panics
 ///
 /// Through [`live_sectors`] on a duplicate root, and through
-/// [`materialize_sector`] on a moored hull the catalog does not hold.
+/// [`materialize_sector`] on a ship the catalog does not hold.
 ///
 /// When a caller wrote [`WorldConfig`] after
 /// [`crate::NovaWorldSystems::Cleanup`] had already gone, so the world the old
@@ -614,9 +616,9 @@ pub fn collect_sector_jobs(
     reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
               caller-readable epoch"
 )]
-pub fn materialize_ready_sector(
+pub fn materialize_ready_sector<G: SectorGenerator>(
     mut commands: Commands,
-    config: Res<WorldConfig>,
+    config: Res<WorldConfig<G>>,
     cleared: Res<ClearedConfig>,
     current: Res<CurrentSector>,
     roots: Query<(Entity, &SectorRoot)>,
@@ -663,9 +665,9 @@ pub fn materialize_ready_sector(
     reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
               caller-readable epoch"
 )]
-pub fn retire_sectors(
+pub fn retire_sectors<G: SectorGenerator>(
     mut commands: Commands,
-    config: Res<WorldConfig>,
+    config: Res<WorldConfig<G>>,
     cleared: Res<ClearedConfig>,
     current: Res<CurrentSector>,
     roots: Query<(Entity, &SectorRoot)>,
@@ -719,7 +721,7 @@ pub fn retire_sectors(
 ///   condition reads `CurrentScenario` changing as well.
 /// - the [`WorldConfig`] itself is inserted, replaced or removed. A job
 ///   carries the config it was STARTED with and everything on hand is keyed by
-///   coordinate alone, so an old seed, edge or content table would otherwise
+///   coordinate alone, so an old seed, edge or generator value would otherwise
 ///   materialize into the new world looking like the new world's own cell.
 ///   That case is the only one that also takes the LIVE ROOTS: they describe a
 ///   world nobody configured any more, and no other system would ever retire
@@ -733,9 +735,9 @@ pub fn retire_sectors(
     reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
               caller-readable epoch"
 )]
-pub fn clear_sector_work(
+pub fn clear_sector_work<G: SectorGenerator>(
     mut commands: Commands,
-    config: Option<Res<WorldConfig>>,
+    config: Option<Res<WorldConfig<G>>>,
     roots: Query<Entity, With<SectorRoot>>,
     jobs: Query<Entity, With<SectorJob>>,
     mut ready: ResMut<ReadySectors>,

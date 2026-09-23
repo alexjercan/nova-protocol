@@ -1,130 +1,337 @@
-//! What [`WorldConfig::validate`] refuses.
+//! What the world refuses: a config nobody could generate from, a generator
+//! answer nobody could materialize, and a second generator in one app.
 //!
 //! Pure validation, so a unit test is the cheapest thing that observes it. The
-//! claim each one carries is that a config nobody could generate from is a
-//! REFUSAL and never a silent fallback: an empty kind list is not "rock", an
-//! unshipped kind id is not skipped, and a zero body count is not one body.
-//! Each of those would put a world nobody authored in front of a player, and
-//! the streaming loop's own faults are unreachable from a config that got
-//! this far.
+//! claim each one carries is that a bad input is a REFUSAL and never a silent
+//! fallback: an oversized window is not clamped, a rock outside its cell is
+//! not moved, and an unshipped kind id is not skipped. Each of those would put
+//! a world nobody authored in front of a player.
+//!
+//! The generators here are test-local. The shipped policies live outside this
+//! crate - the base game's in `nova_authoring`, the uniform baseline with the
+//! examples - and are proved where they live.
 
-use nova_events::prelude::Meters;
-use nova_scenario::prelude::{PlanetType, KIND_ICE, KIND_ROCK};
+use bevy::prelude::*;
+use nova_events::prelude::{Meters, Meters3};
+use nova_scenario::prelude::{PlanetConfig, PlanetType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK};
 
 use crate::{
-    generate_sector, sector_features, LayeredFeatureConfig, SectorCoord, SectorFault,
-    SectorGeneration, UniformAsteroidConfig, WorldConfig, ACTIVE_WINDOW_SECTORS_MAX,
-    SECTOR_ASTEROIDS_MAX,
+    generate_sector, prepare_sector, sector_features, sector_id, validate_feature_geometry,
+    FeatureLayer, FeatureSphere, NovaWorldPlugin, SectorAsteroid, SectorCoord, SectorFault,
+    SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet, SectorShip, WorldConfig,
+    WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX,
 };
+
+/// Stands the measured rock cap at the corners of a square around each cell's
+/// centre, and refuses an edge too narrow to own its widest rock. No draw and
+/// no retry: placement is each generator's own, and this one needs neither.
+#[derive(Clone, Debug, PartialEq)]
+struct Rocks {
+    radius_max: Meters,
+}
+
+impl SectorGenerator for Rocks {
+    fn validate(&self, geometry: WorldGeometry) -> Result<(), SectorFault> {
+        geometry.require_owning_edge(
+            Meters(self.radius_max.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
+            "a test rock",
+        )
+    }
+
+    fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
+        let edge = input.geometry.sector_edge;
+        let quarter = edge.get() * 0.25;
+        let corners = [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)];
+        let asteroids = corners
+            .into_iter()
+            .enumerate()
+            .map(|(index, (x, z))| SectorAsteroid {
+                id: sector_id(input.coord, "body", index),
+                position: input.coord.centre(edge) + Meters3::new(x * quarter, 0.0, z * quarter),
+                radius: self.radius_max,
+                kind: KIND_ROCK.to_string(),
+                seed: index as u32,
+            })
+            .collect();
+        Ok(empty(input.coord, asteroids))
+    }
+}
+
+/// Answers whatever its function builds, and checks nothing: the shape of a
+/// generator outside this crate with a bug in it.
+#[derive(Clone, Debug)]
+struct Answers(fn(SectorGenerationInput) -> SectorManifest);
+
+impl SectorGenerator for Answers {
+    fn validate(&self, _geometry: WorldGeometry) -> Result<(), SectorFault> {
+        Ok(())
+    }
+
+    fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
+        Ok((self.0)(input))
+    }
+}
+
+/// A manifest of `coord` holding only `asteroids`.
+fn empty(coord: SectorCoord, asteroids: Vec<SectorAsteroid>) -> SectorManifest {
+    SectorManifest {
+        coord,
+        features: Vec::new(),
+        strengths: [0.0; FeatureLayer::COUNT],
+        asteroids,
+        planets: Vec::new(),
+        ships: Vec::new(),
+    }
+}
 
 /// A config that describes a sector, and the base every refusal below breaks
 /// exactly one field of.
-fn uniform() -> WorldConfig {
+fn rocks() -> WorldConfig<Rocks> {
     WorldConfig {
         seed: 20_260_922,
         sector_edge: Meters(32_000.0),
         active_radius: 2,
-        generation: SectorGeneration::UniformAsteroids(UniformAsteroidConfig {
-            body_count: 4,
-            radius_min: Meters(30.0),
+        generator: Rocks {
             radius_max: Meters(60.0),
-            asteroid_kinds: vec![KIND_ROCK.to_string(), KIND_ICE.to_string()],
-        }),
+        },
     }
 }
 
-/// The layered counterpart, with every content list filled.
-fn layered() -> WorldConfig {
+/// The same dials around a generator that answers with `answer`.
+fn answering(answer: fn(SectorGenerationInput) -> SectorManifest) -> WorldConfig<Answers> {
     WorldConfig {
-        generation: SectorGeneration::LayeredFeatures(LayeredFeatureConfig {
-            asteroid_kinds: vec![KIND_ROCK.to_string()],
-            planet_types: vec![PlanetType::BarrenRock],
-            anchorage_design: "block_hauler".to_string(),
-        }),
-        ..uniform()
+        seed: 20_260_922,
+        sector_edge: Meters(32_000.0),
+        active_radius: 2,
+        generator: Answers(answer),
     }
 }
 
 /// Break one field of `config` and return what the generator said.
-fn fault_of(config: &WorldConfig) -> SectorFault {
-    generate_sector(config, SectorCoord::ORIGIN)
-        .expect_err("the config must be refused")
-        .clone()
+fn fault_of<G: SectorGenerator>(config: &WorldConfig<G>) -> SectorFault {
+    generate_sector(config, SectorCoord::ORIGIN).expect_err("the config must be refused")
 }
 
 #[test]
 fn a_valid_config_describes_a_sector() {
     let description =
-        generate_sector(&uniform(), SectorCoord::ORIGIN).expect("a valid config must describe");
-    assert_eq!(description.asteroids.len(), 4);
-    generate_sector(&layered(), SectorCoord::ORIGIN).expect("a valid layered config must describe");
+        generate_sector(&rocks(), SectorCoord::ORIGIN).expect("a valid config must describe");
+    assert_eq!(description.asteroids().len(), SECTOR_ASTEROIDS_MAX);
 }
 
+/// A generator outside the crate is checked, not trusted.
+///
+/// Each answer below breaks one rule `materialize_sector` relies on, and each
+/// is refused by [`prepare_sector`] - the function a worker runs - so the
+/// refusal lands before a mesh is built or an entity exists. A rock across a
+/// face would be retired with the neighbour; two ids in one cell cannot be
+/// found again; a ship naming a sphere another cell owns would be spawned by
+/// both. A planetoid is refused by the same [`PlanetConfig::validate`] an
+/// authored planet meets in the lint.
 #[test]
-fn an_empty_asteroid_kind_list_is_refused() {
-    for mut config in [uniform(), layered()] {
-        match &mut config.generation {
-            SectorGeneration::UniformAsteroids(uniform) => uniform.asteroid_kinds.clear(),
-            SectorGeneration::LayeredFeatures(layered) => layered.asteroid_kinds.clear(),
+fn a_malformed_generator_answer_is_refused_before_preparation() {
+    fn rock(input: SectorGenerationInput, id: &str, offset: f32) -> SectorAsteroid {
+        SectorAsteroid {
+            id: format!("{}_{id}", input.coord.slug()),
+            position: input.coord.centre(input.geometry.sector_edge)
+                + Meters3::new(offset, 0.0, 0.0),
+            radius: Meters(40.0),
+            kind: KIND_ROCK.to_string(),
+            seed: 7,
         }
-        assert_eq!(
-            fault_of(&config),
-            SectorFault::Config {
-                field: "generation.asteroid_kinds",
-                value: "an empty list".to_string(),
+    }
+    fn sphere(
+        input: SectorGenerationInput,
+        layer: FeatureLayer,
+        owner: SectorCoord,
+    ) -> FeatureSphere {
+        let edge = input.geometry.sector_edge;
+        FeatureSphere {
+            id: format!("feature_{layer}_{}", owner.slug()),
+            layer,
+            owner,
+            centre: owner.centre(edge),
+            radius: Meters(edge.get() * 2.0),
+            strength: 0.5,
+        }
+    }
+    let cases: [(
+        &str,
+        fn(SectorGenerationInput) -> SectorManifest,
+        fn(&SectorFault) -> bool,
+    ); 10] = [
+        (
+            "the wrong cell",
+            |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
+            |fault| matches!(fault, SectorFault::Manifest { field: "coord", .. }),
+        ),
+        (
+            "an id another cell owns",
+            |input| {
+                let mut body = rock(input, "body_0", 0.0);
+                body.id = "sector_1_0_0_body_0".to_string();
+                empty(input.coord, vec![body])
             },
-            "an empty kind list must refuse rather than fall back to a house rock"
-        );
-    }
-}
-
-#[test]
-fn an_unshipped_asteroid_kind_is_refused() {
-    let mut config = uniform();
-    let SectorGeneration::UniformAsteroids(uniform) = &mut config.generation else {
-        unreachable!("the fixture is the uniform generator");
-    };
-    uniform.asteroid_kinds = vec![KIND_ROCK.to_string(), "obsidian".to_string()];
-    assert_eq!(
-        fault_of(&config),
-        SectorFault::UnknownKind {
-            kind: "obsidian".to_string(),
-        },
-        "a kind the game does not ship must refuse the whole config, not be skipped"
-    );
-}
-
-#[test]
-fn a_uniform_body_count_outside_the_measured_density_is_refused() {
-    // Both ends. Zero is a world with nothing in it, and anything above the
-    // cap reaches `Vec::with_capacity` on a worker straight off a public
-    // field - `usize::MAX` is the shape of it, `SECTOR_ASTEROIDS_MAX + 1` is
-    // the boundary.
-    for count in [0, SECTOR_ASTEROIDS_MAX + 1, usize::MAX] {
-        let mut config = uniform();
-        let SectorGeneration::UniformAsteroids(uniform) = &mut config.generation else {
-            unreachable!("the fixture is the uniform generator");
-        };
-        uniform.body_count = count;
+            |fault| matches!(fault, SectorFault::Manifest { field: "id", .. }),
+        ),
+        (
+            "one id twice",
+            |input| {
+                empty(
+                    input.coord,
+                    vec![rock(input, "body_0", 0.0), rock(input, "body_0", 9_000.0)],
+                )
+            },
+            |fault| matches!(fault, SectorFault::DuplicateId { .. }),
+        ),
+        (
+            "a rock across a face",
+            |input| empty(input.coord, vec![rock(input, "body_0", 15_900.0)]),
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "position",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "two rocks inside each other's margin",
+            |input| {
+                empty(
+                    input.coord,
+                    vec![rock(input, "body_0", 0.0), rock(input, "body_1", 100.0)],
+                )
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "position",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "an asteroid kind the game does not ship",
+            |input| {
+                let mut body = rock(input, "body_0", 0.0);
+                body.kind = "obsidian".to_string();
+                empty(input.coord, vec![body])
+            },
+            |fault| matches!(fault, SectorFault::UnknownKind { kind } if kind == "obsidian"),
+        ),
+        (
+            "more rocks than a cell holds",
+            |input| {
+                let bodies = (0..=SECTOR_ASTEROIDS_MAX)
+                    .map(|index| {
+                        rock(
+                            input,
+                            &format!("body_{index}"),
+                            index as f32 * 2_000.0 - 5_000.0,
+                        )
+                    })
+                    .collect();
+                empty(input.coord, bodies)
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "asteroids",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "a planetoid placed by a sphere another cell owns",
+            |input| {
+                let owner = input.coord.offset(1, 0, 0);
+                let mut manifest = empty(input.coord, Vec::new());
+                let feature = sphere(input, FeatureLayer::Planet, owner);
+                manifest.planets.push(SectorPlanet {
+                    id: format!("{}_planet_0", input.coord.slug()),
+                    feature: feature.id.clone(),
+                    position: input.coord.centre(input.geometry.sector_edge),
+                    config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3),
+                });
+                manifest.features.push(feature);
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "feature",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "a planetoid whose well has a NaN mass",
+            |input| {
+                let mut manifest = empty(input.coord, Vec::new());
+                let feature = sphere(input, FeatureLayer::Planet, input.coord);
+                manifest.planets.push(SectorPlanet {
+                    id: format!("{}_planet_0", input.coord.slug()),
+                    feature: feature.id.clone(),
+                    position: input.coord.centre(input.geometry.sector_edge),
+                    config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3)
+                        .anchored(f32::NAN),
+                });
+                manifest.features.push(feature);
+                manifest
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "mass", .. }),
+        ),
+        (
+            "a ship placed by a sphere the manifest does not list",
+            |input| {
+                let mut manifest = empty(input.coord, Vec::new());
+                manifest.ships.push(SectorShip {
+                    id: format!("{}_ship_0", input.coord.slug()),
+                    feature: "feature_derelict_nowhere".to_string(),
+                    position: input.coord.centre(input.geometry.sector_edge),
+                    yaw: 0.0,
+                    design: "block_wreck_plate".to_string(),
+                });
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "feature",
+                        ..
+                    }
+                )
+            },
+        ),
+    ];
+    for (what, answer, expected) in cases {
+        let fault = prepare_sector(answering(answer), SectorCoord::ORIGIN)
+            .expect_err("a malformed answer must not be prepared");
         assert!(
-            matches!(
-                fault_of(&config),
-                SectorFault::Config {
-                    field: "generation.body_count",
-                    ..
-                }
-            ),
-            "a body count of {count} must refuse before the generator reserves for it"
+            expected(&fault),
+            "{what} must be refused before preparation, got {fault:?}"
         );
     }
-    let mut config = uniform();
-    let SectorGeneration::UniformAsteroids(uniform) = &mut config.generation else {
-        unreachable!("the fixture is the uniform generator");
-    };
-    uniform.body_count = SECTOR_ASTEROIDS_MAX;
-    let description =
-        generate_sector(&config, SectorCoord::ORIGIN).expect("the measured density must describe");
-    assert_eq!(description.asteroids.len(), SECTOR_ASTEROIDS_MAX);
+}
+
+/// Exactly one generator per app. Two would stream two worlds over the same
+/// roots, jobs and prepared payloads, each retiring the other's cells.
+#[test]
+#[should_panic(expected = "an app holds exactly one generator")]
+fn a_second_generator_plugin_is_refused_while_the_app_is_built() {
+    App::new()
+        .add_plugins(NovaWorldPlugin::<Rocks>::default())
+        .add_plugins(NovaWorldPlugin::<Answers>::default());
 }
 
 #[test]
@@ -137,65 +344,11 @@ fn a_window_that_runs_off_the_grid_is_refused() {
 }
 
 #[test]
-fn an_inverted_radius_band_is_refused() {
-    let mut config = uniform();
-    let SectorGeneration::UniformAsteroids(uniform) = &mut config.generation else {
-        unreachable!("the fixture is the uniform generator");
-    };
-    uniform.radius_min = Meters(90.0);
-    assert!(
-        matches!(
-            fault_of(&config),
-            SectorFault::Config {
-                field: "generation.radius_max",
-                ..
-            }
-        ),
-        "a maximum under the minimum must refuse rather than draw an empty band"
-    );
-}
-
-#[test]
-fn a_layered_config_with_no_planet_types_is_refused() {
-    let mut config = layered();
-    let SectorGeneration::LayeredFeatures(layered) = &mut config.generation else {
-        unreachable!("the fixture is the layered generator");
-    };
-    layered.planet_types.clear();
-    assert_eq!(
-        fault_of(&config),
-        SectorFault::Config {
-            field: "generation.planet_types",
-            value: "an empty list".to_string(),
-        },
-        "an empty archetype list must refuse rather than pick a house world"
-    );
-}
-
-#[test]
-fn a_layered_config_with_no_anchorage_design_is_refused() {
-    let mut config = layered();
-    let SectorGeneration::LayeredFeatures(layered) = &mut config.generation else {
-        unreachable!("the fixture is the layered generator");
-    };
-    layered.anchorage_design = "   ".to_string();
-    assert_eq!(
-        fault_of(&config),
-        SectorFault::Config {
-            field: "generation.anchorage_design",
-            value: "an empty id".to_string(),
-        },
-        "a blank design id must refuse here rather than at the catalog lookup one frame \
-         before a hull spawns"
-    );
-}
-
-#[test]
 fn an_unusable_sector_edge_is_refused() {
     for edge in [Meters(0.0), Meters(-32_000.0), Meters(f32::NAN)] {
         let config = WorldConfig {
             sector_edge: edge,
-            ..uniform()
+            ..rocks()
         };
         assert!(
             matches!(
@@ -214,7 +367,7 @@ fn an_unusable_sector_edge_is_refused() {
 fn a_negative_active_radius_is_refused() {
     let config = WorldConfig {
         active_radius: -1,
-        ..uniform()
+        ..rocks()
     };
     assert_eq!(
         fault_of(&config),
@@ -234,7 +387,7 @@ fn a_window_above_the_cell_maximum_is_refused() {
     for radius in [3, 1_000, i32::MAX] {
         let config = WorldConfig {
             active_radius: radius,
-            ..uniform()
+            ..rocks()
         };
         assert!(
             matches!(
@@ -251,7 +404,7 @@ fn a_window_above_the_cell_maximum_is_refused() {
     generate_sector(
         &WorldConfig {
             active_radius: 2,
-            ..uniform()
+            ..rocks()
         },
         SectorCoord::ORIGIN,
     )
@@ -276,22 +429,22 @@ fn the_desired_window_refuses_a_radius_it_was_never_validated_for() {
 /// retiring the neighbour takes geometry standing beside the observer - the
 /// one thing `PLACEMENT_INSET` is documented to prevent.
 #[test]
-fn a_uniform_edge_too_narrow_to_own_its_rocks_is_refused() {
+fn an_edge_too_narrow_to_own_its_rocks_is_refused() {
     let fault = fault_of(&WorldConfig {
         sector_edge: Meters(2_399.0),
-        ..uniform()
+        ..rocks()
     });
     assert!(
         matches!(
             &fault,
             SectorFault::Config { field: "sector_edge", value }
-                if value.contains("generation.radius_max")
+                if value.contains("a test rock")
         ),
         "a cell narrower than its own rocks must refuse and name the body, got {fault:?}"
     );
     let wide_enough = WorldConfig {
         sector_edge: Meters(2_401.0),
-        ..uniform()
+        ..rocks()
     };
     assert!(
         wide_enough.validate().is_ok(),
@@ -305,10 +458,10 @@ fn a_uniform_edge_too_narrow_to_own_its_rocks_is_refused() {
 /// session down after the world armed - the one ordering a fail-loud world
 /// must not have.
 #[test]
-fn a_uniform_edge_too_wide_for_its_own_window_is_refused() {
+fn an_edge_too_wide_for_its_own_window_is_refused() {
     let fault = WorldConfig {
         sector_edge: Meters(f32::MAX),
-        ..uniform()
+        ..rocks()
     }
     .validate()
     .expect_err("a window two cells wide cannot reach the far face of an f32::MAX cell");
@@ -327,87 +480,30 @@ fn a_uniform_edge_too_wide_for_its_own_window_is_refused() {
     // refusal is the overflow and not a new ceiling on how wide a cell may be.
     WorldConfig {
         sector_edge: Meters(f32::MAX / 4.0),
-        ..uniform()
+        ..rocks()
     }
     .validate()
     .expect("a window that still has a finite far face arms");
-}
-
-/// The layered floor is set by the planetoid, at its OUTER radius.
-///
-/// About 8.44 km for a barren rock: the 1,200 m band is a MEAN radius and the
-/// mesh spans `1 +/- relief`, so the body reaches 1,266 m - the same
-/// `body_radius` the placement spaces by. 8,100 m is the pin: it clears the
-/// floor the mean band alone would give and is still a cell the planetoid
-/// crosses. A gated rock reaches 360 m and a moored hull 400 m, so naming
-/// which body set the floor tells a caller what they would have to shrink.
-#[test]
-fn a_layered_edge_too_narrow_to_own_its_planetoids_is_refused() {
-    for edge in [Meters(7_999.0), Meters(8_100.0)] {
-        let fault = fault_of(&WorldConfig {
-            sector_edge: edge,
-            ..layered()
-        });
-        assert!(
-            matches!(
-                &fault,
-                SectorFault::Config { field: "sector_edge", value }
-                    if value.contains("planetoid")
-            ),
-            "a {edge:?} cell is narrower than its own planetoids and must refuse \
-             by naming them, got {fault:?}"
-        );
-    }
-    let wide_enough = WorldConfig {
-        sector_edge: Meters(8_441.0),
-        ..layered()
-    };
-    assert!(
-        wide_enough.validate().is_ok(),
-        "a cell just wide enough to own a 1,266 m planetoid must arm"
-    );
-}
-
-/// A uniform world has no feature field, so asking for one is a refusal.
-///
-/// Not an empty list: the field is a pure function of seed and coordinate, so
-/// it would happily describe spheres the uniform generator never places - a
-/// wrong answer rather than an absent one. It is also the one config whose
-/// edge nothing bounds from above, the thinning halo being a layered concern,
-/// so an unanswered query is what keeps the node sweep bounded by the halo.
-#[test]
-fn a_uniform_world_has_no_feature_field_to_query() {
-    let fault = sector_features(&uniform(), SectorCoord::ORIGIN)
-        .expect_err("a uniform world must refuse a feature query");
-    assert!(
-        matches!(
-            &fault,
-            SectorFault::Config {
-                field: "generation",
-                ..
-            }
-        ),
-        "a uniform world must refuse a feature query by naming the generator, got {fault:?}"
-    );
 }
 
 /// A cell whose node range runs off the lattice is refused, not clipped.
 ///
 /// A clipped range would sweep the whole lattice from one far cell and answer
 /// for ground that cell never reaches. 400 km is inside the thinning halo's
-/// span, so the config itself is valid; it is the CELL, out at the end of the
-/// i32 grid, that has no node range anyone can address.
+/// span, so the geometry itself is valid; it is the CELL, out at the end of
+/// the i32 grid, that has no node range anyone can address.
 #[test]
 fn a_feature_query_that_runs_off_the_node_lattice_is_refused() {
-    let config = WorldConfig {
+    let geometry = WorldGeometry {
         sector_edge: Meters(400_000.0),
-        ..layered()
     };
-    config
-        .validate()
-        .expect("a 400 km layered cell is inside the thinning halo's reach");
-    let fault = sector_features(&config, SectorCoord::new(i32::MAX, 0, 0))
-        .expect_err("a cell at the end of the grid has no representable node range");
+    validate_feature_geometry(geometry).expect("a 400 km cell is inside the thinning halo's reach");
+    let fault = sector_features(SectorGenerationInput {
+        seed: 20_260_922,
+        geometry,
+        coord: SectorCoord::new(i32::MAX, 0, 0),
+    })
+    .expect_err("a cell at the end of the grid has no representable node range");
     assert!(
         matches!(&fault, SectorFault::InvalidGeometry { .. }),
         "a node range off the lattice must refuse, got {fault:?}"
@@ -415,32 +511,37 @@ fn a_feature_query_that_runs_off_the_node_lattice_is_refused() {
 }
 
 #[test]
-fn a_layered_edge_wider_than_the_thinning_halo_is_refused() {
+fn a_feature_edge_wider_than_the_thinning_halo_is_refused() {
     // In EVERY build, not a debug assertion: a release run that accepted this
     // edge would inspect the same 2-node halo and ship a world where two
     // same-layer spheres outside it both survive the thinning.
-    let config = WorldConfig {
+    let geometry = WorldGeometry {
         sector_edge: Meters(500_000.0),
-        ..layered()
     };
+    let fault = sector_features(SectorGenerationInput {
+        seed: 20_260_922,
+        geometry,
+        coord: SectorCoord::ORIGIN,
+    })
+    .expect_err("a cell edge the thinning halo cannot reach across must refuse");
     assert!(
         matches!(
-            fault_of(&config),
+            fault,
             SectorFault::Config {
                 field: "sector_edge",
                 ..
             }
         ),
-        "a cell edge the thinning halo cannot reach across must refuse the config"
+        "the halo refusal must name the edge, got {fault:?}"
     );
     generate_sector(
         &WorldConfig {
             sector_edge: Meters(500_000.0),
-            ..uniform()
+            ..rocks()
         },
         SectorCoord::ORIGIN,
     )
-    .expect("the uniform generator has no halo and no thinning, so the same edge is fine");
+    .expect("a generator that reads no field has no halo, so the same edge is fine");
 }
 
 /// The refusal the ARMING frame owes the main thread.
@@ -454,7 +555,7 @@ mod arming {
     use bevy::{ecs::system::RunSystemOnce, prelude::*};
     use nova_events::prelude::Meters;
 
-    use super::{layered, uniform};
+    use super::{rocks, Rocks};
     use crate::{prelude::WorldObserver, WorldConfig};
 
     /// A world with `config` armed and exactly one observer standing in it,
@@ -464,7 +565,7 @@ mod arming {
     /// the config version the stages below it check themselves against. A
     /// helper that skipped it would arm every test into the very refusal
     /// `a_config_written_after_the_world_was_cleared_is_refused` pins.
-    fn armed(config: WorldConfig) -> World {
+    fn armed(config: WorldConfig<Rocks>) -> World {
         let mut world = World::new();
         world.insert_resource(config);
         world.init_resource::<crate::streaming::ReadySectors>();
@@ -472,7 +573,7 @@ mod arming {
         world.init_resource::<crate::streaming::ClearedConfig>();
         world.spawn((WorldObserver, GlobalTransform::default()));
         world
-            .run_system_once(crate::streaming::clear_sector_work)
+            .run_system_once(crate::streaming::clear_sector_work::<Rocks>)
             .expect("the arming frame must clear the world it replaces");
         world
     }
@@ -482,26 +583,26 @@ mod arming {
     fn an_oversized_window_is_refused_before_it_is_enumerated() {
         let mut world = armed(WorldConfig {
             active_radius: 1_000,
-            ..uniform()
+            ..rocks()
         });
-        let _ = world.run_system_once(crate::streaming::track_current_sector);
+        let _ = world.run_system_once(crate::streaming::track_current_sector::<Rocks>);
     }
 
     #[test]
     #[should_panic(expected = "WorldConfig::sector_edge")]
-    fn a_layered_edge_the_halo_cannot_cover_is_refused_when_it_is_armed() {
+    fn a_generator_refusal_is_raised_when_the_world_is_armed() {
         let mut world = armed(WorldConfig {
-            sector_edge: Meters(500_000.0),
-            ..layered()
+            sector_edge: Meters(2_000.0),
+            ..rocks()
         });
-        let _ = world.run_system_once(crate::streaming::track_current_sector);
+        let _ = world.run_system_once(crate::streaming::track_current_sector::<Rocks>);
     }
 
     #[test]
     fn the_measured_window_arms() {
-        let mut world = armed(uniform());
+        let mut world = armed(rocks());
         world
-            .run_system_once(crate::streaming::track_current_sector)
+            .run_system_once(crate::streaming::track_current_sector::<Rocks>)
             .expect("the measured 5x5x5 window must arm");
     }
 
@@ -516,9 +617,9 @@ mod arming {
     #[test]
     #[should_panic(expected = "changed after NovaWorldSystems::Cleanup ran")]
     fn a_config_written_after_the_world_was_cleared_is_refused() {
-        let mut world = armed(uniform());
-        world.resource_mut::<WorldConfig>().seed += 1;
-        let _ = world.run_system_once(crate::streaming::track_current_sector);
+        let mut world = armed(rocks());
+        world.resource_mut::<WorldConfig<Rocks>>().seed += 1;
+        let _ = world.run_system_once(crate::streaming::track_current_sector::<Rocks>);
     }
 }
 
@@ -532,19 +633,19 @@ mod arming {
 mod observer {
     use bevy::{ecs::system::RunSystemOnce, prelude::*};
 
-    use super::uniform;
+    use super::{rocks, Rocks};
     use crate::prelude::{CurrentSector, SectorCoord, WorldObserver};
 
     /// A world with the fixture config in it, taken through the arming
     /// frame's [`crate::NovaWorldSystems::Cleanup`] and holding nothing else.
     fn world() -> World {
         let mut world = World::new();
-        world.insert_resource(uniform());
+        world.insert_resource(rocks());
         world.init_resource::<crate::streaming::ReadySectors>();
         world.init_resource::<crate::SectorJobStats>();
         world.init_resource::<crate::streaming::ClearedConfig>();
         world
-            .run_system_once(crate::streaming::clear_sector_work)
+            .run_system_once(crate::streaming::clear_sector_work::<Rocks>)
             .expect("the arming frame must clear the world it replaces");
         world
     }
@@ -552,7 +653,7 @@ mod observer {
     #[test]
     #[should_panic(expected = "there is not exactly one WorldObserver")]
     fn a_session_with_no_observer_is_refused() {
-        let _ = world().run_system_once(crate::streaming::track_current_sector);
+        let _ = world().run_system_once(crate::streaming::track_current_sector::<Rocks>);
     }
 
     #[test]
@@ -561,7 +662,7 @@ mod observer {
         let mut world = world();
         world.spawn((WorldObserver, GlobalTransform::default()));
         world.spawn((WorldObserver, GlobalTransform::default()));
-        let _ = world.run_system_once(crate::streaming::track_current_sector);
+        let _ = world.run_system_once(crate::streaming::track_current_sector::<Rocks>);
     }
 
     #[test]
@@ -574,7 +675,7 @@ mod observer {
             GlobalTransform::from(Transform::from_xyz(4_000.0, 0.0, 0.0)),
         ));
         world
-            .run_system_once(crate::streaming::track_current_sector)
+            .run_system_once(crate::streaming::track_current_sector::<Rocks>)
             .expect("the observer system must run");
         assert_eq!(
             world.resource::<CurrentSector>().0,

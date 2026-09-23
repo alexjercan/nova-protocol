@@ -38,7 +38,9 @@ use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 #[cfg(feature = "debug")]
 use world_fixture::EXAMPLE_ACTIVE_RADIUS;
-use world_fixture::{free_play_scenario, uniform_world_config, world_observer_plugin};
+use world_fixture::{
+    free_play_scenario, uniform_world_config, world_observer_plugin, UniformAsteroids,
+};
 
 #[derive(Parser)]
 #[command(name = "world_sectors")]
@@ -78,7 +80,11 @@ const STEP_DEADLINE_SECS: f32 = 240.0;
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new()
-        .with_game_plugins((observer_plugin, world_observer_plugin, NovaWorldPlugin))
+        .with_game_plugins((
+            observer_plugin,
+            world_observer_plugin,
+            NovaWorldPlugin::<UniformAsteroids>::default(),
+        ))
         .build();
 
     #[cfg(feature = "debug")]
@@ -159,7 +165,7 @@ fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
 /// back one materialization a frame, and a sector arriving late is a number on
 /// screen instead of a mystery.
 fn update_readout(
-    config: Option<Res<WorldConfig>>,
+    config: Option<Res<WorldConfig<UniformAsteroids>>>,
     current: Option<Res<CurrentSector>>,
     ready: Res<ReadySectors>,
     observer: Query<&GlobalTransform, With<WorldObserver>>,

@@ -36,6 +36,10 @@ nova_ui = { path = "../nova_ui" }
 # The quantity types the builders author in: base content is written in meters
 # and the audit reports reach in meters.
 nova_events = { path = "../nova_events" }
+# `NovaLayeredWorld` implements nova_world's `SectorGenerator` with base
+# content ids, so the edge points this way: nova_world names no content and
+# must never depend on this crate.
+nova_world = { path = "../nova_world" }
 
 [dev-dependencies]
 # The two scenario walk-through tests drive real content through the scenario

@@ -24,8 +24,8 @@ use nova_gameplay::prelude::SeedStream;
 /// seeded [`PlanetSurface`] a type and a seed resolve to.
 pub mod prelude {
     pub use super::{
-        Biome, BiomeSlot, PlanetBand, PlanetConfig, PlanetDetail, PlanetSurface, PlanetType,
-        PLANET_BAND_LIMIT,
+        Biome, BiomeSlot, PlanetBand, PlanetConfig, PlanetConfigFault, PlanetDetail, PlanetSurface,
+        PlanetType, PLANET_BAND_LIMIT,
     };
 }
 
@@ -423,14 +423,74 @@ impl PlanetConfig {
     ///
     /// The authored relief is a HEIGHT in meters and the generator needs a
     /// fraction, so this is the only place that division happens. A
-    /// non-positive radius would make it meaningless; `check_planet` in the
-    /// scenario lint rejects one before it reaches here.
+    /// non-positive radius would make it meaningless; [`Self::validate`]
+    /// rejects one before it reaches here.
     pub fn relief_fraction(&self) -> f32 {
         match self.relief {
             Some(relief) => relief.get() / self.radius.get(),
             None => self.planet_type.relief(),
         }
     }
+
+    /// Refuse a config no body can be built from.
+    ///
+    /// A planet's radius is its REAL size, and the whole body - the mesh
+    /// range, the derived body radius, the well clamp, the sphere of
+    /// influence, an orbit ring - is measured off it. A zero or negative
+    /// radius does not draw a small planet; it divides the authored relief by
+    /// nothing. The scenario lint and `nova_world`'s manifest check both call
+    /// this, so an authored planet and a generated one pass the same rules.
+    ///
+    /// # Errors
+    ///
+    /// The first field at fault: a radius that is not positive and finite;
+    /// `invulnerable: false`, because there is no destructible planet; a
+    /// relief that is not positive, finite and smaller than the radius; a sea
+    /// level outside 0 to 1; a mass or lock signature that is not positive
+    /// and finite.
+    pub fn validate(&self) -> Result<(), PlanetConfigFault> {
+        let fault = |field, value| Err(PlanetConfigFault { field, value });
+        let radius = self.radius.get();
+        if !radius.is_finite() || radius <= 0.0 {
+            return fault("radius", format!("{radius} m"));
+        }
+        if !self.invulnerable {
+            return fault("invulnerable", "false".to_string());
+        }
+        if let Some(relief) = self.relief {
+            if !relief.get().is_finite() || relief.get() <= 0.0 || relief.get() >= radius {
+                return fault(
+                    "relief",
+                    format!("{} m against a {radius} m radius", relief.get()),
+                );
+            }
+        }
+        if let Some(sea_level) = self.sea_level {
+            if !(0.0..=1.0).contains(&sea_level) {
+                return fault("sea_level", sea_level.to_string());
+            }
+        }
+        if let Some(mass) = self.mass {
+            if !mass.is_finite() || mass <= 0.0 {
+                return fault("mass", mass.to_string());
+            }
+        }
+        if let Some(signature) = self.lock_signature {
+            if !signature.get().is_finite() || signature.get() <= 0.0 {
+                return fault("lock_signature", format!("{} m", signature.get()));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The field a [`PlanetConfig`] is refused for, from [`PlanetConfig::validate`].
+#[derive(Clone, Debug)]
+pub struct PlanetConfigFault {
+    /// The config field at fault, named as it is authored.
+    pub field: &'static str,
+    /// What that field held, in its authored units.
+    pub value: String,
 }
 
 /// One resolved band: the biome the seed drew for a slot, tinted, with the
