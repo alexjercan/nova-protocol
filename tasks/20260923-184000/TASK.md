@@ -64,11 +64,51 @@ branch (`nova-world-base-owns-features`). Parent spike: `20260824-125938`.
   with the pre-change figures: 250 manifests identical over three walks,
   6 spheres (2/1/3), 26 objects with 23 same-cell pairs, 1 planetoid and
   3 inert derelicts.
-- The first probe run caught claim 14 comparing only the home cell, which
-  holds no body under either seed. Its precondition now compares the whole
-  window (49 of 214 shared cells differ).
 - Hardware captures before and after: all five slice and cloud frames are
   pixel-identical. The three world_features frames differ only in the fps
   counter, the build hash and sparse single-pixel shading speckle. The
   readouts, census lines and the shot target line match exactly.
 - Skipped: workspace tests and workspace clippy (not affected).
+
+## Review fixes
+
+An independent read-only review of #63 found six defects. All six are fixed.
+
+- Claim 14 was vacuous: `(0, -2, 2)` and `(-4, -2, 2)` lie outside the
+  window around `(2, 1, 2)`, so ordinary stale discards took the handed-in
+  work. Under seed 20260923 no window cell holds bodies under both seeds.
+  Owner decision, 2026-09-23: `REPLACEMENT_SEED` 20260925, job cell
+  `(0, 0, 0)` (1 planetoid -> 4 rocks), ready cell `(0, 0, 4)` (1 rock ->
+  2 rocks). The beat waits for the whole new window. The report asserts that
+  each cell's live children are the new manifest's ids, and that the job stats
+  moved by exactly +126 requested, +125 completed, +125 materialized and
+  +2 discarded. Both cells are desired and the observer stays still, so only
+  `clear_sector_work` can take the work.
+- The digest test builds its 32 km, radius-2 inputs itself. The digest is
+  unchanged. It is not widened: no stripped pre-change dump was kept, and
+  building `19b348e43` to make one would need a second checkout.
+- Claim 10 says only what the runtime observes: manifest-named bodies parented
+  under their root. A `nova_world_base` test ties each planetoid to an owned
+  planet sphere centre, and each derelict to an owned derelict sphere.
+- A `nova_world` test accepts two rocks 100 m apart at their clearance
+  spheres. It fails when the core check is given a 500 m margin.
+- `docs/architecture.md` credits the 128 km ceiling to the body budget only.
+  The halo bound (about 447 km) is listed separately.
+- The `index_slug` doc says cell index. `node_slug` stays private in
+  `nova_world_base`. A public cross-crate helper would widen the core
+  interface only to share generator naming.
+
+Fix verification:
+
+- Unit: `nova_world` 21 + 1 doctest, `nova_world_base` 17. The digest is
+  unchanged.
+- Clippy `-D warnings` on both crates' tests and on the six world examples
+  with `debug`. Rustdoc `-D warnings` on both crates. fmt and diff check.
+- Probe `--correctness-only` on an RTX 3060 Ti: system_world_sectors OK, with
+  all 15 outcomes and the figures above. Claim 14 reads retired 125,
+  discarded 2, rebuilt 125.
+- Mutation (reverted): if `clear_sector_work` keeps `ReadySectors`, claim 14
+  fails on the stale `sector_0_0_4_body_0`. If the core check uses a 500 m
+  margin, the zero-margin unit test fails.
+- Not rerun: the other five world example probes. Their code did not change
+  and clippy covers them.

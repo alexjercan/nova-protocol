@@ -292,6 +292,30 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
     }
 }
 
+/// The core check refuses only bodies that overlap: spacing is each
+/// generator's own policy. Two 40 m rocks claim 240 m of clearance each, so
+/// 580 m apart leaves 100 m between their clearance spheres - less than the
+/// 500 m margin `nova_world_base` keeps - and the manifest still describes.
+#[test]
+fn bodies_closer_than_a_generator_margin_but_not_overlapping_are_accepted() {
+    let description = generate_sector(
+        &answering(|input| {
+            let centre = input.coord.centre(input.geometry.sector_edge);
+            let rock = |index: usize, offset: f32| SectorAsteroid {
+                id: sector_id(input.coord, "body", index),
+                position: centre + Meters3::new(offset, 0.0, 0.0),
+                radius: Meters(40.0),
+                kind: KIND_ROCK.to_string(),
+                seed: index as u32,
+            };
+            empty(input.coord, vec![rock(0, 0.0), rock(1, 580.0)])
+        }),
+        SectorCoord::ORIGIN,
+    )
+    .expect("two rocks whose clearance spheres do not touch must describe");
+    assert_eq!(description.asteroids().len(), 2);
+}
+
 /// The rock cap's rocks, one planetoid and ships to fill `count` bodies, each
 /// on its own 3 km grid point inside the cell's inset.
 fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {

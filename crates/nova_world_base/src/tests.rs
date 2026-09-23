@@ -79,14 +79,18 @@ fn the_open_world_describes_the_same_sectors_in_any_visit_order() {
 ///
 /// The digest is FNV-1a 64 over the concatenated canonical descriptions of
 /// the 125 cells around `(2, 1, 2)`, walked in `desired_sectors` order, for
-/// seed 20,260,922 at a 32 km edge. A deliberate change to the generator's
-/// output changes this digest; record the new value from the left side of
-/// this test's failure message.
+/// seed 20,260,922 at a 32 km edge. Every input is written out here rather
+/// than read from the session constants, so retuning New Game cannot move the
+/// recorded window. A deliberate change to the generator's output changes
+/// this digest; record the new value from the left side of this test's
+/// failure message.
 #[test]
 fn a_pinned_window_generates_the_recorded_bodies() {
     let config = WorldConfig {
         seed: 20_260_922,
-        ..session_config()
+        sector_edge: Meters(32_000.0),
+        active_radius: 2,
+        generator: NovaLayeredWorld,
     };
     let canonical: String = desired_sectors(SectorCoord::new(2, 1, 2), config.active_radius)
         .into_iter()

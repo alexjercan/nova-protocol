@@ -390,6 +390,61 @@ mod tests {
         );
     }
 
+    /// A planetoid stands at the centre of a planet sphere its own cell owns,
+    /// and each derelict within `DERELICT_SPREAD` of a derelict sphere its own
+    /// cell owns and inside that sphere. The manifest carries no sphere, so
+    /// the streamed world cannot observe this; the window is the one the
+    /// examples fly, which holds one planetoid and three derelicts.
+    #[test]
+    fn planetoids_and_derelicts_stand_in_a_sphere_of_their_layer_their_cell_owns() {
+        let geometry = WorldGeometry {
+            sector_edge: Meters(32_000.0),
+        };
+        let (mut planets, mut ships) = (0, 0);
+        for coord in desired_sectors(SectorCoord::new(2, 1, 2), 2) {
+            let input = SectorGenerationInput {
+                seed: 20_260_922,
+                geometry,
+                coord,
+            };
+            let manifest = NovaLayeredWorld
+                .generate(input)
+                .unwrap_or_else(|fault| panic!("sector {coord}: {fault}"));
+            let features =
+                sector_features(input).unwrap_or_else(|fault| panic!("sector {coord}: {fault}"));
+            let owned = |layer: FeatureLayer| {
+                features
+                    .iter()
+                    .filter(move |sphere| sphere.layer == layer && sphere.owner == coord)
+            };
+            for planet in &manifest.planets {
+                assert!(
+                    owned(FeatureLayer::Planet).any(|sphere| sphere.centre == planet.position),
+                    "planetoid '{}' is not at the centre of a planet sphere {coord} owns",
+                    planet.id
+                );
+                planets += 1;
+            }
+            for ship in &manifest.ships {
+                assert!(
+                    owned(FeatureLayer::Derelict).any(|sphere| {
+                        let offset = (ship.position.get() - sphere.centre.get()).abs();
+                        offset.max_element() <= DERELICT_SPREAD.get()
+                            && ship.position.distance(sphere.centre) <= sphere.radius
+                    }),
+                    "derelict '{}' is not near and inside a derelict sphere {coord} owns",
+                    ship.id
+                );
+                ships += 1;
+            }
+        }
+        assert_eq!(
+            (planets, ships),
+            (1, 3),
+            "the window must hold the bodies this test is about"
+        );
+    }
+
     /// The manifest caps were measured at exactly 128 km, so that edge arms
     /// and the next `f32` above it refuses by naming the edge and the cap.
     #[test]

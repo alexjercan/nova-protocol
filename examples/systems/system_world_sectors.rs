@@ -34,11 +34,11 @@
 //! | 7 | `outcome: every physical object stands clear inside its own sector` | every rock, planetoid and ship is inside its owning cell's inset and clears every other object in that cell by the placement margin |
 //! | 8 | `outcome: arming the stream materializes the whole desired set` | exactly the desired 5x5x5 set is live, one root each, every root scenario-scoped and owning exactly the objects its manifest names |
 //! | 9 | `outcome: every sector is requested and prepared before it is materialized` | arming started 125 jobs, never more at once than the task pool has threads, preparation overlapped where the pool has more than one, all 125 came back, all 125 were spawned from a prepared result, and none was discarded |
-//! | 10 | `outcome: a featured sector owns real planetoids and inert derelict ships` | every planetoid the field placed is a real `PlanetMarker` body and every derelict a `SpaceshipRootMarker` with no driver and neutral allegiance, each a child of the cell that owns its sphere |
+//! | 10 | `outcome: a featured sector owns real planetoids and inert derelict ships` | every planetoid a manifest names is a real `PlanetMarker` body and every derelict a `SpaceshipRootMarker` with no driver and neutral allegiance, each a child of the sector root whose manifest names it |
 //! | 11 | `outcome: crossing one boundary retains the shared slab and swaps a face` | after a +X crossing 100 roots are the SAME entities, 25 are gone and 25 are new |
 //! | 12 | `outcome: the return trip leaves no duplicate root` | coming back gives the original 125 cells, one root each, and the returned sectors hold the objects their manifests name |
 //! | 13 | `outcome: work for an undesired sector never materializes` | a job and a prepared result for cells outside the desired set are both discarded, nothing is spawned from them, and the live set does not move |
-//! | 14 | `outcome: replacing the world config retires the world it built` | swapping `WorldConfig` under a live session leaves no baseline root alive, drops the job and the prepared result on hand, and any payload waiting for a cell in the window describes the NEW world |
+//! | 14 | `outcome: replacing the world config retires the world it built` | swapping `WorldConfig` under a live session leaves no baseline root alive, discards the in-window job uncompleted and the in-window prepared result, and rebuilds the window once so both of those cells hold the NEW world's objects |
 //! | 15 | `outcome: unloading the session removes every sector root` | `UnloadScenario` leaves zero sector roots, zero scenario object entities, zero pending jobs and zero prepared results |
 //!
 //! What this range does NOT claim: anything about a floating origin,
@@ -152,24 +152,28 @@ const ABANDONED_WORK: usize = 2;
 
 /// The cell whose job is running when the `WorldConfig` is replaced.
 ///
-/// INSIDE the desired window, unlike the abandoned cells: a completion the
-/// window still wants is the one a coordinate-keyed loop would accept, so this
-/// is the piece of work that would carry the old seed into the new world.
+/// INSIDE the desired window around [`FEATURE_HOME`], unlike the abandoned
+/// cells: a completion the window still wants is the one a coordinate-keyed
+/// loop would accept, so this is the piece of work that would carry the old
+/// seed into the new world. The old seed puts a planetoid here and
+/// [`REPLACEMENT_SEED`] four rocks, so the two worlds name different objects.
 #[cfg(feature = "debug")]
-const REPLACED_JOB_CELL: SectorCoord = SectorCoord::new(0, -2, 2);
+const REPLACED_JOB_CELL: SectorCoord = SectorCoord::new(0, 0, 0);
 
 /// The cell whose prepared result is waiting when the `WorldConfig` is
-/// replaced. Inside the desired window for the same reason.
+/// replaced. Inside the desired window for the same reason. The old seed puts
+/// one rock here and [`REPLACEMENT_SEED`] two.
 #[cfg(feature = "debug")]
-const REPLACED_READY_CELL: SectorCoord = SectorCoord::new(-4, -2, 2);
+const REPLACED_READY_CELL: SectorCoord = SectorCoord::new(0, 0, 4);
 
 /// The seed the world is replaced WITH, mid-session.
 ///
 /// A different world and not a different dial: the claim is that nothing built
 /// from the first seed survives into the second, and two configs that agreed
-/// about every cell would not observe it.
+/// about every cell would not observe it. Chosen so both replaced cells hold
+/// bodies under both seeds and name different objects under each.
 #[cfg(feature = "debug")]
-const REPLACEMENT_SEED: u32 = 20_260_923;
+const REPLACEMENT_SEED: u32 = 20_260_925;
 
 /// How many pieces of work the replacement beat hands in: one running job and
 /// one prepared sector, both for cells the window still wants.
@@ -314,9 +318,10 @@ fn abandoned_work_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sy
 /// Reads ENTITIES, not coordinates: the replaced window wants the same 125
 /// cells the old one did, so a coordinate test could not tell an old root from
 /// the new root that replaced it, and both handed-in cells are re-requested
-/// under the new config within a frame or two. What became of the prepared
-/// payload is a question about CONTENT rather than presence, so
-/// `report_world_replacement` asks that one instead.
+/// under the new config within a frame or two. What became of the handed-in
+/// work is a question about CONTENT rather than presence, so the beat also
+/// waits for the whole new window and `report_world_replacement` reads what
+/// those two cells hold.
 #[cfg(feature = "debug")]
 fn replaced_world_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     Arc::new(|world: &World| {
@@ -493,19 +498,15 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .step("replace the world under the live session")
         .on_enter(|world: &mut World| {
             let roots = live_roots(world).values().copied().collect::<BTreeSet<_>>();
-            let discarded = world.resource::<SectorJobStats>().discarded;
+            let stats = *world.resource::<SectorJobStats>();
             let job = hand_in_work(world, REPLACED_JOB_CELL, REPLACED_READY_CELL);
-            world.insert_resource(ReplacedWorld {
-                roots,
-                job,
-                discarded,
-            });
+            world.insert_resource(ReplacedWorld { roots, job, stats });
             world.insert_resource(WorldConfig {
                 seed: REPLACEMENT_SEED,
                 ..featured_world_config()
             });
         })
-        .until(replaced_world_is_gone())
+        .until(and(replaced_world_is_gone(), sector_set_is(home)))
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("report the world replacement")
@@ -545,8 +546,8 @@ struct ReplacedWorld {
     roots: BTreeSet<Entity>,
     /// The job that was running when the config changed.
     job: Entity,
-    /// What `discarded` read before the beat handed its work in.
-    discarded: usize,
+    /// What the job counters read before the beat handed its work in.
+    stats: SectorJobStats,
 }
 
 /// Claim 1: the session starts empty.
@@ -1026,14 +1027,16 @@ fn report_preparation(world: &mut World) {
     );
 }
 
-/// Claim 10: a planet sphere really made a world, and a derelict sphere
-/// really made ships nobody is flying.
+/// Claim 10: a planetoid a manifest names is a real world, and a derelict it
+/// names is a ship nobody is flying.
 ///
 /// The counts alone would pass on a sector that spawned rocks named
 /// `..._planet_0`. What is read here is the COMPONENTS the game's own object
 /// factories insert: `PlanetMarker` for a world, `SpaceshipRootMarker` with
 /// `SpaceshipController::None` and `Allegiance::Neutral` for a derelict -
-/// and each of them under the root of the cell whose sphere placed it.
+/// and each of them under the root of the cell whose manifest names it. The
+/// manifest carries no feature sphere, so which sphere placed a body is
+/// proved in `nova_world_base`, not here.
 #[cfg(feature = "debug")]
 fn report_places(world: &mut World) {
     let config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
@@ -1294,14 +1297,21 @@ fn report_abandoned_work(world: &mut World) {
 /// CELL and the replaced window wants the same 125 cells: a root, a running
 /// job and a prepared payload built from the old seed all look exactly like
 /// the new world's own work to a loop that only compares coordinates. So the
-/// assertions read entities, and the two configs are first shown to disagree
-/// about the cells they share - a claim about a swap nobody could observe would
-/// be no claim at all.
+/// assertions read entities and contents, and the two configs are first shown
+/// to disagree about both handed-in cells - a claim about a swap nobody could
+/// observe would be no claim at all.
+///
+/// Both handed-in cells are inside the window and the observer does not move,
+/// so neither [`nova_world::retire_sectors`] nor the stale-completion path in
+/// [`nova_world::collect_sector_jobs`] can take them: only
+/// `clear_sector_work` can. The counters name which path ran. The old job is
+/// discarded without ever completing, and each of the 125 cells is requested,
+/// completed and materialized exactly once under the new config.
 #[cfg(feature = "debug")]
 fn report_world_replacement(world: &mut World) {
     let replaced = world.resource::<ReplacedWorld>();
     let baseline_roots = replaced.roots.clone();
-    let baseline_discarded = replaced.discarded;
+    let baseline = replaced.stats;
     let old_job = replaced.job;
 
     let old_config = featured_world_config();
@@ -1310,26 +1320,36 @@ fn report_world_replacement(world: &mut World) {
         new_config.seed, REPLACEMENT_SEED,
         "world sectors: the replacement beat must leave the new config in place"
     );
-    // The whole window and not the home cell: (2, 1, 2) holds no body under
-    // either seed.
-    let canonical_window = |config: &WorldConfig<NovaLayeredWorld>| {
-        describe_window(FEATURE_HOME, config)
-            .iter()
-            .map(SectorDescription::canonical)
-            .collect::<Vec<_>>()
-    };
-    assert_ne!(
-        canonical_window(&old_config),
-        canonical_window(&new_config),
-        "world sectors: the two configs must describe the window around {FEATURE_HOME} \
-         differently, or the replacement claim observes nothing"
-    );
+    let desired = desired_sectors(FEATURE_HOME, new_config.active_radius);
+    let mut replaced_cells = BTreeMap::new();
+    for cell in [REPLACED_JOB_CELL, REPLACED_READY_CELL] {
+        assert!(
+            desired.contains(&cell),
+            "world sectors: {cell} must be inside the window around {FEATURE_HOME}, or a \
+             stale-result discard could take its work instead of clear_sector_work"
+        );
+        let old_ids: BTreeSet<String> = describe(cell, &old_config)
+            .object_ids()
+            .into_iter()
+            .collect();
+        let new_ids: BTreeSet<String> = describe(cell, &new_config)
+            .object_ids()
+            .into_iter()
+            .collect();
+        assert!(
+            !old_ids.is_empty() && !new_ids.is_empty(),
+            "world sectors: {cell} must hold bodies under both seeds, old {old_ids:?} new \
+             {new_ids:?}, or the replacement claim observes nothing there"
+        );
+        assert_ne!(
+            old_ids, new_ids,
+            "world sectors: the two configs must name different objects in {cell}, or a stale \
+             payload there would look like the new world's own"
+        );
+        replaced_cells.insert(cell, (old_ids, new_ids));
+    }
 
     let live = live_roots(world);
-    assert!(
-        !live.is_empty(),
-        "world sectors: the new config must start building its own world"
-    );
     let survivors: Vec<SectorCoord> = live
         .iter()
         .filter(|(_, entity)| baseline_roots.contains(entity))
@@ -1339,13 +1359,11 @@ fn report_world_replacement(world: &mut World) {
         survivors.is_empty(),
         "world sectors: no root the old config built may survive the swap, found {survivors:?}"
     );
-    let desired = desired_sectors(FEATURE_HOME, new_config.active_radius);
-    for coord in live.keys() {
-        assert!(
-            desired.contains(coord),
-            "world sectors: {coord} is live but outside the replaced window"
-        );
-    }
+    assert_eq!(
+        live.keys().copied().collect::<BTreeSet<_>>(),
+        desired,
+        "world sectors: the new config must rebuild exactly the window around {FEATURE_HOME}"
+    );
 
     let old_job_alive = world
         .get_entity(old_job)
@@ -1355,31 +1373,35 @@ fn report_world_replacement(world: &mut World) {
         "world sectors: the job started under the old config must be dropped, not collected \
          into the new world"
     );
-    // Presence is the wrong question: the cell is inside the replaced window,
-    // so the new config re-prepares it within a frame or two and a test for an
-    // empty slot would fail on a payload that is perfectly correct. What may
-    // never be waiting there is the OLD config's description of it.
-    let waiting = world
-        .resource::<ReadySectors>()
-        .0
-        .get(&REPLACED_READY_CELL)
-        .map(|prepared| prepared.description().canonical());
-    if let Some(waiting) = waiting {
+    for (cell, (old_ids, new_ids)) in &replaced_cells {
+        let children = world
+            .get::<Children>(live[cell])
+            .map_or_else(Vec::new, |children| children.iter().collect());
+        let spawned: BTreeSet<String> = children
+            .iter()
+            .filter_map(|child| world.get::<EntityId>(*child))
+            .map(|id| id.0.clone())
+            .collect();
         assert_eq!(
-            waiting,
-            describe(REPLACED_READY_CELL, &new_config).canonical(),
-            "world sectors: the payload waiting for {REPLACED_READY_CELL} must be the new \
-             config's, not the one prepared before the swap"
+            &spawned, new_ids,
+            "world sectors: {cell} must hold the new config's objects, not the {old_ids:?} \
+             prepared before the swap"
         );
     }
 
     let stats = *world.resource::<SectorJobStats>();
+    let expected = SectorJobStats {
+        requested: baseline.requested + 1 + DESIRED_ROOTS,
+        completed: baseline.completed + DESIRED_ROOTS,
+        materialized: baseline.materialized + DESIRED_ROOTS,
+        discarded: baseline.discarded + REPLACED_WORK,
+        peak_pending: stats.peak_pending,
+    };
     assert_eq!(
-        stats.discarded,
-        baseline_discarded + REPLACED_WORK,
-        "world sectors: exactly the {REPLACED_WORK} pieces of work the old config had in hand \
-         must be discarded, {baseline_discarded} -> {}",
-        stats.discarded
+        stats, expected,
+        "world sectors: the swap must discard exactly the {REPLACED_WORK} handed-in pieces of \
+         work, the old job uncompleted, and build each of the {DESIRED_ROOTS} new cells once, \
+         {baseline:?} -> {stats:?}"
     );
 
     nova_probe::probe_marker(
@@ -1389,6 +1411,7 @@ fn report_world_replacement(world: &mut World) {
             "retired": baseline_roots.len(),
             "discarded": REPLACED_WORK,
             "survivors": 0,
+            "rebuilt": live.len(),
         }),
     );
     info!(

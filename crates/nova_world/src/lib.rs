@@ -315,8 +315,8 @@ impl std::fmt::Display for SectorCoord {
     }
 }
 
-/// One signed lattice or cell index as a snake_case-safe slug. `n` reads as
-/// minus, because a `-` in a scenario id is not a slug.
+/// One signed cell index as a snake_case-safe slug. `n` reads as minus,
+/// because a `-` in a scenario id is not a slug.
 pub(crate) fn index_slug(index: i32) -> String {
     if index < 0 {
         format!("n{}", index.unsigned_abs())
