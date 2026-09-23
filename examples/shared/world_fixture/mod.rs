@@ -85,7 +85,9 @@ pub const EXAMPLE_ANCHORAGE_DESIGN: &str = BLOCK_HAULER_SHIP_ID;
 /// DRAWS: the meshed radius reaches 3.5-6x past it, so this draws about
 /// 210-720 m diameters. Four bodies in a 32 km cell read as scattered
 /// landmarks rather than a belt, which is what the crossing claim needs and is
-/// not a claim about how dense a real sector should be.
+/// not a claim about how dense a real sector should be. Four is also
+/// [`SECTOR_ASTEROIDS_MAX`], the density either generator has been measured
+/// at, so the baseline and the feature field fill a cell to the same ceiling.
 pub fn uniform_world_config() -> WorldConfig {
     WorldConfig {
         seed: EXAMPLE_SEED,

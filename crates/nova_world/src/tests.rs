@@ -13,7 +13,7 @@ use nova_scenario::prelude::{PlanetType, KIND_ICE, KIND_ROCK};
 
 use crate::{
     generate_sector, LayeredFeatureConfig, SectorCoord, SectorFault, SectorGeneration,
-    UniformAsteroidConfig, WorldConfig, ACTIVE_WINDOW_SECTORS_MAX,
+    UniformAsteroidConfig, WorldConfig, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX,
 };
 
 /// A config that describes a sector, and the base every refusal below breaks
@@ -94,19 +94,45 @@ fn an_unshipped_asteroid_kind_is_refused() {
 }
 
 #[test]
-fn a_uniform_config_with_no_bodies_is_refused() {
+fn a_uniform_body_count_outside_the_measured_density_is_refused() {
+    // Both ends. Zero is a world with nothing in it, and anything above the
+    // cap reaches `Vec::with_capacity` on a worker straight off a public
+    // field - `usize::MAX` is the shape of it, `SECTOR_ASTEROIDS_MAX + 1` is
+    // the boundary.
+    for count in [0, SECTOR_ASTEROIDS_MAX + 1, usize::MAX] {
+        let mut config = uniform();
+        let SectorGeneration::UniformAsteroids(uniform) = &mut config.generation else {
+            unreachable!("the fixture is the uniform generator");
+        };
+        uniform.body_count = count;
+        assert!(
+            matches!(
+                fault_of(&config),
+                SectorFault::Config {
+                    field: "generation.body_count",
+                    ..
+                }
+            ),
+            "a body count of {count} must refuse before the generator reserves for it"
+        );
+    }
     let mut config = uniform();
     let SectorGeneration::UniformAsteroids(uniform) = &mut config.generation else {
         unreachable!("the fixture is the uniform generator");
     };
-    uniform.body_count = 0;
-    assert_eq!(
-        fault_of(&config),
-        SectorFault::Config {
-            field: "generation.body_count",
-            value: "0".to_string(),
-        }
-    );
+    uniform.body_count = SECTOR_ASTEROIDS_MAX;
+    let description =
+        generate_sector(&config, SectorCoord::ORIGIN).expect("the measured density must describe");
+    assert_eq!(description.asteroids.len(), SECTOR_ASTEROIDS_MAX);
+}
+
+#[test]
+#[should_panic(expected = "runs off the i32 sector grid")]
+fn a_window_that_runs_off_the_grid_is_refused() {
+    // `SectorCoord::containing` converts with an `as` cast, which saturates,
+    // so a far enough observer really does stand in cell `i32::MAX` - and the
+    // offsets around it wrap to the far side of the world in a release build.
+    let _ = crate::streaming::desired_sectors(SectorCoord::new(i32::MAX, 0, 0), 2);
 }
 
 #[test]

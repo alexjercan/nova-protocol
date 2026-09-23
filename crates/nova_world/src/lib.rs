@@ -129,7 +129,7 @@ pub use crate::{
         generate_sector, prepare_sector, sector_features, FeatureFields, FeatureLayer,
         FeatureSphere, PreparedSector, SectorAnchorage, SectorAsteroid, SectorDescription,
         SectorPlanet, CLEARANCE_MARGIN, FEATURE_HALO, FEATURE_LATTICE, FEATURE_WAVELENGTH,
-        MOORED_HULL_CLEARANCE,
+        MOORED_HULL_CLEARANCE, SECTOR_ASTEROIDS_MAX,
     },
     streaming::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
@@ -148,7 +148,7 @@ pub mod prelude {
         SectorAnchorage, SectorAsteroid, SectorCoord, SectorDescription, SectorFault,
         SectorGeneration, SectorPlanet, UniformAsteroidConfig, WorldConfig,
         ACTIVE_WINDOW_SECTORS_MAX, CLEARANCE_MARGIN, FEATURE_HALO, FEATURE_LATTICE,
-        FEATURE_WAVELENGTH, MOORED_HULL_CLEARANCE, PLACEMENT_INSET,
+        FEATURE_WAVELENGTH, MOORED_HULL_CLEARANCE, PLACEMENT_INSET, SECTOR_ASTEROIDS_MAX,
     };
     pub use crate::streaming::{
         desired_sectors, CurrentSector, ReadySectors, SectorFeatureSpheres, SectorJob,
@@ -313,7 +313,9 @@ pub(crate) fn index_slug(index: i32) -> String {
 #[derive(Clone, Debug, PartialEq)]
 pub struct UniformAsteroidConfig {
     /// Rocks generated per sector. Zero is refused - a uniform world with no
-    /// bodies in it is a configuration mistake, not a world.
+    /// bodies in it is a configuration mistake, not a world - and so is
+    /// anything above [`SECTOR_ASTEROIDS_MAX`], the one density either
+    /// generator has been measured at.
     pub body_count: usize,
     /// Smallest nominal body radius drawn.
     pub radius_min: Meters,
@@ -411,8 +413,17 @@ impl WorldConfig {
         window_cells(self.active_radius)?;
         let kinds = match &self.generation {
             SectorGeneration::UniformAsteroids(uniform) => {
-                if uniform.body_count == 0 {
-                    return refuse("generation.body_count", uniform.body_count.to_string());
+                // Both ends, and both BEFORE `generate_sector` reserves a
+                // vector of this size on a worker. An authored count is the
+                // one number here a caller types straight into an allocation.
+                if uniform.body_count == 0 || uniform.body_count > SECTOR_ASTEROIDS_MAX {
+                    return refuse(
+                        "generation.body_count",
+                        format!(
+                            "{}, outside the 1 to {SECTOR_ASTEROIDS_MAX} rocks a cell holds",
+                            uniform.body_count
+                        ),
+                    );
                 }
                 if !uniform.radius_min.get().is_finite() || uniform.radius_min.get() <= 0.0 {
                     return refuse(

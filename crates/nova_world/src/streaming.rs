@@ -77,10 +77,23 @@ pub struct CurrentSector(pub SectorCoord);
 /// swapped by a caller's own system between the stage that validates a change
 /// and the stage that reads it, so a bound that lived only in the config would
 /// be a bound the allocation never saw.
+///
+/// And on a window that runs off the `i32` grid. `SectorCoord::containing`
+/// converts with an `as` cast, which SATURATES, so a far enough observer
+/// stands in cell `i32::MAX` and the offsets around it would panic in a debug
+/// build and WRAP to the far side of the world in a release one. Refused
+/// rather than clipped: a window quietly missing the half nobody could
+/// represent is a world that thins out for a reason no reader can see.
 pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord> {
     if let Err(fault) = crate::window_cells(radius) {
         panic!("nova_world: {fault}");
     }
+    let representable =
+        |axis: i32| axis.checked_add(radius).is_some() && axis.checked_sub(radius).is_some();
+    assert!(
+        representable(centre.x) && representable(centre.y) && representable(centre.z),
+        "nova_world: a window of radius {radius} around {centre} runs off the i32 sector grid"
+    );
     let mut desired = BTreeSet::new();
     for x in -radius..=radius {
         for y in -radius..=radius {

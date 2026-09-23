@@ -568,8 +568,18 @@ pub struct PreparedSector {
     pub planet_surfaces: Vec<PreparedPlanet>,
 }
 
-/// The most rocks a featured cell generates, at full asteroid influence.
-const MAX_SECTOR_ASTEROIDS: usize = 4;
+/// The most rocks ANY cell holds - the featured generator's count at full
+/// asteroid influence, and the ceiling [`crate::WorldConfig::validate`] holds
+/// an authored `body_count` to.
+///
+/// Four, which is the density the examples fly and the only one measured. It
+/// is one cap for both generators on purpose: a uniform cell is the streaming
+/// baseline a featured cell is judged against, so a baseline that could be
+/// denser than anything the field produces would be judging the loop against a
+/// world it never streams. A denser cell is a measurement and a change here,
+/// not a number a config can reach - and without the cap an authored
+/// `body_count` of `usize::MAX` reaches `Vec::with_capacity` on a worker.
+pub const SECTOR_ASTEROIDS_MAX: usize = 4;
 
 /// The nominal radius band a featured cell draws rocks from.
 ///
@@ -1058,13 +1068,13 @@ fn layered_contents(
     // outer shell of covered cells at zero rocks, so the belt had a hard edge
     // one cell inside its own rim and the falloff bought nothing.
     let count =
-        (strengths[FeatureLayer::Asteroid.index()] * MAX_SECTOR_ASTEROIDS as f32).ceil() as usize;
+        (strengths[FeatureLayer::Asteroid.index()] * SECTOR_ASTEROIDS_MAX as f32).ceil() as usize;
     Ok((
         features,
         strengths,
         planets,
         anchorages,
-        count.min(MAX_SECTOR_ASTEROIDS),
+        count.min(SECTOR_ASTEROIDS_MAX),
     ))
 }
 
