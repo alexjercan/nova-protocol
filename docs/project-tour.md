@@ -39,7 +39,7 @@ for responsibilities and the dependency graph.
 | `nova_os_ui` | The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the `map`/`ship` apps. A peer of the HUD, added by `nova_core`. |
 | `nova_console` | The command shell's dispatcher: the executor behind the `cmd>` prompt and the channel's `command` lane. Sits above `nova_menu` because a setting command writes the resources the settings screen owns. |
 | `nova_scenario` | Scenario engine: events, filters, actions, variables, world, loader, objects. |
-| `nova_world` | The streamed open world: a cell generated from its coordinate alone, and a 5x5x5 active window streamed around one live scenario. Opt-in - `AppBuilder` does not add `NovaWorldPlugin`, so only the `world_*` examples run it. |
+| `nova_world` | The streamed open world: a cell generated from its coordinate alone, and a 5x5x5 active window streamed around one live scenario. Opt-in - `AppBuilder` does not add `NovaWorldPlugin`; the playable `world_sectors` and `world_features` examples and the `system_world_sectors` range do. |
 | `nova_events` | Shared game-event kinds + entity identity components (gameplay <-> scenario). |
 | `nova_events_macros` | The `EventKind` derive behind `nova_events`' engine events. Its only consumer is `nova_events`. |
 | `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal) + prefs. |
