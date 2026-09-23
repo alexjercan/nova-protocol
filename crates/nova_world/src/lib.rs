@@ -24,10 +24,17 @@
 //!   them reach it. That is what makes two neighbouring cells agree about a
 //!   belt that crosses both of them without either one owning it.
 //!
-//! Neither generator has a hidden table. Every content id a cell can draw -
-//! the asteroid kinds, the planet archetypes, the moored hull's design - is
-//! named in the config, and a config naming an id the game does not ship is
-//! refused by [`WorldConfig::validate`] before a single cell is described.
+//! Neither generator has a hidden table: every content id a cell can draw is
+//! named in the config. Where the id is CHECKED differs, and the difference is
+//! what `validate` can reach. [`WorldConfig::validate`] is pure, because a
+//! worker calls it before describing a cell, so it settles the ids that have a
+//! pure answer - an asteroid kind against the shipped kind table, a planet
+//! archetype against its enum, and neither list may be empty. The moored
+//! hull's design is a key into the ship catalog, which is a Bevy resource, so
+//! `validate` can only refuse a blank one. The catalog lookup happens on the
+//! main thread in [`materialize_sector`], where an id the game does not ship
+//! is a [`SectorFault::UnknownShip`] panic - loud, and before the cell's
+//! entities exist, but at materialization and not at arming.
 //!
 //! # The job lifetime
 //!
