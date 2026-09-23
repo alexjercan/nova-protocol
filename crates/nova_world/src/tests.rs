@@ -615,8 +615,8 @@ fn an_edge_too_wide_for_its_own_window_is_refused() {
 /// `validate_manifest` is public, so it refuses a cell with no valid geometry
 /// on its own and does not rely on [`WorldConfig::validate`] having run.
 ///
-/// A NaN edge makes every containment comparison false, so without this
-/// check an empty manifest, or even rocks, pass as a trusted description.
+/// A NaN edge passes every containment test, so without this check an empty
+/// manifest, or even rocks, pass as a trusted description.
 #[test]
 fn a_manifest_for_a_cell_with_no_valid_geometry_is_refused() {
     for edge in [0.0, f32::NAN, f32::INFINITY] {
