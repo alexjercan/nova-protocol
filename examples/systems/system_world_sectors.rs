@@ -36,7 +36,8 @@
 //! | 11 | `outcome: crossing one boundary retains the shared slab and swaps a face` | after a +X crossing 100 roots are the SAME entities, 25 are gone and 25 are new |
 //! | 12 | `outcome: the return trip leaves no duplicate root` | coming back gives the original 125 cells, one root each, and the returned sectors hold the objects their manifests name |
 //! | 13 | `outcome: work for an undesired sector never materializes` | a job and a prepared result for cells outside the desired set are both discarded, nothing is spawned from them, and the live set does not move |
-//! | 14 | `outcome: unloading the session removes every sector root` | `UnloadScenario` leaves zero sector roots, zero scenario object entities, zero pending jobs and zero prepared results |
+//! | 14 | `outcome: replacing the world config retires the world it built` | swapping `WorldConfig` under a live session leaves no baseline root alive, drops the job and the prepared result on hand, and any payload waiting for a cell in the window describes the NEW world |
+//! | 15 | `outcome: unloading the session removes every sector root` | `UnloadScenario` leaves zero sector roots, zero scenario object entities, zero pending jobs and zero prepared results |
 //!
 //! What this range does NOT claim: anything about a floating origin,
 //! persistence, a measured frame budget, wall-clock preparation cost,

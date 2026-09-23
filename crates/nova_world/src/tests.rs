@@ -12,8 +12,9 @@ use nova_events::prelude::Meters;
 use nova_scenario::prelude::{PlanetType, KIND_ICE, KIND_ROCK};
 
 use crate::{
-    generate_sector, LayeredFeatureConfig, SectorCoord, SectorFault, SectorGeneration,
-    UniformAsteroidConfig, WorldConfig, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX,
+    generate_sector, sector_features, LayeredFeatureConfig, SectorCoord, SectorFault,
+    SectorGeneration, UniformAsteroidConfig, WorldConfig, ACTIVE_WINDOW_SECTORS_MAX,
+    SECTOR_ASTEROIDS_MAX,
 };
 
 /// A config that describes a sector, and the base every refusal below breaks
@@ -325,6 +326,52 @@ fn a_layered_edge_too_narrow_to_own_its_planetoids_is_refused() {
     assert!(
         wide_enough.validate().is_ok(),
         "a cell just wide enough to own a 1,200 m planetoid must arm"
+    );
+}
+
+/// A uniform world has no feature field, so asking for one is a refusal.
+///
+/// Not an empty list: the field is a pure function of seed and coordinate, so
+/// it would happily describe spheres the uniform generator never places - a
+/// wrong answer rather than an absent one. It is also the one config whose
+/// edge nothing bounds from above, the thinning halo being a layered concern,
+/// so an unanswered query is what keeps the node sweep bounded by the halo.
+#[test]
+fn a_uniform_world_has_no_feature_field_to_query() {
+    let fault = sector_features(&uniform(), SectorCoord::ORIGIN)
+        .expect_err("a uniform world must refuse a feature query");
+    assert!(
+        matches!(
+            &fault,
+            SectorFault::Config {
+                field: "generation",
+                ..
+            }
+        ),
+        "a uniform world must refuse a feature query by naming the generator, got {fault:?}"
+    );
+}
+
+/// A cell whose node range runs off the lattice is refused, not clipped.
+///
+/// A clipped range would sweep the whole lattice from one far cell and answer
+/// for ground that cell never reaches. 400 km is inside the thinning halo's
+/// span, so the config itself is valid; it is the CELL, out at the end of the
+/// i32 grid, that has no node range anyone can address.
+#[test]
+fn a_feature_query_that_runs_off_the_node_lattice_is_refused() {
+    let config = WorldConfig {
+        sector_edge: Meters(400_000.0),
+        ..layered()
+    };
+    config
+        .validate()
+        .expect("a 400 km layered cell is inside the thinning halo's reach");
+    let fault = sector_features(&config, SectorCoord::new(i32::MAX, 0, 0))
+        .expect_err("a cell at the end of the grid has no representable node range");
+    assert!(
+        matches!(&fault, SectorFault::InvalidGeometry { .. }),
+        "a node range off the lattice must refuse, got {fault:?}"
     );
 }
 

@@ -811,13 +811,27 @@ fn cached_candidate<'a>(
 ///
 /// # Errors
 ///
-/// Whatever [`WorldConfig::validate`], the field or a candidate refuses, plus
-/// [`SectorFault::DuplicateFeature`] if two spheres ever claim one id.
+/// [`SectorFault::Config`] on a [`SectorGeneration::UniformAsteroids`] world,
+/// which has no feature field to answer with, and
+/// [`SectorFault::InvalidGeometry`] for a cell whose node range runs off the
+/// lattice. Plus whatever [`WorldConfig::validate`], the field or a candidate
+/// refuses, and [`SectorFault::DuplicateFeature`] if two spheres ever claim
+/// one id.
 pub fn sector_features(
     config: &WorldConfig,
     coord: SectorCoord,
 ) -> Result<Vec<FeatureSphere>, SectorFault> {
     config.validate()?;
+    // A uniform world has no field to ask. Answering anyway would hand back
+    // spheres its generator never places, and it is the one config whose edge
+    // nothing bounds from above - the thinning halo is a layered concern - so
+    // the node loops below would have nothing holding them.
+    if let SectorGeneration::UniformAsteroids(_) = config.generation {
+        return Err(SectorFault::Config {
+            field: "generation",
+            value: "UniformAsteroids, a world with no feature field to query".to_string(),
+        });
+    }
     let fields = FeatureFields::new(config.seed);
     sector_features_from(&fields, config.seed, coord, config.sector_edge)
 }
@@ -847,13 +861,14 @@ fn sector_features_from(
         }
         let low = ((axis - reach) / lattice).floor();
         let high = ((axis + reach) / lattice).ceil();
-        if !low.is_finite() || !high.is_finite() {
-            return None;
-        }
-        Some((
-            low.clamp(f64::from(i32::MIN), f64::from(i32::MAX)) as i32,
-            high.clamp(f64::from(i32::MIN), f64::from(i32::MAX)) as i32,
-        ))
+        // Refused, not clamped. A clamp turns a cell nobody can address into a
+        // node sweep over the whole lattice, and at the far end of the grid it
+        // would silently answer for ground the cell never reaches.
+        let node = |value: f64| {
+            (value.is_finite() && value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX))
+                .then_some(value as i32)
+        };
+        Some((node(low)?, node(high)?))
     };
     let point = centre.get();
     let (Some(x), Some(y), Some(z)) = (bounds(point.x), bounds(point.y), bounds(point.z)) else {
