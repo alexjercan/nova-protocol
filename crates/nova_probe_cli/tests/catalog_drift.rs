@@ -849,6 +849,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the loaded record reaches the screen",
             "reading the handbook does not answer the offer",
             "the dismissal is a setting and the record is not",
+            "Lessons -> Basic Training loads the tutorial",
             "the answered offer is gone on the next launch",
             "the handbook is reachable without the corner",
             "a proven lesson can be practised again",
@@ -912,7 +913,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 443;
+const SYSTEMS_INVARIANTS: usize = 444;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

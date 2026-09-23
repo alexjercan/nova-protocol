@@ -6,7 +6,7 @@ Nova Protocol is a build-and-fly space shooter. You take a modular ship into a s
 
 The game boots into a main menu. On a first launch a card in the bottom-left corner offers you **Basic Training** straight away, with **Open lessons** beside it and **Not now** to put the card away for good. **Start Basic Training** puts you on the Fleet gunnery range in a ready-made armed trainer, so there is nothing to build first. The other doors can wait.
 
-The card is a one-time offer, not the entrance: the menu's **Lessons** row always opens the handbook, and **Settings > Interface > Training prompt** switches the corner back on if you want it.
+The card is a one-time offer, not the entrance: the menu's **Lessons** row always opens the handbook, whose first row is **Basic Training**, and **Settings > Interface > Training prompt** switches the corner back on if you want it.
 
 Under it sits a **field note** - one short fact taken from the handbook, with **Open lesson** to read the page it came from and **Don't show again** to stop the notes appearing on the menu. It changes each time you come back to the menu, and the same notes fill the slot at the bottom of every loading screen, which that switch does not touch. While a practice range loads, the note is about what that range teaches. **Settings > Interface > Field notes** switches the menu card back on.
 
@@ -15,7 +15,7 @@ Under it sits a **field note** - one short fact taken from the handbook, with **
 
 - **New Game** - opens the world setup: a world seed (a fresh one each time, or type your own), **Randomize**, **Create** and **Cancel**. **Create** puts you in a line warship in an open world of asteroid belts, planetoids and derelicts, generated from the seed and streamed in around you as you fly. The same seed gives the same world on the same build. **Retry** keeps the seed.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
-- **Lessons** - opens the training handbook: one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked **read**, and one is marked **done** only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.
+- **Lessons** - opens the training handbook. Its first row, **Basic Training**, starts the first-flight course. Under it is one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked **read**, and one is marked **done** only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.
 - **Scenarios** - opens the complete scenario picker, every scenario your enabled mods ship included.
 - **Mods** - opens the installed-mod and online-catalog browser. A mod whose content will not load is switched off for you and named in one **MODS DISABLED** notice on the front door; its files stay installed, so you can update, remove or switch it back on from this screen.
 - **Settings** - adjusts volume, graphics quality, window mode and the UI theme, and shows the control reference. The desktop build opens borderless fullscreen; **Windowed** is one click away.
@@ -35,7 +35,7 @@ Under it sits a **field note** - one short fact taken from the handbook, with **
 
 In any scenario, <kbd>Esc</kbd> pauses the game and gives you Resume / Retry (restart the current scenario) / Settings / Back to Main Menu / Exit.
 
-For your first flight, pick **Start Basic Training** on the card, or open **Scenarios** and pick **Basic Training**. It teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes as soon as the range sees the gesture done.
+For your first flight, pick **Start Basic Training** on the card, the **Basic Training** row at the top of **Lessons**, or **Basic Training** in **Scenarios**. It teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes as soon as the range sees the gesture done.
 
 ## The first two minutes
 

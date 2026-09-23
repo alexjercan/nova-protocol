@@ -392,7 +392,7 @@ pub(crate) fn setup_menu_ui(
                     ));
                     parent.spawn((
                         Name::new("Scenarios Subtitle"),
-                        Text::new("Pick a scenario to play. New pilots start with Basic Training."),
+                        Text::new("Pick a scenario to play."),
                         TextFont {
                             font_size: FontSize::Px(13.0),
                             ..default()

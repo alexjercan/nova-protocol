@@ -7,6 +7,7 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::{BindingSpec, InputBindings, InputSource};
 use nova_training::prelude::*;
 use nova_ui::prelude::Selected;
+use nova_world_base::prelude::OpenWorldSession;
 
 use super::support::{
     all_texts, app, dummy_lessons, dummy_progress, dummy_scenarios, entity_by_name, FIXTURE_NOTE,
@@ -20,6 +21,7 @@ use crate::{
         TrainingPanel, TrainingPromptCard,
     },
     training_store::TrainingStoreAccess,
+    world_setup::WorldSetupOverlay,
 };
 
 /// A menu app sitting on the front door with the handbook built.
@@ -541,6 +543,45 @@ fn practice_launches_the_lessons_own_range_through_new_game() {
         LessonStatus::Viewed,
         "flying the range is not proof of anything; only reading was claimed"
     );
+}
+
+/// New Game opens the open world, so the handbook heads its list with Basic
+/// Training for a player who has answered the corner offer. The row launches
+/// straight into the course: no world setup modal and no open-world session.
+#[test]
+fn the_first_lessons_row_plays_basic_training_without_the_world_setup() {
+    let mut app = answered_prompt_app();
+    app.world_mut().resource_mut::<NewGameScenario>().0 = Some("something_else".to_string());
+    click(&mut app, "Lessons Button");
+
+    let list = entity_by_name(&mut app, "Training List").expect("the list");
+    let first = app.world().get::<Children>(list).expect("list children")[0];
+    assert_eq!(
+        entity_by_name(&mut app, "Training Basic Training"),
+        Some(first),
+        "Basic Training heads the list, above every category"
+    );
+    assert_eq!(
+        texts_named(&mut app, "Training Basic Training Title"),
+        ["Basic Training"]
+    );
+
+    click(&mut app, "Training Basic Training");
+
+    assert_eq!(
+        app.world().resource::<NewGameScenario>().0.as_deref(),
+        Some(TUTORIAL_SCENARIO_ID)
+    );
+    assert_eq!(*app.world().resource::<GameMode>(), GameMode::NewGame);
+    assert_eq!(
+        *app.world().resource::<State<GameStates>>().get(),
+        GameStates::Playing
+    );
+    let mut overlays = app
+        .world_mut()
+        .query_filtered::<(), With<WorldSetupOverlay>>();
+    assert_eq!(overlays.iter(app.world()).count(), 0);
+    assert!(app.world().get_resource::<OpenWorldSession>().is_none());
 }
 
 /// A lesson with nothing focused to fly offers no button at all, rather than
