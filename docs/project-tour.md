@@ -39,6 +39,7 @@ for responsibilities and the dependency graph.
 | `nova_os_ui` | The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the `map`/`ship` apps. A peer of the HUD, added by `nova_core`. |
 | `nova_console` | The command shell's dispatcher: the executor behind the `cmd>` prompt and the channel's `command` lane. Sits above `nova_menu` because a setting command writes the resources the settings screen owns. |
 | `nova_scenario` | Scenario engine: events, filters, actions, variables, world, loader, objects. |
+| `nova_world` | The streamed open world: a cell generated from its coordinate alone, and a 5x5x5 active window streamed around one live scenario. Opt-in - `AppBuilder` does not add `NovaWorldPlugin`, so only the `world_*` examples run it. |
 | `nova_events` | Shared game-event kinds + entity identity components (gameplay <-> scenario). |
 | `nova_events_macros` | The `EventKind` derive behind `nova_events`' engine events. Its only consumer is `nova_events`. |
 | `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal) + prefs. |
@@ -80,6 +81,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | The NOVA OS monitor / its apps | `crates/nova_os_ui/src/` | -- |
 | A scenario event/filter/action | `crates/nova_scenario/src/{events.rs,filters.rs,actions/}` | [Scenario engine](scenario-system.md), [Extend the scenario engine](guide-extend-scenarios.md) |
 | Scenario objects / loading | `crates/nova_scenario/src/{objects/,loader/}` | [Scenario engine](scenario-system.md) |
+| What a streamed world cell holds, or when one comes and goes | `crates/nova_world/src/{generation.rs,streaming.rs}` | [Architecture](architecture.md) |
 | Mod loading / merge | `crates/nova_assets/` + `crates/nova_modding/` | [Mod files](https://alexjercan.github.io/nova-protocol/create/mod-files/), [Publish a mod](https://alexjercan.github.io/nova-protocol/create/publish-a-mod/) |
 | A built-in scenario or section | `crates/nova_authoring/src/` (builders), then `content -- gen` | [Create your first scenario](https://alexjercan.github.io/nova-protocol/create/author-a-scenario/) |
 | A generated hull, or the plan it is drawn from | `crates/nova_wfc/` (`plan.rs` for the plan, `WfcPlan::standard_hull` for the shipped one) and each caller's own plan builder | [Concept index](concept-index.md), [Ship layout sense](ship-layout-sense.md) |
