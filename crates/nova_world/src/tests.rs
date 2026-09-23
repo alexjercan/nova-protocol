@@ -19,7 +19,8 @@ use crate::{
     generate_sector, prepare_sector, sector_features, sector_id, validate_feature_geometry,
     FeatureLayer, FeatureSphere, NovaWorldPlugin, SectorAsteroid, SectorCoord, SectorFault,
     SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet, SectorShip, WorldConfig,
-    WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX,
+    WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX, SECTOR_BODIES_MAX,
+    SECTOR_FEATURES_MAX,
 };
 
 /// Stands the measured rock cap at the corners of a square around each cell's
@@ -322,6 +323,131 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             "{what} must be refused before preparation, got {fault:?}"
         );
     }
+}
+
+/// `count` distinct spheres at the cell's centre, each reaching the whole cell.
+fn listing(input: SectorGenerationInput, count: usize) -> SectorManifest {
+    let edge = input.geometry.sector_edge;
+    let mut manifest = empty(input.coord, Vec::new());
+    manifest.features = (0..count)
+        .map(|index| FeatureSphere {
+            id: format!("feature_{index}"),
+            layer: FeatureLayer::Asteroid,
+            owner: input.coord,
+            centre: input.coord.centre(edge),
+            radius: edge,
+            strength: 0.5,
+        })
+        .collect();
+    manifest
+}
+
+/// One sphere past the cap is refused as too many, and the cap itself is a
+/// cell the world accepts.
+#[test]
+fn a_manifest_listing_more_spheres_than_a_cell_holds_is_refused() {
+    generate_sector(
+        &answering(|input| listing(input, SECTOR_FEATURES_MAX)),
+        SectorCoord::ORIGIN,
+    )
+    .expect("a manifest listing the sphere cap must describe");
+    let fault = prepare_sector(
+        answering(|input| listing(input, SECTOR_FEATURES_MAX + 1)),
+        SectorCoord::ORIGIN,
+    )
+    .expect_err("a manifest listing one sphere past the cap must not be prepared");
+    assert!(
+        matches!(
+            &fault,
+            SectorFault::Manifest {
+                field: "features",
+                ..
+            }
+        ),
+        "one sphere past the cap must be refused as too many, got {fault:?}"
+    );
+}
+
+/// The rock cap's rocks, one planetoid and ships to fill `count` bodies, each
+/// on its own 3 km grid point inside the cell's inset.
+fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
+    let coord = input.coord;
+    let centre = coord.centre(input.geometry.sector_edge);
+    let point = |index: usize| {
+        centre
+            + Meters3::new(
+                (index % 5) as f32 * 3_000.0 - 6_000.0,
+                0.0,
+                (index / 5) as f32 * 3_000.0 - 6_000.0,
+            )
+    };
+    let planet_sphere = FeatureSphere {
+        id: "feature_planet".to_string(),
+        layer: FeatureLayer::Planet,
+        owner: coord,
+        centre,
+        radius: input.geometry.sector_edge,
+        strength: 0.5,
+    };
+    let derelict_sphere = FeatureSphere {
+        id: "feature_derelict".to_string(),
+        layer: FeatureLayer::Derelict,
+        ..planet_sphere.clone()
+    };
+    let asteroids = (0..SECTOR_ASTEROIDS_MAX)
+        .map(|index| SectorAsteroid {
+            id: sector_id(coord, "body", index),
+            position: point(index),
+            radius: Meters(40.0),
+            kind: KIND_ROCK.to_string(),
+            seed: index as u32,
+        })
+        .collect();
+    let mut manifest = empty(coord, asteroids);
+    manifest.planets.push(SectorPlanet {
+        id: sector_id(coord, "planet", 0),
+        feature: planet_sphere.id.clone(),
+        position: point(SECTOR_ASTEROIDS_MAX),
+        config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3),
+    });
+    manifest.ships = (SECTOR_ASTEROIDS_MAX + 1..count)
+        .map(|index| SectorShip {
+            id: sector_id(coord, "ship", index),
+            feature: derelict_sphere.id.clone(),
+            position: point(index),
+            yaw: 0.0,
+            design: "block_wreck_plate".to_string(),
+        })
+        .collect();
+    manifest.features = vec![planet_sphere, derelict_sphere];
+    manifest
+}
+
+/// The body cap counts rocks, planetoids and ships together: one past it is
+/// refused although every kind is under the cap alone, and the cap itself is a
+/// cell the world accepts.
+#[test]
+fn a_manifest_placing_more_bodies_than_a_cell_holds_is_refused() {
+    generate_sector(
+        &answering(|input| populated(input, SECTOR_BODIES_MAX)),
+        SectorCoord::ORIGIN,
+    )
+    .expect("a manifest placing the body cap must describe");
+    let fault = prepare_sector(
+        answering(|input| populated(input, SECTOR_BODIES_MAX + 1)),
+        SectorCoord::ORIGIN,
+    )
+    .expect_err("a manifest placing one body past the cap must not be prepared");
+    assert!(
+        matches!(
+            &fault,
+            SectorFault::Manifest {
+                field: "bodies",
+                ..
+            }
+        ),
+        "one body past the cap must be refused as too many, got {fault:?}"
+    );
 }
 
 /// Exactly one generator per app. Two would stream two worlds over the same

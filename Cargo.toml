@@ -195,6 +195,11 @@ path = "examples/playable/planet_types.rs"
 [[example]]
 name = "world_sectors"
 path = "examples/playable/world_sectors.rs"
+# Built as a test target for the world fixture's inline tests: the example-local
+# `UniformAsteroids::validate` refusals live in
+# `examples/shared/world_fixture/uniform_asteroids.rs`, which no crate suite
+# compiles. One fixture includer is enough; the other four stay non-test.
+test = true
 
 # The same streaming loop over a world that has PLACES in it: three independent
 # global noise fields gate feature spheres on a coarse lattice, and a cell

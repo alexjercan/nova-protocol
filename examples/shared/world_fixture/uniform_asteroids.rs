@@ -140,3 +140,100 @@ impl SectorGenerator for UniformAsteroids {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn baseline() -> UniformAsteroids {
+        UniformAsteroids {
+            body_count: SECTOR_ASTEROIDS_MAX,
+            radius_min: Meters(30.0),
+            radius_max: Meters(60.0),
+            asteroid_kinds: vec![KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON],
+        }
+    }
+
+    fn validate(generator: UniformAsteroids) -> Result<(), SectorFault> {
+        generator.validate(WorldGeometry {
+            sector_edge: Meters(32_000.0),
+        })
+    }
+
+    fn refused_field(generator: UniformAsteroids) -> &'static str {
+        match validate(generator.clone()) {
+            Err(SectorFault::Config { field, .. }) => field,
+            other => panic!("{generator:?} must refuse as a config fault, got {other:?}"),
+        }
+    }
+
+    /// One to the shared cap: the baseline may not be denser than any cell the
+    /// field produces, and a cell with no rocks judges nothing.
+    #[test]
+    fn a_body_count_outside_one_to_the_shared_cap_is_refused() {
+        for body_count in [0, SECTOR_ASTEROIDS_MAX + 1] {
+            assert_eq!(
+                refused_field(UniformAsteroids {
+                    body_count,
+                    ..baseline()
+                }),
+                "generator.body_count",
+            );
+        }
+        for body_count in [1, SECTOR_ASTEROIDS_MAX] {
+            validate(UniformAsteroids {
+                body_count,
+                ..baseline()
+            })
+            .expect("a body count inside 1 to the shared cap must arm");
+        }
+    }
+
+    #[test]
+    fn a_radius_band_that_is_not_finite_positive_and_ordered_is_refused() {
+        for radius_min in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            assert_eq!(
+                refused_field(UniformAsteroids {
+                    radius_min: Meters(radius_min),
+                    ..baseline()
+                }),
+                "generator.radius_min",
+            );
+        }
+        for radius_max in [29.0, f32::NAN, f32::INFINITY] {
+            assert_eq!(
+                refused_field(UniformAsteroids {
+                    radius_max: Meters(radius_max),
+                    ..baseline()
+                }),
+                "generator.radius_max",
+            );
+        }
+        validate(UniformAsteroids {
+            radius_max: Meters(30.0),
+            ..baseline()
+        })
+        .expect("a band of one radius must arm");
+    }
+
+    /// An empty table is a refusal, never a silent fallback to a house rock.
+    #[test]
+    fn an_empty_or_unshipped_asteroid_kind_list_is_refused() {
+        assert_eq!(
+            refused_field(UniformAsteroids {
+                asteroid_kinds: Vec::new(),
+                ..baseline()
+            }),
+            "generator.asteroid_kinds",
+        );
+        let fault = validate(UniformAsteroids {
+            asteroid_kinds: vec![KIND_ROCK, "not_a_kind"],
+            ..baseline()
+        })
+        .expect_err("an unshipped kind must refuse");
+        assert!(
+            matches!(&fault, SectorFault::UnknownKind { kind } if kind == "not_a_kind"),
+            "an unshipped kind must be named, got {fault:?}"
+        );
+    }
+}

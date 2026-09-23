@@ -634,6 +634,25 @@ impl PreparedSector {
 /// number a generator can reach.
 pub const SECTOR_ASTEROIDS_MAX: usize = 4;
 
+/// The most feature spheres [`validate_manifest`] accepts in one manifest.
+///
+/// Sixteen, about twice the nine the base game's generator listed at most
+/// over 32 seeds and 2,331 cells a seed at five edges from 8.5 km to 128 km.
+/// The count grows with the cell's volume past that - 21 spheres at a 256 km
+/// edge and 31 at 447 km - which is why that generator refuses an edge wider
+/// than 128 km rather than let this cap refuse a cell it drew.
+pub const SECTOR_FEATURES_MAX: usize = 16;
+
+/// The most bodies - rocks, planetoids and ships together -
+/// [`validate_manifest`] accepts in one manifest.
+///
+/// One cap over all three rather than one per kind: the clearance check,
+/// the preparation and the spawn are each paid per body, whatever it is.
+/// Sixteen, twice the eight the base game's generator placed at most over the
+/// same census as [`SECTOR_FEATURES_MAX`]. [`SECTOR_ASTEROIDS_MAX`] still caps
+/// the rocks inside it.
+pub const SECTOR_BODIES_MAX: usize = 16;
+
 /// How much room a generated ship claims for clearance.
 ///
 /// A radius around the ship root, not a measured bound: a ship's sections are
@@ -965,19 +984,22 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// cell; finite geometry; ids unique and prefixed with the cell's slug, so two
 /// cells never claim one object; every body standing inside its own cell with
 /// its whole clearance sphere, so retiring a neighbour never takes it; every
-/// pair of bodies [`CLEARANCE_MARGIN`] apart; shipped asteroid kinds and at
-/// most [`SECTOR_ASTEROIDS_MAX`] rocks; planet configs that
-/// [`PlanetConfig::validate`] accepts; and each planetoid and ship placed by a
-/// sphere of its own layer that THIS cell owns, so a feature reaching a dozen
-/// cells is spawned once. The ship design is only checked for a blank id
-/// here; the catalog lookup is main-thread work in `materialize_sector`.
+/// pair of bodies [`CLEARANCE_MARGIN`] apart; at most [`SECTOR_FEATURES_MAX`]
+/// spheres and [`SECTOR_BODIES_MAX`] bodies, refused before any is read;
+/// shipped asteroid kinds and at most [`SECTOR_ASTEROIDS_MAX`] rocks; planet
+/// configs that [`PlanetConfig::validate`] accepts; and each planetoid and
+/// ship placed by a sphere of its own layer that THIS cell owns, so a feature
+/// reaching a dozen cells is spawned once. The ship design is only checked for
+/// a blank id here; the catalog lookup is main-thread work in
+/// `materialize_sector`.
 ///
 /// # Errors
 ///
 /// [`SectorFault::Manifest`] for the wrong cell, an object outside its cell or
 /// crowding another, an id another cell owns, a feature reference this cell
 /// does not own, a strength outside `[0, 1]`, a planet config
-/// [`PlanetConfig::validate`] refuses, a blank ship design, or too many rocks;
+/// [`PlanetConfig::validate`] refuses, a blank ship design, or more spheres,
+/// bodies or rocks than a cell holds;
 /// [`SectorFault::Feature`] and [`SectorFault::DuplicateFeature`] for its
 /// feature spheres; [`SectorFault::InvalidGeometry`] for non-finite
 /// geometry; [`SectorFault::DuplicateId`] and [`SectorFault::UnknownKind`].
@@ -1000,6 +1022,43 @@ pub fn validate_manifest(
             &coord.slug(),
             "coord",
             format!("{}, not the requested {coord}", manifest.coord),
+        ));
+    }
+
+    // Counts first: every check below walks the lists, and the clearance check
+    // compares each body with every body before it.
+    if manifest.features.len() > SECTOR_FEATURES_MAX {
+        return Err(refuse(
+            &coord.slug(),
+            "features",
+            format!(
+                "{} spheres, above the {SECTOR_FEATURES_MAX} a cell lists",
+                manifest.features.len()
+            ),
+        ));
+    }
+    let bodies = manifest.asteroids.len() + manifest.planets.len() + manifest.ships.len();
+    if bodies > SECTOR_BODIES_MAX {
+        return Err(refuse(
+            &coord.slug(),
+            "bodies",
+            format!(
+                "{bodies} ({} rocks, {} planetoids, {} ships), above the {SECTOR_BODIES_MAX} a \
+                 cell holds",
+                manifest.asteroids.len(),
+                manifest.planets.len(),
+                manifest.ships.len()
+            ),
+        ));
+    }
+    if manifest.asteroids.len() > SECTOR_ASTEROIDS_MAX {
+        return Err(refuse(
+            &coord.slug(),
+            "asteroids",
+            format!(
+                "{} rocks, above the {SECTOR_ASTEROIDS_MAX} a cell holds",
+                manifest.asteroids.len()
+            ),
         ));
     }
 
@@ -1028,16 +1087,6 @@ pub fn validate_manifest(
                 format!("{strength} on the {layer} layer, outside 0 to 1"),
             ));
         }
-    }
-    if manifest.asteroids.len() > SECTOR_ASTEROIDS_MAX {
-        return Err(refuse(
-            &coord.slug(),
-            "asteroids",
-            format!(
-                "{} rocks, above the {SECTOR_ASTEROIDS_MAX} a cell holds",
-                manifest.asteroids.len()
-            ),
-        ));
     }
 
     let mut ids = BTreeSet::new();

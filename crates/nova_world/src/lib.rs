@@ -34,10 +34,10 @@
 //! A generator's answer is not trusted. It returns a [`SectorManifest`], and
 //! [`validate_manifest`] is the only way to turn one into the
 //! [`SectorDescription`] preparation and materialization accept: it checks the
-//! requested cell, finite geometry, unique ids the cell owns, bodies wholly
-//! inside the cell and clear of each other, shipped asteroid kinds, the
-//! measured rock cap, and feature references the cell owns - before a worker
-//! prepares anything. A ship's design is a key
+//! requested cell, the measured sphere, body and rock caps, finite geometry,
+//! unique ids the cell owns, bodies wholly inside the cell and clear of each
+//! other, shipped asteroid kinds, and feature references the cell owns -
+//! before a worker prepares anything. A ship's design is a key
 //! into the ship catalog, which is a Bevy resource, so the check can only
 //! refuse a blank one. The catalog lookup happens on the main thread in
 //! [`materialize_sector`], where an id the game does not ship is a
@@ -166,7 +166,7 @@ pub use crate::{
         validate_feature_geometry, validate_manifest, FeatureFields, FeatureLayer, FeatureSphere,
         PreparedSector, SectorAsteroid, SectorDescription, SectorManifest, SectorPlanet,
         SectorShip, CLEARANCE_MARGIN, FEATURE_HALO, FEATURE_LATTICE, FEATURE_WAVELENGTH,
-        SECTOR_ASTEROIDS_MAX, SECTOR_SHIP_CLEARANCE,
+        SECTOR_ASTEROIDS_MAX, SECTOR_BODIES_MAX, SECTOR_FEATURES_MAX, SECTOR_SHIP_CLEARANCE,
     },
     streaming::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
@@ -187,7 +187,7 @@ pub mod prelude {
         SectorDescription, SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest,
         SectorPlanet, SectorShip, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
         CLEARANCE_MARGIN, FEATURE_HALO, FEATURE_LATTICE, FEATURE_WAVELENGTH, PLACEMENT_INSET,
-        SECTOR_ASTEROIDS_MAX, SECTOR_SHIP_CLEARANCE,
+        SECTOR_ASTEROIDS_MAX, SECTOR_BODIES_MAX, SECTOR_FEATURES_MAX, SECTOR_SHIP_CLEARANCE,
     };
     pub use crate::streaming::{
         desired_sectors, CurrentSector, ReadySectors, SectorFeatureSpheres, SectorJob,
@@ -633,8 +633,8 @@ pub enum SectorFault {
     /// A generator returned a manifest the world cannot materialize: the
     /// wrong cell, an object outside its cell or crowding another, an id
     /// another cell owns, a feature reference this cell does not own, or more
-    /// than the measured rock cap. A generator is outside this crate, so its
-    /// answer is checked rather than trusted.
+    /// spheres, bodies or rocks than the measured caps. A generator is outside
+    /// this crate, so its answer is checked rather than trusted.
     Manifest {
         /// The object at fault, or the cell's slug for a cell-wide rule.
         id: String,

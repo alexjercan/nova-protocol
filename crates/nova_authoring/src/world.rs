@@ -65,6 +65,15 @@ const DERELICT_SPREAD: Meters = Meters(6_000.0);
 /// than a cell can hold.
 const PLACEMENT_ATTEMPTS: usize = 64;
 
+/// The widest cell edge this generator fills: the widest edge
+/// [`SECTOR_FEATURES_MAX`] and [`SECTOR_BODIES_MAX`] were measured at.
+///
+/// A cell lists more spheres and places more bodies as its volume grows, up
+/// to 31 spheres and 47 bodies at the 447 km edge the thinning halo allows.
+/// Refusing the edge at the config fails before anything streams, where a
+/// cap refusing a drawn cell would fail mid-stream.
+const SECTOR_EDGE_MAX: Meters = Meters(128_000.0);
+
 /// The base game's sector generator: a cell filled from the feature field.
 ///
 /// Each cell asks the field what reaches it and fills itself from the answer:
@@ -81,10 +90,21 @@ const PLACEMENT_ATTEMPTS: usize = 64;
 pub struct NovaLayeredWorld;
 
 impl SectorGenerator for NovaLayeredWorld {
-    /// Refuse an edge the feature field cannot be thinned at, and one too
-    /// narrow to own the widest body this generator places.
+    /// Refuse an edge the feature field cannot be thinned at, one wider than
+    /// [`SECTOR_EDGE_MAX`], and one too narrow to own the widest body this
+    /// generator places.
     fn validate(&self, geometry: WorldGeometry) -> Result<(), SectorFault> {
         validate_feature_geometry(geometry)?;
+        if geometry.sector_edge > SECTOR_EDGE_MAX {
+            return Err(SectorFault::Config {
+                field: "sector_edge",
+                value: format!(
+                    "{} m, wider than the {} m the manifest caps were measured at",
+                    geometry.sector_edge.get(),
+                    SECTOR_EDGE_MAX.get()
+                ),
+            });
+        }
         let (clearance, body) = widest_body();
         geometry.require_owning_edge(clearance, &body)
     }
