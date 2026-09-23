@@ -599,7 +599,11 @@ mod tests {
         world.init_resource::<GameObjectives>();
 
         let beacon = world
-            .spawn((ScenarioScopedMarker, EntityId::new("beacon_1".to_string())))
+            .spawn((
+                ScenarioScopedMarker,
+                ScenarioAddressableMarker,
+                EntityId::new("beacon_1".to_string()),
+            ))
             .id();
         let section = world.spawn(EntityId::new("beacon_1".to_string())).id();
 
@@ -653,7 +657,11 @@ mod tests {
         world.init_resource::<NovaEventWorld>();
         world.init_resource::<GameObjectives>();
         let bystander = world
-            .spawn((ScenarioScopedMarker, EntityId::new("beacon_1".to_string())))
+            .spawn((
+                ScenarioScopedMarker,
+                ScenarioAddressableMarker,
+                EntityId::new("beacon_1".to_string()),
+            ))
             .id();
 
         for action in [

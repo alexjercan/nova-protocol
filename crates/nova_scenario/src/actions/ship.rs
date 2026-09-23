@@ -948,6 +948,7 @@ mod tests {
             world
                 .spawn((
                     ScenarioScopedMarker,
+                    ScenarioAddressableMarker,
                     SpaceshipRootMarker,
                     EntityId::new(id.to_string()),
                 ))
@@ -1005,6 +1006,7 @@ mod tests {
         let root = world
             .spawn((
                 ScenarioScopedMarker,
+                ScenarioAddressableMarker,
                 SpaceshipRootMarker,
                 EntityId::new("bare".to_string()),
             ))
@@ -1064,6 +1066,7 @@ mod tests {
         let ship = world
             .spawn((
                 ScenarioScopedMarker,
+                ScenarioAddressableMarker,
                 SpaceshipRootMarker,
                 EntityId::new("spaceship_1".to_string()),
                 Allegiance::Neutral,
@@ -1114,6 +1117,7 @@ mod tests {
             world
                 .spawn((
                     ScenarioScopedMarker,
+                    ScenarioAddressableMarker,
                     SpaceshipRootMarker,
                     EntityId::new(id.to_string()),
                 ))
@@ -1703,6 +1707,7 @@ mod tests {
             world
                 .spawn((
                     ScenarioScopedMarker,
+                    ScenarioAddressableMarker,
                     SpaceshipRootMarker,
                     EntityId::new(id.to_string()),
                 ))

@@ -5,7 +5,10 @@
 //! scenario event action. It calls the same object factories the loader calls
 //! (`base_scenario_object`, `asteroid_scenario_object_prepared`,
 //! `planet_scenario_object_prepared`, `spaceship_scenario_object`), which is
-//! what makes a streamed rock the same rock a scenario spawns.
+//! what makes a streamed rock the same rock a scenario spawns - with one
+//! deliberate difference: a streamed entity is scenario-SCOPED, so unloading
+//! takes it, but never scenario-ADDRESSABLE, because its id came from a
+//! coordinate and no author wrote it.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -117,6 +120,15 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 /// ahead of bevy's `TransformSystems::Propagate`. A root posed at the sector
 /// centre would therefore hand every child body a global position equal to its
 /// LOCAL offset, and a rigid body's `Position` is authoritative from then on.
+///
+/// SCOPED but not ADDRESSABLE. `base_scenario_object` gives each entity a
+/// `ScenarioScopedMarker`, which is what makes `UnloadScenario` sweep the
+/// streamed world, and an `EntityId` the range reads to check a cell against
+/// its manifest. It does NOT add `ScenarioAddressableMarker`, which the
+/// authored spawn seam grants: a cell id is derived from a coordinate, so a
+/// scenario that happened to author an object named `sector_0_0_0` would
+/// otherwise have every despawn and objective-marker action for that id reach
+/// into the streamed world too.
 ///
 /// # Panics
 ///

@@ -61,11 +61,11 @@ pub mod prelude {
         gate::prelude::*, lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live,
         CameraEasing, CameraOffsetFrame, CampaignConfig, CampaignId, ContentIssues,
         CurrentScenario, GameCampaigns, GameScenarios, LoadScenario, NewGameStart,
-        RuntimeScenarioSystems, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig,
-        ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioRole, ScenarioScopedMarker,
-        ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraAnchor,
-        ScriptedCameraBlend, ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform,
-        UnloadScenario, ORBIT_LAP_GRACE_SECS,
+        RuntimeScenarioSystems, ScenarioAddressableMarker, ScenarioCameraMarker, ScenarioConfig,
+        ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioRole,
+        ScenarioScopedMarker, ScenarioStartFailure, ScenarioStartFailureReport,
+        ScriptedCameraAnchor, ScriptedCameraBlend, ScriptedCameraLookAt, ScriptedCameraPose,
+        ScriptedCameraTransform, UnloadScenario, ORBIT_LAP_GRACE_SECS,
     };
 }
 
@@ -597,6 +597,21 @@ pub struct CurrentScenario(pub Option<ScenarioConfig>);
 /// When a scenario is unloaded, all entities with this marker will be despawned.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ScenarioScopedMarker;
+
+/// Marker that an entity's `EntityId` is an AUTHORED
+/// id, so a scenario action may address it by name.
+///
+/// A capability, not an exemption: an entity is addressable only when a
+/// scenario author named it, so a spawner that forgets this marker loses a
+/// lookup loudly instead of silently joining the authored namespace. Being
+/// scoped is not enough. A streamed sector and the bodies in it are scoped -
+/// unloading the session must take them - and they carry generated ids like
+/// `sector_0_0_0_body_0`, which nobody wrote. Without this separation a
+/// scenario that happened to name an object `sector_0_0_0` would have every
+/// despawn and objective-marker action for that id reach into the streamed
+/// world as well.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct ScenarioAddressableMarker;
 
 /// Run condition: a scenario is currently loaded. This is what gates the
 /// spaceship input/section system sets (below), so ships fly, fire and hum
