@@ -100,6 +100,10 @@ fn observer_plugin(app: &mut App) {
 ///
 /// Armed immediately, unlike the range: a human opening this wants the world
 /// already there, and there is no emptiness claim to protect here.
+///
+/// `OnEnter` rather than `Update`: nova_world requires a `WorldConfig` writer
+/// to land ahead of `NovaWorldSystems::Cleanup`, and a state transition runs
+/// before `Update` at all.
 fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,

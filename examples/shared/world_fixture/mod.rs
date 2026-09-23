@@ -88,6 +88,12 @@ pub const EXAMPLE_ANCHORAGE_DESIGN: &str = BLOCK_HAULER_SHIP_ID;
 /// not a claim about how dense a real sector should be. Four is also
 /// [`SECTOR_ASTEROIDS_MAX`], the density either generator has been measured
 /// at, so the baseline and the feature field fill a cell to the same ceiling.
+///
+/// Whoever arms this must write it ahead of `NovaWorldSystems::Cleanup`, which
+/// is nova_world's one ordering rule for a config writer. Every example here
+/// arms from `OnEnter` or from an autopilot beat, and both run before
+/// `Update`; an `Update` writer would have to say `.before(...)` and would be
+/// refused by the streaming stages if it did not.
 pub fn uniform_world_config() -> WorldConfig {
     WorldConfig {
         seed: EXAMPLE_SEED,

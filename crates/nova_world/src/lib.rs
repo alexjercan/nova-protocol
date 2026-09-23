@@ -110,9 +110,29 @@
 //! [`NovaWorldSystems::Request`] asks the new world for anything. The window
 //! refills from the new config over the following frames at the usual one
 //! sector a frame.
+//!
+//! That buys the caller ONE ordering rule: **write [`WorldConfig`] ahead of
+//! [`NovaWorldSystems::Cleanup`]**. A run condition is evaluated before its
+//! set, so `Cleanup` decides whether to clear at the top of the frame; a write
+//! that lands behind that decision is not seen until the NEXT frame, and the
+//! frame in between would stream the old world's roots and payloads under the
+//! new config. Every stage from [`NovaWorldSystems::Observe`] down refuses
+//! such a frame rather than mixing the two, and names the rule when it does.
+//!
+//! A writer in `PreUpdate`, in `Startup`, or in a state-transition schedule
+//! such as `OnEnter` is already ahead of the rule, because all of those run
+//! before `Update`. A writer inside `Update` must say so:
+//!
+//! ```
+//! # use bevy::prelude::*;
+//! # use nova_world::prelude::*;
+//! # fn arm_the_world(mut _commands: Commands) {}
+//! # let mut app = App::new();
+//! app.add_systems(Update, arm_the_world.before(NovaWorldSystems::Cleanup));
+//! ```
 #![warn(missing_docs)]
 
-use bevy::prelude::*;
+use bevy::{ecs::change_detection::CheckChangeTicks, prelude::*};
 use nova_events::prelude::{Meters, Meters3};
 use nova_scenario::prelude::{
     is_asteroid_kind, scenario_is_live, CurrentScenario, PlanetType, ShipDesignId,
@@ -664,6 +684,16 @@ impl Plugin for NovaWorldPlugin {
 
         app.init_resource::<ReadySectors>();
         app.init_resource::<SectorJobStats>();
+        app.init_resource::<crate::streaming::ClearedConfig>();
+        // `ClearedConfig` holds a `Tick` in a plain field, which bevy's
+        // periodic tick sweep cannot reach on its own. Without this the
+        // recorded tick and the config's own would drift apart on a long
+        // session and the ordering guard would refuse a healthy frame.
+        app.add_observer(
+            |check: On<CheckChangeTicks>, mut cleared: ResMut<crate::streaming::ClearedConfig>| {
+                cleared.check_tick(*check);
+            },
+        );
 
         app.configure_sets(
             Update,

@@ -10,6 +10,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use bevy::{
+    ecs::change_detection::{CheckChangeTicks, Tick},
     prelude::*,
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
@@ -288,12 +289,23 @@ pub fn live_sectors(roots: &Query<(Entity, &SectorRoot)>) -> BTreeMap<SectorCoor
 /// [`WorldObserver`]. Streaming around a guessed centre would move the world
 /// without saying so. And on whatever [`WorldConfig::validate`] refuses, on
 /// the frame the config is armed or replaced.
+///
+/// When a caller wrote [`WorldConfig`] after
+/// [`crate::NovaWorldSystems::Cleanup`] had already gone, so the world the old
+/// config built was never retired.
+#[expect(
+    private_interfaces,
+    reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
+              caller-readable epoch"
+)]
 pub fn track_current_sector(
     mut commands: Commands,
     config: Res<WorldConfig>,
+    cleared: Res<ClearedConfig>,
     observer: Query<&GlobalTransform, With<WorldObserver>>,
     current: Option<ResMut<CurrentSector>>,
 ) {
+    assert_world_was_cleared(&config, &cleared);
     if config.is_changed() {
         if let Err(fault) = config.validate() {
             panic!("nova_world: {fault}");
@@ -359,6 +371,58 @@ impl SectorJob {
 #[derive(Resource, Default, Debug)]
 pub struct ReadySectors(pub BTreeMap<SectorCoord, PreparedSector>);
 
+/// The [`WorldConfig`] version [`clear_sector_work`] last cleared the world
+/// for.
+///
+/// Crate-private and not a generation counter a caller can read: it exists
+/// only so a stage can tell "the config Cleanup acted on" from "a config that
+/// arrived after Cleanup had already gone".
+#[derive(Resource, Default, Debug)]
+pub(crate) struct ClearedConfig(Tick);
+
+impl ClearedConfig {
+    /// Clamp the recorded tick with bevy's periodic tick sweep.
+    ///
+    /// A `Tick` kept in a plain field is invisible to
+    /// `World::check_change_ticks`, which clamps every tick it DOES know about
+    /// once the world has run about half of `u32::MAX` systems. On a long
+    /// session the config's own change tick would be clamped and this copy
+    /// would not, and the two would stop comparing equal - a refusal hours
+    /// into a run with nothing wrong. Clamping both against the same present
+    /// tick keeps equal ticks equal.
+    pub(crate) fn check_tick(&mut self, check: CheckChangeTicks) {
+        self.0.check_tick(check);
+    }
+}
+
+/// Refuse a frame whose [`WorldConfig`] arrived after `Cleanup` had gone.
+///
+/// A run condition is evaluated BEFORE its set, so `Cleanup` decides whether
+/// to retire the old world at the top of the frame. A writer that lands after
+/// that decision leaves the old roots, jobs and prepared payloads on hand
+/// while the new config is already in force, and every stage below matches
+/// work by COORDINATE alone - a job a worker computed from the old config
+/// would be collected and spawned into the new world, and a surviving old root
+/// would suppress re-requesting its cell. The next frame does clean up, which
+/// is what makes this a silent one-frame mixed world rather than a crash.
+///
+/// So it is a refusal, and the contract is one line: write [`WorldConfig`]
+/// ahead of [`crate::NovaWorldSystems::Cleanup`]. Anything in `PreUpdate` or
+/// in a state-transition schedule is already ahead of it; an `Update` writer
+/// must say so with `.before(NovaWorldSystems::Cleanup)`.
+///
+/// # Panics
+///
+/// When the config changed after `Cleanup` ran this frame.
+pub(crate) fn assert_world_was_cleared(config: &Res<WorldConfig>, cleared: &ClearedConfig) {
+    assert!(
+        config.last_changed() == cleared.0,
+        "nova_world: the WorldConfig changed after NovaWorldSystems::Cleanup ran, so the world \
+         the previous one built was never retired and this frame would stream two worlds at \
+         once; order every WorldConfig writer .before(NovaWorldSystems::Cleanup)"
+    );
+}
+
 /// What the job lifetime has done since the app started.
 ///
 /// Session-lifetime totals, not a live gauge: they are how a reader can tell
@@ -414,15 +478,26 @@ fn nearest_first(centre: SectorCoord, coord: SectorCoord) -> (i128, SectorCoord)
 /// # Panics
 ///
 /// Through [`live_sectors`] on a duplicate root.
+///
+/// When a caller wrote [`WorldConfig`] after
+/// [`crate::NovaWorldSystems::Cleanup`] had already gone, so the world the old
+/// config built was never retired.
+#[expect(
+    private_interfaces,
+    reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
+              caller-readable epoch"
+)]
 pub fn request_sectors(
     mut commands: Commands,
     config: Res<WorldConfig>,
+    cleared: Res<ClearedConfig>,
     current: Res<CurrentSector>,
     roots: Query<(Entity, &SectorRoot)>,
     jobs: Query<&SectorJob>,
     ready: Res<ReadySectors>,
     mut stats: ResMut<SectorJobStats>,
 ) {
+    assert_world_was_cleared(&config, &cleared);
     let running: BTreeSet<SectorCoord> = jobs.iter().map(|job| job.coord).collect();
     let openings = job_limit().saturating_sub(running.len());
     if openings == 0 {
@@ -460,14 +535,25 @@ pub fn request_sectors(
 /// On any [`SectorFault`] a worker returns. The fault crosses back to the main
 /// thread as a value and fails HERE, where it can name the cell, rather than
 /// poisoning a pool thread.
+///
+/// When a caller wrote [`WorldConfig`] after
+/// [`crate::NovaWorldSystems::Cleanup`] had already gone, so the world the old
+/// config built was never retired.
+#[expect(
+    private_interfaces,
+    reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
+              caller-readable epoch"
+)]
 pub fn collect_sector_jobs(
     mut commands: Commands,
     config: Res<WorldConfig>,
+    cleared: Res<ClearedConfig>,
     current: Res<CurrentSector>,
     mut jobs: Query<(Entity, &mut SectorJob)>,
     mut ready: ResMut<ReadySectors>,
     mut stats: ResMut<SectorJobStats>,
 ) {
+    assert_world_was_cleared(&config, &cleared);
     stats.peak_pending = stats.peak_pending.max(jobs.iter().len());
     let desired = desired_sectors(current.0, config.active_radius);
 
@@ -503,9 +589,19 @@ pub fn collect_sector_jobs(
 ///
 /// Through [`live_sectors`] on a duplicate root, and through
 /// [`materialize_sector`] on a moored hull the catalog does not hold.
+///
+/// When a caller wrote [`WorldConfig`] after
+/// [`crate::NovaWorldSystems::Cleanup`] had already gone, so the world the old
+/// config built was never retired.
+#[expect(
+    private_interfaces,
+    reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
+              caller-readable epoch"
+)]
 pub fn materialize_ready_sector(
     mut commands: Commands,
     config: Res<WorldConfig>,
+    cleared: Res<ClearedConfig>,
     current: Res<CurrentSector>,
     roots: Query<(Entity, &SectorRoot)>,
     mut ready: ResMut<ReadySectors>,
@@ -513,6 +609,7 @@ pub fn materialize_ready_sector(
     game_assets: Res<GameAssets>,
     designs: Res<GameShipDesigns>,
 ) {
+    assert_world_was_cleared(&config, &cleared);
     let desired = desired_sectors(current.0, config.active_radius);
     let live = live_sectors(&roots);
     let centre = current.0;
@@ -541,15 +638,26 @@ pub fn materialize_ready_sector(
 /// # Panics
 ///
 /// Through [`live_sectors`] on a duplicate root.
+///
+/// When a caller wrote [`WorldConfig`] after
+/// [`crate::NovaWorldSystems::Cleanup`] had already gone, so the world the old
+/// config built was never retired.
+#[expect(
+    private_interfaces,
+    reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
+              caller-readable epoch"
+)]
 pub fn retire_sectors(
     mut commands: Commands,
     config: Res<WorldConfig>,
+    cleared: Res<ClearedConfig>,
     current: Res<CurrentSector>,
     roots: Query<(Entity, &SectorRoot)>,
     jobs: Query<(Entity, &SectorJob)>,
     mut ready: ResMut<ReadySectors>,
     mut stats: ResMut<SectorJobStats>,
 ) {
+    assert_world_was_cleared(&config, &cleared);
     let desired = desired_sectors(current.0, config.active_radius);
 
     for (coord, entity) in &live_sectors(&roots) {
@@ -604,6 +712,11 @@ pub fn retire_sectors(
 /// It runs before the streaming stages, so a world that is replaced and
 /// re-armed in one frame cannot spawn the old world's prepared sectors into
 /// the new one.
+#[expect(
+    private_interfaces,
+    reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
+              caller-readable epoch"
+)]
 pub fn clear_sector_work(
     mut commands: Commands,
     config: Option<Res<WorldConfig>>,
@@ -611,10 +724,18 @@ pub fn clear_sector_work(
     jobs: Query<Entity, With<SectorJob>>,
     mut ready: ResMut<ReadySectors>,
     mut stats: ResMut<SectorJobStats>,
+    mut cleared: ResMut<ClearedConfig>,
 ) {
     // Absent OR new this frame. The two are the same event seen from either
     // side of a swap, and on the arming frame there is nothing live to take.
-    let world_replaced = config.is_none_or(|config| config.is_changed());
+    let world_replaced = config.as_ref().is_none_or(|config| config.is_changed());
+    // Recorded BEFORE the nothing-to-do return below: every stage under
+    // `assert_world_was_cleared` reads this to tell a config Cleanup saw from
+    // one that arrived behind its back, and a quiet frame is still a frame
+    // Cleanup saw.
+    if let Some(config) = config {
+        cleared.0 = config.last_changed();
+    }
     let retiring = if world_replaced {
         roots.iter().len()
     } else {

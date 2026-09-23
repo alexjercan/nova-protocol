@@ -476,7 +476,10 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         // The config is swapped in the SAME beat the work is handed in, so the
         // only thing that can take either is `clear_sector_work` running in
         // `NovaWorldSystems::Cleanup`, ahead of the stages that would
-        // otherwise accept them by coordinate.
+        // otherwise accept them by coordinate. A beat runs in `PreUpdate`,
+        // which is what satisfies nova_world's one ordering rule: a
+        // `WorldConfig` writer must land ahead of `Cleanup`, and every stage
+        // below refuses the frame if it did not.
         .step("replace the world under the live session")
         .on_enter(|world: &mut World| {
             let roots = live_roots(world).values().copied().collect::<BTreeSet<_>>();

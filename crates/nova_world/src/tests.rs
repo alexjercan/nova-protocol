@@ -309,11 +309,23 @@ mod arming {
     use super::{layered, uniform};
     use crate::{prelude::WorldObserver, WorldConfig};
 
-    /// A world with `config` armed and exactly one observer standing in it.
+    /// A world with `config` armed and exactly one observer standing in it,
+    /// taken through the arming frame's [`crate::NovaWorldSystems::Cleanup`].
+    ///
+    /// Cleanup is run for real rather than faked, because it is what records
+    /// the config version the stages below it check themselves against. A
+    /// helper that skipped it would arm every test into the very refusal
+    /// `a_config_written_after_the_world_was_cleared_is_refused` pins.
     fn armed(config: WorldConfig) -> World {
         let mut world = World::new();
         world.insert_resource(config);
+        world.init_resource::<crate::streaming::ReadySectors>();
+        world.init_resource::<crate::SectorJobStats>();
+        world.init_resource::<crate::streaming::ClearedConfig>();
         world.spawn((WorldObserver, GlobalTransform::default()));
+        world
+            .run_system_once(crate::streaming::clear_sector_work)
+            .expect("the arming frame must clear the world it replaces");
         world
     }
 
@@ -344,6 +356,22 @@ mod arming {
             .run_system_once(crate::streaming::track_current_sector)
             .expect("the measured 5x5x5 window must arm");
     }
+
+    /// A `WorldConfig` written behind `Cleanup`'s back is refused, not mixed.
+    ///
+    /// The one frame this pins is the one nothing downstream could catch: a
+    /// root, a running job and a prepared payload are all keyed by COORDINATE,
+    /// so the old world's work would be collected and spawned under the new
+    /// config and look exactly like the new world's own cell. The next frame
+    /// does clear up, which is what would make it a silent flicker of two
+    /// worlds rather than a crash.
+    #[test]
+    #[should_panic(expected = "changed after NovaWorldSystems::Cleanup ran")]
+    fn a_config_written_after_the_world_was_cleared_is_refused() {
+        let mut world = armed(uniform());
+        world.resource_mut::<WorldConfig>().seed += 1;
+        let _ = world.run_system_once(crate::streaming::track_current_sector);
+    }
 }
 
 /// The observer rule, which is the one thing a caller MUST wire.
@@ -359,10 +387,17 @@ mod observer {
     use super::uniform;
     use crate::prelude::{CurrentSector, SectorCoord, WorldObserver};
 
-    /// A world with the fixture config in it and nothing else.
+    /// A world with the fixture config in it, taken through the arming
+    /// frame's [`crate::NovaWorldSystems::Cleanup`] and holding nothing else.
     fn world() -> World {
         let mut world = World::new();
         world.insert_resource(uniform());
+        world.init_resource::<crate::streaming::ReadySectors>();
+        world.init_resource::<crate::SectorJobStats>();
+        world.init_resource::<crate::streaming::ClearedConfig>();
+        world
+            .run_system_once(crate::streaming::clear_sector_work)
+            .expect("the arming frame must clear the world it replaces");
         world
     }
 

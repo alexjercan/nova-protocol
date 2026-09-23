@@ -130,6 +130,10 @@ fn observer_plugin(app: &mut App) {
 
 /// Load the empty bootstrap, arm the featured stream, light the scene, and put
 /// the readout up.
+///
+/// `OnEnter` rather than `Update`: nova_world requires a `WorldConfig` writer
+/// to land ahead of `NovaWorldSystems::Cleanup`, and a state transition runs
+/// before `Update` at all.
 fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
