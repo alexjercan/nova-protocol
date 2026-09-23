@@ -374,4 +374,22 @@ mod tests {
             "a cell just wide enough to own a 1,272 m planetoid must arm"
         );
     }
+
+    /// The manifest caps were measured at exactly 128 km, so that edge arms
+    /// and the next `f32` above it refuses by naming the edge and the cap.
+    #[test]
+    fn an_edge_wider_than_the_measured_caps_is_refused() {
+        assert!(
+            layered(SECTOR_EDGE_MAX).validate().is_ok(),
+            "the 128 km edge the caps were measured at must arm"
+        );
+        assert_eq!(
+            layered(Meters(SECTOR_EDGE_MAX.get().next_up())).validate(),
+            Err(SectorFault::Config {
+                field: "sector_edge",
+                value: "128000.01 m, wider than the 128000 m the manifest caps were measured at"
+                    .to_string(),
+            }),
+        );
+    }
 }
