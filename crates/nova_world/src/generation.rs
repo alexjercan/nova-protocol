@@ -940,6 +940,57 @@ fn place_object(
     })
 }
 
+/// The widest clearance sphere `generation` can put in one cell, and what
+/// draws it.
+///
+/// Every quantity here is one the generator already places by: a rock's
+/// clearance is its nominal radius times [`ASTEROID_GEOMETRIC_FACTOR_MAX`],
+/// exactly as [`generate_asteroids`] computes it; a planetoid's is the real
+/// radius it draws at; a moored hull's is [`MOORED_HULL_CLEARANCE`].
+pub(crate) fn widest_body_clearance(generation: &SectorGeneration) -> (Meters, String) {
+    match generation {
+        SectorGeneration::UniformAsteroids(uniform) => (
+            Meters(uniform.radius_max.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
+            format!(
+                "an asteroid drawn at generation.radius_max {} m",
+                uniform.radius_max.get()
+            ),
+        ),
+        SectorGeneration::LayeredFeatures(_) => {
+            let rock = Meters(FEATURE_ASTEROID_RADIUS.1.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
+            let planet = PLANETOID_RADIUS.1;
+            if planet >= rock && planet >= MOORED_HULL_CLEARANCE {
+                (planet, format!("a gated planetoid at {} m", planet.get()))
+            } else if rock >= MOORED_HULL_CLEARANCE {
+                (
+                    rock,
+                    format!(
+                        "a gated asteroid drawn at {} m",
+                        FEATURE_ASTEROID_RADIUS.1.get()
+                    ),
+                )
+            } else {
+                (
+                    MOORED_HULL_CLEARANCE,
+                    format!("a moored hull at {} m", MOORED_HULL_CLEARANCE.get()),
+                )
+            }
+        }
+    }
+}
+
+/// The narrowest cell that can OWN a body of this clearance.
+///
+/// [`place_object`] keeps a CENTRE within [`PLACEMENT_INSET`] of the half
+/// edge, so the body itself stays inside its cell only while its clearance
+/// sphere fits in the margin the inset leaves: `clearance <= half_edge * (1 -
+/// PLACEMENT_INSET)`. Under that a cell retires geometry standing in its
+/// neighbour, which is the one thing [`PLACEMENT_INSET`] is documented to
+/// prevent.
+pub(crate) fn smallest_owning_edge(clearance: Meters) -> Meters {
+    Meters(clearance.get() * 2.0 / (1.0 - PLACEMENT_INSET))
+}
+
 /// Take an object id for this sector, or refuse it to a second claimant.
 ///
 /// Never resolved by spawn order: an id is how an object is found again, and

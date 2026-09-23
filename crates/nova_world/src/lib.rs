@@ -183,6 +183,12 @@ pub mod prelude {
 /// would look like retiring the wrong sector. It applies to a feature-owned
 /// planetoid too, which is why a feature sphere's centre is pulled onto its
 /// owner's inset rather than clamped there after the fact.
+///
+/// An inset constrains a CENTRE, so it owns the body only while the body fits
+/// in the margin it leaves. [`WorldConfig::validate`] refuses a `sector_edge`
+/// under `2 * clearance / (1 - PLACEMENT_INSET)` for the widest body the
+/// chosen generator can draw, which is what makes the sentence above true
+/// rather than aspirational.
 pub const PLACEMENT_INSET: f32 = 0.7;
 
 /// The most cells one desired window may hold.
@@ -493,6 +499,23 @@ impl WorldConfig {
                 &layered.asteroid_kinds
             }
         };
+        // The floor the inset implies, checked here rather than per candidate
+        // on a worker: a cell too narrow for its own bodies is one authored
+        // mistake, and `place_object` would report it 32 attempts at a time,
+        // per cell, for the life of the session.
+        let (clearance, body) = generation::widest_body_clearance(&self.generation);
+        let floor = generation::smallest_owning_edge(clearance);
+        if self.sector_edge < floor {
+            return refuse(
+                "sector_edge",
+                format!(
+                    "{} m, under the {} m a cell needs to hold {} inside its own faces",
+                    self.sector_edge.get(),
+                    floor.get(),
+                    body
+                ),
+            );
+        }
         if kinds.is_empty() {
             return refuse("generation.asteroid_kinds", "an empty list".to_string());
         }
@@ -664,10 +687,14 @@ pub enum NovaWorldSystems {
 
 /// The streamed world, in `Update`.
 ///
-/// OPT-IN: `AppBuilder` does not add it. Where a caller does add it, the
-/// plugin sits after the scenario plugins, because every stage but
-/// [`NovaWorldSystems::Cleanup`] is gated on a live scenario session and
-/// materialization calls the scenario object factories.
+/// OPT-IN: `AppBuilder` does not add it.
+///
+/// The dependency on the scenario plugins is a RUNTIME one, not a
+/// registration order: every stage but [`NovaWorldSystems::Cleanup`] is gated
+/// on a live scenario session, and materialization calls the scenario object
+/// factories. Nothing in `build` reads scenario state, so it does not matter
+/// that `AppBuilder::with_game_plugins` registers this plugin before
+/// `NovaScenarioPlugin` - which is what the examples do.
 ///
 /// The stages are chained, so bevy applies each one's commands before the next
 /// queries: the session check runs first, so no frame can hand a new session

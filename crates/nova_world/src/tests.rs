@@ -266,6 +266,68 @@ fn the_desired_window_refuses_a_radius_it_was_never_validated_for() {
     let _ = crate::streaming::desired_sectors(SectorCoord::ORIGIN, 1_000);
 }
 
+/// A cell too narrow to hold its own rocks is refused, not quietly shared.
+///
+/// 2.4 km for the fixture's 60 m band: a rock meshes out to
+/// `ASTEROID_GEOMETRIC_FACTOR_MAX` times its nominal radius, and
+/// `PLACEMENT_INSET` leaves only the outer 15% of each half edge for it to
+/// occupy. Under that floor the body crosses a face its cell does not own, and
+/// retiring the neighbour takes geometry standing beside the observer - the
+/// one thing `PLACEMENT_INSET` is documented to prevent.
+#[test]
+fn a_uniform_edge_too_narrow_to_own_its_rocks_is_refused() {
+    let fault = fault_of(&WorldConfig {
+        sector_edge: Meters(2_399.0),
+        ..uniform()
+    });
+    assert!(
+        matches!(
+            &fault,
+            SectorFault::Config { field: "sector_edge", value }
+                if value.contains("generation.radius_max")
+        ),
+        "a cell narrower than its own rocks must refuse and name the body, got {fault:?}"
+    );
+    let wide_enough = WorldConfig {
+        sector_edge: Meters(2_401.0),
+        ..uniform()
+    };
+    assert!(
+        wide_enough.validate().is_ok(),
+        "a cell just wide enough to own a 60 m rock must arm"
+    );
+}
+
+/// The layered floor is set by the planetoid, not the rock or the hull.
+///
+/// 8 km, because a gated planetoid draws up to 1,200 m of REAL radius against
+/// a gated rock's 360 m of meshed reach and a moored hull's 400 m. Naming
+/// which body sets the floor is the point: a caller who narrows the cell is
+/// told what they would have to shrink first.
+#[test]
+fn a_layered_edge_too_narrow_to_own_its_planetoids_is_refused() {
+    let fault = fault_of(&WorldConfig {
+        sector_edge: Meters(7_999.0),
+        ..layered()
+    });
+    assert!(
+        matches!(
+            &fault,
+            SectorFault::Config { field: "sector_edge", value }
+                if value.contains("planetoid")
+        ),
+        "a cell narrower than its own planetoids must refuse and name them, got {fault:?}"
+    );
+    let wide_enough = WorldConfig {
+        sector_edge: Meters(8_001.0),
+        ..layered()
+    };
+    assert!(
+        wide_enough.validate().is_ok(),
+        "a cell just wide enough to own a 1,200 m planetoid must arm"
+    );
+}
+
 #[test]
 fn a_layered_edge_wider_than_the_thinning_halo_is_refused() {
     // In EVERY build, not a debug assertion: a release run that accepted this
