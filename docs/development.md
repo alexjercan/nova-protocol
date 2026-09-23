@@ -1280,8 +1280,8 @@ The everyday loop for landing a change:
    `examples/` example that exercises it, with a harnessed autopilot assertion
    (see [Examples](#examples)) - this repo prefers a runnable example over an
    isolated unit test.
-4. **Open a PR.** CI (`.github/workflows/ci.yaml`) runs on PULL REQUESTS only -
-   there is no master-push run, because it would grade the same tree twice:
+4. **Open a PR.** CI (`.github/workflows/ci.yaml`) runs on pull requests and
+   pushes to `master`, so the integrated tree is revalidated after merge:
    `cargo fmt --check`, `cargo clippy --workspace --all-targets
    --features debug -- -D warnings`, `cargo test --workspace --features debug`,
    then a windowed twelve-example `probe run --correctness-only` smoke under

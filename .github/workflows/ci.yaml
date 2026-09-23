@@ -1,12 +1,12 @@
 name: CI
 
-# PULL REQUESTS ONLY. The push-to-master trigger ran this whole workflow a
-# second time on the merge commit of a branch it had already graded - the same
-# tree, the same verdict, at full runner cost. Release evidence comes from
-# `release.yaml`, which gates every platform build on the complete
-# `probe-full.yaml` suite, so nothing depended on the master run.
+# Pull requests grade proposed changes. Master pushes revalidate the integrated
+# tree. Releases additionally gate every platform build on the complete
+# `probe-full.yaml` suite.
 on:
   pull_request:
+  push:
+    branches: [master]
 
 # Cancel superseded runs on the same ref to save runner time.
 concurrency:
