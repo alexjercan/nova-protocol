@@ -89,15 +89,26 @@ cargo run --features debug probe run systems    # the category
 
 ## The code stays in the file
 
-No shared module, no `systems/common/`. Owner's ruling: duplication is cheaper
-than coupling here, for now. Ranges repeat their own `custom_plugin`,
-`setup_range` and rig builders, and that is accepted - a range that reads top to
-bottom is worth more than one that has to be read against a helper module every
-other range also pulls on. Copy it.
+The RANGE's own code stays in the file: no `systems/common/`. Owner's ruling:
+duplication is cheaper than coupling here, for now. Ranges repeat their own
+`custom_plugin`, `setup_range`, rig builders and every assert, and that is
+accepted - a range that reads top to bottom is worth more than one that has to
+be read against a helper module every other range also pulls on. Copy it.
 
 A module ONE range owns is fine, as a sibling directory named for that range
 and reached with `#[path]` (`system_turret_gunnery/slider.rs`). It moves when
 the range is renamed.
+
+A cross-category FIXTURE under `examples/shared/` is the other exception, and
+it is not a way around the first: it may hold a content input or a contract
+that several examples have to agree about, never a range's own wiring or its
+claims. `../shared/dev_fixtures/mod.rs` (the ship designs),
+`../screenshots/shared/kit.rs` (the photo kit) and
+`../shared/world_fixture/mod.rs` (the world seed, its two configs and the
+`WorldObserver` marking `nova_world` refuses without) are the ones that exist
+today, not a closed list. The test is whether copying it means
+two copies that can silently disagree - a ship design or a streamed world's
+seed - or just more lines that read fine apart.
 
 ## Adding one
 
