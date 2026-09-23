@@ -128,7 +128,11 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 /// authored spawn seam grants: a cell id is derived from a coordinate, so a
 /// scenario that happened to author an object named `sector_0_0_0` would
 /// otherwise have every despawn and objective-marker action for that id reach
-/// into the streamed world too.
+/// into the streamed world too. The marker lives in `nova_events` beside
+/// `EntityId`, so `nova_ship` enforces the same rule when it resolves the
+/// authored well of an orbit directive or an Orbit helm order - a streamed
+/// planetoid carries a `GravityWell` and would otherwise be orbitable by
+/// name.
 ///
 /// # Panics
 ///

@@ -52,12 +52,13 @@ pub mod prelude {
         OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
         OnStartEvent, OnStartEventInfo, OnStopCompleteEvent, OnStopCompleteEventInfo,
         OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent, OnTravelLockStartEvent,
-        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind,
-        ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CINEMATIC_KEY_FIELD_NAME,
-        ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
-        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME,
-        PLANET_TYPE_NAME, SALVAGE_CRATE_TYPE_NAME, SHIP_ORDER_FIELD_NAME,
-        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
+        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo,
+        ScenarioAddressableMarker, ShipOrderKind, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME,
+        BEACON_TYPE_NAME, CINEMATIC_KEY_FIELD_NAME, ENTITY_ID_COMPONENT_NAME,
+        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
+        SALVAGE_CRATE_TYPE_NAME, SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME,
+        SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
     };
 }
 
@@ -73,6 +74,26 @@ impl EntityId {
         EntityId(s.into())
     }
 }
+
+/// Marker that an entity's [`EntityId`] is an AUTHORED id, so a scenario
+/// action or an authored directive may address it by name.
+///
+/// A capability, not an exemption: an entity is addressable only when a
+/// scenario author named it, so a spawner that forgets this marker loses a
+/// lookup loudly instead of silently joining the authored namespace. Being
+/// scoped to the session is not enough. A streamed sector and the bodies in
+/// it are scoped - unloading must take them - and they carry generated ids
+/// like `sector_0_0_0_body_0`, which nobody wrote.
+///
+/// It lives here, beside [`EntityId`], because the rule has to be readable
+/// from every crate that resolves one. `nova_scenario` filters its own
+/// actions on it, and so does `nova_ship`, which is BELOW `nova_scenario`
+/// and resolves the authored well of an orbit directive or an Orbit helm
+/// order. A live-world surface that discovers entities rather than being
+/// told their names - the `cmd>` shell's completion - deliberately does not
+/// filter on it.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct ScenarioAddressableMarker;
 
 /// Reflect field name for the acting entity's id (the `id` key in event info).
 pub const ENTITY_ID_COMPONENT_NAME: &str = "id";

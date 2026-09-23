@@ -70,6 +70,11 @@ pub mod prelude {
 /// it. A streamed sector is the case that needs both - it is scoped, so
 /// unloading takes it, but its id was generated, so no authored action may
 /// reach it.
+///
+/// The capability is owned by `nova_events`, beside [`EntityId`], not by this
+/// crate: `nova_ship` sits BELOW `nova_scenario` and resolves authored well
+/// ids of its own (`AIOrbitDirective`, `ShipOrderDirective::Orbit`), so the
+/// rule has to be readable from there. This alias is the scenario half of it.
 pub type ScenarioAddressable = (With<ScenarioScopedMarker>, With<ScenarioAddressableMarker>);
 
 /// Every live entity an authored scenario id addresses.

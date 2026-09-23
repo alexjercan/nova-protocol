@@ -122,6 +122,9 @@ impl AIPatrolRoute {
 #[reflect(Component)]
 pub struct AIOrbitDirective {
     /// Scenario id of the gravity-well entity to circle.
+    ///
+    /// Resolved against wells carrying [`ScenarioAddressableMarker`] only, so
+    /// a generated body in a streamed sector cannot answer to it.
     pub well: EntityId,
 }
 

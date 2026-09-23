@@ -108,6 +108,10 @@ pub enum ShipOrderDirective {
         /// so a well that has not spawned yet is simply not there yet, and a
         /// well that is destroyed fails the order rather than orbiting a
         /// dangling handle.
+        ///
+        /// Resolution only sees wells carrying [`ScenarioAddressableMarker`],
+        /// so a body a generator named - a streamed sector's planetoid - can
+        /// never answer to an id an author wrote.
         well: String,
     },
 }
@@ -420,7 +424,7 @@ pub(super) fn drive_ship_orders(
         ),
         (With<SpaceshipRootMarker>, With<ShipOrderHelmAuthority>),
     >,
-    q_wells: Query<(Entity, &EntityId), With<GravityWell>>,
+    q_wells: Query<(Entity, &EntityId), (With<GravityWell>, With<ScenarioAddressableMarker>)>,
     q_computer: Query<
         &ChildOf,
         (
@@ -567,7 +571,7 @@ fn engage_leg(
     ship: Entity,
     order: &ShipHelmOrder,
     commands: &mut Commands,
-    q_wells: &Query<(Entity, &EntityId), With<GravityWell>>,
+    q_wells: &Query<(Entity, &EntityId), (With<GravityWell>, With<ScenarioAddressableMarker>)>,
     q_thruster_input: &mut Query<
         (&mut ThrusterSectionInput, &ChildOf),
         With<ThrusterSectionMarker>,
@@ -643,7 +647,9 @@ fn engage_leg(
                 .find(|(_, id)| id.0 == *well)
                 .map(|(entity, _)| entity)
             else {
-                return Err(format!("gravity well '{well}' is not in the world"));
+                return Err(format!(
+                    "gravity well '{well}' is not an addressable well in the world"
+                ));
             };
             commands
                 .entity(ship)
@@ -1187,6 +1193,7 @@ mod tests {
             .spawn((
                 GravityWell::from_mass(1_000.0, 50.0, &GravitySettings::default()),
                 EntityId::new("planetoid"),
+                ScenarioAddressableMarker,
             ))
             .id();
         let ship = ordered_ship(

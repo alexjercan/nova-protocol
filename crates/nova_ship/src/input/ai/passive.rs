@@ -133,7 +133,7 @@ pub(super) fn update_passive_flight(
             Without<ShipOrderHelmAuthority>,
         ),
     >,
-    q_wells: Query<(Entity, &EntityId), With<GravityWell>>,
+    q_wells: Query<(Entity, &EntityId), (With<GravityWell>, With<ScenarioAddressableMarker>)>,
     // A nav beacon publishes a BodyRadius so a GOTO can park off its face, but
     // it is a mark to fly TO, not a rock to fly around: its volume stops
     // nothing, and a route whose waypoints ARE its beacons (the menu's weave
@@ -288,7 +288,7 @@ pub(super) fn update_passive_flight(
                 else {
                     debug_once!(
                         "update_passive_flight: orbit directive well '{}' matches no live \
-                         GravityWell entity; ship {ship:?} drifts until it appears",
+                         ADDRESSABLE GravityWell entity; ship {ship:?} drifts until it appears",
                         *directive.well
                     );
                     continue;
@@ -1146,6 +1146,7 @@ mod orbit_directive_tests {
                     soi_radius: 400.0,
                 },
                 EntityId::new(WELL_ID),
+                ScenarioAddressableMarker,
                 Transform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
             ))
             .id()
@@ -1224,6 +1225,50 @@ mod orbit_directive_tests {
     }
 
     #[test]
+    fn a_generated_well_never_answers_an_authored_orbit_directive() {
+        // A streamed sector's planetoid is scenario-SCOPED and carries an
+        // `EntityId` its generator wrote, so it reaches this query - but the
+        // directive's id is an AUTHORED name. Without the capability filter a
+        // scenario that circled "planet-alpha" would circle whichever body a
+        // cell happened to generate under that name.
+        let (mut world, ship) = orbit_world();
+        let generated = world
+            .spawn((
+                GravityWell {
+                    mu: 2400.0,
+                    body_radius: 20.0,
+                    soi_radius: 400.0,
+                },
+                EntityId::new(WELL_ID),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
+            ))
+            .id();
+
+        run_pipeline(&mut world);
+
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "an unmarked well is not a well this directive may name"
+        );
+
+        // The delivery guard: the SAME entity, now marked, does resolve, so
+        // the refusal is the marker and not a broken fixture.
+        world
+            .entity_mut(generated)
+            .insert(ScenarioAddressableMarker);
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Orbit {
+                well: generated,
+                plan: None
+            }),
+            "the authored capability is what opens the lookup"
+        );
+    }
+
+    #[test]
     fn a_mid_flight_orbit_is_left_alone() {
         // Re-running the pipeline must not re-engage (churn would reset the
         // autopilot's plan every frame). A re-engage produces a component
@@ -1273,6 +1318,7 @@ mod orbit_directive_tests {
                     soi_radius: 400.0,
                 },
                 EntityId::new("moon"),
+                ScenarioAddressableMarker,
                 Transform::from_translation(Vec3::new(0.0, 0.0, 300.0)),
             ))
             .id();
