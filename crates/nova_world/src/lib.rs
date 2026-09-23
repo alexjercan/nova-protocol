@@ -430,13 +430,34 @@ impl WorldConfig {
     /// [`ACTIVE_WINDOW_SECTORS_MAX`] and a layered cell edge wider than the
     /// thinning halo covers are refused the same way, and neither is clamped:
     /// a clamp would stream a window nobody asked for and thin a field nobody
-    /// could reason about.
+    /// could reason about. So is an edge so wide that the window around the
+    /// origin has no representable face - that cell would fault on a worker,
+    /// long after the world armed.
     pub fn validate(&self) -> Result<(), SectorFault> {
         let refuse = |field: &'static str, value: String| Err(SectorFault::Config { field, value });
         if !self.sector_edge.get().is_finite() || self.sector_edge.get() <= 0.0 {
             return refuse("sector_edge", format!("{} m", self.sector_edge.get()));
         }
         window_cells(self.active_radius)?;
+        // The window is centred on the ORIGIN here, because that is the only
+        // part of it the config fixes - where the observer stands is runtime,
+        // and `generate_sector` refuses a far cell on its own. What must not
+        // happen is arming a config whose very first window has no
+        // representable centre: `collect_sector_jobs` panics on a fault, so
+        // by the time the overflow is seen the session is already streaming.
+        let reach =
+            self.active_radius as f32 * self.sector_edge.get() + self.sector_edge.get() * 0.5;
+        if !reach.is_finite() {
+            return refuse(
+                "sector_edge",
+                format!(
+                    "{} m, too wide for the {} cells either side of the observer to reach a \
+                     representable face",
+                    self.sector_edge.get(),
+                    self.active_radius
+                ),
+            );
+        }
         let kinds = match &self.generation {
             SectorGeneration::UniformAsteroids(uniform) => {
                 // Both ends, and both BEFORE `generate_sector` reserves a

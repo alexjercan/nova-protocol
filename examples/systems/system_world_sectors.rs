@@ -652,10 +652,18 @@ fn report_visit_order(world: &mut World) {
         "world sectors: {compared} manifests describe identically in three walks, two generators"
     );
 
+    // A quarter of `f32::MAX`, not `f32::MAX`: `WorldConfig::validate` refuses
+    // an edge whose own origin window has no representable face, so the wider
+    // one never reaches a coordinate conversion. This config is VALID - its
+    // window arms - and it is the far CELL that cannot be placed in metres,
+    // which is the case a worker has to catch.
     let overflow = WorldConfig {
-        sector_edge: Meters(f32::MAX),
+        sector_edge: Meters(f32::MAX / 4.0),
         ..uniform_world_config()
     };
+    overflow
+        .validate()
+        .expect("the overflow probe must use a config that arms");
     let fault = generate_sector(&overflow, SectorCoord::new(i32::MAX, 0, 0));
     assert!(
         matches!(fault, Err(SectorFault::InvalidGeometry { .. })),

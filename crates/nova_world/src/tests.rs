@@ -299,6 +299,40 @@ fn a_uniform_edge_too_narrow_to_own_its_rocks_is_refused() {
     );
 }
 
+/// A cell edge so wide that the ORIGIN window has no representable face must
+/// refuse at `validate`, not on a worker. `collect_sector_jobs` panics on a
+/// fault, so an edge that passes validation and then overflows takes the
+/// session down after the world armed - the one ordering a fail-loud world
+/// must not have.
+#[test]
+fn a_uniform_edge_too_wide_for_its_own_window_is_refused() {
+    let fault = WorldConfig {
+        sector_edge: Meters(f32::MAX),
+        ..uniform()
+    }
+    .validate()
+    .expect_err("a window two cells wide cannot reach the far face of an f32::MAX cell");
+    assert!(
+        matches!(
+            &fault,
+            SectorFault::Config {
+                field: "sector_edge",
+                ..
+            }
+        ),
+        "an unreachable window must refuse on sector_edge, got {fault:?}"
+    );
+
+    // The delivery guard: a quarter of that edge still reaches, so the
+    // refusal is the overflow and not a new ceiling on how wide a cell may be.
+    WorldConfig {
+        sector_edge: Meters(f32::MAX / 4.0),
+        ..uniform()
+    }
+    .validate()
+    .expect("a window that still has a finite far face arms");
+}
+
 /// The layered floor is set by the planetoid, at its OUTER radius.
 ///
 /// About 8.44 km for a barren rock: the 1,200 m band is a MEAN radius and the

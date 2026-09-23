@@ -967,8 +967,11 @@ nova_training = { path = "crates/nova_training" }
 # The wfc examples collapse their hulls through the shared generator; the
 # arena's own large-drive and spinal-lance stamps stay in the example.
 nova_wfc = { path = "crates/nova_wfc" }
-# The streamed open world: the five world examples drive its generator and its
-# job lifetime. A dev-dependency and nothing more - `AppBuilder` does not add
+# The streamed open world. Two of the five world examples call the generator
+# ONLY, to draw the feature field as a picture (`world_field_slices`,
+# `world_field_clouds`); the job lifetime is driven by the two playable
+# streaming examples and by the `system_world_sectors` range. A
+# dev-dependency and nothing more - `AppBuilder` does not add
 # `NovaWorldPlugin`, so the game binary links no world system.
 nova_world = { path = "crates/nova_world" }
 # wfc_ships seeds its collapse from a pinned StdRng, the same generator the
