@@ -979,7 +979,10 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// it. The only constructor a description has.
 ///
 /// A generator is outside this crate, so its answer is checked against every
-/// rule `materialize_sector` and the streaming loop rely on: the cell it was
+/// rule `materialize_sector` and the streaming loop rely on: a finite positive
+/// cell edge and a finite cell centre, refused before the manifest is read,
+/// because a direct caller need not have come through [`WorldConfig::validate`]
+/// and a NaN edge makes every containment test below pass; the cell it was
 /// asked for; feature spheres that are drawable, unique and really reach the
 /// cell; finite geometry; ids unique and prefixed with the cell's slug, so two
 /// cells never claim one object; every body standing inside its own cell with
@@ -995,6 +998,9 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 ///
 /// # Errors
 ///
+/// [`SectorFault::Config`] on `sector_edge` for an edge that is not a finite
+/// positive length, and [`SectorFault::InvalidGeometry`] for a cell whose
+/// centre has no finite position in meters;
 /// [`SectorFault::Manifest`] for the wrong cell, an object outside its cell or
 /// crowding another, an id another cell owns, a feature reference this cell
 /// does not own, a strength outside `[0, 1]`, a planet config
@@ -1009,7 +1015,16 @@ pub fn validate_manifest(
 ) -> Result<SectorDescription, SectorFault> {
     let coord = input.coord;
     let edge = input.geometry.sector_edge;
+    if !edge.get().is_finite() || edge.get() <= 0.0 {
+        return Err(SectorFault::Config {
+            field: "sector_edge",
+            value: format!("{} m", edge.get()),
+        });
+    }
     let centre = coord.centre(edge);
+    if !position_is_finite(centre) {
+        return Err(SectorFault::InvalidGeometry { id: coord.slug() });
+    }
     let half_edge = Meters(edge.get() * 0.5);
     let refuse = |id: &str, field: &'static str, value: String| SectorFault::Manifest {
         id: id.to_string(),

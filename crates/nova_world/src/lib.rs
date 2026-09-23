@@ -34,15 +34,15 @@
 //! A generator's answer is not trusted. It returns a [`SectorManifest`], and
 //! [`validate_manifest`] is the only way to turn one into the
 //! [`SectorDescription`] preparation and materialization accept: it checks the
-//! requested cell, the measured sphere, body and rock caps, finite geometry,
-//! unique ids the cell owns, bodies wholly inside the cell and clear of each
-//! other, shipped asteroid kinds, and feature references the cell owns -
-//! before a worker prepares anything. A ship's design is a key
-//! into the ship catalog, which is a Bevy resource, so the check can only
-//! refuse a blank one. The catalog lookup happens on the main thread in
-//! [`materialize_sector`], where an id the game does not ship is a
-//! [`SectorFault::UnknownShip`] panic - loud, and before the cell's entities
-//! exist, but at materialization and not at arming.
+//! cell's own edge and centre, the requested cell, the measured sphere, body
+//! and rock caps, finite geometry, unique ids the cell owns, bodies wholly
+//! inside the cell and clear of each other, shipped asteroid kinds, and
+//! feature references the cell owns - before a worker prepares anything. A
+//! ship's design is a key into the ship catalog, which is a Bevy resource, so
+//! the check can only refuse a blank one. The catalog lookup happens on the
+//! main thread in [`materialize_sector`], where an id the game does not ship
+//! is a [`SectorFault::UnknownShip`] panic - loud, and before the cell's
+//! entities exist, but at materialization and not at arming.
 //!
 //! # The job lifetime
 //!

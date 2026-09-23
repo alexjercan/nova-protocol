@@ -17,9 +17,9 @@ use nova_scenario::prelude::{PlanetConfig, PlanetType, ASTEROID_GEOMETRIC_FACTOR
 
 use crate::{
     generate_sector, prepare_sector, sector_features, sector_id, validate_feature_geometry,
-    FeatureLayer, FeatureSphere, NovaWorldPlugin, SectorAsteroid, SectorCoord, SectorFault,
-    SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet, SectorShip, WorldConfig,
-    WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX, SECTOR_BODIES_MAX,
+    validate_manifest, FeatureLayer, FeatureSphere, NovaWorldPlugin, SectorAsteroid, SectorCoord,
+    SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet, SectorShip,
+    WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX, SECTOR_BODIES_MAX,
     SECTOR_FEATURES_MAX,
 };
 
@@ -610,6 +610,53 @@ fn an_edge_too_wide_for_its_own_window_is_refused() {
     }
     .validate()
     .expect("a window that still has a finite far face arms");
+}
+
+/// `validate_manifest` is public, so it refuses a cell with no valid geometry
+/// on its own and does not rely on [`WorldConfig::validate`] having run.
+///
+/// A NaN edge makes every containment comparison false, so without this
+/// check an empty manifest, or even rocks, pass as a trusted description.
+#[test]
+fn a_manifest_for_a_cell_with_no_valid_geometry_is_refused() {
+    for edge in [0.0, f32::NAN, f32::INFINITY] {
+        let fault = validate_manifest(
+            SectorGenerationInput {
+                seed: 20_260_922,
+                geometry: WorldGeometry {
+                    sector_edge: Meters(edge),
+                },
+                coord: SectorCoord::ORIGIN,
+            },
+            empty(SectorCoord::ORIGIN, Vec::new()),
+        )
+        .expect_err("a manifest for a cell with no valid edge must refuse");
+        assert!(
+            matches!(
+                fault,
+                SectorFault::Config {
+                    field: "sector_edge",
+                    ..
+                }
+            ),
+            "a {edge} m edge must refuse on the edge, got {fault:?}"
+        );
+    }
+
+    // A finite edge that puts the far cell's centre past f32.
+    let far = SectorCoord::new(i32::MAX, 0, 0);
+    let fault = validate_manifest(
+        SectorGenerationInput {
+            seed: 20_260_922,
+            geometry: WorldGeometry {
+                sector_edge: Meters(1.0e30),
+            },
+            coord: far,
+        },
+        empty(far, Vec::new()),
+    )
+    .expect_err("a manifest for a cell with no finite centre must refuse");
+    assert_eq!(fault, SectorFault::InvalidGeometry { id: far.slug() });
 }
 
 /// A cell whose node range runs off the lattice is refused, not clipped.
