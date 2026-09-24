@@ -187,24 +187,46 @@ path = "examples/playable/compare_planets.rs"
 name = "planet_types"
 path = "examples/playable/planet_types.rs"
 
-# The streamed-world spike's hand-driven half: an empty scenario, a free-fly
+# The streamed world's hand-driven half: an empty scenario, a free-fly
 # observer, and the 5x5x5 procedural sectors around it coming up and retiring
 # while that one scenario stays loaded. What a human judges here is whether a
 # boundary crossing reads as continuous space; `system_world_sectors` owns the
-# counts, and both drive the same kit.
+# counts, and both drive `nova_world` through one fixture.
 [[example]]
 name = "world_sectors"
 path = "examples/playable/world_sectors.rs"
+# Built as a test target for the world fixture's inline tests: the example-local
+# `UniformAsteroids::validate` refusals live in
+# `examples/shared/world_fixture/uniform_asteroids.rs`, which no crate suite
+# compiles. One fixture includer is enough; the other four stay non-test.
+test = true
 
 # The same streaming loop over a world that has PLACES in it: three independent
 # global noise fields gate feature spheres on a coarse lattice, and a cell
-# holds whatever reaches it - rock fields, a real planetoid, neutral moored
-# hulls. What a human judges here is whether the result reads as places or as
+# holds whatever reaches it - rock fields, a real planetoid, inert derelict
+# ships. What a human judges here is whether the result reads as places or as
 # noise on a grid; the spheres themselves are drawn as gizmos so the field is
 # visible and not only its consequences.
 [[example]]
 name = "world_features"
 path = "examples/playable/world_features.rs"
+
+# The field itself rather than what it built: one flat plane through the world
+# sampled on the CPU at a kilometre a sample and painted as a heatmap, with the
+# layer's gate drawn on it as a contour. What a tuning pass judges here is how
+# much of the world sits just under a threshold, which no picture of the
+# accepted spheres can show.
+[[example]]
+name = "world_field_slices"
+path = "examples/playable/world_field_slices.rs"
+
+# The same raw field read in three dimensions: a bounded sample lattice around
+# the feature home cell, drawn as sparse crosses wherever a layer clears its
+# gate. What a human judges here is whether the gated regions are BLOBS with
+# shape and overlap or a scatter, which a flat slice cannot answer.
+[[example]]
+name = "world_field_clouds"
+path = "examples/playable/world_field_clouds.rs"
 
 # systems/ - the section curriculum first: one range per ship section, each
 # walking a named roster of invariants across several rounds.
@@ -452,13 +474,20 @@ path = "examples/systems/system_headless_drag.rs"
 name = "system_headless_crt"
 path = "examples/systems/system_headless_crt.rs"
 
-# The streamed-world spike's asserted half: sector roots stream in and out of
-# ONE live scenario, so the range walks a lifetime the game does not have yet -
-# bootstrap, arm, cross a boundary, return, unload - and counts what survives
-# each step. Shares its generator with the `world_sectors` playable observer.
+# The streamed world's asserted half: sector roots stream in and out of ONE
+# live scenario, so the range walks one world lifetime - bootstrap, arm, cross
+# a boundary, return, unload - and counts what survives each step. Drives `nova_world` through the same fixture the playable
+# observers fly.
 [[example]]
 name = "system_world_sectors"
 path = "examples/systems/system_world_sectors.rs"
+
+# The base game's open world over that mechanism: New Game's seed modal, the
+# line warship and its bound weapons, the streamed window, Retry on the same
+# seed, and nothing of the world left armed once another scenario runs.
+[[example]]
+name = "system_open_world"
+path = "examples/systems/system_open_world.rs"
 
 # Then the one range that grades SHIPPED content rather than a fixture built
 # beside it: the campaign's first chapter, booted by scenario id and walked
@@ -949,11 +978,13 @@ nova_training = { path = "crates/nova_training" }
 # The wfc examples collapse their hulls through the shared generator; the
 # arena's own large-drive and spinal-lance stamps stay in the example.
 nova_wfc = { path = "crates/nova_wfc" }
-# The world-sector spike's feature field: three global `Fbm<Perlin>` layers
-# gate the candidate lattice a streamed cell reads. Same crate and version the
-# planet and asteroid surfaces already generate from, so a spike field and a
-# shipped surface cannot drift onto two noise implementations.
-noise = { version = "0.9" }
+# The streamed open world's mechanism. The two field pictures
+# (`world_field_slices`, `world_field_clouds`) use only its grid types and read
+# the base generator's feature field through the `nova_core` prelude; the job
+# lifetime is driven by the two playable streaming examples and by the
+# `system_world_sectors` range. The game reaches it through `nova_core`, which
+# adds the base world's plugin; the examples name its types directly.
+nova_world = { path = "crates/nova_world" }
 # wfc_ships seeds its collapse from a pinned StdRng, the same generator the
 # scenario engine's scatter uses - same crate, same version, same rolls.
 rand = { version = "0.10.2" }
@@ -1166,6 +1197,14 @@ members = [
   # nova_scenario: it builds no App, so the editor, the examples and the
   # content tools can all reach it without any of them reaching each other.
   "crates/nova_wfc",
+  # The streamed open world's mechanism: deterministic sector generation and
+  # the bounded job lifetime that materializes and retires cells. Names no
+  # content.
+  "crates/nova_world",
+  # The base game's open world over it: `NovaLayeredWorld`, its feature field,
+  # the New Game session, and the ids both name. `AppBuilder` adds its plugin on the
+  # default game path, so it builds for wasm as well.
+  "crates/nova_world_base",
   # Web-build tooling, not a game crate. `nova_meta_gen` stays a workspace
   # MEMBER (so Cargo's feature unification auto-pins its Bevy version AND
   # features - the `wav` feature via nova_modding -> nova_gameplay - to the

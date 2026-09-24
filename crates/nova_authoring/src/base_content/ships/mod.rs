@@ -16,13 +16,19 @@ use nova_scenario::prelude::{
 use nova_ship::prelude::{
     AmmoCapacity, SectionConfigPatch, SectionKindPatch, TurretSectionConfigPatch,
 };
+use nova_world_base::prelude::{
+    BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID,
+};
 
 use super::assets::BaseContentAssets;
 
 mod block;
 
-pub(crate) use block::BLOCK_CLEANUP_TURRET_ID;
 pub use block::{BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_PORT_COLLAR_SECTION_ID};
+pub(crate) use block::{
+    BLOCK_CLEANUP_TURRET_ID, BLOCK_LINE_WARSHIP_PDC_IDS, BLOCK_LINE_WARSHIP_RAILGUN_ID,
+    BLOCK_LINE_WARSHIP_TORPEDO_IDS,
+};
 
 /// The id the block-built utility cutter is spawned by: the small unarmed
 /// workboat.
@@ -37,10 +43,6 @@ pub const BLOCK_WORKSHIP_SHIP_ID: &str = "block_workship";
 /// The id the block-built frame tender is spawned by: a cargo body under two
 /// open gantry arches, carrying the same collar the workship docks on.
 pub const BLOCK_FRAME_TENDER_SHIP_ID: &str = "block_frame_tender";
-/// The id the damaged frame tender is spawned by: the same hull with its
-/// stern and its main drive gone. A second CATALOG entry for the reason the
-/// module doc gives.
-pub const BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID: &str = "block_frame_tender_damaged";
 
 /// The id the block-built patrol gunship is spawned by: armoured, with six
 /// point-defense mounts.
@@ -48,8 +50,6 @@ pub const BLOCK_GUNSHIP_SHIP_ID: &str = "block_gunship";
 /// The id the block-built picket is spawned by: one nose gun on thin
 /// plating.
 pub const BLOCK_PICKET_SHIP_ID: &str = "block_picket";
-/// The id loose debris plating is spawned by: no computer, drive or gun.
-pub const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
 
 /// Every shipped ship, in stable generated-content order.
 pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipDesignPrototype> {
@@ -89,6 +89,12 @@ pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipDesignPrototyp
             BLOCK_GUNSHIP_SHIP_ID,
             "Patrol Gunship",
             block::patrol_gunship(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_LINE_WARSHIP_SHIP_ID,
+            "Line Warship",
+            block::line_warship(),
         ),
         block_ship(
             assets,

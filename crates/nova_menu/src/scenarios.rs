@@ -31,7 +31,8 @@ pub(crate) struct SelectedScenarioId(pub(crate) Option<ScenarioId>);
 /// Overrides which scenario the shared `start_new_game_scenario`
 /// (OnEnter(Playing), gated `GameMode::NewGame`) loads. `None` -> the canned
 /// New Game start; `Some(id)` -> that scenario. The Scenarios picker's Play
-/// button sets it; `on_new_game` clears it so New Game always plays the story.
+/// button sets it; the New Game modal's Create clears it so New Game always
+/// starts the open world.
 ///
 /// Public because it is the ONE door into a chosen-scenario start: the game
 /// binary's `--scenario <id>` flag writes it at app build so a command-line

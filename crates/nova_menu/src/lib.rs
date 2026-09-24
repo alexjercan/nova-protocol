@@ -6,9 +6,10 @@
 //! `menu_ambience` scenario (nova_assets), where an AI ship flies a real
 //! thruster-driven orbit around a planetoid's gravity well (its
 //! AIControllerConfig orbit directive engages the ORBIT autopilot), watched by a
-//! fixed cinematic camera with the status bar hidden. The buttons write
-//! [`GameMode`] and hand off to [`GameStates::Playing`]; the editor
-//! (`nova_editor`) only comes up in `Sandbox` mode, and the menu's own
+//! fixed cinematic camera with the status bar hidden. New Game opens the world
+//! setup modal, whose Create starts the open world on the typed seed. Create and
+//! Sandbox write [`GameMode`] and hand off to [`GameStates::Playing`]; the
+//! editor (`nova_editor`) only comes up in `Sandbox` mode, and the menu's own
 //! `OnEnter(Playing)` system loads the New Game scenario in `NewGame` mode.
 //!
 //! `nova_core`'s `AppBuilder` adds this plugin (and routes `Loading -> MainMenu`
@@ -29,7 +30,7 @@ use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure, UnloadScenari
 use nova_ui::{
     input_mode::prelude::{in_input_mode, InputMode},
     theme::SelectedUiTheme,
-    widget::button_on_setting,
+    widget::{button_on_setting, TextFieldSystems},
 };
 
 /// Glob-import surface: `use nova_menu::prelude::*` brings [`NovaMenuPlugin`]
@@ -68,6 +69,7 @@ mod settings_store;
 mod training;
 mod training_store;
 mod widgets;
+mod world_setup;
 
 #[cfg(test)]
 mod tests;
@@ -120,9 +122,9 @@ use widgets::{on_menu_button_activate, play_menu_focus_cue, MenuCueSystems};
 ///
 /// On `OnEnter(MainMenu)` it loads the ambient backdrop scenario and builds the
 /// menu UI; `Update` runs the button/colour, settings-sync, mods-screen refresh
-/// and update-choreography systems; the New Game / Sandbox buttons write
-/// [`GameMode`] and hand off to [`GameStates::Playing`]. Added by `nova_core`'s
-/// `AppBuilder` only for the default editor app.
+/// and update-choreography systems; the world setup modal's Create and the
+/// Sandbox button write [`GameMode`] and hand off to [`GameStates::Playing`].
+/// Added by `nova_core`'s `AppBuilder` only for the default editor app.
 pub struct NovaMenuPlugin;
 
 impl Plugin for NovaMenuPlugin {
@@ -228,6 +230,14 @@ impl Plugin for NovaMenuPlugin {
         app.add_systems(
             Update,
             (stage_menu_camera, sync_mod_checkboxes).run_if(in_state(GameStates::MainMenu)),
+        );
+        // After the field's own systems, so a seed typed this frame is refused
+        // or accepted before anything repaints the field.
+        app.add_systems(
+            Update,
+            world_setup::read_world_seed
+                .after(TextFieldSystems)
+                .run_if(in_state(GameStates::MainMenu)),
         );
         // Safe mode's one report, owed on the front door once per recovery.
         // `resource_exists`-gated: a menu rig without the content pipeline has

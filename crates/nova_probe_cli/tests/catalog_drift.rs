@@ -849,6 +849,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the loaded record reaches the screen",
             "reading the handbook does not answer the offer",
             "the dismissal is a setting and the record is not",
+            "Lessons -> Basic Training loads the tutorial",
             "the answered offer is gone on the next launch",
             "the handbook is reachable without the corner",
             "a proven lesson can be practised again",
@@ -887,17 +888,32 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "every physical object stands clear inside its own sector",
             "arming the stream materializes the whole desired set",
             "every sector is requested and prepared before it is materialized",
-            "a featured sector owns real planetoids and inert neutral hulls",
+            "a featured sector owns real planetoids and inert derelict ships",
             "crossing one boundary retains the shared slab and swaps a face",
             "the return trip leaves no duplicate root",
             "work for an undesired sector never materializes",
+            "replacing the world config retires the world it built",
             "unloading the session removes every sector root",
+        ],
+    ),
+    (
+        "system_open_world",
+        &[
+            "new game opens the world setup modal without leaving the menu",
+            "create starts the open world on the modal's seed",
+            "the world arms on the session seed around the one player ship",
+            "the open world spawns one line warship with its weapons bound",
+            "the sectors around the player stream in",
+            "each bound weapon fires from the warship",
+            "retry keeps the world seed",
+            "every armed frame ran the observe stage",
+            "no other scenario runs over an armed world or a sector root",
         ],
     ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 433;
+const SYSTEMS_INVARIANTS: usize = 444;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

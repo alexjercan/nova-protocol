@@ -38,6 +38,7 @@ use crate::{
     },
     training::{on_training, spawn_menu_aside, spawn_training_panel},
     widgets::{back_button, button, button_variant},
+    world_setup::on_new_game,
 };
 
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
@@ -391,7 +392,7 @@ pub(crate) fn setup_menu_ui(
                     ));
                     parent.spawn((
                         Name::new("Scenarios Subtitle"),
-                        Text::new("Pick a scenario to play. New Game starts Basic Training."),
+                        Text::new("Pick a scenario to play."),
                         TextFont {
                             font_size: FontSize::Px(13.0),
                             ..default()
@@ -441,20 +442,6 @@ pub(crate) fn setup_menu_ui(
     let notes = catalog_field_notes(&catalog);
     let note = rotation.pick(&notes, time.elapsed().subsec_nanos() as usize);
     spawn_menu_aside(&mut commands, note);
-}
-
-pub(crate) fn on_new_game(
-    _activate: On<Activate>,
-    mut mode: ResMut<GameMode>,
-    mut state: ResMut<NextState<GameStates>>,
-    mut pick: ResMut<NewGameScenario>,
-) {
-    // New Game always starts the base bundle's declared start (the training
-    // range): clear any override the Scenarios picker left, so
-    // `start_new_game_scenario` loads the canned start.
-    pick.0 = None;
-    *mode = GameMode::NewGame;
-    state.set(GameStates::Playing);
 }
 
 pub(crate) fn on_sandbox(

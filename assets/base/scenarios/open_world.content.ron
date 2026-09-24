@@ -1,0 +1,157 @@
+[
+    Scenario((
+        id: "open_world",
+        name: "Open World",
+        description: "An open world generated from your seed: asteroid belts, planetoids and derelicts, streamed in around your line warship as you fly.",
+        cubemap: "self://textures/cubemap.png",
+        role: OpenWorld,
+        events: [
+            (
+                name: OnStart,
+                once: true,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player",
+                            name: "Line Warship",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_line_warship",
+                            ),
+                            controller: Player((
+                                input_mapping: {
+                                    "pdc_aft_port": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "pdc_aft_starboard": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "pdc_forward_port": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "pdc_forward_starboard": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "pdc_ventral_port": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "pdc_ventral_starboard": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "spinal_lance": [
+                                        Keyboard(KeyR),
+                                    ],
+                                    "torpedo_port": [
+                                        Keyboard(KeyF),
+                                    ],
+                                    "torpedo_starboard": [
+                                        Keyboard(KeyF),
+                                    ],
+                                },
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "open_world_key",
+                            name: "Key Light",
+                            position: (
+                                -1500.0,
+                                1250.0,
+                                1500.0,
+                            ),
+                            rotation: (
+                                -0.24307884,
+                                -0.36920026,
+                                -0.10068656,
+                                0.8913283,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "open_world_rim",
+                            name: "Rim Light",
+                            position: (
+                                750.0,
+                                1000.0,
+                                -2000.0,
+                            ),
+                            rotation: (
+                                -0.03875094,
+                                0.9604674,
+                                0.21369855,
+                                0.17416595,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 16000.0,
+                            color: Srgba((
+                                red: 0.72,
+                                green: 0.86,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "open_world_fill",
+                            name: "Fill Light",
+                            position: (
+                                1750.0,
+                                -500.0,
+                                1000.0,
+                            ),
+                            rotation: (
+                                0.10489727,
+                                0.49822173,
+                                -0.060874246,
+                                0.8585255,
+                            ),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

@@ -280,13 +280,19 @@ Each entry names the child task it would become.
 The streaming lifetime is no longer argued from code reading. It runs, in two
 example targets that share one kit:
 
-- `examples/shared/world_sectors/mod.rs` - two generators, the feature field
-  and the job lifetime.
+- `crates/nova_world` - two generators, the feature field and the job lifetime,
+  in an opt-in crate nothing wires into `AppBuilder`.
+- `examples/shared/world_fixture/mod.rs` - the seed, the cell edge, the active
+  radius and the content ids the example targets share.
 - `examples/systems/system_world_sectors.rs` - fourteen asserted claims, from
   an empty bootstrap to a swept unload.
 - `examples/playable/world_sectors.rs` - the uniform generator, flown by hand.
 - `examples/playable/world_features.rs` - the featured generator, flown by
   hand, with the feature spheres drawn.
+- `examples/playable/world_field_slices.rs` - the raw field of one layer on one
+  plane, painted as a heatmap with its gate drawn on it.
+- `examples/playable/world_field_clouds.rs` - the same raw field in three
+  dimensions, as sparse marks wherever a layer clears its gate.
 
 Owner decisions taken on 2026-09-22, after the first synchronous version ran:
 
@@ -346,9 +352,11 @@ Owner decisions taken on 2026-09-22, after the uniform generator ran:
   or a recorded open decision on both tasks.
 - Child tasks exist, each in one of the three classification lists.
 - No open-world runtime, content, or schema has been written by this task.
-  The spike kit lives in `examples/` and is not wired into a game plugin. The
-  two production changes it forced - splitting the asteroid spawn into
-  `prepare_asteroid_geometry` and `asteroid_scenario_object_prepared`, and the
-  planet spawn into `prepare_planet` and `planet_scenario_object_prepared` -
+  `crates/nova_world` is the spike's foundation and stays OPT-IN: nothing adds
+  `NovaWorldPlugin` to `AppBuilder`, and the examples decide every seed, dial
+  and content id it refuses to assume. The two production changes it forced -
+  splitting the asteroid spawn into `prepare_asteroid_geometry` and
+  `asteroid_scenario_object_prepared`, and the planet spawn into
+  `prepare_planet` and `planet_scenario_object_prepared` -
   are refactors: authored scenario spawning takes the same path and spawns the
   same rock and the same world.

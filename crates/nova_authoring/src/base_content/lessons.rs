@@ -28,11 +28,10 @@
 //! `order` is explicit and spaced by ten, so a lesson can be slipped between
 //! two others (or by a mod) without renumbering the file.
 
-use nova_training::prelude::{Lesson, LessonCategory, LessonMedia};
+use nova_training::prelude::{Lesson, LessonCategory, LessonMedia, TUTORIAL_SCENARIO_ID};
 
-use super::scenarios::{
-    drills::{DRILL_AUTOPILOT_ID, DRILL_GUNNERY_ID, DRILL_MOMENTUM_ID, DRILL_STOP_ID},
-    tutorial::TUTORIAL_SCENARIO_ID,
+use super::scenarios::drills::{
+    DRILL_AUTOPILOT_ID, DRILL_GUNNERY_ID, DRILL_MOMENTUM_ID, DRILL_STOP_ID,
 };
 
 /// Where a lesson's demonstration lives inside the base bundle. Listed in

@@ -14,7 +14,8 @@
 //! saw a whole thing.
 //!
 //! TWO SURFACES, TWO JOBS. The `Lessons` row in the menu card is the permanent
-//! way in and is always there. The bottom-left corner is a NOTICE CENTRE, not a
+//! way in and is always there, and the handbook's first row always launches
+//! Basic Training. The bottom-left corner is a NOTICE CENTRE, not a
 //! training widget: it holds the one-off OFFER to a player who has just
 //! installed the game, and under it a field note - one fact read off the
 //! catalog, with the way into the lesson that owns it.
@@ -86,11 +87,13 @@ pub(crate) struct LessonRow {
 #[derive(Component)]
 pub(crate) struct LessonStatusBadge(pub(crate) LessonStatus);
 
-/// The details-pane Practice button, and the practice range it hands off to.
+/// A launch into a scenario from the handbook: the details-pane Practice
+/// button with the practice range it hands off to, and the Basic Training row
+/// at the head of the list.
 ///
-/// The LABEL is the screen's, not the lesson's: every practice button says the
-/// same word, so the player learns one control rather than reading a different
-/// invitation on every tip.
+/// The Practice LABEL is the screen's, not the lesson's: every practice button
+/// says the same word, so the player learns one control rather than reading a
+/// different invitation on every tip.
 #[derive(Component)]
 pub(crate) struct LessonPractice {
     pub(crate) scenario: String,
@@ -522,8 +525,8 @@ pub(crate) fn on_lesson_row_select(
     select_lesson(&row.id, &mut selected, &mut progress);
 }
 
-/// Launch the selected lesson's practice scenario through the SAME New Game
-/// hand-off the Scenarios picker uses. There is no second launch path.
+/// Launch a [`LessonPractice`] scenario through the SAME New Game hand-off the
+/// Scenarios picker uses. There is no second launch path.
 pub(crate) fn on_lesson_practice(
     activate: On<Activate>,
     practices: Query<&LessonPractice>,
@@ -539,8 +542,9 @@ pub(crate) fn on_lesson_practice(
     state.set(GameStates::Playing);
 }
 
-/// `Start Basic Training` plays the base bundle's declared start - the same
-/// thing New Game does, and deliberately not a competing launch path.
+/// `Start Basic Training` plays Basic Training through the same New Game
+/// hand-off the Scenarios picker uses. New Game itself opens the world setup
+/// modal, so the offer names its scenario instead of taking the declared start.
 ///
 /// Taking the offer answers it: the prompt does not come back on the next
 /// launch, and Settings > Interface is where a player who wants it back goes.
@@ -552,7 +556,7 @@ pub(crate) fn on_first_pilot_start(
     mut prompt: ResMut<TrainingPromptSetting>,
 ) {
     *prompt = TrainingPromptSetting::Hidden;
-    pick.0 = None;
+    pick.0 = Some(TUTORIAL_SCENARIO_ID.to_string());
     *mode = GameMode::NewGame;
     state.set(GameStates::Playing);
 }
@@ -721,8 +725,8 @@ pub(crate) fn training_details_dirty(
         || bindings.is_some_and(|bindings| bindings.is_changed())
 }
 
-/// Rebuild the lesson list: a header per non-empty category, then its lessons
-/// as rows carrying their state. A default/repaired selection keeps the details
+/// Rebuild the lesson list: the Basic Training row, then a header per non-empty
+/// category and its lessons as rows carrying their state. A default/repaired selection keeps the details
 /// pane fed without claiming the player read anything.
 pub(crate) fn refresh_training_list(
     mut commands: Commands,
@@ -749,6 +753,32 @@ pub(crate) fn refresh_training_list(
     write_progress_label(&catalog, &progress, &mut labels);
 
     commands.entity(list).with_children(|list| {
+        // Basic Training heads the list, above every category, because New
+        // Game opens the open world: this row is the handbook's own door into
+        // the first-flight course. It launches, not selects - it is the
+        // practice hand-off with no lesson in front of it, so it names the
+        // scenario and never touches the selection or the record.
+        list.spawn((
+            Name::new("Training Basic Training"),
+            LessonPractice {
+                scenario: TUTORIAL_SCENARIO_ID.to_string(),
+            },
+            list_row(),
+            Button,
+            Hovered::default(),
+            observe(on_lesson_practice),
+            children![(
+                Name::new("Training Basic Training Title"),
+                UiText,
+                Text::new("Basic Training"),
+                TextFont {
+                    font_size: FontSize::Px(15.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Body),
+            )],
+        ));
         if catalog.is_empty() {
             list.spawn((
                 Name::new("Training Empty Note"),

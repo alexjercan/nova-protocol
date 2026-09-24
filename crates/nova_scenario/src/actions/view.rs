@@ -824,10 +824,18 @@ mod tests {
             ))
             .id();
         let cutter = world
-            .spawn((ScenarioScopedMarker, EntityId("cutter".to_string())))
+            .spawn((
+                ScenarioScopedMarker,
+                ScenarioAddressableMarker,
+                EntityId("cutter".to_string()),
+            ))
             .id();
         let carrier = world
-            .spawn((ScenarioScopedMarker, EntityId("carrier".to_string())))
+            .spawn((
+                ScenarioScopedMarker,
+                ScenarioAddressableMarker,
+                EntityId("carrier".to_string()),
+            ))
             .id();
 
         let action = SetCameraAnchorActionConfig {
@@ -1207,7 +1215,11 @@ mod tests {
         let camera = world
             .spawn((ScenarioCameraMarker, Transform::default()))
             .id();
-        world.spawn((ScenarioScopedMarker, EntityId("cutter".to_string())));
+        world.spawn((
+            ScenarioScopedMarker,
+            ScenarioAddressableMarker,
+            EntityId("cutter".to_string()),
+        ));
 
         let action = SetCameraAnchorActionConfig {
             blend: Some(CameraBlendConfig {

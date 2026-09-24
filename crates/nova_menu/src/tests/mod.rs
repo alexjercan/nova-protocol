@@ -13,3 +13,4 @@ mod settings;
 mod settings_store;
 mod support;
 mod training;
+mod world_setup;

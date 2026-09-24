@@ -1,11 +1,11 @@
 //! world_sectors: fly the streamed world and watch it come and go.
 //!
-//! The hand-driven half of the streamed-world spike. One empty scenario
-//! loads, the free-fly camera IS the observer, and the 5x5x5 sectors around
+//! The hand-driven half of the streamed-world work. One empty scenario loads,
+//! the free-fly camera IS the [`WorldObserver`], and the 5x5x5 sectors around
 //! it are prepared off the frame, a poolful at a time, and materialized one a
-//! frame while that scenario stays live. Fly far enough along an axis and the sectors behind
-//! you retire while the ones ahead come up - no load screen, no scenario
-//! switch, and the readout names the cell you are in, what is still
+//! frame while that scenario stays live. Fly far enough along an axis and the
+//! sectors behind you retire while the ones ahead come up - no load screen, no
+//! scenario switch, and the readout names the cell you are in, what is still
 //! PREPARING, and what is waiting for a frame while it happens.
 //!
 //! What a human is here to judge is the part a headless assert cannot:
@@ -13,8 +13,9 @@
 //! rebuilding itself, and whether the world arriving a sector at a time is
 //! visible as popping. `system_world_sectors` owns the counts.
 //!
-//! The kit is shared with that range (`examples/shared/world_sectors/`), so
-//! what is flown here is what is asserted there.
+//! The generator and the streaming loop are `nova_world`'s; the seed, the
+//! cell edge and the content tables are `examples/shared/world_fixture/mod.rs`'s,
+//! shared with the range, so what is flown here is what is asserted there.
 //!
 //! Hand-run (WASD + right-drag to look; HOLD a key - a 32 km sector is about
 //! 530 s at the base 60 m/s and about 17 s at the 32x ramp, so this one is
@@ -28,17 +29,17 @@
 //! - `NOVA_AUTOPILOT=1`: load, arm, cross one boundary, come back, exit clean.
 //!   This is the path `probe run` takes.
 
-#[path = "../shared/world_sectors/mod.rs"]
-mod world_sectors;
+#[path = "../shared/world_fixture/mod.rs"]
+pub mod world_fixture;
 
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
+use nova_world::prelude::*;
 #[cfg(feature = "debug")]
-use world_sectors::{desired_sectors, SectorCoord};
-use world_sectors::{
-    free_play_scenario, CurrentSector, ReadySectors, SectorJob, SectorRoot, SectorSettings,
-    WorldSectorsPlugin,
+use world_fixture::EXAMPLE_ACTIVE_RADIUS;
+use world_fixture::{
+    free_play_scenario, uniform_world_config, world_observer_plugin, UniformAsteroids,
 };
 
 #[derive(Parser)]
@@ -79,7 +80,11 @@ const STEP_DEADLINE_SECS: f32 = 240.0;
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new()
-        .with_game_plugins((observer_plugin, WorldSectorsPlugin))
+        .with_game_plugins((
+            observer_plugin,
+            world_observer_plugin,
+            NovaWorldPlugin::<UniformAsteroids>::default(),
+        ))
         .build();
 
     #[cfg(feature = "debug")]
@@ -101,13 +106,17 @@ fn observer_plugin(app: &mut App) {
 ///
 /// Armed immediately, unlike the range: a human opening this wants the world
 /// already there, and there is no emptiness claim to protect here.
+///
+/// `OnEnter` rather than `Update`: nova_world requires a `WorldConfig` writer
+/// to land ahead of `NovaWorldSystems::Cleanup`, and a state transition runs
+/// before `Update` at all.
 fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
         SCENARIO_ID,
         "World Sectors Observer",
     )));
-    commands.insert_resource(SectorSettings::SPIKE);
+    commands.insert_resource(uniform_world_config());
 
     commands.spawn((
         Name::new("Observer Key Light"),
@@ -156,16 +165,16 @@ fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
 /// back one materialization a frame, and a sector arriving late is a number on
 /// screen instead of a mystery.
 fn update_readout(
-    settings: Option<Res<SectorSettings>>,
+    config: Option<Res<WorldConfig<UniformAsteroids>>>,
     current: Option<Res<CurrentSector>>,
     ready: Res<ReadySectors>,
-    observer: Query<&GlobalTransform, With<ScenarioCameraMarker>>,
+    observer: Query<&GlobalTransform, With<WorldObserver>>,
     roots: Query<&SectorRoot>,
     jobs: Query<&SectorJob>,
     bodies: Query<&AsteroidMarker>,
     mut readout: Query<&mut Text, With<SectorReadout>>,
 ) {
-    let (Some(settings), Some(current)) = (settings, current) else {
+    let (Some(config), Some(current)) = (config, current) else {
         return;
     };
     let Ok(transform) = observer.single() else {
@@ -178,7 +187,7 @@ fn update_readout(
     // Engine boundary: a bevy transform counts world units, the readout is in
     // meters.
     let position = Meters3::from_engine(transform.translation());
-    let centre = current.0.centre(settings.edge);
+    let centre = current.0.centre(config.sector_edge);
     let offset = position - centre;
     **text = format!(
         "SECTOR {}  {:+.0} {:+.0} {:+.0} m in a {:.0} m cell\nlive {} sectors, {} bodies\n\
@@ -187,7 +196,7 @@ fn update_readout(
         offset.x().get(),
         offset.y().get(),
         offset.z().get(),
-        settings.edge.get(),
+        config.sector_edge.get(),
         roots.iter().count(),
         bodies.iter().count(),
         jobs.iter().count(),
@@ -202,7 +211,7 @@ fn update_readout(
 fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let origin = SectorCoord::ORIGIN;
     let across = origin.offset(1, 0, 0);
-    let edge = SectorSettings::SPIKE.edge;
+    let edge = uniform_world_config().sector_edge;
 
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("wait for the streamed world")
@@ -234,14 +243,11 @@ fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
 #[cfg(feature = "debug")]
 fn sector_set_is(centre: SectorCoord) -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     std::sync::Arc::new(move |world: &World| {
-        let Some(settings) = world.get_resource::<SectorSettings>() else {
-            return false;
-        };
         let Some(mut query) = world.try_query::<&SectorRoot>() else {
             return false;
         };
         let live: std::collections::BTreeSet<SectorCoord> =
             query.iter(world).map(|root| root.0).collect();
-        live == desired_sectors(centre, settings.radius)
+        live == desired_sectors(centre, EXAMPLE_ACTIVE_RADIUS)
     })
 }

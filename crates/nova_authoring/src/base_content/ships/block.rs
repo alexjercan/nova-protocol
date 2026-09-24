@@ -16,7 +16,8 @@ use bevy::prelude::*;
 use nova_scenario::prelude::{SectionSource, SpaceshipSectionConfig};
 use nova_ship::prelude::{
     BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, DOCKING_PORT_SECTION_ID,
-    LIGHT_HULL_SECTION_ID, PDC_KINETIC_TURRET_SECTION_ID, REINFORCED_HULL_SECTION_ID,
+    LIGHT_HULL_SECTION_ID, PDC_KINETIC_TURRET_SECTION_ID, RAILGUN_LANCE_SECTION_ID,
+    REINFORCED_HULL_SECTION_ID, TORPEDO_SECTION_ID,
 };
 
 use crate::base_content::{
@@ -49,6 +50,23 @@ pub const BLOCK_GUNSHIP_TURRET_IDS: [&str; 6] = [
     "pdc_ventral_port",
     "pdc_ventral_starboard",
 ];
+
+/// The line warship's point-defense mounts: dorsal fore, dorsal aft, then the
+/// two ventral mounts. The open world binds every one to the same trigger.
+pub(crate) const BLOCK_LINE_WARSHIP_PDC_IDS: [&str; 6] = [
+    "pdc_forward_port",
+    "pdc_forward_starboard",
+    "pdc_aft_port",
+    "pdc_aft_starboard",
+    "pdc_ventral_port",
+    "pdc_ventral_starboard",
+];
+
+/// The line warship's one spinal railgun.
+pub(crate) const BLOCK_LINE_WARSHIP_RAILGUN_ID: &str = "spinal_lance";
+
+/// The line warship's two bow torpedo bays, port then starboard.
+pub(crate) const BLOCK_LINE_WARSHIP_TORPEDO_IDS: [&str; 2] = ["torpedo_port", "torpedo_starboard"];
 
 /// The one point-defense mount the picket carries, so content that arms or
 /// disarms it names a section rather than a hull.
@@ -325,6 +343,88 @@ pub(super) fn patrol_gunship() -> BlockShip {
     }
 }
 
+/// The open world's player hull: a long armoured body with a 3x3 transom for
+/// one vectoring drive, two shoulders that carry a bell drive aft and a
+/// torpedo bay forward, a dorsal bridge tower, and a keel under the aft half.
+///
+/// The railgun is bolted onto the bow on the centreline, breech on the nose
+/// plate, so the lance fires down the ship's own axis clear of the hull. Each
+/// bay sits ahead of its shoulder with its muzzle open and its inboard flank
+/// mated to the body. Three flight computers spread along the spine turn a
+/// hull this long.
+pub(super) fn line_warship() -> BlockShip {
+    BlockShip {
+        cells: union(vec![
+            block(IVec3::new(-1, 0, -7), IVec3::new(3, 2, 15)),
+            // The keel: squares the transom off to the drive's 3x3 face and
+            // gives the ventral mounts a plate to hang from.
+            block(IVec3::new(-1, -1, -3), IVec3::new(3, 1, 11)),
+            block(IVec3::new(-2, 0, -4), IVec3::new(1, 1, 9)),
+            block(IVec3::new(2, 0, -4), IVec3::new(1, 1, 9)),
+            block(IVec3::new(0, 2, -3), IVec3::new(1, 1, 4)),
+        ]),
+        specials: vec![
+            cell_part(
+                BLOCK_BRIDGE_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 2, -2),
+            ),
+            cell_part(
+                "control_fore",
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 0, -5),
+            ),
+            cell_part(
+                "control_aft",
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 0, 5),
+            ),
+            part(
+                MAIN_DRIVE_SECTION_ID,
+                VECTOR_THRUSTER_SECTION_ID,
+                Vec3::new(0.0, 0.0, 8.5),
+                Quat::IDENTITY,
+            ),
+            cell_part(
+                DRIVE_PORT_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-2, 0, 4),
+            ),
+            cell_part(
+                DRIVE_STARBOARD_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(2, 0, 4),
+            ),
+            part(
+                BLOCK_LINE_WARSHIP_RAILGUN_ID,
+                RAILGUN_LANCE_SECTION_ID,
+                Vec3::new(0.0, 0.0, -9.0),
+                Quat::IDENTITY,
+            ),
+            part(
+                BLOCK_LINE_WARSHIP_TORPEDO_IDS[0],
+                TORPEDO_SECTION_ID,
+                Vec3::new(-2.0, 0.0, -5.5),
+                Quat::IDENTITY,
+            ),
+            part(
+                BLOCK_LINE_WARSHIP_TORPEDO_IDS[1],
+                TORPEDO_SECTION_ID,
+                Vec3::new(2.0, 0.0, -5.5),
+                Quat::IDENTITY,
+            ),
+            turret(BLOCK_LINE_WARSHIP_PDC_IDS[0], IVec3::new(-1, 2, -5)),
+            turret(BLOCK_LINE_WARSHIP_PDC_IDS[1], IVec3::new(1, 2, -5)),
+            turret(BLOCK_LINE_WARSHIP_PDC_IDS[2], IVec3::new(-1, 2, 3)),
+            turret(BLOCK_LINE_WARSHIP_PDC_IDS[3], IVec3::new(1, 2, 3)),
+            under_turret(BLOCK_LINE_WARSHIP_PDC_IDS[4], IVec3::new(-1, -2, 0)),
+            under_turret(BLOCK_LINE_WARSHIP_PDC_IDS[5], IVec3::new(1, -2, 0)),
+        ],
+        plate: REINFORCED_HULL_SECTION_ID,
+        style: ARMOURED_STYLE_ID,
+    }
+}
+
 /// A short hull with an outrigger down one flank, a boom up the other, four
 /// drives, and two turrets. Its asymmetric backdrop silhouette stays distinct
 /// from the gunship.
@@ -573,6 +673,7 @@ mod tests {
             ("workship", utility_workship()),
             ("frame tender", frame_tender()),
             ("gunship", patrol_gunship()),
+            ("line warship", line_warship()),
             ("raider", salvage_raider()),
             ("picket", salvage_picket()),
             ("wreck plate", carrier_wreck_plate()),
@@ -643,6 +744,33 @@ mod tests {
                 .any(|section| section.id == BLOCK_CLEANUP_TURRET_ID),
             "the picket has no '{BLOCK_CLEANUP_TURRET_ID}' mount"
         );
+    }
+
+    /// The line warship carries every weapon the open world binds, each on the
+    /// section kind its binding drives.
+    #[test]
+    fn the_line_warship_carries_every_weapon_the_open_world_binds() {
+        let sections = line_warship().sections();
+        let kind = |id: &str| {
+            sections
+                .iter()
+                .find(|section| section.id == id)
+                .map(|section| match &section.source {
+                    SectionSource::Prototype { id, .. } => id.as_str(),
+                    other => panic!("line warship section '{id}' is not a prototype: {other:?}"),
+                })
+                .unwrap_or_else(|| panic!("the line warship has no '{id}' section"))
+        };
+        for pdc in BLOCK_LINE_WARSHIP_PDC_IDS {
+            assert_eq!(kind(pdc), PDC_KINETIC_TURRET_SECTION_ID, "'{pdc}'");
+        }
+        assert_eq!(
+            kind(BLOCK_LINE_WARSHIP_RAILGUN_ID),
+            RAILGUN_LANCE_SECTION_ID
+        );
+        for bay in BLOCK_LINE_WARSHIP_TORPEDO_IDS {
+            assert_eq!(kind(bay), TORPEDO_SECTION_ID, "'{bay}'");
+        }
     }
 
     /// A wreck fragment carries plain plating only: no computer, no drive and

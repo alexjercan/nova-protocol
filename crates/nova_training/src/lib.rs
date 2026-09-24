@@ -30,8 +30,13 @@ pub mod prelude {
         validate::{
             lint_lesson, lint_lessons, unused_practice_ranges, LessonIssue, LessonSeverity,
         },
+        TUTORIAL_SCENARIO_ID,
     };
 }
+
+/// The scenario id Basic Training runs under. The base content authors the
+/// scenario and its lessons on it, and the menu's first-launch offer starts it.
+pub const TUTORIAL_SCENARIO_ID: &str = "tutorial";
 
 pub mod catalog;
 pub mod facts;

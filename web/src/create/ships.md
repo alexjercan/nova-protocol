@@ -185,6 +185,7 @@ painted by a [style](../styles/). Nothing in the base game is a modelled mesh.
 | `block_frame_tender_damaged` | Frame Tender: Damaged - the same tender after a raid took its stern: no main drive, the transom and the service stack gone, and the aft arch broken off along a ragged, column-by-column edge. Everything forward of the hit, the cab and the collar included, is whole |
 | `block_gunship` | Patrol Gunship - the military patrol boat: a two-deck fighting spine and six PDC mounts covering both hemispheres |
 | `block_picket` | Salvage Picket - the armed picket, its one gun pushed onto the nose face |
+| `block_line_warship` | Line Warship - the New Game ship: a long armoured body with six PDC mounts, a railgun on the bow and a torpedo bay on each shoulder |
 | `block_wreck_plate` | Carrier Wreck: Plating - loose plating: the small pieces, and most of what a debris field is |
 
 A mod may ship MODELLED craft instead, and The Ledger does: its `racer`,

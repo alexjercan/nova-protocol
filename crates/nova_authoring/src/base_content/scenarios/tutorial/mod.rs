@@ -1,4 +1,4 @@
-//! "Basic Training" - the range New Game opens on.
+//! "Basic Training" - the first-flight range the first-launch card offers.
 //!
 //! The card, in order: burn to a mark, STOP, slide across on the thrusters,
 //! travel-lock the planetoid and let GOTO fly the leg, ORBIT it, GOTO home,
@@ -20,6 +20,7 @@ use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_training::prelude::TUTORIAL_SCENARIO_ID;
 
 pub(crate) mod range;
 mod script;
@@ -30,9 +31,6 @@ use range::*;
 
 use super::{pacing, HINT_GOTO, HINT_ORBIT, HINT_RADAR, HINT_RCS, HINT_STOP};
 use crate::scenario_helpers::prelude::*;
-
-/// The scenario id New Game starts, and the id the retry hands back to.
-pub const TUTORIAL_SCENARIO_ID: &str = "tutorial";
 
 // --- objectives --------------------------------------------------------------
 

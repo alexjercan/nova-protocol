@@ -7,6 +7,7 @@ use super::assets::BaseContentAssets;
 pub(crate) mod drills;
 pub(crate) mod main_menu;
 pub(crate) mod marks;
+pub(crate) mod open_world;
 pub(crate) mod pacing;
 pub(crate) mod season_one;
 pub(crate) mod tutorial;
@@ -36,6 +37,7 @@ pub(crate) fn catalog(assets: &BaseContentAssets) -> Vec<ScenarioConfig> {
         main_menu::duel(assets),
         tutorial::tutorial(cubemap(), texture()),
         season_one::chapter_one(cubemap(), texture()),
+        open_world::open_world(assets),
     ];
     catalog.extend(drills::catalog(assets));
     catalog

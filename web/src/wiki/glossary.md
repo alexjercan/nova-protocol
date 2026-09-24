@@ -99,5 +99,5 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Raider** - an enemy gunship. It flies the same catalog guns as you on scavenger-grade mounts, closes to about a kilometer and fights there. See [Turret](../sections/turret/#variants).
 - **Scenario** - a placed world and the events, filters and actions wired over it: the same machinery for a five-minute tutorial and a combat sandbox. See [Scenarios](../scenarios/).
 - **Objective** - what a scenario asks of you, listed on the comms panel and advanced by the scenario's events.
-- **Basic Training** - the New Game opening, the flight [Your first flight](../getting-started/) walks through beat by beat: a Fleet gunnery qualification flown on an armed picket.
+- **Basic Training** - the first-flight course, the flight [Your first flight](../getting-started/) walks through beat by beat: a Fleet gunnery qualification flown on an armed picket.
 - **Rock** - an asteroid: solid, carvable cover that eats rounds, and a gravity well if it is big enough to carry one. See [Shooting rock](../combat-weapons/#shooting-rock).

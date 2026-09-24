@@ -36,6 +36,10 @@ nova_ui = { path = "../nova_ui" }
 # The quantity types the builders author in: base content is written in meters
 # and the audit reports reach in meters.
 nova_events = { path = "../nova_events" }
+# The ids the base world and its content share: the open-world bootstrap, the
+# line warship and the two derelict hulls. The world owns them because the
+# generator names them at runtime; the builders here author what they name.
+nova_world_base = { path = "../nova_world_base" }
 
 [dev-dependencies]
 # The two scenario walk-through tests drive real content through the scenario

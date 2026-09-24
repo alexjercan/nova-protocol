@@ -22,6 +22,8 @@
 //!      draw their badges, and the offer is still standing because nobody
 //!      answered it. `Not now` answers it, and the SETTINGS file takes that -
 //!      the dismissal is a switch the player threw, not something they learned.
+//!      With the offer gone, the handbook's first row still loads Basic
+//!      Training.
 //!   3. AGAIN. A third app on the same root. The corner is gone, the record is
 //!      not, the menu card's `Lessons` row still opens the handbook, and the
 //!      range a player has already been proven on still launches from it.
@@ -60,7 +62,9 @@ use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_protocol::prelude::*;
 #[cfg(feature = "debug")]
-use nova_training::prelude::{LessonStatus, TrainingCatalog, TrainingProgress};
+use nova_training::prelude::{
+    LessonStatus, TrainingCatalog, TrainingProgress, TUTORIAL_SCENARIO_ID,
+};
 
 #[derive(Parser)]
 #[command(name = "system_training_journey")]
@@ -108,6 +112,8 @@ const PANEL: &str = "Training Panel";
 const MENU_LESSONS: &str = "Lessons Button";
 #[cfg(feature = "debug")]
 const PRACTICE: &str = "Lesson Practice Button";
+#[cfg(feature = "debug")]
+const BASIC_TRAINING: &str = "Training Basic Training";
 
 #[cfg(feature = "debug")]
 fn lesson_row() -> String {
@@ -559,9 +565,52 @@ fn relaunch_app(root: &std::path::Path) -> App {
             .add()
             .step("training journey: record the answered offer")
             .on_enter(assert_the_answer_went_to_the_settings)
+            .add()
+            // The offer is answered, and New Game opens the open world: the
+            // handbook's first row is what still starts Basic Training.
+            .click_named(
+                "training journey: reopen the handbook with the offer answered",
+                MENU_LESSONS,
+                ui_node_present(BASIC_TRAINING),
+                BEAT_DEADLINE_SECS,
+            )
+            .click_named(
+                "training journey: start Basic Training from the handbook",
+                BASIC_TRAINING,
+                state_is(GameStates::Playing),
+                BEAT_DEADLINE_SECS,
+            )
+            .step("training journey: Basic Training loads from the handbook")
+            .until(scenario_is(TUTORIAL_SCENARIO_ID))
+            .diagnose(|world: &World| format!("the live scenario is {:?}", live_scenario(world)))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step("training journey: record Basic Training from the handbook")
+            .on_enter(assert_basic_training_launched_from_the_handbook)
             .add(),
     );
     app
+}
+
+/// Lessons -> Basic Training loads the course itself, not the open world New
+/// Game now starts.
+#[cfg(feature = "debug")]
+fn assert_basic_training_launched_from_the_handbook(world: &mut World) {
+    assert_eq!(
+        live_scenario(world).as_deref(),
+        Some(TUTORIAL_SCENARIO_ID),
+        "the handbook's Basic Training row must load the tutorial"
+    );
+    assert!(
+        world.get_resource::<OpenWorldSession>().is_none(),
+        "Basic Training needs no open-world session"
+    );
+    info!("training journey: PASS Lessons -> Basic Training loaded '{TUTORIAL_SCENARIO_ID}'");
+    nova_probe::probe_marker(
+        world,
+        "outcome: Lessons -> Basic Training loads the tutorial",
+        serde_json::json!({ "scenario": TUTORIAL_SCENARIO_ID }),
+    );
 }
 
 /// The load, before anything on screen: the resource the handbook draws from

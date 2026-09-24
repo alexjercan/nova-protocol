@@ -40,6 +40,26 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
+      # This job builds the whole workspace TWICE into one target dir - clippy
+      # `--all-targets --features debug`, then `cargo test --workspace
+      # --features debug` - and an ubuntu-latest runner ships ~14 GB free. The
+      # margin ran out once `nova_world` and its two example binaries joined the
+      # catalog: the runner logged "Free space left: 42 MB" and five untouched
+      # `nova_events` DOCTESTS died with `ld terminated with signal 7 [Bus
+      # error]`, which is what ENOSPC looks like when the linker mmaps its
+      # output. The cache save then failed with `No space left on device`.
+      #
+      # Deleting the three preinstalled toolchains no Rust job here uses buys
+      # the margin back without touching the build graph - clippy and the tests
+      # still share one target dir, which is the pairing that keeps Bevy from
+      # being compiled a second time. `/opt/hostedtoolcache` stays: the Actions
+      # runner and setup actions read it.
+      - name: Free runner disk
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h /
+
       # rust-toolchain.toml pins a DATED nightly with rustfmt + clippy. Resolve
       # it here so a toolchain problem surfaces on its own step instead of being
       # folded into the first (slow) cargo invocation. `rustup show` installs

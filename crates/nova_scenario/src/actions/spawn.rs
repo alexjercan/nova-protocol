@@ -153,7 +153,12 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
         trace!("SpawnScenarioObject: spawning '{}'", config.base.id);
 
         world.push_command(move |commands| {
-            let mut entity_commands = commands.spawn(base_scenario_object(&config.base));
+            // The authored seam, and the only production one: `base_scenario_object`
+            // is shared with `nova_world`'s streamed cells, whose ids nobody wrote.
+            let mut entity_commands = commands.spawn((
+                base_scenario_object(&config.base),
+                ScenarioAddressableMarker,
+            ));
 
             match &config.kind {
                 ScenarioObjectKind::Anchor(config) => {
@@ -608,6 +613,7 @@ impl EventAction<NovaEventWorld> for ScenarioAreaConfig {
         world.push_command(move |commands| {
             commands.spawn((
                 ScenarioScopedMarker,
+                ScenarioAddressableMarker,
                 ScenarioAreaMarker,
                 Name::new(config.name.clone()),
                 EntityId::new(config.id.clone()),
@@ -831,10 +837,18 @@ mod tests {
         world.init_resource::<GameObjectives>();
 
         let crate_1 = world
-            .spawn((ScenarioScopedMarker, EntityId::new("crate_1".to_string())))
+            .spawn((
+                ScenarioScopedMarker,
+                ScenarioAddressableMarker,
+                EntityId::new("crate_1".to_string()),
+            ))
             .id();
         let crate_2 = world
-            .spawn((ScenarioScopedMarker, EntityId::new("crate_2".to_string())))
+            .spawn((
+                ScenarioScopedMarker,
+                ScenarioAddressableMarker,
+                EntityId::new("crate_2".to_string()),
+            ))
             .id();
         // An unscoped entity with a colliding id - a stand-in for a ship
         // section - must survive.
@@ -872,7 +886,11 @@ mod tests {
         world.init_resource::<GameObjectives>();
 
         let bystander = world
-            .spawn((ScenarioScopedMarker, EntityId::new("beacon_1".to_string())))
+            .spawn((
+                ScenarioScopedMarker,
+                ScenarioAddressableMarker,
+                EntityId::new("beacon_1".to_string()),
+            ))
             .id();
 
         let action = DespawnScenarioObjectActionConfig::new("no_such_id");

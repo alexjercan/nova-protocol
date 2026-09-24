@@ -1,22 +1,25 @@
 //! world_features: fly a streamed world that has PLACES in it.
 //!
-//! The second hand-driven half of the streamed-world spike, and the one that
+//! The second hand-driven half of the streamed-world work, and the one that
 //! answers a different question from `world_sectors`. That example shows the
 //! streaming lifetime with every cell filled the same way, so a missing sector
 //! is obvious. This one fills a cell from a world that exists above it: three
 //! independent global noise fields gate feature spheres on a coarse 128 km
 //! lattice, and a cell contains whatever reaches it - rocks from the combined
 //! asteroid influence, a real planetoid where a planet sphere is centred, a
-//! few neutral moored hulls where an anchorage sphere is.
+//! few dead derelicts where a derelict sphere is.
 //!
 //! What a human is here to judge is the part a headless assert cannot: whether
 //! the world reads as PLACES - an empty run of cells, then a rock field, then
-//! a world with a mooring beside it - or as noise scattered evenly over a
+//! a world with a derelict field beside it - or as noise scattered evenly over a
 //! grid. `system_world_sectors` owns the counts and the identities.
 //!
-//! The kit is shared with that range and with `world_sectors`
-//! (`examples/shared/world_sectors/`), so what is flown here is what is
-//! asserted there.
+//! The streaming loop is `nova_world`'s and the generator is the base game's
+//! `NovaLayeredWorld`. A streamed manifest carries bodies only, so the rings
+//! and the readout ask `nova_world_base`'s feature field for each live root,
+//! with the same input the generator was given. The seed and the cell edge are
+//! `examples/shared/world_fixture/mod.rs`'s, shared with that range and with
+//! `world_sectors`, so what is flown here is what is asserted there.
 //!
 //! Drawn every frame, so the field is visible and not only its consequences:
 //!
@@ -24,7 +27,7 @@
 //! | - | - |
 //! | amber | an asteroid sphere: every cell it reaches gets rocks |
 //! | cyan | a planet sphere: its OWNER cell holds a planetoid at the centre |
-//! | magenta | an anchorage sphere: its owner cell holds one to three hulls |
+//! | magenta | a derelict sphere: its owner cell holds one to three derelicts |
 //!
 //! A sphere is drawn once by the cell that OWNS it and is outlined faintly by
 //! every other cell it reaches, which is what makes the shared-sphere claim
@@ -41,28 +44,28 @@
 //! - `NOVA_AUTOPILOT=1`: load, arm, cross one boundary, come back, shoot the
 //!   three pictures, exit clean. This is the path `probe run` takes.
 //! - `NOVA_CAPTURE=1`: writes `world-features-field.png`,
-//!   `world-features-planetoid.png` and `world-features-mooring.png`. The
+//!   `world-features-planetoid.png` and `world-features-derelict.png`. The
 //!   field shot is the diagnostic rings; the other two are the objects only
 //!   this generator makes, which is what a reviewer has to look at.
 
-#[path = "../shared/world_sectors/mod.rs"]
-mod world_sectors;
+#[path = "../shared/world_fixture/mod.rs"]
+pub mod world_fixture;
 
 use bevy::{color::palettes::tailwind, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
+use nova_world::prelude::*;
 #[cfg(feature = "debug")]
-use world_sectors::{desired_sectors, SectorCoord};
-use world_sectors::{
-    free_play_scenario, CurrentSector, FeatureLayer, ReadySectors, SectorFeatureSpheres, SectorJob,
-    SectorRoot, SectorSettings, SectorStrengths, WorldSectorsPlugin, FEATURE_HOME,
+use world_fixture::EXAMPLE_ACTIVE_RADIUS;
+use world_fixture::{
+    featured_world_config, free_play_scenario, world_observer_plugin, FEATURE_HOME,
 };
 
 #[derive(Parser)]
 #[command(name = "world_features")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Fly a free-fly observer through a noise-gated streamed world of rock fields, planetoids and moorings",
+    about = "Fly a free-fly observer through a noise-gated streamed world of rock fields, planetoids and derelicts",
     long_about = None
 )]
 struct Cli;
@@ -73,6 +76,18 @@ const SCENARIO_ID: &str = "world_features_observer";
 /// Marks the readout line.
 #[derive(Component)]
 struct FeatureReadout;
+
+/// The feature spheres that reach one live sector and the layer strengths at
+/// its centre, on its root.
+///
+/// Example-owned: a streamed manifest carries bodies only, so this view asks
+/// the base generator's field for the same numbers the generator used, once
+/// per root as it comes up.
+#[derive(Component)]
+struct RootFeatures {
+    spheres: Vec<FeatureSphere>,
+    strengths: [f32; FeatureLayer::COUNT],
+}
 
 /// How bright the observer's key light is.
 ///
@@ -102,7 +117,11 @@ const STEP_DEADLINE_SECS: f32 = 300.0;
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new()
-        .with_game_plugins((observer_plugin, WorldSectorsPlugin))
+        .with_game_plugins((
+            observer_plugin,
+            world_observer_plugin,
+            NovaWorldPlugin::<NovaLayeredWorld>::default(),
+        ))
         .build();
 
     #[cfg(feature = "debug")]
@@ -120,22 +139,25 @@ fn observer_plugin(app: &mut App) {
         Update,
         (
             park_at_home,
-            draw_feature_spheres,
-            update_readout,
-            report_census,
+            describe_root_features.after(NovaWorldSystems::Retire),
+            (draw_feature_spheres, update_readout, report_census).after(describe_root_features),
         ),
     );
 }
 
 /// Load the empty bootstrap, arm the featured stream, light the scene, and put
 /// the readout up.
+///
+/// `OnEnter` rather than `Update`: nova_world requires a `WorldConfig` writer
+/// to land ahead of `NovaWorldSystems::Cleanup`, and a state transition runs
+/// before `Update` at all.
 fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
         SCENARIO_ID,
         "World Features Observer",
     )));
-    commands.insert_resource(SectorSettings::FEATURES);
+    commands.insert_resource(featured_world_config());
 
     commands.spawn((
         Name::new("Observer Key Light"),
@@ -189,14 +211,14 @@ fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
 /// power.
 fn park_at_home(
     mut parked: Local<bool>,
-    settings: Option<Res<SectorSettings>>,
+    config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
     observer: Query<(Entity, &WASDCamera), With<ScenarioCameraMarker>>,
     mut commands: Commands,
 ) {
     if *parked {
         return;
     }
-    let Some(settings) = settings else {
+    let Some(config) = config else {
         return;
     };
     // The rig lands a frame after the camera does, so this waits for it
@@ -206,10 +228,10 @@ fn park_at_home(
     };
 
     // Engine boundary: a cell centre is in meters, a transform in world units.
-    let position = FEATURE_HOME.centre(settings.edge).to_engine();
+    let position = FEATURE_HOME.centre(config.sector_edge).to_engine();
     let look_at = FEATURE_HOME
         .offset(1, 0, 0)
-        .centre(settings.edge)
+        .centre(config.sector_edge)
         .to_engine();
     commands.entity(entity).insert((
         Transform::from_translation(position).looking_at(look_at, Vec3::Y),
@@ -224,7 +246,30 @@ fn layer_colour(layer: FeatureLayer) -> Srgba {
     match layer {
         FeatureLayer::Asteroid => tailwind::AMBER_400,
         FeatureLayer::Planet => tailwind::CYAN_400,
-        FeatureLayer::Anchorage => tailwind::FUCHSIA_400,
+        FeatureLayer::Derelict => tailwind::FUCHSIA_400,
+    }
+}
+
+/// Ask the field what reaches each root that came up this frame.
+///
+/// After `Retire`, so a root is described in the frame it is spawned and
+/// never after it is taken back.
+fn describe_root_features(
+    mut commands: Commands,
+    config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
+    roots: Query<(Entity, &SectorRoot), Added<SectorRoot>>,
+) {
+    let Some(config) = config else {
+        return;
+    };
+    for (entity, root) in &roots {
+        let spheres = sector_features(config.input(root.0))
+            .unwrap_or_else(|fault| panic!("world features: {}: {fault}", root.0));
+        let strengths = sector_strengths(&spheres, root.0.centre(config.sector_edge));
+        // A scenario swap can despawn the root on this frame.
+        commands
+            .entity(entity)
+            .try_insert(RootFeatures { spheres, strengths });
     }
 }
 
@@ -234,9 +279,9 @@ fn layer_colour(layer: FeatureLayer) -> Srgba {
 /// sphere reaches outlines it faintly, so one sphere seen from six cells
 /// reads as one sphere with six faint echoes rather than six spheres. That is
 /// the cross-boundary identity claim, made visible.
-fn draw_feature_spheres(mut gizmos: Gizmos, roots: Query<(&SectorRoot, &SectorFeatureSpheres)>) {
-    for (root, spheres) in &roots {
-        for sphere in &spheres.0 {
+fn draw_feature_spheres(mut gizmos: Gizmos, roots: Query<(&SectorRoot, &RootFeatures)>) {
+    for (root, features) in &roots {
+        for sphere in &features.spheres {
             let owned = sphere.owner == root.0;
             let colour = layer_colour(sphere.layer).with_alpha(if owned { 0.9 } else { 0.12 });
             gizmos
@@ -255,18 +300,18 @@ fn draw_feature_spheres(mut gizmos: Gizmos, roots: Query<(&SectorRoot, &SectorFe
 /// Name the cell the observer is in, what the three layers read there, and
 /// what the window is holding.
 fn update_readout(
-    settings: Option<Res<SectorSettings>>,
+    config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
     current: Option<Res<CurrentSector>>,
     ready: Res<ReadySectors>,
-    observer: Query<&GlobalTransform, With<ScenarioCameraMarker>>,
-    roots: Query<(&SectorRoot, &SectorStrengths)>,
+    observer: Query<&GlobalTransform, With<WorldObserver>>,
+    roots: Query<(&SectorRoot, &RootFeatures)>,
     jobs: Query<&SectorJob>,
     rocks: Query<&AsteroidMarker>,
     planets: Query<&PlanetMarker>,
-    hulls: Query<&SpaceshipRootMarker>,
+    ships: Query<&SpaceshipRootMarker>,
     mut readout: Query<&mut Text, With<FeatureReadout>>,
 ) {
-    let (Some(settings), Some(current)) = (settings, current) else {
+    let (Some(config), Some(current)) = (config, current) else {
         return;
     };
     let Ok(transform) = observer.single() else {
@@ -279,12 +324,12 @@ fn update_readout(
     // Engine boundary: a bevy transform counts world units, the readout is in
     // meters.
     let position = Meters3::from_engine(transform.translation());
-    let centre = current.0.centre(settings.edge);
+    let centre = current.0.centre(config.sector_edge);
     let offset = position - centre;
     let here = roots
         .iter()
         .find(|(root, _)| root.0 == current.0)
-        .map(|(_, strengths)| strengths.0);
+        .map(|(_, features)| features.strengths);
     let layers = FeatureLayer::ALL
         .map(|layer| {
             let value = here.map_or(0.0, |strengths| strengths[layer.index()]);
@@ -294,16 +339,16 @@ fn update_readout(
 
     **text = format!(
         "SECTOR {}  {:+.0} {:+.0} {:+.0} m in a {:.0} m cell\n{layers}\n\
-         live {} sectors: {} rocks, {} planetoids, {} hulls\npreparing {}/{}, ready {}",
+         live {} sectors: {} rocks, {} planetoids, {} ships\npreparing {}/{}, ready {}",
         current.0,
         offset.x().get(),
         offset.y().get(),
         offset.z().get(),
-        settings.edge.get(),
+        config.sector_edge.get(),
         roots.iter().count(),
         rocks.iter().count(),
         planets.iter().count(),
-        hulls.iter().count(),
+        ships.iter().count(),
         jobs.iter().count(),
         bevy::tasks::AsyncComputeTaskPool::get().thread_num().max(1),
         ready.0.len(),
@@ -325,10 +370,10 @@ fn update_readout(
 /// against.
 fn report_census(
     current: Option<Res<CurrentSector>>,
-    roots: Query<(&SectorRoot, &SectorStrengths, &SectorFeatureSpheres)>,
-    settings: Option<Res<SectorSettings>>,
+    roots: Query<(&SectorRoot, &RootFeatures)>,
+    config: Option<Res<WorldConfig<NovaLayeredWorld>>>,
 ) {
-    let (Some(current), Some(settings)) = (current, settings) else {
+    let (Some(current), Some(config)) = (current, config) else {
         return;
     };
     if !current.is_changed() {
@@ -344,14 +389,19 @@ fn report_census(
     let mut empty = 0usize;
     let mut single = 0usize;
     let mut blended = 0usize;
-    for (root, strengths, spheres) in &roots {
-        for sphere in &spheres.0 {
+    for (root, features) in &roots {
+        for sphere in &features.spheres {
             reached[sphere.layer.index()] += 1;
             if sphere.owner == root.0 {
                 owned[sphere.layer.index()] += 1;
             }
         }
-        match strengths.0.iter().filter(|value| **value > 0.0).count() {
+        match features
+            .strengths
+            .iter()
+            .filter(|value| **value > 0.0)
+            .count()
+        {
             0 => empty += 1,
             1 => single += 1,
             _ => blended += 1,
@@ -372,7 +422,7 @@ fn report_census(
          {empty} empty, {single} single-layer, {blended} blended",
         current.0,
         live,
-        desired_cells(settings.radius),
+        desired_cells(config.active_radius),
     );
 }
 
@@ -388,7 +438,7 @@ fn desired_cells(radius: i32) -> usize {
 fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let home = FEATURE_HOME;
     let across = home.offset(1, 0, 0);
-    let edge = SectorSettings::FEATURES.edge;
+    let edge = featured_world_config().sector_edge;
 
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("wait for the streamed world")
@@ -416,7 +466,7 @@ fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .add()
         // The three pictures. The targets are read from the HOME window and
         // kept, because flying to one of them moves the window off the other:
-        // the planetoid and the mooring are four cells apart and the window is
+        // the planetoid and the derelicts are four cells apart and the window is
         // five cells wide. Last in the script on purpose - `pose_camera` takes
         // the WASD rig off the camera, so nothing flies after this.
         .step("pick the shot targets")
@@ -425,9 +475,21 @@ fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .step("frame the feature field")
         .on_enter(move |world: &mut World| {
             hide_dev_overlays(world);
-            pose_camera(world, home.centre(edge), across.centre(edge));
+            let targets = *world.resource::<ShotTargets>();
+            // Just outside the rim, on the side facing the home cell, in the
+            // sphere's equator plane raised by FIELD_RISE.
+            let toward_home =
+                (home.centre(edge) - targets.field_centre).get() * Vec3::new(1.0, 0.0, 1.0);
+            let side = toward_home
+                .try_normalize()
+                .expect("world features: the home cell must not sit on the field sphere's pole");
+            let eye = targets.field_centre.get()
+                + side * (targets.field_radius.get() + FIELD_STANDOFF.get())
+                + Vec3::Y * FIELD_RISE.get();
+            pose_camera(world, Meters3(eye), targets.field_centre);
         })
-        .until(frames(SETTLE_FRAMES))
+        .until(and(window_is_settled(), frames(SETTLE_FRAMES)))
+        .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("shoot the feature field")
         .on_enter(|world: &mut World| shoot(world, FIELD_SHOT))
@@ -458,32 +520,32 @@ fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .until(shot_written(PLANETOID_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        .step("frame the mooring")
+        .step("frame the derelict")
         .on_enter(|world: &mut World| {
             let targets = *world.resource::<ShotTargets>();
             pose_camera(
                 world,
-                standoff(targets.mooring, HULL_STANDOFF),
-                targets.mooring,
+                standoff(targets.derelict, DERELICT_STANDOFF),
+                targets.derelict,
             );
         })
         .until(and(window_is_settled(), frames(SETTLE_FRAMES)))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("shoot the mooring")
+        .step("shoot the derelict")
         .on_enter(|world: &mut World| {
             assert!(
-                mooring_in_view(world).is_some(),
-                "world features: a moored hull must be live in the window the shot frames"
+                derelict_in_view(world).is_some(),
+                "world features: a derelict must be live in the window the shot frames"
             );
-            shoot(world, HULL_SHOT);
+            shoot(world, DERELICT_SHOT);
         })
-        .until(shot_written(HULL_SHOT))
+        .until(shot_written(DERELICT_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
 }
 
-/// The picture of the field from the middle of the home window.
+/// The picture of the rim of the asteroid sphere nearest the home cell.
 #[cfg(feature = "debug")]
 const FIELD_SHOT: &str = "world-features-field.png";
 
@@ -491,9 +553,9 @@ const FIELD_SHOT: &str = "world-features-field.png";
 #[cfg(feature = "debug")]
 const PLANETOID_SHOT: &str = "world-features-planetoid.png";
 
-/// The picture of the hulls an anchorage sphere moored.
+/// The picture of the derelicts a derelict sphere placed.
 #[cfg(feature = "debug")]
-const HULL_SHOT: &str = "world-features-mooring.png";
+const DERELICT_SHOT: &str = "world-features-derelict.png";
 
 /// How many body radii back the planetoid shot stands.
 ///
@@ -502,20 +564,35 @@ const HULL_SHOT: &str = "world-features-mooring.png";
 #[cfg(feature = "debug")]
 const PLANETOID_STANDOFF: f32 = 3.2;
 
-/// How far back the mooring shot stands, in meters.
+/// How far back the derelict shot stands, in meters.
 ///
-/// A block hauler is about 100 m, so this frames ONE hull. A mooring is one to
-/// three hulls spread over kilometers, and a framing that held all of them
-/// made every hull a speck - what the picture is for is whether the hull is a
-/// real ship, and the readout in the corner carries the count.
+/// Close enough to frame ONE derelict. A derelict field is one to three hulls
+/// spread over kilometers, and a framing that held all of them made every hull
+/// a speck - what the picture is for is whether the hull is a real ship, and
+/// the readout in the corner carries the count.
 #[cfg(feature = "debug")]
-const HULL_STANDOFF: Meters = Meters(700.0);
+const DERELICT_STANDOFF: Meters = Meters(700.0);
 
-/// Where the two objects the featured generator makes stood while the home
-/// window was up.
+/// How far outside the asteroid sphere's rim the field shot stands.
+///
+/// A ring is drawn at 48 to 96 km and the camera's far plane is 10 km, so the
+/// shot has to stand at the rim for any ring to be drawn.
+#[cfg(feature = "debug")]
+const FIELD_STANDOFF: Meters = Meters(1_500.0);
+
+/// How far above the sphere's equator plane the field shot stands.
+///
+/// The gizmo draws three great circles, and the eye sits in the equator
+/// plane, so the equator runs straight ahead of it; within 10 km it reads as a
+/// straight line. Exactly in the plane that line lies on the middle row, where
+/// distant horizontal rings also converge. This rise sets it below the middle.
+#[cfg(feature = "debug")]
+const FIELD_RISE: Meters = Meters(400.0);
+
+/// Where the three shot targets stood while the home window was up.
 ///
 /// Kept rather than looked up at shot time: flying to the planetoid retires
-/// the cell the mooring is in, so the second target has to be a remembered
+/// the cell the derelicts are in, so the second target has to be a remembered
 /// PLACE, not a live entity.
 #[cfg(feature = "debug")]
 #[derive(Resource, Clone, Copy)]
@@ -524,29 +601,54 @@ struct ShotTargets {
     planetoid: Meters3,
     /// How big it is, which is what sizes its shot.
     planetoid_radius: Meters,
-    /// Which moored hull to shoot.
-    mooring: Meters3,
+    /// Which derelict to shoot.
+    derelict: Meters3,
+    /// The centre of the asteroid sphere whose rim the field shot frames.
+    field_centre: Meters3,
+    /// Its radius, which is where the rim is.
+    field_radius: Meters,
 }
 
-/// Read both shot targets out of the live home window.
+/// Read the three shot targets out of the live home window.
 ///
-/// Panics when the window holds neither: the shots would otherwise be pictures
-/// of empty space that read as a successful run.
+/// Panics when the window lacks any of them: the shots would otherwise be
+/// pictures of empty space that read as a successful run.
 #[cfg(feature = "debug")]
 fn pick_shot_targets(world: &mut World) {
+    let home = FEATURE_HOME.centre(featured_world_config().sector_edge);
+    let mut spheres = world.query::<&RootFeatures>();
+    // Nearest rim to the home centre, then id: every cell a sphere reaches
+    // hands back the same data, so the pick does not depend on query order.
+    let field = spheres
+        .iter(world)
+        .flat_map(|features| &features.spheres)
+        .filter(|sphere| sphere.layer == FeatureLayer::Asteroid)
+        .min_by(|a, b| {
+            let rim =
+                |sphere: &FeatureSphere| sphere.centre.distance(home).get() - sphere.radius.get();
+            rim(a).total_cmp(&rim(b)).then_with(|| a.id.cmp(&b.id))
+        })
+        .cloned()
+        .expect("world features: the home window must reach an asteroid sphere to shoot");
     let (planetoid, planetoid_radius) = planetoid_in_view(world)
         .expect("world features: the home window must hold a planetoid to shoot");
-    let mooring = mooring_in_view(world)
-        .expect("world features: the home window must hold a moored hull to shoot");
+    let derelict = derelict_in_view(world)
+        .expect("world features: the home window must hold a derelict to shoot");
     info!(
-        "world features: shooting the planetoid in {} and the mooring in {}",
-        SectorCoord::containing(planetoid, SectorSettings::FEATURES.edge),
-        SectorCoord::containing(mooring, SectorSettings::FEATURES.edge),
+        "world features: shooting the rim of {} (radius {:.0} m, centre {:?}), \
+         the planetoid in {} and the derelict in {}",
+        field.id,
+        field.radius.get(),
+        field.centre.get(),
+        SectorCoord::containing(planetoid, featured_world_config().sector_edge),
+        SectorCoord::containing(derelict, featured_world_config().sector_edge),
     );
     world.insert_resource(ShotTargets {
         planetoid,
         planetoid_radius,
-        mooring,
+        derelict,
+        field_centre: field.centre,
+        field_radius: field.radius,
     });
 }
 
@@ -572,13 +674,13 @@ fn planetoid_in_view(world: &mut World) -> Option<(Meters3, Meters)> {
     })
 }
 
-/// The live moored hull nearest the middle of its cluster.
+/// The live derelict nearest the middle of its cluster.
 ///
 /// The middle rather than whichever hull the query hands back first: query
 /// order is not the spawn order, and two runs of the same seed have to shoot
 /// the same hull to be comparable.
 #[cfg(feature = "debug")]
-fn mooring_in_view(world: &mut World) -> Option<Meters3> {
+fn derelict_in_view(world: &mut World) -> Option<Meters3> {
     let mut query = world.query_filtered::<&GlobalTransform, With<SpaceshipRootMarker>>();
     let hulls: Vec<Meters3> = query
         .iter(world)
@@ -608,10 +710,7 @@ fn mooring_in_view(world: &mut World) -> Option<Meters3> {
 #[cfg(feature = "debug")]
 fn window_is_settled() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     std::sync::Arc::new(|world: &World| {
-        let (Some(settings), Some(current)) = (
-            world.get_resource::<SectorSettings>(),
-            world.get_resource::<CurrentSector>(),
-        ) else {
+        let Some(current) = world.get_resource::<CurrentSector>() else {
             return false;
         };
         let Some(mut query) = world.try_query::<&SectorRoot>() else {
@@ -619,7 +718,7 @@ fn window_is_settled() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
         };
         let live: std::collections::BTreeSet<SectorCoord> =
             query.iter(world).map(|root| root.0).collect();
-        live == desired_sectors(current.0, settings.radius)
+        live == desired_sectors(current.0, EXAMPLE_ACTIVE_RADIUS)
     })
 }
 
@@ -627,14 +726,11 @@ fn window_is_settled() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
 #[cfg(feature = "debug")]
 fn sector_set_is(centre: SectorCoord) -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     std::sync::Arc::new(move |world: &World| {
-        let Some(settings) = world.get_resource::<SectorSettings>() else {
-            return false;
-        };
         let Some(mut query) = world.try_query::<&SectorRoot>() else {
             return false;
         };
         let live: std::collections::BTreeSet<SectorCoord> =
             query.iter(world).map(|root| root.0).collect();
-        live == desired_sectors(centre, settings.radius)
+        live == desired_sectors(centre, EXAMPLE_ACTIVE_RADIUS)
     })
 }

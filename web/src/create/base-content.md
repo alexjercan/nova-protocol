@@ -121,7 +121,8 @@ still launchable by id.
 
 | id | display name | in the picker | what it is |
 |---|---|---|---|
-| `tutorial` | Basic Training | yes | the New Game opening: the Fleet gunnery range, a qualification card read over the radio |
+| `open_world` | Open World | no | the New Game start (`role: OpenWorld`): the line warship at the origin of the world generated from the seed the player picks |
+| `tutorial` | Basic Training | yes | the first-flight course: the Fleet gunnery range, a qualification card read over the radio |
 | `season_one_chapter_one` | A Useful Job | yes | Season 1, chapter one: thread a working lane on RCS, come about on a stranded ship, and dock to take three people off |
 | `menu_waystation` | Waystation Traffic | no | menu backdrop: hauler convoy (carousel: hands off to the gauntlet) |
 | `menu_gauntlet` | Torpedo Gauntlet | no | menu backdrop: a doomed point-defense stand (hands off to the weave) |
@@ -156,7 +157,7 @@ generated hull is drawn from - all three are engine-owned. The base ship ids
 are tabled in [Ships](../ships/#base-ships), the style ids
 [above](#skin-styles), the theme ids [below](#ui-theme-ids).
 
-New Game is base-owned: `new_game_scenario: Some("tutorial")` in
+New Game is base-owned: `new_game_scenario: Some("open_world")` in
 `assets/base/base.bundle.ron` is honored only from the base bundle; a mod
 declaring it is warned and ignored.
 

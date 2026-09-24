@@ -681,7 +681,7 @@ fn base_bundle_declares_the_new_game_start() {
 
     assert_eq!(
         app.world().resource::<NewGameStart>(),
-        &NewGameStart(Some("tutorial".to_string())),
+        &NewGameStart(Some("open_world".to_string())),
         "the merge writes the base bundle's declared start"
     );
 }

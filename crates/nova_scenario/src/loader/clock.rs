@@ -926,6 +926,7 @@ mod tests {
         // test: player_speed must never read its velocity (the player-scope pin).
         app.world_mut().spawn((
             ScenarioScopedMarker,
+            ScenarioAddressableMarker,
             SpaceshipRootMarker,
             EntityId::new("scavenger".to_string()),
             LinearVelocity(Vec3::new(30.0, 0.0, 40.0)), // |v| = 50 u/s, 500 m/s
@@ -934,6 +935,7 @@ mod tests {
             .world_mut()
             .spawn((
                 ScenarioScopedMarker,
+                ScenarioAddressableMarker,
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
                 EntityId::new("player_spaceship".to_string()),
@@ -1057,6 +1059,7 @@ mod tests {
         // The authored object: a scoped ship the scenario named "cutter".
         app.world_mut().spawn((
             ScenarioScopedMarker,
+            ScenarioAddressableMarker,
             SpaceshipRootMarker,
             EntityId::new("cutter".to_string()),
             LinearVelocity(Vec3::new(3.0, 0.0, 4.0)), // |v| = 5 u/s, 50 m/s

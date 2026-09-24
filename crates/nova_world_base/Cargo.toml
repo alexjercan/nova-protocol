@@ -1,0 +1,32 @@
+[package]
+name = "nova_world_base"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The base game's open world: its sector generator and the session that streams it"
+
+[dependencies]
+bevy = { version = "0.19.0" }
+# The feature field: three global `Fbm<Perlin>` layers gate the candidate
+# lattice a streamed cell reads. Same crate and version the planet and
+# asteroid surfaces already generate from, so a world field and a shipped
+# surface cannot drift onto two noise implementations.
+noise = { version = "0.9" }
+# `Meters` and `Meters3`: the generator authors every quantity in meters.
+nova_events = { path = "../nova_events" }
+# `Fnv32` and `SeedStream`, the stable hash and the deterministic draw every
+# sector choice comes from, and the player ship marker the world streams around.
+nova_gameplay = { path = "../nova_gameplay" }
+# The planet and asteroid tables the generator draws from, and the live
+# scenario whose role arms the world.
+nova_scenario = { path = "../nova_scenario" }
+# The mechanism: `SectorGenerator`, `WorldConfig`, `NovaWorldPlugin`.
+nova_world = { path = "../nova_world" }
+
+[lints]
+workspace = true
+
+[features]
+# Debug-build extras, fanned out so the whole tree resolves ONE bevy variant.
+debug = ["bevy/track_location", "nova_world/debug", "nova_scenario/debug"]
