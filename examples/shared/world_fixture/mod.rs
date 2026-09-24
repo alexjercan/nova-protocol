@@ -80,7 +80,9 @@ pub fn uniform_world_config() -> WorldConfig<UniformAsteroids> {
             body_count: 4,
             radius_min: Meters(30.0),
             radius_max: Meters(60.0),
-            asteroid_kinds: vec![KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON],
+            asteroid_kinds: [KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON]
+                .map(Into::into)
+                .to_vec(),
         },
     }
 }

@@ -12,8 +12,8 @@ use std::collections::BTreeSet;
 
 use nova_events::prelude::{Meters, Meters3};
 use nova_scenario::prelude::{
-    is_asteroid_kind, prepare_asteroid_geometry, prepare_planet, PlanetConfig, PreparedAsteroid,
-    PreparedPlanet, ASTEROID_GEOMETRIC_FACTOR_MAX,
+    is_asteroid_kind, prepare_asteroid_geometry, prepare_planet, AsteroidKindId, PlanetConfig,
+    PreparedAsteroid, PreparedPlanet, ShipDesignId, ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
 use crate::{SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, WorldConfig};
@@ -28,7 +28,7 @@ pub struct SectorAsteroid {
     /// Its nominal radius.
     pub radius: Meters,
     /// Its asteroid kind id, drawn from the generator's table.
-    pub kind: String,
+    pub kind: AsteroidKindId,
     /// Its silhouette seed.
     pub seed: u32,
 }
@@ -54,7 +54,7 @@ pub struct SectorShip {
     /// Which way it is pointing. Yaw only - the hull sits level.
     pub yaw: f32,
     /// The catalog design it is built from.
-    pub design: String,
+    pub design: ShipDesignId,
 }
 
 /// What a [`SectorGenerator`] says one cell holds. UNTRUSTED.
@@ -402,7 +402,7 @@ pub fn validate_manifest(
                 id: ship.id.clone(),
             });
         }
-        if ship.design.trim().is_empty() {
+        if ship.design.as_str().trim().is_empty() {
             return Err(refuse(&ship.id, "design", "an empty id".to_string()));
         }
         stand_inside(

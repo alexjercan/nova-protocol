@@ -186,7 +186,7 @@ pub(crate) fn menu_gauntlet(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: Meters(10.0),
                 texture: asteroid_texture,
@@ -201,9 +201,9 @@ pub(crate) fn menu_gauntlet(
         // tracer and torpedo flash, and one thing down there that catches a
         // highlight is what stops the depth layer reading as a grey smear.
         asteroid_kinds: vec![
-            (KIND_ROCK.to_string(), 8),
-            (KIND_CARBON.to_string(), 3),
-            (KIND_ICE.to_string(), 1),
+            (KIND_ROCK.into(), 8),
+            (KIND_CARBON.into(), 3),
+            (KIND_ICE.into(), 1),
         ],
         min_separation: None,
     });

@@ -33,7 +33,34 @@ pub mod prelude {
 }
 
 /// The id a ship design is referenced by, from a scenario spawn or another mod.
-pub type ShipDesignId = String;
+///
+/// A `DesignId`: an authored catalog identifier, resolved against
+/// [`GameShipDesigns`]. Serialized as the bare id string, so authored RON
+/// writes `id: "cargoa"`. An id no loaded design carries is refused; nothing
+/// resolves it to another design.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct ShipDesignId(String);
+
+impl ShipDesignId {
+    /// The id as authored.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for ShipDesignId {
+    fn from(id: &str) -> Self {
+        Self(id.to_string())
+    }
+}
+
+impl std::fmt::Display for ShipDesignId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
 
 /// What a ship IS, apart from any one spawn of it: its section list plus the
 /// design-wide properties that follow from that structure.
@@ -241,7 +268,7 @@ fn is_default_warn_hull_fraction(fraction: &f32) -> bool {
 /// which the mod merge fills exactly as it fills the section and style
 /// catalogs - so a mod's design with the id of a base one REPLACES it, and a
 /// new id is a new design.
-#[derive(Clone, Debug, Default, Reflect)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ShipDesignPrototype {
     /// The id a scenario spawns this design by.
@@ -308,7 +335,7 @@ impl ShipDesignSource {
 
     /// The catalog id this source names, if it is a prototype. What an error
     /// message says, available without a catalog.
-    pub fn prototype_id(&self) -> Option<&str> {
+    pub fn prototype_id(&self) -> Option<&ShipDesignId> {
         match self {
             ShipDesignSource::Inline(_) => None,
             ShipDesignSource::Prototype { id, .. } => Some(id),
@@ -325,8 +352,8 @@ pub struct GameShipDesigns(pub Vec<ShipDesignPrototype>);
 
 impl GameShipDesigns {
     /// The design with this id, or `None` if nothing authored it.
-    pub fn get_design(&self, id: &str) -> Option<&ShipDesignPrototype> {
-        self.0.iter().find(|design| design.id == id)
+    pub fn get_design(&self, id: &ShipDesignId) -> Option<&ShipDesignPrototype> {
+        self.0.iter().find(|design| design.id == *id)
     }
 }
 

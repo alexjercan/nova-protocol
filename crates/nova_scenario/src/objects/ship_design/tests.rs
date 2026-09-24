@@ -37,7 +37,7 @@ fn catalog() -> GameSections {
 /// A design mounting `sections`, registered under `id`.
 fn designs(id: &str, sections: Vec<SpaceshipSectionConfig>) -> GameShipDesigns {
     GameShipDesigns(vec![ShipDesignPrototype {
-        id: id.to_string(),
+        id: id.into(),
         name: "Test".to_string(),
         design: ShipDesign {
             sections,
@@ -119,7 +119,7 @@ fn the_spawns_patch_wins_over_the_designs_own() {
         )],
     );
     let source = ShipDesignSource::Prototype {
-        id: "hauler".to_string(),
+        id: "hauler".into(),
         section_patches: [(
             "engine_starboard".to_string(),
             SpaceshipSectionConfigPatch {
@@ -166,7 +166,7 @@ fn an_outer_patch_leaves_the_fields_it_does_not_mention() {
         )],
     );
     let source = ShipDesignSource::Prototype {
-        id: "hauler".to_string(),
+        id: "hauler".into(),
         section_patches: [(
             "engine_starboard".to_string(),
             SpaceshipSectionConfigPatch {
@@ -234,8 +234,19 @@ fn an_unknown_design_reports_and_resolves_to_nothing() {
     assert!(resolved.sections.is_empty());
     assert_eq!(
         errors,
-        vec![ShipDesignError::UnknownDesign("nothing".to_string())]
+        vec![ShipDesignError::UnknownDesign("nothing".into())]
     );
+}
+
+/// A design id is written as the bare id an author types, so typing the id
+/// changed no authored RON.
+#[test]
+fn a_design_id_is_written_as_its_bare_string() {
+    let source = ShipDesignSource::prototype("cargoa");
+    let ron = ron::to_string(&source).expect("a prototype reference serializes");
+    assert_eq!(ron, r#"Prototype(id:"cargoa")"#);
+    let back: ShipDesignSource = ron::from_str(&ron).expect("and parses back");
+    assert_eq!(back.prototype_id(), Some(&ShipDesignId::from("cargoa")));
 }
 
 /// One missing part does not ground the ship: the section is reported and
@@ -277,7 +288,7 @@ fn a_patch_naming_no_section_is_an_error() {
         vec![placed("nose", SectionSource::prototype("plate"))],
     );
     let source = ShipDesignSource::Prototype {
-        id: "corvette".to_string(),
+        id: "corvette".into(),
         section_patches: [(
             "noze".to_string(),
             SpaceshipSectionConfigPatch {
@@ -363,7 +374,7 @@ fn a_spawn_patch_moves_and_turns_the_placement_it_names() {
         ],
     );
     let source = ShipDesignSource::Prototype {
-        id: "hauler".to_string(),
+        id: "hauler".into(),
         section_patches: [(
             "engine_port".to_string(),
             SpaceshipSectionConfigPatch {

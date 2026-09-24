@@ -117,12 +117,12 @@ pub struct ShipCatalog(GameShipDesigns);
 impl ShipCatalog {
     /// Join the layers last-wins by ship id, base first.
     pub fn resolve(layers: &[&[ShipDesignPrototype]]) -> Self {
-        let mut map: HashMap<&str, &ShipDesignPrototype> = HashMap::new();
+        let mut map: HashMap<&ShipDesignId, &ShipDesignPrototype> = HashMap::new();
         let mut order = Vec::new();
         for layer in layers {
             for ship in *layer {
                 if map.insert(&ship.id, ship).is_none() {
-                    order.push(ship.id.as_str());
+                    order.push(&ship.id);
                 }
             }
         }
@@ -132,7 +132,7 @@ impl ShipCatalog {
     }
 
     /// The design one ship id resolves to, or `None` if unknown.
-    pub fn get(&self, id: &str) -> Option<&ShipDesign> {
+    pub fn get(&self, id: &ShipDesignId) -> Option<&ShipDesign> {
         self.0.get_design(id).map(|ship| &ship.design)
     }
 

@@ -121,7 +121,7 @@ pub(crate) fn insert_preview_section(
 /// and the loader refuses to render it, so a rock that reaches here with an
 /// unknown kind is a file hand-edited past both - and the wrong colour is the
 /// report.
-fn asteroid_preview_material(kind: &str, texture: Handle<Image>) -> StandardMaterial {
+fn asteroid_preview_material(kind: &AsteroidKindId, texture: Handle<Image>) -> StandardMaterial {
     let Some(look) = asteroid_kind_look(kind) else {
         return StandardMaterial {
             base_color: Color::srgb(1.0, 0.0, 1.0),
@@ -391,7 +391,7 @@ mod tests {
     fn every_kind_paints_the_stage_a_different_body() {
         let painted: Vec<StandardMaterial> = ASTEROID_KINDS
             .iter()
-            .map(|kind| asteroid_preview_material(kind, Handle::default()))
+            .map(|kind| asteroid_preview_material(&(*kind).into(), Handle::default()))
             .collect();
 
         for (index, one) in painted.iter().enumerate() {
@@ -410,7 +410,7 @@ mod tests {
     /// shader: the texture, untouched.
     #[test]
     fn the_plain_kind_leaves_the_texture_alone() {
-        let plain = asteroid_preview_material(KIND_PLAIN, Handle::default());
+        let plain = asteroid_preview_material(&KIND_PLAIN.into(), Handle::default());
 
         assert_eq!(plain.base_color, Color::WHITE);
     }
@@ -420,7 +420,7 @@ mod tests {
     /// both. It has to LOOK wrong.
     #[test]
     fn a_kind_the_game_does_not_ship_paints_a_refusal() {
-        let unknown = asteroid_preview_material("obsidian", Handle::default());
+        let unknown = asteroid_preview_material(&"obsidian".into(), Handle::default());
 
         assert_eq!(unknown.base_color, Color::srgb(1.0, 0.0, 1.0));
         assert!(unknown.base_color_texture.is_none());
@@ -434,7 +434,7 @@ mod tests {
         let rock = ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: Meters(30.0),
             texture: default(),
-            kind: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.into(),
             destroy_sound: None,
             mass: None,
             seed: None,

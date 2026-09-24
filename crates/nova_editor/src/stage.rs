@@ -506,7 +506,7 @@ mod tests {
             trigger_radius(&ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: Meters(30.0),
                 texture: AssetRef::from("self://textures/rock.png"),
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 destroy_sound: None,
                 mass: None,
                 seed: None,

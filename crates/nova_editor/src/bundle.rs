@@ -48,8 +48,8 @@ use nova_modding::prelude::Content;
 use nova_modding::prelude::{BundleManifest, ModMeta};
 use nova_scenario::prelude::{
     AIControllerConfig, EventActionConfig, EventConfig, ScenarioConfig, ScenarioEventConfig,
-    ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipDesignPrototype, ShipDesignSource,
-    SpaceshipController, SpaceshipSectionConfig,
+    ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipDesignId, ShipDesignPrototype,
+    ShipDesignSource, SpaceshipController, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::{GameSections, TargetingSettings};
 use nova_ui::theme::UiColor;
@@ -177,7 +177,7 @@ pub(crate) fn document_content(
         .designs()
         .map(|ship| {
             Content::Ship(ShipDesignPrototype {
-                id: ship.id.clone(),
+                id: ship.id.as_str().into(),
                 name: ship.id.clone(),
                 design: ship_design(ship),
             })
@@ -260,10 +260,10 @@ pub(crate) struct LiftedDocument {
 /// ship prototypes is a legal mod and an empty document, and the two are worth
 /// telling apart at the call site.
 pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
-    let designs: BTreeMap<&str, &ShipDesignPrototype> = items
+    let designs: BTreeMap<&ShipDesignId, &ShipDesignPrototype> = items
         .iter()
         .filter_map(|item| match item {
-            Content::Ship(ship) => Some((ship.id.as_str(), ship)),
+            Content::Ship(ship) => Some((&ship.id, ship)),
             _ => None,
         })
         .collect();
@@ -309,7 +309,7 @@ pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
 /// design it cannot show is not one it should offer to edit.
 pub(crate) fn lift_objects(
     objects: impl IntoIterator<Item = ScenarioObjectConfig>,
-    designs: &BTreeMap<&str, &ShipDesignPrototype>,
+    designs: &BTreeMap<&ShipDesignId, &ShipDesignPrototype>,
 ) -> LiftedDocument {
     let mut lifted = LiftedDocument::default();
     for object in objects {
@@ -361,14 +361,14 @@ fn is_layout(event: &ScenarioEventConfig) -> bool {
 /// referenced by the id it was written under.
 fn lift_ship(
     object: &ScenarioObjectConfig,
-    designs: &BTreeMap<&str, &ShipDesignPrototype>,
+    designs: &BTreeMap<&ShipDesignId, &ShipDesignPrototype>,
 ) -> Option<LiftedShip> {
     let ScenarioObjectKind::Spaceship(spawn) = &object.kind else {
         return None;
     };
     let (id, design) = match &spawn.design {
         // A design of this file's own, under the id it was written with.
-        ShipDesignSource::Prototype { id, .. } => (id.clone(), &designs.get(id.as_str())?.design),
+        ShipDesignSource::Prototype { id, .. } => (id.to_string(), &designs.get(id)?.design),
         // A design authored in place - every seeded ship of the stock range.
         ShipDesignSource::Inline(design) => (object.base.id.clone(), design),
     };

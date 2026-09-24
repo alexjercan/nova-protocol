@@ -85,7 +85,7 @@ impl KnownSections {
 /// can both be checked against a real section list.
 #[derive(Clone, Debug, Default)]
 pub struct KnownShipDesigns {
-    entries: HashMap<String, ShipDesign>,
+    entries: HashMap<ShipDesignId, ShipDesign>,
 }
 
 impl KnownShipDesigns {
@@ -100,7 +100,7 @@ impl KnownShipDesigns {
     }
 
     /// The design one id resolves to, or `None` if nothing authored it.
-    pub fn get(&self, id: &str) -> Option<&ShipDesign> {
+    pub fn get(&self, id: &ShipDesignId) -> Option<&ShipDesign> {
         self.entries.get(id)
     }
 }

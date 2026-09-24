@@ -903,7 +903,8 @@ way orbit end and area exit do for a despawned body.
   `SignedField` - `crates/nova_gameplay/src/mesh/field.rs`; the cost of the
   material itself: `DAMAGE_PER_UNIT_VOLUME` -
   `crates/nova_gameplay/src/integrity/carve.rs`.
-- Asteroid kinds: `AsteroidKind`, `asteroid_kind_look`, `ASTEROID_KINDS` -
+- Asteroid kinds: `AsteroidKindId`, `AsteroidKind`, `asteroid_kind_look`,
+  `ASTEROID_KINDS` -
   `crates/nova_scenario/src/objects/asteroid_kind.rs`; the surface they drive:
   `AsteroidSurfaceMaterial` - `crates/nova_scenario/src/objects/`
   `asteroid_surface.rs` and `assets/shaders/asteroid_surface.wgsl`.

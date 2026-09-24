@@ -328,8 +328,11 @@ pub fn register_bundles(
     // one only checks that the id resolves, so this is the pass that sees the
     // hull's own geometry. Findings key on the ship id in the shared channel.
     for ship in &outcome.ships {
-        let found =
-            nova_scenario::prelude::lint_ship_design_config(ship, &merged_sections, &ship.id);
+        let found = nova_scenario::prelude::lint_ship_design_config(
+            ship,
+            &merged_sections,
+            ship.id.as_str(),
+        );
         for issue in &found {
             warn!(
                 "register_bundles: content lint [{:?}] ship '{}': {}",
@@ -339,7 +342,7 @@ pub fn register_bundles(
         if !found.is_empty() {
             content_issues
                 .0
-                .entry(ship.id.clone())
+                .entry(ship.id.to_string())
                 .or_default()
                 .extend(found);
         }
@@ -813,9 +816,9 @@ mod tests {
     fn a_mod_overlays_a_base_ship_by_id_and_adds_its_own() {
         let ship = |id: &str, name: &str| {
             Content::Ship(nova_scenario::prelude::ShipDesignPrototype {
-                id: id.to_string(),
+                id: id.into(),
                 name: name.to_string(),
-                ..Default::default()
+                design: nova_scenario::prelude::ShipDesign::default(),
             })
         };
         let base = [ship("block_gunship", "Gunship")];

@@ -150,7 +150,7 @@ impl Content {
             Content::Scenario(cfg) => &cfg.id,
             Content::Campaign(cfg) => &cfg.id,
             Content::Style(cfg) => &cfg.id,
-            Content::Ship(cfg) => &cfg.id,
+            Content::Ship(cfg) => cfg.id.as_str(),
             Content::Lesson(lesson) => &lesson.id,
             Content::UiTheme(cfg) => &cfg.id,
         }

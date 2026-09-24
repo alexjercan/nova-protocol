@@ -54,7 +54,7 @@ impl SectorGenerator for Rocks {
                 id: sector_id(input.coord, "body", index),
                 position: input.coord.centre(edge) + Meters3::new(x * quarter, 0.0, z * quarter),
                 radius: self.radius_max,
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 seed: index as u32,
             })
             .collect();
@@ -139,7 +139,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             position: input.coord.centre(input.geometry.sector_edge)
                 + Meters3::new(offset, 0.0, 0.0),
             radius: Meters(40.0),
-            kind: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.into(),
             seed: 7,
         }
     }
@@ -207,10 +207,10 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             "an asteroid kind the game does not ship",
             |input| {
                 let mut body = rock(input, "body_0", 0.0);
-                body.kind = "obsidian".to_string();
+                body.kind = "obsidian".into();
                 empty(input.coord, vec![body])
             },
-            |fault| matches!(fault, SectorFault::UnknownKind { kind } if kind == "obsidian"),
+            |fault| matches!(fault, SectorFault::UnknownKind { kind } if kind.as_str() == "obsidian"),
         ),
         (
             "more rocks than a cell holds",
@@ -267,7 +267,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                     id: format!("{}_ship_0", input.coord.slug()),
                     position: input.coord.centre(input.geometry.sector_edge),
                     yaw: 0.0,
-                    design: " ".to_string(),
+                    design: " ".into(),
                 });
                 manifest
             },
@@ -305,7 +305,7 @@ fn bodies_closer_than_a_generator_margin_but_not_overlapping_are_accepted() {
                 id: sector_id(input.coord, "body", index),
                 position: centre + Meters3::new(offset, 0.0, 0.0),
                 radius: Meters(40.0),
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 seed: index as u32,
             };
             empty(input.coord, vec![rock(0, 0.0), rock(1, 580.0)])
@@ -334,7 +334,7 @@ fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
             id: sector_id(coord, "body", index),
             position: point(index),
             radius: Meters(40.0),
-            kind: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.into(),
             seed: index as u32,
         })
         .collect();
@@ -349,7 +349,7 @@ fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
             id: sector_id(coord, "ship", index),
             position: point(index),
             yaw: 0.0,
-            design: "block_wreck_plate".to_string(),
+            design: "block_wreck_plate".into(),
         })
         .collect();
     manifest

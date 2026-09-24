@@ -9,11 +9,10 @@
 //!
 //! A KIND is the fix and the seam. One open id says what a body is made of;
 //! [`AsteroidKindLook`] is the shading that id resolves to, and
-//! `asteroid_surface.wgsl` spends it. The id is not new: it is
-//! [`AsteroidConfig::material`](super::asteroid::AsteroidConfig::material),
-//! which already exists, is already authored per rock, and already says "ice or
-//! metal body" in its own docs. It drives the surface, and it is where an ore
-//! yield attaches next - one id, one authored field.
+//! `asteroid_surface.wgsl` spends it. The id is
+//! [`AsteroidConfig::kind`](super::asteroid::AsteroidConfig::kind), authored
+//! per rock. It drives the surface, and it is where an ore yield attaches
+//! next - one id, one authored field.
 //!
 //! It is NOT what a round sounds like against the rock. That is
 //! [`ImpactSurface`](nova_gameplay::prelude::ImpactSurface), which is closed and
@@ -21,12 +20,15 @@
 //! an ice body are two LOOKS of one substance as far as the sample library
 //! goes.
 //!
-//! Ids are OPEN STRINGS, not an enum, because a mod fields a new rock by naming
-//! one, and the table it names is data rather than a Rust variant list.
+//! Ids are OPEN, not an enum, because a mod fields a new rock by naming one,
+//! and the table it names is data rather than a Rust variant list. An
+//! [`AsteroidKindId`] is a `KindId`: an open registry identifier, unlike a
+//! closed `Type` enum such as `PlanetType`.
 //!
 //! Open does NOT mean forgiving. An id this table does not know is an ERROR,
 //! not a grey rock: the scenario lint refuses it before the file ships, and the
-//! render path refuses it again and says which body and which id. A mod author
+//! load gate, the spawn actions and the world validator refuse it again and say
+//! which body and which id. A mod author
 //! who typed `granit` has to hear about it, and a rock that silently became
 //! stone would be the one way they never would. There is no default kind and
 //! nothing resolves an absent one - [`AsteroidConfig::kind`] is required, so a
@@ -39,8 +41,8 @@ use bevy::prelude::*;
 pub mod prelude {
     pub use super::{
         asteroid_kind_at, asteroid_kind_from_mix, asteroid_kind_look, is_asteroid_kind,
-        AsteroidKind, AsteroidKindLook, ASTEROID_KINDS, ASTEROID_KIND_SUMMARIES, KIND_CARBON,
-        KIND_ICE, KIND_METAL, KIND_PLAIN, KIND_ROCK,
+        AsteroidKind, AsteroidKindId, AsteroidKindLook, ASTEROID_KINDS, ASTEROID_KIND_SUMMARIES,
+        KIND_CARBON, KIND_ICE, KIND_METAL, KIND_PLAIN, KIND_ROCK,
     };
 }
 
@@ -68,6 +70,37 @@ pub const KIND_CARBON: &str = "carbon";
 /// nothing done to it.
 pub const KIND_PLAIN: &str = "plain";
 
+/// An open asteroid kind id: what a rock is made of, resolved against the
+/// shipped kind table by [`asteroid_kind_look`].
+///
+/// A `KindId`, not a `Type`: mods may name new kinds, so the set is data and
+/// not a Rust enum. Serialized as the bare id string, so authored RON writes
+/// `kind: "rock"`. An id the table does not know is refused at lint and again
+/// at spawn; nothing resolves it to a default.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct AsteroidKindId(String);
+
+impl AsteroidKindId {
+    /// The id as authored.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for AsteroidKindId {
+    fn from(id: &str) -> Self {
+        Self(id.to_string())
+    }
+}
+
+impl std::fmt::Display for AsteroidKindId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
 /// The resolved kind id this rock was built with, carried on the asteroid root.
 ///
 /// A separate component from
@@ -76,14 +109,7 @@ pub const KIND_PLAIN: &str = "plain";
 /// this one is open and says how the rock is shaded. This is what a future
 /// mining or ore system reads too.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-pub struct AsteroidKind(pub String);
-
-impl AsteroidKind {
-    /// The tag for a named kind.
-    pub fn new(kind: impl Into<String>) -> Self {
-        Self(kind.into())
-    }
-}
+pub struct AsteroidKind(pub AsteroidKindId);
 
 /// The kind a `draw` in `0.0..1.0` picks out of a WEIGHTED mix.
 ///
@@ -97,7 +123,7 @@ impl AsteroidKind {
 ///
 /// `None` when the mix is empty or every weight is zero, which is the caller's
 /// signal to keep whatever the template already authored.
-pub fn asteroid_kind_from_mix<S: AsRef<str>>(mix: &[(S, u32)], draw: f32) -> Option<&str> {
+pub fn asteroid_kind_from_mix(mix: &[(AsteroidKindId, u32)], draw: f32) -> Option<&AsteroidKindId> {
     let total: u32 = mix.iter().map(|(_, weight)| *weight).sum();
     if total == 0 {
         return None;
@@ -111,7 +137,7 @@ pub fn asteroid_kind_from_mix<S: AsRef<str>>(mix: &[(S, u32)], draw: f32) -> Opt
     for (id, weight) in mix {
         run += *weight;
         if ticket < run {
-            return Some(id.as_ref());
+            return Some(id);
         }
     }
     // Unreachable: `run` finishes at `total` and `ticket` is below it.
@@ -137,7 +163,7 @@ pub fn asteroid_kind_from_mix<S: AsRef<str>>(mix: &[(S, u32)], draw: f32) -> Opt
 /// mixer - and it would cost a re-deal of every kind every authored belt draws.
 /// The divergence stays, and stays named, so a later reader does not flatten it
 /// by eye.
-pub fn asteroid_kind_at<S: AsRef<str>>(mix: &[(S, u32)], index: usize) -> Option<&str> {
+pub fn asteroid_kind_at(mix: &[(AsteroidKindId, u32)], index: usize) -> Option<&AsteroidKindId> {
     let mut hash = 0x811c_9dc5u32 ^ (index as u32).wrapping_mul(0x9e37_79b1);
     for _ in 0..3 {
         hash ^= hash >> 15;
@@ -237,7 +263,7 @@ pub const ROCK_TEXTURE_LINEAR_MID: f32 = 0.095;
 /// Every kind id the base game ships, in the order a pick list should offer
 /// them: the ordinary one first, the control last.
 ///
-/// This is what the scenario lint checks an authored `material` against and
+/// This is what the scenario lint checks an authored `kind` against and
 /// what the editor's kind picker cycles through. A mod adding a kind adds it
 /// here today; when the kind table becomes loaded data, this becomes the base
 /// bundle's rows and the lint reads the catalog instead.
@@ -261,8 +287,8 @@ pub const ASTEROID_KIND_SUMMARIES: [(&str, &str); 5] = [
 ];
 
 /// Whether `kind` names a kind that exists. The lint's question.
-pub fn is_asteroid_kind(kind: &str) -> bool {
-    ASTEROID_KINDS.contains(&kind)
+pub fn is_asteroid_kind(kind: &AsteroidKindId) -> bool {
+    ASTEROID_KINDS.contains(&kind.as_str())
 }
 
 /// The shading a kind id resolves to, or `None` when no kind answers to that
@@ -271,8 +297,8 @@ pub fn is_asteroid_kind(kind: &str) -> bool {
 /// `None` is a REFUSAL, not a default: there is deliberately no house look for
 /// an unrecognised id, because a rock that quietly became stone is how a typo
 /// ships. Callers say which body and which id and then stop.
-pub fn asteroid_kind_look(kind: &str) -> Option<AsteroidKindLook> {
-    match kind {
+pub fn asteroid_kind_look(kind: &AsteroidKindId) -> Option<AsteroidKindLook> {
+    match kind.as_str() {
         KIND_ROCK => Some(rock()),
         KIND_METAL => Some(metal()),
         KIND_ICE => Some(ice()),
@@ -418,15 +444,38 @@ fn plain() -> AsteroidKindLook {
 mod tests {
     use super::*;
 
+    fn mix(entries: &[(&str, u32)]) -> Vec<(AsteroidKindId, u32)> {
+        entries
+            .iter()
+            .map(|(kind, weight)| (AsteroidKindId::from(*kind), *weight))
+            .collect()
+    }
+
+    fn look(kind: &str) -> AsteroidKindLook {
+        asteroid_kind_look(&kind.into()).expect("a shipped kind resolves")
+    }
+
     /// An id nobody ships is an ERROR, not a grey rock. This is the line the
     /// whole no-fallback rule stands on: a typo in a mod has to be findable,
     /// and a kind that quietly resolved to stone is the one way it would not
     /// be.
     #[test]
     fn an_unknown_kind_is_not_a_kind() {
-        assert_eq!(asteroid_kind_look("obsidian-from-a-mod"), None);
-        assert!(!is_asteroid_kind("obsidian-from-a-mod"));
-        assert!(!is_asteroid_kind(""));
+        let unknown = AsteroidKindId::from("obsidian-from-a-mod");
+        assert_eq!(asteroid_kind_look(&unknown), None);
+        assert!(!is_asteroid_kind(&unknown));
+        assert!(!is_asteroid_kind(&"".into()));
+    }
+
+    /// A kind id is written as the bare id an author types, alone and in a
+    /// weighted mix, so typing the id changed no authored RON.
+    #[test]
+    fn a_kind_id_is_written_as_its_bare_string() {
+        let mix = mix(&[(KIND_ICE, 3)]);
+        let ron = ron::to_string(&mix).expect("a kind mix serializes");
+        assert_eq!(ron, r#"[("ice",3)]"#);
+        let back: Vec<(AsteroidKindId, u32)> = ron::from_str(&ron).expect("and parses back");
+        assert_eq!(back, mix);
     }
 
     /// Every id the pick list offers resolves, and every id that resolves is on
@@ -434,12 +483,12 @@ mod tests {
     /// unpickable or unrenderable.
     #[test]
     fn the_shipped_ids_and_the_shipped_looks_are_the_same_set() {
-        for kind in ASTEROID_KINDS {
+        for kind in ASTEROID_KINDS.map(AsteroidKindId::from) {
             assert!(
-                asteroid_kind_look(kind).is_some(),
+                asteroid_kind_look(&kind).is_some(),
                 "'{kind}' is offered and does not resolve"
             );
-            assert!(is_asteroid_kind(kind));
+            assert!(is_asteroid_kind(&kind));
         }
         assert_eq!(ASTEROID_KINDS.len(), 5);
     }
@@ -460,7 +509,7 @@ mod tests {
     /// picture and the after picture in the same place.
     #[test]
     fn the_plain_kind_turns_every_knob_off() {
-        let control = asteroid_kind_look(KIND_PLAIN).expect("the control is a shipped kind");
+        let control = look(KIND_PLAIN);
 
         assert_eq!(control.kind_mix, 0.0);
         assert_eq!(control.macro_scale, 0.0);
@@ -480,7 +529,7 @@ mod tests {
     #[test]
     fn every_shipped_kind_is_shaded_within_range() {
         for kind in [KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON] {
-            let look = asteroid_kind_look(kind).expect("a shipped kind resolves");
+            let look = look(kind);
 
             assert!(
                 look.roughness_low < look.roughness_high,
@@ -517,7 +566,6 @@ mod tests {
     /// dark one.
     #[test]
     fn the_kinds_read_differently_from_each_other() {
-        let look = |kind| asteroid_kind_look(kind).expect("a shipped kind resolves");
         let stone = look(KIND_ROCK);
         let metal = look(KIND_METAL);
         let ice = look(KIND_ICE);
@@ -535,31 +583,33 @@ mod tests {
     /// the range to the first id.
     #[test]
     fn a_weight_is_a_share_of_the_draw() {
-        let mix = [(KIND_ROCK, 6), (KIND_ICE, 3), (KIND_METAL, 1)];
-        assert_eq!(asteroid_kind_from_mix(&mix, 0.0), Some(KIND_ROCK));
-        assert_eq!(asteroid_kind_from_mix(&mix, 0.59), Some(KIND_ROCK));
-        assert_eq!(asteroid_kind_from_mix(&mix, 0.61), Some(KIND_ICE));
-        assert_eq!(asteroid_kind_from_mix(&mix, 0.89), Some(KIND_ICE));
-        assert_eq!(asteroid_kind_from_mix(&mix, 0.91), Some(KIND_METAL));
+        let mix = mix(&[(KIND_ROCK, 6), (KIND_ICE, 3), (KIND_METAL, 1)]);
+        let draw = |draw| asteroid_kind_from_mix(&mix, draw).map(AsteroidKindId::as_str);
+        assert_eq!(draw(0.0), Some(KIND_ROCK));
+        assert_eq!(draw(0.59), Some(KIND_ROCK));
+        assert_eq!(draw(0.61), Some(KIND_ICE));
+        assert_eq!(draw(0.89), Some(KIND_ICE));
+        assert_eq!(draw(0.91), Some(KIND_METAL));
     }
 
     /// The ends of the range are the ends of the mix, including a draw of
     /// exactly 1.0 - which would otherwise index one bucket past the last.
     #[test]
     fn the_ends_of_the_draw_stay_inside_the_mix() {
-        let mix = [(KIND_ROCK, 6), (KIND_METAL, 1)];
-        assert_eq!(asteroid_kind_from_mix(&mix, 1.0), Some(KIND_METAL));
-        assert_eq!(asteroid_kind_from_mix(&mix, 2.0), Some(KIND_METAL));
-        assert_eq!(asteroid_kind_from_mix(&mix, -1.0), Some(KIND_ROCK));
+        let mix = mix(&[(KIND_ROCK, 6), (KIND_METAL, 1)]);
+        let draw = |draw| asteroid_kind_from_mix(&mix, draw).map(AsteroidKindId::as_str);
+        assert_eq!(draw(1.0), Some(KIND_METAL));
+        assert_eq!(draw(2.0), Some(KIND_METAL));
+        assert_eq!(draw(-1.0), Some(KIND_ROCK));
     }
 
     /// A mix that says nothing picks nothing, so the caller keeps whatever the
     /// template authored rather than being handed a default it did not ask for.
     #[test]
     fn a_mix_with_no_weight_picks_nothing() {
-        let empty: [(&str, u32); 0] = [];
+        let empty = mix(&[]);
         assert_eq!(asteroid_kind_from_mix(&empty, 0.5), None);
-        assert_eq!(asteroid_kind_from_mix(&[(KIND_ROCK, 0)], 0.5), None);
+        assert_eq!(asteroid_kind_from_mix(&mix(&[(KIND_ROCK, 0)]), 0.5), None);
         assert_eq!(asteroid_kind_at(&empty, 3), None);
     }
 
@@ -568,12 +618,15 @@ mod tests {
     /// the buckets in order, and a long enough run still finds the rare kind.
     #[test]
     fn an_authored_index_is_hashed_not_cycled() {
-        let mix = [(KIND_ROCK, 6), (KIND_CARBON, 3), (KIND_METAL, 1)];
+        let mix = mix(&[(KIND_ROCK, 6), (KIND_CARBON, 3), (KIND_METAL, 1)]);
         assert_eq!(asteroid_kind_at(&mix, 17), asteroid_kind_at(&mix, 17));
+        let at = |index| {
+            asteroid_kind_at(&mix, index)
+                .expect("the mix has weight")
+                .as_str()
+        };
 
-        let walk: Vec<&str> = (0..10)
-            .map(|index| asteroid_kind_at(&mix, index).expect("the mix has weight"))
-            .collect();
+        let walk: Vec<&str> = (0..10).map(at).collect();
         assert_ne!(
             walk,
             vec![
@@ -591,9 +644,7 @@ mod tests {
             "walking the buckets in index order is the pattern the hash exists to break"
         );
 
-        let long: Vec<&str> = (0..60)
-            .map(|index| asteroid_kind_at(&mix, index).expect("the mix has weight"))
-            .collect();
+        let long: Vec<&str> = (0..60).map(at).collect();
         for wanted in [KIND_ROCK, KIND_CARBON, KIND_METAL] {
             assert!(
                 long.contains(&wanted),

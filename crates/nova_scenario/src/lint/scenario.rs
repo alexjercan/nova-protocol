@@ -489,8 +489,8 @@ pub fn lint_scenario(
 /// One spawned rock says what it is made of, and says something real.
 ///
 /// There is no default kind and no fallback for an unknown one, so an id this
-/// build does not ship is a body that renders as nothing. Catching it here is
-/// the difference between a message naming the object and a hole in a frame.
+/// build does not ship is a rock that does not spawn. Catching it here names
+/// the object before the scenario refuses to start.
 fn check_asteroid_kind(config: &ScenarioObjectConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
     let ScenarioObjectKind::Asteroid(asteroid) = &config.kind else {
         return;
@@ -2509,8 +2509,8 @@ mod tests {
     }
 
     /// A rock says what it is made of, and the id has to be real. There is no
-    /// default kind and no fallback, so an unknown one renders as nothing -
-    /// which is exactly the failure a static check should beat the frame to.
+    /// default kind and no fallback, so an unknown one spawns nothing - which
+    /// is exactly the failure a static check should beat the load to.
     #[test]
     fn an_unknown_asteroid_kind_is_a_lint_error() {
         let rock = |kind: &str| {
@@ -2522,7 +2522,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    kind: kind.to_string(),
+                    kind: kind.into(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -2565,7 +2565,7 @@ mod tests {
     /// wearing different hats: a field nobody decided the composition of.
     #[test]
     fn a_scattered_field_must_author_a_real_kind_mix() {
-        let field = |mix: Vec<(String, u32)>| {
+        let field = |mix: Vec<(AsteroidKindId, u32)>| {
             EventActionConfig::ScatterObjects(ScatterObjectsConfig {
                 id_prefix: "rock_".to_string(),
                 count: 8,
@@ -2582,7 +2582,7 @@ mod tests {
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                        kind: KIND_ROCK.to_string(),
+                        kind: KIND_ROCK.into(),
                         destroy_sound: None,
                         radius: Meters(20.0),
                         texture: nova_gameplay::prelude::AssetRef::default(),
@@ -2609,7 +2609,7 @@ mod tests {
             "a field with no mix is an error: {issues:?}"
         );
 
-        let issues = lint_of(field(vec![("granite".to_string(), 3)]));
+        let issues = lint_of(field(vec![("granite".into(), 3)]));
         assert!(
             errors(&issues)
                 .iter()
@@ -2617,10 +2617,7 @@ mod tests {
             "an unshipped kind in the mix is an error: {issues:?}"
         );
 
-        let issues = lint_of(field(vec![
-            (KIND_ROCK.to_string(), 3),
-            (KIND_METAL.to_string(), 0),
-        ]));
+        let issues = lint_of(field(vec![(KIND_ROCK.into(), 3), (KIND_METAL.into(), 0)]));
         assert!(
             errors(&issues)
                 .iter()
@@ -2628,10 +2625,7 @@ mod tests {
             "a kind that can never be drawn is an error: {issues:?}"
         );
 
-        let issues = lint_of(field(vec![
-            (KIND_ROCK.to_string(), 6),
-            (KIND_METAL.to_string(), 1),
-        ]));
+        let issues = lint_of(field(vec![(KIND_ROCK.into(), 6), (KIND_METAL.into(), 1)]));
         assert!(errors(&issues).is_empty(), "a real mix is fine: {issues:?}");
     }
 

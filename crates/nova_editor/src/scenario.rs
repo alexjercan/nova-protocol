@@ -498,7 +498,7 @@ pub(crate) enum HullForm {
 /// untouched editor hands over has to stay an empty design.
 fn hull_of(ship: &LoweredShip, form: HullForm) -> ShipDesignSource {
     match form {
-        HullForm::Prototype if !ship.id.is_empty() => ShipDesignSource::prototype(ship.id.clone()),
+        HullForm::Prototype if !ship.id.is_empty() => ShipDesignSource::prototype(ship.id.as_str()),
         _ => ShipDesignSource::Inline(ship_design(ship)),
     }
 }
@@ -961,7 +961,7 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
                 // DIRECT paths, not dep://: the editor's world is built at
                 // runtime outside the mod merge, so scheme refs would never
                 // rewrite.
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 radius: Meters::from_engine(belt.radius.0),
                 texture: AssetRef::from(ASTEROID_TEXTURE),
@@ -979,10 +979,10 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
         // Stone-heavy all the same: this is a shooting range, and the kinds
         // are here to be noticed, not to be the subject.
         asteroid_kinds: vec![
-            (KIND_ROCK.to_string(), 10),
-            (KIND_CARBON.to_string(), 3),
-            (KIND_ICE.to_string(), 2),
-            (KIND_METAL.to_string(), 1),
+            (KIND_ROCK.into(), 10),
+            (KIND_CARBON.into(), 3),
+            (KIND_ICE.into(), 2),
+            (KIND_METAL.into(), 1),
         ],
         min_separation: Some(Meters::from_engine(belt.separation)),
     })

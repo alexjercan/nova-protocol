@@ -227,7 +227,7 @@ fn ring_scatter(ring: &Ring) -> EventActionConfig {
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 radius: ring.radius.0,
                 texture: AssetRef::from(ASTEROID_TEXTURE),
@@ -239,7 +239,7 @@ fn ring_scatter(ring: &Ring) -> EventActionConfig {
         asteroid_radius: Some(ring.radius),
         // One kind, unlike the range's mixed belts: this is a backdrop, and a
         // ring of four materials at four kilometers reads as noise.
-        asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+        asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
         min_separation: Some(ring.separation),
     })
 }

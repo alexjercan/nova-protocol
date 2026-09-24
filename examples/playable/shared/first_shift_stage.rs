@@ -159,7 +159,7 @@ fn rock(
     name: &str,
     position: Meters3,
     radius: Meters,
-    kind: &str,
+    kind: &AsteroidKindId,
     texture: &Handle<Image>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -170,7 +170,7 @@ fn rock(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            kind: kind.to_string(),
+            kind: kind.clone(),
             destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
             radius,
             texture: texture.clone().into(),
@@ -231,13 +231,15 @@ pub fn belt(texture: &Handle<Image>) -> Vec<ScenarioObjectConfig> {
             CONCEALMENT_SEED,
         ),
     ];
+    let salvage_mix = SALVAGE_MIX.map(|(kind, weight)| (AsteroidKindId::from(kind), weight));
+    let ambient_mix = AMBIENT_MIX.map(|(kind, weight)| (AsteroidKindId::from(kind), weight));
     for (index, (position, radius)) in SALVAGE_ROCKS.into_iter().enumerate() {
         objects.push(rock(
             &format!("salvage_rock_{index}"),
             &format!("Salvage Rock {}", index + 1),
             position,
             radius,
-            asteroid_kind_at(&SALVAGE_MIX, index).expect("the salvage mix has weight"),
+            asteroid_kind_at(&salvage_mix, index).expect("the salvage mix has weight"),
             texture,
         ));
     }
@@ -247,7 +249,7 @@ pub fn belt(texture: &Handle<Image>) -> Vec<ScenarioObjectConfig> {
             &format!("Belt Rock {}", index + 1),
             position,
             radius,
-            asteroid_kind_at(&AMBIENT_MIX, index).expect("the ambient mix has weight"),
+            asteroid_kind_at(&ambient_mix, index).expect("the ambient mix has weight"),
             texture,
         ));
     }

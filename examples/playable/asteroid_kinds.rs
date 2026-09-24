@@ -132,7 +132,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>) {
                         texture: texture.clone(),
                         // THE variable. Everything else in this config is the
                         // same in all fifteen cells.
-                        kind: (*kind).to_string(),
+                        kind: (*kind).into(),
                         destroy_sound: None,
                         mass: None,
                         lock_signature: None,
@@ -170,7 +170,7 @@ fn label_spawned_rocks(
         compare::spawn_subject_label(
             &mut commands,
             entity,
-            &cell_id(kind, **seed),
+            &cell_id(kind.as_str(), **seed),
             Vec3::Y * LABEL_HEIGHT,
         );
     }

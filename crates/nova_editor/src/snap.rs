@@ -770,7 +770,7 @@ mod tests {
         // The lint half: the same two sections, as the save would write them.
         let configs = [prototype("left", Vec3::X), prototype("right", Vec3::NEG_X)];
         let saved = ShipDesignPrototype {
-            id: "seam".to_string(),
+            id: "seam".into(),
             name: "Seam".to_string(),
             design: ShipDesign {
                 sections: vec![

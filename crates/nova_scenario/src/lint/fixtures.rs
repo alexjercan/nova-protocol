@@ -50,7 +50,7 @@ pub(crate) fn ships(ids: &[&str]) -> KnownShipDesigns {
     let configs: Vec<_> = ids
         .iter()
         .map(|id| ShipDesignPrototype {
-            id: (*id).to_string(),
+            id: (*id).into(),
             name: (*id).to_string(),
             design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
