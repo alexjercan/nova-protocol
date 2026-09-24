@@ -12,6 +12,9 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
   dense belts, planets and moving traffic. Tighten race gates to 50 m, sound
   each clearance, and stretch Freight Lane to 8 km with a seeded small-rock
   cluster, early hostiles and a wingman trailing the player.
+- **(breaking)** The six trials drop the body `invulnerable` key, which base
+  now refuses at load. Needs a base game where the body type decides: rocks
+  break, planets do not.
 
 ### Balance
 

@@ -314,7 +314,6 @@ fn rock(game_assets: &GameAssets) -> ScenarioObjectConfig {
             kind: KIND_ROCK.to_string(),
             destroy_sound: None,
             mass: None,
-            invulnerable: false,
             lock_signature: None,
             seed: Some(ROCK_SEED),
         }),

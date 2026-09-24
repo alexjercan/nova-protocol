@@ -10,7 +10,7 @@
 //! which colour means what, but that your own ship shows no marker at all - and
 //! that needs the player's hull in the foreground rather than at an edge.
 //!
-//! One producer, two frames, one set built for them: the player parked square
+//! One producer, three frames, one set built for them: the player parked square
 //! with the world, a rock sitting on its firing line, a hostile behind that
 //! rock, and a friendly, a second hostile and an unaligned drifter spread
 //! across the near field. Both lessons are about RELATIONS - which ship is
@@ -56,7 +56,8 @@
 //! The rock is REAL cover and not a prop: an asteroid's collider carries no
 //! `Health` (`nova_scenario::objects::asteroid`), and a collider with no health
 //! is a wall to either round type, so the rounds die on it through the same
-//! path they would die on a hull.
+//! path they would die on a hull. Every asteroid can be carved, so each round
+//! that dies on it also takes a bite out of it.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - drive the whole script, exit
@@ -116,13 +117,16 @@ const ROCK_ID: &str = "field_rock";
 ///
 /// On the axis, because that is where the guns point, and CLOSE - a third of
 /// the way to the hostile - so the burst is seen to cross open space before it
-/// stops. The drawn body is much bigger than the authored radius here: a
-/// scatter asteroid's noise mesh reaches three and a half to six times past its
-/// designation, and the factor is re-rolled per run, so this is authored small
-/// and generously wider than the hostile's silhouette needs.
+/// stops. The drawn body is much bigger than the authored radius here: this
+/// pinned noise mesh reaches well past its designation, so the rock is authored
+/// small while remaining wider than the hostile's silhouette.
 const ROCK_POSITION: Meters3 = Meters3::new(0.0, 0.0, -170.0);
 /// The cover rock's authored radius.
-const ROCK_RADIUS: Meters = Meters(16.0);
+///
+/// Set by carving, not only silhouette: every stopped round bites into the
+/// rock. Twenty meters is the smallest proven whole-meter radius that survives
+/// the full sheet while leaving the shooter's nose and speed tag clear.
+const ROCK_RADIUS: Meters = Meters(20.0);
 /// The cover rock's mesh seed. Pinned, so the body that does the covering is
 /// the same body in every re-shoot.
 const ROCK_SEED: u32 = 51_507;
@@ -265,7 +269,7 @@ const MARKERS_PARK_EPSILON: f32 = 2.0;
 
 /// How long the trigger is held before the cover sheet opens.
 ///
-/// Long enough for the first rounds to have crossed the 300 m to the stone and
+/// Long enough for the first rounds to have crossed the 170 m to the stone and
 /// started breaking up on it: a sheet opened on the trigger records a cell of
 /// empty space before anything is in flight, and the reader's first frame is
 /// the one thing the lesson is not about.
@@ -418,10 +422,6 @@ fn cover_rock(game_assets: &GameAssets) -> EventActionConfig {
             // No well: a body strong enough to pull the pinned shooter would
             // drag the whole geometry off its axis over a capture run.
             mass: None,
-            // Nothing in this producer shoots the scenery on purpose, but the
-            // burst is aimed straight at it for two seconds. Cover that can be
-            // shot away is cover that stops covering mid-sheet.
-            invulnerable: true,
             seed: Some(ROCK_SEED),
             lock_signature: None,
         }),
@@ -482,6 +482,13 @@ fn rounds_in_flight(world: &mut World) -> usize {
 /// burst dying on the rock.
 #[cfg(feature = "debug")]
 fn combat_field_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    // Every health pool on the covered hostile, taken before the trigger goes
+    // down. The end check reads this list rather than walking the hull again:
+    // a cladding plate absorbs its own hits (`HealthIsolated`) and is detached
+    // when it dies, so a walk after the burst would not see it and the root
+    // would still read full.
+    let covered_pools = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Entity>::new()));
+    let record_pools = covered_pools.clone();
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("load the field")
         .enter(GameStates::Loading)
@@ -525,6 +532,20 @@ fn combat_field_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         .deadline(20.0)
         .add()
         .step("open fire")
+        .on_enter(move |world: &mut World| {
+            let covered = hollow::ship_by_id(world, COVERED_ID)
+                .expect("the covered hostile is in the field before the trigger goes down");
+            let mut pools = record_pools.lock().expect("the pool list is not poisoned");
+            let mut nodes = vec![covered];
+            while let Some(node) = nodes.pop() {
+                if world.get::<Health>(node).is_some() {
+                    pools.push(node);
+                }
+                if let Some(children) = world.get::<Children>(node) {
+                    nodes.extend(children.iter());
+                }
+            }
+        })
         .on_enter(hollow::open_fire)
         .until(elapsed(BURST_LEAD_SECS))
         .add()
@@ -547,14 +568,41 @@ fn combat_field_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         .deadline(60.0)
         .add()
         // The hostile behind the stone is the whole point: a sheet that closed
-        // with it dead would be a sheet of cover that did not work.
-        .step("the covered hostile is still there")
-        .on_enter(|world: &mut World| {
+        // with it scratched would be a sheet of cover that did not work. Alive
+        // is not enough - the rock is carved by every round, and once it bores
+        // through, the hostile takes hits for many cells before it could die.
+        .step("the covered hostile is untouched")
+        .on_enter(move |world: &mut World| {
+            let Some(covered) = hollow::ship_by_id(world, COVERED_ID) else {
+                panic!(
+                    "the covered hostile did not survive the burst: the demonstration would \
+                     show rounds reaching a ship the lesson says they cannot. Check that the \
+                     rock still stands on the firing line."
+                );
+            };
+            let pools = covered_pools.lock().expect("the pool list is not poisoned");
             assert!(
-                hollow::ship_by_id(world, COVERED_ID).is_some(),
-                "the covered hostile did not survive the burst: the demonstration would show \
-                 rounds reaching a ship the lesson says they cannot. Check that the rock still \
-                 stands on the firing line."
+                !pools.is_empty(),
+                "no health pools were recorded on the covered hostile"
+            );
+            let mut hurt = Vec::new();
+            for &node in pools.iter() {
+                match world.get::<Health>(node) {
+                    None => hurt.push(format!("{node} is gone")),
+                    Some(_) if node != covered && world.get::<ChildOf>(node).is_none() => {
+                        hurt.push(format!("{node} came off the hull"));
+                    }
+                    Some(health) if health.current < health.max => {
+                        hurt.push(format!("{node} at {}/{}", health.current, health.max));
+                    }
+                    Some(_) => {}
+                }
+            }
+            assert!(
+                hurt.is_empty(),
+                "the covered hostile took hits through the cover: {}. The rock bored through \
+                 during the sheet; it needs more body on the firing line.",
+                hurt.join(", ")
             );
         })
         .until(frames(1))

@@ -9,8 +9,8 @@
 //! inside the first magazine, so burst is the honest danger number),
 //! weapon threat envelopes, distance from the player spawn, and
 //! time-to-kill against the player ship's summed section health; per
-//! scenario, the cover tiers (invulnerable anchors vs destructible chaff
-//! vs scattered fields, each tier following its template's hardness).
+//! scenario, the cover tiers (planet anchors vs asteroid chaff vs scattered
+//! fields, each tier following its template's body kind).
 //!
 //! Two findings are graded, both static approximations chosen to be
 //! trustworthy rather than clever:
@@ -299,15 +299,14 @@ impl SpawnGroupAudit {
 /// The scenario's cover inventory, by tier.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CoverAudit {
-    /// Fixed invulnerable asteroids: the hard anchors the line-of-fire
-    /// gate makes meaningful.
-    pub invulnerable: usize,
-    /// Fixed destructible asteroids: chaff.
+    /// Fixed planets: the hard anchors the line-of-fire gate makes
+    /// meaningful. No planet can be destroyed.
+    pub hard: usize,
+    /// Fixed asteroids: chaff. Every asteroid can be destroyed.
     pub destructible: usize,
-    /// Rocks placed by ScatterObjects fields whose template is
-    /// invulnerable (a scattered belt wall is exactly this).
+    /// Bodies placed by ScatterObjects fields whose template is a planet.
     pub scattered_hard: usize,
-    /// Rocks placed by ScatterObjects fields with destructible templates.
+    /// Bodies placed by ScatterObjects fields whose template is an asteroid.
     pub scattered_soft: usize,
 }
 
@@ -515,7 +514,7 @@ impl ScenarioAudit {
             self.scenario,
             self.player.hp,
             self.player.dps,
-            self.cover.invulnerable,
+            self.cover.hard,
             self.cover.destructible,
             self.cover.scattered_hard,
             self.cover.scattered_soft,
@@ -620,29 +619,12 @@ pub fn audit_scenario(
                                 immediate: placed_by_the_handler,
                             });
                         }
-                        ScenarioObjectKind::Asteroid(rock) if rock.invulnerable => {
-                            cover.invulnerable += 1;
-                        }
                         ScenarioObjectKind::Asteroid(_) => cover.destructible += 1,
-                        // A planet is cover the same way an invulnerable rock
-                        // is, and EVERY planet is invulnerable - `false` is
-                        // refused at lint and at load. The match arm stays
-                        // shaped for the day a destructible one exists.
-                        ScenarioObjectKind::Planet(planet) if planet.invulnerable => {
-                            cover.invulnerable += 1;
-                        }
-                        ScenarioObjectKind::Planet(_) => cover.destructible += 1,
+                        ScenarioObjectKind::Planet(_) => cover.hard += 1,
                         _ => {}
                     },
                     EventActionConfig::ScatterObjects(scatter) => {
-                        let hard = matches!(
-                            &scatter.template.kind,
-                            ScenarioObjectKind::Asteroid(rock) if rock.invulnerable
-                        ) || matches!(
-                            &scatter.template.kind,
-                            ScenarioObjectKind::Planet(planet) if planet.invulnerable
-                        );
-                        if hard {
+                        if matches!(scatter.template.kind, ScenarioObjectKind::Planet(_)) {
                             cover.scattered_hard += scatter.count as usize;
                         } else {
                             cover.scattered_soft += scatter.count as usize;

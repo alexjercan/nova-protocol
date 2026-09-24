@@ -878,7 +878,6 @@ fn stock_object() -> ScenarioObjectConfig {
             kind: KIND_ROCK.to_string(),
             destroy_sound: Some(AssetRef::from(crate::node::DESTROY_SOUND)),
             mass: None,
-            invulnerable: false,
             seed: None,
             lock_signature: None,
         }),

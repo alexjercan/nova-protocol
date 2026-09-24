@@ -28,10 +28,10 @@ use super::{
 pub mod prelude {
     pub use super::{
         asteroid_scenario_object, asteroid_scenario_object_prepared, asteroid_seed_from_id,
-        prepare_asteroid_geometry, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
-        AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSeed,
-        AsteroidTexture, PlanetHeight, PlanetHeightNoise, PreparedAsteroid,
-        ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
+        prepare_asteroid_geometry, AsteroidConfig, AsteroidMarker, AsteroidMass, AsteroidPlugin,
+        AsteroidRadius, AsteroidRenderMesh, AsteroidSeed, AsteroidTexture, PlanetHeight,
+        PlanetHeightNoise, PreparedAsteroid, ASTEROID_GEOMETRIC_FACTOR_MAX,
+        ASTEROID_GEOMETRIC_FACTOR_MIN,
     };
 }
 
@@ -39,8 +39,15 @@ pub mod prelude {
 /// rock with geometry-owned durability, textures, sounds, and optional gravity and
 /// lock-signature overrides. Passed to [`asteroid_scenario_object`] to build the
 /// asteroid-root bundle.
+///
+/// Every asteroid is carvable and destructible; that is the type's rule, not
+/// an authored field. A body that must survive the scenario is a planet.
+///
+/// STRICT: an unknown key is a load error. A file still carrying the removed
+/// `invulnerable:` gets a refusal naming the key.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AsteroidConfig {
     /// Nominal radius; drives well qualification and mesh scale.
     pub radius: Meters,
@@ -98,11 +105,6 @@ pub struct AsteroidConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub mass: Option<f32>,
-    /// An invulnerable body gets its collider without a carve field:
-    /// nothing can erode or destroy it, so its gravity well can never
-    /// die mid-scenario (playtest 2026-07-12 finding 6 - a tutorial
-    /// planetoid shot to death takes the whole orbit beat with it).
-    pub invulnerable: bool,
     /// Radar signature override; `None` = the radius (a rock locks in
     /// proportion to its size). A scenario body meant to be designated from
     /// afar authors what it needs. Lock range is
@@ -332,7 +334,6 @@ pub fn asteroid_scenario_object_prepared(
         // two are NOT one fact: the kind is how a rock is shaded, the surface
         // is what a round bites into, and every kind bites the same.
         (AsteroidKind::new(kind), ImpactSurface::Rock),
-        AsteroidInvulnerable(config.invulnerable),
         AsteroidMass(config.mass),
         AsteroidSeed(seed),
         // What the rock returns to a scanner: a floor every rock clears
@@ -361,7 +362,7 @@ pub fn asteroid_scenario_object_prepared(
     ));
 
     entity.with_children(|parent| {
-        let mut node = parent.spawn((
+        parent.spawn((
             Transform::from_scale(Vec3::splat(radius)),
             AsteroidRenderMesh(mesh),
             collider,
@@ -372,14 +373,13 @@ pub fn asteroid_scenario_object_prepared(
             ConnectedTo::default(),
             ColliderDensity(1.0),
             Visibility::Inherited,
-        ));
-        if !config.invulnerable {
             // The field is the rock's only durability. `DamageMarks` rides on
             // THIS node because its mesh and collider use the same unit space.
             // Collision events are explicit now that no Health component opts
             // the collider into the generic ram-damage observer.
-            node.insert((DamageMarks::default(), CollisionEventsEnabled));
-        }
+            DamageMarks::default(),
+            CollisionEventsEnabled,
+        ));
     });
 }
 
@@ -406,10 +406,6 @@ pub struct AsteroidRenderMesh(pub Mesh);
 /// the true geometric extent is the separately derived `BodyRadius`.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidRadius(pub f32);
-
-/// See [`AsteroidConfig::invulnerable`].
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-pub struct AsteroidInvulnerable(pub bool);
 
 /// The scenario's authored mass parameter for this asteroid (see
 /// [`AsteroidConfig::mass`]). Consumed by `insert_asteroid_gravity_well`
@@ -1159,46 +1155,39 @@ mod tests {
         );
     }
 
-    /// No asteroid carries a health kill gate. A normal rock accepts marks;
-    /// an invulnerable planetoid does not.
+    /// No asteroid carries a health kill gate. Every rock, massive or not,
+    /// accepts marks.
     #[test]
     fn asteroid_geometry_is_the_only_durability() {
         let mut app = App::new();
+        let root = spawn_rock(&mut app, rock(Meters(200.0), Some(45_000.0)), 3);
+        let node = app
+            .world()
+            .get::<Children>(root)
+            .and_then(|children| children.iter().next())
+            .expect("the builder spawns the node child");
 
-        let spawn = |app: &mut App, invulnerable: bool| -> Entity {
-            let mut config = rock(Meters(200.0), Some(45_000.0));
-            config.invulnerable = invulnerable;
-            spawn_rock(app, config, 3)
-        };
-        let tough = spawn(&mut app, true);
-        let normal = spawn(&mut app, false);
-
-        let child_of = |app: &mut App, root: Entity| -> Entity {
-            app.world()
-                .get::<Children>(root)
-                .and_then(|children| children.iter().next())
-                .expect("the builder spawns the node child")
-        };
-        let tough_node = child_of(&mut app, tough);
-        let normal_node = child_of(&mut app, normal);
-
+        assert!(app.world().get::<Health>(node).is_none());
+        assert!(app.world().get::<DamageMarks>(node).is_some());
         assert!(
-            app.world().get::<Collider>(tough_node).is_some(),
-            "invulnerable bodies still collide"
-        );
-        assert!(
-            app.world().get::<Health>(tough_node).is_none(),
-            "no Health on an invulnerable body's node - nothing to deplete"
-        );
-        assert!(app.world().get::<Health>(normal_node).is_none());
-        assert!(app.world().get::<DamageMarks>(tough_node).is_none());
-        assert!(app.world().get::<DamageMarks>(normal_node).is_some());
-        assert!(
-            app.world()
-                .get::<CollisionEventsEnabled>(normal_node)
-                .is_some(),
+            app.world().get::<CollisionEventsEnabled>(node).is_some(),
             "healthless rocks still need ram collision events"
         );
+    }
+
+    /// Vulnerability is the body type's rule, so a file that still authors
+    /// the removed flag is refused rather than read as a rock that ignores it.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn an_asteroid_refuses_the_removed_invulnerable_key() {
+        let current = r#"(radius: 100.0, texture: "self://textures/asteroid.png", kind: "rock")"#;
+        let stale = r#"(radius: 100.0, texture: "self://textures/asteroid.png", kind: "rock", invulnerable: true)"#;
+
+        assert!(ron::from_str::<AsteroidConfig>(current).is_ok());
+        let error = ron::from_str::<AsteroidConfig>(stale)
+            .expect_err("a stale `invulnerable:` key must fail the load")
+            .to_string();
+        assert!(error.contains("invulnerable"), "{error}");
     }
 
     #[test]
@@ -1234,7 +1223,6 @@ mod tests {
             radius,
             texture: AssetRef::default(),
             mass,
-            invulnerable: false,
             seed: None,
             lock_signature: None,
         }

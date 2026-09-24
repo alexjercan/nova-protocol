@@ -402,7 +402,6 @@ fn range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
             kind: KIND_ROCK.to_string(),
             destroy_sound: None,
             mass: None,
-            invulnerable: true,
             lock_signature: None,
             seed: Some(ROCK_SEED),
         }),

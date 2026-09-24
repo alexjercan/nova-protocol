@@ -429,7 +429,6 @@
                             texture: "self://textures/rock.png",
                             kind: "rock",
                             mass: None,
-                            invulnerable: false,
                             lock_signature: None,
                         )),
                     )),
@@ -448,7 +447,6 @@
                             // pair is the whole feature in one look.
                             kind: "ice",
                             mass: None,
-                            invulnerable: false,
                             lock_signature: None,
                         )),
                     )),
@@ -638,7 +636,6 @@
                             // worth flying out to.
                             kind: "metal",
                             mass: None,
-                            invulnerable: false,
                             lock_signature: None,
                         )),
                     )),
@@ -746,7 +743,7 @@
                             aim: Some((0.0, 0.0, 0.0)),
                         )),
                     )),
-                    // A slow, invulnerable planetoid to anchor the view, plus
+                    // A temperate planetoid to anchor the view, plus
                     // an AI ship set to orbit it - calm motion, nothing to
                     // fight. The orbit directive names the well by its id.
                     SpawnScenarioObject((
@@ -756,12 +753,11 @@
                             position: (0.0, 0.0, 0.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
-                        kind: Asteroid((
-                            radius: 180.0,
-                            texture: "self://textures/rock.png",
-                            kind: "rock",
+                        kind: Planet((
+                            radius: 450.0,
+                            planet_type: Temperate,
+                            seed: 1729727263,
                             mass: Some(36_000.0),
-                            invulnerable: true,
                             lock_signature: None,
                         )),
                     )),

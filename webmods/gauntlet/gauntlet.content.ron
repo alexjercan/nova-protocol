@@ -2,7 +2,7 @@
 // parkour/slalom course. Spawns the player in a cutter at the START, then
 // guides the pilot gate by gate (objective + gold marker) through SIX gates to
 // the FINISH, over three escalating acts (warmup / slalom / hazard). The route
-// turns and climbs; invulnerable asteroids crowd the racing line to punish
+// turns and climbs; asteroids crowd the racing line to punish
 // sloppy flying (collision damage), and an act-3 gravity well tugs the pilot
 // off-line to sling or avoid. Crossing FINISH declares Victory; wrecking your
 // ship on the rocks declares Defeat with a Retry. Pure flying skill, no combat.
@@ -270,7 +270,6 @@
                             radius: 15.0,
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
-                            invulnerable: true,
                         )),
                     )),
                     // --- Act 2 (slalom): rocks crowd the racing line ---
@@ -286,7 +285,6 @@
                             radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -301,7 +299,6 @@
                             radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -316,7 +313,6 @@
                             radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -331,7 +327,6 @@
                             radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
-                            invulnerable: true,
                         )),
                     )),
                     // A dense asteroid wall off the +x side of the act-2/3
@@ -357,7 +352,6 @@
                                 radius: 15.0,
                                 texture: "dep://base/textures/asteroid.png",
                                 kind: "rock",
-                                invulnerable: true,
                             )),
                         ),
                         asteroid_radius: Some((15.0, 30.0)),
@@ -376,7 +370,6 @@
                             radius: 25.0,
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -391,7 +384,6 @@
                             radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -406,10 +398,9 @@
                             radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
-                            invulnerable: true,
                         )),
                     )),
-                    // The gravity well: a big invulnerable planetoid off the
+                    // The gravity well: a barren planetoid off the
                     // G5->G6 line. Its surface gravity tugs ship and autopilot
                     // as you pass (SOI reaches the line); the BODY stays clear
                     // of the line so a gate is always reachable. Sling or avoid.
@@ -420,13 +411,11 @@
                             position: (-580.0, 120.0, -4900.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
-                        kind: Asteroid((
-                destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 40.0,
-                            texture: "dep://base/textures/asteroid.png",
-                            kind: "rock",
+                        kind: Planet((
+                            radius: 100.0,
+                            planet_type: BarrenRock,
+                            seed: 526656746,
                             mass: Some(1_900.0),
-                            invulnerable: true,
                         )),
                     )),
                     // Race state: `gate` is the index of the gate to thread next

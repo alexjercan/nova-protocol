@@ -112,7 +112,7 @@ const EMPTY_DESCRIPTION: &str = "An empty scenario.";
 /// as a well, and PINNED so a fight cannot move it. Ported from the numbers
 /// `wfc_arena` composes its backdrop from.
 const ARENA_PLANETOID_POSITION: Meters3 = Meters3::new(-6_200.0, -1_400.0, -4_200.0);
-const ARENA_PLANETOID_RADIUS: Meters = Meters(240.0);
+const ARENA_PLANETOID_RADIUS: Meters = Meters(600.0);
 const ARENA_PLANETOID_MASS: f32 = 40_000.0;
 /// A fixed shape, so two documents from this template look alike.
 const ARENA_PLANETOID_SEED: u32 = 20_260_816;
@@ -195,17 +195,14 @@ fn arena_planetoid() -> ScenarioObjectConfig {
             position: ARENA_PLANETOID_POSITION,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            // DIRECT paths, not `dep://` - see `crate::node::ASTEROID_TEXTURE`.
-            kind: KIND_ROCK.to_string(),
-            destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
-            radius: ARENA_PLANETOID_RADIUS,
-            texture: AssetRef::from(ASTEROID_TEXTURE),
-            mass: Some(ARENA_PLANETOID_MASS),
-            invulnerable: true,
-            seed: Some(ARENA_PLANETOID_SEED),
-            lock_signature: None,
-        }),
+        kind: ScenarioObjectKind::Planet(
+            PlanetConfig::new(
+                PlanetType::BarrenRock,
+                ARENA_PLANETOID_RADIUS,
+                ARENA_PLANETOID_SEED,
+            )
+            .anchored(ARENA_PLANETOID_MASS),
+        ),
     }
 }
 
@@ -235,7 +232,6 @@ fn ring_scatter(ring: &Ring) -> EventActionConfig {
                 radius: ring.radius.0,
                 texture: AssetRef::from(ASTEROID_TEXTURE),
                 mass: None,
-                invulnerable: false,
                 seed: None,
                 lock_signature: None,
             }),

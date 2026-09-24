@@ -1648,8 +1648,8 @@ mod tests {
     /// The two blind spots that opened when rounds became sensors, re-asserted
     /// against the sweep. A round crossing a pure trigger volume (a beacon
     /// sphere) must SURVIVE, or the pirate goes un-hittable while patrolling
-    /// near a beacon; and a round into a health-less solid (an invulnerable
-    /// planetoid) must still expend instead of passing through cover.
+    /// near a beacon; and a round into a health-less solid (a planet) must
+    /// still expend instead of passing through cover.
     ///
     /// The second half used to hinge on collision events: a solid with no
     /// Health never got `CollisionEventsEnabled`, so the round carried its own

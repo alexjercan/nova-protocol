@@ -891,6 +891,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "a featured sector owns real planetoids and inert derelict ships",
             "crossing one boundary retains the shared slab and swaps a face",
             "the return trip leaves no duplicate root",
+            "a destroyed streamed asteroid returns pristine after its sector retires",
             "work for an undesired sector never materializes",
             "replacing the world config retires the world it built",
             "unloading the session removes every sector root",
@@ -913,7 +914,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 444;
+const SYSTEMS_INVARIANTS: usize = 445;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

@@ -44,7 +44,10 @@ fn the_arena_scatters_its_dressing_rather_than_authoring_it() {
         .iter()
         .filter(|object| matches!(object.kind, ScenarioObjectKind::Asteroid(_)))
         .count();
-    assert_eq!(rocks, 1, "the landmark is the only authored rock");
+    assert_eq!(
+        rocks, 0,
+        "every rock is scattered; the landmark is a planet"
+    );
 
     let scatters: usize = ScenarioTemplate::Arena
         .script()

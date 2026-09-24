@@ -228,7 +228,6 @@ pub fn the_ring_with_hull(
 }
 
 /// The planetoid: the set's subject and the well the whole scene is about.
-/// Invulnerable - nothing should be able to shoot the scenery out of a shot.
 ///
 /// A PLANET, and an ICE one. Two separate reasons:
 /// - A world, not a rock, because at this size the difference is the whole

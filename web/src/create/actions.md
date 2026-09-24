@@ -77,7 +77,7 @@ object and carries its config - the seven kinds are the
 ```ron
 SpawnScenarioObject((
     base: (id: "rock_1", name: "Rock", position: (100.0, 0.0, -400.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-    kind: Asteroid((radius: 50.0, texture: "dep://base/textures/asteroid.png", kind: "rock", invulnerable: false)),
+    kind: Asteroid((radius: 50.0, texture: "dep://base/textures/asteroid.png", kind: "rock")),
 )),
 ```
 
@@ -116,7 +116,7 @@ ScatterObjects((
     region: Box(min: (-1000.0, -200.0, -1000.0), max: (1000.0, 200.0, 1000.0)),
     template: (
         base: (id: "asteroid_", name: "Asteroid", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-        kind: Asteroid((radius: 10.0, texture: "dep://base/textures/asteroid.png", kind: "rock", invulnerable: false)),
+        kind: Asteroid((radius: 10.0, texture: "dep://base/textures/asteroid.png", kind: "rock")),
     ),
     asteroid_radius: Some((10.0, 30.0)),
     asteroid_kinds: [("rock", 12), ("carbon", 4), ("ice", 3), ("metal", 1)],

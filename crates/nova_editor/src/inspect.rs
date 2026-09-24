@@ -736,7 +736,6 @@ const BODY_RADIUS: FieldSpec = floored("body_radius", "m", 0.5);
 const MASS: FieldSpec = floored("mass", "", 0.5);
 const RADIUS: FieldSpec = floored("radius", "m", 0.5);
 const AREA_RADIUS: FieldSpec = floored("area_radius", "m", 1.0);
-const INVULNERABLE: FieldSpec = plain("invulnerable");
 const PLANET_TYPE: FieldSpec = plain("planet_type");
 const SEED: FieldSpec = FieldSpec {
     name: "seed",
@@ -834,11 +833,11 @@ const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
 /// What the rock is MADE of comes second only to how big it is: the kind
 /// decides the whole surface, so a curated panel that showed the radius and hid
 /// the kind would be hiding the thing a builder came to pick.
-const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, KIND, MASS, INVULNERABLE, SEED];
+const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, KIND, MASS, SEED];
 /// A planet's first screen. `planet_type` leads because it is the field that
 /// changes everything else about the body; `seed` is second for the same
 /// reason it is on a rock - it picks WHICH world of that kind.
-const PLANET_PICKS: &[FieldSpec] = &[PLANET_TYPE, SEED, RADIUS, MASS, INVULNERABLE];
+const PLANET_PICKS: &[FieldSpec] = &[PLANET_TYPE, SEED, RADIUS, MASS];
 /// The whole point of a spaceship object is WHICH ship and WHO flies it, and a
 /// pick takes the field with everything under it - so the hull's source and the
 /// controller's own fields come along.

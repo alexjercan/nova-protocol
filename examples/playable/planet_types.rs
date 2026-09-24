@@ -192,7 +192,6 @@ fn planet_stage(game_assets: &GameAssets) -> ScenarioConfig {
                 kind: KIND_ROCK.to_string(),
                 destroy_sound: None,
                 mass: None,
-                invulnerable: true,
                 lock_signature: None,
                 seed: Some(TODAY_SEED),
             }),

@@ -305,7 +305,6 @@ fn scatter(
                 radius: radius.0,
                 texture: texture.clone(),
                 mass: None,
-                invulnerable: false,
                 seed: None,
                 lock_signature: None,
             }),

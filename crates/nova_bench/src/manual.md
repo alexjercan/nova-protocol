@@ -64,7 +64,8 @@ All lengths are meters, speeds meters per second, angles degrees.
 - `bodies`: asteroids and planets, in three tiers.
   - `near`: close enough to matter, or on a course your current drift runs
     into. Full records: `kind`, `radius_m`, `distance_m` to the centre,
-    `surface_m` to the surface, `bearing_deg`, `closing_mps`, `invulnerable`.
+    `surface_m` to the surface, `bearing_deg`, `closing_mps`. An `Asteroid`
+    can be shot apart; a `Planet` cannot.
   - `in_the_way`: across a line you are using. `why` names it - a body that
     occludes a lock, or one inside an engaged GOTO's path.
   - `groups`: everything else, summarised by distance band and bearing

@@ -37,9 +37,10 @@ pub const PLANETOID_ID: &str = "drydock_planetoid";
 /// a body in it and the hero still has open space around it.
 pub const PLANETOID_POSITION: Meters3 = Meters3::new(1_700.0, -950.0, -5_600.0);
 /// Big enough for its surface to read at that distance (the old reel's was 40 m
-/// across and read as a pebble). The generated rock reaches well past its
-/// nominal radius, so 300 m here draws a body roughly 1.2 km across.
-pub const PLANETOID_RADIUS: Meters = Meters(300.0);
+/// across and read as a pebble): a 1.5 km ice world.
+pub const PLANETOID_RADIUS: Meters = Meters(750.0);
+/// Pinned surface, so every capture draws the same world.
+pub const PLANETOID_SEED: u32 = 631_377_440;
 /// The body's mass parameter (mu), deliberately weak: these shots illustrate
 /// gravity, so the body in them is a real well - but at the default 45 000 it
 /// would haul the posed set out of frame during a long look. A gravitational
@@ -119,7 +120,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scena
             // exact key/rim/fill numbers, so the captured frames are unchanged.
             actions: [
                 vec![
-                    planetoid(game_assets),
+                    planetoid(),
                     belt.action(game_assets),
                     hero,
                     hauler_a,
@@ -138,8 +139,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scena
 }
 
 /// The planetoid: the set's backdrop body and its only gravity source.
-/// Invulnerable - nothing should be able to shoot the scenery out of a shot.
-pub fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
+pub fn planetoid() -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLANETOID_ID.to_string(),
@@ -147,16 +147,10 @@ pub fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
             position: PLANETOID_POSITION,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            radius: PLANETOID_RADIUS,
-            texture: game_assets.asteroid_texture.clone().into(),
-            kind: KIND_ROCK.to_string(),
-            destroy_sound: None,
-            mass: Some(PLANETOID_MASS),
-            invulnerable: true,
-            seed: None,
-            lock_signature: None,
-        }),
+        kind: ScenarioObjectKind::Planet(
+            PlanetConfig::new(PlanetType::IceWorld, PLANETOID_RADIUS, PLANETOID_SEED)
+                .anchored(PLANETOID_MASS),
+        ),
     })
 }
 

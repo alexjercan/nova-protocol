@@ -17,8 +17,7 @@
 //! 3. Dragging far the other way ARRIVES at the floor instead of being refused.
 //!    A typed negative radius is a mistake; a drag that keeps going is a
 //!    builder asking for the smallest value there is.
-//! 4. A row that is not a number has no grip: a flag is ticked, not scrubbed.
-//! 5. The grip on ONE AXIS of a vector moves by the ROW's step. The step used
+//! 4. The grip on ONE AXIS of a vector moves by the ROW's step. The step used
 //!    to be resolved a second time from the axis path, where `x` matches no
 //!    declaration: the drag was scaled by the axis fallback rather than the
 //!    row's own step and the result snapped onto a different grid, so a pose
@@ -62,9 +61,8 @@ fn main() -> bevy::app::AppExit {
 #[cfg(feature = "debug")]
 const ADD_MENU: &str = "Add Menu Button";
 
-/// The palette row the walk adds its object from. A rock, because its config is
-/// the one that carries all four shapes at once: a plain number, an optional
-/// number, a flag and a whole number.
+/// The palette row the walk adds its object from. A rock, because its config
+/// carries a plain number, an optional number and a whole number at once.
 #[cfg(feature = "debug")]
 const OBJECT_ITEM: &str = "Add Asteroid";
 
@@ -73,10 +71,6 @@ const OBJECT_ITEM: &str = "Add Asteroid";
 const RADIUS_ROW: &str = "Radius";
 #[cfg(feature = "debug")]
 const RADIUS_GRIP: &str = "Inspector Grip Radius";
-
-/// The row that must NOT have one.
-#[cfg(feature = "debug")]
-const FLAG_GRIP: &str = "Inspector Grip Invulnerable";
 
 /// The grip on one axis of a VECTOR row. The axis letter is the grip, because
 /// the panel is 240px wide.
@@ -357,7 +351,7 @@ fn field_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add()
 }
 
-/// The unit beside the radius, and the grip a flag must not have.
+/// The unit beside the radius, and the grip it is scrubbed by.
 #[cfg(feature = "debug")]
 fn read_the_rows_match_their_types(world: &mut World) {
     let unit = world
@@ -378,16 +372,12 @@ fn read_the_rows_match_their_types(world: &mut World) {
         ui_node_rect(world, RADIUS_GRIP).is_some(),
         "a number's name is its grip"
     );
-    assert!(
-        ui_node_rect(world, FLAG_GRIP).is_none(),
-        "a flag is ticked, not scrubbed: a grip on it would offer a gesture with nothing to do"
-    );
     nova_probe::probe_marker(
         world,
         "outcome: a declared field wears its own unit",
         serde_json::json!({ "unit": unit }),
     );
-    info!("fields: the radius reads in `{unit}`, and only the numbers have grips");
+    info!("fields: the radius reads in `{unit}`, and its name is its grip");
 }
 
 #[cfg(feature = "debug")]

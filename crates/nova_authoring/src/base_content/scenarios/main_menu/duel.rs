@@ -344,7 +344,6 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
                 radius: Meters(10.0),
                 texture: asteroid_texture,
                 mass: None,
-                invulnerable: false,
                 seed: None,
                 lock_signature: None,
             }),

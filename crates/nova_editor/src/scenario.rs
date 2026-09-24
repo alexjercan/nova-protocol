@@ -72,25 +72,20 @@ pub(crate) const PLAYER_ID: &str = "player_spaceship";
 
 /// The planetoid: far enough that it reads as a destination.
 ///
-/// At 314u from the spawn the player is INSIDE it in every sense that matters:
-/// an asteroid's real surface is `radius *` 3.5-6.0 (the
-/// noise mesh displaces outward - see `ASTEROID_GEOMETRIC_FACTOR_MAX`), so a
-/// 55u planetoid was a ~250u ball of rock, and its well reached
-/// `sqrt(mu / soi_cutoff_accel)` ~ 1095u. You spawned ~60u off its surface and
-/// fell in. Both numbers are derived from authored data, so
-/// `the_spawn_is_clear_of_the_planetoid` recomputes them rather than trusting
-/// this comment.
+/// The spawn must sit outside both its body and its well: a player spawned
+/// inside the sphere of influence falls in on its own. Both are derived from
+/// authored data, so `the_spawn_is_clear_of_the_planetoid` recomputes them
+/// rather than trusting this comment.
 const PLANETOID_POSITION: Vec3 = Vec3::new(-560.0, -110.0, -380.0);
-/// Nominal planetoid radius; the drawn body is 3.5-6.0x this.
-const PLANETOID_RADIUS: f32 = 24.0;
+/// Mean planetoid radius; the surface is
+/// [`PlanetConfig::body_radius`], this plus the barren relief.
+const PLANETOID_RADIUS: Meters = Meters(600.0);
 /// Planetoid mass parameter, authored by the REACH it buys:
 /// `mu = soi_cutoff_accel * soi^2` at the shipped 0.25 cutoff gives a 400u
 /// sphere of influence - a well the player can go looking for, and cannot fall
 /// into by accident from the spawn.
 const PLANETOID_MASS: f32 = 40_000.0;
-/// Pinned silhouette. An unseeded rock redraws itself every load, and this
-/// body is the one thing here whose real radius the layout is measured
-/// against.
+/// Pinned surface, so the planetoid draws the same world every load.
 const PLANETOID_SEED: u32 = 20_260_815;
 
 /// The inert hulks, port-forward of the spawn: a corridor of things to shoot
@@ -664,8 +659,8 @@ fn sandbox_objects(
     objects
 }
 
-/// The planetoid: a large, invulnerable, PINNED rock with an explicit mass, so
-/// it reads as a proper well and as scenery rather than a target.
+/// The planetoid: a barren world with an explicit mass, so it reads as a
+/// proper well and as scenery rather than a target.
 fn planetoid() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -674,18 +669,10 @@ fn planetoid() -> ScenarioObjectConfig {
             position: Meters3::from_engine(PLANETOID_POSITION),
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            // DIRECT paths, not dep://: the editor's world is built at runtime
-            // outside the mod merge, so scheme refs would never rewrite.
-            kind: KIND_ROCK.to_string(),
-            destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
-            radius: Meters::from_engine(PLANETOID_RADIUS),
-            texture: AssetRef::from(ASTEROID_TEXTURE),
-            mass: Some(PLANETOID_MASS),
-            invulnerable: true,
-            seed: Some(PLANETOID_SEED),
-            lock_signature: None,
-        }),
+        kind: ScenarioObjectKind::Planet(
+            PlanetConfig::new(PlanetType::BarrenRock, PLANETOID_RADIUS, PLANETOID_SEED)
+                .anchored(PLANETOID_MASS),
+        ),
     }
 }
 
@@ -971,13 +958,14 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                // DIRECT paths, not dep:// - see `planetoid`.
+                // DIRECT paths, not dep://: the editor's world is built at
+                // runtime outside the mod merge, so scheme refs would never
+                // rewrite.
                 kind: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 radius: Meters::from_engine(belt.radius.0),
                 texture: AssetRef::from(ASTEROID_TEXTURE),
                 mass: None,
-                invulnerable: false,
                 seed: None,
                 lock_signature: None,
             }),
@@ -1641,11 +1629,14 @@ mod tests {
         assert_eq!(lowered.len(), default_world_objects().len());
     }
 
-    /// The planetoid's WORST-CASE drawn radius and its well, recomputed from
-    /// the authored numbers exactly as the engine derives them.
+    /// The planetoid's surface radius and its well, recomputed from the
+    /// authored config exactly as the engine derives them.
     fn planetoid_reach() -> (f32, GravityWell) {
         let settings = GravitySettings::default();
-        let body_radius = PLANETOID_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX;
+        let ScenarioObjectKind::Planet(config) = planetoid().kind else {
+            panic!("the planetoid is a planet");
+        };
+        let body_radius = config.body_radius().to_engine();
         (
             body_radius,
             GravityWell::from_mass(PLANETOID_MASS, body_radius, &settings),

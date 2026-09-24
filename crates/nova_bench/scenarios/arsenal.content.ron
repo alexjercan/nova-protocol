@@ -162,7 +162,6 @@
                             texture: "base/textures/asteroid.png",
                             kind: "rock",
                             destroy_sound: Some("base/sounds/destroy_rock.wav"),
-                            invulnerable: false,
                             seed: Some(20260912),
                         )),
                     )),

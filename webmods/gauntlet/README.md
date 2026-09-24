@@ -4,9 +4,9 @@ The first PORTAL mod: published to the static mod portal by `scripts/gen-portal.
 NOT shipped inside the game's `assets/`. A mod is the same shape as the base
 game: a folder with a `*.bundle.ron` manifest listing its `*.content.ron` files.
 
-This mod adds one scenario, `gauntlet_run` - a parkour course (currently v1.3.0;
+This mod adds one scenario, `gauntlet_run` - a parkour course (currently v1.14.0;
 grown from a thin four-gate slalom in v1.0.0): six ordered gates across three escalating acts
-(warmup / slalom / hazard), invulnerable asteroids crowding the racing line, and
+(warmup / slalom / hazard), asteroids crowding the racing line, and
 an act-3 gravity well to sling or avoid. Crossing FINISH declares Victory;
 wrecking your hull on the rocks declares Defeat with a Retry. Pure flying skill,
 no combat. Since v1.3.0 it is a TIME-TRIAL: a live `mm:ss.s` run clock (a
@@ -25,13 +25,18 @@ patterns](../../web/src/wiki/dev/scenario-system.md) section (headings
 `The gate-counter ordering pattern` and `The act-gating pattern`); that section's
 `The Gauntlet worked example` also links back here and to the test rig. It also
 exercises the data-driven scenario vocabulary - `ScatterObjects`, `Asteroid`
-(`invulnerable`, `mass`, per-spawn `destroy_sound`),
+(per-spawn `destroy_sound`), `Planet` (`mass`),
 ordered `OnEnter` gates, `SetSkybox` per act, and `Outcome` frames - all in RON.
 
-The behavior and layout are pinned by
-`crates/nova_assets/tests/gauntlet_course.rs`, which loads THIS content file and
-asserts both patterns and the two geometric invariants
-(`cargo test -p nova_assets --test gauntlet_course`).
+No test loads THIS content file. The engine contract behind the gate-counter
+pattern (ordered `gate == N` filters, the named-ship filter, repeatable zones,
+counter-keyed banners, and a terminal value that disarms the loss handler) is
+pinned on a synthetic course by
+`crates/nova_assets/tests/scenario_gate_course.rs`
+(`cargo test -p nova_assets --test scenario_gate_course`). Content lint checks
+this bundle's schema, ids, and references
+(`cargo run content lint --target webmods/gauntlet`). Nothing checks the two
+geometric invariants in the content file's header comments.
 
 ## The copy-me publish example
 

@@ -30,7 +30,6 @@
                             planet_type: Temperate,
                             seed: 7,
                             mass: Some(30000.0),
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -293,7 +292,6 @@
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((

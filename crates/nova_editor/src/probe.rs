@@ -673,7 +673,6 @@ mod tests {
                         kind: KIND_ROCK.to_string(),
                         destroy_sound: None,
                         mass: None,
-                        invulnerable: false,
                         seed: None,
                         lock_signature: None,
                     }),

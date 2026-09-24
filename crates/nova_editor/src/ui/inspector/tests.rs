@@ -82,7 +82,6 @@ fn asteroid(app: &mut App, scenario: Entity, id: &str, radius: Meters) -> Entity
                     kind: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     mass: None,
-                    invulnerable: false,
                     seed: None,
                     lock_signature: None,
                 }),
@@ -299,12 +298,12 @@ fn inspecting_another_node_rebuilds_the_rows() {
     let nav = beacon(&mut app, scenario, "beacon_1");
 
     select(&mut app, rock);
-    assert!(row_names(&mut app).contains(&"Invulnerable".to_string()));
+    assert!(row_names(&mut app).contains(&"Kind".to_string()));
 
     select(&mut app, nav);
     let names = row_names(&mut app);
     assert!(
-        names.contains(&"Label".to_string()) && !names.contains(&"Invulnerable".to_string()),
+        names.contains(&"Label".to_string()) && !names.contains(&"Kind".to_string()),
         "the beacon's rows replaced the rock's: {names:?}"
     );
 }
@@ -1028,12 +1027,8 @@ fn a_row_that_is_not_a_number_has_no_grip() {
 
     assert!(grip_of(&mut app, "Radius").is_some());
     assert!(
-        grip_of(&mut app, "Invulnerable").is_none(),
-        "a flag is ticked, not scrubbed"
-    );
-    assert!(
         grip_of(&mut app, "Name").is_none(),
-        "and a name is typed, not scrubbed"
+        "a name is typed, not scrubbed"
     );
 }
 

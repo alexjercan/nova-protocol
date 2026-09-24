@@ -45,8 +45,9 @@
 //! - `beacons` - every [`BeaconMarker`]: id, label, position. The nav marks a
 //!   scenario tells the player to fly to.
 //! - `bodies` - every asteroid and planet: id, name, kind, position, the
-//!   derived surface radius (a carved rock shrinks) and whether it is
-//!   invulnerable. A rock that was carved away is simply gone from the list.
+//!   derived surface radius (a carved rock shrinks). The kind says whether
+//!   it can be destroyed: every asteroid can, no planet can. A rock that was
+//!   carved away is simply gone from the list.
 //! - `mission` - what the player is being asked to do: the `objectives` on the
 //!   HUD, the declared `outcome` (`null` in play, else the Victory or Defeat
 //!   banner with its message), the `comms` lines the story feed has delivered
@@ -136,10 +137,7 @@ use nova_os_ui::{
     terminal::{nova_os_window_px_showing, NovaOsFlightLog, NovaOsFlightLogEntryKind},
 };
 use nova_scenario::{
-    prelude::{
-        AsteroidInvulnerable, AsteroidMarker, CurrentOutcome, CurrentScenario, PlanetInvulnerable,
-        PlanetMarker, SpaceshipController,
-    },
+    prelude::{AsteroidMarker, CurrentOutcome, CurrentScenario, PlanetMarker, SpaceshipController},
     world::NovaEventWorld,
 };
 use nova_ship::prelude::{
@@ -597,20 +595,10 @@ fn beacon_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
 fn body_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
     let id = label(world, entity);
     let transform = world.get::<Transform>(entity).copied().unwrap_or_default();
-    let (kind, invulnerable) = if world.get::<PlanetMarker>(entity).is_some() {
-        (
-            "Planet",
-            world
-                .get::<PlanetInvulnerable>(entity)
-                .is_some_and(|flag| flag.0),
-        )
+    let kind = if world.get::<PlanetMarker>(entity).is_some() {
+        "Planet"
     } else {
-        (
-            "Asteroid",
-            world
-                .get::<AsteroidInvulnerable>(entity)
-                .is_some_and(|flag| flag.0),
-        )
+        "Asteroid"
     };
     let record = serde_json::json!({
         "id": id,
@@ -618,7 +606,6 @@ fn body_record(world: &World, entity: Entity) -> (String, serde_json::Value) {
         "kind": kind,
         "position": vec3(transform.translation),
         "radius": world.get::<BodyRadius>(entity).map(|radius| num(radius.0)),
-        "invulnerable": invulnerable,
     });
     (key(&id), record)
 }
@@ -1818,9 +1805,7 @@ mod tests {
     #[test]
     fn bodies_and_the_autopilot_say_where_the_ship_is_and_where_it_is_going() {
         use nova_gameplay::prelude::DominantWell;
-        use nova_scenario::prelude::{
-            AsteroidInvulnerable, AsteroidMarker, PlanetInvulnerable, PlanetMarker,
-        };
+        use nova_scenario::prelude::{AsteroidMarker, PlanetMarker};
         use nova_ship::prelude::{Autopilot, AutopilotAction, BodyRadius};
 
         let mut app = rig();
@@ -1836,7 +1821,6 @@ mod tests {
                 Name::new("Kestrel"),
                 Transform::from_xyz(0.0, 0.0, -700.0),
                 BodyRadius(66.0),
-                PlanetInvulnerable(true),
             ))
             .id();
         app.world_mut().spawn((
@@ -1845,7 +1829,6 @@ mod tests {
             Name::new("Rock"),
             Transform::from_xyz(30.0, 0.0, -150.0),
             BodyRadius(1.4),
-            AsteroidInvulnerable(false),
         ));
         let ship = ship(&mut app, "cutter", Vec3::ZERO);
         app.world_mut().entity_mut(ship).insert((
@@ -1863,10 +1846,8 @@ mod tests {
         assert_eq!(bodies[0]["kind"], "Planet");
         assert_eq!(bodies[0]["name"], "Kestrel");
         assert_eq!(bodies[0]["radius"], 66.0);
-        assert_eq!(bodies[0]["invulnerable"], true);
         assert_eq!(bodies[1]["id"], "rock");
         assert_eq!(bodies[1]["kind"], "Asteroid");
-        assert_eq!(bodies[1]["invulnerable"], false);
         assert_eq!(
             bodies[1]["position"],
             serde_json::json!([30.0, 0.0, -150.0])

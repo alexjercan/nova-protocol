@@ -173,7 +173,6 @@
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
@@ -237,7 +236,6 @@
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
@@ -305,7 +303,6 @@
                             planet_type: BarrenRock,
                             seed: 20260815,
                             mass: Some(10000.0),
-                            invulnerable: true,
                         )),
                     )),
                     ObjectiveMarkerAttach((

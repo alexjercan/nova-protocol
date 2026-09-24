@@ -343,9 +343,9 @@ const DERELICT_ID_PREFIX: &str = "arena_derelict_";
 /// influence (`mu = soi_cutoff_accel * soi^2` at the shipped 0.25 cutoff), so
 /// it is scenery and never a well the fight falls into.
 const PLANETOID_POSITION: Meters3 = Meters3::new(-6_200.0, -1_400.0, -4_200.0);
-const PLANETOID_RADIUS: Meters = Meters(240.0);
+const PLANETOID_RADIUS: Meters = Meters(600.0);
 const PLANETOID_MASS: f32 = 40_000.0;
-/// Pinned silhouette, so the landmark is the same landmark every load.
+/// Pinned surface, so the landmark is the same landmark every load.
 const PLANETOID_SEED: u32 = 20_260_816;
 
 /// The prototypes the arena reads by name: the two bays it swaps between, and
@@ -1171,7 +1171,6 @@ fn rock_ring(
                 radius: radius.0,
                 texture: AssetRef::from(game_assets.asteroid_texture.clone()),
                 mass: None,
-                invulnerable: false,
                 seed: None,
                 lock_signature: None,
             }),
@@ -1400,9 +1399,9 @@ fn derelicts(
     actions
 }
 
-/// The landmark: one large, invulnerable, PINNED rock, far enough out to be
+/// The landmark: one barren world with a pinned seed, far enough out to be
 /// scenery rather than a wall or a well.
-fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
+fn planetoid() -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "arena_planetoid".to_string(),
@@ -1410,16 +1409,10 @@ fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
             position: PLANETOID_POSITION,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            kind: KIND_ROCK.to_string(),
-            destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
-            radius: PLANETOID_RADIUS,
-            texture: AssetRef::from(game_assets.asteroid_texture.clone()),
-            mass: Some(PLANETOID_MASS),
-            invulnerable: true,
-            seed: Some(PLANETOID_SEED),
-            lock_signature: None,
-        }),
+        kind: ScenarioObjectKind::Planet(
+            PlanetConfig::new(PlanetType::BarrenRock, PLANETOID_RADIUS, PLANETOID_SEED)
+                .anchored(PLANETOID_MASS),
+        ),
     })
 }
 
@@ -1483,7 +1476,7 @@ fn arena(
                 .chain(ThreePointRig::around("arena", Meters3::ZERO, 8.0).actions())
                 .chain(derelicts(game_assets, styles, roster))
                 .chain([
-                    planetoid(game_assets),
+                    planetoid(),
                     // Depth parallax under the fight plane, and a sparser far
                     // ring so the void has a middle distance.
                     rock_ring(

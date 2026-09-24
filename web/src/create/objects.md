@@ -53,13 +53,14 @@ fires destruction events.
 ## Asteroid
 
 A noise-generated destructible rock. `radius` drives the mesh, collider,
-default mass and radar signature together.
+default mass and radar signature together. Every asteroid can be carved and
+destroyed, its gravity well with it. A body that must last the whole scenario
+is a [planet](#planet).
 
 | field | type | default | meaning |
 |---|---|---|---|
 | `radius` | number | required | nominal radius in meters, and the rock's DURABILITY - see below. The true mesh extent reaches up to 6x this (matters for [`min_separation`](../actions/#scatterobjects)) |
 | `texture` | asset ref | required | the fine crevice GRAIN the kind modulates, not the rock's colour (`dep://base/textures/asteroid.png` is the stock one) |
-| `invulnerable` | bool | required | `true` = no carving: the rock and its gravity well cannot be destroyed mid-scenario |
 | `mass` | `Option` number | `None` | well STRENGTH (the parameter mu), an engine dial rather than an SI mass - see [Anchor](#anchor). `Some` ALWAYS makes this rock a well. Size it by the reach you want, which is metric: `mass = (soi / 20)^2` for an `soi` in meters, so the campaign planetoid's 27,000 buys 3.29 km. `None` = the global rule (a default mass only if the radius qualifies it as a well: below 50 m a rock stays flat space) |
 | `kind` | string | required | the rock's KIND: `"rock"`, `"metal"`, `"ice"`, `"carbon"` or `"plain"`. It decides how the rock LOOKS - see [below](#what-a-rock-is-made-of). There is no default and no fallback |
 | `destroy_sound` | `Option` asset ref | `None` | played on destruction (`Some("dep://base/sounds/destroy_rock.wav")`); omitted = silent |
@@ -68,13 +69,12 @@ default mass and radar signature together.
 
 ```ron
 SpawnScenarioObject((
-    base: (id: "planetoid", name: "Planetoid", position: (2500.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    base: (id: "boulder", name: "Boulder", position: (2500.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Asteroid((
         radius: 200.0,
         texture: "dep://base/textures/asteroid.png",
         kind: "rock",
         mass: Some(45000.0),
-        invulnerable: true,
     )),
 )),
 ```
@@ -147,12 +147,14 @@ got and where.
 Use this for anything meant to read as somewhere. An [asteroid](#asteroid)
 with a big radius is a rock the size of a planet, and it looks like one.
 
+A planet can never be destroyed. Weapons fire leaves it alone, and its gravity
+well lasts the whole scenario.
+
 | field | type | default | meaning |
 |---|---|---|---|
 | `planet_type` | type name | required | `BarrenRock`, `DustWorld`, `IceWorld`, `Volcanic`, `Greenhouse` or `Temperate`. A name outside that list is a LOAD ERROR, not a fallback |
 | `radius` | number | required | MEAN radius in meters, and the body's real size. Unlike a rock's nominal radius, the surface stands only `1 + relief` off this - a few percent - so this is very nearly what everything measures from |
 | `seed` | number | required | which world of that type: the biome in every band, the cap latitude, the palette tint and the terrain itself. Required on purpose - a landmark cannot be a body the engine picked for you |
-| `invulnerable` | bool | required | must be `true`: weapons fire leaves it alone and its gravity well survives the whole scenario. There is no destructible planet yet, so `false` is a `content lint` error and a load refusal rather than a body that silently cannot be destroyed |
 | `mass` | `Option` number | `None` | well STRENGTH, exactly as on an [asteroid](#asteroid): `mass = (soi / 20)^2` for an `soi` in meters. `None` = the global rule |
 | `relief` | `Option` number | `None` | how far the highest ground stands above the mean radius, in meters. `None` = the type's own (2% of the radius on a hazy greenhouse, 6% on a volcanic world). Must be positive and smaller than the radius |
 | `sea_level` | `Option` number | `None` | where the surface flattens into sea, as a fraction 0-1 of the height range. `Some(0.0)` drains a sea; `None` = the type's own (only `IceWorld` and `Temperate` have one) |
@@ -166,7 +168,6 @@ SpawnScenarioObject((
         radius: 950.0,
         seed: 7,
         mass: Some(27000.0),
-        invulnerable: true,
     )),
 )),
 ```

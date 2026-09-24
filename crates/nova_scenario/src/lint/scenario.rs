@@ -1306,11 +1306,6 @@ fn check_planet(config: &ScenarioObjectConfig, scenario: &str, issues: &mut Vec<
         "radius" => {
             format!("planet '{id}' needs a positive finite mean radius in meters, got {value}")
         }
-        "invulnerable" => format!(
-            "planet '{id}' authors `invulnerable: false`, and there is no destructible \
-             planet: the body would take no damage marks, emit no collision events and \
-             never fire OnDestroyed. Author `invulnerable: true`"
-        ),
         "relief" => format!(
             "planet '{id}' authors a relief of {value}; relief is a height above the mean \
              surface, so it must be positive and smaller than the radius"
@@ -2285,16 +2280,6 @@ mod tests {
                         ..sound()
                     },
                 ),
-                // There is no destructible planet. `false` builds a body with
-                // no damage marks and no collision events, so a mission
-                // authored around destroying it can never finish.
-                planet(
-                    "destructible",
-                    PlanetConfig {
-                        invulnerable: false,
-                        ..sound()
-                    },
-                ),
                 planet("sound", sound()),
             ],
             vec![],
@@ -2306,7 +2291,6 @@ mod tests {
             "relief_past_the_radius",
             "sea_above_the_peaks",
             "weightless_well",
-            "destructible",
         ] {
             assert!(
                 errs.iter()
@@ -2543,7 +2527,6 @@ mod tests {
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
                     mass: None,
-                    invulnerable: false,
                     seed: None,
                     lock_signature: None,
                 }),
@@ -2604,7 +2587,6 @@ mod tests {
                         radius: Meters(20.0),
                         texture: nova_gameplay::prelude::AssetRef::default(),
                         mass: None,
-                        invulnerable: false,
                         seed: None,
                         lock_signature: None,
                     }),

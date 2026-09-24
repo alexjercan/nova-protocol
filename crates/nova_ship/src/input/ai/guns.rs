@@ -605,7 +605,7 @@ mod line_of_fire_tests {
     }
 
     /// A tangible static rock: the production shape of authored cover
-    /// (an invulnerable asteroid is a Static body with a plain collider).
+    /// (a planet with a well is a Static body with a plain collider).
     fn spawn_rock(app: &mut App, position: Vec3, radius: f32) -> Entity {
         app.world_mut()
             .spawn((

@@ -169,8 +169,9 @@ second and degrees:
 - `beacons` with `distance_m` and `bearing_deg`.
 - `bodies`: the asteroids and planets, in three tiers. `near` and
   `in_the_way` carry the full record - `kind`, `radius_m`, `distance_m` to
-  the centre, `surface_m` to the surface, `bearing_deg`, `closing_mps`,
-  `invulnerable` - and `in_the_way` adds `why`. Everything else is one
+  the centre, `surface_m` to the surface, `bearing_deg`, `closing_mps` -
+  and `in_the_way` adds `why`. The `kind` says whether a body can be
+  destroyed: every `Asteroid` can, no `Planet` can. Everything else is one
   summary per `{distance band}.{bearing sector}` group with a `key`, a
   `count` and the nearest surface, farthest surface and largest radius in it;
   `observe {"expand": ["<key>"]}` opens one back up and `expanded` lists the

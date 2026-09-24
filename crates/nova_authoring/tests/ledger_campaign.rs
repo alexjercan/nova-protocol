@@ -216,7 +216,6 @@ fn every_map_contains_a_dense_reproducible_field_planets_and_moving_traffic() {
                         panic!("the counted field must actually contain rocks")
                     };
                     assert_eq!(rock.mass, Some(0.0));
-                    assert!(!rock.invulnerable, "terrain remains carvable");
                     rocks += field.count;
                 }
                 EventActionConfig::SpawnScenarioObject(object) => match &object.kind {

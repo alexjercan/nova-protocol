@@ -101,8 +101,8 @@ Three things follow, and all of them are things you do with the trigger.
   smaller goes out as dust. Cut a rock in half across a firing line and you have
   opened it, not cleared it.
 
-An **invulnerable** planetoid does none of this. It is scenery, it never wears,
-and its gravity well cannot be shot away.
+A **planet** does none of this. It never wears, and its gravity well cannot be
+shot away.
 
 ## Damage types
 

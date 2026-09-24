@@ -385,7 +385,6 @@ fn ram_range(game_assets: &GameAssets) -> ScenarioConfig {
                 // No well: a designated rock is put on rails and drags every
                 // lane inside its sphere of influence along with it.
                 mass: None,
-                invulnerable: false,
                 seed: None,
                 lock_signature: None,
             }),

@@ -79,7 +79,7 @@ Nothing sits under that budget. There is no ceiling on how many sections one rou
 <p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 1,000 m/s destroys the first section and hits the second for 40; at 2,000 m/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 1,000 m/s, so it takes all five and stops in the sixth; at 3,000 m/s a crossing costs only 20 and the same dart takes fifteen.</p>
 </div>
 
-Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. What a round does to a rock instead is take a bite out of it (see [Shooting rock](../../../combat-weapons/#shooting-rock)); an invulnerable planetoid does not even do that. Torpedoes do not travel through anything either - they detonate.
+Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. What a round does to a rock instead is take a bite out of it (see [Shooting rock](../../../combat-weapons/#shooting-rock)); a planet does not even do that. Torpedoes do not travel through anything either - they detonate.
 
 ## Trigger discipline
 

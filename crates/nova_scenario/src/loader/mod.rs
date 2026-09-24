@@ -887,7 +887,6 @@ mod tests {
                             radius: Meters(50.0),
                             texture: AssetRef::from("textures/rock.png"),
                             mass: None,
-                            invulnerable: false,
                             seed: None,
                             lock_signature: None,
                         }),

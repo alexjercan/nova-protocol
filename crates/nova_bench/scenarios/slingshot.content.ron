@@ -63,7 +63,6 @@
                             planet_type: BarrenRock,
                             seed: 20260912,
                             mass: Some(50000.0),
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -79,7 +78,6 @@
                             kind: "metal",
                             destroy_sound: Some("base/sounds/destroy_rock.wav"),
                             mass: Some(12000.0),
-                            invulnerable: false,
                             seed: Some(20260913),
                         )),
                     )),
