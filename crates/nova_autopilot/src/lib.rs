@@ -130,7 +130,7 @@ pub mod prelude {
             loop_end, loop_file_name, loop_start, sheet_file_name, sheet_start, LoopCaptureEnded,
             LoopCaptureFrame, LoopCapturePlugin, LoopCaptureStarted, LoopProfile, LoopRecorder,
             SheetGrid, LOOP_AUDIO_SAMPLE_RATE, LOOP_CAPTURE, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP,
-            LOOP_RESOLUTION,
+            LOOP_RESOLUTION, LOOP_STAGING_DIR,
         },
         predicate::{
             and, any_entity, elapsed, frames, loop_written, not, or, pointer_at, pointer_at_node,

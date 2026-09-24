@@ -149,8 +149,9 @@ Implementation boundary:
   capped or paused frames silent with a held playhead and gain 0 rows,
   one-shots play out and hold their last row, loops end with their rows),
   copies the samples (a copy failure warns; any other failure, including a
-  voice with no asset path or a clip path that is not plain relative names,
-  vetoes the loop), and publishes `<loop>.jsonl` last through a rename. Speed
+  voice with no asset path, a clip path that is not plain relative names, or a
+  clip path inside the reserved `.loop-frames` staging subtree, vetoes the loop),
+  and publishes `<loop>.jsonl` last through a rename. Speed
   is internal to the render and never enters the sidecar. Loop names and clip
   paths are JSON-escaped; an ordinary name or path keeps its bytes.
 - The encode runs after the sidecar is published, so an ffmpeg mux failure

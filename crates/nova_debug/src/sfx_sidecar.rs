@@ -22,8 +22,9 @@
 
 use std::{
     collections::HashMap,
+    ffi::OsStr,
     fs,
-    io::Write,
+    io::{self, Write},
     path::{Component, Path},
     process::{Command, Stdio},
 };
@@ -31,6 +32,7 @@ use std::{
 use bevy::prelude::*;
 use nova_autopilot::loops::{
     LoopCaptureEnded, LoopCaptureFrame, LoopCaptureStarted, LOOP_AUDIO_SAMPLE_RATE,
+    LOOP_STAGING_DIR,
 };
 use nova_gameplay::prelude::{SfxVoice, VoiceMix};
 
@@ -155,7 +157,8 @@ impl OpenSidecar {
                     };
                     // The path is also where the sample is copied, beside the
                     // sidecar. Anything but plain names could write outside
-                    // the capture directory.
+                    // the capture directory, and a copy into loop staging
+                    // would land in files the encode reads and then deletes.
                     if !is_confined(&clip) {
                         self.failure.get_or_insert_with(|| {
                             format!("a voice on frame {frame} names unsafe sample path `{clip}`")
@@ -220,7 +223,7 @@ fn sample_sidecar(
     let Some(open) = sidecar.open.as_mut() else {
         return;
     };
-    open.sample(frame.frame, &q_voices, |handle| {
+    open.sample(frame.frame, q_voices, |handle| {
         assets
             .get_path(handle.id())
             .map(|path| path.path().to_string_lossy().replace('\\', "/"))
@@ -288,14 +291,8 @@ fn finish(
         .filter(|(clip, data)| copy_sample(directory, clip, data))
         .count();
 
-    let partial = ended.sidecar_path.with_extension("jsonl.part");
-    fs::create_dir_all(directory)
-        .and_then(|()| fs::write(&partial, open.jsonl()))
-        .and_then(|()| fs::rename(&partial, &ended.sidecar_path))
-        .map_err(|error| {
-            let _ = fs::remove_file(&partial);
-            format!("cannot write {}: {error}", ended.sidecar_path.display())
-        })?;
+    publish_sidecar(&ended.sidecar_path, &open.jsonl())
+        .map_err(|error| format!("cannot write {}: {error}", ended.sidecar_path.display()))?;
     let peak = if peak > 0.0 {
         format!("{:.2} dBFS", 20.0 * peak.log10())
     } else {
@@ -313,13 +310,38 @@ fn finish(
     Ok(())
 }
 
+/// Write `text` to `path` through a `.jsonl.part` sibling, so a reader never
+/// sees a partial sidecar. The partial file is deleted on failure.
+fn publish_sidecar(path: &Path, text: &str) -> io::Result<()> {
+    let partial = path.with_extension("jsonl.part");
+    // `create_dir_all` succeeds on the empty parent of a bare `name.jsonl`.
+    path.parent()
+        .map_or(Ok(()), fs::create_dir_all)
+        .and_then(|()| fs::write(&partial, text))
+        // `rename` replaces an existing sidecar on Windows too
+        // (`MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`). Deleting the old
+        // file first would leave a moment with no sidecar on disk.
+        .and_then(|()| fs::rename(&partial, path))
+        .inspect_err(|_| {
+            let _ = fs::remove_file(&partial);
+        })
+}
+
 /// Whether `clip` is a non-empty relative path of plain names, with no root,
-/// prefix, `.` or `..`.
+/// prefix, `.` or `..`, outside [`LOOP_STAGING_DIR`]. The staging check
+/// follows case-insensitive filesystems and Windows trailing-dot normalization.
 fn is_confined(clip: &str) -> bool {
-    !clip.is_empty()
-        && Path::new(clip)
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
+    let mut components = Path::new(clip).components();
+    components
+        .next()
+        .is_some_and(|first| matches!(first, Component::Normal(name) if !is_staging_name(name)))
+        && components.all(|component| matches!(component, Component::Normal(_)))
+}
+
+fn is_staging_name(name: &OsStr) -> bool {
+    name.to_string_lossy()
+        .trim_end_matches(['.', ' '])
+        .eq_ignore_ascii_case(LOOP_STAGING_DIR)
 }
 
 /// `text` as a JSON string literal. Only `"`, `\` and control characters are
@@ -392,19 +414,18 @@ fn decode_clip(bytes: &[u8], downmix: bool) -> Result<Vec<[f32; 2]>, String> {
         ));
     }
     written.map_err(|error| format!("could not feed ffmpeg: {error}"))?;
-    if output.stdout.len() % 8 != 0 {
+    let (frames, rest) = output.stdout.as_chunks::<8>();
+    if !rest.is_empty() {
         return Err(format!(
             "ffmpeg returned {} bytes, not whole stereo f32 frames",
             output.stdout.len()
         ));
     }
-    Ok(output
-        .stdout
-        .chunks_exact(8)
+    Ok(frames
+        .iter()
         .map(|frame| {
-            let channel =
-                |at: usize| f32::from_le_bytes(frame[at..at + 4].try_into().expect("4 bytes"));
-            [channel(0), channel(4)]
+            let (channels, _) = frame.as_chunks::<4>();
+            std::array::from_fn(|channel| f32::from_le_bytes(channels[channel]))
         })
         .collect())
 }
@@ -593,15 +614,29 @@ mod tests {
     }
 
     /// A sample path is also where its copy is written, so a path that could
-    /// leave the capture directory vetoes the loop and writes no row.
+    /// leave the capture directory or enter loop staging vetoes the loop and
+    /// writes no row. Plain nested and dot-prefixed names stay accepted.
     #[test]
-    fn a_sample_path_outside_the_capture_directory_vetoes_the_loop() {
+    fn only_sample_paths_inside_the_capture_directory_and_outside_staging_are_accepted() {
         let voice = SfxVoice::one_shot(Handle::default(), AudioRoute::Interface);
+        for safe_path in ["sfx/impact/hit.wav", "sounds/.hidden.wav"] {
+            let mut open = OpenSidecar::new("safe", 30);
+            let entity = Entity::from_index(EntityIndex::from_raw_u32(1).unwrap());
+            open.sample(0, [(entity, &voice, &mix(1.0, false))], |_| {
+                Some(safe_path.to_string())
+            });
+            assert_eq!(open.failure, None, "{safe_path} must be accepted");
+            assert_eq!(open.rows.len(), 1, "{safe_path} wrote no row");
+        }
         for unsafe_path in [
             "../escape.wav",
             "/etc/escape.wav",
             "sounds/../x.wav",
             "./x.wav",
+            ".loop-frames/foo.wav",
+            ".loop-frames",
+            ".LOOP-FRAMES.",
+            ".loop-frames /audio.f32le",
         ] {
             let mut open = OpenSidecar::new("escape", 30);
             let entity = Entity::from_index(EntityIndex::from_raw_u32(1).unwrap());
@@ -617,6 +652,23 @@ mod tests {
                 open.failure
             );
         }
+    }
+
+    /// A second capture of a loop replaces its sidecar and leaves no partial
+    /// file.
+    #[test]
+    fn publishing_a_sidecar_replaces_the_previous_one() {
+        let dir =
+            std::env::temp_dir().join(format!("nova-sfx-sidecar-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let path = dir.join("strike.jsonl");
+
+        publish_sidecar(&path, "first\n").unwrap();
+        publish_sidecar(&path, "second\n").unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "second\n");
+        assert!(!dir.join("strike.jsonl.part").exists());
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     /// A quote, backslash or control character in a loop name or clip path

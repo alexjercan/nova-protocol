@@ -145,6 +145,11 @@ pub const LOOP_CRF: u32 = 34;
 /// WebM.
 pub const LOOP_AUDIO_SAMPLE_RATE: u32 = 44_100;
 
+/// Directory under the shot dir that holds every loop's staging directory.
+/// The encode deletes a loop's staging directory, so nothing else may write
+/// inside it.
+pub const LOOP_STAGING_DIR: &str = ".loop-frames";
+
 /// Name of the staged audio track inside a loop's staging directory.
 const LOOP_AUDIO_FILE: &str = "audio.f32le";
 
@@ -353,7 +358,7 @@ pub fn sheet_file_name(name: &str) -> String {
 
 /// Where a loop's numbered staging frames go, under the shot dir.
 fn staging_dir(name: &str) -> PathBuf {
-    capture::capture_path(&format!(".loop-frames/{name}"))
+    capture::capture_path(&format!("{LOOP_STAGING_DIR}/{name}"))
 }
 
 /// What the recorder is doing right now.

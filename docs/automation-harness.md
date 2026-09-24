@@ -496,10 +496,11 @@ writes the sidecar, and the drain that follows encodes the WebM:
   attenuation. A held voice's row has gain 0. Speed is not in version 1.
 - each named sample at its asset-relative path beside the sidecar. A sample
   that cannot be copied warns. Any other sidecar or audio failure, such as a
-  voice with no asset path or a path that is not plain relative names,
-  aborts the run before the encode, so `loop_written` never acks a silent
-  loop. The sidecar and samples are on disk before the encode, so an ffmpeg
-  mux failure after them fails the run but leaves the complete sidecar.
+  voice with no asset path, a path that is not plain relative names, or a
+  path under the `.loop-frames` staging directory, aborts the run before the
+  encode, so `loop_written` never acks a silent loop. The sidecar and samples
+  are on disk before the encode, so an ffmpeg mux failure after them fails the
+  run but leaves the complete sidecar.
 
 A Bevy-only app with `LoopCapturePlugin` and no `DebugPlugin` still writes a
 silent WebM. Sheets record no audio.
