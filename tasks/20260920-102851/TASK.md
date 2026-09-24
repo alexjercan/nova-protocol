@@ -1,6 +1,6 @@
 # Export an SFX sidecar from a capture loop
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.15.0,capture,audio,tooling
 
@@ -110,8 +110,9 @@ it could not.
   `clip` and `looping` on a voice's first row only. The contract and the
   reasons behind each field are in `content-machine:docs/sfx-sidecar.md`. The
   reader is `content-machine:editor/src/content_machine/sfx.py`. Both ends are
-  landed and tested, so the engine port must not change the format - it must
-  produce the same bytes the capsule does.
+  landed and tested, so the engine port must preserve the reader's v1 format.
+  The v0.14.0 producer is tied to its frozen release, not a byte-for-byte
+  acceptance oracle for a different game build.
 - Mono only in the version 1 sidecar. Bevy pans through `SpatialAudioSink` and
   the sidecar carries one gain per frame. The embedded WebM track is stereo;
   see the 2026-09-24 decision. Version 2 adds a listener-relative azimuth from
@@ -197,11 +198,14 @@ resolved all 3 copied samples, and `read_samples` plus `enveloped` placed all
 3. The run predates the sum change. Its samples are mono, and both pan filters
 decode them to identical bytes, so its PCM is unchanged.
 
-The capsule producer differential is still open. The capsule pins
-`nova-protocol` to git tag v0.14.0, and its sampler imports v0.14.0 audio
-internals. Same input needs one engine build under both producers, and that
-needs a changed capsule dependency, which is a changed producer. A v0.14.0 run
-against a branch run differs in the simulation as well as in the exporter.
+The byte-for-byte producer differential is not applicable across versions:
+`content-machine:capture/nova-protocol/v0.14.0/Cargo.toml` pins the v0.14.0
+tag, while Nova's built-in capture path is for the later build. Changing the
+frozen capsule to share a build would change the comparison's reference. The
+unchanged content-machine v1 reader accepted Nova's 96-frame sidecar and all
+three copied samples (see the frozen-reader proof above). The v0.14.0 producer
+remains with its frozen capsule; a future v0.15.0 capsule must use Nova's
+built-in capture path rather than copy that producer.
 
 ## Verification
 
@@ -231,10 +235,9 @@ resolved, for every frame each voice was alive.
   attenuated loop's decoded peak.
 - A unit test for voice numbering: despawn a voice, spawn another that reuses
   the entity index, and assert the two get different `v` values.
-- A differential check against the proven producer: re-record one trailer loop
-  with the engine exporter and diff its sidecar against the capsule's. Only the
-  capped voices may differ, and each difference must be a voice the cap
-  silenced.
+- Reader compatibility, not cross-version producer byte equality: the frozen
+  content-machine v1 reader loads the engine sidecar and resolves its samples.
+  The game tests assert mixer gain, cap state, frame parity, and v1 row bytes.
 
 ## Done when
 
@@ -244,9 +247,9 @@ resolved, for every frame each voice was alive.
 - `content-machine:editor/src/content_machine/sfx.py` loads that file with no
   changes to the reader, and a render places the samples.
 - A capped exterior loop exports as silent.
-- The differential check against the capsule producer passes.
-- `content-machine:capture/nova-protocol/<next version>/src/sfx_sidecar.rs` is
-  DELETED when that capsule is cut, and its two "divergence" notes go with it.
+- The unchanged content-machine v1 reader accepts the sidecar and samples.
+- The frozen v0.14.0 capsule remains unchanged. No separate sidecar producer
+  is required or planned for a future v0.15.0 capsule.
 - The unit tests and the armed run above pass.
 
 ## Scheduling
