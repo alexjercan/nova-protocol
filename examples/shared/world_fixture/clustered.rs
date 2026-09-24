@@ -138,8 +138,8 @@ impl SectorGenerator for ClusteredWorld {
     fn validate(&self, geometry: WorldGeometry) -> Result<(), SectorFault> {
         let edge = geometry.sector_edge;
         let one_parent = GROUP_LATTICE.get() * (1.0 - GROUP_JITTER);
-        // Negated so a `NaN` edge refuses too.
-        if !(edge.get() < one_parent) {
+        // A `NaN` edge compares as `None`, so it refuses too.
+        if edge.get().partial_cmp(&one_parent) != Some(std::cmp::Ordering::Less) {
             return Err(SectorFault::Config {
                 field: "sector_edge",
                 value: format!(
