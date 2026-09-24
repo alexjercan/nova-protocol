@@ -32,8 +32,9 @@ use super::{planet_surface::prelude::*, planet_type::prelude::*};
 /// What the crate root re-exports for this module.
 pub mod prelude {
     pub use super::{
-        planet_scenario_object, PlanetInvulnerable, PlanetMarker, PlanetMass, PlanetPlugin,
-        PlanetRadius, PlanetRenderBody,
+        planet_scenario_object, planet_scenario_object_prepared, prepare_planet,
+        PlanetInvulnerable, PlanetMarker, PlanetMass, PlanetPlugin, PlanetRadius, PlanetRenderBody,
+        PreparedPlanet,
     };
 }
 
@@ -75,13 +76,60 @@ pub struct PlanetRenderBody(pub PlanetVisual);
 /// observer's own [`SensorRange`](nova_ship::prelude::SensorRange) cap.
 const PLANET_SIGNATURE_PER_RADIUS: f32 = 10.0;
 
+/// The world-free half of a planet: the config it answers for and the surface
+/// drawn, meshed and dressed from it.
+///
+/// This is where a world's spawn cost lives. [`PlanetVisual::build`] needs no
+/// `World`, no assets and no commands, so a caller that cannot afford it
+/// inside a frame - a streamed world bringing up a sector that owns a
+/// planetoid - can produce one on `AsyncComputeTaskPool` and hand the result
+/// to [`planet_scenario_object_prepared`]. [`planet_scenario_object`] is the
+/// same work done inline.
+///
+/// The config travels WITH the visual rather than beside it, unlike
+/// [`PreparedAsteroidGeometry`](super::asteroid::PreparedAsteroidGeometry):
+/// a planet's radius, relief and seed are the only inputs the surface is drawn
+/// from, so carrying both halves in one value is what makes a mismatched pair
+/// unrepresentable instead of merely refused.
+#[derive(Clone, Debug)]
+pub struct PreparedPlanet {
+    /// The config the surface was drawn for.
+    config: PlanetConfig,
+    /// The drawn surface: mesh, material and the bands behind them.
+    visual: PlanetVisual,
+}
+
+/// Draw, mesh and dress one planet's surface.
+///
+/// PURE: the same config gives the same surface, on any thread, in any order,
+/// with nothing live. That is what makes it safe to run on a worker.
+///
+/// The subdivision count comes off the DERIVED body radius, so a world is
+/// meshed to the facet size it is actually seen at rather than to a constant.
+pub fn prepare_planet(config: PlanetConfig) -> PreparedPlanet {
+    let visual = PlanetVisual::build(&config, planet_subdivisions(config.body_radius()));
+    PreparedPlanet { config, visual }
+}
+
 /// Build one authored planet on `entity`.
+///
+/// Prepares the surface inline and hands it straight to
+/// [`planet_scenario_object_prepared`], so an authored scenario object spawns
+/// in one call and in one command batch. A caller that wants the meshing off
+/// the frame prepares first.
+pub fn planet_scenario_object(entity: &mut EntityCommands, config: PlanetConfig) {
+    planet_scenario_object_prepared(entity, prepare_planet(config));
+}
+
+/// Build one planet on `entity` from a surface someone else already drew.
 ///
 /// Takes an [`EntityCommands`] rather than returning a bundle, for the same
 /// reason [`asteroid_scenario_object`](super::asteroid::asteroid_scenario_object)
 /// does: the collider child has to land in the same command batch as the
 /// root's `RigidBody`, or avian computes the mass twice.
-pub fn planet_scenario_object(entity: &mut EntityCommands, config: PlanetConfig) {
+pub fn planet_scenario_object_prepared(entity: &mut EntityCommands, prepared: PreparedPlanet) {
+    let PreparedPlanet { config, visual } = prepared;
+
     // The lint says this first and this says it again at load, because a mod's
     // content can reach the runtime without ever meeting the lint. There is no
     // destructible planet: `false` would build a body that takes no damage
@@ -94,8 +142,6 @@ pub fn planet_scenario_object(entity: &mut EntityCommands, config: PlanetConfig)
         );
         return;
     }
-
-    let visual = PlanetVisual::build(&config, planet_subdivisions(config.body_radius()));
 
     let radius = config.radius.to_engine();
     let body_radius = config.body_radius().to_engine();
@@ -299,26 +345,49 @@ mod tests {
         );
     }
 
-    /// The same config draws the same world on every load. Nothing on the
-    /// spawn path reaches for an RNG or a clock: the authored seed is the only
-    /// thing that decides which world of its type this is.
+    fn prepared_planet(prepared: PreparedPlanet) -> (App, Entity) {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        let entity = app.world_mut().spawn_empty().id();
+        {
+            let mut commands = app.world_mut().commands();
+            let mut entity_commands = commands.entity(entity);
+            planet_scenario_object_prepared(&mut entity_commands, prepared);
+        }
+        app.world_mut().flush();
+        (app, entity)
+    }
+
+    fn drawn_surface(app: &App, entity: Entity) -> String {
+        app.world()
+            .get::<PlanetRenderBody>(child_of(app, entity))
+            .expect("a render body")
+            .surface
+            .summary()
+    }
+
+    /// The same config draws the same world on every load, and off the frame
+    /// as well as on it. Nothing on the spawn path reaches for an RNG or a
+    /// clock: the authored seed is the only thing that decides which world of
+    /// its type this is, and `prepare_planet` is the same draw taken
+    /// somewhere else - a streamed world that meshed a different planet from
+    /// the one a scenario authors would be a world nobody could reproduce.
     #[test]
     fn the_same_config_draws_the_same_world_every_load() {
         let config = PlanetConfig::new(PlanetType::IceWorld, Meters(900.0), 7);
         let (first, entity) = planet(config.clone());
-        let (second, other) = planet(config);
+        let (second, other) = planet(config.clone());
+        let (third, prepared) = prepared_planet(prepare_planet(config));
 
-        let a = first
-            .world()
-            .get::<PlanetRenderBody>(child_of(&first, entity));
-        let b = second
-            .world()
-            .get::<PlanetRenderBody>(child_of(&second, other));
-        let (a, b) = (a.expect("a render body"), b.expect("a render body"));
         assert_eq!(
-            a.surface.summary(),
-            b.surface.summary(),
+            drawn_surface(&first, entity),
+            drawn_surface(&second, other),
             "the same config must draw the same planet"
+        );
+        assert_eq!(
+            drawn_surface(&first, entity),
+            drawn_surface(&third, prepared),
+            "a prepared planet must be the planet the inline path spawns"
         );
     }
 

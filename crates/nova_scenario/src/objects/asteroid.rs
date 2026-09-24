@@ -22,13 +22,15 @@ use super::{
     asteroid_surface::prelude::{AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt},
 };
 
-/// The asteroid scenario object and its config, the radius, mass, mesh and texture components, the
+/// The asteroid scenario object and its config, the prepared-geometry half of
+/// the spawn, the radius, mass, mesh and texture components, the
 /// geometric-factor bounds and `AsteroidPlugin`.
 pub mod prelude {
     pub use super::{
-        asteroid_scenario_object, asteroid_seed_from_id, AsteroidConfig, AsteroidInvulnerable,
-        AsteroidMarker, AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh,
-        AsteroidSeed, AsteroidTexture, PlanetHeight, PlanetHeightNoise,
+        asteroid_scenario_object, asteroid_scenario_object_prepared, asteroid_seed_from_id,
+        prepare_asteroid_geometry, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
+        AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSeed,
+        AsteroidTexture, PlanetHeight, PlanetHeightNoise, PreparedAsteroidGeometry,
         ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
     };
 }
@@ -162,9 +164,91 @@ fn rock_lock_signature(body_radius: f32) -> f32 {
     ROCK_SIGNATURE_BASE.to_engine() + ROCK_SIGNATURE_PER_RADIUS * body_radius.max(0.0)
 }
 
+/// The world-free half of an asteroid: its meshed silhouette, the hull
+/// collided against it, and the geometric extent derived from it.
+///
+/// This is where a rock's spawn cost lives. It needs no `World`, no assets and
+/// no commands, so a caller that cannot afford it inside a frame - a streamed
+/// world bringing up a whole sector - can produce one on
+/// `AsyncComputeTaskPool` and hand the result to
+/// [`asteroid_scenario_object_prepared`]. [`asteroid_scenario_object`] is the
+/// same work done inline.
+///
+/// The fields are private and the `seed` and `radius` it was prepared FOR
+/// travel with it, because the three geometries are one answer to one
+/// question: a rock given someone else's hull would be collided against a
+/// shape nobody can see.
+#[derive(Debug)]
+pub struct PreparedAsteroidGeometry {
+    /// The silhouette seed this geometry answers for.
+    seed: u32,
+    /// The nominal radius this geometry answers for.
+    radius: Meters,
+    /// The pristine rock mesh, in unit space - the collider node scales it by
+    /// the nominal radius.
+    mesh: Mesh,
+    /// The convex hull of `mesh`.
+    collider: Collider,
+    /// `mesh`'s outermost vertex radius, floored at the unit sphere.
+    unit_extent: f32,
+}
+
+/// Mesh, hull and geometric extent for one rock.
+///
+/// PURE: the same `seed` and `radius` give the same geometry, on any thread,
+/// in any order, with nothing live. That is what makes it safe to run on a
+/// worker.
+///
+/// Meshed from the rock's own carve field, so an untouched rock and a cratered
+/// one are the same shape at the same facet density. See `asteroid_carve` for
+/// why building the shipped mesh a second way was a visible pop on the first
+/// hit, and `asteroid_surface` for why a planet generator made every rock look
+/// like a ball with lumps on it.
+///
+/// A pristine rock is a noise-displaced ball, so its HULL is what to collide
+/// against until something puts a hole in it, and carving is what buys the
+/// exact surface back - `carve_surface` rebuilds this collider from the holed
+/// mesh. Same laziness `seed_asteroid_fields` already applies to the carve
+/// grid, for a sharper reason: avian sleeps only TOUCHING contact pairs, so
+/// two belt rocks whose AABBs overlap and whose surfaces never meet stay in
+/// the ACTIVE contact set forever and are re-manifolded every step, asleep or
+/// not. Trimesh against trimesh is the most expensive manifold parry can be
+/// asked for - over the editor sandbox's field the same 52 never-touching
+/// pairs cost 21.9 ms a step as trimeshes and 0.10 ms as hulls.
+pub fn prepare_asteroid_geometry(seed: u32, radius: Meters) -> PreparedAsteroidGeometry {
+    let started = Instant::now();
+    // Engine boundary: the rock is meshed and collided in world units.
+    let mesh = pristine_rock_mesh(seed, radius.to_engine());
+    let collider = Collider::convex_hull_from_mesh(&mesh).unwrap_or(Collider::sphere(1.0));
+    // The true geometric radius, from the meshed surface itself: a rock's
+    // shape function is based several times out from the unit sphere
+    // (`ROCK_BASE`), so its real edge sits far past the nominal radius.
+    // Everything that measures from the surface (GOTO standoff, orbit
+    // clearance) reads the derived BodyRadius, not the designation radius
+    // (2026-07-10 playtest: "still stops too close").
+    let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
+    trace!(
+        "prepare_asteroid_geometry: seed {seed} at radius {:.1} m meshed and hulled in {:.1} ms",
+        radius.get(),
+        started.elapsed().as_secs_f32() * 1000.0
+    );
+    PreparedAsteroidGeometry {
+        seed,
+        radius,
+        mesh,
+        collider,
+        unit_extent,
+    }
+}
+
 /// Build the whole asteroid onto `entity`: the root (marker, radius, sounds,
 /// lock signature, body) AND its collider/carve node, from one
 /// [`AsteroidConfig`] and a resolved silhouette `seed`.
+///
+/// Prepares the geometry inline and hands it straight to
+/// [`asteroid_scenario_object_prepared`], so an authored scenario object
+/// spawns in one call and in one command batch. A caller that wants the
+/// meshing off the frame prepares first.
 ///
 /// Takes `EntityCommands` rather than returning a bundle, unlike its sibling
 /// scenario objects, because the collider node has to land in the SAME command
@@ -177,48 +261,52 @@ fn rock_lock_signature(body_radius: f32) -> f32 {
 /// "has no mass or inertia" warning reports, and it is what the arena logged
 /// for a handful of its rocks every run.
 ///
-/// The seed is resolved by the CALLER because the mesh is generated here: an
-/// authored seed wins, and an unseeded rock derives one from its id through
+/// The seed is resolved by the CALLER because the mesh is generated from it:
+/// an authored seed wins, and an unseeded rock derives one from its id through
 /// [`asteroid_seed_from_id`] rather than the global RNG, which a bundle built
 /// inside a command has no access to.
 pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidConfig, seed: u32) {
-    trace!("asteroid_scenario_object: config {:?} seed {seed}", config);
+    let geometry = prepare_asteroid_geometry(seed, config.radius);
+    asteroid_scenario_object_prepared(entity, config, seed, geometry);
+}
 
-    // Meshed from the rock's own carve field, so an untouched rock and a
-    // cratered one are the same shape at the same facet density. See
-    // `asteroid_carve` for why building the shipped mesh a second way was a
-    // visible pop on the first hit, and `asteroid_surface` for why a planet
-    // generator made every rock look like a ball with lumps on it.
-    let started = Instant::now();
-    // Engine boundary: the rock is meshed and collided in world units.
-    let mesh = pristine_rock_mesh(seed, config.radius.to_engine());
+/// Build the whole asteroid onto `entity` from geometry someone else already
+/// prepared. See [`asteroid_scenario_object`] for why this takes
+/// `EntityCommands` and for where `seed` comes from.
+///
+/// # Panics
+///
+/// When `geometry` was not prepared for this `seed` and this
+/// `config.radius`. The alternative is a rock drawn as one shape and collided
+/// as another, which nothing downstream can detect.
+pub fn asteroid_scenario_object_prepared(
+    entity: &mut EntityCommands,
+    config: AsteroidConfig,
+    seed: u32,
+    geometry: PreparedAsteroidGeometry,
+) {
     trace!(
-        "asteroid_scenario_object: meshed seed {seed} at radius {:.1} m in {:.1} ms",
-        config.radius.get(),
-        started.elapsed().as_secs_f32() * 1000.0
+        "asteroid_scenario_object_prepared: config {:?} seed {seed}",
+        config
     );
-    // A pristine rock is a noise-displaced ball, so its HULL is what to
-    // collide against until something puts a hole in it, and carving is what
-    // buys the exact surface back - `carve_surface` rebuilds this collider
-    // from the holed mesh. Same laziness `seed_asteroid_fields` already
-    // applies to the carve grid, for a sharper reason: avian sleeps only
-    // TOUCHING contact pairs, so two belt rocks whose AABBs overlap and whose
-    // surfaces never meet stay in the ACTIVE contact set forever and are
-    // re-manifolded every step, asleep or not. Trimesh against trimesh is the
-    // most expensive manifold parry can be asked for - over the editor
-    // sandbox's field the same 52 never-touching pairs cost 21.9 ms a step as
-    // trimeshes and 0.10 ms as hulls.
-    let collider = Collider::convex_hull_from_mesh(&mesh).unwrap_or(Collider::sphere(1.0));
 
-    // The true geometric radius, from the meshed surface itself: a rock's
-    // shape function is based several times out from the unit sphere
-    // (`ROCK_BASE`), so its real edge sits far past the nominal radius.
-    // Everything that measures from the surface (GOTO standoff, orbit
-    // clearance) reads this derived BodyRadius, not the designation radius
-    // (2026-07-10 playtest: "still stops too close"). The child mesh is
-    // unit-scale, scaled by `radius` on its Transform, so the world extent is
-    // radius * the outermost vertex.
-    let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
+    assert!(
+        geometry.seed == seed && geometry.radius == config.radius,
+        "asteroid_scenario_object_prepared: geometry was prepared for seed {} at {} m, \
+         not seed {seed} at {} m",
+        geometry.seed,
+        geometry.radius.get(),
+        config.radius.get()
+    );
+    let PreparedAsteroidGeometry {
+        mesh,
+        collider,
+        unit_extent,
+        ..
+    } = geometry;
+
+    // The child mesh is unit-scale, scaled by `radius` on its Transform, so
+    // the world extent is radius * the outermost vertex.
     let radius = config.radius.to_engine();
 
     // One resolved id for the two components that carry it: what the rock
@@ -1106,6 +1194,19 @@ mod tests {
                 .is_some(),
             "healthless rocks still need ram collision events"
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "geometry was prepared for seed")]
+    fn prepared_geometry_refuses_a_different_seed() {
+        let mut app = App::new();
+        let radius = Meters(20.0);
+        let geometry = prepare_asteroid_geometry(7, radius);
+        let world = app.world_mut();
+        let entity = world.spawn_empty().id();
+        let mut commands = world.commands();
+        let mut entity_commands = commands.entity(entity);
+        asteroid_scenario_object_prepared(&mut entity_commands, rock(radius, None), 8, geometry);
     }
 
     #[test]

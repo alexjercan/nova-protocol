@@ -111,8 +111,8 @@ one.
 | Trailer | done | `projects/nova-v014-trailer/` | `media/nova-v014-trailer/final.mp4` |
 | Store loops | done | `projects/nova-v014-store/loops.py` | `media/nova-v014-store/loops/*.gif` |
 | Shot list | done | `projects/nova-v014-store/SHOTS.md` | - |
-| Carousel stills | pending | `store-stills-*` capture scenes | - |
-| Capsules and library art | pending | - | - |
+| Carousel stills | done | `store-stills-*` capture scenes | `media/nova-v014-store-*/recordings/image/*.png` |
+| Capsules and library art | done | `projects/nova-v014-store/capsules.py` | `media/nova-v014-store/capsules/*.png` |
 | Steam page layout | pending | - | - |
 
 ### The trailer, as delivered
