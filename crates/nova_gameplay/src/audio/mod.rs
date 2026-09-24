@@ -89,7 +89,7 @@ pub mod prelude {
     pub use super::{
         sounds_loaded, AudioBus, AudioRoute, InterfaceVolume, MusicVolume, NovaAudioPlugin,
         PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxListenerMarker, SfxPlugin, SfxSource, SfxVoice,
-        SoundBank, UiSfx, WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME,
+        SoundBank, UiSfx, VoiceMix, WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME,
         EDITOR_REMOVE_VOLUME, EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME, MENU_FOCUS_VOLUME,
         MENU_SELECT_VOLUME, NOVA_OS_BACK_VOLUME, NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME,
         NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME, NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME,
@@ -111,7 +111,7 @@ pub use self::{
         emitter_point, listener_ears, local_bearing, pan_compensation, pan_gains, SPATIAL_EAR_GAP,
         SPATIAL_EMITTER_RADIUS,
     },
-    voice::{SfxSource, SfxVoice, MAX_EXTERIOR_LOOP_VOICES},
+    voice::{SfxSource, SfxVoice, VoiceMix, MAX_EXTERIOR_LOOP_VOICES},
 };
 use self::{
     mixing::prune_sfx_throttle,
