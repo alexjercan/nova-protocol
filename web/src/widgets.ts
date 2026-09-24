@@ -57,10 +57,11 @@ export const KINETIC_DAMAGE_CEILING = 2.0; // damage.rs:192
 export const PIERCE_POWER_FLOOR = 0.5; // damage.rs:196
 export const PIERCE_POWER_CEILING = 3.0; // damage.rs:201
 export const PIERCE_BASE_POWER = 300; // damage.rs:212
-// No current Pierce round has a layer-count cap: power alone bounds the rake
-// (damage.rs `pierce_remainder`). v0.11.0 also stopped every Pierce round after
-// six layers (damage.rs:199 at tag v0.11.0); only the v0.11.0 news scope, which
-// shows the rule that release shipped, still applies it.
+// No current Pierce round has a layer-count cap: power bounds the rake and a
+// free layer stops it (damage.rs `pierce_remainder`). v0.11.0 also stopped
+// every Pierce round after six layers (damage.rs:199 at tag v0.11.0); only the
+// v0.11.0 news scope, which shows the rule that release shipped, still applies
+// it.
 export const V0110_PIERCE_LAYER_CAP = 6;
 const EXPLOSIVE_SECTION_TRANSMISSION = 0.65; // damage.rs:519
 // Blast free pressure falls off linearly to zero at the radius; each
@@ -364,8 +365,10 @@ export function kineticWalk(
 
 // Pierce walk (damage.rs `pierce_remainder` rule): full authored damage to
 // every section crossed; crossing costs the section's MAX health (not
-// remaining) out of the round's power budget. `layerCap` is null under the
-// current rules; the v0.11.0 news scope passes V0110_PIERCE_LAYER_CAP.
+// remaining) out of the round's power budget, and a free crossing stops the
+// rake. `layerCap` is null under the current rules; the v0.11.0 news scope
+// passes V0110_PIERCE_LAYER_CAP, and that release bounded a free layer only
+// by the cap.
 export function pierceWalk(
     damage: number,
     closingSpeed: number,
@@ -384,7 +387,7 @@ export function pierceWalk(
         }
         results.push({ state: damage >= hp ? "dead" : "hit", dealt: damage });
         raked += 1;
-        power -= cost;
+        power = layerCap === null && cost <= 0 ? 0 : power - cost;
     }
     return { results, cost, raked };
 }

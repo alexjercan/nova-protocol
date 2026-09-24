@@ -19,6 +19,7 @@ import {
     GUNSHIP_CELLS,
     GUNSHIP_COMPUTERS,
     GUNSHIP_MATES,
+    hudElements,
     hullState,
     kilometers,
     kineticDamageMultiplier,
@@ -287,6 +288,36 @@ function rustNumber(rel: string, pattern: RegExp): number {
         5,
         "at the reference speed the same stack costs 60 a layer"
     );
+    assert.equal(
+        pierceWalk(2, head, 20, 0, null).raked,
+        1,
+        "a free layer stops the rake (damage.rs pierce_remainder)"
+    );
+    assert.equal(
+        pierceWalk(2, head, 20, 0, V0110_PIERCE_LAYER_CAP).raked,
+        6,
+        "v0.11.0 priced a free layer at zero and stopped only at the cap"
+    );
+}
+
+// A combat lock heats the weapons without raising them (nova_ship
+// input/targeting/safety.rs), so the ammo gauges and bore sight come up
+// with the lock alone.
+{
+    const idle = {
+        autopilot: false,
+        combatLock: false,
+        weaponsRaised: false,
+        lowAmmo: false,
+        reloading: false,
+        cinematic: false,
+    };
+    const on = (combatLock: boolean, name: string): boolean | undefined =>
+        hudElements({ ...idle, combatLock }).find((e) => e.name === name)?.on;
+    for (const name of ["Ammo gauges", "Bore sight (a hull with a railgun)"]) {
+        assert.equal(on(false, name), false, `${name} stays down with no lock`);
+        assert.equal(on(true, name), true, `${name} comes up with a lock`);
+    }
 }
 
 // The radar trainer's lock clocks, against TargetingSettings::default and the
