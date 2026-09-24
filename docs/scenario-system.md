@@ -667,10 +667,10 @@ end to end:
   synthetic course as a RON string, drives the real handlers, and pins the
   ordered-gate sequencing, the repeatable penalty zone, the two counter-keyed
   win banners, the act-gating and the readout wiring. Run it with
-  `cargo test -p nova_assets --test scenario_gate_course`. Geometry invariants
-  (gate areas do not overlap; the racing line clears every rock's worst-case
-  body past `ASTEROID_GEOMETRIC_FACTOR_MAX`) are a CONTENT concern, checked per
-  bundle by `content lint`.
+  `cargo test -p nova_assets --test scenario_gate_course`. `content lint`
+  checks the bundle schema, ids, references and shared balance rules. The
+  Gauntlet geometry invariants - non-overlapping gate areas and racing-line
+  clearance past each rock's worst-case body - remain manual checks.
 - The [first-scenario guide's completed flow](https://alexjercan.github.io/nova-protocol/create/author-a-scenario/#3-plan-one-short-story)
   is the gentler, single-counter cousin of the gate-counter pattern.
 

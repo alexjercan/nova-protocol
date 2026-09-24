@@ -245,7 +245,6 @@ impl NearField {
                     // to pull the posed subject would drift it out of frame
                     // over a capture run.
                     mass: None,
-                    invulnerable: false,
                     seed: None,
                     lock_signature: None,
                 }),

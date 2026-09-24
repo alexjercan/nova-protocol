@@ -700,7 +700,6 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
                                 kind: KIND_ROCK.to_string(),
                                 destroy_sound: None,
                                 mass: None,
-                                invulnerable: false,
                                 lock_signature: None,
                                 seed: Some(7),
                             }),

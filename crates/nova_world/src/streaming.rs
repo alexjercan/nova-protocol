@@ -198,7 +198,6 @@ pub fn materialize_sector(
                 kind: body.kind.clone(),
                 destroy_sound: None,
                 mass: None,
-                invulnerable: true,
                 lock_signature: None,
                 seed: Some(body.seed),
             },

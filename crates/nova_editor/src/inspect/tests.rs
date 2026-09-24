@@ -175,7 +175,6 @@ fn stock_asteroid() -> AsteroidConfig {
         kind: KIND_ROCK.to_string(),
         destroy_sound: None,
         mass: None,
-        invulnerable: false,
         seed: None,
         lock_signature: None,
     }
@@ -351,13 +350,11 @@ fn a_placed_rock_keeps_what_the_inspector_wrote_on_it() {
     let rows = object_rows(&object, &Transform::default());
 
     write(&mut object, &rows, "Radius", "125").expect("a radius");
-    write(&mut object, &rows, "Invulnerable", "true").expect("a flag");
 
     let ScenarioObjectKind::Asteroid(tuned) = &object.kind else {
         panic!("still an asteroid");
     };
     assert!((tuned.radius - Meters(125.0)).get().abs() < f32::EPSILON);
-    assert!(tuned.invulnerable);
 }
 
 /// The kind decides the whole surface of the rock, and nobody guesses `carbon`
@@ -436,13 +433,6 @@ fn choosing_a_kind_writes_the_id_into_the_config() {
         panic!("still an asteroid");
     };
     assert_eq!(tuned.kind, KIND_ICE);
-}
-
-#[test]
-fn a_flag_reads_as_a_checkbox_and_not_as_text() {
-    let rows = object_rows(&asteroid(stock_asteroid()), &Transform::default());
-
-    assert_eq!(row(&rows, "Invulnerable").value, RowValue::Flag(false));
 }
 
 #[test]
@@ -974,11 +964,6 @@ fn a_number_carries_the_unit_it_is_typed_in() {
         "",
         "a mass has a floor, not a unit"
     );
-    assert_eq!(
-        row(&rows, "Invulnerable").unit,
-        "",
-        "a checkbox is not measured in anything"
-    );
     assert_eq!(row(&rows, "Position").unit, "m");
     assert_eq!(row(&rows, "Rotation").unit, "deg, yaw/pitch/roll");
 }
@@ -1375,7 +1360,6 @@ fn a_scrub_of_a_whole_number_stays_whole() {
         kind: KIND_ROCK.to_string(),
         destroy_sound: None,
         mass: None,
-        invulnerable: false,
         seed: Some(7),
         lock_signature: None,
     };
@@ -1403,7 +1387,6 @@ fn a_scrub_of_an_unsigned_number_stops_at_zero() {
         kind: KIND_ROCK.to_string(),
         destroy_sound: None,
         mass: None,
-        invulnerable: false,
         seed: Some(3),
         lock_signature: None,
     };
@@ -1434,7 +1417,6 @@ fn a_scrub_of_an_empty_optional_says_to_type_one() {
         kind: KIND_ROCK.to_string(),
         destroy_sound: None,
         mass: None,
-        invulnerable: false,
         seed: None,
         lock_signature: None,
     };

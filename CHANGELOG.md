@@ -29,6 +29,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.
 
+### Modding & Mod Portal
+
+- **(breaking)** Asteroids and planets drop `invulnerable`: every asteroid can
+  be destroyed, no planet can. Both reject unknown keys: a stale or
+  misspelled field fails to load, not ignored.
+
 ### Interface & HUD
 
 - Objective notification rebuilding now survives same-frame ship teardown, and
@@ -44,6 +50,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Agent Bench enforces post-run grace on persistent clients and rejects
   shared-key gestures that conflict with actions held from prior acts.
+- Probe snapshot bodies and Agent Bench body records drop `invulnerable`. The
+  body `kind` decides it: an `Asteroid` can be destroyed, a `Planet` cannot.
 - PR and master-push CI run a twelve-example probe smoke instead of the whole catalog. The complete sharded suite remains manual and gates every release platform build.
 - New opt-in `nova_world` crate: a plugin streams a 5x5x5 window of 32 km cells
   over one live scenario, filled by a sector generator whose bodies it checks

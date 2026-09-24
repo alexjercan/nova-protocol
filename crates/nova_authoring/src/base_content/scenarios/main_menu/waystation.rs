@@ -80,7 +80,6 @@ pub(crate) fn menu_waystation(
                 radius: Meters(10.0),
                 texture: asteroid_texture,
                 mass: None,
-                invulnerable: false,
                 seed: None,
                 lock_signature: None,
             }),

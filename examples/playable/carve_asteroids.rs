@@ -813,7 +813,6 @@ fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
             kind: KIND_ROCK.to_string(),
             destroy_sound: None,
             mass: None,
-            invulnerable: false,
             lock_signature: None,
             // One seed for the whole row: the only thing that differs between
             // rocks is what has been shot off them.

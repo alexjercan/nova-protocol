@@ -13,7 +13,8 @@
 //! - Bullet gravity: a planetoid slung below the firing lane bends rounds that
 //!   cross its sphere of influence downward toward it. The shooter's own
 //!   gravity is stripped so it stays a fixed frame; only the rounds curve, so
-//!   the straight-line lead pip visibly misses low as a round nears the rock.
+//!   the straight-line lead pip visibly misses low as a round nears the
+//!   planetoid.
 //! - Aim gizmos: a line down the barrel (green when it is on target, yellow while
 //!   it lags) and a red line + sphere at the point the turret is aiming for. The
 //!   gap between the barrel line and the target line is the tracking lag - the
@@ -77,8 +78,7 @@ const MOVING_GATE_ORIGIN: Vec3 = Vec3::new(-35.0, 6.0, -55.0);
 /// units (the sweeping gate's centre is also driven through a `Transform`, so
 /// the roster stays engine-side and crosses to meters at the config). The single
 /// roster - the scenario spawns exactly these and [`tag_gate`] tags exactly
-/// these, so the range's OTHER asteroid (the gravity planetoid) cannot drift
-/// into the gate count.
+/// these, so the gravity planetoid cannot drift into the gate count.
 const RANGE_GATES: [(&str, &str, Vec3); 5] = [
     ("gate_front", "Front Gate", Vec3::new(0.0, 3.0, -55.0)),
     ("gate_left", "Left Gate", Vec3::new(-32.0, 4.0, -45.0)),
@@ -90,9 +90,8 @@ const RANGE_GATES: [(&str, &str, Vec3); 5] = [
     // the turret aims at, and its sweep drives it through the static gates'
     // lane, where contact damage alone took it from full to destroyed inside
     // one round. The single-round version of this range ended before that
-    // mattered; a multi-round one has to outlast it, so this gate gets the
-    // planetoid's durability rather than a gate's. Still damageable, which is
-    // what invariant 2 observes.
+    // mattered; a multi-round one needs it alive through every round. It is
+    // still damageable, which is what invariant 2 observes.
     (MOVING_GATE_ID, "Moving Gate", MOVING_GATE_ORIGIN),
 ];
 
@@ -252,9 +251,9 @@ struct RangeGateMarker;
 /// questions. The gate marker is the aim roster and the gate COUNT; the backstop
 /// is where the range's whole point sends most rounds. The turret aims straight
 /// and the well bends its rounds down, so a barrel converged to 0.5 deg puts
-/// 12-16 rounds a second UNDER the gate and into this rock. Tagging the
+/// 12-16 rounds a second UNDER the gate and into this planetoid. Tagging the
 /// planetoid a gate hid both facts at once: `report_status` printed 6 gates for
-/// 5, and "a gate took hits" was answered by a rock.
+/// 5, and "a gate took hits" was answered by the planetoid.
 #[derive(Component)]
 struct RangeBackstopMarker;
 
@@ -351,7 +350,6 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
             radius: Meters(20.0),
             texture: game_assets.asteroid_texture.clone().into(),
             mass: None,
-            invulnerable: false,
             seed: None,
             lock_signature: None,
         }),
@@ -374,11 +372,11 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     objects.push(
         // A gravity planetoid slung below the firing lane so rounds crossing
         // its sphere of influence curve downward toward it - the range is where
-        // you eyeball bullet gravity. It is authored heavy (mass 30 000 -> SOI
-        // ~3.5 km, and 33-96 m/s^2 at the geometric surface), which is why the
-        // shooter's own gravity is stripped below: otherwise the ship, sitting
-        // inside that SOI, would fall out of frame instead of holding still as
-        // a reference.
+        // you eyeball bullet gravity. It is authored heavy: mass 30 000 clamps
+        // to the 100 m/s^2 surface cap at its ~422 m surface, giving an SOI of
+        // ~2.7 km. That is why the shooter's own gravity is stripped below:
+        // otherwise the ship, sitting inside that SOI, would fall out of frame
+        // instead of holding still as a reference.
         ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "gravity_rock".to_string(),
@@ -386,16 +384,10 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 position: Meters3::new(0.0, -220.0, -500.0),
                 rotation: Quat::IDENTITY,
             },
-            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                kind: KIND_ROCK.to_string(),
-                destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
-                radius: Meters(160.0),
-                texture: game_assets.asteroid_texture.clone().into(),
-                mass: Some(30_000.0),
-                invulnerable: true,
-                seed: None,
-                lock_signature: None,
-            }),
+            kind: ScenarioObjectKind::Planet(
+                PlanetConfig::new(PlanetType::BarrenRock, Meters(400.0), 2_001_383_927)
+                    .anchored(30_000.0),
+            ),
         },
     );
 
@@ -424,15 +416,18 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     }
 }
 
-/// Tag each spawned range asteroid as a GATE or the BACKSTOP, and single out the
+/// Tag each spawned range body as a GATE or the BACKSTOP, and single out the
 /// sweeping gate.
 ///
-/// Split by the roster rather than tagging every `Add<AsteroidMarker>` a gate:
-/// the gravity planetoid is an asteroid too, so one marker for both made
-/// `report_status` print 6 gates for 5 and let the rock answer the
-/// "a round connected with a gate" claim. Both are still range TARGETS, which is
-/// what invariant 2 observes - see [`RangeBackstopMarker`].
-fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&EntityId>) {
+/// Split by the roster rather than by body kind, so the gate count and the
+/// "a round connected with a gate" claim come from one list. The planet is
+/// still a range TARGET, which is what invariant 2 observes - see
+/// [`RangeBackstopMarker`].
+fn tag_gate(
+    add: On<Add, (AsteroidMarker, PlanetMarker)>,
+    mut commands: Commands,
+    q_id: Query<&EntityId>,
+) {
     let entity = add.entity;
     let Ok(id) = q_id.get(entity) else {
         return;
@@ -463,7 +458,7 @@ fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&E
 /// Keep the range ship a fixed reference frame despite the gravity planetoid.
 /// Ship roots opt into `GravityAffected` on spawn (nova_gameplay), and the
 /// shooter sits inside the planetoid's SOI; without this it would slowly fall
-/// toward the rock and drift the whole range. Rounds still feel gravity (they
+/// toward it and drift the whole range. Rounds still feel gravity (they
 /// get their own `GravityAffected` at spawn), so this strips only the shooter's
 /// pull, not the effect the range exists to show. Range-local: the real game
 /// leaves ships gravity-affected. `DominantWell` is removed alongside because

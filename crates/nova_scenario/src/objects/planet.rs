@@ -32,9 +32,8 @@ use super::{planet_surface::prelude::*, planet_type::prelude::*};
 /// What the crate root re-exports for this module.
 pub mod prelude {
     pub use super::{
-        planet_scenario_object, planet_scenario_object_prepared, prepare_planet,
-        PlanetInvulnerable, PlanetMarker, PlanetMass, PlanetPlugin, PlanetRadius, PlanetRenderBody,
-        PreparedPlanet,
+        planet_scenario_object, planet_scenario_object_prepared, prepare_planet, PlanetMarker,
+        PlanetMass, PlanetPlugin, PlanetRadius, PlanetRenderBody, PreparedPlanet,
     };
 }
 
@@ -53,11 +52,6 @@ pub struct PlanetRadius(pub f32);
 #[derive(Component, Clone, Copy, Debug, Deref, Reflect)]
 #[reflect(Component)]
 pub struct PlanetMass(pub Option<f32>);
-
-/// Whether weapons fire leaves this body alone.
-#[derive(Component, Clone, Copy, Debug, Deref, Reflect)]
-#[reflect(Component)]
-pub struct PlanetInvulnerable(pub bool);
 
 /// The built surface, parked on the render child until
 /// [`insert_planet_render`] can reach `Assets` and turn it into handles.
@@ -130,19 +124,6 @@ pub fn planet_scenario_object(entity: &mut EntityCommands, config: PlanetConfig)
 pub fn planet_scenario_object_prepared(entity: &mut EntityCommands, prepared: PreparedPlanet) {
     let PreparedPlanet { config, visual } = prepared;
 
-    // The lint says this first and this says it again at load, because a mod's
-    // content can reach the runtime without ever meeting the lint. There is no
-    // destructible planet: `false` would build a body that takes no damage
-    // marks, emits no collision events and never fires OnDestroyed, which is
-    // exactly the silent shrug an authored field exists to prevent.
-    if !config.invulnerable {
-        error!(
-            "planet: `invulnerable: false` is not a destructible planet, it is a planet \
-             that quietly cannot be destroyed; nothing spawned"
-        );
-        return;
-    }
-
     let radius = config.radius.to_engine();
     let body_radius = config.body_radius().to_engine();
 
@@ -151,7 +132,6 @@ pub fn planet_scenario_object_prepared(entity: &mut EntityCommands, prepared: Pr
         EntityTypeName::new(PLANET_TYPE_NAME),
         PlanetRadius(radius),
         PlanetMass(config.mass),
-        PlanetInvulnerable(config.invulnerable),
         // A planet is stone, so a round into it sounds like stone. Nothing
         // here is authorable: the engine knows two substances, and a world is
         // the second one.
@@ -273,8 +253,7 @@ impl Plugin for PlanetPlugin {
 
         app.register_type::<PlanetMarker>()
             .register_type::<PlanetRadius>()
-            .register_type::<PlanetMass>()
-            .register_type::<PlanetInvulnerable>();
+            .register_type::<PlanetMass>();
 
         app.add_observer(insert_planet_gravity_well);
         if self.render {
@@ -410,6 +389,24 @@ mod tests {
             app.world().get::<RadarOccluder>(entity).is_none(),
             "the root a lock NAMES must not be what hides things behind it"
         );
+    }
+
+    /// A planet is never destructible, and no field says so: its body and
+    /// collider node carry none of the carve state an asteroid's node does,
+    /// so no hit can mark, erode or destroy it.
+    #[test]
+    fn a_planet_takes_no_damage_state() {
+        let (app, entity) = planet(PlanetConfig::new(PlanetType::DustWorld, Meters(1_000.0), 7));
+
+        let hull = child_of(&app, entity);
+        assert!(
+            app.world().get::<Collider>(hull).is_some(),
+            "the child this reads must be the collider node"
+        );
+        for body in [entity, hull] {
+            assert!(app.world().get::<DamageMarks>(body).is_none());
+            assert!(app.world().get::<CollisionEventsEnabled>(body).is_none());
+        }
     }
 
     fn child_of(app: &App, parent: Entity) -> Entity {

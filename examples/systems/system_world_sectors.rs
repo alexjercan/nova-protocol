@@ -37,9 +37,10 @@
 //! | 10 | `outcome: a featured sector owns real planetoids and inert derelict ships` | every planetoid a manifest names is a real `PlanetMarker` body and every derelict a `SpaceshipRootMarker` with no driver and neutral allegiance, each a child of the sector root whose manifest names it |
 //! | 11 | `outcome: crossing one boundary retains the shared slab and swaps a face` | after a +X crossing 100 roots are the SAME entities, 25 are gone and 25 are new |
 //! | 12 | `outcome: the return trip leaves no duplicate root` | coming back gives the original 125 cells, one root each, and the returned sectors hold the objects their manifests name |
-//! | 13 | `outcome: work for an undesired sector never materializes` | a job and a prepared result for cells outside the desired set are both discarded, nothing is spawned from them, and the live set does not move |
-//! | 14 | `outcome: replacing the world config retires the world it built` | swapping `WorldConfig` under a live session leaves no baseline root alive, discards the in-window job uncompleted and the in-window prepared result, and rebuilds the window once so both of those cells hold the NEW world's objects |
-//! | 15 | `outcome: unloading the session removes every sector root` | `UnloadScenario` leaves zero sector roots, zero scenario object entities, zero pending jobs and zero prepared results |
+//! | 13 | `outcome: a destroyed streamed asteroid returns pristine after its sector retires` | a streamed rock in the face the crossing retires is exhausted through the carve chain and despawns; after the return its cell has a new root and the same rock id with empty damage marks |
+//! | 14 | `outcome: work for an undesired sector never materializes` | a job and a prepared result for cells outside the desired set are both discarded, nothing is spawned from them, and the live set does not move |
+//! | 15 | `outcome: replacing the world config retires the world it built` | swapping `WorldConfig` under a live session leaves no baseline root alive, discards the in-window job uncompleted and the in-window prepared result, and rebuilds the window once so both of those cells hold the NEW world's objects |
+//! | 16 | `outcome: unloading the session removes every sector root` | `UnloadScenario` leaves zero sector roots, zero scenario object entities, zero pending jobs and zero prepared results |
 //!
 //! What this range does NOT claim: anything about a floating origin,
 //! persistence, a measured frame budget, wall-clock preparation cost,
@@ -460,6 +461,11 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .step("report the materialized places")
         .on_enter(report_places)
         .add()
+        .step("exhaust a rock in the face the crossing retires")
+        .on_enter(exhaust_retiring_rock)
+        .until(exhausted_rock_is_gone())
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
         .step("cross the +X boundary")
         .on_enter(park_observer(across))
         .until(and(observer_at(across.centre(edge)), sector_set_is(across)))
@@ -475,6 +481,9 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .add()
         .step("report the return")
         .on_enter(report_return)
+        .add()
+        .step("report the regenerated rock")
+        .on_enter(report_regenerated_rock)
         .add()
         .step("abandon a job and a prepared sector")
         .on_enter(|world: &mut World| {
@@ -528,6 +537,80 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .step("report the unload")
         .on_enter(report_unload)
         .add()
+}
+
+/// The streamed rock the range exhausts before the crossing retires its cell.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct ExhaustedRock {
+    /// Its cell, in the face the +X crossing leaves behind.
+    coord: SectorCoord,
+    /// Its generated id, which the regenerated rock carries again.
+    id: String,
+    /// The entity the carve chain must despawn.
+    entity: Entity,
+}
+
+/// The object `id` under `coord`'s live sector root.
+#[cfg(feature = "debug")]
+fn sector_object(world: &mut World, coord: SectorCoord, id: &str) -> Option<Entity> {
+    let root = *live_roots(world).get(&coord)?;
+    world.get::<Children>(root)?.iter().find(|child| {
+        world
+            .get::<EntityId>(*child)
+            .is_some_and(|child_id| child_id.0 == id)
+    })
+}
+
+/// Advance once the exhausted rock is despawned.
+#[cfg(feature = "debug")]
+fn exhausted_rock_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
+    Arc::new(|world: &World| {
+        world
+            .get_resource::<ExhaustedRock>()
+            .is_some_and(|rock| world.get_entity(rock.entity).is_err())
+    })
+}
+
+/// Put one crater wider than any rock on the first streamed rock in the face
+/// the +X crossing retires. The carve chain exhausts and despawns it; the
+/// range issues no despawn of its own.
+#[cfg(feature = "debug")]
+fn exhaust_retiring_rock(world: &mut World) {
+    let config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
+    let face = FEATURE_HOME.x - EXAMPLE_ACTIVE_RADIUS;
+    let (coord, id) = live_roots(world)
+        .keys()
+        .filter(|coord| coord.x == face)
+        .find_map(|coord| {
+            describe(*coord, &config)
+                .asteroids()
+                .first()
+                .map(|rock| (*coord, rock.id.clone()))
+        })
+        .expect(
+            "world sectors: the face the crossing retires must hold a rock, or this claim \
+             proves nothing",
+        );
+    let entity = sector_object(world, coord, &id)
+        .unwrap_or_else(|| panic!("world sectors: {coord} describes rock '{id}' but spawned none"));
+    let node = world
+        .get::<Children>(entity)
+        .and_then(|children| {
+            children
+                .iter()
+                .find(|child| world.get::<DamageMarks>(*child).is_some())
+        })
+        .unwrap_or_else(|| panic!("world sectors: streamed rock '{id}' must take damage marks"));
+    world
+        .get_mut::<DamageMarks>(node)
+        .expect("world sectors: the node was just found by its marks")
+        .0
+        .push(DamageMark {
+            at: Vec3::ZERO,
+            radius: 2.0 * ASTEROID_GEOMETRIC_FACTOR_MAX,
+        });
+    world.insert_resource(ExhaustedRock { coord, id, entity });
 }
 
 /// What the job counters read before the abandonment beat handed work in, so
@@ -1235,7 +1318,48 @@ fn report_return(world: &mut World) {
     );
 }
 
-/// Claim 13: work the observer walked away from is dropped, not spawned.
+/// Claim 13: destroying a streamed rock is session-local. The crossing retires
+/// its cell and the return regenerates the pristine rock; nothing persists.
+#[cfg(feature = "debug")]
+fn report_regenerated_rock(world: &mut World) {
+    let ExhaustedRock { coord, id, .. } = world
+        .remove_resource::<ExhaustedRock>()
+        .expect("world sectors: the exhaustion beat must name its rock");
+    let baseline = world.resource::<CrossingBaseline>().0[&coord];
+    let root = live_roots(world)[&coord];
+    assert_ne!(
+        root, baseline,
+        "world sectors: the crossing must retire {coord} and the return rebuild it"
+    );
+    let returned = sector_object(world, coord, &id)
+        .unwrap_or_else(|| panic!("world sectors: the return must regenerate rock '{id}'"));
+    assert!(
+        world.get::<AsteroidMarker>(returned).is_some(),
+        "world sectors: regenerated '{id}' must be a rock"
+    );
+    let marks: Vec<usize> = world
+        .get::<Children>(returned)
+        .map_or_else(Vec::new, |children| {
+            children
+                .iter()
+                .filter_map(|child| world.get::<DamageMarks>(child))
+                .map(|marks| marks.0.len())
+                .collect()
+        });
+    assert_eq!(
+        marks,
+        vec![0],
+        "world sectors: regenerated rock '{id}' must carry one empty set of damage marks"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: a destroyed streamed asteroid returns pristine after its sector retires",
+        serde_json::json!({ "cell": coord.to_string(), "rock": id }),
+    );
+    info!("world sectors: rock '{id}' in {coord} came back pristine");
+}
+
+/// Claim 14: work the observer walked away from is dropped, not spawned.
 ///
 /// The two pieces cover the two ways prepared work can go stale: a job still
 /// running when its cell stops being wanted, and a result that finished and
@@ -1290,7 +1414,7 @@ fn report_abandoned_work(world: &mut World) {
     );
 }
 
-/// Claim 14: replacing the `WorldConfig` replaces the WORLD, and nothing the
+/// Claim 15: replacing the `WorldConfig` replaces the WORLD, and nothing the
 /// old one built or had in flight crosses over.
 ///
 /// The hole this closes is that every piece of streaming state is keyed by
@@ -1422,7 +1546,7 @@ fn report_world_replacement(world: &mut World) {
     );
 }
 
-/// Claim 15: the session sweep is still the outer owner, and it reaches the
+/// Claim 16: the session sweep is still the outer owner, and it reaches the
 /// work as well as the world.
 #[cfg(feature = "debug")]
 fn report_unload(world: &mut World) {

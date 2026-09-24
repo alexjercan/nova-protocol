@@ -441,7 +441,6 @@ pub(crate) fn belts(texture: &AssetRef<Image>) -> Vec<EventActionConfig> {
                         radius: belt.radius.0,
                         texture: texture.clone(),
                         mass: None,
-                        invulnerable: false,
                         seed: None,
                         lock_signature: None,
                     }),

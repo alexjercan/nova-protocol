@@ -460,7 +460,6 @@ fn body_record(body: &Value, frame: Option<&Frame>) -> Value {
         "name": body["name"],
         "kind": body["kind"],
         "radius_m": round1(radius),
-        "invulnerable": body["invulnerable"],
     });
     range_and_bearing(&mut record, frame, position);
     if let Some(distance) = record["distance_m"].as_f64() {
@@ -913,8 +912,8 @@ mod tests {
             ],
             "beacons": [{ "id": "mark", "label": "WORK MARK", "position": [0, 100, 0] }],
             "bodies": [
-                { "id": "planetoid", "name": "Kestrel", "kind": "Planet", "position": [0, 0, -700], "radius": 60, "invulnerable": true },
-                { "id": "rock", "name": "Rock", "kind": "Asteroid", "position": [-100, 0, 0], "radius": 1.5, "invulnerable": false }
+                { "id": "planetoid", "name": "Kestrel", "kind": "Planet", "position": [0, 0, -700], "radius": 60 },
+                { "id": "rock", "name": "Rock", "kind": "Asteroid", "position": [-100, 0, 0], "radius": 1.5 }
             ],
             "ordnance": [
                 { "kind": "bullet", "owner": "player" },
@@ -1062,7 +1061,7 @@ mod tests {
         let mut snapshot = snapshot();
         // 20 km dead ahead, and 400 m/s of closing speed: 50 seconds out.
         snapshot["bodies"] = json!([
-            { "id": "wall", "name": "Wall", "kind": "Asteroid", "position": [0, 0, -2000], "radius": 5, "invulnerable": false }
+            { "id": "wall", "name": "Wall", "kind": "Asteroid", "position": [0, 0, -2000], "radius": 5 }
         ]);
         snapshot["ships"][0]["linear_velocity"] = json!([0, 0, -40]);
         let view = condense(&snapshot, &BTreeSet::new(), &[]);
@@ -1077,7 +1076,7 @@ mod tests {
         snapshot["ships"][0]["combat_lock"] = json!("raider_1");
         // Half way to the raider at 2.8 km, dead on the line of sight.
         snapshot["bodies"] = json!([
-            { "id": "screen", "name": "Screen", "kind": "Asteroid", "position": [5, 0, -140], "radius": 8, "invulnerable": false }
+            { "id": "screen", "name": "Screen", "kind": "Asteroid", "position": [5, 0, -140], "radius": 8 }
         ]);
         let view = condense(&snapshot, &BTreeSet::new(), &[]);
         let blocking = &view["bodies"]["in_the_way"][0];

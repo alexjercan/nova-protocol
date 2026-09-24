@@ -142,7 +142,6 @@ fn field(
                 kind: KIND_ROCK.to_string(),
                 destroy_sound: None,
                 mass: None,
-                invulnerable: false,
                 lock_signature: None,
                 seed: None,
             }),

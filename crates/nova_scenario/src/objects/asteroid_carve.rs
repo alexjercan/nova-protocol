@@ -1119,4 +1119,119 @@ mod tests {
         // authored.
         assert_eq!(field_resolution(half_extent, 0.1), FIELD_RESOLUTION_MIN);
     }
+
+    /// An authored well rock that runs out of material takes everything that
+    /// named it: its node, its well and its scenario id, with one
+    /// `OnDestroyed`. The rock dies through the carve chain - seed, carve,
+    /// remesh - and not through a despawn the test issues.
+    #[test]
+    fn an_exhausted_authored_rock_takes_its_well_and_id_with_it() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        use crate::{actions::scoped_entities, prelude::*, test_support::drain_spawns};
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default(), TransformPlugin));
+        app.init_asset::<Mesh>();
+        app.add_plugins((
+            AsteroidPlugin { render: false },
+            AsteroidCarvePlugin { render: false },
+        ));
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        let destroyed = Arc::new(AtomicUsize::new(0));
+        let heard = destroyed.clone();
+        app.add_observer(move |event: On<GameEvent>| {
+            if event.event().name() == OnDestroyedEvent::name() {
+                heard.fetch_add(1, Ordering::SeqCst);
+            }
+        });
+
+        let authored = ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "rock".to_string(),
+                name: "Rock".to_string(),
+                position: Meters3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                kind: KIND_ROCK.to_string(),
+                destroy_sound: None,
+                radius: Meters(200.0),
+                texture: AssetRef::default(),
+                mass: Some(45_000.0),
+                seed: None,
+                lock_signature: None,
+            }),
+        };
+        authored.action(
+            &mut app.world_mut().resource_mut::<NovaEventWorld>(),
+            &GameEventInfo::default(),
+        );
+        drain_spawns(app.world_mut());
+        app.update();
+
+        let [root] = scoped_entities(app.world_mut(), "rock")[..] else {
+            panic!("the authored id must resolve to one rock");
+        };
+        assert!(
+            app.world().get::<GravityWell>(root).is_some(),
+            "delivery guard: the rock is massive enough to be a well"
+        );
+        let children: Vec<Entity> = app
+            .world()
+            .get::<Children>(root)
+            .expect("the rock has its collider node")
+            .iter()
+            .collect();
+        let node = children
+            .iter()
+            .copied()
+            .find(|child| app.world().get::<DamageMarks>(*child).is_some())
+            .expect("the collider node takes marks");
+
+        // One mark wider than any rock reaches in its own unit space.
+        app.world_mut()
+            .get_mut::<DamageMarks>(node)
+            .expect("the node takes marks")
+            .0
+            .push(DamageMark {
+                at: Vec3::ZERO,
+                radius: 2.0 * ASTEROID_GEOMETRIC_FACTOR_MAX,
+            });
+
+        // The seed and the remesh run on the task pool. The cap names a hung
+        // chain; it is not a budget.
+        for _ in 0..10_000 {
+            if app.world().get_entity(root).is_err() {
+                break;
+            }
+            app.update();
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert!(
+            app.world().get_entity(root).is_err(),
+            "the exhausted rock must despawn"
+        );
+        // Frames after the death, so a second OnDestroyed would be heard.
+        app.update();
+        app.update();
+
+        for child in children {
+            assert!(app.world().get_entity(child).is_err(), "{child} survived");
+        }
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), With<GravityWell>>()
+                .iter(app.world())
+                .count(),
+            0,
+            "the well dies with its body"
+        );
+        assert!(scoped_entities(app.world_mut(), "rock").is_empty());
+        assert_eq!(destroyed.load(Ordering::SeqCst), 1);
+    }
 }

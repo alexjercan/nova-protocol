@@ -135,7 +135,6 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>) {
                         kind: (*kind).to_string(),
                         destroy_sound: None,
                         mass: None,
-                        invulnerable: false,
                         lock_signature: None,
                         seed: Some(*seed),
                     }),

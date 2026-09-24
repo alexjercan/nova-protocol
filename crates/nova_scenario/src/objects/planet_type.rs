@@ -310,14 +310,22 @@ impl PlanetType {
 ///
 /// Deliberately shaped like
 /// [`AsteroidConfig`](super::asteroid::AsteroidConfig): radius in meters, an
-/// optional seed that pins the body across loads, a mass, an invulnerable flag
-/// and a lock signature, so an author who can place a rock can place a
-/// planet.
+/// optional seed that pins the body across loads, a mass and a lock
+/// signature, so an author who can place a rock can place a planet.
 ///
 /// The one field that does NOT carry over is `texture`: a planet samples no
 /// texture at all. Its whole surface comes from the type and the seed.
+///
+/// A planet is never destructible, and that is the type's rule, not an
+/// authored field: its collider child never gets the `DamageMarks` and
+/// `CollisionEventsEnabled` an asteroid's does, so its gravity well lives for
+/// the whole scenario. A destructible planet needs its own design.
+///
+/// STRICT: an unknown key is a load error. A file still carrying the removed
+/// `invulnerable:` gets a refusal naming the key.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct PlanetConfig {
     /// Mean radius: the REAL size of the body, not a designation.
     ///
@@ -363,20 +371,6 @@ pub struct PlanetConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub mass: Option<f32>,
-    /// Whether weapons fire leaves this body alone. It must be `true`.
-    ///
-    /// A planet a chapter is authored around must still be there at the end of
-    /// it, and an invulnerable body keeps its well for the whole scenario
-    /// because nothing can carve it. There is no destructible planet yet: the
-    /// collider child is never given `DamageMarks` or `CollisionEventsEnabled`
-    /// the way [`AsteroidConfig::invulnerable`](super::asteroid::AsteroidConfig::invulnerable)
-    /// arranges, so `false` would be a body that quietly cannot be destroyed
-    /// while its author builds a mission around destroying it.
-    ///
-    /// The field stays authored rather than assumed, and `false` is a `content
-    /// lint` error and a load refusal. When a destructible planet exists it
-    /// becomes a real choice with no file to migrate.
-    pub invulnerable: bool,
     /// Override how loud this body reads to the lock scanner. `None` is the
     /// mean radius, so a planet locks from proportionally far out.
     #[cfg_attr(
@@ -389,10 +383,6 @@ pub struct PlanetConfig {
 impl PlanetConfig {
     /// The simplest planet an author can write: a type, a radius and a seed.
     /// Everything else is an override with a per-type default behind it.
-    ///
-    /// [`Self::invulnerable`] is `true` here because it is the only value that
-    /// loads: there is no destructible planet, and a builder that produced a
-    /// config the lint refuses would be a trap.
     pub fn new(planet_type: PlanetType, radius: Meters, seed: u32) -> Self {
         Self {
             radius,
@@ -401,7 +391,6 @@ impl PlanetConfig {
             relief: None,
             sea_level: None,
             mass: None,
-            invulnerable: true,
             lock_signature: None,
         }
     }
@@ -443,8 +432,7 @@ impl PlanetConfig {
     ///
     /// # Errors
     ///
-    /// The first field at fault: a radius that is not positive and finite;
-    /// `invulnerable: false`, because there is no destructible planet; a
+    /// The first field at fault: a radius that is not positive and finite; a
     /// relief that is not positive, finite and smaller than the radius; a sea
     /// level outside 0 to 1; a mass or lock signature that is not positive
     /// and finite.
@@ -453,9 +441,6 @@ impl PlanetConfig {
         let radius = self.radius.get();
         if !radius.is_finite() || radius <= 0.0 {
             return fault("radius", format!("{radius} m"));
-        }
-        if !self.invulnerable {
-            return fault("invulnerable", "false".to_string());
         }
         if let Some(relief) = self.relief {
             if !relief.get().is_finite() || relief.get() <= 0.0 || relief.get() >= radius {
@@ -1021,19 +1006,14 @@ mod tests {
     /// can still tell the author which file was wrong.
     #[test]
     fn a_planet_must_name_a_type_the_build_knows() {
-        let missing = r#"(radius: 800.0, seed: 1, invulnerable: true)"#;
-        let unknown = r#"(radius: 800.0, planet_type: WaterWorld, seed: 1, invulnerable: true)"#;
-        let unseeded = r#"(radius: 800.0, planet_type: DustWorld, invulnerable: true)"#;
-        let unstated = r#"(radius: 800.0, planet_type: DustWorld, seed: 1)"#;
+        let missing = r#"(radius: 800.0, seed: 1)"#;
+        let unknown = r#"(radius: 800.0, planet_type: WaterWorld, seed: 1)"#;
+        let unseeded = r#"(radius: 800.0, planet_type: DustWorld)"#;
 
         for (authored, why) in [
             (missing, "a planet with no type"),
             (unknown, "a planet claiming a type the build does not have"),
             (unseeded, "a planet with no seed"),
-            (
-                unstated,
-                "a planet that does not say whether it can be destroyed",
-            ),
         ] {
             assert!(
                 ron::from_str::<PlanetConfig>(authored).is_err(),
@@ -1042,12 +1022,24 @@ mod tests {
         }
 
         assert!(
-            ron::from_str::<PlanetConfig>(
-                r#"(radius: 800.0, planet_type: DustWorld, seed: 1, invulnerable: true)"#
-            )
-            .is_ok(),
+            ron::from_str::<PlanetConfig>(r#"(radius: 800.0, planet_type: DustWorld, seed: 1)"#)
+                .is_ok(),
             "the minimum honest planet still parses"
         );
+    }
+
+    /// Planets are never destructible by type, so a file that still authors
+    /// the removed flag is refused rather than read as a planet that ignores
+    /// it.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn a_planet_refuses_the_removed_invulnerable_key() {
+        let stale = r#"(radius: 800.0, planet_type: DustWorld, seed: 1, invulnerable: true)"#;
+
+        let error = ron::from_str::<PlanetConfig>(stale)
+            .expect_err("a stale `invulnerable:` key must fail the load")
+            .to_string();
+        assert!(error.contains("invulnerable"), "{error}");
     }
 
     /// The band colours reach the shader in LINEAR space. An sRGB triple in a
@@ -1078,7 +1070,6 @@ mod tests {
             radius: 800.0,
             planet_type: DustWorld,
             seed: 4242,
-            invulnerable: true,
             relief: Some(40.0),
         )"#;
         let config: PlanetConfig = ron::from_str(authored).expect("authored planet config parses");

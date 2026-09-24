@@ -170,7 +170,6 @@
                             planet_type: IceWorld,
                             seed: 20780101,
                             mass: Some(4000.0),
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -194,7 +193,6 @@
                             planet_type: BarrenRock,
                             seed: 20780102,
                             mass: Some(4000.0),
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -218,7 +216,6 @@
                             planet_type: Greenhouse,
                             seed: 20780103,
                             mass: Some(4000.0),
-                            invulnerable: true,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -339,7 +336,6 @@
                                 texture: "self://textures/asteroid.png",
                                 kind: "ice",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
@@ -399,7 +395,6 @@
                                 texture: "self://textures/asteroid.png",
                                 kind: "ice",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((

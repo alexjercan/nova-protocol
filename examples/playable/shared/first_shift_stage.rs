@@ -175,7 +175,6 @@ fn rock(
             radius,
             texture: texture.clone().into(),
             mass: None,
-            invulnerable: false,
             seed: None,
             lock_signature: None,
         }),

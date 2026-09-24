@@ -3,6 +3,14 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.14.0
+
+- The act-3 gravity well is a 100 m barren `Planet` now, at the same place and
+  mass, and every course rock can be carved and destroyed. Required: the base
+  game dropped `invulnerable`, and a file still authoring it is refused at
+  load. The smaller body caps the well's pull, so it reaches about 670 m
+  instead of 870 m.
+
 ## 1.13.0
 
 - Drops the cutter's 250 m/s manual speed governor. Required: the base game has

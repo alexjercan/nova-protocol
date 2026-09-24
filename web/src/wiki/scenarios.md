@@ -6,8 +6,8 @@ A scenario places a world and wires its objectives. It is the same machinery whe
 
 A scenario spawns a handful of object kinds:
 
-- **Asteroids** - rocks with a radar signature and an optional [gravity well](../gravity-wells/). A normal rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see [Shooting rock](../combat-weapons/#shooting-rock)). An invulnerable rock never wears at all.
-- **Planets** - whole worlds, and the thing to place when you want a body rather than a big rock. A type and a seed draw the terrain, the biomes and the polar cap; the radius is the real size, not a designation the mesh reaches past. A planet is always invulnerable - nothing carves one - and carries a [gravity well](../gravity-wells/) like any other body.
+- **Asteroids** - rocks with a radar signature and an optional [gravity well](../gravity-wells/). A normal rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see [Shooting rock](../combat-weapons/#shooting-rock)). Every rock can be shot apart, and its gravity well goes with it.
+- **Planets** - whole worlds, and the thing to place when you want a body rather than a big rock. A type and a seed draw the terrain, the biomes and the polar cap; the radius is the real size, not a designation the mesh reaches past. Nothing can destroy a planet - nothing carves one - and it carries a [gravity well](../gravity-wells/) like any other body.
 - **Spaceships** - multi-section [builds](../sections/) under a player or AI controller, each spawn holding what the ship is permitted to do.
 - **Nav beacons** - lockable waypoints visible to radar within 12 km by default, with authorable signatures for longer legs and optional trigger areas.
 - **Salvage crates** - small pickups collected by flying through them.
@@ -27,7 +27,7 @@ The full construct catalog - every event, filter and action by name, with its fi
 
 ## The shipped scenarios
 
-- **Open World** - what New Game starts: a line warship (six PDC mounts on the trigger, a railgun on <kbd>R</kbd>, two torpedo bays on <kbd>F</kbd>) in a world generated from the seed you pick. Its asteroids and planetoids cannot be destroyed, and a derelict you fly far away from may be back, whole, when you return. There are no objectives yet. It is not listed in the Scenarios tab.
+- **Open World** - what New Game starts: a line warship (six PDC mounts on the trigger, a railgun on <kbd>R</kbd>, two torpedo bays on <kbd>F</kbd>) in a world generated from the seed you pick. Its asteroids can be carved and destroyed; its planetoids are planets and cannot be. Destruction is not saved yet: fly far enough away that a sector unloads, and a destroyed asteroid or derelict there is back, whole, when you return. There are no objectives yet. It is not listed in the Scenarios tab.
 - **Basic Training** - the first-flight course: the Fleet gunnery range, where Range Control talks a cadet through a qualification card in an armed trainer, one gesture per beat (burn, STOP, the thrusters, a combat lock, the gun), then five target hulks and two range drones that go live and shoot back. No story; the reward is a posting.
 - **Menu backdrops** - the living scenes behind the menus, a rotating CAROUSEL: each scene plays its act and hands off to the next. **Torpedo Gauntlet** (a gunship's six PDC mounts swat torpedoes streaming in from both flanks until its hard magazines run dry and the stand falls), **Asteroid Weave** (a cutter threading a dense rock band on real patrol waypoints, hugging its nav beacons), **Duel Cycle** (a gunship and a raider dogfight through the open center; a siege torpedo erases the winner), and **Waystation Traffic** (a hauler convoy circling a freight stop under amber dock lights). Menu entry starts the ring at a random scene. All of it is the real simulation, not a cutscene. Mods can ship their own by declaring a scenario `role: Backdrop`.
 
