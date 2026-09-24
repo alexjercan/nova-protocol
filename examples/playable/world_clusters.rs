@@ -883,8 +883,7 @@ const PLANETOID_SHOT: &str = "world-clusters-planetoid.png";
 #[cfg(feature = "debug")]
 const DERELICT_SHOT: &str = "world-clusters-derelict.png";
 
-/// How far from a planetoid group's centroid its shot stands. Inside the
-/// camera's 10 km far plane, with the whole 8 km ring in reach of it.
+/// How far from a planetoid group's centroid its shot stands.
 #[cfg(feature = "debug")]
 const PLANETOID_STANDOFF: Meters = Meters(7_000.0);
 
@@ -898,6 +897,10 @@ const DERELICT_STANDOFF: Meters = Meters(900.0);
 /// the hull does not hide the member behind it.
 #[cfg(feature = "debug")]
 const DERELICT_RISE: Meters = Meters(250.0);
+
+/// How far past a shot group's farthest clearance the far plane stands.
+#[cfg(feature = "debug")]
+const SHOT_FAR_MARGIN: Meters = Meters(1_000.0);
 
 /// The run gate: stream the home window, check the seam groups against the
 /// live world, frame one of each kind, and shoot them.
@@ -924,10 +927,11 @@ fn clusters_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
             // The version item bakes the commit into a shot.
             hide_status_bar(world);
             let targets = *world.resource::<SeamTargets>();
-            pose_camera(
+            frame_group(
                 world,
                 standoff(targets.planetoid, PLANETOID_STANDOFF),
                 targets.planetoid,
+                targets.planetoid_reach,
             );
         })
         .until(and(
@@ -949,7 +953,12 @@ fn clusters_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
             // any side then frames the group.
             let back = (lead - middle).normalize_or(Vec3::X);
             let eye = lead + back * DERELICT_STANDOFF.get() + Vec3::Y * DERELICT_RISE.get();
-            pose_camera(world, Meters3(eye), targets.derelict);
+            frame_group(
+                world,
+                Meters3(eye),
+                targets.derelict,
+                targets.derelict_reach,
+            );
         })
         .until(and(
             window_is_settled(),
@@ -965,12 +974,15 @@ fn clusters_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
 }
 
 /// Where the two shot groups stand: the middle of each one's placed bodies,
-/// and the derelict group's lead hull.
+/// how far from that middle its farthest placed clearance reaches, and the
+/// derelict group's lead hull.
 #[cfg(feature = "debug")]
 #[derive(Resource, Clone, Copy)]
 struct SeamTargets {
     planetoid: Meters3,
+    planetoid_reach: Meters,
     derelict: Meters3,
+    derelict_reach: Meters,
     derelict_lead: Meters3,
 }
 
@@ -1058,16 +1070,23 @@ fn check_seam_groups(world: &mut World) {
                     kind.label()
                 )
             });
-        let bodies: Vec<Meters3> = plans
+        let bodies: Vec<&world_fixture::PlannedBody> = plans
             .iter()
             .flat_map(|plan| &plan.bodies)
             .filter(|body| {
                 body.outcome == Outcome::Placed
                     && matches!(body.source, BodySource::Parent(id) | BodySource::Member(id, _) if id == group.id)
             })
-            .map(|body| body.position)
             .collect();
-        let middle = bodies.iter().fold(Vec3::ZERO, |sum, at| sum + at.get()) / bodies.len() as f32;
+        let middle = Meters3(
+            bodies
+                .iter()
+                .fold(Vec3::ZERO, |sum, body| sum + body.position.get())
+                / bodies.len() as f32,
+        );
+        let reach = bodies.iter().fold(Meters::ZERO, |reach, body| {
+            reach.max(body.position.distance(middle) + body.body.clearance())
+        });
         info!(
             "world clusters: {} group {} placed {} bodies across {:?}, all live",
             kind.label(),
@@ -1075,13 +1094,15 @@ fn check_seam_groups(world: &mut World) {
             bodies.len(),
             placed_cells[&group.id],
         );
-        (Meters3(middle), group.parent.position)
+        (middle, reach, group.parent.position)
     };
-    let (planetoid, _) = pick(GroupKind::Planetoid);
-    let (derelict, derelict_lead) = pick(GroupKind::Derelict);
+    let (planetoid, planetoid_reach, _) = pick(GroupKind::Planetoid);
+    let (derelict, derelict_reach, derelict_lead) = pick(GroupKind::Derelict);
     let targets = SeamTargets {
         planetoid,
+        planetoid_reach,
         derelict,
+        derelict_reach,
         derelict_lead,
     };
     info!(
@@ -1090,6 +1111,31 @@ fn check_seam_groups(world: &mut World) {
         owners.len()
     );
     world.insert_resource(targets);
+}
+
+/// Pose the scenario camera at `eye` looking at `middle`, and stand its far
+/// plane past the group's `reach` so placed bodies are not far-plane clipped.
+///
+/// Panics when the scenario camera is missing or not perspective: the shot
+/// would otherwise be a clipped picture that reads as a pass.
+#[cfg(feature = "debug")]
+fn frame_group(world: &mut World, eye: Meters3, middle: Meters3, reach: Meters) {
+    pose_camera(world, eye, middle);
+    let far = eye.distance(middle) + reach + SHOT_FAR_MARGIN;
+    let mut query = world.query_filtered::<&mut Projection, With<ScenarioCameraMarker>>();
+    let mut projection = query
+        .single_mut(world)
+        .expect("world clusters: one scenario camera frames the shot");
+    let Projection::Perspective(perspective) = projection.as_mut() else {
+        panic!("world clusters: the scenario camera must be perspective to frame a group");
+    };
+    perspective.far = far.to_engine();
+    info!(
+        "world clusters: framed a group reaching {} m from {} m away, far plane {} m",
+        reach.get(),
+        eye.distance(middle).get(),
+        far.get()
+    );
 }
 
 /// An eye `distance` from `target`, up and off to one side, so the shot has
