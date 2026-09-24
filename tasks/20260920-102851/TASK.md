@@ -149,11 +149,14 @@ Implementation boundary:
   capped or paused frames silent with a held playhead and gain 0 rows,
   one-shots play out and hold their last row, loops end with their rows),
   copies the samples (a copy failure warns; any other failure, including a
-  voice with no asset path, a clip path that is not plain relative names, or a
-  clip path inside the reserved `.loop-frames` staging subtree, vetoes the loop),
-  and publishes `<loop>.jsonl` last through a rename. Speed
-  is internal to the render and never enters the sidecar. Loop names and clip
-  paths are JSON-escaped; an ordinary name or path keeps its bytes.
+  voice with no asset path, a clip path that is not plain relative names, a
+  clip path inside the reserved `.loop-frames` staging subtree, or an existing
+  symlink, non-directory parent or uninspectable entry on a clip's destination
+  under the capture directory, vetoes the loop before any write; a link
+  created during the copy or a hardlinked sample file is not detected), and
+  publishes `<loop>.jsonl` last through a rename. Speed is internal to the
+  render and never enters the sidecar. Loop names and clip paths are
+  JSON-escaped; an ordinary name or path keeps its bytes.
 - The encode runs after the sidecar is published, so an ffmpeg mux failure
   fails the run but leaves the complete sidecar and samples.
 
@@ -218,10 +221,10 @@ resolved, for every frame each voice was alive.
   two together prove that a capped exterior loop exports as silent.
 - Unit tests in `nova_debug`: exact version 1 row bytes, per-ear channel use
   with a spatial voice reading its summed decode, over-only PCM peak
-  attenuation, unsafe sample paths, and JSON escaping. The summing pan filter
-  itself needs ffmpeg, which the CI test job does not install, so a disposable
-  ffmpeg run proves it: mono 0.25 decodes to 0.25 in both ears, and stereo
-  0.25/0.125 decodes to 0.375 in both ears.
+  attenuation, unsafe sample paths, unsafe sample destinations, and JSON
+  escaping. The summing pan filter itself needs ffmpeg, which the CI test job
+  does not install, so a disposable ffmpeg run proves it: mono 0.25 decodes to
+  0.25 in both ears, and stereo 0.25/0.125 decodes to 0.375 in both ears.
 - An armed `loop_torpedo_blast` run: VP9 and Opus in one WebM, and the header
   frame count equal to the encoded frames. The -1 dBFS ceiling applies to the
   staged PCM before Opus; the decoded proof peak is -9.6 dBFS, which proves no

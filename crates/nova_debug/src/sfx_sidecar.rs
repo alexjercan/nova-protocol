@@ -230,9 +230,10 @@ fn sample_sidecar(
     });
 }
 
-/// Stage the PCM, copy the samples, then publish the JSONL. Any failure except
-/// a sample copy vetoes the loop. The encode runs after this, so an ffmpeg mux
-/// failure there still leaves the complete sidecar and its samples on disk.
+/// Check the sample destinations, stage the PCM, copy the samples, then
+/// publish the JSONL. Any failure except a sample copy vetoes the loop. The
+/// encode runs after this, so an ffmpeg mux failure there still leaves the
+/// complete sidecar and its samples on disk.
 fn close_sidecar(
     mut ended: On<LoopCaptureEnded>,
     mut sidecar: ResMut<SfxSidecar>,
@@ -261,6 +262,11 @@ fn finish(
             open.name, open.frames, ended.name, ended.frames
         ));
     }
+    let directory = ended.sidecar_path.parent().unwrap_or(Path::new(""));
+    // Before any write, so an unsafe destination leaves staging as it was.
+    for voice in &open.voices {
+        check_sample_destination(directory, &voice.clip)?;
+    }
     let mut bytes: HashMap<&str, &[u8]> = HashMap::new();
     for voice in &open.voices {
         let source = sources
@@ -285,7 +291,6 @@ fn finish(
     fs::write(&ended.audio_path, pcm)
         .map_err(|error| format!("cannot write {}: {error}", ended.audio_path.display()))?;
 
-    let directory = ended.sidecar_path.parent().unwrap_or(Path::new(""));
     let copied = bytes
         .iter()
         .filter(|(clip, data)| copy_sample(directory, clip, data))
@@ -363,11 +368,54 @@ fn json_string(text: &str) -> String {
     literal
 }
 
+/// Reject a sample destination that an existing entry could redirect or block.
+/// [`is_confined`] is lexical, and the copy follows symlinks, so a `sounds`
+/// link to `.loop-frames/<loop>` or outside the capture directory would move
+/// the write there. Only the clip's own components are walked: a symlinked
+/// capture directory moves staging with it. An entry that cannot be inspected
+/// also fails.
+///
+/// This stops stale or planted symlinks, not a concurrent writer: a link
+/// created between this check and [`copy_sample`] still redirects the copy.
+/// A hardlinked sample file is not detected, so the copy overwrites every name
+/// of that file.
+fn check_sample_destination(directory: &Path, clip: &str) -> Result<(), String> {
+    let mut path = directory.to_path_buf();
+    let mut components = Path::new(clip).components().peekable();
+    while let Some(component) = components.next() {
+        path.push(component);
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            // Nothing exists below a missing entry, so the copy creates the rest.
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => {
+                return Err(format!(
+                    "cannot inspect sample `{clip}` destination {}: {error}",
+                    path.display()
+                ));
+            }
+        };
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "sample `{clip}` destination {} is a symlink",
+                path.display()
+            ));
+        }
+        if components.peek().is_some() && !metadata.is_dir() {
+            return Err(format!(
+                "sample `{clip}` destination {} is not a directory",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Write one sample next to the sidecar at its asset-relative path, so a
 /// capture is self-contained. An existing file is overwritten, because the
 /// asset may have changed since an earlier capture. A failure WARNS: a missing
 /// sample costs one editor row, while aborting would cost the whole capture
-/// run.
+/// run. [`check_sample_destination`] has already vetoed unsafe destinations.
 fn copy_sample(directory: &Path, clip: &str, bytes: &[u8]) -> bool {
     let destination = directory.join(clip);
     let written = destination
@@ -669,6 +717,59 @@ mod tests {
         assert_eq!(fs::read_to_string(&path).unwrap(), "second\n");
         assert!(!dir.join("strike.jsonl.part").exists());
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A symlink on a sample's destination path would move its copy into loop
+    /// staging or out of the capture directory, and a file where a parent
+    /// directory belongs would block it. Either vetoes the loop before the
+    /// sample source lookup. The test registers no sources, so an unchecked
+    /// clip would fail with a missing-bytes error instead.
+    #[cfg(unix)]
+    #[test]
+    fn an_unsafe_sample_destination_vetoes_the_loop_before_the_source_lookup() {
+        use std::os::unix::fs::symlink;
+
+        let root =
+            std::env::temp_dir().join(format!("nova-sfx-symlink-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let dir = root.join("shots");
+        let staging = dir.join(LOOP_STAGING_DIR).join("strike");
+        fs::create_dir_all(&staging).unwrap();
+        fs::create_dir_all(dir.join("plain")).unwrap();
+        fs::create_dir(dir.join("sfx")).unwrap();
+        let audio_path = staging.join("audio.f32le");
+        let outside = root.join("outside.wav");
+        fs::write(&audio_path, "staged").unwrap();
+        fs::write(&outside, "outside").unwrap();
+        fs::write(dir.join("plain/blocker"), "file").unwrap();
+        symlink(&staging, dir.join("sounds")).unwrap();
+        symlink(&outside, dir.join("sfx/hit.wav")).unwrap();
+        let ended = LoopCaptureEnded {
+            name: "strike".to_string(),
+            frames: 1,
+            sidecar_path: dir.join("strike.jsonl"),
+            audio_path,
+            failure: None,
+        };
+        let voice = SfxVoice::one_shot(Handle::default(), AudioRoute::Interface);
+
+        assert_eq!(check_sample_destination(&dir, "plain/new/hit.wav"), Ok(()));
+        for (clip, reason) in [
+            ("sounds/audio.f32le", "is a symlink"),
+            ("sfx/hit.wav", "is a symlink"),
+            ("plain/blocker/hit.wav", "is not a directory"),
+        ] {
+            let mut open = OpenSidecar::new("strike", 30);
+            let entity = Entity::from_index(EntityIndex::from_raw_u32(1).unwrap());
+            open.sample(0, [(entity, &voice, &mix(1.0, false))], |_| {
+                Some(clip.to_string())
+            });
+
+            let failure = finish(&open, &ended, &Assets::default()).unwrap_err();
+
+            assert!(failure.contains(reason), "{clip}: {failure}");
+        }
+        fs::remove_dir_all(&root).unwrap();
     }
 
     /// A quote, backslash or control character in a loop name or clip path
