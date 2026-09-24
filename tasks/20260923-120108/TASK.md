@@ -1,8 +1,8 @@
 # World generator interface: a generator type, base world in nova_authoring
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 74
-- TAGS: v0.15.0,gameplay,architecture,open-world
+- TAGS: v0.15.0, gameplay, architecture, open-world
 
 Third PR in the stack: #58 -> #59 (`nova-world-foundation`) -> this branch
 (`nova-world-generator-interface`). Parent spike: `20260824-125938`.

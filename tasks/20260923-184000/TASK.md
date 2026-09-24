@@ -1,8 +1,8 @@
 # Open world: nova_world_base owns the feature field
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 72
-- TAGS: v0.15.0,architecture,open-world
+- TAGS: v0.15.0, architecture, open-world
 
 Fifth PR in the stack: #58 -> #59 (`nova-world-foundation`) -> #61
 (`nova-world-generator-interface`) -> #62 (`nova-open-world-new-game`) -> this

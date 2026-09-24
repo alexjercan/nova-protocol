@@ -1,8 +1,8 @@
 # Open world New Game: base world crate, line warship, seed modal
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 73
-- TAGS: v0.15.0,gameplay,architecture,open-world
+- TAGS: v0.15.0, gameplay, architecture, open-world
 
 Fourth PR in the stack: #58 -> #59 (`nova-world-foundation`) -> #61
 (`nova-world-generator-interface`) -> this branch (`nova-open-world-new-game`).
