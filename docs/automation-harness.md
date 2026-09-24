@@ -473,6 +473,41 @@ not), so the window, the frame clock and the encode cannot disagree about the
 framing - and a profile whose output equals its window encodes with no scale
 filter at all, rather than resampling a master through itself.
 
+A loop also records what it HEARD, with no extra step calls. `DebugPlugin`
+observes the recorder's `LoopCaptureStarted` / `LoopCaptureFrame` /
+`LoopCaptureEnded` events and samples each voice's engine-resolved `VoiceMix`
+immediately before each frame request. At `loop_end` it stages the audio and
+writes the sidecar, and the drain that follows encodes the WebM:
+
+- `<name>.webm` with VP9 video and an Opus track, rendered offline from the
+  loaded samples at each frame's pre-master `VoiceMix::channel_gains` and
+  speed. A positional voice plays the sum of its sample's channels at its
+  per-ear gains, as the spatial sink does; a flat voice keeps its channels.
+  A voice that the voice cap or a frozen sim holds is silent and paused. A
+  one-shot plays its whole sample; a loop ends with its last frame. If the
+  summed PCM peak is over -1 dBFS, the whole loop is attenuated once to put it
+  there before the Opus encode, which can overshoot it on decode; a quieter
+  loop is never boosted. The log names the original peak and
+  the attenuation.
+- `<name>.jsonl`, the version 1 SFX sidecar for the editor: a header
+  `{version, loop, fps, frames}`, then `{f, v, gain}` rows with `clip` and
+  `looping` on a voice's first row. `gain` is the pre-master sink gain, the
+  editorial contract, so it carries neither the pan nor the WebM's peak
+  attenuation. A held voice's row has gain 0. Speed is not in version 1.
+- each named sample at its asset-relative path beside the sidecar. A sample
+  that cannot be copied warns. Any other sidecar or audio failure, such as a
+  voice with no asset path, a path that is not plain relative names, a path
+  under the `.loop-frames` staging directory, or an existing symlink,
+  non-directory parent or uninspectable entry on a sample's path under the
+  capture directory, aborts the run before the encode, so `loop_written` never
+  acks a silent loop. The destination check runs before any write but does not
+  stop a link created during the copy, and it does not detect a hardlinked
+  sample file. The sidecar and samples are on disk before the encode, so an
+  ffmpeg mux failure after them fails the run but leaves the complete sidecar.
+
+A Bevy-only app with `LoopCapturePlugin` and no `DebugPlugin` still writes a
+silent WebM. Sheets record no audio.
+
 A SPRITE SHEET is the same recorder with a grid for a length. The training
 handbook draws a lesson loop from one image of cells - the game has no video
 decoder, so an atlas is how a panel animates - and a producer opens the

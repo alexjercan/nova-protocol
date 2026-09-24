@@ -34,6 +34,8 @@ pub mod inspector;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod screenshot;
 pub mod sections;
+#[cfg(not(target_arch = "wasm32"))]
+mod sfx_sidecar;
 pub mod wireframe;
 
 /// Glob-import surface: `use nova_debug::prelude::*` brings the harness presets
@@ -113,11 +115,11 @@ pub struct DebugSystems;
 
 /// A plugin that adds various debugging tools.
 ///
-/// Adds the world inspector, wireframe/section/gravity overlays and - on host
-/// targets - the screenshot hotkey as sub-plugins, inserts [`DebugEnabled`], and
-/// owns the one `toggle_debug_mode` that reads F11 for the whole layer; the
-/// overlay sub-plugins run under the [`DebugSystems`] set gated on
-/// [`DebugEnabled`].
+/// Adds the world inspector and wireframe/section/gravity overlays as
+/// sub-plugins, plus, on host targets, the screenshot hotkey and the loop
+/// capture SFX sidecar. It inserts [`DebugEnabled`] and owns the one
+/// `toggle_debug_mode` that reads F11 for the whole layer; the overlay
+/// sub-plugins run under the [`DebugSystems`] set gated on [`DebugEnabled`].
 pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
@@ -128,6 +130,10 @@ impl Plugin for DebugPlugin {
         app.add_plugins(gravity::GravityDebugPlugin);
         #[cfg(not(target_arch = "wasm32"))]
         app.add_plugins(screenshot::ScreenshotHotkeyPlugin);
+        // Every WebM loop gets its SFX sidecar and Opus track without a second
+        // pair of step calls. Host-only: the render runs ffmpeg from a thread.
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_plugins(sfx_sidecar::SfxSidecarPlugin);
 
         // A dev build boots with the WHOLE debug layer off, and F11
         // raises it as one. Three of the four F11-toggled `DebugEnabled` states

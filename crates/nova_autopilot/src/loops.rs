@@ -17,6 +17,15 @@
 //! with ffmpeg and acks `<name>.webm` into
 //! [`CaptureLog`](crate::capture::CaptureLog) only once the file is on disk.
 //!
+//! ## Lifecycle events and the audio track
+//!
+//! A WebM loop triggers [`LoopCaptureStarted`] when it opens, one
+//! [`LoopCaptureFrame`] immediately before each frame request, and
+//! [`LoopCaptureEnded`] when it closes. Sheets trigger none. An adapter that
+//! stages PCM at [`LoopCaptureEnded::audio_path`] gets an Opus track in the
+//! same WebM; without one, the WebM is silent. Nova's `nova_debug` is that
+//! adapter, so this crate stays Bevy-only.
+//!
 //! ## One profile holds every size and rate
 //!
 //! The capture window, the encoded resolution, the frame clock, the quality
@@ -78,6 +87,8 @@
 //!   forgot [`loop_end`]) error-exits naming the loop;
 //! - a loop that exceeds the profile's frame cap error-exits naming the loop
 //!   and the cap, rather than clipping the webm;
+//! - an adapter that sets [`LoopCaptureEnded::failure`] error-exits naming the
+//!   loop and the reason, before any encode;
 //! - a missing ffmpeg binary or a nonzero encode exit error-exits with
 //!   ffmpeg's own output.
 //!
@@ -125,6 +136,66 @@ pub const LOOP_RESOLUTION: (u32, u32) = (1280, 720);
 /// 40, so this spends some of that headroom on quality); raise it if a busier
 /// loop ever crowds the budget.
 pub const LOOP_CRF: u32 = 34;
+
+/// Sample rate of the optional raw stereo audio track staged for a loop.
+///
+/// A capture adapter writes little-endian `f32` samples to
+/// [`LoopCaptureEnded::audio_path`]. When that file exists, the encoder muxes it
+/// as Opus; otherwise the standalone Bevy-only recorder keeps writing a silent
+/// WebM.
+pub const LOOP_AUDIO_SAMPLE_RATE: u32 = 44_100;
+
+/// Directory under the shot dir that holds every loop's staging directory.
+/// The encode deletes a loop's staging directory, so nothing else may write
+/// inside it.
+pub const LOOP_STAGING_DIR: &str = ".loop-frames";
+
+/// Name of the staged audio track inside a loop's staging directory.
+const LOOP_AUDIO_FILE: &str = "audio.f32le";
+
+/// A WebM loop has opened. Sheets do not trigger it.
+///
+/// Nova's debug adapter observes this to open its SFX sidecar without adding a
+/// gameplay dependency to this Bevy-only crate.
+#[derive(Event, Clone, Debug, PartialEq, Eq)]
+pub struct LoopCaptureStarted {
+    /// Loop stem passed to [`loop_start`].
+    pub name: String,
+    /// Capture cadence used by both video frames and audio envelopes.
+    pub fps: u32,
+}
+
+/// An open WebM loop is about to request video frame [`frame`](Self::frame).
+///
+/// The driver triggers it in `Last`, immediately before the readback request,
+/// so an observer samples the same world state the staged frame renders.
+#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LoopCaptureFrame {
+    /// Zero-based video frame index. The staged PNG is `frame + 1`.
+    pub frame: u32,
+}
+
+/// A WebM loop has closed and waits for its in-flight frames before encoding.
+///
+/// Observers may write stereo little-endian `f32` PCM to
+/// [`audio_path`](Self::audio_path) before this trigger returns; the encode
+/// then includes it as an Opus track. An observer vetoes the loop by setting
+/// [`failure`](Self::failure): the run then aborts with no encode and no
+/// [`CaptureLog`] ack.
+#[derive(Event, Clone, Debug, PartialEq, Eq)]
+pub struct LoopCaptureEnded {
+    /// Loop stem passed to [`loop_end`].
+    pub name: String,
+    /// Number of video frames recorded for this loop.
+    pub frames: u32,
+    /// Final sibling JSONL path reserved for the SFX sidecar.
+    pub sidecar_path: PathBuf,
+    /// Staging path for stereo [`LOOP_AUDIO_SAMPLE_RATE`] little-endian `f32`
+    /// PCM.
+    pub audio_path: PathBuf,
+    /// Why an observer could not finalize the loop, or `None` to encode it.
+    pub failure: Option<String>,
+}
 
 /// Every size and rate one loop capture runs at: the window it renders into,
 /// the resolution it encodes to, the frame clock, the quality and the cap.
@@ -287,7 +358,7 @@ pub fn sheet_file_name(name: &str) -> String {
 
 /// Where a loop's numbered staging frames go, under the shot dir.
 fn staging_dir(name: &str) -> PathBuf {
-    capture::capture_path(&format!(".loop-frames/{name}"))
+    capture::capture_path(&format!("{LOOP_STAGING_DIR}/{name}"))
 }
 
 /// What the recorder is doing right now.
@@ -467,9 +538,14 @@ fn arm_loop_capture(app: &mut App, profile: LoopProfile) {
 /// Requires [`LoopCapturePlugin`]; an armed run without it is a hard failure
 /// rather than a silently unrecorded loop.
 pub fn loop_start(world: &mut World, name: &str) {
-    if !capture::capturing() {
-        return;
+    if capture::capturing() {
+        open_webm(world, name, staging_dir(name));
     }
+}
+
+/// The armed half of [`loop_start`], staging into `staging`. Split from the env
+/// gate so the lifecycle is testable without mutating the process environment.
+fn open_webm(world: &mut World, name: &str, staging: PathBuf) {
     if world.get_resource::<LoopRecorder>().is_none() {
         fail(
             world,
@@ -477,12 +553,18 @@ pub fn loop_start(world: &mut World, name: &str) {
         );
         return;
     }
-    let staging = staging_dir(name);
     let result = world
         .resource_mut::<LoopRecorder>()
         .start(name, staging, LoopOutput::Webm);
     match result {
-        Ok(()) => info!("loop capture: `{name}` opens"),
+        Ok(()) => {
+            let fps = world.resource::<LoopProfile>().fps;
+            world.trigger(LoopCaptureStarted {
+                name: name.to_string(),
+                fps,
+            });
+            info!("loop capture: `{name}` opens");
+        }
         Err(message) => fail(world, &message),
     }
 }
@@ -539,9 +621,14 @@ pub fn sheet_start(world: &mut World, name: &str, grid: SheetGrid) {
 /// [`loop_written`](crate::predicate::loop_written), which is an await of
 /// that ack, not a guess. A no-op on the smoke path.
 pub fn loop_end(world: &mut World, name: &str) {
-    if !capture::capturing() {
-        return;
+    if capture::capturing() {
+        close_webm(world, name);
     }
+}
+
+/// The armed half of [`loop_end`], split from the env gate so the lifecycle is
+/// testable without mutating the process environment.
+fn close_webm(world: &mut World, name: &str) {
     if world.get_resource::<LoopRecorder>().is_none() {
         fail(
             world,
@@ -550,9 +637,25 @@ pub fn loop_end(world: &mut World, name: &str) {
         return;
     }
     let result = world.resource_mut::<LoopRecorder>().end(name);
-    match result {
-        Ok(()) => info!("loop capture: `{name}` closes, draining in-flight frames"),
-        Err(message) => fail(world, &message),
+    if let Err(message) = result {
+        fail(world, &message);
+        return;
+    }
+    let recorder = world.resource::<LoopRecorder>();
+    let mut ended = LoopCaptureEnded {
+        name: name.to_string(),
+        frames: recorder.requested,
+        sidecar_path: capture::capture_path(&format!("{name}.jsonl")),
+        audio_path: recorder.staging.join(LOOP_AUDIO_FILE),
+        failure: None,
+    };
+    world.trigger_ref(&mut ended);
+    match ended.failure {
+        Some(failure) => fail(
+            world,
+            &format!("loop capture: loop `{name}` failed to finalize: {failure}"),
+        ),
+        None => info!("loop capture: `{name}` closes, draining in-flight frames"),
     }
 }
 
@@ -614,11 +717,14 @@ fn loop_capture_drive(world: &mut World) {
                     return;
                 }
             }
-            let frame = {
+            let (frame, output) = {
                 let mut recorder = world.resource_mut::<LoopRecorder>();
                 recorder.requested += 1;
-                recorder.requested
+                (recorder.requested, recorder.output)
             };
+            if output == LoopOutput::Webm {
+                world.trigger(LoopCaptureFrame { frame: frame - 1 });
+            }
             let path = world
                 .resource::<LoopRecorder>()
                 .staging
@@ -702,7 +808,12 @@ fn request_frame(world: &mut World, path: PathBuf) {
 /// A profile whose output matches its window carries NO scale filter: the
 /// frames are already that size, and resampling them to themselves would only
 /// soften a source that is meant to be the master.
-fn encode_args(profile: &LoopProfile, staging: &Path, output: &Path) -> Vec<std::ffi::OsString> {
+fn encode_args(
+    profile: &LoopProfile,
+    staging: &Path,
+    audio: Option<&Path>,
+    output: &Path,
+) -> Vec<std::ffi::OsString> {
     let input = staging.join("frame_%05d.png");
     let mut args: Vec<std::ffi::OsString> = vec![
         "-y".into(),
@@ -713,6 +824,18 @@ fn encode_args(profile: &LoopProfile, staging: &Path, output: &Path) -> Vec<std:
         "-i".into(),
         input.into_os_string(),
     ];
+    if let Some(audio) = audio {
+        args.extend([
+            "-f".into(),
+            "f32le".into(),
+            "-ar".into(),
+            LOOP_AUDIO_SAMPLE_RATE.to_string().into(),
+            "-ac".into(),
+            "2".into(),
+            "-i".into(),
+            audio.as_os_str().to_os_string(),
+        ]);
+    }
     if profile.output_resolution != profile.window_resolution {
         args.push("-vf".into());
         args.push(
@@ -738,9 +861,23 @@ fn encode_args(profile: &LoopProfile, staging: &Path, output: &Path) -> Vec<std:
         "2".into(),
         "-pix_fmt".into(),
         "yuv420p".into(),
-        "-an".into(),
-        output.as_os_str().to_os_string(),
     ]);
+    if audio.is_some() {
+        args.extend([
+            "-c:a".into(),
+            "libopus".into(),
+            "-b:a".into(),
+            "192k".into(),
+            // libopus encodes at 48 kHz only; resample explicitly rather than
+            // rely on ffmpeg's implicit format negotiation.
+            "-ar".into(),
+            "48000".into(),
+            "-shortest".into(),
+        ]);
+    } else {
+        args.push("-an".into());
+    }
+    args.push(output.as_os_str().to_os_string());
     args
 }
 
@@ -808,7 +945,9 @@ fn encode_frames(
     staging: &Path,
     output: &Path,
 ) -> Result<(), String> {
-    run_ffmpeg(ffmpeg, encode_args(profile, staging, output), output)
+    let audio = staging.join(LOOP_AUDIO_FILE);
+    let audio = audio.is_file().then_some(audio.as_path());
+    run_ffmpeg(ffmpeg, encode_args(profile, staging, audio, output), output)
 }
 
 /// The shared half of both encodes: make the output's directory, run ffmpeg
@@ -1143,9 +1282,14 @@ mod tests {
     }
 
     fn command_line(profile: &LoopProfile) -> String {
+        command_line_with(profile, None)
+    }
+
+    fn command_line_with(profile: &LoopProfile, audio: Option<&Path>) -> String {
         encode_args(
             profile,
             Path::new("/stage/torpedo"),
+            audio,
             Path::new("/shots/torpedo.webm"),
         )
         .iter()
@@ -1168,6 +1312,137 @@ mod tests {
         assert!(line.contains("libvpx-vp9"));
         assert!(line.contains(&format!("-crf {LOOP_CRF} -b:v 0")));
         assert!(line.ends_with("/shots/torpedo.webm"));
+    }
+
+    /// Staged PCM becomes an Opus track in the same WebM, cut to the video's
+    /// length; without it the WebM stays silent.
+    #[test]
+    fn staged_audio_is_muxed_as_opus_and_its_absence_stays_silent() {
+        let line = command_line_with(
+            &LoopProfile::default(),
+            Some(Path::new("/stage/torpedo/audio.f32le")),
+        );
+        assert!(
+            line.contains("-f f32le -ar 44100 -ac 2 -i /stage/torpedo/audio.f32le"),
+            "the raw PCM input is described exactly: {line}"
+        );
+        assert!(
+            line.contains("-c:a libopus -b:a 192k -ar 48000 -shortest"),
+            "Opus at 48 kHz, cut to the video: {line}"
+        );
+        assert!(!line.contains("-an"), "a sounded WebM keeps audio: {line}");
+
+        let silent = command_line(&LoopProfile::default());
+        assert!(silent.contains("-an"), "no staged PCM, no audio: {silent}");
+        assert!(!silent.contains("libopus"), "no audio encoder: {silent}");
+    }
+
+    /// Every lifecycle event an adapter reads, for one WebM loop.
+    #[derive(Resource, Default)]
+    struct Lifecycle(Vec<String>);
+
+    fn observe_lifecycle(app: &mut App) {
+        app.init_resource::<Lifecycle>();
+        app.add_observer(
+            |started: On<LoopCaptureStarted>, mut log: ResMut<Lifecycle>| {
+                log.0
+                    .push(format!("start {} at {}", started.name, started.fps));
+            },
+        );
+        app.add_observer(
+            |frame: On<LoopCaptureFrame>,
+             recorder: Res<LoopRecorder>,
+             requests: Query<&Screenshot>,
+             mut log: ResMut<Lifecycle>| {
+                log.0.push(format!(
+                    "frame {} of {} after {} readbacks",
+                    frame.frame,
+                    recorder.requested,
+                    requests.iter().count()
+                ));
+            },
+        );
+        app.add_observer(|ended: On<LoopCaptureEnded>, mut log: ResMut<Lifecycle>| {
+            log.0
+                .push(format!("end {} after {}", ended.name, ended.frames));
+        });
+    }
+
+    /// Frame `n` is announced after its request is counted and before its
+    /// readback exists, so an adapter's row `n` and staged PNG `n + 1` see the
+    /// same world. A sheet announces nothing.
+    #[test]
+    fn a_webm_loop_announces_each_frame_immediately_before_its_request() {
+        let mut app = armed_app();
+        completion::register(&mut app, completion::AUTOPILOT);
+        observe_lifecycle(&mut app);
+
+        open_webm(app.world_mut(), "announced", temp_staging("announced"));
+        app.update();
+        app.update();
+        close_webm(app.world_mut(), "announced");
+        let _ = std::fs::remove_dir_all(temp_staging("announced"));
+
+        assert_eq!(
+            app.world().resource::<Lifecycle>().0,
+            [
+                "start announced at 30",
+                "frame 0 of 1 after 0 readbacks",
+                "frame 1 of 2 after 1 readbacks",
+                "end announced after 2",
+            ]
+        );
+
+        let mut sheet = armed_app();
+        completion::register(&mut sheet, completion::AUTOPILOT);
+        observe_lifecycle(&mut sheet);
+        let grid = SheetGrid {
+            columns: 2,
+            rows: 1,
+            cell: (8, 8),
+        };
+        sheet
+            .world_mut()
+            .resource_mut::<LoopRecorder>()
+            .start(
+                "sheet",
+                temp_staging("sheet-events"),
+                LoopOutput::Sheet(grid),
+            )
+            .unwrap();
+        sheet.update();
+        sheet.update();
+        assert!(
+            sheet.world().resource::<Lifecycle>().0.is_empty(),
+            "a sheet opens no sidecar"
+        );
+        let _ = std::fs::remove_dir_all(temp_staging("sheet-events"));
+    }
+
+    /// An adapter that cannot finalize a loop aborts the run by name, and the
+    /// recorder never reaches the encode that would ack a silent WebM.
+    #[test]
+    fn an_adapter_veto_fails_the_loop_before_its_encode() {
+        let (observed, logs) = capturing_logs(|| {
+            let mut app = armed_app();
+            completion::register(&mut app, completion::AUTOPILOT);
+            app.add_observer(|mut ended: On<LoopCaptureEnded>| {
+                ended.event_mut().failure = Some("no sample bytes".to_string());
+            });
+            open_loop(&mut app, "vetoed", "veto");
+            app.update();
+            close_webm(app.world_mut(), "vetoed");
+            let failed = app.world().resource::<LoopRecorder>().phase == LoopPhase::Failed;
+            (failed, exits(&mut app))
+        });
+        let _ = std::fs::remove_dir_all(temp_staging("veto"));
+        assert!(observed.0, "the recorder parks instead of draining");
+        assert_eq!(observed.1.len(), 1);
+        assert_ne!(observed.1[0], AppExit::Success);
+        assert!(
+            logs.contains("vetoed") && logs.contains("no sample bytes"),
+            "the failure names the loop and the reason; logged: {logs}"
+        );
     }
 
     /// The default profile IS the documented docs-loop capture, so a fleet
@@ -1474,8 +1749,9 @@ mod tests {
 /// The loop calls, their plugin, the capture profile and its defaults.
 pub mod prelude {
     pub use super::{
-        loop_end, loop_file_name, loop_start, sheet_file_name, sheet_start, LoopCapturePlugin,
-        LoopProfile, LoopRecorder, SheetGrid, LOOP_CAPTURE, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP,
+        loop_end, loop_file_name, loop_start, sheet_file_name, sheet_start, LoopCaptureEnded,
+        LoopCaptureFrame, LoopCapturePlugin, LoopCaptureStarted, LoopProfile, LoopRecorder,
+        SheetGrid, LOOP_AUDIO_SAMPLE_RATE, LOOP_CAPTURE, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP,
         LOOP_RESOLUTION,
     };
 }
