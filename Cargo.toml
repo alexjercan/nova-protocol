@@ -228,8 +228,8 @@ path = "examples/playable/world_field_slices.rs"
 name = "world_field_clouds"
 path = "examples/playable/world_field_clouds.rs"
 
-# The same streaming loop over a world whose bodies come in GROUPS: planetoids
-# with companion rocks and derelict hulls with debris, decided on a global
+# The same streaming loop over a world whose bodies come in GROUPS: asteroid-rich,
+# rock-only, planet-heavy, derelict-only and low-rock, decided on a global
 # lattice from three environment fields and owned body by body by the cell each
 # centre falls in. What a human judges here is whether a group reads as a place
 # and stays whole across a sector face; the fixture's inline tests own the seam

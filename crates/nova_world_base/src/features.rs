@@ -690,7 +690,7 @@ fn sector_features_from(
 /// [`FeatureLayer::index`] and capped at one.
 ///
 /// What [`crate::NovaLayeredWorld`] fills a cell from: the asteroid entry,
-/// taken at the cell's centre, sets how many rocks the cell holds. Two spheres
+/// taken at the cell's centre, sets how many rocks the cell draws. Two spheres
 /// covering one point add, so a place where belts meet is denser than either.
 /// Public so a diagnostic reads the same number the generator used.
 pub fn sector_strengths(features: &[FeatureSphere], centre: Meters3) -> [f32; FeatureLayer::COUNT] {

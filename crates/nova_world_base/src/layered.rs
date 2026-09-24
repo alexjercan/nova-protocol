@@ -66,6 +66,11 @@ const ASTEROID_RADIUS: (Meters, Meters) = (Meters(30.0), Meters(60.0));
 /// designation, so this is what it draws.
 const PLANETOID_RADIUS: (Meters, Meters) = (Meters(600.0), Meters(1_200.0));
 
+/// Rocks expected past the first in a cell at full asteroid strength.
+///
+/// Three, so a cell a belt covers fully holds four on average.
+const ASTEROID_EXTRA_MEAN: f32 = 3.0;
+
 /// How many ships one derelict sphere places.
 const DERELICT_SHIPS: (usize, usize) = (1, 3);
 
@@ -90,13 +95,12 @@ const PLACEMENT_ATTEMPTS: usize = 64;
 /// Two reasons, and [`NovaLayeredWorld`] checks both when the world is armed.
 /// The feature field is complete only while its thinning halo reaches across
 /// the edge, which the field's own geometry check refuses past about 447 km.
-/// Inside that, the body budget: 128 km is the widest edge this generator's
-/// body counts were measured at - at most eight bodies over 32 seeds and
-/// 2,331 cells a seed at five edges from 8.5 km to 128 km, against the
-/// [`SECTOR_BODIES_MAX`] of sixteen. A cell places more bodies as its volume
-/// grows, up to 47 at 447 km. Refusing the edge at the config fails before
-/// anything streams, where the body cap refusing a drawn cell would fail
-/// mid-stream.
+/// Inside that, measurement: 128 km is the widest edge this generator was
+/// measured at while it capped rocks at four a cell, and a cell owns more
+/// planetoid and derelict spheres as its volume grows. That evidence does not
+/// cover the Poisson rock count, which has no per-cell ceiling and has not
+/// been measured at any edge. The limit stays at 128 km until a measurement
+/// moves it. Refusing the edge at the config fails before anything streams.
 const SECTOR_EDGE_MAX: Meters = Meters(128_000.0);
 
 /// The base game's sector generator: a cell filled from the feature field.
@@ -124,7 +128,7 @@ impl SectorGenerator for NovaLayeredWorld {
             return Err(SectorFault::Config {
                 field: "sector_edge",
                 value: format!(
-                    "{} m, wider than the {} m the manifest caps were measured at",
+                    "{} m, wider than the {} m edge limit",
                     geometry.sector_edge.get(),
                     SECTOR_EDGE_MAX.get()
                 ),
@@ -195,14 +199,12 @@ impl SectorGenerator for NovaLayeredWorld {
         // either would alone. A sphere contributes nothing to a cell whose
         // centre it does not reach - including a fringe cell it only clips a
         // corner of, which `sector_features` still lists among the cell's
-        // spheres because it tests the whole box. CEILING, not rounding, over
-        // the cells that ARE covered: one whose centre a belt reaches at all
-        // holds at least one rock. Rounding put a whole outer shell of covered
-        // cells at zero rocks, so the belt had a hard edge one cell inside its
-        // own rim and the falloff bought nothing.
-        let count = ((strengths[FeatureLayer::Asteroid.index()] * SECTOR_ASTEROIDS_MAX as f32)
-            .ceil() as usize)
-            .min(SECTOR_ASTEROIDS_MAX);
+        // spheres because it tests the whole box. The count has its own
+        // stream, so a different count never moves the rocks drawn before it.
+        let count = asteroid_count(
+            &mut input.stream("rock_count"),
+            strengths[FeatureLayer::Asteroid.index()],
+        );
         let edge = input.geometry.sector_edge;
         let reach = Meters(edge.get() * 0.5 * PLACEMENT_INSET);
         let (radius_min, radius_max) = ASTEROID_RADIUS;
@@ -314,6 +316,31 @@ impl Layout {
             attempts: PLACEMENT_ATTEMPTS,
         })
     }
+}
+
+/// How many rocks a cell at asteroid `strength` holds: none where no belt
+/// reaches the cell's centre, otherwise one plus a Poisson draw of mean
+/// `ASTEROID_EXTRA_MEAN * strength`.
+///
+/// At least one wherever the strength is positive, so a belt thins out to its
+/// rim instead of stopping one cell inside it. No upper limit: a cell too
+/// crowded for what it drew refuses with [`SectorFault::Clearance`] rather than
+/// drop a rock.
+///
+/// Knuth's product walk, in `f64`. Every `unit` draw is at most `1 - 2^-24`,
+/// so the product falls on every draw and the walk ends.
+fn asteroid_count(stream: &mut SeedStream, strength: f32) -> usize {
+    if strength <= 0.0 {
+        return 0;
+    }
+    let floor = (-f64::from(ASTEROID_EXTRA_MEAN * strength)).exp();
+    let mut product = f64::from(stream.unit());
+    let mut count = 1;
+    while product > floor {
+        product *= f64::from(stream.unit());
+        count += 1;
+    }
+    count
 }
 
 /// The widest clearance sphere this generator can put in one cell, and what
@@ -445,20 +472,53 @@ mod tests {
         );
     }
 
-    /// The manifest caps were measured at exactly 128 km, so that edge arms
-    /// and the next `f32` above it refuses by naming the edge and the cap.
+    /// A cell a belt misses draws no rock, a cell it reaches at all draws at
+    /// least one, and full strength has no ceiling: over 10,000 cells' own
+    /// count streams the mean is about four and some cell draws more.
     #[test]
-    fn an_edge_wider_than_the_measured_caps_is_refused() {
+    fn a_covered_cell_draws_one_rock_or_more_with_no_upper_limit() {
+        let geometry = WorldGeometry {
+            sector_edge: Meters(32_000.0),
+        };
+        let draws = |strength: f32| -> Vec<usize> {
+            (0..100)
+                .flat_map(|x| (0..100).map(move |z| SectorCoord::new(x, 0, z)))
+                .map(|coord| {
+                    let input = SectorGenerationInput {
+                        seed: 20_260_922,
+                        geometry,
+                        coord,
+                    };
+                    asteroid_count(&mut input.stream("rock_count"), strength)
+                })
+                .collect()
+        };
+        assert!(draws(0.0).iter().all(|&count| count == 0));
+        assert!(draws(0.01).iter().all(|&count| count >= 1));
+        let full = draws(1.0);
+        assert!(full.iter().all(|&count| count >= 1));
+        let mean = full.iter().sum::<usize>() as f32 / full.len() as f32;
+        assert!(
+            (3.9..=4.1).contains(&mean),
+            "full strength must draw about four rocks, drew {mean}"
+        );
+        let most = full.iter().copied().max().unwrap_or(0);
+        assert!(most > 4, "full strength must reach past four, most {most}");
+    }
+
+    /// The 128 km limit itself arms, and the next `f32` above it refuses by
+    /// naming the edge and the limit.
+    #[test]
+    fn an_edge_wider_than_the_edge_limit_is_refused() {
         assert!(
             layered(SECTOR_EDGE_MAX).validate().is_ok(),
-            "the 128 km edge the caps were measured at must arm"
+            "the 128 km edge limit must arm"
         );
         assert_eq!(
             layered(Meters(SECTOR_EDGE_MAX.get().next_up())).validate(),
             Err(SectorFault::Config {
                 field: "sector_edge",
-                value: "128000.01 m, wider than the 128000 m the manifest caps were measured at"
-                    .to_string(),
+                value: "128000.01 m, wider than the 128000 m edge limit".to_string(),
             }),
         );
     }

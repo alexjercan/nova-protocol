@@ -196,27 +196,6 @@ impl PreparedSector {
     }
 }
 
-/// The most rocks ANY cell holds, and the ceiling [`validate_manifest`] holds
-/// every manifest to.
-///
-/// A workload budget, not a generation probability: every rock is a mesh a
-/// worker builds and a collider the main thread spawns. Four is the density
-/// the examples fly and the only one measured, and it is one cap for every
-/// generator. A denser cell is a measurement and a change here, not a number a
-/// generator can reach.
-pub const SECTOR_ASTEROIDS_MAX: usize = 4;
-
-/// The most bodies - rocks, planetoids and ships together -
-/// [`validate_manifest`] accepts in one manifest.
-///
-/// A workload budget, not a generation probability. One cap over all three
-/// rather than one per kind: the overlap check, the preparation and the spawn
-/// are each paid per body, whatever it is. Sixteen, twice the eight the base
-/// game's generator placed at most over 32 seeds and 2,331 cells a seed at
-/// five edges from 8.5 km to 128 km. [`SECTOR_ASTEROIDS_MAX`] still caps the
-/// rocks inside it.
-pub const SECTOR_BODIES_MAX: usize = 16;
-
 /// How much room [`validate_manifest`] assumes a generated ship fills.
 ///
 /// A materialization safety approximation, not a distribution rule: a ship's
@@ -272,16 +251,14 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// cell edge and a finite cell centre, refused before the manifest is read,
 /// because a direct caller need not have come through [`WorldConfig::validate`]
 /// and a NaN edge makes every containment test below pass; the cell it was
-/// asked for; at most [`SECTOR_BODIES_MAX`] bodies and
-/// [`SECTOR_ASTEROIDS_MAX`] rocks, refused before any is read; finite
-/// geometry; ids unique and prefixed with the cell's slug, so two cells never
-/// claim one object; every body standing inside its own cell with its whole
-/// clearance sphere, so retiring a neighbour never takes it; no two bodies
-/// overlapping; shipped asteroid kinds; and planet configs that
-/// [`PlanetConfig::validate`] accepts. How far apart a generator spaces its
-/// bodies is its own policy; this check only refuses what cannot be
-/// materialized. The ship design is only checked for a blank id here; the
-/// catalog lookup is main-thread work in `materialize_sector`.
+/// asked for; finite geometry; ids unique and prefixed with the cell's slug,
+/// so two cells never claim one object; every body standing inside its own
+/// cell with its whole clearance sphere, so retiring a neighbour never takes
+/// it; no two bodies overlapping; shipped asteroid kinds; and planet configs
+/// that [`PlanetConfig::validate`] accepts. How many bodies a generator places
+/// and how far apart it spaces them is its own policy; this check only refuses
+/// what cannot be materialized. The ship design is only checked for a blank id
+/// here; the catalog lookup is main-thread work in `materialize_sector`.
 ///
 /// # Errors
 ///
@@ -290,9 +267,9 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// centre has no finite position in meters;
 /// [`SectorFault::Manifest`] for the wrong cell, an object outside its cell or
 /// overlapping another, an id another cell owns, a planet config
-/// [`PlanetConfig::validate`] refuses, a blank ship design, or more bodies or
-/// rocks than a cell holds; [`SectorFault::InvalidGeometry`] for non-finite
-/// geometry; [`SectorFault::DuplicateId`] and [`SectorFault::UnknownKind`].
+/// [`PlanetConfig::validate`] refuses, or a blank ship design;
+/// [`SectorFault::InvalidGeometry`] for non-finite geometry;
+/// [`SectorFault::DuplicateId`] and [`SectorFault::UnknownKind`].
 pub fn validate_manifest(
     input: SectorGenerationInput,
     manifest: SectorManifest,
@@ -320,33 +297,6 @@ pub fn validate_manifest(
             &coord.slug(),
             "coord",
             format!("{}, not the requested {coord}", manifest.coord),
-        ));
-    }
-
-    // Counts first: every check below walks the lists, and the clearance check
-    // compares each body with every body before it.
-    let bodies = manifest.asteroids.len() + manifest.planets.len() + manifest.ships.len();
-    if bodies > SECTOR_BODIES_MAX {
-        return Err(refuse(
-            &coord.slug(),
-            "bodies",
-            format!(
-                "{bodies} ({} rocks, {} planetoids, {} ships), above the {SECTOR_BODIES_MAX} a \
-                 cell holds",
-                manifest.asteroids.len(),
-                manifest.planets.len(),
-                manifest.ships.len()
-            ),
-        ));
-    }
-    if manifest.asteroids.len() > SECTOR_ASTEROIDS_MAX {
-        return Err(refuse(
-            &coord.slug(),
-            "asteroids",
-            format!(
-                "{} rocks, above the {SECTOR_ASTEROIDS_MAX} a cell holds",
-                manifest.asteroids.len()
-            ),
         ));
     }
 
