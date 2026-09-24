@@ -43,6 +43,21 @@ A torpedo owns the long end but pays for it in time. Fired at the edge of its re
 - **Torpedoes** home on the lock and burst against the skin. The Serpent weaves through point defense and the Lance runs straight and fast; the [Torpedo bay](../sections/torpedo-bay/) page runs both in and puts the warhead through a hull.
 - **The railgun** is a spinal gun the hull aims: a 1.5 second charge, a slug at 15,000 m/s, and a corridor three cells wide through whatever stands in the line. The [Railgun](../sections/railgun/) page has the scope for what one shot takes out.
 
+### How enemy ships use the reaches
+
+Reach is how far a round can travel, not how far anyone fights. Enemy ships fight much closer than their weapons reach. These are the default gates in their pilot; a scenario can give one ship its own detection, engagement, standoff and point-defense figures.
+
+<!-- AI defaults, engine world units x 10 m (crates/nova_events/src/units.rs:32): AI_SENSOR_RANGE 2,000 u, crates/nova_ship/src/input/targeting/sensing.rs:38, capped per target by signature in class_range :188-193; AI_ENGAGE_RANGE 400 u, crates/nova_ship/src/input/ai/behavior.rs:180, or recently_damaged, next_behavior_state :243; AI_STANDOFF_CLEARANCE 100 u face gap with AI_STANDOFF_BAND 25 u, crates/nova_ship/src/input/ai/maneuver.rs:48,53; AI_FIRE_RANGE_FACTOR 0.9 of muzzle_speed x projectile_lifetime, crates/nova_ship/src/input/ai/guns.rs:67; AI_POINT_DEFENSE_RANGE 150 u, crates/nova_ship/src/input/ai/acquisition.rs:217, also the player battery's default, crates/nova_ship/src/input/point_defense/assignment.rs:199; torpedo floor own arm + target arm + 3 x blast_radius and ceiling AI_TORPEDO_MAX_RANGE 10,000 m centre to centre, alignment cos 0.5, crates/nova_ship/src/input/ai/torpedo.rs:26,37,42,87; AI_TORPEDO_COOLDOWN_SECS 10, torpedo.rs:18. Per-ship overrides: engage_range, sensor_range, standoff_clearance, pd_range in crates/nova_scenario/src/objects/spaceship.rs:139,157,176,186. -->
+
+| Enemy pilot gate | Default | What sets it |
+| --- | --- | --- |
+| Detects hostiles | up to 20 km; a target with a small radar signature only closer | configured cap |
+| Leaves idle, patrol or orbit to attack | inside 4 km, or at any detected range right after it is hit | configured |
+| Settles to fight | about 1 km of clear space between the two hulls | configured |
+| Opens fire with its guns | 1.8 km | derived: 90% of the gun's 2 km nominal reach |
+| Point defense opens on a torpedo | 1.5 km | configured; your own flight computer's battery uses the same default |
+| Launches a torpedo | from three blast radii of clear space (900 m for the 300 m base warhead) out to 10 km, with its nose within 60 degrees of the target, at most once per 10 s per bay | configured, with the base bay's blast radius |
+
 <figure class="figure">
     <!-- Capture: assets/wiki-combat-railgun.png -->
     <div class="figure__placeholder">

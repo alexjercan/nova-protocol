@@ -195,5 +195,7 @@ Four turrets ship on two mounts. The gatlings put one barrel on the compact asse
 </table>
 </div>
 
-<!-- raider mount health: 60, a health patch on the mount rather than a separate prototype -->
-Raider hulls mount the same guns from the same catalog. The scavenger grade only lowers the mount's health to 60 (against 130 on a player hull), so an enemy's guns are quicker to shoot off - but every round they land hits exactly as hard as yours.
+Reach is derived, not authored: muzzle speed times the 2 s round lifetime, from a gun at rest relative to its target. It is nominal travel, not an engagement range - see [Reach and closing speed](#reach-and-closing-speed). Every other column is the configured base prototype; a mod can author its own.
+
+<!-- No base ship patches a turret's health. The only turret patch in base scenarios is the tutorial range's own gun, TRAINER_GUN_HEALTH 1,300, crates/nova_authoring/src/base_content/scenarios/tutorial/range.rs:88,135; the other `section_health` patches are scenario bridges and collars. -->
+Enemy hulls mount the same guns from the same catalog, at the same 130 health, so every round they land hits exactly as hard as yours. A scenario can patch one section's health: the tutorial range armours your own gun to 1,300 so the lesson cannot end by losing it.
