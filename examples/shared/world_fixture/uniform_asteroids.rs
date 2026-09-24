@@ -36,7 +36,8 @@ const CLEARANCE_MARGIN: Meters = Meters(500.0);
 /// nobody chose reaches a frame.
 #[derive(Clone, Debug, PartialEq)]
 pub struct UniformAsteroids {
-    /// Rocks generated per sector, from one to [`SECTOR_ASTEROIDS_MAX`].
+    /// Rocks generated per sector, at least one. A cell with no room for the
+    /// next rock refuses with [`SectorFault::Clearance`].
     pub body_count: usize,
     /// Smallest nominal body radius drawn.
     pub radius_min: Meters,
@@ -52,13 +53,10 @@ impl SectorGenerator for UniformAsteroids {
     /// refusal and never a silent fallback to a house rock.
     fn validate(&self, geometry: WorldGeometry) -> Result<(), SectorFault> {
         let refuse = |field: &'static str, value: String| Err(SectorFault::Config { field, value });
-        if self.body_count == 0 || self.body_count > SECTOR_ASTEROIDS_MAX {
+        if self.body_count == 0 {
             return refuse(
                 "generator.body_count",
-                format!(
-                    "{}, outside the 1 to {SECTOR_ASTEROIDS_MAX} rocks a cell holds",
-                    self.body_count
-                ),
+                "0, expected at least one rock".to_string(),
             );
         }
         if !self.radius_min.get().is_finite() || self.radius_min.get() <= 0.0 {
@@ -160,7 +158,7 @@ mod tests {
 
     fn baseline() -> UniformAsteroids {
         UniformAsteroids {
-            body_count: SECTOR_ASTEROIDS_MAX,
+            body_count: 4,
             radius_min: Meters(30.0),
             radius_max: Meters(60.0),
             asteroid_kinds: [KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON]
@@ -182,25 +180,23 @@ mod tests {
         }
     }
 
-    /// One to the shared cap: the baseline may not be denser than any cell the
-    /// field produces, and a cell with no rocks judges nothing.
+    /// A cell with no rocks judges nothing, and no count above zero is refused
+    /// at the config: room is the placement's refusal, not a count limit.
     #[test]
-    fn a_body_count_outside_one_to_the_shared_cap_is_refused() {
-        for body_count in [0, SECTOR_ASTEROIDS_MAX + 1] {
-            assert_eq!(
-                refused_field(UniformAsteroids {
-                    body_count,
-                    ..baseline()
-                }),
-                "generator.body_count",
-            );
-        }
-        for body_count in [1, SECTOR_ASTEROIDS_MAX] {
+    fn a_zero_body_count_is_refused_and_any_other_count_arms() {
+        assert_eq!(
+            refused_field(UniformAsteroids {
+                body_count: 0,
+                ..baseline()
+            }),
+            "generator.body_count",
+        );
+        for body_count in [1, 4, 5, 64] {
             validate(UniformAsteroids {
                 body_count,
                 ..baseline()
             })
-            .expect("a body count inside 1 to the shared cap must arm");
+            .expect("a body count of one or more must arm");
         }
     }
 
