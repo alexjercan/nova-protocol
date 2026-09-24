@@ -1,18 +1,19 @@
-//! The examples' world: the one seed, the two configs, the uniform baseline
-//! generator, the empty bootstrap they run inside, and the cell the featured
-//! ones open in.
+//! The examples' world: the one seed, the three configs, the uniform baseline
+//! and clustered generators, the empty bootstrap they run inside, and the
+//! cells the featured and clustered examples open in.
 //!
 //! `nova_world` owns the streaming loop and the manifest check and names no
 //! content. The featured world is the base game's generator,
 //! `NovaLayeredWorld`, and its feature field, both from `nova_world_base`; the
-//! uniform baseline is example-owned and lives beside this file. Everything
+//! uniform baseline and the clustered world with its environment fields are
+//! example-owned and live beside this file. Everything
 //! else `nova_world` refuses to assume - a seed, a cell edge, an active
-//! radius - is decided HERE, once, so the five example targets that share it
-//! are looking at one world rather than five that happen to agree.
+//! radius - is decided HERE, once, so the six example targets that share it
+//! are looking at one world rather than six that happen to agree.
 //!
 //! Included with
 //! `#[path = "../shared/world_fixture/mod.rs"] pub mod world_fixture;` - PUB,
-//! and that is the whole dead-code story. One fixture serves five example
+//! and that is the whole dead-code story. One fixture serves six example
 //! targets and no target uses all of it, but a `pub` module reachable from a
 //! binary's root is not dead code to rustc, so neither an `allow` nor an
 //! `expect` is needed: an `allow` would be a blanket the repository forbids,
@@ -23,8 +24,16 @@ use bevy::prelude::*;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 
+mod clustered;
+mod environment;
 mod uniform_asteroids;
 
+pub use clustered::{
+    group_at, parent_chances, plan_cell, BodySource, CellPlan, ClusterBody, ClusterGroup,
+    ClusteredWorld, GroupBody, GroupId, GroupKind, Outcome, ParentChances, PlannedBody, SkipReason,
+    GROUP_LATTICE,
+};
+pub use environment::{Environment, EnvironmentField, EnvironmentFields};
 pub use uniform_asteroids::UniformAsteroids;
 
 /// The examples' world seed.
@@ -109,6 +118,26 @@ pub fn featured_world_config() -> WorldConfig<NovaLayeredWorld> {
 /// opened at the origin would see a planetoid and a handful of rocks and
 /// nothing else, which proves a generator but not a WORLD.
 pub const FEATURE_HOME: SectorCoord = SectorCoord::new(2, 1, 2);
+
+/// The same seed, window and edge, filled by the example-owned clustered
+/// generator: planetoid and derelict groups on a global lattice, and one
+/// background rock at most per cell, all read off three environment fields.
+pub fn clustered_world_config() -> WorldConfig<ClusteredWorld> {
+    WorldConfig {
+        seed: EXAMPLE_SEED,
+        sector_edge: EXAMPLE_SECTOR_EDGE,
+        active_radius: EXAMPLE_ACTIVE_RADIUS,
+        generator: ClusteredWorld,
+    }
+}
+
+/// The cell the clustered example opens in.
+///
+/// Chosen by a scan of the windows around the origin, not assumed: its window
+/// holds planetoid groups and derelict groups that each place bodies on both
+/// sides of a cell face, a member skipped at a face and rocks skipped by the
+/// rock cap.
+pub const CLUSTER_HOME: SectorCoord = SectorCoord::new(-1, 0, 1);
 
 /// The free-play bootstrap: an EMPTY scenario.
 ///
