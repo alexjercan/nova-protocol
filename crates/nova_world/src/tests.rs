@@ -18,15 +18,14 @@ use nova_scenario::prelude::{PlanetConfig, PlanetType, ASTEROID_GEOMETRIC_FACTOR
 use crate::{
     generate_sector, prepare_sector, sector_id, validate_manifest, NovaWorldPlugin, SectorAsteroid,
     SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet,
-    SectorShip, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_ASTEROIDS_MAX,
-    SECTOR_BODIES_MAX,
+    SectorShip, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
 };
 
 /// The fixture generator's placement inset: its rocks stand at a quarter
 /// edge from the centre, well inside it.
 const ROCKS_INSET: f32 = 0.7;
 
-/// Stands the measured rock cap at the corners of a square around each cell's
+/// Stands four rocks at the corners of a square around each cell's
 /// centre, and refuses an edge too narrow to own its widest rock. No draw and
 /// no retry: placement is each generator's own, and this one needs neither.
 #[derive(Clone, Debug, PartialEq)]
@@ -119,7 +118,7 @@ fn fault_of<G: SectorGenerator>(config: &WorldConfig<G>) -> SectorFault {
 fn a_valid_config_describes_a_sector() {
     let description =
         generate_sector(&rocks(), SectorCoord::ORIGIN).expect("a valid config must describe");
-    assert_eq!(description.asteroids().len(), SECTOR_ASTEROIDS_MAX);
+    assert_eq!(description.asteroids().len(), 4);
 }
 
 /// A generator outside the crate is checked, not trusted.
@@ -147,7 +146,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 10] = [
+    ); 9] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
@@ -211,30 +210,6 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                 empty(input.coord, vec![body])
             },
             |fault| matches!(fault, SectorFault::UnknownKind { kind } if kind == "obsidian"),
-        ),
-        (
-            "more rocks than a cell holds",
-            |input| {
-                let bodies = (0..=SECTOR_ASTEROIDS_MAX)
-                    .map(|index| {
-                        rock(
-                            input,
-                            &format!("body_{index}"),
-                            index as f32 * 2_000.0 - 5_000.0,
-                        )
-                    })
-                    .collect();
-                empty(input.coord, bodies)
-            },
-            |fault| {
-                matches!(
-                    fault,
-                    SectorFault::Manifest {
-                        field: "asteroids",
-                        ..
-                    }
-                )
-            },
         ),
         (
             "a planetoid whose well has a NaN mass",
@@ -316,9 +291,9 @@ fn bodies_closer_than_a_generator_margin_but_not_overlapping_are_accepted() {
     assert_eq!(description.asteroids().len(), 2);
 }
 
-/// The rock cap's rocks, one planetoid and ships to fill `count` bodies, each
-/// on its own 3 km grid point inside the cell's inset.
-fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
+/// `rocks` rocks, one planetoid and ships to fill `count` bodies, each on its
+/// own 3 km grid point inside the cell's inset.
+fn populated(input: SectorGenerationInput, rocks: usize, count: usize) -> SectorManifest {
     let coord = input.coord;
     let centre = coord.centre(input.geometry.sector_edge);
     let point = |index: usize| {
@@ -329,7 +304,7 @@ fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
                 (index / 5) as f32 * 3_000.0 - 6_000.0,
             )
     };
-    let asteroids = (0..SECTOR_ASTEROIDS_MAX)
+    let asteroids = (0..rocks)
         .map(|index| SectorAsteroid {
             id: sector_id(coord, "body", index),
             position: point(index),
@@ -341,10 +316,10 @@ fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
     let mut manifest = empty(coord, asteroids);
     manifest.planets.push(SectorPlanet {
         id: sector_id(coord, "planet", 0),
-        position: point(SECTOR_ASTEROIDS_MAX),
+        position: point(rocks),
         config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3),
     });
-    manifest.ships = (SECTOR_ASTEROIDS_MAX + 1..count)
+    manifest.ships = (rocks + 1..count)
         .map(|index| SectorShip {
             id: sector_id(coord, "ship", index),
             position: point(index),
@@ -355,30 +330,20 @@ fn populated(input: SectorGenerationInput, count: usize) -> SectorManifest {
     manifest
 }
 
-/// The body cap counts rocks, planetoids and ships together: one past it is
-/// refused although every kind is under the cap alone, and the cap itself is a
-/// cell the world accepts.
+/// The world sets no count limit: density is the generator's policy. A cell
+/// of eight rocks and twenty bodies, every one inside the cell and clear of
+/// the others, is described whole.
 #[test]
-fn a_manifest_placing_more_bodies_than_a_cell_holds_is_refused() {
-    generate_sector(
-        &answering(|input| populated(input, SECTOR_BODIES_MAX)),
+fn a_manifest_of_many_valid_bodies_is_described_whole() {
+    let description = generate_sector(
+        &answering(|input| populated(input, 8, 20)),
         SectorCoord::ORIGIN,
     )
-    .expect("a manifest placing the body cap must describe");
-    let fault = prepare_sector(
-        answering(|input| populated(input, SECTOR_BODIES_MAX + 1)),
-        SectorCoord::ORIGIN,
-    )
-    .expect_err("a manifest placing one body past the cap must not be prepared");
-    assert!(
-        matches!(
-            &fault,
-            SectorFault::Manifest {
-                field: "bodies",
-                ..
-            }
-        ),
-        "one body past the cap must be refused as too many, got {fault:?}"
+    .expect("a dense manifest of valid bodies must describe");
+    assert_eq!(description.asteroids().len(), 8);
+    assert_eq!(
+        description.asteroids().len() + description.planets().len() + description.ships().len(),
+        20
     );
 }
 
