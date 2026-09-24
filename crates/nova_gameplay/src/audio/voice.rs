@@ -25,7 +25,7 @@ use bevy::{
 use super::{
     bus::{AudioRoute, Mixer},
     mixing::{distance_attenuation, SfxListenerMarker, SFX_AUDIBLE_THRESHOLD},
-    spatial::{emitter_point, listener_ears, local_bearing, pan_compensation},
+    spatial::{emitter_point, listener_ears, local_bearing, pan_compensation, pan_gains},
 };
 
 /// How many [`AudioRoute::Exterior`] LOOPS may sound at once.
@@ -155,6 +155,37 @@ enum VoicePoint {
     Lost,
 }
 
+/// The engine's resolved mix for one voice in the current frame.
+///
+/// Capture tooling reads this instead of reproducing the engine's private
+/// placement and voice-cap policy. [`gain`](Self::gain) and
+/// [`channel_gains`](Self::channel_gains) exclude master volume so a muted
+/// capture run still records the authored mix; apply
+/// [`capped`](Self::capped) and [`paused`](Self::paused) as silence with the
+/// playhead held.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct VoiceMix {
+    /// Bus-scaled and distance-attenuated level before pan compensation.
+    pub level: f32,
+    /// Pre-master sink gain, including pan compensation.
+    pub gain: f32,
+    /// Pre-master `[left, right]` amplitude that reaches each output channel.
+    ///
+    /// A flat voice has [`gain`](Self::gain) on both channels, applied to the
+    /// sample's own channels. A positional voice has `gain` times the
+    /// [`pan_gains`] of its bearing, and its spatial sink applies them to the
+    /// sum of the sample's channels.
+    pub channel_gains: [f32; 2],
+    /// Resolved spatial emitter, or `None` for a flat voice.
+    pub emitter: Option<Vec3>,
+    /// Positive playback speed after the engine's clamp.
+    pub speed: f32,
+    /// Whether the exterior-loop cap is holding this voice silent.
+    pub capped: bool,
+    /// Whether a frozen sim holds this World-bus voice's sink paused.
+    pub paused: bool,
+}
+
 /// The mix decision for one voice this frame.
 struct VoicePlacement {
     /// The intended amplitude: the owner's level through its bus and the
@@ -164,6 +195,8 @@ struct VoicePlacement {
     level: f32,
     /// The sink gain: [`Self::level`] with the pan compensation folded in.
     gain: f32,
+    /// [`Self::gain`] times the spatial sink's per-ear factors.
+    channel_gains: [f32; 2],
     /// Where to park the spatial emitter, or `None` for a non-positional voice.
     emitter: Option<Vec3>,
 }
@@ -182,6 +215,7 @@ fn place_voice(
     let flat = |level: f32| VoicePlacement {
         level,
         gain: level,
+        channel_gains: [level; 2],
         emitter: None,
     };
     if matches!(point, VoicePoint::Lost) {
@@ -196,9 +230,12 @@ fn place_voice(
 
     let level = base * distance_attenuation(listener.translation().distance(*source));
     let bearing = local_bearing(listener, *source);
+    let gain = level * pan_compensation(bearing);
+    let (left, right) = pan_gains(bearing);
     VoicePlacement {
         level,
-        gain: level * pan_compensation(bearing),
+        gain,
+        channel_gains: [gain * left, gain * right],
         emitter: Some(emitter_point(listener, bearing)),
     }
 }
@@ -322,6 +359,7 @@ pub(super) fn retire_unplayable_one_shots(
 /// stopped rather than where it would have got to, which is why the loops this
 /// applies to are hums and hisses and not tonal material.
 pub(super) fn drive_sfx_voices(
+    mut commands: Commands,
     mixer: Mixer,
     pause: Option<Res<State<crate::PauseStates>>>,
     mut sounding: Local<HashSet<Entity>>,
@@ -333,6 +371,7 @@ pub(super) fn drive_sfx_voices(
         &mut GlobalTransform,
         Option<&mut AudioSink>,
         Option<&mut SpatialAudioSink>,
+        Option<&mut VoiceMix>,
     )>,
 ) {
     let listener = q_listener.iter().next();
@@ -360,15 +399,29 @@ pub(super) fn drive_sfx_voices(
     let frozen = pause.is_some_and(|state| state.is_frozen());
     let master = mixer.master_gain();
 
-    for (entity, voice, mut pose, sink, spatial_sink) in &mut q_voices {
+    for (entity, voice, mut pose, sink, spatial_sink, voice_mix) in &mut q_voices {
         let Some(placement) = placements.get(&entity) else {
             continue;
         };
         let capped = silenced.contains(&entity);
-        let gain = if capped { 0.0 } else { placement.gain * master };
         // Rodio does not accept a non-positive playback rate, and the owner of
         // a loop writes this field every frame.
         let speed = voice.speed.max(f32::MIN_POSITIVE);
+        let resolved = VoiceMix {
+            level: placement.level,
+            gain: placement.gain,
+            channel_gains: placement.channel_gains,
+            emitter: placement.emitter,
+            speed,
+            capped,
+            paused: frozen && voice.route.bus() == super::bus::AudioBus::World,
+        };
+        if let Some(mut voice_mix) = voice_mix {
+            voice_mix.set_if_neq(resolved);
+        } else {
+            commands.entity(entity).try_insert(resolved);
+        }
+        let gain = if capped { 0.0 } else { placement.gain * master };
         if let Some(emitter) = placement.emitter {
             *pose = GlobalTransform::from_translation(emitter);
         }
@@ -736,6 +789,138 @@ mod tests {
             !voice.contains::<Transform>(),
             "a voice with a local transform is a voice Propagate owns, and the \
              engine would be writing a pose something else overwrites"
+        );
+    }
+
+    /// Capture reads the mix the engine resolved, not a copy of its maths: a
+    /// nearer voice publishes more gain than a farther one, a positional voice
+    /// publishes its per-ear pan, and a voice whose source moves away
+    /// publishes a falling gain.
+    #[test]
+    fn every_voice_publishes_the_mix_the_engine_resolved_this_frame() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.add_systems(Update, (start_sfx_voices, drive_sfx_voices).chain());
+        app.world_mut()
+            .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
+        let exterior = |point: Vec3| {
+            SfxVoice::looping(Handle::default(), AudioRoute::Exterior)
+                .with_volume(1.0)
+                .with_speed(0.5)
+                .at(point)
+        };
+        let near = app.world_mut().spawn(exterior(Vec3::X * 60.0)).id();
+        let far = app.world_mut().spawn(exterior(Vec3::X * 200.0)).id();
+        let source = app
+            .world_mut()
+            .spawn(GlobalTransform::from_translation(Vec3::X * 60.0))
+            .id();
+        let leaving = app
+            .world_mut()
+            .spawn(
+                SfxVoice::looping(Handle::default(), AudioRoute::Exterior)
+                    .with_volume(1.0)
+                    .following(source),
+            )
+            .id();
+
+        let mut leaving_gains = Vec::new();
+        for distance in [60.0, 120.0, 180.0] {
+            *app.world_mut()
+                .get_mut::<GlobalTransform>(source)
+                .expect("the source has a pose") =
+                GlobalTransform::from_translation(Vec3::X * distance);
+            app.update();
+            let mix = *app
+                .world()
+                .get::<VoiceMix>(leaving)
+                .expect("every voice publishes its mix");
+            leaving_gains.push(mix.gain);
+        }
+
+        let mix = |entity| *app.world().get::<VoiceMix>(entity).unwrap();
+        assert!(mix(near).gain > mix(far).gain, "near is louder than far");
+        assert!(mix(far).gain > 0.0, "far is still inside the rolloff");
+        let (left, right) = pan_gains(Vec3::X);
+        assert_eq!(
+            mix(near).channel_gains,
+            [mix(near).gain * left, mix(near).gain * right],
+            "a voice to starboard publishes the spatial sink's per-ear factors"
+        );
+        assert!(left < right, "starboard leans right: L {left} R {right}");
+        assert_eq!(mix(near).speed, 0.5, "the owner's speed is published");
+        assert!(!mix(near).capped, "two loops are under the cap");
+        assert!(!mix(near).paused, "the sim is not frozen");
+        assert!(
+            leaving_gains.windows(2).all(|pair| pair[1] < pair[0]),
+            "a source moving away fades: {leaving_gains:?}"
+        );
+    }
+
+    /// A frozen sim pauses World-bus sinks, so capture must hear them paused
+    /// too; interface voices keep playing behind the overlay.
+    #[test]
+    fn a_frozen_sim_publishes_world_voices_as_paused() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.insert_resource(State::new(crate::PauseStates::NovaOs));
+        app.add_systems(Update, (start_sfx_voices, drive_sfx_voices).chain());
+        let hull = app
+            .world_mut()
+            .spawn(SfxVoice::looping(Handle::default(), AudioRoute::Hull).with_volume(1.0))
+            .id();
+        let interface = app
+            .world_mut()
+            .spawn(SfxVoice::looping(Handle::default(), AudioRoute::Interface).with_volume(1.0))
+            .id();
+
+        app.update();
+
+        let paused = |entity| app.world().get::<VoiceMix>(entity).unwrap().paused;
+        assert!(paused(hull), "a World-bus voice is held by the freeze");
+        assert!(!paused(interface), "an interface voice plays through it");
+    }
+
+    /// Capture silences a voice only on the engine's word: past the cap, the
+    /// quietest exterior loop publishes `capped` and the rest do not.
+    #[test]
+    fn the_quietest_loop_past_the_cap_publishes_as_capped() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.add_systems(Update, (start_sfx_voices, drive_sfx_voices).chain());
+        app.world_mut()
+            .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
+        let voices: Vec<Entity> = (0..=MAX_EXTERIOR_LOOP_VOICES)
+            .map(|i| {
+                let point = Vec3::X * (40.0 + 10.0 * i as f32);
+                app.world_mut()
+                    .spawn(
+                        SfxVoice::looping(Handle::default(), AudioRoute::Exterior)
+                            .with_volume(1.0)
+                            .at(point),
+                    )
+                    .id()
+            })
+            .collect();
+
+        app.update();
+
+        let mix = |entity| *app.world().get::<VoiceMix>(entity).unwrap();
+        let capped: Vec<Entity> = voices
+            .iter()
+            .copied()
+            .filter(|&entity| mix(entity).capped)
+            .collect();
+        let quietest = *voices.last().unwrap();
+        assert_eq!(capped, [quietest], "only the farthest loop is capped");
+        assert!(
+            voices
+                .windows(2)
+                .all(|pair| mix(pair[1]).level < mix(pair[0]).level),
+            "every loop sits at a distinct level"
         );
     }
 
