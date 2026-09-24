@@ -1,20 +1,23 @@
 //! world_clusters: fly a streamed world whose bodies come in groups.
 //!
 //! `world_features` fills a cell from feature spheres that reach it. This
-//! example fills it from GROUPS: a planetoid with companion rocks, or a lead
-//! derelict hull with companion hulls and debris, decided on a global lattice
-//! and owned body by body by the cell each body's centre falls in. A group
-//! near a face places bodies on both sides of it, and the two cells agree on
-//! every one because each replays the same global decision.
+//! example fills it from GROUPS decided on a global 24 km lattice - about two
+//! a sector, with open space between them - and owned body by body by the cell
+//! each body's centre falls in. A group is asteroid-rich (with one or two
+//! planetoids in quiet material and a derelict in traffic), rock-only,
+//! planet-heavy, derelict-only or low-rock. A group near a face places bodies
+//! on both sides of it, and the two cells agree on every one because each
+//! replays the same global decision.
 //!
-//! What is chosen, and how, reads three continuous environment fields -
-//! material density, volatiles and human activity - together. The heatmap in
+//! Which kind grows, and how many bodies it places, reads three continuous
+//! environment fields - material density, volatiles and human activity -
+//! together. The heatmap in
 //! the corner is those fields, painted on a worker; the biome name in the
 //! readout is a label for a human and nothing generates from it.
 //!
 //! The generator is the example-owned `ClusteredWorld` in
 //! `examples/shared/world_fixture/clustered.rs`; its inline tests own the
-//! seam, identity, order, accounting, cap and geometry claims. What a human
+//! seam, identity, order, accounting and geometry claims. What a human
 //! judges here is whether groups read as places and whether a group stays
 //! whole across a face.
 //!
@@ -22,10 +25,10 @@
 //!
 //! | marker | what it means |
 //! | - | - |
-//! | white / magenta sphere | a planetoid / derelict group's parent |
-//! | white / magenta line | parent to member |
-//! | white / magenta small sphere | a member placed in its parent's cell |
-//! | orange sphere and square | a member placed in a cell other than its parent's, and the face its line crosses |
+//! | kind-coloured large sphere | a group's planetoid, a parent that must be placed |
+//! | kind-coloured line | the group's anchor to each of its bodies |
+//! | kind-coloured small sphere | a member placed in its anchor's cell |
+//! | orange sphere and square | a member placed in a cell other than its anchor's, and the face its line crosses |
 //! | red sphere and cross | a planned body its cell skipped, for the reason the readout counts |
 //! | grey sphere | a cell's background rock |
 //!
@@ -36,8 +39,8 @@
 //!
 //! Harnessed mode:
 //! - `NOVA_AUTOPILOT=1`: stream the home window, check the seam groups live,
-//!   frame one planetoid group and one derelict group across a face, exit
-//!   clean.
+//!   frame one group with a planetoid and one group with a derelict hull, each
+//!   placed across a face, exit clean.
 //! - `NOVA_CAPTURE=1`: also writes `world-clusters-planetoid.png` and
 //!   `world-clusters-derelict.png`.
 
@@ -58,17 +61,17 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 use world_fixture::{
-    clustered_world_config, free_play_scenario, group_at, parent_chances, plan_cell,
-    world_observer_plugin, BodySource, CellPlan, ClusteredWorld, EnvironmentField,
-    EnvironmentFields, GroupKind, Outcome, SkipReason, CLUSTER_HOME, EXAMPLE_ACTIVE_RADIUS,
-    GROUP_LATTICE,
+    clustered_world_config, free_play_scenario, group_at, group_chances, plan_cell,
+    world_observer_plugin, BodySource, CellPlan, ClusterBody, ClusterGroup, ClusteredWorld,
+    EnvironmentField, EnvironmentFields, GroupId, GroupKind, Outcome, SkipReason, CLUSTER_HOME,
+    EXAMPLE_ACTIVE_RADIUS, GROUP_LATTICE,
 };
 
 #[derive(Parser)]
 #[command(name = "world_clusters")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Fly a streamed world of planetoid and derelict groups that cross sector faces",
+    about = "Fly a streamed world of asteroid, planetoid and derelict groups that cross sector faces",
     long_about = None
 )]
 struct Cli;
@@ -82,6 +85,9 @@ const KEY_ILLUMINANCE: f32 = 6_000.0;
 
 /// Where the key light points from.
 const KEY_DIRECTION: Vec3 = Vec3::new(-0.4, -1.0, -0.6);
+
+/// What a readout line that runs past a capture's width breaks into.
+const READOUT_BREAK: &str = "\n    ";
 
 /// How many texels across the heatmap.
 ///
@@ -97,7 +103,7 @@ const OBSERVER_DOT: f32 = 7.0;
 /// the window and two and a half either side of it.
 const HEATMAP_EXTENT: Meters = Meters(320_000.0);
 
-/// How big a parent's dot is on the heatmap, in texels.
+/// How big a group's anchor dot is on the heatmap, in texels.
 const HEATMAP_DOT: i32 = 3;
 
 /// How many line segments ring a drawn body.
@@ -111,7 +117,8 @@ const SEAM_MARK: Meters = Meters(1_200.0);
 const PARENT_RING: f32 = 1.4;
 
 /// In-step seconds a harnessed beat gets before the run aborts naming it. A
-/// hang backstop: a 125-cell window meshes every planetoid in it.
+/// hang backstop: a 125-cell window spawns every body in it and meshes every
+/// rock and planetoid.
 #[cfg(feature = "debug")]
 const STEP_DEADLINE_SECS: f32 = 300.0;
 
@@ -145,8 +152,8 @@ struct Heatmap {
     /// The cell the painted image is centred on, or `None` before the first
     /// paint lands.
     painted: Option<SectorCoord>,
-    /// How many parents the painted slice holds, by kind.
-    parents: (usize, usize),
+    /// How many group anchors the painted slice holds.
+    anchors: usize,
 }
 
 /// One heatmap being painted on a worker.
@@ -160,8 +167,8 @@ struct HeatmapJob {
 struct HeatmapPixels {
     /// `HEATMAP_PIXELS` squared RGBA texels, top row first.
     texels: Vec<u8>,
-    /// Planetoid and derelict parents drawn.
-    parents: (usize, usize),
+    /// Group anchors drawn.
+    anchors: usize,
 }
 
 fn main() -> bevy::app::AppExit {
@@ -202,11 +209,15 @@ fn clusters_plugin(app: &mut App) {
 }
 
 /// The colour a group kind is drawn in, on the heatmap and in the world.
-/// Neither is a field hue, so a parent dot never reads as a reading.
+/// None is a field hue or a marker colour, so an anchor dot never reads as a
+/// reading and a body never reads as a skip or a crossing.
 fn kind_colour(kind: GroupKind) -> Srgba {
     match kind {
-        GroupKind::Planetoid => Srgba::WHITE,
-        GroupKind::Derelict => tailwind::FUCHSIA_400,
+        GroupKind::AsteroidRich => Srgba::WHITE,
+        GroupKind::RockOnly => tailwind::YELLOW_200,
+        GroupKind::PlanetHeavy => tailwind::TEAL_300,
+        GroupKind::DerelictOnly => tailwind::FUCHSIA_400,
+        GroupKind::LowRock => tailwind::VIOLET_400,
     }
 }
 
@@ -275,7 +286,7 @@ fn boot_clusters(
     commands.insert_resource(Heatmap {
         handle: handle.clone(),
         painted: None,
-        parents: (0, 0),
+        anchors: 0,
     });
     commands
         .spawn((
@@ -332,18 +343,16 @@ fn boot_clusters(
                             text(15.0, field_colour(field).into()),
                         ));
                     }
-                    for (swatch, label) in [
-                        ("#", "planetoid parent"),
-                        ("#", "derelict parent"),
-                        ("+", "sector face / window"),
-                        ("#", "you"),
+                    for kind in GroupKind::ALL {
+                        legend.spawn((
+                            Text::new(format!("#  {} group", kind.label())),
+                            text(15.0, kind_colour(kind).into()),
+                        ));
+                    }
+                    for (swatch, label, colour) in [
+                        ("+", "sector face / window", Color::srgb(0.7, 0.7, 0.75)),
+                        ("#", "you", Color::srgb(1.0, 1.0, 0.2)),
                     ] {
-                        let colour = match label {
-                            "planetoid parent" => kind_colour(GroupKind::Planetoid).into(),
-                            "derelict parent" => kind_colour(GroupKind::Derelict).into(),
-                            "you" => Color::srgb(1.0, 1.0, 0.2),
-                            _ => Color::srgb(0.7, 0.7, 0.75),
-                        };
                         legend.spawn((Text::new(format!("{swatch}  {label}")), text(15.0, colour)));
                     }
                     legend.spawn((
@@ -435,8 +444,8 @@ fn plan_new_roots(
     }
 }
 
-/// Draw every live group: parents, parent-to-member lines, owner colours,
-/// face crossings and skipped bodies.
+/// Draw every live group: parents, anchor-to-body lines, owner colours, face
+/// crossings and skipped bodies.
 fn draw_groups(
     mut gizmos: Gizmos,
     config: Option<Res<WorldConfig<ClusteredWorld>>>,
@@ -457,20 +466,14 @@ fn draw_groups(
             let at = body.position.to_engine();
             let clearance = body.body.clearance().to_engine();
             let skipped = matches!(body.outcome, Outcome::Skipped(_));
-            let group = match body.source {
-                BodySource::Parent(id) | BodySource::Member(id, _) => groups.get(&id),
-                BodySource::Background => None,
-            };
-            let colour = match (body.source, group) {
+            let group = body.source.group().and_then(|id| groups.get(&id));
+            let colour = match group {
                 _ if skipped => tailwind::RED_500,
-                (BodySource::Parent(_), Some(group)) => kind_colour(group.kind),
-                (BodySource::Member(..), Some(group)) if group.parent.owner == plan.0.coord => {
-                    kind_colour(group.kind)
-                }
-                (BodySource::Member(..), Some(_)) => tailwind::ORANGE_400,
-                _ => tailwind::GRAY_400,
+                Some(group) if group.home == plan.0.coord => kind_colour(group.kind),
+                Some(_) => tailwind::ORANGE_400,
+                None => tailwind::GRAY_400,
             };
-            let ring = if matches!(body.source, BodySource::Parent(_)) {
+            let ring = if matches!(body.source, BodySource::Parent(..)) {
                 clearance * PARENT_RING
             } else {
                 clearance
@@ -487,21 +490,20 @@ fn draw_groups(
                     colour,
                 );
             }
-            let (BodySource::Member(..), Some(group)) = (body.source, group) else {
+            let Some(group) = group else {
                 continue;
             };
-            let parent = group.parent.position;
             gizmos.line(
-                parent.to_engine(),
+                group.anchor.to_engine(),
                 at,
                 kind_colour(group.kind).with_alpha(0.7),
             );
-            if plan.0.coord != group.parent.owner {
+            if plan.0.coord != group.home {
                 draw_face_crossing(
                     &mut gizmos,
                     edge,
-                    group.parent.owner,
-                    parent,
+                    group.home,
+                    group.anchor,
                     plan.0.coord,
                     body.position,
                 );
@@ -510,13 +512,13 @@ fn draw_groups(
     }
 }
 
-/// Mark where the line from a parent in `from` to a member in `to` crosses
+/// Mark where the line from an anchor in `from` to a member in `to` crosses
 /// each face between the two cells.
 fn draw_face_crossing(
     gizmos: &mut Gizmos,
     edge: Meters,
     from: SectorCoord,
-    parent: Meters3,
+    anchor: Meters3,
     to: SectorCoord,
     member: Meters3,
 ) {
@@ -527,7 +529,7 @@ fn draw_face_crossing(
         }
         // Faces sit half an edge off a cell centre.
         let face = (a.max(b) as f32 - 0.5) * edge.get();
-        let (p, m) = (parent.get(), member.get());
+        let (p, m) = (anchor.get(), member.get());
         let t = (face - p[axis]) / (m[axis] - p[axis]);
         let point = Meters3(p + (m - p) * t.clamp(0.0, 1.0));
         let normal = Vec3::AXES[axis];
@@ -587,7 +589,7 @@ fn collect_heatmap(
     };
     image.data = Some(pixels.texels);
     heatmap.painted = Some(centre);
-    heatmap.parents = pixels.parents;
+    heatmap.anchors = pixels.anchors;
     debug!("world clusters: painted the heatmap around {centre}");
 }
 
@@ -604,8 +606,8 @@ fn heatmap_texel(centre: Meters3, point: Meters3) -> Option<(i32, i32)> {
 }
 
 /// Paint the three fields over the XZ plane through `centre`'s own centre,
-/// with the sector faces, the window, and the parents of the cell layer the
-/// plane cuts.
+/// with the sector faces, the window, and the group anchors of the cell layer
+/// the plane cuts.
 ///
 /// PURE, and the whole cost of the heatmap: three field readings a texel and
 /// one group decision a lattice node, never a cell plan. Taken on a worker.
@@ -659,12 +661,12 @@ fn paint_heatmap(centre: SectorCoord) -> HeatmapPixels {
         }
     }
 
-    // One decision a node, for every node whose parent could fall in the cell
+    // One decision a node, for every node whose anchor could fall in the cell
     // layer the plane cuts.
     let lattice = GROUP_LATTICE.get();
     let span =
         |from: f32, to: f32| (from / lattice).floor() as i32 - 1..=(to / lattice).ceil() as i32 + 1;
-    let mut parents = (0, 0);
+    let mut anchors = 0;
     for nx in span(middle.x().get() - half, middle.x().get() + half) {
         for ny in span(middle.y().get() - edge.get(), middle.y().get() + edge.get()) {
             for nz in span(middle.z().get() - half, middle.z().get() + half) {
@@ -673,16 +675,13 @@ fn paint_heatmap(centre: SectorCoord) -> HeatmapPixels {
                 let Some(group) = group else {
                     continue;
                 };
-                if group.parent.owner.y != centre.y {
+                if group.home.y != centre.y {
                     continue;
                 }
-                let Some((column, row)) = heatmap_texel(middle, group.parent.position) else {
+                let Some((column, row)) = heatmap_texel(middle, group.anchor) else {
                     continue;
                 };
-                match group.kind {
-                    GroupKind::Planetoid => parents.0 += 1,
-                    GroupKind::Derelict => parents.1 += 1,
-                }
+                anchors += 1;
                 let hue = kind_colour(group.kind);
                 for dy in -HEATMAP_DOT - 1..=HEATMAP_DOT + 1 {
                     for dx in -HEATMAP_DOT - 1..=HEATMAP_DOT + 1 {
@@ -708,7 +707,7 @@ fn paint_heatmap(centre: SectorCoord) -> HeatmapPixels {
             }
         }
     }
-    HeatmapPixels { texels, parents }
+    HeatmapPixels { texels, anchors }
 }
 
 /// Keep the observer's dot over its own position on the heatmap.
@@ -768,56 +767,45 @@ fn update_readout(
         .0
         .sample(position)
         .unwrap_or_else(|fault| panic!("world clusters: readout: {fault}"));
-    let chances = parent_chances(here);
-    let tally = |plans: &mut dyn Iterator<Item = &CellPlan>| {
-        let (mut planned, mut placed) = (0, 0);
-        let mut skipped = [0; SkipReason::ALL.len()];
-        for plan in plans {
-            planned += plan.bodies.len();
-            placed += plan.placed();
-            for (slot, reason) in skipped.iter_mut().zip(SkipReason::ALL) {
-                *slot += plan.skipped(reason);
-            }
-        }
-        let reasons = SkipReason::ALL
-            .iter()
-            .zip(skipped)
-            .map(|(reason, count)| format!("{} {count}", reason.label()))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!(
-            "planned {planned} = placed {placed} + skipped {} ({reasons})",
-            skipped.iter().sum::<usize>()
-        )
-    };
+    let chances = group_chances(here);
+    let chances: Vec<String> = GroupKind::ALL
+        .iter()
+        .zip(chances.kinds)
+        .map(|(kind, chance)| format!("{} {chance:.2}", kind.label()))
+        .chain([format!("none {:.2}", chances.none)])
+        .collect();
+    // Continuation lines keep every line inside a 1024 px capture.
+    let chances = format!(
+        "{}{READOUT_BREAK}{}",
+        chances[..3].join("  "),
+        chances[3..].join("  ")
+    );
     let cell = tally(
-        &mut roots
+        roots
             .iter()
             .map(|plan| &plan.0)
             .filter(|plan| plan.coord == current.0),
+        READOUT_BREAK,
     );
-    let window = tally(&mut roots.iter().map(|plan| &plan.0));
-    let groups: BTreeMap<_, _> = roots
-        .iter()
-        .flat_map(|plan| &plan.0.groups)
-        .map(|group| (group.id, group))
-        .collect();
-    let count = |kind: GroupKind| groups.values().filter(|group| group.kind == kind).count();
-    let seams = groups.values().filter(|group| group.spans_seam()).count();
-    let heat = match (heatmap_job, heatmap.and_then(|heatmap| heatmap.painted.map(|at| (at, heatmap.parents)))) {
+    let window = tally(roots.iter().map(|plan| &plan.0), READOUT_BREAK);
+    let groups = live_groups(&roots);
+    let heat = match (
+        heatmap_job,
+        heatmap.and_then(|heatmap| heatmap.painted.map(|at| (at, heatmap.anchors))),
+    ) {
         (Some(_), _) => "painting...".to_string(),
-        (None, Some((at, (planetoids, derelicts)))) => format!(
-            "centred on {at}: {planetoids} planetoid and {derelicts} derelict parents in its cell layer"
-        ),
+        (None, Some((at, anchors))) => {
+            format!("centred on {at}: {anchors} group anchors in its cell layer")
+        }
         (None, None) => "waiting".to_string(),
     };
 
     **text = format!(
         "SECTOR {}  {:+.0} {:+.0} {:+.0} m\n\
          here: material {:.2}  volatiles {:.2}  human {:.2}  - '{}' (label only)\n\
-         group chance here: planetoid {:.2}  derelict {:.2}\n\
+         group chance here: {chances}\n\
          this cell: {cell}\n\
-         window: {} groups ({} planetoid, {} derelict), {seams} span a face\n\
+         window: {}\n\
          window: {window}\n\
          live {} sectors, preparing {}, ready {}\n\
          heatmap: {heat}",
@@ -829,15 +817,70 @@ fn update_readout(
         here.volatiles,
         here.human_activity,
         here.biome(),
-        chances.planetoid,
-        chances.derelict,
-        groups.len(),
-        count(GroupKind::Planetoid),
-        count(GroupKind::Derelict),
+        group_census(&groups, READOUT_BREAK),
         roots.iter().count(),
         jobs.iter().count(),
         ready.0.len(),
     );
+}
+
+/// Every group with a body in a live root, by node.
+fn live_groups<'a>(roots: &'a Query<&RootPlan>) -> BTreeMap<GroupId, &'a ClusterGroup> {
+    roots
+        .iter()
+        .flat_map(|plan| &plan.0.groups)
+        .map(|group| (group.id, group))
+        .collect()
+}
+
+/// How many groups there are and how many span a face, then `split`, then
+/// how many of each kind.
+fn group_census(groups: &BTreeMap<GroupId, &ClusterGroup>, split: &str) -> String {
+    let mut counts = [0; GroupKind::ALL.len()];
+    for group in groups.values() {
+        counts[group.kind as usize] += 1;
+    }
+    let kinds = GroupKind::ALL
+        .iter()
+        .zip(counts)
+        .map(|(kind, count)| format!("{count} {}", kind.label()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "{} groups, {} span a face{split}{kinds}",
+        groups.len(),
+        groups.values().filter(|group| group.spans_seam()).count()
+    )
+}
+
+/// Every planned body of `plans` as planned = placed + skipped, then `split`,
+/// then placed by body type and skipped by reason.
+fn tally<'a>(plans: impl Iterator<Item = &'a CellPlan>, split: &str) -> String {
+    let (mut planned, mut rocks, mut worlds, mut hulls) = (0, 0, 0, 0);
+    let mut skipped = [0; SkipReason::ALL.len()];
+    for plan in plans {
+        planned += plan.bodies.len();
+        for body in &plan.bodies {
+            match (body.outcome, &body.body) {
+                (Outcome::Placed, ClusterBody::Rock { .. }) => rocks += 1,
+                (Outcome::Placed, ClusterBody::Planetoid(_)) => worlds += 1,
+                (Outcome::Placed, ClusterBody::Hull { .. }) => hulls += 1,
+                (Outcome::Skipped(reason), _) => skipped[reason as usize] += 1,
+            }
+        }
+    }
+    let reasons = SkipReason::ALL
+        .iter()
+        .zip(skipped)
+        .map(|(reason, count)| format!("{} {count}", reason.label()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "planned {planned} = placed {} + skipped {}{split}placed {rocks} rocks, {worlds} \
+         planetoids, {hulls} hulls; skipped {reasons}",
+        rocks + worlds + hulls,
+        skipped.iter().sum::<usize>()
+    )
 }
 
 /// Log one census line per crossing: a snapshot of the live plans when the
@@ -850,50 +893,34 @@ fn report_census(current: Option<Res<CurrentSector>>, roots: Query<&RootPlan>) {
     if !current.is_changed() || roots.is_empty() {
         return;
     }
-    let groups: BTreeMap<_, _> = roots
-        .iter()
-        .flat_map(|plan| &plan.0.groups)
-        .map(|group| (group.id, group))
-        .collect();
-    let planned: usize = roots.iter().map(|plan| plan.0.bodies.len()).sum();
-    let placed: usize = roots.iter().map(|plan| plan.0.placed()).sum();
-    let skipped: Vec<String> = SkipReason::ALL
-        .iter()
-        .map(|reason| {
-            let count: usize = roots.iter().map(|plan| plan.0.skipped(*reason)).sum();
-            format!("{} {count}", reason.label())
-        })
-        .collect();
     info!(
-        "world clusters: window at {} ({} cells live): {} groups, {} span a face; \
-         planned {planned} = placed {placed} + skipped ({})",
+        "world clusters: window at {} ({} cells live): {}; {}",
         current.0,
         roots.iter().count(),
-        groups.len(),
-        groups.values().filter(|group| group.spans_seam()).count(),
-        skipped.join(", "),
+        group_census(&live_groups(&roots), ": "),
+        tally(roots.iter().map(|plan| &plan.0), ": "),
     );
 }
 
-/// The picture of a planetoid group placed across a face.
+/// The picture of a group with a planetoid, placed across a face.
 #[cfg(feature = "debug")]
 const PLANETOID_SHOT: &str = "world-clusters-planetoid.png";
 
-/// The picture of a derelict group placed across a face.
+/// The picture of a group with a derelict hull, placed across a face.
 #[cfg(feature = "debug")]
 const DERELICT_SHOT: &str = "world-clusters-derelict.png";
 
-/// How far from a planetoid group's centroid its shot stands.
+/// How far from a planetoid group's placed middle its shot stands.
 #[cfg(feature = "debug")]
 const PLANETOID_STANDOFF: Meters = Meters(7_000.0);
 
-/// How far behind its lead hull a derelict group's shot stands, looking
-/// through the hull at the rest of the group. A hull is about a hundred
+/// How far behind its first placed hull a derelict group's shot stands,
+/// looking through the hull at the rest of the group. A hull is about a hundred
 /// meters; from the group's middle it was a speck.
 #[cfg(feature = "debug")]
 const DERELICT_STANDOFF: Meters = Meters(900.0);
 
-/// How far above the line through the lead hull the derelict shot stands, so
+/// How far above the line through the first hull the derelict shot stands, so
 /// the hull does not hide the member behind it.
 #[cfg(feature = "debug")]
 const DERELICT_RISE: Meters = Meters(250.0);
@@ -949,7 +976,7 @@ fn clusters_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .on_enter(|world: &mut World| {
             let targets = *world.resource::<SeamTargets>();
             let (middle, lead) = (targets.derelict.get(), targets.derelict_lead.get());
-            // A lead hull at the group's middle leaves no line to stand on;
+            // A hull at the group's middle leaves no line to stand on;
             // any side then frames the group.
             let back = (lead - middle).normalize_or(Vec3::X);
             let eye = lead + back * DERELICT_STANDOFF.get() + Vec3::Y * DERELICT_RISE.get();
@@ -975,7 +1002,7 @@ fn clusters_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
 
 /// Where the two shot groups stand: the middle of each one's placed bodies,
 /// how far from that middle its farthest placed clearance reaches, and the
-/// derelict group's lead hull.
+/// derelict group's first placed hull.
 #[cfg(feature = "debug")]
 #[derive(Resource, Clone, Copy)]
 struct SeamTargets {
@@ -988,8 +1015,9 @@ struct SeamTargets {
 
 /// Check the home window against the live world and pick the shot groups.
 ///
-/// For each kind, the group nearest the home centre whose PLACED bodies are
-/// owned by two or more live cells. Every placed body of it must be a live
+/// For a placed planetoid and a placed hull, the group holding one that is
+/// nearest the home centre and whose PLACED bodies are owned by two or more
+/// live cells. Every placed body of it must be a live
 /// entity under its planned id, and every group body whose centre is in a
 /// live cell must be planned once, by that cell. Panics when any of that
 /// fails: the shots would otherwise be pictures that read as a pass.
@@ -1012,7 +1040,7 @@ fn check_seam_groups(world: &mut World) {
             groups.insert(group.id, group.clone());
         }
         for body in &plan.bodies {
-            let (BodySource::Parent(group) | BodySource::Member(group, _)) = body.source else {
+            let Some(group) = body.source.group() else {
                 continue;
             };
             owners.entry(body.source).or_default().push(plan.coord);
@@ -1029,14 +1057,10 @@ fn check_seam_groups(world: &mut World) {
     }
     let cells: BTreeSet<SectorCoord> = plans.iter().map(|plan| plan.coord).collect();
     for group in groups.values() {
-        let bodies = std::iter::once((BodySource::Parent(group.id), &group.parent)).chain(
-            group
-                .members
-                .iter()
-                .enumerate()
-                .map(|(index, member)| (BodySource::Member(group.id, index), member)),
-        );
-        for (source, body) in bodies.filter(|(_, body)| cells.contains(&body.owner)) {
+        for (source, body) in group
+            .bodies()
+            .filter(|(_, body)| cells.contains(&body.owner))
+        {
             assert_eq!(
                 owners.get(&source),
                 Some(&vec![body.owner]),
@@ -1053,31 +1077,31 @@ fn check_seam_groups(world: &mut World) {
         "world clusters: group bodies planned by more than one live cell: {twice:?}"
     );
 
-    let pick = |kind: GroupKind| {
+    let placed_of = |id: GroupId| -> Vec<&world_fixture::PlannedBody> {
+        plans
+            .iter()
+            .flat_map(|plan| &plan.bodies)
+            .filter(|body| body.outcome == Outcome::Placed && body.source.group() == Some(id))
+            .collect()
+    };
+    let pick = |holding: &str, holds: fn(&ClusterBody) -> bool| {
         let group = placed_cells
             .iter()
-            .filter(|(id, cells)| groups[*id].kind == kind && cells.len() >= 2)
+            .filter(|(id, cells)| {
+                cells.len() >= 2 && placed_of(**id).iter().any(|body| holds(&body.body))
+            })
             .map(|(id, _)| &groups[id])
             .min_by(|a, b| {
-                let distance = |group: &world_fixture::ClusterGroup| {
-                    group.parent.position.distance(home).get()
-                };
+                let distance = |group: &ClusterGroup| group.anchor.distance(home).get();
                 distance(a).total_cmp(&distance(b)).then(a.id.cmp(&b.id))
             })
             .unwrap_or_else(|| {
                 panic!(
-                    "world clusters: the home window must place a {} group in two cells",
-                    kind.label()
+                    "world clusters: the home window must place a group with a {holding} in two \
+                     cells"
                 )
             });
-        let bodies: Vec<&world_fixture::PlannedBody> = plans
-            .iter()
-            .flat_map(|plan| &plan.bodies)
-            .filter(|body| {
-                body.outcome == Outcome::Placed
-                    && matches!(body.source, BodySource::Parent(id) | BodySource::Member(id, _) if id == group.id)
-            })
-            .collect();
+        let bodies = placed_of(group.id);
         let middle = Meters3(
             bodies
                 .iter()
@@ -1088,16 +1112,24 @@ fn check_seam_groups(world: &mut World) {
             reach.max(body.position.distance(middle) + body.body.clearance())
         });
         info!(
-            "world clusters: {} group {} placed {} bodies across {:?}, all live",
-            kind.label(),
+            "world clusters: {} group {} with a {holding} placed {} bodies across {:?}, all live",
+            group.kind.label(),
             group.id.slug(),
             bodies.len(),
             placed_cells[&group.id],
         );
-        (middle, reach, group.parent.position)
+        let first = bodies
+            .iter()
+            .find(|body| holds(&body.body))
+            .map(|body| body.position)
+            .expect("the group was picked for holding one");
+        (middle, reach, first)
     };
-    let (planetoid, planetoid_reach, _) = pick(GroupKind::Planetoid);
-    let (derelict, derelict_reach, derelict_lead) = pick(GroupKind::Derelict);
+    let (planetoid, planetoid_reach, _) = pick("planetoid", |body| {
+        matches!(body, ClusterBody::Planetoid(_))
+    });
+    let (derelict, derelict_reach, derelict_lead) =
+        pick("hull", |body| matches!(body, ClusterBody::Hull { .. }));
     let targets = SeamTargets {
         planetoid,
         planetoid_reach,

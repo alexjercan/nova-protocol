@@ -29,15 +29,16 @@
 //! A generator's answer is not trusted. It returns a BODY-ONLY
 //! [`SectorManifest`], and [`validate_manifest`] is the only way to turn one
 //! into the [`SectorDescription`] preparation and materialization accept: it
-//! checks the cell's own edge and centre, the requested cell, the body and
-//! rock workload caps, finite geometry, unique ids the cell owns, bodies
-//! wholly inside the cell and not overlapping, shipped asteroid kinds and
-//! planet configs - before a worker prepares anything. A ship's design is a
-//! key into the ship catalog, which is a Bevy resource, so the check can only
-//! refuse a blank one. The catalog lookup happens on the
-//! main thread in [`materialize_sector`], where an id the game does not ship
-//! is a [`SectorFault::UnknownShip`] panic - loud, and before the cell's
-//! entities exist, but at materialization and not at arming.
+//! checks the cell's own edge and centre, the requested cell, finite
+//! geometry, unique ids the cell owns, bodies wholly inside the cell and not
+//! overlapping, shipped asteroid kinds and planet configs - before a worker
+//! prepares anything. It does not limit how many bodies a cell holds; the
+//! generator owns its density. A ship's design is a key into the ship catalog,
+//! which is a Bevy resource, so the check can only refuse a blank one. The
+//! catalog lookup happens on the main thread in [`materialize_sector`], where
+//! an id the game does not ship is a [`SectorFault::UnknownShip`] panic -
+//! loud, and before the cell's entities exist, but at materialization and not
+//! at arming.
 //!
 //! # The job lifetime
 //!
@@ -157,7 +158,7 @@ pub use crate::{
     generation::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
         PreparedSector, SectorAsteroid, SectorDescription, SectorManifest, SectorPlanet,
-        SectorShip, SECTOR_ASTEROIDS_MAX, SECTOR_BODIES_MAX, SECTOR_SHIP_CLEARANCE,
+        SectorShip, SECTOR_SHIP_CLEARANCE,
     },
     streaming::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
@@ -176,7 +177,7 @@ pub mod prelude {
         NovaWorldPlugin, NovaWorldSystems, PreparedSector, SectorAsteroid, SectorCoord,
         SectorDescription, SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest,
         SectorPlanet, SectorShip, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
-        SECTOR_ASTEROIDS_MAX, SECTOR_BODIES_MAX, SECTOR_SHIP_CLEARANCE,
+        SECTOR_SHIP_CLEARANCE,
     };
     pub use crate::streaming::{
         desired_sectors, CurrentSector, ReadySectors, SectorJob, SectorJobStats, SectorRoot,
@@ -605,10 +606,9 @@ pub enum SectorFault {
         attempts: usize,
     },
     /// A generator returned a manifest the world cannot materialize: the
-    /// wrong cell, an object outside its cell or overlapping another, an id
-    /// another cell owns, or more bodies or rocks than the workload caps. A
-    /// generator is outside this crate, so its answer is checked rather than
-    /// trusted.
+    /// wrong cell, an object outside its cell or overlapping another, or an id
+    /// another cell owns. A generator is outside this crate, so its answer is
+    /// checked rather than trusted.
     Manifest {
         /// The object at fault, or the cell's slug for a cell-wide rule.
         id: String,

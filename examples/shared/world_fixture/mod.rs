@@ -29,8 +29,8 @@ mod environment;
 mod uniform_asteroids;
 
 pub use clustered::{
-    group_at, parent_chances, plan_cell, BodySource, CellPlan, ClusterBody, ClusterGroup,
-    ClusteredWorld, GroupBody, GroupId, GroupKind, Outcome, ParentChances, PlannedBody, SkipReason,
+    group_at, group_chances, plan_cell, BodySource, CellPlan, ClusterBody, ClusterGroup,
+    ClusteredWorld, GroupBody, GroupChances, GroupId, GroupKind, Outcome, PlannedBody, SkipReason,
     GROUP_LATTICE,
 };
 pub use environment::{Environment, EnvironmentField, EnvironmentFields};
@@ -69,9 +69,8 @@ pub const EXAMPLE_ACTIVE_RADIUS: i32 = 2;
 /// DRAWS: the meshed radius reaches 3.5-6x past it, so this draws about
 /// 210-720 m diameters. Four bodies in a 32 km cell read as scattered
 /// landmarks rather than a belt, which is what the crossing claim needs and is
-/// not a claim about how dense a real sector should be. Four is also
-/// [`SECTOR_ASTEROIDS_MAX`], the density every generator has been measured
-/// at, so the baseline and the feature field fill a cell to the same ceiling.
+/// not a claim about how dense a real sector should be. Four is also the mean
+/// the base generator draws at full asteroid strength.
 /// The kinds are the four natural ones; `plain` is the texture control, not a
 /// rock a world would contain.
 ///
@@ -122,8 +121,9 @@ pub fn featured_world_config() -> WorldConfig<NovaLayeredWorld> {
 pub const FEATURE_HOME: SectorCoord = SectorCoord::new(2, 1, 2);
 
 /// The same seed, window and edge, filled by the example-owned clustered
-/// generator: planetoid and derelict groups on a global lattice, and one
-/// background rock at most per cell, all read off three environment fields.
+/// generator: asteroid-rich, rock-only, planet-heavy, derelict-only and
+/// low-rock groups on a global lattice, and one background rock at most per
+/// cell, all read off three environment fields.
 pub fn clustered_world_config() -> WorldConfig<ClusteredWorld> {
     WorldConfig {
         seed: EXAMPLE_SEED,
@@ -136,9 +136,8 @@ pub fn clustered_world_config() -> WorldConfig<ClusteredWorld> {
 /// The cell the clustered example opens in.
 ///
 /// Chosen by a scan of the windows around the origin, not assumed: its window
-/// holds planetoid groups and derelict groups that each place bodies on both
-/// sides of a cell face, a member skipped at a face and rocks skipped by the
-/// rock cap.
+/// holds a group with a planetoid and a group with a derelict hull that each
+/// place bodies on both sides of a cell face, and members skipped at a face.
 pub const CLUSTER_HOME: SectorCoord = SectorCoord::new(-1, 0, 1);
 
 /// The free-play bootstrap: an EMPTY scenario.

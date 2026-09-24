@@ -17,14 +17,15 @@ use nova_world::prelude::*;
 /// One of the three environment fields.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EnvironmentField {
-    /// How much rock and metal the space holds. Drives planetoids, their
-    /// companion rocks, derelict debris and the background rock.
+    /// How much rock and metal the space holds. Drives asteroid-rich,
+    /// rock-only and planet-heavy groups, their rock counts and the
+    /// background rock.
     MaterialDensity,
     /// How much ice and carbon the material is. Drives the rock and planet
     /// kind mix.
     Volatiles,
-    /// How much traffic the space has seen. Drives derelict groups and clears
-    /// the background rock.
+    /// How much traffic the space has seen. Drives derelict hulls, takes the
+    /// worlds, and clears the background rock.
     HumanActivity,
 }
 
@@ -60,11 +61,13 @@ impl EnvironmentField {
 
     /// Where this field is read from, relative to the world.
     ///
-    /// Perlin is identically zero on its own integer grid, and the group
-    /// lattice nodes sit on multiples of 48 km, which the 160 km wavelength
-    /// divides at every tenth node. A fixed offset that is a multiple of
-    /// neither keeps every node off a gridpoint. A different offset per field
-    /// also keeps the three fields from sharing their zero crossings.
+    /// Perlin is identically zero on its own integer grid, one gridpoint a
+    /// 160 km wavelength. The background rock reads the fields at cell
+    /// centres, on multiples of 32 km, which meet that grid at every fifth
+    /// cell; a group reads them at its jittered anchor. An offset that is not
+    /// a multiple of 32 km on any axis keeps every cell centre off a
+    /// gridpoint. A different offset per field also keeps the three fields
+    /// from sharing their zero crossings.
     const fn origin(self) -> Meters3 {
         match self {
             Self::MaterialDensity => Meters3::new(91_000.0, 57_000.0, 131_000.0),
