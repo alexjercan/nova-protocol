@@ -8,9 +8,12 @@
 //! flies the ship.
 //!
 //! Engine units: well positions are avian `Position` and radii are world
-//! units. Both callers pass the ship root's `Transform` translation: an
-//! orderable ship root is top-level, so that is world space, and it is valid
-//! on the spawn frame, before avian writes the root's first `Position`.
+//! units. The scripted order runs in `FixedUpdate` and passes the root's
+//! avian `Position`: there a `Transform` is the eased render pose, and a
+//! moving ship read off it can rank a different well at an engage or resume
+//! boundary. The passive AI runs in `Update` and passes the root's
+//! `Transform` translation, the pose it steers from; an orderable root is
+//! top-level, so that is world space.
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemParam, prelude::*};

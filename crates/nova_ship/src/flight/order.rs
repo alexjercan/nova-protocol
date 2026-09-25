@@ -414,7 +414,7 @@ pub(super) fn drive_ship_orders(
             Entity,
             &mut ShipHelmOrder,
             &mut ShipOrderReports,
-            &Transform,
+            &Position,
             Option<&Autopilot>,
             Has<ShipOrderEngaged>,
             Has<ScriptedAlignSettled>,
@@ -434,7 +434,7 @@ pub(super) fn drive_ship_orders(
     mut q_thruster_input: Query<(&mut ThrusterSectionInput, &ChildOf), With<ThrusterSectionMarker>>,
     q_standoff: Query<&FlightArrivalStandoff>,
 ) {
-    for (ship, mut order, mut reports, transform, autopilot, engaged, settled, reported) in
+    for (ship, mut order, mut reports, position, autopilot, engaged, settled, reported) in
         &mut q_ships
     {
         let kind = order.kind();
@@ -447,7 +447,7 @@ pub(super) fn drive_ship_orders(
                 &order,
                 &mut commands,
                 &wells,
-                transform.translation,
+                position.0,
                 &mut q_thruster_input,
                 &q_standoff,
             ) {
@@ -572,7 +572,7 @@ pub(super) fn drive_ship_orders(
                     &order,
                     &mut commands,
                     &wells,
-                    transform.translation,
+                    position.0,
                     &mut q_thruster_input,
                     &q_standoff,
                 ) {
@@ -932,7 +932,7 @@ mod tests {
             .world_mut()
             .spawn((
                 SpaceshipRootMarker,
-                Transform::default(),
+                Position::default(),
                 ShipHelmOrder::new("job".to_string(), directive),
                 ShipOrderHelmAuthority,
                 ShipOrderReports::default(),
@@ -1316,6 +1316,60 @@ mod tests {
         app.update();
         assert_eq!(outcomes(&app, ship), vec![ShipOrderOutcome::Failed]);
         assert!(app.world().get::<Autopilot>(ship).is_none());
+    }
+
+    /// The driver runs in `FixedUpdate`, where a moving ship's `Transform` is
+    /// the eased render pose. A nearest-well orbit ranks from the avian
+    /// `Position` on engage and again on resume, so a render pose that lags
+    /// toward another well does not pick the ring.
+    #[test]
+    fn a_nearest_orbit_ranks_wells_from_the_authoritative_position() {
+        let mut app = order_app();
+        let mut spawn_well = |id: &str, x: f32| {
+            app.world_mut()
+                .spawn((
+                    GravityWell::from_mass(2_400.0, 20.0, &GravitySettings::default()),
+                    EntityId::new(id),
+                    Position(Vec3::new(x, 0.0, 0.0)),
+                ))
+                .id()
+        };
+        let west = spawn_well("west", -500.0);
+        let east = spawn_well("east", 500.0);
+        let ship = ordered_ship(
+            &mut app,
+            ShipOrderDirective::Orbit {
+                well: WellTargetType::NearestToShip,
+            },
+        );
+        let place = |app: &mut App, render: f32, authoritative: f32| {
+            app.world_mut().entity_mut(ship).insert((
+                Transform::from_translation(Vec3::new(render, 0.0, 0.0)),
+                Position(Vec3::new(authoritative, 0.0, 0.0)),
+            ));
+        };
+        let orbiting = |app: &App| match app.world().get::<Autopilot>(ship).map(|a| a.action) {
+            Some(AutopilotAction::Orbit { well, .. }) => Some(well),
+            _ => None,
+        };
+
+        place(&mut app, -400.0, 400.0);
+        app.update();
+        assert_eq!(
+            orbiting(&app),
+            Some(east),
+            "the engage ranks from Position, not the render pose"
+        );
+
+        interrupt_ship_order(app.world_mut(), ship);
+        place(&mut app, 400.0, -400.0);
+        resume_ship_order(app.world_mut(), ship);
+        app.update();
+        assert_eq!(
+            orbiting(&app),
+            Some(west),
+            "the resume ranks again from where the ship now is"
+        );
     }
 
     /// The settle rule is the authored tolerance read as a rate: a hull
