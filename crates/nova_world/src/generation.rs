@@ -10,6 +10,7 @@
 
 use std::collections::BTreeSet;
 
+use bevy::log::info_span;
 use nova_events::prelude::{Meters, Meters3};
 use nova_scenario::prelude::{
     is_asteroid_kind, prepare_asteroid_geometry, prepare_planet, PlanetConfig, PreparedAsteroid,
@@ -454,12 +455,16 @@ pub fn generate_sector<G: SectorGenerator>(
     config: &WorldConfig<G>,
     coord: SectorCoord,
 ) -> Result<SectorDescription, SectorFault> {
+    let validate = info_span!("nova_world::validate_config").entered();
     config.validate()?;
     if !position_is_finite(coord.centre(config.sector_edge)) {
         return Err(SectorFault::InvalidGeometry { id: coord.slug() });
     }
     let input = config.input(coord);
-    validate_manifest(input, config.generator.generate(input)?)
+    drop(validate);
+    let manifest =
+        info_span!("nova_world::generate").in_scope(|| config.generator.generate(input))?;
+    info_span!("nova_world::validate_manifest").in_scope(|| validate_manifest(input, manifest))
 }
 
 /// Describe, check and prepare one cell: everything a sector costs except
@@ -479,17 +484,22 @@ pub fn prepare_sector<G: SectorGenerator>(
     config: WorldConfig<G>,
     coord: SectorCoord,
 ) -> Result<PreparedSector, SectorFault> {
+    let _job = info_span!("nova_world::prepare_sector", cell = %coord).entered();
     let description = generate_sector(&config, coord)?;
-    let asteroids = description
-        .asteroids
-        .iter()
-        .map(|body| prepare_asteroid_geometry(body.seed, body.radius))
-        .collect();
-    let planets = description
-        .planets
-        .iter()
-        .map(|planet| prepare_planet(planet.config.clone()))
-        .collect();
+    let asteroids = info_span!("nova_world::prepare_asteroids").in_scope(|| {
+        description
+            .asteroids
+            .iter()
+            .map(|body| prepare_asteroid_geometry(body.seed, body.radius))
+            .collect()
+    });
+    let planets = info_span!("nova_world::prepare_planets").in_scope(|| {
+        description
+            .planets
+            .iter()
+            .map(|planet| prepare_planet(planet.config.clone()))
+            .collect()
+    });
     Ok(PreparedSector {
         description,
         asteroids,

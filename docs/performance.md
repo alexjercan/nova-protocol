@@ -410,6 +410,20 @@ for. The host reads it as a STREAM instead, at flat memory (about 70 MB peak,
 whatever the file's size), so the cost is disk and disk only. It is a scratch
 artifact: keep it while you are profiling, delete the run dir when you are not.
 
+## Streamed-world fill and steady windows
+
+`world_clusters` probes a 125-cell, content-rich streaming window. Its default
+capture waits for all 125 cells to be live and planned, warms up for 60 frames,
+then records 300 steady frames without camera travel. Set
+`NOVA_WORLD_FILL_PROBE=1` for a separate 40-frame capture starting at 60 live
+cells. These windows do not have the same workload: check live root counts,
+fixed-step counts and admitted repeats before comparing them. The fill window
+can advance different numbers of cells in the same 40 frames. Per-cell
+`nova_world::prepare_sector` trace spans separate worker generation, validation,
+rock geometry and planet preparation; deferred command application and Avian
+physics appear in the existing system spans. Profiled spans rank causes but
+cannot be substituted for the clean capture's frame times.
+
 ## Find it in the code
 
 - The capture, its window and its knobs: `FrameTimePlugin`, `nova_frametime` -
