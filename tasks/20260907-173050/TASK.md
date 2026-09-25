@@ -1,8 +1,8 @@
 # Add verified gameplay statistics to the wiki
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.15.0,docs,wiki,gameplay
+- TAGS: v0.15.0, docs, wiki, gameplay
 
 ## Goal
 
