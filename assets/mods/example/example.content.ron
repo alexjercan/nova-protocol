@@ -770,7 +770,7 @@
                         ),
                         kind: Spaceship((
                             controller: AI((
-                                orbit: Some("menu_planetoid"),
+                                orbit: Some(Authored("menu_planetoid")),
                             )),
                             design: Inline((
                                 sections: [

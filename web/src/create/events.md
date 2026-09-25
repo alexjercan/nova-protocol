@@ -327,8 +327,9 @@ completed.
 ## OnShipOrderFailed
 
 Fires when an order can no longer be flown. The hull lost the flight computer
-or the drives the order runs on, or the gravity well an
-[`OrbitShip`](../actions/#orbitship) named is gone or will not hold a ring.
+or the drives the order runs on, or no single loaded well answers an
+[`OrbitShip`](../actions/#orbitship) target, or the well is lost or will not
+hold a ring before the ring is established.
 
 <details class="explain">
 <summary>Show explanation</summary>

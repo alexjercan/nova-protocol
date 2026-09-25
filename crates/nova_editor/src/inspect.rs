@@ -33,6 +33,7 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{
     muzzle_ids, GameSections, SectionConfig, SectionConfigPatch, SectionKind, TurretSectionConfig,
+    WellTargetType,
 };
 
 use crate::{
@@ -254,6 +255,14 @@ pub(crate) enum RowValue {
     Axes([String; 3]),
     /// Who flies this ship.
     Driver(ShipDriver),
+    /// Which gravity well an orbit circles, or `None` for an optional field
+    /// that holds no orbit.
+    ///
+    /// Its own shape because the generic enum rule cannot offer it:
+    /// `Authored` carries an id, so the variants are not all bare names. The
+    /// row offers the three states and keeps the id box for `Authored` only,
+    /// which starts empty when the builder switches to it.
+    WellTarget(Option<WellTargetType>),
     /// Shown but not editable here.
     Fixed(String),
     /// ONE node of a condition: which operator it is, and - where it is a leaf
@@ -309,7 +318,19 @@ impl RowValue {
                 .clone()
                 .unwrap_or_else(|| options.get(*chosen).cloned().unwrap_or_default()),
             Self::Driver(driver) => driver_label(*driver).to_string(),
+            Self::WellTarget(Some(WellTargetType::Authored(id))) => format!("Authored({id:?})"),
+            Self::WellTarget(target) => well_target_label(target.as_ref()).to_string(),
         }
+    }
+}
+
+/// What a well-target option is called: the RON word for it, and the empty
+/// row's word for no orbit.
+pub(crate) fn well_target_label(target: Option<&WellTargetType>) -> &'static str {
+    match target {
+        None => NOTHING,
+        Some(WellTargetType::Authored(_)) => "Authored",
+        Some(WellTargetType::NearestToShip) => "NearestToShip",
     }
 }
 
@@ -1224,6 +1245,20 @@ fn walk(
         }
         return;
     }
+    if let Some(target) = value.try_downcast_ref::<WellTargetType>() {
+        let target = RowValue::WellTarget(Some(target.clone()));
+        out.push(walked(root, path, false, target));
+        return;
+    }
+    if let Some(target) = value.try_downcast_ref::<Option<WellTargetType>>() {
+        out.push(walked(
+            root,
+            path,
+            true,
+            RowValue::WellTarget(target.clone()),
+        ));
+        return;
+    }
     if let Some(text) = leaf_text(value) {
         let mut row = if is_number(value) {
             walked_number(root, path, false, text, is_whole(value))
@@ -1876,6 +1911,32 @@ pub(crate) fn choose_field(
     target
         .try_apply(&wanted)
         .map_err(|error| format!("refused: {error}"))
+}
+
+/// Put `target` into the well-target field at `path`.
+///
+/// `optional` says the field is an `Option`, where `None` means no orbit. A
+/// required field refuses `None`: an orbit order with no well has nothing to
+/// fly.
+pub(crate) fn set_well_target(
+    root: &mut dyn PartialReflect,
+    path: &[PathStep],
+    optional: bool,
+    target: Option<WellTargetType>,
+) -> Result<(), String> {
+    let field = resolve(root, path).ok_or_else(|| "gone".to_string())?;
+    if optional {
+        let held = field
+            .try_downcast_mut::<Option<WellTargetType>>()
+            .ok_or_else(|| "not a well target".to_string())?;
+        *held = target;
+        return Ok(());
+    }
+    let held = field
+        .try_downcast_mut::<WellTargetType>()
+        .ok_or_else(|| "not a well target".to_string())?;
+    *held = target.ok_or_else(|| "this orbit needs a well".to_string())?;
+    Ok(())
 }
 
 /// The colour a `#rrggbb` or `#rrggbbaa` row is showing, for the swatch beside

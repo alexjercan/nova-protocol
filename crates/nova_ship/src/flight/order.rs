@@ -26,7 +26,7 @@ use nova_gameplay::prelude::*;
 
 use super::{
     ship_turn_rate, slew_rotation, Autopilot, AutopilotAction, AutopilotPhase,
-    FlightArrivalStandoff, FlightSettings,
+    FlightArrivalStandoff, FlightSettings, LiveWells,
 };
 use crate::prelude::*;
 
@@ -102,17 +102,14 @@ pub enum ShipOrderDirective {
     },
     /// Circularize into a station-keeping orbit and hold it.
     Orbit {
-        /// Scenario id of the gravity well to orbit.
+        /// Which gravity well to orbit.
         ///
-        /// The authored id, not an `Entity`: the well is resolved every tick,
-        /// so a well that has not spawned yet is simply not there yet, and a
-        /// well that is destroyed fails the order rather than orbiting a
-        /// dangling handle.
-        ///
-        /// Resolution only sees wells carrying [`ScenarioAddressableMarker`],
-        /// so a body a generator named - a streamed sector's planetoid - can
-        /// never answer to an id an author wrote.
-        well: String,
+        /// A target, not an `Entity`: it is resolved against the live world
+        /// each time the leg engages, so a well that has not loaded yet fails
+        /// the order rather than orbiting a dangling handle. Losing the well
+        /// before the ring is established fails the order; losing it after
+        /// retires the held order without a second terminal event.
+        well: WellTargetType,
     },
 }
 
@@ -417,6 +414,7 @@ pub(super) fn drive_ship_orders(
             Entity,
             &mut ShipHelmOrder,
             &mut ShipOrderReports,
+            &Transform,
             Option<&Autopilot>,
             Has<ShipOrderEngaged>,
             Has<ScriptedAlignSettled>,
@@ -424,7 +422,7 @@ pub(super) fn drive_ship_orders(
         ),
         (With<SpaceshipRootMarker>, With<ShipOrderHelmAuthority>),
     >,
-    q_wells: Query<(Entity, &EntityId), (With<GravityWell>, With<ScenarioAddressableMarker>)>,
+    wells: LiveWells,
     q_computer: Query<
         &ChildOf,
         (
@@ -436,7 +434,9 @@ pub(super) fn drive_ship_orders(
     mut q_thruster_input: Query<(&mut ThrusterSectionInput, &ChildOf), With<ThrusterSectionMarker>>,
     q_standoff: Query<&FlightArrivalStandoff>,
 ) {
-    for (ship, mut order, mut reports, autopilot, engaged, settled, reported) in &mut q_ships {
+    for (ship, mut order, mut reports, transform, autopilot, engaged, settled, reported) in
+        &mut q_ships
+    {
         let kind = order.kind();
         let can_turn = q_computer.iter().any(|&ChildOf(parent)| parent == ship);
         let can_burn = q_engine.iter().any(|&ChildOf(parent)| parent == ship);
@@ -446,7 +446,8 @@ pub(super) fn drive_ship_orders(
                 ship,
                 &order,
                 &mut commands,
-                &q_wells,
+                &wells,
+                transform.translation,
                 &mut q_thruster_input,
                 &q_standoff,
             ) {
@@ -465,8 +466,31 @@ pub(super) fn drive_ship_orders(
         }
 
         // A hold that has already reported keeps running and is done being
-        // judged; only an interruption or a cancellation touches it now.
+        // judged; only an interruption, a cancellation or a lost ring touches
+        // it now.
         if reported {
+            // A held ring whose well retired (a streamed sector unloading, a
+            // rock destroyed) has nothing left to hold. The order already
+            // fired its terminal event, so the cancellation reports nothing;
+            // it retires the order and its helm authority, which would
+            // otherwise lock the hull's own AI out for good.
+            if kind == ShipOrderKind::Orbit && autopilot.is_none() {
+                warn!(
+                    "drive_ship_orders: ship {ship:?} lost the ring its completed ORBIT \
+                     order '{}' was holding; the order is retired",
+                    order.key
+                );
+                commands.queue(move |world: &mut World| {
+                    // An order installed after this tick's read carries no
+                    // terminal latch, and is not this order.
+                    if world
+                        .get_entity(ship)
+                        .is_ok_and(|entity| entity.contains::<ShipOrderReported>())
+                    {
+                        cancel_ship_order(world, ship);
+                    }
+                });
+            }
             continue;
         }
 
@@ -547,7 +571,8 @@ pub(super) fn drive_ship_orders(
                     ship,
                     &order,
                     &mut commands,
-                    &q_wells,
+                    &wells,
+                    transform.translation,
                     &mut q_thruster_input,
                     &q_standoff,
                 ) {
@@ -571,7 +596,8 @@ fn engage_leg(
     ship: Entity,
     order: &ShipHelmOrder,
     commands: &mut Commands,
-    q_wells: &Query<(Entity, &EntityId), (With<GravityWell>, With<ScenarioAddressableMarker>)>,
+    wells: &LiveWells,
+    ship_position: Vec3,
     q_thruster_input: &mut Query<
         (&mut ThrusterSectionInput, &ChildOf),
         With<ThrusterSectionMarker>,
@@ -642,15 +668,9 @@ fn engage_leg(
             Ok(())
         }
         ShipOrderDirective::Orbit { well } => {
-            let Some(entity) = q_wells
-                .iter()
-                .find(|(_, id)| id.0 == *well)
-                .map(|(entity, _)| entity)
-            else {
-                return Err(format!(
-                    "gravity well '{well}' is not an addressable well in the world"
-                ));
-            };
+            let entity = wells
+                .resolve(well, ship_position)
+                .map_err(|fault| fault.to_string())?;
             commands
                 .entity(ship)
                 .insert(Autopilot::engage(AutopilotAction::Orbit {
@@ -877,7 +897,7 @@ mod tests {
         }
         .holds_after_completion());
         assert!(ShipOrderDirective::Orbit {
-            well: "planetoid".to_string(),
+            well: WellTargetType::NearestToShip,
         }
         .holds_after_completion());
 
@@ -900,7 +920,9 @@ mod tests {
     /// without flying a ship across a kilometre of physics.
     fn order_app() -> App {
         let mut app = App::new();
-        app.add_systems(Update, drive_ship_orders);
+        app.init_resource::<GravitySettings>()
+            .init_resource::<FlightSettings>()
+            .add_systems(Update, drive_ship_orders);
         app
     }
 
@@ -910,6 +932,7 @@ mod tests {
             .world_mut()
             .spawn((
                 SpaceshipRootMarker,
+                Transform::default(),
                 ShipHelmOrder::new("job".to_string(), directive),
                 ShipOrderHelmAuthority,
                 ShipOrderReports::default(),
@@ -1194,12 +1217,13 @@ mod tests {
                 GravityWell::from_mass(1_000.0, 50.0, &GravitySettings::default()),
                 EntityId::new("planetoid"),
                 ScenarioAddressableMarker,
+                Position::default(),
             ))
             .id();
         let ship = ordered_ship(
             &mut app,
             ShipOrderDirective::Orbit {
-                well: "planetoid".to_string(),
+                well: WellTargetType::Authored("planetoid".to_string()),
             },
         );
 
@@ -1227,6 +1251,55 @@ mod tests {
         );
     }
 
+    /// A held ring whose well retires - a streamed sector unloading, a rock
+    /// destroyed - has nothing left to hold. The order already fired its one
+    /// terminal event, so it goes quietly, and it takes its helm authority
+    /// with it: a hull left holding authority for a maneuver that no longer
+    /// runs is dead to its own AI forever.
+    #[test]
+    fn a_held_orbit_that_loses_its_well_releases_the_helm_without_a_second_report() {
+        let mut app = order_app();
+        let well = app
+            .world_mut()
+            .spawn((
+                GravityWell::from_mass(1_000.0, 50.0, &GravitySettings::default()),
+                EntityId::new("planetoid"),
+                ScenarioAddressableMarker,
+                Position::default(),
+            ))
+            .id();
+        let ship = ordered_ship(
+            &mut app,
+            ShipOrderDirective::Orbit {
+                well: WellTargetType::Authored("planetoid".to_string()),
+            },
+        );
+        app.update();
+        app.world_mut()
+            .get_mut::<Autopilot>(ship)
+            .expect("the maneuver is engaged")
+            .phase = AutopilotPhase::Hold;
+        app.update();
+        assert_eq!(outcomes(&app, ship), vec![ShipOrderOutcome::Complete]);
+
+        // The autopilot drops ORBIT the tick its well is gone.
+        app.world_mut().entity_mut(well).despawn();
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
+        app.update();
+
+        let entity = app.world().entity(ship);
+        assert!(
+            !entity.contains::<ShipOrderHelmAuthority>(),
+            "the lost hold hands the helm back"
+        );
+        assert!(!entity.contains::<ShipHelmOrder>(), "and retires the order");
+        assert_eq!(
+            outcomes(&app, ship),
+            vec![ShipOrderOutcome::Complete],
+            "without a second terminal event"
+        );
+    }
+
     /// An orbit whose well is gone fails rather than hanging: the ship cannot
     /// circularize around something that stopped existing, and a beat waiting
     /// on the insertion has to be told.
@@ -1236,7 +1309,7 @@ mod tests {
         let ship = ordered_ship(
             &mut app,
             ShipOrderDirective::Orbit {
-                well: "planetoid".to_string(),
+                well: WellTargetType::Authored("planetoid".to_string()),
             },
         );
 

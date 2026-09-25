@@ -53,7 +53,7 @@
                                 id: "block_hauler",
                             ),
                             controller: AI((
-                                orbit: Some("menu_planetoid"),
+                                orbit: Some(Authored("menu_planetoid")),
                             )),
                         )),
                     )),
@@ -78,7 +78,7 @@
                                 id: "block_hauler",
                             ),
                             controller: AI((
-                                orbit: Some("menu_planetoid"),
+                                orbit: Some(Authored("menu_planetoid")),
                             )),
                         )),
                     )),

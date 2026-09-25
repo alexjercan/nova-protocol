@@ -4,7 +4,6 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use nova_events::prelude::*;
 
 #[cfg(test)]
 use super::guns::{on_projectile_input, update_turret_target_input};
@@ -112,20 +111,17 @@ impl AIPatrolRoute {
 
 /// Directs an AI ship to orbit a gravity well while nothing hostile is close
 /// enough to fight. Present = the no-hostile fallback state becomes `Orbit`,
-/// taking precedence over `Patrol` (`next_behavior_state`). The well is
-/// named by its scenario [`EntityId`]; `update_passive_flight` resolves it
-/// and keeps the ORBIT autopilot engaged on it, mirroring how Patrol flies
-/// its GOTO legs. Spawn-configured (scenario config); an id that resolves to
-/// no live well behaves like Idle-without-a-STOP (the ship simply drifts)
-/// until the well appears.
+/// taking precedence over `Patrol` (`next_behavior_state`).
+/// `update_passive_flight` resolves the target and keeps the ORBIT autopilot
+/// engaged on it, mirroring how Patrol flies its GOTO legs. Spawn-configured
+/// (scenario config); a target that resolves to no live well behaves like
+/// Idle-without-a-STOP (the ship simply drifts) and is retried every calm
+/// frame until a well answers.
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIOrbitDirective {
-    /// Scenario id of the gravity-well entity to circle.
-    ///
-    /// Resolved against wells carrying [`ScenarioAddressableMarker`] only, so
-    /// a generated body in a streamed sector cannot answer to it.
-    pub well: EntityId,
+    /// Which gravity well to circle.
+    pub well: WellTargetType,
 }
 
 /// Fraction of the leash radius a PASSIVE leashed ship must be inside of

@@ -3,6 +3,7 @@
 use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::WellTargetType;
 
 use crate::base_content::ships;
 
@@ -94,7 +95,7 @@ pub(super) fn backdrop_orbiter(
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
-                orbit: Some(MENU_PLANETOID_ID.to_string()),
+                orbit: Some(WellTargetType::Authored(MENU_PLANETOID_ID.to_string())),
                 ..Default::default()
             }),
             design: ships::design(hull),

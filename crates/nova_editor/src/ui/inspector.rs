@@ -21,7 +21,7 @@ use bevy::{
 };
 use nova_events::units::prelude::*;
 use nova_scenario::prelude::{Names, ScenarioObjectKind};
-use nova_ship::prelude::GameSections;
+use nova_ship::prelude::{GameSections, WellTargetType};
 use nova_ui::{
     prelude::{
         panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
@@ -48,9 +48,9 @@ use crate::{
         driver_label, edit_section, event_rows, filter_rows, gate_rows, inspected, nudge_field,
         object_config_mut, object_rows, operand_path, operand_row, parse_colour, reset_field,
         rotation_degrees, rotation_from_degrees, scale_framed_drags, scenario_rows, script_name,
-        section_config_mut, section_rows, ship_rows, step_rows, toggle_field, write_field,
-        DocumentIds, DragRule, FieldRoot, InspectTarget, InspectorRow, NodeKinds, Operand,
-        PathStep, RowValue, ScriptNames, GRIP_GONE,
+        section_config_mut, section_rows, set_well_target, ship_rows, step_rows, toggle_field,
+        well_target_label, write_field, DocumentIds, DragRule, FieldRoot, InspectTarget,
+        InspectorRow, NodeKinds, Operand, PathStep, RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -364,6 +364,11 @@ pub(crate) struct InspectorSwatch {
 pub(crate) struct InspectorChoice {
     variant: String,
 }
+
+/// One option of a well-target row: the target this segment writes. The
+/// `Authored` option writes an empty id for the builder to fill.
+#[derive(Component, Clone)]
+pub(crate) struct InspectorWellTarget(Option<WellTargetType>);
 
 /// Everything the panel reads to decide what it is showing.
 #[derive(SystemParam)]
@@ -1385,6 +1390,144 @@ fn spawn_driver_row(
     });
 }
 
+/// A well-target row: the name line, the three states under it, and for
+/// `Authored` the id box and its picker.
+///
+/// The id box writes the id STRING inside the target, so typing and the picker
+/// take the same `write_field` path as any other reference row, and the fault
+/// paint finds it by slot. A switch of state rebuilds the row (see
+/// [`ShownInspector`]), so the box exists only while the target holds an id.
+fn spawn_well_target_row(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    row: &InspectorRow,
+    field: &InspectorField,
+    slot: usize,
+    target: Option<&WellTargetType>,
+    step: f32,
+) {
+    let mut options = vec![
+        Some(WellTargetType::Authored(String::new())),
+        Some(WellTargetType::NearestToShip),
+    ];
+    if row.optional {
+        options.insert(0, None);
+    }
+    let chosen = well_target_label(target);
+    list.spawn((
+        Name::new(format!("Inspector Row {}", row.label)),
+        row_hint(row),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::left(px(step)),
+            margin: UiRect::bottom(px(6)),
+            row_gap: px(3),
+            ..default()
+        },
+    ))
+    .with_children(|block| {
+        block
+            .spawn(Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: px(4),
+                ..default()
+            })
+            .with_children(|line| {
+                line.spawn((
+                    UiText,
+                    Text::new(row.label.clone()),
+                    TextLayout {
+                        linebreak: LineBreak::NoWrap,
+                        ..default()
+                    },
+                    TextFont {
+                        font_size: FontSize::Px(11.0),
+                        ..default()
+                    },
+                    TextColor(Color::NONE),
+                    ThemedText::new(label_colour(row)),
+                ));
+                spawn_override_mark(line, row, field, slot);
+            });
+        block
+            .spawn((
+                Name::new(format!("Inspector Choice {}", row.label)),
+                segmented_container(),
+            ))
+            .with_children(|segments| {
+                for option in options {
+                    let label = well_target_label(option.as_ref());
+                    let mut entity = segments.spawn((
+                        Name::new(format!("Inspector Choice {} {label}", row.label)),
+                        InspectorSlot(slot),
+                        InspectorWellTarget(option),
+                        field.clone(),
+                        segmented_option(label),
+                        observe(on_inspector_well_target),
+                    ));
+                    if label == chosen {
+                        entity.insert(Selected);
+                    }
+                }
+            });
+        let Some(WellTargetType::Authored(id)) = target else {
+            return;
+        };
+        let mut path = field.path.clone();
+        if field.optional {
+            path.push(PathStep::Slot(0));
+        }
+        path.push(PathStep::Slot(0));
+        let id_field = InspectorField {
+            node: field.node,
+            root: field.root,
+            path,
+            optional: false,
+        };
+        block
+            .spawn(Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: px(4),
+                ..default()
+            })
+            .with_children(|line| {
+                line.spawn(Node {
+                    flex_grow: 1.0,
+                    flex_basis: px(0),
+                    min_width: px(0),
+                    ..default()
+                })
+                .with_children(|box_slot| {
+                    box_slot.spawn((
+                        Name::new(format!("Inspector Field {}", row.label)),
+                        InspectorSlot(slot),
+                        id_field.clone(),
+                        text_field(TextFieldSpec::new(id.clone()).max_chars(64).dense()),
+                    ));
+                });
+                if let Some(offers) = Offers::of(row) {
+                    line.spawn((
+                        Name::new(format!("Inspector Ref {}", row.label)),
+                        InspectorSlot(slot),
+                        InspectorRef {
+                            label: row.label.clone(),
+                            offers,
+                        },
+                        id_field,
+                        Button,
+                        Hovered::default(),
+                        ref_chip(),
+                        observe(on_open_ref_window),
+                    ));
+                }
+                line.spawn(unit_text(&row.label, row.unit, slot));
+            });
+    });
+}
+
 /// The lead letter and colour of each box of a vector row.
 ///
 /// The colours are the HANDLES' own, read off `crate::gizmo`: the number and
@@ -1652,6 +1795,10 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
             spawn_driver_row(list, row, node, slot, *driver, step);
             continue;
         }
+        if let RowValue::WellTarget(target) = &row.value {
+            spawn_well_target_row(list, row, &field, slot, target.as_ref(), step);
+            continue;
+        }
         if let RowValue::Operand {
             options,
             chosen,
@@ -1793,7 +1940,10 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
                     // three axis boxes and three driver options each need the
                     // panel's width, and an operand carries two controls in one
                     // value column.
-                    RowValue::Axes(_) | RowValue::Driver(_) | RowValue::Operand { .. } => {}
+                    RowValue::Axes(_)
+                    | RowValue::Driver(_)
+                    | RowValue::Operand { .. }
+                    | RowValue::WellTarget(_) => {}
                     RowValue::Key(binding) => {
                         // The ROW is the button. A binding named on one surface
                         // and armed from another - the top bar's Rebind - left
@@ -1883,6 +2033,7 @@ pub(crate) struct ShownInspector {
             Option<Entity>,
             usize,
             bool,
+            Option<&'static str>,
         )>,
     )>,
 }
@@ -2011,7 +2162,7 @@ pub(crate) fn sync_inspector(
         // repaint into the widgets of the tree it used to be. So is whether
         // the row is OVERRIDDEN: the reset chip is a widget, and a reset that
         // only repainted values would leave it standing over an inherited
-        // field.
+        // field. So is a well target's STATE: only `Authored` has an id box.
         rows.iter()
             .map(|row| {
                 (
@@ -2021,6 +2172,10 @@ pub(crate) fn sync_inspector(
                     row.owner,
                     row.depth,
                     row.overridden,
+                    match &row.value {
+                        RowValue::WellTarget(target) => Some(well_target_label(target.as_ref())),
+                        _ => None,
+                    },
                 )
             })
             .collect::<Vec<_>>(),
@@ -2050,7 +2205,8 @@ pub(crate) fn sync_inspector(
                     | RowValue::Colour(text)
                     | RowValue::Operand {
                         text: Some(text), ..
-                    },
+                    }
+                    | RowValue::WellTarget(Some(WellTargetType::Authored(text))),
                 ),
                 None,
             ) => text,
@@ -2684,6 +2840,31 @@ pub(crate) fn apply_choice(
     }
     let chosen = targets.edit(field, |root, path, _| choose_field(root, path, variant));
     if let Err(reason) = chosen {
+        says.refuse(reason);
+    }
+}
+
+/// Switch a well-target field to the state this segment names.
+///
+/// The segment already chosen writes nothing: pressing `Authored` again would
+/// otherwise clear the id the builder typed.
+pub(crate) fn on_inspector_well_target(
+    activate: On<Activate>,
+    options: Query<(&InspectorField, &InspectorWellTarget, Has<Selected>)>,
+    mut targets: EditTargets,
+    mut says: EditorSays,
+) {
+    let Ok((field, option, chosen)) = options.get(activate.entity) else {
+        return;
+    };
+    if chosen {
+        return;
+    }
+    let target = option.0.clone();
+    let set = targets.edit(field, |root, path, optional| {
+        set_well_target(root, path, optional, target)
+    });
+    if let Err(reason) = set {
         says.refuse(reason);
     }
 }

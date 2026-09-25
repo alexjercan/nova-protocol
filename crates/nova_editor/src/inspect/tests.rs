@@ -8,15 +8,15 @@ use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
     AIControllerConfig, AnchorConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig,
     EventActionConfig, EventConfig, LightConfig, Names, NarrativeCueActionConfig,
-    ScenarioAreaConfig, ScenarioObjectKind, SectionSource, ShipDesignSource, SpaceshipConfig,
-    SpaceshipController, TimerFilterConfig, ASTEROID_KINDS, KIND_ICE, KIND_ROCK,
+    OrbitShipActionConfig, ScenarioAreaConfig, ScenarioObjectKind, SectionSource, ShipDesignSource,
+    SpaceshipConfig, SpaceshipController, TimerFilterConfig, ASTEROID_KINDS, KIND_ICE, KIND_ROCK,
 };
 use nova_ship::prelude::{
     AmmoCapacity, BaseSectionConfig, GameSections, MuzzleConfig, MuzzleConfigPatch,
     RailgunSectionConfig, ReloadConfig, SectionConfig, SectionKind, SectionKindPatch,
     SectionReloadConfig, ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape,
     ThrusterSectionConfig, ThrusterSectionConfigPatch, TorpedoSectionConfig, TurretJoint,
-    TurretSectionConfig, TurretSectionConfigPatch,
+    TurretSectionConfig, TurretSectionConfigPatch, WellTargetType,
 };
 
 use super::*;
@@ -2369,5 +2369,74 @@ fn an_edit_a_patch_cannot_say_keeps_the_whole_config_instead() {
     assert_eq!(
         text_of(&section_rows(&node, Some(&catalog)), "Offset"),
         "0, 2, 0"
+    );
+}
+
+/// A well target is ONE row with its own states, on both fields that hold
+/// one. The AI's optional `orbit` switches between an authored id, the
+/// nearest well and no orbit; the order's required `well` refuses no orbit
+/// and keeps what it held. The id is written through the string inside
+/// `Authored`, the path the row's id box and picker write.
+#[test]
+fn a_well_target_row_switches_state_and_writes_its_id() {
+    let mut pilot = AIControllerConfig {
+        orbit: Some(WellTargetType::Authored("planetoid".to_string())),
+        ..default()
+    };
+    let mut rows = Vec::new();
+    walk(&pilot, FieldRoot::Config, Vec::new(), &mut rows);
+    let orbit = row(&rows, "Orbit");
+    assert_eq!(
+        orbit.value,
+        RowValue::WellTarget(Some(WellTargetType::Authored("planetoid".to_string())))
+    );
+    assert!(orbit.optional);
+    assert_eq!(orbit.names, Some(Names::Object));
+    let path = orbit.path.clone();
+
+    set_well_target(&mut pilot, &path, true, Some(WellTargetType::NearestToShip)).unwrap();
+    assert_eq!(pilot.orbit, Some(WellTargetType::NearestToShip));
+    set_well_target(&mut pilot, &path, true, None).unwrap();
+    assert_eq!(pilot.orbit, None);
+    set_well_target(
+        &mut pilot,
+        &path,
+        true,
+        Some(WellTargetType::Authored(String::new())),
+    )
+    .unwrap();
+    let id = [path, vec![PathStep::Slot(0), PathStep::Slot(0)]].concat();
+    write_field(&mut pilot, &id, false, "moon").unwrap();
+    assert_eq!(
+        pilot.orbit,
+        Some(WellTargetType::Authored("moon".to_string()))
+    );
+
+    let mut order = OrbitShipActionConfig {
+        order: "ring".to_string(),
+        ship: "surveyor".to_string(),
+        well: WellTargetType::NearestToShip,
+    };
+    let mut rows = Vec::new();
+    walk(&order, FieldRoot::Config, Vec::new(), &mut rows);
+    let well = row(&rows, "Well");
+    assert_eq!(
+        well.value,
+        RowValue::WellTarget(Some(WellTargetType::NearestToShip))
+    );
+    assert!(!well.optional);
+    let path = well.path.clone();
+    assert!(set_well_target(&mut order, &path, false, None).is_err());
+    assert_eq!(order.well, WellTargetType::NearestToShip);
+    set_well_target(
+        &mut order,
+        &path,
+        false,
+        Some(WellTargetType::Authored("planetoid".to_string())),
+    )
+    .unwrap();
+    assert_eq!(
+        order.well,
+        WellTargetType::Authored("planetoid".to_string())
     );
 }

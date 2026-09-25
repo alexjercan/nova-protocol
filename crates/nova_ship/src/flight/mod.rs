@@ -46,6 +46,7 @@ mod navigation;
 mod order;
 mod state;
 mod thrusters;
+mod well_target;
 
 #[cfg(test)]
 mod tests;
@@ -68,6 +69,7 @@ pub use self::{
         FlightArrivalStandoff, FlightIntent, FlightSettings, ManeuverTelemetry, OrbitPlan,
         PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
     },
+    well_target::WellTargetType,
 };
 use self::{
     authority::publish_flight_authority,
@@ -82,6 +84,7 @@ pub(crate) use self::{
     },
     guidance::{arrival_speed_limit, flip_lead, ship_turn_rate, slew_rotation},
     manual::accumulate_rcs_axis,
+    well_target::{LiveWells, WellTargetFault},
 };
 
 /// The flight intent, settings, authority and the RCS speed cap, the autopilot
@@ -97,7 +100,7 @@ pub mod prelude {
         PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
         ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
         ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
-        ShipOrderReports, SuspendedArrivalStandoff,
+        ShipOrderReports, SuspendedArrivalStandoff, WellTargetType,
     };
 }
 

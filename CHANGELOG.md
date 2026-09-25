@@ -34,6 +34,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Asteroids and planets drop `invulnerable`: every asteroid can
   be destroyed, no planet can. Both reject unknown keys: a stale or
   misspelled field fails to load, not ignored.
+- **(breaking)** `OrbitShip` `well` and AI `orbit` take `Authored("id")` or
+  `NearestToShip`, the nearest loaded orbitable well. A bare id string fails
+  to load; an unknown AI `orbit` id fails lint.
 
 ### Interface & HUD
 
@@ -49,6 +52,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Performance
 
 - `world_clusters` probes capture mid-fill and steady 125-cell windows; worker spans separate sector generation from geometry preparation.
+
+### Fixes
+
+- A ship holding a completed `OrbitShip` ring no longer keeps its helm forever
+  after the well is despawned or destroyed. The order retires and its AI flies
+  again.
 
 ### Internals & Tooling
 

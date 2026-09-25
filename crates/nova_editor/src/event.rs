@@ -26,6 +26,7 @@ use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef};
 use nova_scenario::prelude::*;
+use nova_ship::prelude::WellTargetType;
 
 use crate::{
     config::SelectedNode,
@@ -762,7 +763,7 @@ impl ActionChoiceExt for ActionChoice {
             ActionChoice::OrbitShip => EventActionConfig::OrbitShip(OrbitShipActionConfig {
                 order: String::new(),
                 ship: String::new(),
-                well: String::new(),
+                well: WellTargetType::Authored(String::new()),
             }),
             ActionChoice::ClearShipOrder => {
                 EventActionConfig::ClearShipOrder(ClearShipOrderActionConfig {
