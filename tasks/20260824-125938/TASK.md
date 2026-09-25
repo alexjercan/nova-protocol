@@ -264,6 +264,19 @@ Neither task may silently settle the other's question. Where they disagree,
 record the disagreement as an open decision on BOTH tasks and take it to the
 owner.
 
+The 2026-09-25 progression audit in
+`tasks/20260824-125943/PROGRESSION-RESEARCH.md` adds open shared questions:
+what persists when a mined rock/derelict or station sector retires; whether
+ship condition, cargo and physical upgrades survive Retry/quit; and whether
+P* A+ S* guarantees a placed rock per nonempty cluster, not per cell. Research
+child tasks `20260925-190156` (shared persistence) and `20260925-190207`
+(composition) record options for both spikes; neither owns a decision alone.
+No schema, guarantee, or service is approved by that audit. Current `AppBuilder`
+installs `NovaWorldBasePlugin` (`crates/nova_core/src/lib.rs:429`) and New Game
+uses one bootstrap scenario; earlier opt-in/scenario-per-sector research and
+this task's old opt-in completion language are historical, not current runtime
+claims. Do not resolve these boundaries in only one task.
+
 ## Output: proposals to validate, not promises
 
 Group the candidate outcomes into three lists. Each list is a PROPOSAL for
@@ -276,6 +289,16 @@ the owner to validate. Nothing in it is committed by being written here.
 Each entry names the child task it would become.
 
 ## Spike evidence, 2026-09-22
+
+**Historical snapshot, not current architecture.** Since this spike,
+`NovaWorldBasePlugin` has been wired into `AppBuilder`
+(`crates/nova_core/src/lib.rs:429`) and installs the generic
+`NovaWorldPlugin<NovaLayeredWorld>` through `nova_world_base`. Generation
+policy moved from `nova_world` into `nova_world_base`; shipped New Game now
+uses one empty bootstrap scenario and live streaming. The example ownership,
+feature-sphere policy and opt-in claim below describe the *2026-09-22* state
+only. See `PROGRESSION-RESEARCH.md` in sibling task `20260824-125943` for a
+current boundary audit.
 
 The streaming lifetime is no longer argued from code reading. It runs, in two
 example targets that share one kit:
@@ -351,12 +374,9 @@ Owner decisions taken on 2026-09-22, after the uniform generator ran:
 - The shared boundaries with `20260824-125943` each carry an agreed decision
   or a recorded open decision on both tasks.
 - Child tasks exist, each in one of the three classification lists.
-- No open-world runtime, content, or schema has been written by this task.
-  `crates/nova_world` is the spike's foundation and stays OPT-IN: nothing adds
-  `NovaWorldPlugin` to `AppBuilder`, and the examples decide every seed, dial
-  and content id it refuses to assume. The two production changes it forced -
-  splitting the asteroid spawn into `prepare_asteroid_geometry` and
-  `asteroid_scenario_object_prepared`, and the planet spawn into
-  `prepare_planet` and `planet_scenario_object_prepared` -
-  are refactors: authored scenario spawning takes the same path and spawns the
-  same rock and the same world.
+- This original *research spike* did not itself ship a world runtime or save
+  schema. Later implementation shipped a generic `nova_world` engine and
+  `nova_world_base` generator in New Game through `AppBuilder`; it did not
+  implement persistent player/world mutations. The old example-only opt-in
+  gate and feature-sphere ownership are **historical**, not current done
+  criteria. New progression/persistence choices still require owner review.

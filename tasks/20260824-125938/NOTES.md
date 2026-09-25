@@ -1,5 +1,15 @@
 # Working notes: streamed procedural world
 
+**Historical spike notes, not a current engine contract.** Since 2026-09-22,
+New Game has shipped with `NovaWorldBasePlugin` in `AppBuilder`
+(`crates/nova_core/src/lib.rs:429`), one empty bootstrap scenario and streamed
+cells that do not call `LoadScenario`. `nova_world` now owns the generic
+engine, `nova_world_base` the cluster/content policy. The example-only opt-in
+and feature-sphere statements below describe their earlier design, not the
+current code. Persistent world/player mutations and floating-origin rebasing
+remain open. Recheck old file:line references before use; see `TASK.md` and
+`tasks/20260824-125943/PROGRESSION-RESEARCH.md` for the later audit.
+
 Date: 2026-09-22. These are spike notes, not an approved implementation
 specification. `TASK.md` owns decisions. `RESEARCH.md` is the stale 2026-09-06
 reference record.
