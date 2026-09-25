@@ -652,7 +652,7 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
     ] {
         let design = catalog
             .iter()
-            .find(|entry| entry.id == id)
+            .find(|entry| entry.id.as_str() == id)
             .unwrap_or_else(|| panic!("'{id}' is a catalog ship"));
         for section in &design.design.sections {
             let SectionSource::Prototype { id: prototype, .. } = &section.source else {
@@ -673,7 +673,7 @@ fn the_two_hulls_are_the_only_ships_and_neither_carries_a_gun() {
     ] {
         let design = catalog
             .iter()
-            .find(|entry| entry.id == id)
+            .find(|entry| entry.id.as_str() == id)
             .unwrap_or_else(|| panic!("'{id}' is a catalog ship"));
         assert!(
             design
@@ -700,7 +700,7 @@ fn gantrys_damage_is_aft_of_everything_the_rescue_touches() {
     let section = |ship: &str, id: &str| {
         catalog
             .iter()
-            .find(|entry| entry.id == ship)
+            .find(|entry| entry.id.as_str() == ship)
             .unwrap_or_else(|| panic!("'{ship}' is a catalog ship"))
             .design
             .sections

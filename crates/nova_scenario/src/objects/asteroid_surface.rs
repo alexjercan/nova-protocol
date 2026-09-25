@@ -514,7 +514,7 @@ mod tests {
     #[test]
     fn only_the_control_skips_the_macro_field() {
         for kind in ASTEROID_KINDS {
-            let look = asteroid_kind_look(kind).expect("a shipped kind resolves");
+            let look = asteroid_kind_look(&kind.into()).expect("a shipped kind resolves");
             assert_eq!(
                 spends_macro_field(&look),
                 kind != KIND_PLAIN,
@@ -529,7 +529,7 @@ mod tests {
     #[test]
     fn the_control_takes_no_frame_jitter_and_every_other_kind_does() {
         for kind in ASTEROID_KINDS {
-            let look = asteroid_kind_look(kind).expect("a shipped kind resolves");
+            let look = asteroid_kind_look(&kind.into()).expect("a shipped kind resolves");
             let jittered = (1..64u32)
                 .map(|seed| AsteroidSurfaceUniform::new(&look, seed).jitter)
                 .any(|jitter| jitter > 0.0);

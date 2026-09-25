@@ -979,19 +979,21 @@ fn as_number(value: &dyn PartialReflect) -> Option<f64> {
         .or_else(|| value.try_downcast_ref::<f64>().copied())
 }
 
-/// Whether a type is one of the two shapes a QUANTITY wraps, and so one the
-/// panel already has a control for: a scalar in a box, a vector in three.
+/// Whether a type is one of the shapes a single-field newtype wraps that the
+/// panel already has a control for: a scalar in a box, a vector in three, and
+/// the text of a typed content id such as `AsteroidKindId` in one field.
 fn quantity_leaf(type_path: &str) -> bool {
-    matches!(type_path, "f32" | "glam::Vec3")
+    matches!(type_path, "f32" | "glam::Vec3" | "alloc::string::String")
 }
 
-/// The value inside a quantity newtype - the `f32` a [`Meters`] holds, the
-/// `Vec3` a [`Meters3`] holds - or `None` when `value` is not one.
+/// The value inside a quantity or id newtype - the `f32` a [`Meters`] holds,
+/// the `Vec3` a [`Meters3`] holds, the `String` an `AsteroidKindId` holds - or
+/// `None` when `value` is not one.
 ///
 /// Read off the SHAPE rather than off a list of types, because this decides the
-/// CONTROL: a tuple struct wrapping exactly one scalar or vector is edited as
-/// that number whatever it is called, so a wrapper this module has never heard
-/// of is still authorable. Which UNIT the number is in is a separate question,
+/// CONTROL: a tuple struct wrapping exactly one scalar, vector or `String` is
+/// edited as that value whatever it is called, so a wrapper this module has
+/// never heard of is still authorable. Which UNIT the number is in is a separate question,
 /// asked of the name by [`quantity_unit`], and answered only for the types
 /// `nova_events` actually owns.
 fn quantity_inner(value: &dyn PartialReflect) -> Option<&dyn PartialReflect> {
@@ -1208,10 +1210,10 @@ fn walk(
         out.push(walked(root, path, false, axes_of(*vector)));
         return;
     }
-    // A QUANTITY is the number inside it. Walked as the tuple struct it is, a
-    // `Meters` would draw a row called "Blast Radius" holding nothing and a
-    // row under it called "0" holding the number - which is the wrapper's
-    // shape on screen, not the field's. The row stands at the FIELD's own
+    // A QUANTITY is the number inside it, and a typed id is the text inside
+    // it. Walked as the tuple struct it is, a `Meters` would draw a row called
+    // "Blast Radius" holding nothing and a row under it called "0" holding the
+    // number - which is the wrapper's shape on screen, not the field's. The row stands at the FIELD's own
     // path, so the write-back, the drag and the floor check all still name
     // the field a builder is looking at.
     if let Some(inner) = quantity_inner(value) {
@@ -1747,8 +1749,9 @@ fn parse_value(info: &'static TypeInfo, text: &str) -> Result<Box<dyn PartialRef
 
 /// The value `path` names inside `root`, for writing.
 ///
-/// A QUANTITY is stepped through the way an `Option` is walked through: the
-/// path names the field, and what a box writes is the number inside it. Both
+/// A QUANTITY or typed id is stepped through the way an `Option` is walked
+/// through: the path names the field, and what a box writes is the value
+/// inside it. Both
 /// on the way down - `position.x` is the `x` of the `Vec3` a `Meters3` holds -
 /// and at the end, where a `Meters` field hands back its own `f32`.
 fn resolve<'a>(

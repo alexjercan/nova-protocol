@@ -50,7 +50,7 @@ use nova_protocol::prelude::*;
 /// catalog entry with [`catalog_ship`], or clad your own cells with [`clad`].
 fn catalog_hull(ships: &GameShipDesigns, hull: &str) -> Vec<SpaceshipSectionConfig> {
     ships
-        .get_design(hull)
+        .get_design(&hull.into())
         .unwrap_or_else(|| panic!("catalog_hull: unknown ship '{hull}'"))
         .design
         .sections
@@ -70,7 +70,7 @@ fn catalog_hull(ships: &GameShipDesigns, hull: &str) -> Vec<SpaceshipSectionConf
 /// never sees.
 pub fn catalog_ship(ships: &GameShipDesigns, hull: &str) -> ShipDesign {
     ships
-        .get_design(hull)
+        .get_design(&hull.into())
         .unwrap_or_else(|| panic!("catalog_ship: unknown ship '{hull}'"))
         .design
         .clone()
@@ -239,7 +239,7 @@ impl NearField {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: self.radius.0,
                     texture: game_assets.asteroid_texture.clone().into(),
-                    kind: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.into(),
                     destroy_sound: None,
                     // No wells in the dressing: a near-field rock strong enough
                     // to pull the posed subject would drift it out of frame
@@ -250,7 +250,7 @@ impl NearField {
                 }),
             },
             asteroid_radius: Some(self.radius),
-            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
             min_separation: None,
         })
     }

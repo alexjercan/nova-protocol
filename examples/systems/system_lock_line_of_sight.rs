@@ -399,7 +399,7 @@ fn range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: ROCK_RADIUS,
             texture: game_assets.asteroid_texture.clone().into(),
-            kind: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.into(),
             destroy_sound: None,
             mass: None,
             lock_signature: None,

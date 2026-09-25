@@ -417,7 +417,7 @@ fn cover_rock(game_assets: &GameAssets) -> EventActionConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: ROCK_RADIUS,
             texture: game_assets.asteroid_texture.clone().into(),
-            kind: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.into(),
             destroy_sound: None,
             // No well: a body strong enough to pull the pinned shooter would
             // drag the whole geometry off its axis over a capture run.

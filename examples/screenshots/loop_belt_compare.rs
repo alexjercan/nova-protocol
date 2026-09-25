@@ -139,7 +139,7 @@ fn field(
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: ROCK_RADIUS.0,
                 texture: game_assets.asteroid_texture.clone().into(),
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 destroy_sound: None,
                 mass: None,
                 lock_signature: None,
@@ -149,7 +149,7 @@ fn field(
         asteroid_radius: Some(ROCK_RADIUS),
         asteroid_kinds: KINDS
             .iter()
-            .map(|(kind, weight)| (kind.to_string(), *weight))
+            .map(|(kind, weight)| ((*kind).into(), *weight))
             .collect(),
         min_separation: Some(ROCK_SEPARATION),
     })

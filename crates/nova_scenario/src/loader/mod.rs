@@ -882,7 +882,7 @@ mod tests {
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                            kind: KIND_ROCK.to_string(),
+                            kind: KIND_ROCK.into(),
                             destroy_sound: None,
                             radius: Meters(50.0),
                             texture: AssetRef::from("textures/rock.png"),

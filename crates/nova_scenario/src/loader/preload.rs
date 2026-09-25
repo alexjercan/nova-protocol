@@ -415,7 +415,7 @@ mod tests {
         ]);
         let ships = GameShipDesigns(vec![
             ShipDesignPrototype {
-                id: "opener_ship".to_string(),
+                id: "opener_ship".into(),
                 name: "Opener".to_string(),
                 design: ShipDesign {
                     sections: vec![section_at("a", SectionSource::prototype("opener"))],
@@ -423,7 +423,7 @@ mod tests {
                 },
             },
             ShipDesignPrototype {
-                id: "late_ship".to_string(),
+                id: "late_ship".into(),
                 name: "Late".to_string(),
                 design: ShipDesign {
                     sections: vec![section_at("a", SectionSource::prototype("late"))],
@@ -511,7 +511,7 @@ mod tests {
     fn the_walk_reaches_a_hull_spawned_from_inside_a_sequence_step() {
         let sections = GameSections(vec![hull_prototype("late", "art/late.glb#Scene0")]);
         let ships = GameShipDesigns(vec![ShipDesignPrototype {
-            id: "late_ship".to_string(),
+            id: "late_ship".into(),
             name: "Late".to_string(),
             design: ShipDesign {
                 sections: vec![section_at("a", SectionSource::prototype("late"))],
@@ -565,7 +565,7 @@ mod tests {
             hull_prototype("plate_b", "art/plate.glb#Scene0"),
         ]);
         let ships = GameShipDesigns(vec![ShipDesignPrototype {
-            id: "gunboat".to_string(),
+            id: "gunboat".into(),
             name: "Gunboat".to_string(),
             design: ShipDesign {
                 sections: vec![

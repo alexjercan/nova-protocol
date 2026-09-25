@@ -146,6 +146,21 @@ pub enum ScenarioObjectKind {
 
 impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
     fn action(&self, world: &mut NovaEventWorld, _info: &GameEventInfo) {
+        // The scatter's rule for one rock. The lint and the load gate refuse an
+        // unknown kind in authored content; an action built in code reaches
+        // here without either, and its rock would spawn a collider, gravity
+        // and a lock signature with no mesh to show them. Scattered copies pass
+        // here too, after the scatter's own mix check.
+        if let ScenarioObjectKind::Asteroid(asteroid) = &self.kind {
+            if !is_asteroid_kind(&asteroid.kind) {
+                error!(
+                    "SpawnScenarioObject: asteroid '{}' is made of '{}', which is not a kind; \
+                     nothing spawned. Author one of {:?}.",
+                    self.base.id, asteroid.kind, ASTEROID_KINDS
+                );
+                return;
+            }
+        }
         let config = self.clone();
         // Per OBJECT, so it scales with what a scenario authors. The batch this
         // belongs to is summarised with a count by `on_load_scenario` (a whole
@@ -330,14 +345,14 @@ pub struct ScatterObjectsConfig {
     )]
     pub asteroid_radius: Option<(Meters, Meters)>,
     /// If set and `template.kind` is an asteroid, draw each rock's KIND from
-    /// this weighted mix instead of taking the template's `material`.
+    /// this weighted mix instead of taking the template's `kind`.
     ///
     /// Weights are relative counts, not percentages, so
     /// `[("rock", 24), ("carbon", 5), ("metal", 1)]` reads as "mostly rock,
     /// some carbon, rare metal" and keeps meaning that when a fourth entry is
     /// added. A field is not one rock: this is what lets a belt have character
     /// without hand-placing every body. An empty mix, or one whose weights are
-    /// all zero, leaves the template's own `material` alone.
+    /// all zero, leaves the template's own `kind` alone.
     ///
     /// Drawn from a stream of [`Self::seed`]'s own, so a field is the same
     /// field on every load, and so adding kinds to an existing scatter does not
@@ -347,7 +362,7 @@ pub struct ScatterObjectsConfig {
     /// scattered asteroid field with no mix is a lint error and refuses to
     /// spawn: "what is this field made of" has no house answer, and forty rocks
     /// is the last place to guess one.
-    pub asteroid_kinds: Vec<(String, u32)>,
+    pub asteroid_kinds: Vec<(AsteroidKindId, u32)>,
     /// An ABSOLUTE minimum centre-to-centre distance between a copy of this
     /// scatter and EVERY body already scattered this scenario - this action's
     /// earlier copies and every earlier scatter's.
@@ -479,13 +494,13 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
         // weight 1 clears a weight test, spawns the full count, and every body
         // then refuses to render - a field of invisible colliders.
         if matches!(self.template.kind, ScenarioObjectKind::Asteroid(_)) {
-            let drawn: Vec<&str> = self
+            let drawn: Vec<&AsteroidKindId> = self
                 .asteroid_kinds
                 .iter()
                 .filter(|(_, weight)| *weight > 0)
-                .map(|(kind, _)| kind.as_str())
+                .map(|(kind, _)| kind)
                 .collect();
-            let unknown: Vec<&str> = drawn
+            let unknown: Vec<&AsteroidKindId> = drawn
                 .iter()
                 .copied()
                 .filter(|kind| !is_asteroid_kind(kind))
@@ -534,7 +549,7 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 // The mix is the field's answer, so it REPLACES whatever the
                 // template said. The guard above proved it has weight.
                 if let Some(kind) = asteroid_kind_from_mix(&self.asteroid_kinds, kind_draw) {
-                    asteroid.kind = kind.to_string();
+                    asteroid.kind = kind.clone();
                 }
                 if let Some(radius) = radius_draw {
                     asteroid.radius = radius;
@@ -790,7 +805,7 @@ mod tests {
             asteroid_scenario_object(
                 &mut entity_commands,
                 AsteroidConfig {
-                    kind: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.into(),
                     destroy_sound: None,
                     radius: Meters(10.0),
                     texture: AssetRef::default(),
@@ -1018,7 +1033,7 @@ mod tests {
                 }),
             },
             asteroid_radius: None,
-            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
             min_separation: Some(floor),
         };
 
@@ -1062,7 +1077,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    kind: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.into(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1072,7 +1087,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((Meters(10.0), Meters(60.0))),
-            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
             min_separation: separation,
         };
 
@@ -1146,7 +1161,7 @@ mod tests {
                     }),
                 },
                 asteroid_radius: None,
-                asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+                asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
                 min_separation,
             };
             let mut rng = rand::rngs::StdRng::seed_from_u64(config.seed);
@@ -1226,7 +1241,7 @@ mod tests {
                 }),
             },
             asteroid_radius: None,
-            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
             min_separation: Some(separation),
         };
 
@@ -1296,7 +1311,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    kind: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.into(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::from("textures/asteroid.png"),
@@ -1306,7 +1321,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((Meters(10.0), Meters(30.0))),
-            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
             min_separation: None,
         };
 
@@ -1377,7 +1392,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    kind: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.into(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1387,7 +1402,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((Meters(10.0), Meters(30.0))),
-            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
             min_separation: None,
         };
 
@@ -1450,7 +1465,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    kind: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.into(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1460,7 +1475,7 @@ mod tests {
                 }),
             },
             asteroid_radius: None,
-            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
             min_separation: None,
         };
 
@@ -1508,7 +1523,7 @@ mod tests {
     /// exact, because a mix whose rare kind never shows up is not a mix.
     #[test]
     fn scatter_draws_kinds_from_a_weighted_mix() {
-        let config = |mix: Vec<(String, u32)>| ScatterObjectsConfig {
+        let config = |mix: Vec<(AsteroidKindId, u32)>| ScatterObjectsConfig {
             id_prefix: "rock_".to_string(),
             count: 60,
             seed: 4_711,
@@ -1524,7 +1539,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    kind: KIND_CARBON.to_string(),
+                    kind: KIND_CARBON.into(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1551,16 +1566,16 @@ mod tests {
                 world.query_filtered::<(&EntityId, &AsteroidKind), With<AsteroidMarker>>();
             let mut kinds: Vec<(String, String)> = query
                 .iter(&world)
-                .map(|(id, kind)| (id.0.clone(), kind.0.clone()))
+                .map(|(id, kind)| (id.0.clone(), kind.0.to_string()))
                 .collect();
             kinds.sort();
             kinds
         };
 
         let mix = vec![
-            (KIND_ROCK.to_string(), 6),
-            (KIND_ICE.to_string(), 3),
-            (KIND_METAL.to_string(), 1),
+            (KIND_ROCK.into(), 6),
+            (KIND_ICE.into(), 3),
+            (KIND_METAL.into(), 1),
         ];
         let mixed = config(mix);
         let first = run(&mixed);
@@ -1588,7 +1603,7 @@ mod tests {
             unmixed.is_empty(),
             "an asteroid field with no kind mix spawns nothing: {unmixed:?}"
         );
-        let zeroed = run(&config(vec![(KIND_ROCK.to_string(), 0)]));
+        let zeroed = run(&config(vec![(KIND_ROCK.into(), 0)]));
         assert!(
             zeroed.is_empty(),
             "a mix that is all zero weight is no mix: {zeroed:?}"
@@ -1597,13 +1612,50 @@ mod tests {
         // clears any weight test and then loses the draw for a share of the
         // field, and those rocks reach the render path with no kind to shade
         // them: colliders, gravity and lock signatures, no mesh.
-        let typo = run(&config(vec![
-            (KIND_ROCK.to_string(), 6),
-            ("granit".to_string(), 4),
-        ]));
+        let typo = run(&config(vec![(KIND_ROCK.into(), 6), ("granit".into(), 4)]));
         assert!(
             typo.is_empty(),
             "a mix naming a kind nobody ships spawns nothing: {typo:?}"
+        );
+    }
+
+    /// A direct spawn holds the scatter's line: a rock that names a kind
+    /// nobody ships spawns nothing. Before this refusal the rock spawned with
+    /// its collider, gravity and lock signature and then the render path
+    /// refused it a mesh - an invisible body in the flight path.
+    #[test]
+    fn a_direct_spawn_of_an_unknown_asteroid_kind_spawns_nothing() {
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+        let config = ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "rock".to_string(),
+                name: "Rock".to_string(),
+                position: Meters3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                kind: "granit".into(),
+                destroy_sound: None,
+                radius: Meters(20.0),
+                texture: nova_gameplay::prelude::AssetRef::default(),
+                mass: None,
+                seed: None,
+                lock_signature: None,
+            }),
+        };
+        {
+            let mut event_world = world.resource_mut::<NovaEventWorld>();
+            config.action(&mut event_world, &GameEventInfo::default());
+        }
+        drain(&mut world);
+
+        let mut spawned = world.query::<&EntityId>();
+        let ids: Vec<String> = spawned.iter(&world).map(|id| id.0.clone()).collect();
+        assert!(
+            ids.is_empty(),
+            "a rock of an unknown kind spawns no entity: {ids:?}"
         );
     }
 
@@ -1633,7 +1685,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    kind: KIND_ROCK.to_string(),
+                    kind: KIND_ROCK.into(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1643,7 +1695,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((Meters(10.0), Meters(30.0))),
-            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+            asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
             min_separation: None,
         };
 

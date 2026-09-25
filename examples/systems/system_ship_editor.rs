@@ -1568,7 +1568,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .step("editor: and the rock on the stage is ice")
         .on_enter(|world: &mut World| {
-            let look = asteroid_kind_look(KIND_ICE).expect("ice is a kind the game ships");
+            let look = asteroid_kind_look(&KIND_ICE.into()).expect("ice is a kind the game ships");
             let wanted = LinearRgba::WHITE.mix(&look.shade.mix(&look.tint, 0.5), look.kind_mix);
             assert!(
                 object_view_wears(world, wanted),

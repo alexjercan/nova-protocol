@@ -145,7 +145,7 @@ use std::{any::type_name, fmt::Debug, marker::PhantomData};
 use bevy::{ecs::change_detection::CheckChangeTicks, prelude::*};
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::{Fnv32, SeedStream};
-use nova_scenario::prelude::{scenario_is_live, CurrentScenario};
+use nova_scenario::prelude::{scenario_is_live, AsteroidKindId, CurrentScenario, ShipDesignId};
 
 mod generation;
 mod streaming;
@@ -568,7 +568,7 @@ pub enum SectorFault {
     /// from.
     UnknownKind {
         /// The id nobody answers to.
-        kind: String,
+        kind: AsteroidKindId,
     },
     /// A generated ship names a design the loaded catalog does not hold.
     /// Checked on the main thread, where the catalog lives, and refused before
@@ -577,7 +577,7 @@ pub enum SectorFault {
         /// The ship that named it.
         id: String,
         /// The design id nobody answers to.
-        design: String,
+        design: ShipDesignId,
     },
     /// Two objects in one sector, or two values one generator names, claim
     /// the same id. Never resolved by spawn order: an id is how an object is

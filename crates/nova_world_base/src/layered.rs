@@ -185,7 +185,7 @@ impl SectorGenerator for NovaLayeredWorld {
                     id,
                     position,
                     yaw,
-                    design: design.to_string(),
+                    design: design.into(),
                 });
             }
         }
@@ -219,7 +219,7 @@ impl SectorGenerator for NovaLayeredWorld {
                 id,
                 position,
                 radius,
-                kind: kind.to_string(),
+                kind: kind.into(),
             });
         }
 
