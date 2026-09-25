@@ -19,16 +19,30 @@ import {
     GUNSHIP_CELLS,
     GUNSHIP_COMPUTERS,
     GUNSHIP_MATES,
+    hudElements,
     hullState,
     kilometers,
     kineticDamageMultiplier,
+    KINETIC_DAMAGE_CEILING,
+    KINETIC_DAMAGE_FLOOR,
     lanceCorridor,
+    LOCK_DWELL_BASE,
+    LOCK_DWELL_MAX,
+    LOCK_DWELL_MIN,
+    LOCK_DWELL_RANGE_FACTOR,
+    LOCK_DWELL_REFERENCE_RANGE,
     LANCE_RAKE_RADIUS_CELLS,
     meters,
     metersPerSec,
     metersPerSec2,
     METERS_PER_UNIT,
+    PIERCE_BASE_POWER,
+    PIERCE_POWER_CEILING,
+    PIERCE_POWER_FLOOR,
+    pierceWalk,
+    RADAR_TAP_SECS,
     reachLadder,
+    REFERENCE_CLOSING_SPEED,
     severedParts,
     structuralCeiling,
     wavePath,
@@ -70,6 +84,8 @@ import {
     SOUND_FAMILIES,
     SPATIAL_EAR_GAP,
     SPATIAL_EMITTER_RADIUS,
+    TARGETING_CONE_HALF_ANGLE_DEG,
+    V0110_PIERCE_LAYER_CAP,
     zoneAllows,
     ZONE_PARTS,
     zonePlacements,
@@ -239,6 +255,99 @@ function rustNumber(rel: string, pattern: RegExp): number {
     assert.equal(engineMetersPerSec(100), metersPerSec(1000));
     assert.equal(kineticDamageMultiplier(200), 2, "the head-on ceiling");
     assert.equal(kineticDamageMultiplier(10), 0.25, "the stern-chase floor");
+}
+
+// The travel constants the round scope and the combat pages quote, against
+// their declarations in damage.rs.
+{
+    const DAMAGE = "crates/nova_gameplay/src/damage.rs";
+    const decl = (name: string): number =>
+        rustNumber(DAMAGE, new RegExp(`const ${name}: f32 = ([0-9.]+);`));
+    assert.equal(REFERENCE_CLOSING_SPEED, decl("REFERENCE_CLOSING_SPEED"));
+    assert.equal(KINETIC_DAMAGE_FLOOR, decl("KINETIC_DAMAGE_FLOOR"));
+    assert.equal(KINETIC_DAMAGE_CEILING, decl("KINETIC_DAMAGE_CEILING"));
+    assert.equal(PIERCE_POWER_FLOOR, decl("PIERCE_POWER_FLOOR"));
+    assert.equal(PIERCE_POWER_CEILING, decl("PIERCE_POWER_CEILING"));
+    assert.equal(PIERCE_BASE_POWER, decl("PIERCE_BASE_POWER"));
+}
+
+// Power is the only bound on a Pierce round today; v0.11.0 also stopped it
+// after six layers. A 60 hp stack at three times the reference closing speed
+// costs 20 power a layer, so the current rules rake 15 sections and the
+// v0.11.0 news scope stops at the cap.
+{
+    const head = 3 * REFERENCE_CLOSING_SPEED;
+    assert.equal(pierceWalk(2, head, 20, 60, null).raked, 15);
+    assert.equal(
+        pierceWalk(2, head, 20, 60, V0110_PIERCE_LAYER_CAP).raked,
+        6,
+        "the v0.11.0 rule stops the rake at its layer cap"
+    );
+    assert.equal(
+        pierceWalk(2, REFERENCE_CLOSING_SPEED, 20, 60, null).raked,
+        5,
+        "at the reference speed the same stack costs 60 a layer"
+    );
+    assert.equal(
+        pierceWalk(2, head, 20, 0, null).raked,
+        1,
+        "a free layer stops the rake (damage.rs pierce_remainder)"
+    );
+    assert.equal(
+        pierceWalk(2, head, 20, 0, V0110_PIERCE_LAYER_CAP).raked,
+        6,
+        "v0.11.0 priced a free layer at zero and stopped only at the cap"
+    );
+}
+
+// A combat lock heats the weapons without raising them (nova_ship
+// input/targeting/safety.rs), so the ammo gauges and bore sight come up
+// with the lock alone.
+{
+    const idle = {
+        autopilot: false,
+        combatLock: false,
+        weaponsRaised: false,
+        lowAmmo: false,
+        reloading: false,
+        cinematic: false,
+    };
+    const on = (combatLock: boolean, name: string): boolean | undefined =>
+        hudElements({ ...idle, combatLock }).find((e) => e.name === name)?.on;
+    for (const name of ["Ammo gauges", "Bore sight (a hull with a railgun)"]) {
+        assert.equal(on(false, name), false, `${name} stays down with no lock`);
+        assert.equal(on(true, name), true, `${name} comes up with a lock`);
+    }
+}
+
+// The radar trainer's lock clocks, against TargetingSettings::default and the
+// gesture and cone constants.
+{
+    const STATE = "crates/nova_ship/src/input/targeting/state.rs";
+    const setting = (name: string): number =>
+        rustNumber(STATE, new RegExp(`\\n {12}${name}: ([0-9.]+),`));
+    assert.equal(LOCK_DWELL_BASE, setting("lock_dwell_base"));
+    assert.equal(LOCK_DWELL_RANGE_FACTOR, setting("lock_dwell_range_factor"));
+    assert.equal(
+        LOCK_DWELL_REFERENCE_RANGE,
+        setting("lock_dwell_reference_range")
+    );
+    assert.equal(LOCK_DWELL_MIN, setting("lock_dwell_min"));
+    assert.equal(LOCK_DWELL_MAX, setting("lock_dwell_max"));
+    assert.equal(
+        RADAR_TAP_SECS,
+        rustNumber(
+            "crates/nova_ship/src/input/targeting/gesture.rs",
+            /pub const RADAR_TAP_SECS: f32 = ([0-9.]+);/
+        )
+    );
+    assert.equal(
+        TARGETING_CONE_HALF_ANGLE_DEG,
+        rustNumber(
+            "crates/nova_ship/src/input/targeting/radar.rs",
+            /const TARGETING_CONE_HALF_ANGLE_DEG: f32 = ([0-9.]+);/
+        )
+    );
 }
 
 // The weave taper is a ratio of blast radii, so it moves with the authored

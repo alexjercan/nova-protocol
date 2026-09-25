@@ -51,17 +51,22 @@ const FIRE_GATE_DEG = FIRE_GATE_RAD * (180 / Math.PI);
 // engine `f32` in WORLD UNITS per second: 100 u/s, which is the same speed as
 // the PDC's authored 1 000 m/s muzzle speed. Everything the widget feeds it is
 // therefore in world units too, and only the readout converts.
-const REFERENCE_CLOSING_SPEED = 100; // damage.rs:183 (world units/s)
-const KINETIC_DAMAGE_FLOOR = 0.25; // damage.rs:189
-const KINETIC_DAMAGE_CEILING = 2.0; // damage.rs:195
-const PIERCE_POWER_FLOOR = 0.5; // damage.rs:199
-const PIERCE_POWER_CEILING = 3.0; // damage.rs:204
-const PIERCE_BASE_POWER = 300; // damage.rs:215
-const MAX_PIERCE_LAYERS = 6; // damage.rs:223
-const EXPLOSIVE_SECTION_TRANSMISSION = 0.65; // damage.rs:523
-// Blast free pressure falls off linearly to zero at the radius
-// (damage.rs:565-571); each destroyed structural layer transmits 65%, a
-// surviving layer stops the wave (damage.rs:573-576; ray walk 620-680).
+export const REFERENCE_CLOSING_SPEED = 100; // damage.rs:180 (world units/s)
+export const KINETIC_DAMAGE_FLOOR = 0.25; // damage.rs:186
+export const KINETIC_DAMAGE_CEILING = 2.0; // damage.rs:192
+export const PIERCE_POWER_FLOOR = 0.5; // damage.rs:196
+export const PIERCE_POWER_CEILING = 3.0; // damage.rs:201
+export const PIERCE_BASE_POWER = 300; // damage.rs:212
+// No current Pierce round has a layer-count cap: power bounds the rake and a
+// free layer stops it (damage.rs `pierce_remainder`). v0.11.0 also stopped
+// every Pierce round after six layers (damage.rs:199 at tag v0.11.0); only the
+// v0.11.0 news scope, which shows the rule that release shipped, still applies
+// it.
+export const V0110_PIERCE_LAYER_CAP = 6;
+const EXPLOSIVE_SECTION_TRANSMISSION = 0.65; // damage.rs:519
+// Blast free pressure falls off linearly to zero at the radius; each
+// destroyed structural layer transmits 65%, a surviving layer stops the wave
+// (damage.rs `nova_blast` docs :521-530, ray walk `pressure_at_target` :624).
 
 // Gravity wells (crates/nova_gameplay/src/gravity.rs). Mass (`mu`) is the ONLY
 // authored gravity quantity: both the pull `a = mu / r^2` and the reach (the
@@ -82,16 +87,15 @@ const INSPECTION_PLANETOID_MU = 27000; // first_shift_stage.rs:32 (u^3/s^2)
 const CONCEALMENT_PLANETOID_MU = 20000; // first_shift_stage.rs:50 (u^3/s^2)
 
 // Radar locking (crates/nova_ship/src/input/targeting/). The dwell curve's
-// reference range is still an engine `f32` in world units (state.rs:54-57), so
+// reference range is still an engine `f32` in world units (state.rs:63-66), so
 // the trainer's contact distances are world units too.
-const RADAR_TAP_SECS = 0.25; // gesture.rs:18
-const TARGETING_CONE_HALF_ANGLE_DEG = 18.0; // radar.rs:20
-const LOCK_DWELL_BASE = 0.6; // state.rs:73
-const LOCK_DWELL_RANGE_FACTOR = 1.5; // state.rs:74
-const LOCK_DWELL_REFERENCE_RANGE = 2000; // state.rs:75 (world units)
-const LOCK_DWELL_MIN = 0.25; // state.rs:76
-const LOCK_DWELL_MAX = 2.5; // state.rs:77
-const COMBAT_DECAY_SECS = 30; // contacts.rs:24
+export const RADAR_TAP_SECS = 0.25; // gesture.rs:20
+export const TARGETING_CONE_HALF_ANGLE_DEG = 18.0; // radar.rs:16
+export const LOCK_DWELL_BASE = 0.6; // state.rs:81
+export const LOCK_DWELL_RANGE_FACTOR = 1.5; // state.rs:82
+export const LOCK_DWELL_REFERENCE_RANGE = 2000; // state.rs:83 (world units)
+export const LOCK_DWELL_MIN = 0.25; // state.rs:84
+export const LOCK_DWELL_MAX = 2.5; // state.rs:85
 
 // GOTO flight controller (crates/nova_ship/src/flight/state.rs defaults;
 // the speed-envelope and flip rules are ported from flight/guidance.rs).
@@ -307,7 +311,7 @@ export function aimLagNowDeg(fps: number, crossDegS: number): number {
     return crossDegS / fps / gain;
 }
 
-// damage.rs:253-255. Closing speed is world units per second, the same
+// damage.rs:242-244. Closing speed is world units per second, the same
 // system as REFERENCE_CLOSING_SPEED.
 export function kineticDamageMultiplier(closingSpeed: number): number {
     return clamp(
@@ -316,7 +320,7 @@ export function kineticDamageMultiplier(closingSpeed: number): number {
         KINETIC_DAMAGE_CEILING
     );
 }
-// damage.rs:265-267, on the same world-unit closing speed.
+// damage.rs:254-256, on the same world-unit closing speed.
 export function piercePowerMultiplier(closingSpeed: number): number {
     return clamp(
         closingSpeed / REFERENCE_CLOSING_SPEED,
@@ -330,7 +334,7 @@ interface SectionResult {
     dealt: number;
 }
 
-// Kinetic walk (damage.rs:441-452 rule): the round spends its damage budget;
+// Kinetic walk (damage.rs:432-444 rule): the round spends its damage budget;
 // it carries on only through sections it destroys, and a section it fails to
 // destroy absorbs it whole.
 export function kineticWalk(
@@ -359,29 +363,31 @@ export function kineticWalk(
     return { results, leftover: Math.max(0, remaining) };
 }
 
-// Pierce walk (damage.rs:454-462 rule): full authored damage to every section
-// crossed; crossing costs the section's MAX health (not remaining) out of the
-// round's power budget, with a hard layer ceiling.
+// Pierce walk (damage.rs `pierce_remainder` rule): full authored damage to
+// every section crossed; crossing costs the section's MAX health (not
+// remaining) out of the round's power budget, and a free crossing stops the
+// rake. `layerCap` is null under the current rules; the v0.11.0 news scope
+// passes V0110_PIERCE_LAYER_CAP, and that release bounded a free layer only
+// by the cap.
 export function pierceWalk(
     damage: number,
     closingSpeed: number,
     sections: number,
-    hp: number
+    hp: number,
+    layerCap: number | null
 ): { results: SectionResult[]; cost: number; raked: number } {
     const cost = hp / piercePowerMultiplier(closingSpeed);
     const results: SectionResult[] = [];
     let power = PIERCE_BASE_POWER;
-    let layers = MAX_PIERCE_LAYERS;
     let raked = 0;
     for (let i = 0; i < sections; i++) {
-        if (power <= 0 || layers <= 0) {
+        if (power <= 0 || (layerCap !== null && raked >= layerCap)) {
             results.push({ state: "intact", dealt: 0 });
             continue;
         }
         results.push({ state: damage >= hp ? "dead" : "hit", dealt: damage });
         raked += 1;
-        power -= cost;
-        layers -= 1;
+        power = layerCap === null && cost <= 0 ? 0 : power - cost;
     }
     return { results, cost, raked };
 }
@@ -391,7 +397,7 @@ interface BlastLayer {
     state: "dead" | "holds" | "shielded";
 }
 
-// Blast ray walk (damage.rs:620-680 rule) over structural layers at fixed
+// Blast ray walk (damage.rs `pressure_at_target` :624 rule) over structural layers at fixed
 // distances: linear falloff, 0.65x per destroyed layer, a surviving layer
 // zeroes everything behind it.
 export function blastWalk(
@@ -592,10 +598,12 @@ export function clearStep(
 // ammo_readout.rs:180); the mode chip and destination marker follow the
 // autopilot (flight_status.rs:302-335); the reticle and viewfinder follow
 // the combat lock (torpedo_target.rs:408-415, target_inset.rs:658-707).
+// Weapons are hot while raised OR combat-locked (nova_ship
+// input/targeting/safety.rs:30), so a lock is never shown safe.
 export interface HudSituationsModel {
     autopilot: boolean;
     combatLock: boolean;
-    weaponsHot: boolean;
+    weaponsRaised: boolean;
     lowAmmo: boolean;
     reloading: boolean;
     cinematic: boolean;
@@ -618,7 +626,8 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
         on: on && !s.cinematic,
         detail: s.cinematic ? "cleared at Cinematic" : detail,
     });
-    const ammoOpen = s.weaponsHot || s.lowAmmo || s.reloading;
+    const weaponsHot = s.weaponsRaised || s.combatLock;
+    const ammoOpen = weaponsHot || s.lowAmmo || s.reloading;
     return [
         e(
             "Velocity sphere",
@@ -652,21 +661,17 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
             "Combat reticle + DST/CLS",
             "instrument",
             s.combatLock,
-            !s.combatLock
-                ? "arrives with a combat lock"
-                : s.weaponsHot
-                  ? "readout grown; pulses while firing"
-                  : "idle - decays after 30 s, wind-down over the last 5"
+            s.combatLock
+                ? "readout grown; pulses while firing"
+                : "arrives with a combat lock"
         ),
         e(
             "Target viewfinder",
             "chrome",
             s.combatLock,
-            !s.combatLock
-                ? "arrives with the combat lock"
-                : s.weaponsHot
-                  ? "frame hot-red, corner ticks out"
-                  : "frame steel"
+            s.combatLock
+                ? "frame hot-red, corner ticks out"
+                : "arrives with the combat lock"
         ),
         e(
             "Ammo gauges",
@@ -684,13 +689,13 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
             "Turret lead pips",
             "instrument",
             true,
-            s.weaponsHot ? "red while hot" : "amber"
+            weaponsHot ? "red while hot" : "amber"
         ),
         e(
             "Bore sight (a hull with a railgun)",
             "instrument",
-            s.weaponsHot,
-            s.weaponsHot
+            weaponsHot,
+            weaponsHot
                 ? "the line of fire, a ring on each section it would gut"
                 : "arrives with hot weapons; dimmed through a reload"
         ),
@@ -1499,10 +1504,19 @@ function initAimDecay(host: HTMLElement): void {
 // A side-profile firing-range scope: the same stack of sections in two lanes,
 // a kinetic slug and a pierce dart replayed crossing it in scope time while
 // each round's budget drains by its own rule. data-sections / data-hp
-// override the fixture.
+// override the fixture. data-ruleset="0.11.0" replays the six-layer Pierce
+// cap that release shipped; without it the scope runs the current rules.
 function initRoundTravel(host: HTMLElement): void {
     const sections = numAttr(host, "sections", 5);
     const hp = numAttr(host, "hp", LIGHT_HULL_HP);
+    const ruleset = host.dataset.ruleset;
+    if (ruleset !== undefined && ruleset !== "0.11.0") {
+        host.appendChild(
+            el("p", "widget__note", `No round ruleset named "${ruleset}".`)
+        );
+        return;
+    }
+    const layerCap = ruleset === "0.11.0" ? V0110_PIERCE_LAYER_CAP : null;
     // Presentation only: impacts resolve instantly in game; the scope replays
     // the walk at a legible speed.
     const ROUND_SPEED = 260; // px of round travel per scope second
@@ -1513,9 +1527,11 @@ function initRoundTravel(host: HTMLElement): void {
             "at full health. Kinetic spends its damage and stops at the " +
             "first section it cannot destroy; Pierce deals its full damage " +
             "to every section it crosses and spends a separate " +
-            `${PIERCE_BASE_POWER}-point power budget on thickness, at most ` +
-            `${MAX_PIERCE_LAYERS} sections deep. Play the tape and watch ` +
-            "both rounds spend their budgets."
+            `${PIERCE_BASE_POWER}-point power budget on thickness` +
+            (layerCap === null
+                ? ". "
+                : `, at most ${layerCap} sections deep (the v0.11.0 rule). `) +
+            "Play the tape and watch both rounds spend their budgets."
     );
 
     // Scope geometry.
@@ -1663,7 +1679,7 @@ function initRoundTravel(host: HTMLElement): void {
     const plot = el("div", "widget__plot");
     plot.appendChild(svg);
 
-    // Inset: the two closing-speed clamp curves (damage.rs:253 and :265).
+    // Inset: the two closing-speed clamp curves (damage.rs:242 and :254).
     // The axis is WORLD UNITS per second, because that is what the curves in
     // damage.rs read; every tick prints the same speed in m/s.
     const IX0 = 44;
@@ -1802,7 +1818,7 @@ function initRoundTravel(host: HTMLElement): void {
     // The resolved outcome and the replay schedule, rebuilt per parameter
     // change. All states come from the exported pure walks.
     let kin = kineticWalk(100, REFERENCE_CLOSING_SPEED, sections, hp);
-    let prc = pierceWalk(100, REFERENCE_CLOSING_SPEED, sections, hp);
+    let prc = pierceWalk(100, REFERENCE_CLOSING_SPEED, sections, hp, layerCap);
     let kinResolveT: (number | undefined)[] = [];
     let kinRemAfter: number[] = [];
     let kinEndX = XEND;
@@ -1819,7 +1835,7 @@ function initRoundTravel(host: HTMLElement): void {
         const speed = Number(speedControl.input.value);
         damageNow = Number(damageControl.input.value);
         kin = kineticWalk(damageNow, speed, sections, hp);
-        prc = pierceWalk(damageNow, speed, sections, hp);
+        prc = pierceWalk(damageNow, speed, sections, hp, layerCap);
         const scale = kineticDamageMultiplier(speed);
         // Kinetic: the round stops inside the first section it fails to
         // destroy, or dies spending its last point in a destroyed one.
@@ -1865,7 +1881,7 @@ function initRoundTravel(host: HTMLElement): void {
             prc.raked < sections ? secLeft(prc.raked - 1) + w + 10 : XEND + 30;
         prcReason =
             prc.raked < sections
-                ? prc.raked === MAX_PIERCE_LAYERS &&
+                ? prc.raked === layerCap &&
                   PIERCE_BASE_POWER - prc.cost * prc.raked > 0
                     ? "LAYER CAP"
                     : "POWER SPENT"
@@ -2782,10 +2798,12 @@ function gridMates(parts: ShipPart[]): [string, string][] {
 
 export const GUNSHIP_MATES = gridMates(GUNSHIP_CELLS);
 
-// A hull the widgets only need the WEIGHT of, written as the bill of materials
-// `assets/base/ships/base.content.ron` assembles it from. Mass is not authored
-// anywhere: a section weighs the volume of its own box at density 1
-// (base_section.rs:470-471), so a count of prototypes is the whole of it.
+// A hull the widgets only need the STRUCTURE weight of, written as the bill of
+// materials `assets/base/ships/base.content.ron` assembles it from. A section
+// weighs the volume of its own box at density 1 (base_section.rs:559). This
+// is NOT the flying mass: every base hull is clad (ships/mod.rs:303) and each
+// skin plate adds its own volume at SKIN_DENSITY 0.25 (shell_skin.rs:96),
+// which avian folds into the ComputedMass flight divides by (authority.rs:153).
 interface SectionCount {
     proto: SectionProto;
     count: number;
@@ -4989,9 +5007,9 @@ function initLockSweep(host: HTMLElement): void {
             "20 km, staged clearing. " +
             "Candidate picking is simplified to the aim keys; in game the " +
             "sweep scores whatever is nearest your look ray, with " +
-            "hysteresis. An idle combat lock also decays after " +
-            `${COMBAT_DECAY_SECS} s - the ` +
-            "trainer leaves that clock out."
+            "hysteresis. A lock never times out; in game it also drops " +
+            "when the target dies, leaves range, turns non-hostile or goes " +
+            "behind cover, which the trainer leaves out."
     );
 
     host.appendChild(keys);
@@ -5111,7 +5129,7 @@ function initHudContext(host: HTMLElement): void {
     const state: HudSituationsModel = {
         autopilot: false,
         combatLock: false,
-        weaponsHot: false,
+        weaponsRaised: false,
         lowAmmo: false,
         reloading: false,
         cinematic: false,
@@ -5119,7 +5137,7 @@ function initHudContext(host: HTMLElement): void {
     const KEYS: { key: keyof HudSituationsModel; label: string }[] = [
         { key: "autopilot", label: "AUTOPILOT ENGAGED" },
         { key: "combatLock", label: "COMBAT LOCK" },
-        { key: "weaponsHot", label: "WEAPONS HOT" },
+        { key: "weaponsRaised", label: "WEAPONS RAISED" },
         { key: "lowAmmo", label: "LOW AMMO" },
         { key: "reloading", label: "RELOADING" },
         { key: "cinematic", label: "CINEMATIC" },
@@ -5175,7 +5193,9 @@ function initHudContext(host: HTMLElement): void {
     const note = el(
         "p",
         "widget__note",
-        "Firing, RCS (a violet sphere palette that wins over cyan) and the " +
+        "Weapons are hot while raised or while a combat lock is held, so " +
+            "a lock on the board also counts as hot. " +
+            "Firing, RCS (a violet sphere palette that wins over cyan) and the " +
             "in-well gravity sphere are extra states the board folds away; " +
             "the objective and comms stacks arrive event-driven with their " +
             "own dwells. Only the ammo layer uses the central context gate " +
@@ -6326,8 +6346,10 @@ function initTorpedoRun(host: HTMLElement): void {
 // ---- thruster-mass --------------------------------------------------------
 
 // Thrust is authored per drive; MASS is not authored at all. A section weighs
-// exactly its own box (base_section.rs:470-471), so the same two drives move
-// three hulls at three different rates and nothing anywhere says so.
+// its own box (base_section.rs:559), so the same two drives move three hulls
+// at three different rates. The model counts structure only: the skin plates
+// every base hull carries are heavier still (see bomMass), so each curve is an
+// upper bound on what the clad ship does.
 // The three are chosen because they fly the SAME drive fit - two basic
 // thrusters each, in assets/base/ships/base.content.ron - so the only thing
 // separating their curves is how many plates sit behind them.
@@ -6379,7 +6401,9 @@ function initThrusterMass(host: HTMLElement): void {
         "Every drive here pushes with the same 1.0, and every hull " +
             "carries two of them. What differs is the MASS on the other " +
             "side of it - a section weighs its own box, and nothing " +
-            "authors that. Bolt basic drives on and watch it out."
+            "authors that. Structure only: the hull's skin plates add " +
+            "mass the scope leaves out, so every figure is an upper bound. " +
+            "Bolt basic drives on and watch it out."
     );
 
     const EXTRA_MAX = 20;
@@ -6408,7 +6432,8 @@ function initThrusterMass(host: HTMLElement): void {
         viewBox: "0 0 560 230",
         role: "img",
         "aria-label":
-            "Acceleration against drives added, one curve per salvage hull. " +
+            "Upper-bound acceleration against drives added, one curve per " +
+            "salvage hull, structure mass only. " +
             "All three climb toward the same hard ceiling, and the light " +
             "skiff starts nearly twice as high as the tug.",
     });
@@ -6513,11 +6538,11 @@ function initThrusterMass(host: HTMLElement): void {
     plot.appendChild(svg);
 
     const stats = el("div", "widget__stats");
-    const massStat = stat(stats, "hull mass");
+    const massStat = stat(stats, "structure mass");
     const drivesStat = stat(stats, "drives");
-    const accelStat = stat(stats, "acceleration");
-    const gStat = stat(stats, "in G");
-    const sprintStat = stat(stats, "0 to 1,000 m/s");
+    const accelStat = stat(stats, "acceleration, at most");
+    const gStat = stat(stats, "in G, at most");
+    const sprintStat = stat(stats, "0 to 1,000 m/s, at least");
     const readout = el("p", "widget__readout");
 
     const update = (): void => {
@@ -6550,17 +6575,19 @@ function initThrusterMass(host: HTMLElement): void {
         if (extra === 0) {
             readout.textContent =
                 "Stock, all three salvage hulls fly on the same two basic " +
-                `drives, pushing 1.0 each. The skiff weighs ` +
-                `${bomMass(DRIVE_RIGS[0].bom).toFixed(2)} and pulls ` +
-                `${metersPerSec2(stock[0], 0)}; the tug weighs ` +
-                `${bomMass(DRIVE_RIGS[2].bom).toFixed(2)} and pulls ` +
+                `drives, pushing 1.0 each. The skiff's structure weighs ` +
+                `${bomMass(DRIVE_RIGS[0].bom).toFixed(2)}, good for at most ` +
+                `${metersPerSec2(stock[0], 0)}; the tug's weighs ` +
+                `${bomMass(DRIVE_RIGS[2].bom).toFixed(2)}, good for at most ` +
                 `${metersPerSec2(stock[2], 0)}. Nothing authored that gap - it is ` +
-                "the volume of the boxes each hull is built from.";
+                "the volume of the boxes each hull is built from. The skin " +
+                "plates on top make the real figures lower.";
         } else {
             const gain = ((a / accel(rig, 0) - 1) * 100).toFixed(0);
             readout.textContent =
                 `${extra} basic drive${extra === 1 ? "" : "s"} on the ` +
-                `${rig.name}: ${metersPerSec2(a, 0)}, ${gain}% up on stock. ` +
+                `${rig.name}: at most ${metersPerSec2(a, 0)}, ${gain}% up on ` +
+                "stock. " +
                 "Each one is a unit of mass as well as a unit of push, so " +
                 `the return tapers - and no stack of them passes ` +
                 `${metersPerSec2(DRIVE_CEILING, 0)}, which is what one drive would do ` +
@@ -6595,7 +6622,9 @@ function initThrusterMass(host: HTMLElement): void {
         "Thrust is authored as an impulse per physics tick rather than a " +
             `force, and the game runs ${FIXED_TICK_HZ} of them a second, so ` +
             "a hull's acceleration is its summed magnitude times that rate " +
-            "over its mass. The curves assume every drive is aimed along " +
+            "over its mass. The G and sprint figures are bounds too: the " +
+            "curves count structure only, not the skin " +
+            "plates a base hull wears, and assume every drive is aimed along " +
             "the ship's nose and balanced about its centre of mass; a " +
             "lopsided set spends part of itself cancelling its own torque."
     );
