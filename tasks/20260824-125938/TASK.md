@@ -1,8 +1,8 @@
 # Spike: the seeded procedural open world, and the architecture it needs
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 75
-- TAGS: v0.15.0,spike,gameplay,architecture,open-world
+- TAGS: v0.15.0, spike, gameplay, architecture, open-world
 
 Rewritten in place on 2026-09-21 at owner direction. This was an ideation
 note carrying a 2026-09-06 research document whose direction was called
@@ -356,7 +356,56 @@ Owner decisions taken on 2026-09-22, after the uniform generator ran:
   origin. The window at `(-2, -2, 2)` holds all three layers, which is where
   both hand-run examples open.
 
-## Done when
+## Closure, 2026-09-25
+
+The owner accepts the current seeded procedural world and closes this research
+spike without requesting more world-generation work. New Game already starts a
+single empty bootstrap and streams generated sectors through the
+`NovaWorldBasePlugin` installed by `AppBuilder`
+(`crates/nova_core/src/lib.rs:429`). The generic engine and base generator now
+live in `crates/nova_world` and `crates/nova_world_base`. Routine travel does
+not load a new scenario. This is the accepted outcome, not a claim that the
+long-term open-world design is complete.
+
+The original Done when list below is historical scope, **not** a claim that
+all its proofs, mod contracts, or 1.0 choices were completed. In particular:
+
+- **Coordinates and lifecycle:** generated body validation, stable cell
+  ownership, bounded preparation, and sector retirement exist. Global-sector
+  floating-origin rebasing, moving-body/jointed-group ownership across distant
+  travel, a visible stop at an unready travel boundary, and all rebase/contact
+  proofs in `NOTES.md` R1-R7 remain unimplemented or unproved. Do not infer
+  infinite safe travel from the current streaming window. Retire those risks
+  only with a separately approved travel/coordinate design.
+- **Durable state:** there is no world or player-mutation save contract.
+  Destroyed streamed content can return pristine after unloading. Save
+  ownership, compaction, mod/version mismatch, web quota failures, and
+  player-visible write failure remain for `20260925-190156`; `NOTES.md`
+  R10-R12 cannot be signed off by this spike.
+- **Generation and modding:** the current base generator owns its shipped
+  cluster policy; `20260925-190207` owns the proposed asteroid-group guarantee
+  and field-readability proof. Mods can supply existing authored content
+  kinds, including sections and ships (`crates/nova_modding/src/lib.rs:77`),
+  but the base generator does not promise to select arbitrary mod content.
+  The generic `SectorGenerator` is a Rust integration interface, not a
+  documented data-mod hook. No world-scale mod event/handler contract is
+  approved. Content selection, section eligibility, and world-event scope
+  need explicit future design; this closure does not claim three shipped mod
+  doors or native/web bit-identical generation.
+- **Shared boundaries:** persistence, station/world identity, and map/docking
+  UI remain open with `20260824-125943`; its research children record options,
+  not approved runtime interfaces. It is still open. The candidate lists in
+  that task classify `20260925-190156` and `20260925-190219` as potential
+  1.0 work, `20260925-190207` and `20260925-190131` as nice-to-have work,
+  and broader economy/content as later work. These are proposals, not
+  commitments made by closing this spike.
+
+The 2026-09-06 `RESEARCH.md` and 2026-09-22 example measurements remain
+historical. Revalidate their citations and assumptions against current master
+before reuse. No floating-origin, persistence, new mod API, or additional
+world feature is authorized by this closure.
+
+## Done when (original research-spike criteria)
 
 - The three architecture options are compared against verified code seams,
   and one is chosen with its evidence recorded, or the choice is explicitly
