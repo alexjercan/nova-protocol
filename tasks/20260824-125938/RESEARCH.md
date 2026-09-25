@@ -1,5 +1,15 @@
 # RESEARCH: how an open-world mode fits the engine, the mods, and a save file
 
+**Historical code survey (2026-09-06), not current runtime documentation.**
+New Game now loads one empty OpenWorld bootstrap scenario, and `AppBuilder`
+installs `NovaWorldBasePlugin`, which installs `NovaWorldPlugin<NovaLayeredWorld>`
+(`crates/nova_core/src/lib.rs:429`, `crates/nova_world_base/src/lib.rs`).
+Streamed cells do not load scenarios. Proposed `WorldState`, persistent ship
+sources, scenario-per-place, save formats and `WorldScript` below were not
+implemented. Old file:line references describe the recorded tree and must be
+rechecked against current code. See `TASK.md` and the sibling progression
+spike `tasks/20260824-125943/PROGRESSION-RESEARCH.md` for later facts.
+
 Survey date: 2026-09-06, tree at `2c2e0624` (Add tutorial). Reference record,
 not scheduled work. Every claim about the code is read from the tree; every
 design line is a proposal. The owner agreed with the direction in sections 2

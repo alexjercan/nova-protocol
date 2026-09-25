@@ -92,6 +92,42 @@ about a screen.
 Do not carry forward any speculative schema or type for these. None is
 approved, and a scout's proposed struct is not evidence.
 
+## Progression and world-system research, 2026-09-25
+
+`PROGRESSION-RESEARCH.md` audits the current streamed bootstrap, cluster
+composition, free repair/reload and idle-batch ammo, and the missing station,
+inventory, persistence and refit seams. It records the owner's proposed
+P* A+ S* composition as a question for **nonempty clusters**, not a shipped
+sector rule; derelict-only currently has no rocks, and placement skips can
+leave no rock. It compares tangible salvage/dock/ship-project loops with
+faction, encounter, station UI and WFC alternatives. All entries remain
+research candidates, not approved generator policy or schemas. Four
+research-only child task specifications now exist; none authorizes a feature.
+It also flags that `20260824-125938/RESEARCH.md` predates the current one-
+bootstrap streamed world and must not be treated as implemented architecture.
+
+## Deeper comparative and visual research, 2026-09-25
+
+- `COMPARATIVE-RESEARCH.md` uses official game descriptions to compare
+  physics-driven mining, physical salvage, modular ship upgrades and broad
+  sandbox economies. It tests the idea of one deliberate field-to-dock-to-
+  changed-ship loop against Nova's lore. Crew simulation, skill trees and
+  galaxy-scale breadth remain outside the owner's goal.
+- `ASSET-SCOUT.md` separates already credited local source art, original
+  game assets, and one verified external CC0 candidate from license-unknown
+  suggestions. No third-party asset was imported.
+- `artifacts/station-service.html` and `artifacts/field-salvage.html` are
+  self-contained interactive **concept pages**, not game UI or authored
+  content. They show before/after choices and refusal states. The worker
+  checked the initial pages at 1280px and 420px. A browser recheck of the
+  corrected broken-port state passed 28 scripted assertions; real mobile
+  overflow and screen-reader behavior are unverified. No game run is claimed. All values are
+  illustrative, and the mockups do not settle any interface.
+- The gravity backlog task `20260925-182711` separately researches how to
+  remove the gravity exemptions for *all mobile* rocks and neutral ships while
+  keeping static planet/anchor wells. Mining of moving asteroids depends on
+  that lifetime/ownership decision; this spike does not choose its physics.
+
 ## Decisions the spike must reach or explicitly leave open
 
 - **What a station is**: a scenario object, a world object, or both; who
@@ -134,7 +170,24 @@ the owner to validate. Nothing is committed by appearing in it.
 - **Nice to have**
 - **Later / post-1.0**
 
-Each entry names the child task it would become.
+Each entry names the child task it would become. Research-only child task
+specifications now exist, but their classification and feature scope remain
+**proposals for owner review**, not a v0.15.0 delivery commitment:
+
+- **Needed for the game to feel complete at 1.0 (candidate):**
+  `20260925-190156` shared streamed-world mutation and save contract;
+  `20260925-190219` design of one dock-salvage-to-physical-ship-payoff loop,
+  including station identity and free repair/reload policy. A refit is one
+  option against design swap or another visible payoff; durable saving is a
+  candidate, not an approved format or launch feature.
+- **Nice to have (candidate):** `20260925-190207` P* A+ S* asteroid-group
+  composition and field readability; `20260923-110307` existing catalog
+  derelict-selection task; `20260925-190131` situated faction encounters and
+  station jobs. The owner has not approved any generator change.
+- **Later / post-1.0 (candidate):** runtime WFC-generated stations or
+  derelicts, a multi-station economy, continuous faction conflict and a
+  broader ship/service cast. These are research options, not new tasks or
+  priority claims; they need measured cost and a coherent first loop.
 
 ## Done when
 

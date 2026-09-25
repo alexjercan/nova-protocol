@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CONCEPT - Field salvage (not in game)</title>
+<style>
+/* Colors copy the base/phosphor palette in assets/base/ui_themes/base.content.ron. */
+:root{--void:#03060b;--surface:#001304;--lift:#002b0f;--primary:#36ff79;--primary-low:#12b552;--body:#b9ffc9;--label:#0d6e35;--accent:#ffb84a;--danger:#ff4e42;--info:#36a3ff;--hover:#d6ffe4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--void);color:var(--body);font:14px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.concept{background:var(--accent);color:#000;font-weight:700;text-align:center;padding:6px;letter-spacing:.08em}
+main{max-width:1180px;margin:0 auto;padding:12px}
+h1{font-size:18px;color:var(--primary);margin:8px 0}
+h2{font-size:13px;color:var(--primary);text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px;border-bottom:1px solid var(--label);padding-bottom:4px}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+.bar span{color:var(--primary-low);margin-right:4px}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--primary-low);border-radius:10px;padding:10px}
+button{font:inherit;color:var(--primary);background:rgba(54,255,121,.05);border:1px solid rgba(54,255,121,.4);border-radius:2px;padding:6px 10px;cursor:pointer}
+button:hover:not(:disabled){background:rgba(54,255,121,.12);border-color:var(--primary);color:var(--hover)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button[aria-pressed=true]{background:var(--primary);color:#04140a}
+button:disabled{opacity:.4;cursor:not-allowed}
+.map{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px;border:1px dashed var(--label);border-radius:6px}
+.map button{min-height:64px;text-align:left;font-size:12px}
+.map button.empty{border-style:dashed;color:var(--label)}
+.map button.fail{border-color:var(--danger)}
+.row{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dotted var(--label)}
+.row span:last-child{text-align:right}
+.ok{color:var(--primary)}
+.bad{color:var(--danger)}
+.note{color:var(--accent)}
+.missing{color:var(--info)}
+.card{border:1px solid var(--label);border-radius:6px;padding:8px;margin-bottom:8px}
+.card p{margin:4px 0;color:var(--primary-low)}
+ul,ol{margin:4px 0;padding-left:18px}
+#log li.err{color:var(--danger)}
+footer{margin-top:12px;font-size:12px;color:var(--primary-low);border-top:1px solid var(--label);padding-top:6px}
+code{color:var(--primary)}
+</style>
+</head>
+<body>
+<div class="concept" role="note">CONCEPT - not in game. No scanner classification, salvage claim, cargo or world persistence exists. Placed counts and yields are illustrative.</div>
+<main>
+<h1>Field salvage - chart, scan, claim (ship hardware, no skill tree)</h1>
+
+<div class="bar" role="group" aria-label="Chart reveal policy">
+  <span>Chart reveal (alternative):</span>
+  <button data-reveal="type" aria-pressed="true">Chart shows cluster type before travel</button>
+  <button data-reveal="scan" aria-pressed="false">Unknown until in scanner range</button>
+</div>
+<div class="bar" role="group" aria-label="Claim persistence alternative">
+  <span>Claim lifetime (open decision):</span>
+  <button data-persist="none" aria-pressed="true">Today: none</button>
+  <button data-persist="session" aria-pressed="false">Session tombstone</button>
+  <button data-persist="save" aria-pressed="false">Versioned save</button>
+</div>
+
+<div class="grid">
+  <section class="panel" aria-labelledby="map-h" tabindex="-1">
+    <h2 id="map-h">Chart - 50 km cluster lattice</h2>
+    <div class="map" id="map"></div>
+    <p class="note">Ids are illustrative. Real cluster ids read <code>cluster_x_y_z</code>.</p>
+    <h2 style="margin-top:10px">P* A+ S* check (after placement)</h2>
+    <div id="pas"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="scan-h" tabindex="-1">
+    <h2 id="scan-h">Scanner</h2>
+    <div id="scan"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="claim-h" tabindex="-1">
+    <h2 id="claim-h">Salvage choice</h2>
+    <div id="choice"></div>
+    <div class="bar">
+      <button id="retire">Leave, sector retires, revisit</button>
+      <button id="restart">Quit and restart</button>
+    </div>
+    <h2 style="margin-top:10px">Cargo hold</h2>
+    <div id="hold"></div>
+    <h2 style="margin-top:10px">Before / after</h2>
+    <ul id="diff" aria-live="polite"><li>No claim yet.</li></ul>
+    <h2 style="margin-top:10px">Event log</h2>
+    <ol id="log"></ol>
+  </section>
+</div>
+
+<section class="panel" style="margin-top:10px" aria-labelledby="miss-h">
+  <h2 id="miss-h">Missing interfaces this view needs (none approved)</h2>
+  <ul class="missing">
+    <li>A+ scope and proof: per nonempty cluster or per sector; count rocks after face and clearance skips and cross-cell ownership.</li>
+    <li>Body claim identity: streamed bodies are scenario-scoped but not addressable. A claim needs a stable body id that survives retire.</li>
+    <li>Claim lifetime: today a retired sector regenerates pristine from the seed. Shared persistence decision with task 20260824-125938.</li>
+    <li>Scanner readout: every rock already has a required kind (<code>rock</code>, <code>metal</code>, <code>ice</code>, <code>carbon</code>, <code>plain</code>). No scanner or HUD reads it, and no yield table exists. Scan source (sensor section or HUD) is not decided.</li>
+    <li>Material ids and hold capacity; what happens to the hold on ship loss.</li>
+    <li>Extraction mechanic: how a cut or strip happens in flight. Capability comes from fitted hardware, not player levels.</li>
+  </ul>
+</section>
+
+<footer>
+Sources (master f802ca58a): cluster types <code>crates/nova_world_base/src/clusters.rs:164</code>, 50 km lattice <code>:59</code>, rock bands <code>:117-119</code>,
+derelict-only hulls <code>:124</code> and zero rocks <code>:695</code>, placed and skipped counts <code>:229-242</code>;
+pristine regeneration <code>crates/nova_world_base/src/lib.rs:18-21</code>; scoped not addressable <code>crates/nova_world/src/streaming.rs:110-122</code>;
+asteroid kind <code>crates/nova_scenario/src/objects/asteroid.rs:74</code>; salvage crate has no inventory <code>crates/nova_scenario/src/objects/salvage.rs:1-6</code>; research <code>tasks/20260824-125943/PROGRESSION-RESEARCH.md</code>.
+</footer>
+</main>
+<script>
+// planned: from the code bands; placed: illustrative outcome after skips.
+const CLUSTERS = [
+  {id: "c(-1,1)", type: null},
+  {id: "c(0,1)", type: "rock-only", planned: "6-14 rocks", p: 0, a: 9, s: 0, skips: 1},
+  {id: "c(1,1)", type: null},
+  {id: "c(-1,0)", type: "planet-heavy", planned: "2 planetoids, 3-8 rocks", p: 2, a: 0, s: 0, skips: 3,
+   note: "All rocks skipped at clearance. A rock was planned, none was placed."},
+  {id: "c(0,0)", type: "asteroid-rich", planned: "8-18 rocks, 0-2 planetoids, 0-1 hull", p: 1, a: 11, s: 1, skips: 2, rich: true},
+  {id: "c(1,0)", type: "derelict-only", planned: "2-3 hulls, 0 rocks", p: 0, a: 0, s: 2, skips: 0,
+   note: "Fails A+ by design today. Option 1 (cluster scope) adds rocks here and changes wreck-field pacing."},
+  {id: "c(-1,-1)", type: "rock-only", planned: "6-14 rocks", p: 0, a: 7, s: 0, skips: 0},
+  {id: "c(0,-1)", type: null},
+  {id: "c(1,-1)", type: "asteroid-rich", planned: "8-18 rocks, 0-2 planetoids, 0-1 hull", p: 0, a: 14, s: 0, skips: 1}
+];
+const CONTACTS = [
+  {id: "R-03", kind: "rock", size: "large", cls: "kind metal", tumble: "slow",
+   yield: ["Hull plate stock", 2], act: "Cut plate stock", risk: "Hold station beside a large rock for the cut."},
+  {id: "R-07", kind: "rock", size: "medium", cls: "kind rock", tumble: "fast",
+   yield: null, act: "Cut", risk: "No plate stock from plain stone. Fast tumble makes contact likely."},
+  {id: "D-01", kind: "derelict hull", size: "hull", cls: "intact turret mount on scan", tumble: "none",
+   yield: ["Recovered turret mount", 1], act: "Strip turret mount", risk: "Approach an unknown hull. It may not be empty."},
+  {id: "P-01", kind: "planetoid", size: "planetoid", cls: "gravity well", tumble: "none",
+   yield: null, act: "Cut", risk: "A body you orbit, not one you cut."}
+];
+const S = {reveal: "type", persist: "none", sel: 4, inRange: false, target: null, claims: new Set(), hold: {}};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c]));
+function log(t, err) { const li = document.createElement("li"); li.textContent = t; if (err) li.className = "err"; $("log").prepend(li); }
+function diff(lines) { $("diff").innerHTML = lines.map(l => "<li>" + esc(l) + "</li>").join(""); }
+const holdText = () => Object.keys(S.hold).length ? Object.entries(S.hold).map(([k, v]) => k + " x" + v).join(", ") : "empty";
+const claimKey = c => CLUSTERS[S.sel].id + "/" + c.id;
+
+function refuse(text) { diff(["Refused: " + text, "Hold unchanged: " + holdText()]); log("Refused: " + text, true); }
+
+function claim(c) {
+  const key = claimKey(c);
+  if (S.claims.has(key)) { refuse(key + " already claimed"); return; }
+  if (!c.yield) { refuse(key + " yields nothing usable"); return; }
+  const before = holdText();
+  S.hold[c.yield[0]] = (S.hold[c.yield[0]] || 0) + c.yield[1];
+  S.claims.add(key);
+  diff(["Hold: " + before + " -> " + holdText(), key + ": pristine -> claimed"]);
+  log("claimed " + key); render();
+}
+function retire() {
+  if (S.persist === "none") {
+    S.claims.clear();
+    log("Sector regenerated pristine. Claim record lost: a repeat claim now succeeds (farm).", true);
+  } else log("Sector regenerated. Claim record kept (" + S.persist + ").");
+  S.inRange = false; S.target = null; render();
+}
+function restart() {
+  if (S.persist !== "save") { S.claims.clear(); S.hold = {}; log("Restart: hold and claims lost (" + S.persist + ")", true); }
+  else log("Restart: hold and claims loaded from save. Needs refusal on content mismatch.");
+  S.inRange = false; S.target = null; render();
+}
+
+// render() rebuilds panels; put keyboard focus back on the same control, or on its panel if the control is gone.
+function focusKey(e) {
+  if (!e || e === document.body) return null;
+  if (e.id) return "#" + e.id;
+  for (const a of ["i", "t", "reveal", "persist"]) if (e.dataset[a]) return "[data-" + a + "='" + e.dataset[a] + "']";
+  return null;
+}
+function render() {
+  const key = focusKey(document.activeElement), panel = document.activeElement.closest("[tabindex='-1']");
+  draw();
+  const next = key && document.querySelector(key);
+  if (next && !next.disabled) next.focus(); else if (key && panel) panel.focus();
+}
+function draw() {
+  document.querySelectorAll("[data-reveal]").forEach(b => b.setAttribute("aria-pressed", b.dataset.reveal === S.reveal));
+  document.querySelectorAll("[data-persist]").forEach(b => b.setAttribute("aria-pressed", b.dataset.persist === S.persist));
+
+  $("map").innerHTML = CLUSTERS.map((c, i) => {
+    const known = S.reveal === "type" || (i === S.sel && S.inRange);
+    const shown = known ? (c.type || "empty") : "unknown field";
+    const cls = known && !c.type ? "empty" : (known && c.a === 0 ? "fail" : "");
+    return "<button data-i=" + i + " class='" + cls + "' aria-pressed=" + (i === S.sel) + ">" + c.id + "<br>" + shown + "</button>";
+  }).join("");
+  document.querySelectorAll("#map button").forEach(b => b.onclick = () => {
+    S.sel = +b.dataset.i; S.inRange = false; S.target = null; log("plot " + CLUSTERS[S.sel].id); render();
+  });
+
+  const c = CLUSTERS[S.sel];
+  if (S.reveal === "scan" && !S.inRange) {
+    $("pas").innerHTML = "<p>Unknown until in scanner range.</p>";
+  } else if (!c.type) {
+    $("pas").innerHTML = "<p>Empty node. Stays empty under cluster scope; sector scope would force a rock here.</p>";
+  } else {
+    const aOk = c.a > 0;
+    $("pas").innerHTML =
+      "<div class=row><span>planned</span><span>" + c.planned + "</span></div>" +
+      "<div class=row><span>P* planetoids</span><span>" + c.p + "</span></div>" +
+      "<div class=row><span>A+ rocks placed</span><span class=" + (aOk ? "ok" : "bad") + ">" + c.a + (aOk ? " pass" : " FAIL") + "</span></div>" +
+      "<div class=row><span>S* hulls</span><span>" + c.s + "</span></div>" +
+      "<div class=row><span>skipped (face + clearance)</span><span>" + c.skips + "</span></div>" +
+      (c.note ? "<p class=note>" + c.note + "</p>" : "");
+  }
+
+  if (!S.inRange) {
+    $("scan").innerHTML = "<p>" + c.id + " is out of range. Chart shows " + (S.reveal === "type" ? c.type || "empty" : "unknown field") + ".</p><button id=approach>Fly to scanner range</button>";
+    $("approach").onclick = () => { S.inRange = true; log("in range " + c.id); render(); };
+  } else if (!c.type) {
+    $("scan").innerHTML = "<p>No contacts.</p>";
+  } else if (!c.rich) {
+    $("scan").innerHTML = "<p>" + c.a + " rocks, " + c.p + " planetoids, " + c.s + " hulls. Detail contacts are only drawn for the asteroid-rich example c(0,0).</p>";
+  } else {
+    $("scan").innerHTML = "<p class=note>Bodies read by what they offer, not by a level gate.</p>" + CONTACTS.map((k, j) =>
+      "<div class=card><strong>" + k.id + "</strong> " + k.kind + ", " + k.size + "<p>class: " + k.cls + " - tumble: " + k.tumble +
+      (S.claims.has(claimKey(k)) ? " - <span class=bad>claimed</span>" : "") + "</p><button data-t=" + j + " aria-pressed=" + (S.target === j) + ">Select</button></div>").join("");
+    document.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { S.target = +b.dataset.t; render(); });
+  }
+
+  if (S.target === null) {
+    $("choice").innerHTML = "<p>Select a scanned contact.</p>";
+  } else {
+    const k = CONTACTS[S.target];
+    $("choice").innerHTML = "<div class=card><strong>" + k.id + "</strong><p>" + k.risk + "</p><p>Yield: " +
+      (k.yield ? k.yield[0] + " x" + k.yield[1] : "none") + "</p><button id=doClaim>" + k.act + "</button> <button id=leave>Leave it</button></div>";
+    $("doClaim").onclick = () => claim(k);
+    $("leave").onclick = () => { S.target = null; log("left " + k.id); render(); };
+  }
+  $("hold").innerHTML = "<p>" + esc(holdText()) + "</p>";
+}
+document.querySelectorAll("[data-reveal]").forEach(b => b.onclick = () => { S.reveal = b.dataset.reveal; render(); });
+document.querySelectorAll("[data-persist]").forEach(b => b.onclick = () => { S.persist = b.dataset.persist; log("claim lifetime: " + b.textContent); render(); });
+$("retire").onclick = retire;
+$("restart").onclick = restart;
+render();
+</script>
+</body>
+</html>
