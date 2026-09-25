@@ -161,6 +161,12 @@ path = "examples/playable/parts_viewer.rs"
 name = "widget_zoo"
 path = "examples/playable/widget_zoo.rs"
 
+# A clickable sketch of themed map, ship, inventory and docked screens over an
+# empty scenario. Sample data only: no live state and no working services.
+[[example]]
+name = "ui_app_variants"
+path = "examples/playable/ui_app_variants.rs"
+
 # The asteroid KIND lineup: five kinds across three silhouette seeds, every
 # rock spawned through the real scenario path, with the `plain` control column
 # standing in as the before picture.

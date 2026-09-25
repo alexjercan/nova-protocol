@@ -76,6 +76,7 @@ jobs:
             examples: >-
               screenshot_editor screenshot_planet_editor system_ship_editor
               system_field_controls bug_sandbox_soak parts_viewer widget_zoo
+              ui_app_variants
           # The front end a player boots into: main menu, scenario picker,
           # NOVA OS, settings, and the refusals that keep it standing. 694 s.
           - shard: menu

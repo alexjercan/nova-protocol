@@ -181,6 +181,15 @@ mockup exist; any new visual is future design work.
   choice: none lets the player farm by retiring a sector, session resets on
   restart, save keeps the claim across restart.
 
+## UI sketch example, 2026-09-25
+
+`UI-APP-VARIANTS.md` records a playable, example-local sketch of the themed
+map, ship, inventory and docked screens:
+`examples/playable/ui_app_variants.rs`, with frames in `ui-app-variants/`.
+The owner approved it as a sandbox over sample data. It adds no station,
+inventory or UI runtime, content or schema, and leaves both open decisions
+above open. Its limits are listed in that file.
+
 ## Decisions the spike must reach or explicitly leave open
 
 - **What a station is**: a scenario object, a world object, or both; who
