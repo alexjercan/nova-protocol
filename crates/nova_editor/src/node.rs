@@ -19,10 +19,10 @@
 
 use std::collections::BTreeMap;
 
-use avian3d::prelude::{ColliderAabb, Sensor};
+use avian3d::prelude::{Collider, ColliderAabb, Sensor};
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{subtree_collider_aabb, Allegiance, AssetRef};
+use nova_gameplay::prelude::{subtree_local_collider_aabb, Allegiance, AssetRef};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
@@ -793,29 +793,38 @@ pub(crate) fn sync_camera_focus(
 /// see [`AutoLayout`].
 pub(crate) fn reflow_auto_ships(
     mut commands: Commands,
-    mut ships: Query<(Entity, &NodeId, &mut Transform, &mut AutoLayout), With<ShipNode>>,
+    mut ships: ParamSet<(
+        Query<(Entity, &NodeId, &mut Transform, &mut AutoLayout), With<ShipNode>>,
+        Query<&Transform>,
+    )>,
     q_children: Query<&Children>,
-    q_bounds: Query<&ColliderAabb, Without<Sensor>>,
+    q_colliders: Query<&Collider, Without<Sensor>>,
 ) {
     // The ordinal alone orders the row: only a MINTED ship is ever laid out,
     // and every minted id carries the one stem.
-    let mut row: Vec<(u64, Entity, f32, f32)> = Vec::new();
-    for (entity, id, pose, auto) in &ships {
+    let mut laid: Vec<(u64, Entity)> = Vec::new();
+    for (entity, id, pose, auto) in &ships.p0() {
         if pose.translation != auto.0 {
             commands.entity(entity).remove::<AutoLayout>();
             continue;
         }
-        let (left, right) = match subtree_collider_aabb(entity, &q_children, &q_bounds) {
-            Some(bounds) => (
-                bounds.min.x - pose.translation.x,
-                bounds.max.x - pose.translation.x,
-            ),
-            // A ship with no sections yet stands on its own origin. It takes no
-            // width, so the next hull sits one gap along.
-            None => (0.0, 0.0),
-        };
-        row.push((id_order(&id.0).1, entity, left, right));
+        laid.push((id_order(&id.0).1, entity));
     }
+    let q_transforms = ships.p1();
+    let mut row: Vec<(u64, Entity, f32, f32)> = laid
+        .into_iter()
+        .map(|(ordinal, entity)| {
+            let (left, right) =
+                match subtree_local_collider_aabb(entity, &q_children, &q_transforms, &q_colliders)
+                {
+                    Some(bounds) => (bounds.min.x, bounds.max.x),
+                    // A ship with no sections yet stands on its own origin. It
+                    // takes no width, so the next hull sits one gap along.
+                    None => (0.0, 0.0),
+                };
+            (ordinal, entity, left, right)
+        })
+        .collect();
     row.sort_unstable_by_key(|(ordinal, ..)| *ordinal);
     let gap = SHIP_LAYOUT_GAP.to_engine();
     // The first ship keeps the ORIGIN, wherever its bounds fall around it: the
@@ -825,7 +834,8 @@ pub(crate) fn reflow_auto_ships(
     for (_, entity, left, right) in row {
         let x = edge.map_or(0.0, |edge| edge - left);
         edge = Some(x + right + gap);
-        let Ok((_, _, mut pose, mut auto)) = ships.get_mut(entity) else {
+        let mut q_ships = ships.p0();
+        let Ok((_, _, mut pose, mut auto)) = q_ships.get_mut(entity) else {
             continue;
         };
         let put = Vec3::new(x, pose.translation.y, pose.translation.z);
@@ -1481,9 +1491,9 @@ mod tests {
 
     /// The half-extent a test ship's collider box carries about its own origin.
     ///
-    /// Kept on the view so [`settle_bounds`] can put the box back where the
-    /// node now stands - which is what the physics step does between frames,
-    /// and what a reflow reads on the frame after it moved something.
+    /// Kept on the view so [`settle_bounds`] can put the world box back where
+    /// the node now stands - which is what the physics step does between
+    /// frames, and what the stage framing reads.
     #[derive(Component, Clone, Copy)]
     struct TestHalf(Vec3);
 
@@ -1525,7 +1535,9 @@ mod tests {
         app.world_mut().spawn((
             NodeView,
             ChildOf(ship),
+            Transform::default(),
             TestHalf(half),
+            Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0),
             Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0)
                 .aabb(Vec3::ZERO, Quat::IDENTITY),
         ));
@@ -1555,7 +1567,6 @@ mod tests {
         app.world_mut()
             .run_system_once(reflow_auto_ships)
             .expect("the row is laid out");
-        settle_bounds(app);
     }
 
     fn x_of(app: &App, ship: Entity) -> f32 {
@@ -1596,13 +1607,11 @@ mod tests {
         reflow(&mut app);
         let near = x_of(&app, second);
 
-        app.world_mut()
-            .query::<&mut TestHalf>()
+        *app.world_mut()
+            .query::<&mut Collider>()
             .iter_mut(app.world_mut())
             .next()
-            .expect("the first hull")
-            .0 = Vec3::new(40.0, 4.0, 40.0);
-        settle_bounds(&mut app);
+            .expect("the first hull") = Collider::cuboid(80.0, 8.0, 80.0);
         reflow(&mut app);
 
         assert!(
@@ -1628,7 +1637,6 @@ mod tests {
             .get_mut::<Transform>()
             .expect("a pose")
             .translation = put;
-        settle_bounds(&mut app);
         reflow(&mut app);
 
         assert!(
@@ -1643,6 +1651,31 @@ mod tests {
                 .translation,
             put,
             "and it stays exactly where it was put"
+        );
+    }
+
+    /// Frames outrun physics steps, so the row must hold still across frames
+    /// with no step between them. Reading avian's step-old bounds against the
+    /// frame's pose fed each reflow's move into the next one, and the second
+    /// hull walked off to infinity until avian panicked on its bounds.
+    #[test]
+    fn the_row_holds_still_across_frames_without_a_physics_step() {
+        let mut app = empty_document();
+        auto_ship(&mut app, 1, Vec3::new(2.0, 2.0, 2.0));
+        let second = auto_ship(&mut app, 2, Vec3::new(2.0, 2.0, 2.0));
+
+        app.world_mut()
+            .run_system_once(reflow_auto_ships)
+            .expect("the row is laid out");
+        let laid = x_of(&app, second);
+        app.world_mut()
+            .run_system_once(reflow_auto_ships)
+            .expect("the row is laid out again");
+
+        assert_eq!(
+            x_of(&app, second),
+            laid,
+            "a second reflow with no physics step between moved the hull"
         );
     }
 

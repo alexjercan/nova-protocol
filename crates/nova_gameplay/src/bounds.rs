@@ -1,20 +1,23 @@
 //! How big a body LOOKS: the union of the solid collider AABBs under an
 //! entity, and the sphere that wraps that union.
 //!
-//! Not gameplay logic - this crate owns the walk because it is the lowest
+//! Not gameplay logic - this crate owns the walks because it is the lowest
 //! crate every consumer already shares: the HUD's indicator sizing and target
-//! inset (`nova_hud`) and the editor's framing, gizmo reach and plate
-//! placement (`nova_editor`), which cannot reach the HUD. The sensor rule
-//! below is the whole reason this is one function: it was learned from a
-//! shipped bug, and a second copy of the walk is a second chance to answer it
+//! inset (`nova_hud`) and the editor's framing, gizmo reach, plate placement
+//! and ship row (`nova_editor`), which cannot reach the HUD. The sensor rule
+//! below is the whole reason the walks live together: it was learned from a
+//! shipped bug, and a copy of a walk elsewhere is a second chance to answer it
 //! differently.
 
-use avian3d::prelude::{ColliderAabb, Sensor};
+use avian3d::{
+    parry::math::Pose3,
+    prelude::{Collider, ColliderAabb, Sensor},
+};
 use bevy::prelude::*;
 
-/// The subtree collider walk, and the bounding sphere read off it.
+/// The subtree collider walks, and the bounding sphere read off the world one.
 pub mod prelude {
-    pub use super::{subtree_bounding_sphere, subtree_collider_aabb};
+    pub use super::{subtree_bounding_sphere, subtree_collider_aabb, subtree_local_collider_aabb};
 }
 
 /// Union the world-space [`ColliderAabb`]s of `entity` and all of its
@@ -69,6 +72,72 @@ pub fn subtree_bounding_sphere(
 ) -> Option<(Vec3, f32)> {
     subtree_collider_aabb(entity, q_children, q_aabb)
         .map(|aabb| (aabb.center(), aabb.size().length() * 0.5))
+}
+
+/// Union the solid [`Collider`] shapes of `entity` and all of its
+/// descendants into one box about `entity`'s own origin, in its parent's
+/// axes, or `None` when nothing in the subtree carries a solid collider.
+///
+/// This is the editor's unit-scale bound. It reads each shape and the local
+/// [`Transform`] chain down to it, so it is right on every frame, not only on
+/// frames that ran a physics step: avian writes [`ColliderAabb`] and the
+/// scaled shape only in its step, and a frame that reads those against a pose
+/// it has moved since sees a stale box. The entity's own rotation counts and
+/// its translation does not, so the box moves with the entity.
+///
+/// Sensors are skipped as in [`subtree_collider_aabb`], but the walk still
+/// descends through them.
+///
+/// # Panics
+///
+/// When a solid collider sits on or under an entity with no [`Transform`], or
+/// with a scale other than [`Vec3::ONE`]. Editor ship, section and view
+/// transforms carry no scale, so either is a bug in whatever spawned the
+/// subtree, and a box read past it would lay the row out wrong without a sign.
+/// A section's art scale sits on its render child, which has no collider under
+/// it, so the walk never reads that scale.
+pub fn subtree_local_collider_aabb(
+    entity: Entity,
+    q_children: &Query<&Children>,
+    q_transforms: &Query<&Transform>,
+    q_colliders: &Query<&Collider, Without<Sensor>>,
+) -> Option<ColliderAabb> {
+    let mut acc: Option<ColliderAabb> = None;
+    // An unreadable pose is carried down as its panic message, and raised only
+    // when a collider below needs the pose.
+    let mut stack = vec![(vec![entity], Ok(Transform::IDENTITY))];
+    while let Some((path, above)) = stack.pop() {
+        let current = *path.last().expect("a walk path holds its own entity");
+        let pose: Result<Transform, String> =
+            above.and_then(|above| match q_transforms.get(current) {
+                Err(_) => Err(format!("collider walk: {path:?} has no Transform")),
+                Ok(local) if local.scale != Vec3::ONE => Err(format!(
+                    "collider walk: {path:?} has scale {}, and the local bound is unit-scale only",
+                    local.scale
+                )),
+                Ok(local) if current == entity => Ok(Transform::from_rotation(local.rotation)),
+                Ok(local) => Ok(above * *local),
+            });
+        if let Ok(collider) = q_colliders.get(current) {
+            let pose = pose.as_ref().unwrap_or_else(|reason| panic!("{reason}"));
+            let shape = collider
+                .shape()
+                .compute_aabb(&Pose3::from_parts(pose.translation, pose.rotation));
+            let aabb = ColliderAabb::from_min_max(shape.mins, shape.maxs);
+            acc = Some(match acc {
+                Some(existing) => existing.merged(aabb),
+                None => aabb,
+            });
+        }
+        if let Ok(children) = q_children.get(current) {
+            stack.extend(children.iter().map(|child| {
+                let mut path = path.clone();
+                path.push(child);
+                (path, pose.clone())
+            }));
+        }
+    }
+    acc
 }
 
 #[cfg(test)]
