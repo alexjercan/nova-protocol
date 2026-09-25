@@ -1,18 +1,19 @@
-//! The examples' world: the one seed, the two configs, the uniform baseline
-//! generator, the empty bootstrap they run inside, and the cell the featured
-//! ones open in.
+//! The examples' world: the one seed, the three configs, the uniform baseline
+//! and clustered generators, the empty bootstrap they run inside, and the
+//! cells the featured and clustered examples open in.
 //!
 //! `nova_world` owns the streaming loop and the manifest check and names no
 //! content. The featured world is the base game's generator,
 //! `NovaLayeredWorld`, and its feature field, both from `nova_world_base`; the
-//! uniform baseline is example-owned and lives beside this file. Everything
+//! uniform baseline and the clustered world with its environment fields are
+//! example-owned and live beside this file. Everything
 //! else `nova_world` refuses to assume - a seed, a cell edge, an active
-//! radius - is decided HERE, once, so the five example targets that share it
-//! are looking at one world rather than five that happen to agree.
+//! radius - is decided HERE, once, so the six example targets that share it
+//! are looking at one world rather than six that happen to agree.
 //!
 //! Included with
 //! `#[path = "../shared/world_fixture/mod.rs"] pub mod world_fixture;` - PUB,
-//! and that is the whole dead-code story. One fixture serves five example
+//! and that is the whole dead-code story. One fixture serves six example
 //! targets and no target uses all of it, but a `pub` module reachable from a
 //! binary's root is not dead code to rustc, so neither an `allow` nor an
 //! `expect` is needed: an `allow` would be a blanket the repository forbids,
@@ -23,8 +24,16 @@ use bevy::prelude::*;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
 
+mod clustered;
+mod environment;
 mod uniform_asteroids;
 
+pub use clustered::{
+    group_at, group_chances, plan_cell, BodySource, CellPlan, ClusterBody, ClusterGroup,
+    ClusteredWorld, GroupBody, GroupChances, GroupId, GroupKind, Outcome, PlannedBody, SkipReason,
+    GROUP_LATTICE,
+};
+pub use environment::{Environment, EnvironmentField, EnvironmentFields};
 pub use uniform_asteroids::UniformAsteroids;
 
 /// The examples' world seed.
@@ -60,9 +69,8 @@ pub const EXAMPLE_ACTIVE_RADIUS: i32 = 2;
 /// DRAWS: the meshed radius reaches 3.5-6x past it, so this draws about
 /// 210-720 m diameters. Four bodies in a 32 km cell read as scattered
 /// landmarks rather than a belt, which is what the crossing claim needs and is
-/// not a claim about how dense a real sector should be. Four is also
-/// [`SECTOR_ASTEROIDS_MAX`], the density every generator has been measured
-/// at, so the baseline and the feature field fill a cell to the same ceiling.
+/// not a claim about how dense a real sector should be. Four is also the mean
+/// the base generator draws at full asteroid strength.
 /// The kinds are the four natural ones; `plain` is the texture control, not a
 /// rock a world would contain.
 ///
@@ -109,6 +117,26 @@ pub fn featured_world_config() -> WorldConfig<NovaLayeredWorld> {
 /// opened at the origin would see a planetoid and a handful of rocks and
 /// nothing else, which proves a generator but not a WORLD.
 pub const FEATURE_HOME: SectorCoord = SectorCoord::new(2, 1, 2);
+
+/// The same seed, window and edge, filled by the example-owned clustered
+/// generator: asteroid-rich, rock-only, planet-heavy, derelict-only and
+/// low-rock groups on a global lattice, and one background rock at most per
+/// cell, all read off three environment fields.
+pub fn clustered_world_config() -> WorldConfig<ClusteredWorld> {
+    WorldConfig {
+        seed: EXAMPLE_SEED,
+        sector_edge: EXAMPLE_SECTOR_EDGE,
+        active_radius: EXAMPLE_ACTIVE_RADIUS,
+        generator: ClusteredWorld,
+    }
+}
+
+/// The cell the clustered example opens in.
+///
+/// Chosen by a scan of the windows around the origin, not assumed: its window
+/// holds a group with a planetoid and a group with a derelict hull that each
+/// place bodies on both sides of a cell face, and members skipped at a face.
+pub const CLUSTER_HOME: SectorCoord = SectorCoord::new(-1, 0, 1);
 
 /// The free-play bootstrap: an EMPTY scenario.
 ///

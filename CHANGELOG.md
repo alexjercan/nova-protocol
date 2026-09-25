@@ -46,6 +46,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   mods or engine work and Wiki on Story and Lore. The landing hero and its
   four-column directory link GitHub and itch.io.
 
+### Performance
+
+- `world_clusters` probes capture mid-fill and steady 125-cell windows; worker spans separate sector generation from geometry preparation.
+
 ### Internals & Tooling
 
 - Agent Bench enforces post-run grace on persistent clients and rejects
@@ -62,6 +66,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Two debug examples draw the world feature field itself: a CPU-sampled heatmap
   of one plane with the layer's gate as a contour, and a 3D cloud of where each
   layer clears.
+- New `world_clusters` example streams five kinds of asteroid, planetoid and
+  derelict groups that cross sector faces, drawn from three noise fields, with
+  a field heatmap and seam markers.
 - Capture loops write `<loop>.webm` with a stereo Opus track from the engine's
   per-voice mix and pan, PCM peak cut to -1 dBFS before Opus, plus a v1
   `<loop>.jsonl` SFX sidecar and its samples.

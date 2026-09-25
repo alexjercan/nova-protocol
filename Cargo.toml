@@ -196,9 +196,9 @@ path = "examples/playable/planet_types.rs"
 name = "world_sectors"
 path = "examples/playable/world_sectors.rs"
 # Built as a test target for the world fixture's inline tests: the example-local
-# `UniformAsteroids::validate` refusals live in
-# `examples/shared/world_fixture/uniform_asteroids.rs`, which no crate suite
-# compiles. One fixture includer is enough; the other four stay non-test.
+# `UniformAsteroids::validate` refusals and the clustered world's tests live in
+# `examples/shared/world_fixture/`, which no crate suite compiles. One fixture
+# includer is enough; the other five stay non-test.
 test = true
 
 # The same streaming loop over a world that has PLACES in it: three independent
@@ -227,6 +227,16 @@ path = "examples/playable/world_field_slices.rs"
 [[example]]
 name = "world_field_clouds"
 path = "examples/playable/world_field_clouds.rs"
+
+# The same streaming loop over a world whose bodies come in GROUPS: asteroid-rich,
+# rock-only, planet-heavy, derelict-only and low-rock, decided on a global
+# lattice from three environment fields and owned body by body by the cell each
+# centre falls in. What a human judges here is whether a group reads as a place
+# and stays whole across a sector face; the fixture's inline tests own the seam
+# and accounting claims.
+[[example]]
+name = "world_clusters"
+path = "examples/playable/world_clusters.rs"
 
 # systems/ - the section curriculum first: one range per ship section, each
 # walking a named roster of invariants across several rounds.
@@ -985,6 +995,9 @@ nova_wfc = { path = "crates/nova_wfc" }
 # `system_world_sectors` range. The game reaches it through `nova_core`, which
 # adds the base world's plugin; the examples name its types directly.
 nova_world = { path = "crates/nova_world" }
+# The clustered world's three environment fields are example-owned noise, built
+# on the same `noise` version `nova_world_base` builds its feature field on.
+noise = { version = "0.9" }
 # wfc_ships seeds its collapse from a pinned StdRng, the same generator the
 # scenario engine's scatter uses - same crate, same version, same rolls.
 rand = { version = "0.10.2" }
