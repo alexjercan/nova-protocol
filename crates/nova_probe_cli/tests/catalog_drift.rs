@@ -398,7 +398,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the sleeve never changes what the hull collides with",
             "the joint carries the pair without zeroing its drift",
             "the joint holds the pose the two hulls met in",
-            "a docked hull ignores the throttle",
+            "the hull off the helm ignores the throttle",
             "the dock verb takes the dock away from either hull",
             "the throttle bites the moment the dock lets go",
             "a destroyed port frees its partner",

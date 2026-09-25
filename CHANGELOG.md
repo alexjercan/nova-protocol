@@ -15,10 +15,18 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+
+- A docked pair flies as one body. A dock starts NEUTRAL, with the partner
+  flying; HELM (H) takes and hands back the pair's drive, RCS, helm, G/O/X and
+  NOVA OS GOTO.
+- The ship off the helm pauses its orders until the helm comes back. A
+  maneuver flies the pair and no longer ends the dock; only DOCK or damage do.
+
 ### Ships & Sections
 
 - New `block_line_warship` Line Warship: six PDC mounts on the trigger, a bow
-  railgun on R and two torpedo bays on F.
+  railgun on R, two torpedo bays on F and a docking collar on each shoulder.
 
 ### Scenarios & Objectives
 
@@ -42,6 +50,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Objective notification rebuilding now survives same-frame ship teardown, and
   buffered keys after launching a NOVA OS app no longer edit the hidden prompt.
+- A HELM chip reads TAKE HELM, RELEASE HELM or HELM FAULT while docked. Off a
+  measured helm, blocked verbs stay on the dock dark. The mode chip reads
+  NEUTRAL or HELM FAULT.
 
 ### Web & Platform
 

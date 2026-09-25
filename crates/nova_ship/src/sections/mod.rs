@@ -228,14 +228,15 @@ impl Plugin for SpaceshipSectionPlugin {
         app.register_type::<hull_radius::prelude::HullEnvelopeRadius>();
         app.register_type::<hull_radius::prelude::TargetHitRadius>();
         // The hull's own size, derived once per tick for every reader: the
-        // attitude stack (SyncStack) turns it into the structural turn
-        // ceiling, the flight layer - pinned after SyncStack - adds it to
-        // the arrival, and the HUD stands its shells outside the envelope.
-        // All must see THIS tick's hull, so the pass runs ahead of the
-        // earliest of them.
+        // docked assembly takes it as the pair's reach, the attitude stack
+        // (SyncStack) turns it into the structural turn ceiling, the flight
+        // layer - pinned after SyncStack - adds it to the arrival, and the
+        // HUD stands its shells outside the envelope. All must see THIS
+        // tick's hull, so the pass runs ahead of the earliest of them.
         app.add_systems(
             FixedUpdate,
             hull_radius::publish_hull_radii
+                .before(docking_section::prelude::DockingSystems::Assembly)
                 .before(controller_section::prelude::ControllerSectionSystems::SyncStack),
         );
         // What the hull looks like to somebody else's scanner, from the same

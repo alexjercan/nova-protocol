@@ -56,7 +56,7 @@ part serves every hull. Section kinds are `Hull`, `Thruster`, `Controller`,
 | `torpedo_section` | Torpedo | Torpedo Bay (Serpent) | 100 | blast 750 dmg over a radius of 300 m, ordnance 10 hp, ammo 6 restoring +1 after 10 s idle; loads the WEAVING Serpent - cruise 320 m/s, ~390 PDC rounds an intercept, killed ~400 m out |
 | `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, cruise 350 m/s, ~116 PDC rounds an intercept, killed ~1.14 km out |
 | `railgun_lance_section` | Railgun | Railgun Lance | 180 | the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; a slug at 15,000 m/s for 1.2 s, rake radius 10 m, recoil 45 at the muzzle, one round reloading over 12 s |
-| `docking_port_section` | Docking | Docking Port Section | 90 | the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. No base ship carries one; build a hull with one in the editor |
+| `docking_port_section` | Docking | Docking Port Section | 90 | the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. The workship, both frame tenders and the line warship carry one |
 
 Every shipped prototype authors its [damage
 effects](../sections/#damage-effects) by kind, and the whole catalog follows one

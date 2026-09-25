@@ -56,6 +56,7 @@ pub(super) fn interrupt_ai_ship_orders(
             &AIThreat,
             Has<ShipOrderHelmAuthority>,
             Has<AIOrderInterrupted>,
+            Option<&DockedShip>,
         ),
         (
             With<SpaceshipRootMarker>,
@@ -64,7 +65,12 @@ pub(super) fn interrupt_ai_ship_orders(
         ),
     >,
 ) {
-    for (ship, policy, target, threat, holds_helm, interrupted) in &q_ships {
+    for (ship, policy, target, threat, holds_helm, interrupted, docked) in &q_ships {
+        // A paused order is neither interrupted nor resumed: a docked hull
+        // that does not drive its pair flies nothing either way.
+        if docked.is_some_and(|docked| !docked.drives) {
+            continue;
+        }
         let break_off = match policy {
             AIOrderInterruption::OnHostileContact => target.is_some(),
             AIOrderInterruption::OnDamage => threat.recently_damaged(),

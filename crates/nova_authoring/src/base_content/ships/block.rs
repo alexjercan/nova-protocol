@@ -71,10 +71,22 @@ pub(crate) const BLOCK_LINE_WARSHIP_TORPEDO_IDS: [&str; 2] = ["torpedo_port", "t
 /// The one point-defense mount the picket carries, so content that arms or
 /// disarms it names a section rather than a hull.
 pub(crate) const BLOCK_CLEANUP_TURRET_ID: &str = "pdc";
-/// The port-flank docking collar the workship and both frame tenders carry.
-/// Content that hardens, reads or shoots the hatch names this rather than the
-/// hull it is bolted to.
+/// The port-flank docking collar the workship, both frame tenders and the line
+/// warship carry. Content that hardens, reads or shoots the hatch names this
+/// rather than the hull it is bolted to.
 pub const BLOCK_PORT_COLLAR_SECTION_ID: &str = "port_collar";
+/// The starboard-flank docking collar the line warship carries opposite its
+/// port collar.
+pub const BLOCK_STARBOARD_COLLAR_SECTION_ID: &str = "starboard_collar";
+
+/// The hull side a flank collar opens on.
+#[derive(Clone, Copy)]
+enum FlankType {
+    /// World `-X`.
+    Port,
+    /// World `+X`.
+    Starboard,
+}
 
 /// One placed part that is not a plain hull cell. A special whose position
 /// lands exactly on a cell REPLACES that cell; one placed off the grid (a
@@ -198,7 +210,11 @@ pub(super) fn utility_workship() -> BlockShip {
                 BASIC_THRUSTER_SECTION_ID,
                 IVec3::new(1, 0, 3),
             ),
-            flank_collar(BLOCK_PORT_COLLAR_SECTION_ID, IVec3::new(-2, 0, -2)),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, -2),
+            ),
         ],
         plate: REINFORCED_HULL_SECTION_ID,
         style: INDUSTRIAL_STYLE_ID,
@@ -240,7 +256,11 @@ pub(super) fn frame_tender() -> BlockShip {
                 BASIC_THRUSTER_SECTION_ID,
                 IVec3::new(0, 0, 4),
             ),
-            flank_collar(BLOCK_PORT_COLLAR_SECTION_ID, IVec3::new(-2, 0, -3)),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, -3),
+            ),
         ],
         plate: REINFORCED_HULL_SECTION_ID,
         style: INDUSTRIAL_STYLE_ID,
@@ -288,7 +308,11 @@ pub(super) fn damaged_frame_tender() -> BlockShip {
                 BASIC_CONTROLLER_SECTION_ID,
                 IVec3::new(0, 1, -4),
             ),
-            flank_collar(BLOCK_PORT_COLLAR_SECTION_ID, IVec3::new(-2, 0, -3)),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, -3),
+            ),
         ],
         plate: REINFORCED_HULL_SECTION_ID,
         style: INDUSTRIAL_STYLE_ID,
@@ -351,7 +375,8 @@ pub(super) fn patrol_gunship() -> BlockShip {
 /// plate, so the lance fires down the ship's own axis clear of the hull. Each
 /// bay sits ahead of its shoulder with its muzzle open and its inboard flank
 /// mated to the body. Three flight computers spread along the spine turn a
-/// hull this long.
+/// hull this long. One docking collar takes the middle cell of each shoulder,
+/// hatch outboard, clear of the drives aft and the bays forward.
 pub(super) fn line_warship() -> BlockShip {
     BlockShip {
         cells: union(vec![
@@ -419,6 +444,16 @@ pub(super) fn line_warship() -> BlockShip {
             turret(BLOCK_LINE_WARSHIP_PDC_IDS[3], IVec3::new(1, 2, 3)),
             under_turret(BLOCK_LINE_WARSHIP_PDC_IDS[4], IVec3::new(-1, -2, 0)),
             under_turret(BLOCK_LINE_WARSHIP_PDC_IDS[5], IVec3::new(1, -2, 0)),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, 0),
+            ),
+            flank_collar(
+                BLOCK_STARBOARD_COLLAR_SECTION_ID,
+                FlankType::Starboard,
+                IVec3::new(2, 0, 0),
+            ),
         ],
         plate: REINFORCED_HULL_SECTION_ID,
         style: ARMOURED_STYLE_ID,
@@ -572,19 +607,23 @@ fn under_turret(id: &'static str, cell: IVec3) -> Special {
     }
 }
 
-/// A docking collar standing off a hull's PORT flank, hatch outboard.
+/// A docking collar on a hull's `flank`, hatch outboard.
 ///
 /// The port's one blind face is its own `-Z`, so a quarter turn about Y puts
-/// the hatch on world `-X` and leaves the `+Z` socket facing the plate
+/// the hatch on the flank's side and leaves the `+Z` socket facing the plate
 /// inboard of it. `cell` is the collar's own cell, one step outboard of the
 /// hull cell it mates to: a collar sunk into the skin would be a hatch that
 /// opens into structure.
-fn flank_collar(id: &'static str, cell: IVec3) -> Special {
+fn flank_collar(id: &'static str, flank: FlankType, cell: IVec3) -> Special {
+    let turn = match flank {
+        FlankType::Port => std::f32::consts::FRAC_PI_2,
+        FlankType::Starboard => -std::f32::consts::FRAC_PI_2,
+    };
     Special {
         id,
         prototype: DOCKING_PORT_SECTION_ID,
         position: cell.as_vec3(),
-        rotation: Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+        rotation: Quat::from_rotation_y(turn),
     }
 }
 
@@ -770,6 +809,59 @@ mod tests {
         );
         for bay in BLOCK_LINE_WARSHIP_TORPEDO_IDS {
             assert_eq!(kind(bay), TORPEDO_SECTION_ID, "'{bay}'");
+        }
+    }
+
+    /// The line warship's two collars take an edge shoulder cell each and open
+    /// outboard with nothing in front of the hatch. The link graph accepts a
+    /// reversed hatch or a collar hanging off the hull, so this checks the pose.
+    #[test]
+    fn the_line_warship_collars_open_outboard_from_its_shoulders() {
+        let ship = line_warship();
+        let cells: HashSet<IVec3> = ship.cells.iter().copied().collect();
+        let sections = ship.sections();
+        let collars: Vec<_> = sections
+            .iter()
+            .filter(|section| {
+                matches!(&section.source, SectionSource::Prototype { id, .. } if id == DOCKING_PORT_SECTION_ID)
+            })
+            .collect();
+        assert_eq!(collars.len(), 2, "the line warship carries two collars");
+        for (id, cell, hatch) in [
+            (
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                IVec3::new(-2, 0, 0),
+                IVec3::NEG_X,
+            ),
+            (
+                BLOCK_STARBOARD_COLLAR_SECTION_ID,
+                IVec3::new(2, 0, 0),
+                IVec3::X,
+            ),
+        ] {
+            let collar = collars
+                .iter()
+                .find(|section| section.id == id)
+                .unwrap_or_else(|| panic!("the line warship has no '{id}' collar"));
+            assert_eq!(collar.position, cell.as_vec3(), "'{id}' cell");
+            assert!(cells.contains(&cell), "'{id}' is not a hull cell");
+            assert!(
+                cells.contains(&(cell - hatch)),
+                "'{id}' has no hull cell inboard of it"
+            );
+            assert!(
+                (collar.rotation * Vec3::NEG_Z).abs_diff_eq(hatch.as_vec3(), 1e-5),
+                "'{id}' hatch does not face {hatch}"
+            );
+            for step in 1..=3 {
+                let ahead = (cell + hatch * step).as_vec3();
+                if let Some(blocker) = sections
+                    .iter()
+                    .find(|section| section.position.distance(ahead) < 1.0)
+                {
+                    panic!("'{}' stands in front of '{id}'", blocker.id);
+                }
+            }
         }
     }
 

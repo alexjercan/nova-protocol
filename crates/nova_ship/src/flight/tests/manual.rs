@@ -734,3 +734,77 @@ fn severing_a_drive_reallocates_the_burn_across_the_surviving_live_set() {
         "and the hull holds its heading on the surviving set ({drift} rad)"
     );
 }
+
+/// A docked root that drives but has lost its `DockedAssembly` flies nothing:
+/// no manual burn, RCS, maneuver or throttle left over from the last tick
+/// moves either root on the root's own numbers. This harness carries no
+/// docking plugin, so nothing measures the pair and the assembly stays gone.
+#[test]
+fn a_docked_driver_without_its_assembly_moves_neither_root() {
+    let cases: [(&str, fn(&mut App, Entity, Entity)); 4] = [
+        ("manual burn", |app, driver, _| {
+            app.world_mut()
+                .get_mut::<FlightIntent>(driver)
+                .unwrap()
+                .burn = 1.0;
+        }),
+        ("rcs", |app, driver, _| {
+            app.world_mut()
+                .entity_mut(driver)
+                .insert((RcsIntent(Vec3::X), RcsSpeedCap(10.0)));
+        }),
+        ("autopilot", |app, driver, _| {
+            app.world_mut()
+                .entity_mut(driver)
+                .insert(Autopilot::engage(AutopilotAction::Stop));
+        }),
+        ("stale throttle", |app, _, thruster| {
+            **app
+                .world_mut()
+                .get_mut::<ThrusterSectionInput>(thruster)
+                .unwrap() = 1.0;
+        }),
+    ];
+    for (label, command) in cases {
+        let mut app = flight_app();
+        let (driver, thruster, _) = spawn_ship(&mut app);
+        let (partner, ..) = spawn_ship(&mut app);
+        // Clear of the driver, so no contact pushes either hull.
+        app.world_mut()
+            .get_mut::<Transform>(partner)
+            .unwrap()
+            .translation = Vec3::X * 100.0;
+        let connection = app
+            .world_mut()
+            .spawn(DockingConnection {
+                first_ship: driver,
+                first_section: Entity::PLACEHOLDER,
+                second_ship: partner,
+                second_section: Entity::PLACEHOLDER,
+                helm: DockedHelmType::Neutral,
+                measurement_fault: false,
+            })
+            .id();
+        for (ship, drives) in [(driver, true), (partner, false)] {
+            app.world_mut().entity_mut(ship).insert(DockedShip {
+                connection,
+                helm: Quat::IDENTITY,
+                drives,
+            });
+        }
+        settle(&mut app);
+        // A drift, so a STOP has something to burn against.
+        let drift = Vec3::new(0.0, 0.0, -2.0);
+        app.world_mut().get_mut::<LinearVelocity>(driver).unwrap().0 = drift;
+        command(&mut app, driver, thruster);
+
+        run(&mut app, 20);
+
+        assert_eq!(velocity_of(&app, driver), drift, "{label}: driver pushed");
+        assert_eq!(
+            velocity_of(&app, partner),
+            Vec3::ZERO,
+            "{label}: partner pushed"
+        );
+    }
+}

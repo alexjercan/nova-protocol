@@ -300,31 +300,50 @@ ships together. The track is a plain `Translate` on `dock_tube*` nodes: art
 only, with no collider growth, which is why two mated sleeves may overlap
 without the hulls touching.
 
-**A dock is MODAL.** While it holds, a docked hull flies nothing. `DockedShip`
-on the root is the single gate, and it is read at the FORCE, not at the key, so
-pilot, AI and scripted order are all held by the same line:
-`thruster_impulse_system` skips the impulse, `sync_controller_section_forces`
-skips the torque, and the manual balancer and the RCS writer never reach a
-drive. A throttle held through a whole dock is simply inert - and bites the
-moment the dock ends, which is what the `system_docking_ports` range reads back
-to back.
+**One hull drives the pair.** `DockingConnection.helm` is `DockedHelmType`:
+`Neutral` (the dock's start, and the state after a lost holder) or
+`Held(player)`, toggled by `DockingHelmRequest` from the `dock_helm` binding
+(H). A request to take the helm of a pair with `measurement_fault` is refused;
+handing it back is not. The driver is the holder while `Held`, else the
+non-player endpoint, else `second_ship`. `measure_docked_assemblies` (`DockingSystems::Assembly`) writes
+`DockedShip.drives` on both roots and a `DockedAssembly` (combined mass,
+world centre of mass, velocity, root-frame inertia, reach) measured every tick.
+An unmeasurable pair logs an error once, drives neither root and sets
+`DockingConnection.measurement_fault`; the next measured pass clears it, and a
+new connection starts clear.
 
-`park_docked_helms_and_release_maneuvers` re-parks each docked hull's attitude
-command on the rotation it actually has, every tick. The attitude loop is off,
-so a command left where it stood at capture would be a stale order the PD snaps
-to the instant the dock ends; parking it live means a released ship inherits
-the direction it is already pointing.
+`DockedShip.drives` is the single gate, read at the FORCE and at every intent
+writer, so pilot, AI and scripted order are all held by the same line on the
+root that is not driving: `thruster_impulse_system`, the manual balancer, the
+RCS writer, the autopilot, the scripted orders (paused, never judged) and the
+AI brains all skip it. The HUD mode chip and the blocked dock chips read it
+too, so a pair that is not driven never shows a live maneuver. The mode chip
+reads `measurement_fault` first and shows `HELM FAULT`, because `drives` alone
+cannot tell a fault from a hull off the helm. The HELM chip reads it through
+`FlightVerbHints::helm_fault`, and no verb is `helm_blocked` while it is set,
+because HELM cannot take the helm. The NOVA OS map GOTO refuses on it before it
+asks for the helm. On the driver, the autopilot, the
+flight authority, the manual balancer, the RCS budget and the AI patrol and
+combat planning read the assembly, never the root alone. A driver with no
+`DockedAssembly` moves nothing: `thruster_impulse_system` skips it, and the
+autopilot, scripted align, manual balancer and RCS writer each log an error
+once and skip it. Scripted align aims from the assembly's centre of mass.
+`apply_docked_helm_wrench` replaces the attitude torque with one wrench split
+over both roots: `a = I_asm^-1 tau`, each root gets `I_own a` and the force
+`m (a x r)` about the assembly centre of mass. RCS applies `m_i * dv` at each
+root's own centre of mass, so a translation adds no torque. The undocked path
+is unchanged.
 
-**Ending it.** Four paths, and each removes only the connection it owns:
+`park_suppressed_docked_helms` re-parks the attitude command of each root that
+is not driving on the rotation it actually has, every tick, so a hull that
+takes over or is released holds the direction it is already pointing.
+
+**Ending it.** Three paths, and each removes only the connection it owns:
 
 - **the verb** (`on_docking_release_request`): `DOCK` pressed again, from
   EITHER hull, exactly as `ORBIT` pressed again disengages. This is the only
   pilot-facing path, and it is ungated - a capability withdrawn while docked
   must never strand a hull clamped to something.
-- **an engaged maneuver** (`park_docked_helms_and_release_maneuvers`, in
-  `DockingSystems::Release`, ordered BEFORE the attitude copy and the section
-  pass): an autopilot on either hull takes the dock away first, so the maneuver
-  is flown by a ship that is already free.
 - **a destroyed port** (`on_docking_port_removed_release`), which frees the
   surviving port.
 - **a broken endpoint** (`release_broken_docking_connections`), for a ship that

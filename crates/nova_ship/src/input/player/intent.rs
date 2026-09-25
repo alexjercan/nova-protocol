@@ -14,10 +14,9 @@ use crate::prelude::*;
 /// System that takes the point rotation output from the chase camera and applies it to the
 /// controller of the player's spaceship.
 ///
-/// Gated on `Without<Autopilot>` and `Without<DockedShip>`: while a maneuver
-/// is engaged the autopilot
-/// owns the rotation command, and the mouse - which keeps driving the camera
-/// rig - becomes camera-only free-look for free.
+/// Gated on `Without<Autopilot>` and on driving any docked pair: while a
+/// maneuver is engaged the autopilot owns the rotation command, and the mouse -
+/// which keeps driving the camera rig - becomes camera-only free-look for free.
 pub(super) fn update_controller_target_rotation_torque(
     time: Res<Time>,
     settings: Res<FlightSettings>,
@@ -33,7 +32,7 @@ pub(super) fn update_controller_target_rotation_torque(
         With<ControllerSectionMarker>,
     >,
     spaceship: Single<
-        Entity,
+        (Entity, Option<&DockedShip>),
         (
             With<SpaceshipRootMarker>,
             With<PlayerSpaceshipMarker>,
@@ -41,10 +40,6 @@ pub(super) fn update_controller_target_rotation_torque(
             // RCS fine-adjust repurposes the mouse to translation and freezes
             // the heading, exactly as an engaged maneuver does.
             Without<RcsActive>,
-            // A docked hull is held by its joint: the mouse still swings the
-            // camera, the ship holds. Writing a command here would only leave
-            // a stale order for the undock to snap to.
-            Without<DockedShip>,
         ),
     >,
     q_computer: Query<
@@ -56,7 +51,13 @@ pub(super) fn update_controller_target_rotation_torque(
     >,
 ) {
     let point_rotation = point_rotation.into_inner();
-    let spaceship = spaceship.into_inner();
+    let (spaceship, docked) = spaceship.into_inner();
+    // A docked hull that does not drive its pair holds: the mouse still
+    // swings the camera. Writing a command here would only fight the parked
+    // helm that taking the helm resumes from.
+    if docked.is_some_and(|docked| !docked.drives) {
+        return;
+    }
     // Slew the command toward the camera instead of jumping - a mouse 180 fed
     // to the PD in one step drives it into saturation where its damping is
     // swamped and the hull limit-cycles. The camera stays instant; the hull's

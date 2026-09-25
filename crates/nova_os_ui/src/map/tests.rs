@@ -340,6 +340,94 @@ fn map_goto_engages_autopilot_and_rejects_self_and_unknown() {
         printed.iter().any(|r| r.contains("no such contact")),
         "an unknown label prints a not-found row: {printed:?}",
     );
+
+    // Docked to the raider in neutral: refused, and nothing is left to fly
+    // the pair the moment the helm is taken.
+    let second = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Enemy,
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, 50.0)),
+            Name::new("SECOND"),
+            MapContactCode("HOST-2".to_string()),
+        ))
+        .id();
+    let connection = app
+        .world_mut()
+        .spawn(DockingConnection {
+            first_ship: player,
+            first_section: Entity::PLACEHOLDER,
+            second_ship: raider,
+            second_section: Entity::PLACEHOLDER,
+            helm: DockedHelmType::Neutral,
+            measurement_fault: false,
+        })
+        .id();
+    app.world_mut().entity_mut(player).insert(DockedShip {
+        connection,
+        helm: Quat::IDENTITY,
+        drives: false,
+    });
+    let engaged = |app: &App| {
+        app.world()
+            .resource::<NovaOsTerminal>()
+            .scrollback()
+            .iter()
+            .filter(|r| r.text.contains("autopilot engaged"))
+            .count()
+    };
+    let last = |app: &App| {
+        app.world()
+            .resource::<NovaOsTerminal>()
+            .scrollback()
+            .last()
+            .map(|r| r.text.clone())
+            .unwrap_or_default()
+    };
+    submit(&mut app, "map goto HOST-2");
+    assert!(app.world().get::<Autopilot>(player).is_none());
+    assert_eq!(last(&app), "goto: take the helm first");
+    assert_eq!(engaged(&app), 1, "only the undocked goto reported success");
+
+    // A pair that cannot be measured is refused for the fault, whoever holds
+    // the helm, before the helm is asked for.
+    let fault = |app: &mut App, helm: DockedHelmType, fault: bool| {
+        let mut record = app
+            .world_mut()
+            .get_mut::<DockingConnection>(connection)
+            .unwrap();
+        record.helm = helm;
+        record.measurement_fault = fault;
+    };
+    for helm in [DockedHelmType::Neutral, DockedHelmType::Held(player)] {
+        fault(&mut app, helm, true);
+        submit(&mut app, "map goto HOST-2");
+        assert!(app.world().get::<Autopilot>(player).is_none());
+        assert_eq!(
+            last(&app),
+            "goto: helm fault, the docked pair cannot be measured"
+        );
+        assert_eq!(engaged(&app), 1);
+    }
+    fault(&mut app, DockedHelmType::Held(player), false);
+
+    // Holding the helm: the partner flies with the pair, so it is refused,
+    // and any other contact is flown to.
+    app.world_mut()
+        .get_mut::<DockedShip>(player)
+        .unwrap()
+        .drives = true;
+    submit(&mut app, "map goto HOST-1");
+    assert!(app.world().get::<Autopilot>(player).is_none());
+    assert_eq!(last(&app), "goto: HOST-1 is docked to you");
+    assert_eq!(engaged(&app), 1);
+    submit(&mut app, "map goto HOST-2");
+    assert!(matches!(
+        app.world().get::<Autopilot>(player).map(|a| a.action),
+        Some(AutopilotAction::Goto { target }) if target == second
+    ));
+    assert_eq!(engaged(&app), 2);
 }
 
 /// The scene lifecycle tracks the active NOVA OS surface (headless: no
@@ -599,7 +687,65 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
         .resource_mut::<ButtonInput<KeyCode>>()
         .press(KeyCode::KeyG);
 
+    // Docked to the selected contact in neutral: refused, and the note says
+    // why instead of claiming a GOTO the helm would fly later.
+    let connection = app
+        .world_mut()
+        .spawn(DockingConnection {
+            first_ship: player,
+            first_section: Entity::PLACEHOLDER,
+            second_ship: target,
+            second_section: Entity::PLACEHOLDER,
+            helm: DockedHelmType::Neutral,
+            measurement_fault: false,
+        })
+        .id();
+    app.world_mut().entity_mut(player).insert(DockedShip {
+        connection,
+        helm: Quat::IDENTITY,
+        drives: false,
+    });
+    let note = |app: &App| {
+        app.world()
+            .resource::<MapRuntime>()
+            .goto_note
+            .as_ref()
+            .map(|(note, _)| note.clone())
+    };
     app.world_mut().run_system_once(map_input).unwrap();
+    assert!(app.world().get::<Autopilot>(player).is_none());
+    assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: TAKE THE HELM"));
+
+    // A pair that cannot be measured is refused for the fault, whoever holds
+    // the helm.
+    for helm in [DockedHelmType::Neutral, DockedHelmType::Held(player)] {
+        let mut record = app
+            .world_mut()
+            .get_mut::<DockingConnection>(connection)
+            .unwrap();
+        record.helm = helm;
+        record.measurement_fault = true;
+        app.world_mut().run_system_once(map_input).unwrap();
+        assert!(app.world().get::<Autopilot>(player).is_none());
+        assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: HELM FAULT"));
+    }
+    app.world_mut()
+        .get_mut::<DockingConnection>(connection)
+        .unwrap()
+        .measurement_fault = false;
+
+    // Holding the helm, the selected contact is still the docked partner.
+    app.world_mut()
+        .get_mut::<DockedShip>(player)
+        .unwrap()
+        .drives = true;
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert!(app.world().get::<Autopilot>(player).is_none());
+    assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: DOCKED PARTNER"));
+
+    app.world_mut().entity_mut(player).remove::<DockedShip>();
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(note(&app).as_deref(), Some("GOTO SET: RAIDER"));
 
     let autopilot = app
         .world()

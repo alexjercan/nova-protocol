@@ -931,8 +931,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "a docking port seated on a hull face in the editor, its capture envelope open \
                  in the inspector",
             ),
-            "Base ships do not include docking ports, so you must add one before a ship can dock. \
-             Keep the port's hatch facing outward and clear of other sections.",
+            "Only some base ships carry a docking port. Add one to any other ship before it can \
+             dock. Keep the port's hatch facing outward and clear of other sections.",
             &[],
             "wiki/sections/docking#variants",
             None,
@@ -950,10 +950,10 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  and go green, then the gap line as the hull brakes inside the capture distance, \
                  and a DOCK chip joins the verb row",
             ),
-            "To dock, bring the ports within 10 meters, face them toward each other, and reduce the \
-             ships' relative movement and spin. Once docked, your ship's steering and thrusters are \
-             disabled.",
-            &["dock"],
+            "To dock, bring the ports within 10 meters, face them toward each other, and reduce \
+             relative movement and spin. A dock starts neutral: you do not steer or thrust. Take the \
+             helm to fly both ships as one. Hand it back without undocking.",
+            &["dock", "dock_helm"],
             "wiki/sections/docking#flying-the-approach",
             None,
             &[],

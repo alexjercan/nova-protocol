@@ -12,9 +12,9 @@ use nova_gameplay::prelude::{
 };
 
 use crate::prelude::{
-    AttitudeEnvelope, DockedShip, HullRadius, PDController, PDControllerInput, PDControllerOutput,
-    PDControllerSystems, PDControllerTarget, PlaceholderArt, RenderMeshTransform,
-    SectionRenderMeshTransform, SectionRenderOf,
+    AttitudeEnvelope, DockedAssembly, DockedShip, HullRadius, PDController, PDControllerInput,
+    PDControllerOutput, PDControllerSystems, PDControllerTarget, PlaceholderArt,
+    RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf,
 };
 
 /// The controller-section spawners, its config, authored tuning, and rotation
@@ -187,11 +187,14 @@ fn stack_curve(n: f32, limit: f32) -> f32 {
 /// The hull state the attitude ceiling is derived from: the inertia the
 /// computers twist, the spin already spent, and the arm the metal tears at -
 /// published by `publish_hull_radii` ahead of this pass, so the arrival rule
-/// and the envelope size the same hull.
+/// and the envelope size the same hull. A docked root twists and loads its
+/// whole pair, so its [`DockedAssembly`] inertia and reach replace its own
+/// inertia and arm.
 type HullBody<'w> = (
     &'w ComputedAngularInertia,
     &'w AngularVelocity,
     Option<&'w HullRadius>,
+    Option<&'w DockedAssembly>,
 );
 
 /// Fold every live controller on a hull into ONE attitude loop, split back
@@ -281,20 +284,24 @@ pub(crate) fn update_controller_stack_tuning(
         // one. Leaving the controllers on their previous tuning (a fresh stack
         // has the authored seed) is the honest answer: nothing about this hull
         // is known yet, or anything is left to tune for.
-        let Ok((angular_inertia, angular_velocity, Some(hull_radius))) = q_root.get(root) else {
+        let Ok((angular_inertia, angular_velocity, Some(hull_radius), assembly)) = q_root.get(root)
+        else {
             continue;
         };
-        let inertia = angular_inertia
+        let (inertia, arm) = match assembly {
+            Some(assembly) => (&assembly.inertia, assembly.reach),
+            None => (angular_inertia, **hull_radius),
+        };
+        let inertia = inertia
             .principal_angular_inertia_with_local_frame()
             .0
             .max_element();
-        let arm = **hull_radius;
         if !(inertia.is_finite() && inertia > 0.0 && arm.is_finite() && arm > 0.0) {
             continue;
         }
         let spin = angular_velocity.length();
-        // Engine boundary: `HullRadius` measures the hull off its avian
-        // colliders, so the arm arrives in world units.
+        // Engine boundary: `HullRadius` and `DockedAssembly::reach` measure
+        // the hull off its avian colliders, so the arm arrives in world units.
         let envelope = AttitudeEnvelope::new(total_torque, inertia, Meters::from_engine(arm));
         let budget = envelope.available(spin);
         let sustained = envelope.sustained_turn_rate();
@@ -472,13 +479,10 @@ pub(crate) fn update_controller_section_rotation_input(
 }
 
 pub(crate) fn sync_controller_section_forces(
-    // A DOCKED hull is held by its joint, not by its computer. Excluding the
-    // root here is what switches the attitude loop off for the duration: the
-    // PD keeps computing an output nobody applies, exactly as it does for a
-    // disabled controller below, and the two ships stop pushing against the
-    // constraint that is already holding them. The release pass re-parks the
-    // helm every tick it holds, so the loop that comes back on at undock is
-    // aimed where the hull already points.
+    // BOTH roots of a docked pair are excluded. The driver's loop reaches its
+    // pair through `apply_docked_helm_wrench`, spread over both roots, and a
+    // held root's loop is not applied at all - applying either here as well
+    // would turn the pair twice, or drag it against the joint.
     mut q_root: Query<Forces, Without<DockedShip>>,
     // A disabled-in-place controller (zero-health, non-leaf, still attached ->
     // `SectionInactiveMarker`) must stop stabilizing the hull: with no live
@@ -983,6 +987,50 @@ mod tests {
                 lone[0]
             );
         }
+    }
+
+    /// A docked root turns its whole pair, so the pair's reach is the arm the
+    /// metal tears at. Sizing the envelope from the root's own arm would let
+    /// a small driver swing a long station at the driver's rate.
+    #[test]
+    fn a_docked_root_holds_the_turn_its_pair_can_carry() {
+        let mut app = stack_app();
+        let (_, alone) = spawn_stack(&mut app, 1);
+        let (docked_root, docked) = spawn_stack(&mut app, 1);
+        // The root's own inertia, so only the arm differs: twice the
+        // reference hull's 15 m.
+        let inertia = *app
+            .world()
+            .get::<ComputedAngularInertia>(docked_root)
+            .unwrap();
+        app.world_mut()
+            .entity_mut(docked_root)
+            .insert(DockedAssembly {
+                mass: 3.0,
+                center_of_mass: Vec3::ZERO,
+                linear_velocity: Vec3::ZERO,
+                inertia,
+                reach: 3.0,
+            });
+        app.world_mut().run_schedule(FixedUpdate);
+
+        let sustained = |controller: Entity| {
+            app.world()
+                .get::<PDController>(controller)
+                .unwrap()
+                .sustained_angular_speed
+        };
+        assert!(
+            (sustained(alone[0]) - 5.232f32.sqrt()).abs() < 1e-2,
+            "the lone root holds its own 15 m arm's rate, got {}",
+            sustained(alone[0])
+        );
+        assert!(
+            (sustained(docked[0]) - 2.616f32.sqrt()).abs() < 1e-2,
+            "8 G over the pair's 30 m reach is 2.616 rad/s2, so {} rad/s, got {}",
+            2.616f32.sqrt(),
+            sustained(docked[0])
+        );
     }
 
     /// Stacking splits ONE loop rather than running several. On a

@@ -9,18 +9,16 @@
 //! roots, created the instant the pair is accepted - before the sleeves move -
 //! so the hulls cannot drift apart while the art plays.
 //!
-//! The mechanic is deliberately one verb wide. `DOCK` is offered only while a
-//! candidate pair exists ([`port`]), the pair is revalidated when the command
-//! executes, and ANY fresh translation or rotation intent from either ship
-//! takes the joint away again before that intent is applied ([`connection`]).
-//! There is no authority transfer, no combined controller and no station
-//! service here: two ships are held in the pose they met in, and either one
-//! leaves by flying away.
+//! `DOCK` is offered only while a candidate pair exists ([`port`]), the pair
+//! is revalidated when the command executes, and `DOCK` pressed again by
+//! either ship takes the joint away ([`connection`]). There is no station
+//! service here: two ships are held in the pose they met in.
 //!
-//! While docked a ship's attitude loop is switched off rather than left to
-//! fight the joint - see [`DockedShip`]. That is the same shape the flight
-//! layer already uses for an engaged autopilot: the loop that is not in charge
-//! does not get to apply torque.
+//! A pair has one helm. It starts neutral, with the partner flying the pair,
+//! and the player takes and hands it back with `HELM` ([`connection`]). The
+//! root that drives flies the pair as one body ([`assembly`]); the other is
+//! held, the same shape the flight layer uses for an engaged autopilot: the
+//! loop that is not in charge does not get to apply torque.
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
@@ -28,29 +26,33 @@ use nova_gameplay::{asset_ref::AssetRef, prelude::*};
 
 use crate::prelude::*;
 
+mod assembly;
 mod connection;
 mod port;
 mod render;
 
+pub use assembly::DockedAssembly;
+use assembly::{apply_docked_helm_wrench, measure_docked_assemblies};
 use connection::{
-    on_docking_connection_request, on_docking_port_removed_release, on_docking_release_request,
-    park_docked_helms_and_release_maneuvers, release_broken_docking_connections,
+    on_docking_connection_request, on_docking_helm_request, on_docking_port_removed_release,
+    on_docking_release_request, park_suppressed_docked_helms, release_broken_docking_connections,
 };
 pub use connection::{
-    DockedPort, DockedShip, DockingConnection, DockingConnectionRequest, DockingReleaseRequest,
-    DockingSystems,
+    DockedHelmType, DockedPort, DockedShip, DockingConnection, DockingConnectionRequest,
+    DockingHelmRequest, DockingReleaseRequest, DockingSystems,
 };
 pub use port::{DockingPair, DockingPorts, PortPose};
 use render::insert_docking_section_render;
 
 /// The `docking_section` spawners, its config, marker, port state, connection,
-/// candidate search and `DockingSectionPlugin`.
+/// helm, assembly, candidate search and `DockingSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        docking_section, preview_docking_section, DockedPort, DockedShip, DockingConnection,
-        DockingConnectionRequest, DockingEnvelope, DockingPair, DockingPorts,
-        DockingReleaseRequest, DockingSectionConfig, DockingSectionConfigHelper,
-        DockingSectionMarker, DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose,
+        docking_section, preview_docking_section, DockedAssembly, DockedHelmType, DockedPort,
+        DockedShip, DockingConnection, DockingConnectionRequest, DockingEnvelope,
+        DockingHelmRequest, DockingPair, DockingPorts, DockingReleaseRequest, DockingSectionConfig,
+        DockingSectionConfigHelper, DockingSectionMarker, DockingSectionPlugin,
+        DockingSectionState, DockingSystems, PortPose,
     };
 }
 
@@ -292,31 +294,48 @@ impl Plugin for DockingSectionPlugin {
         app.register_type::<DockedPort>();
         app.register_type::<DockedShip>();
         app.register_type::<DockingConnection>();
+        app.register_type::<DockedAssembly>();
 
         app.add_observer(on_docking_connection_request);
         app.add_observer(on_docking_release_request);
+        app.add_observer(on_docking_helm_request);
         app.add_observer(on_docking_port_removed_release);
 
         app.add_systems(
             FixedUpdate,
-            (
-                release_broken_docking_connections,
-                park_docked_helms_and_release_maneuvers,
-            )
+            release_broken_docking_connections.in_set(DockingSystems::Release),
+        );
+        app.add_systems(
+            FixedUpdate,
+            (measure_docked_assemblies, park_suppressed_docked_helms)
                 .chain()
-                .in_set(DockingSystems::Release),
+                .in_set(DockingSystems::Assembly),
+        );
+        // After the PD has computed this tick's torque, in the section pass
+        // where every other docked-root force lands.
+        app.add_systems(
+            FixedUpdate,
+            apply_docked_helm_wrench.in_set(super::SpaceshipSectionSystems),
         );
 
-        // The release pass has to beat everything that acts on this tick's
-        // commands: the attitude command copy (and so the PD), and the flight
-        // layer's burns. A hull released this tick flies this tick. Declared
-        // here, from the side that cares, exactly as the flight layer declares
-        // its own edge against the controller.
+        // Release, then measure, then everything that flies: the controller
+        // stack tunes against the assembly, the flight layer (after the
+        // stack) plans with it, and the PD reads it. A hull released this
+        // tick flies this tick on its own numbers. Declared here, from the
+        // side that cares, exactly as the flight layer declares its own edge
+        // against the controller.
         app.configure_sets(
             FixedUpdate,
-            DockingSystems::Release
-                .before(ControllerSectionSystems::SyncRotationInput)
-                .before(super::SpaceshipSectionSystems),
+            (
+                DockingSystems::Release,
+                DockingSystems::Assembly,
+                ControllerSectionSystems::SyncStack,
+            )
+                .chain(),
+        );
+        app.configure_sets(
+            FixedUpdate,
+            DockingSystems::Assembly.before(super::SpaceshipSectionSystems),
         );
 
         app.add_systems(

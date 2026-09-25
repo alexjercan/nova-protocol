@@ -20,7 +20,7 @@ use nova_gameplay::prelude::{
 
 use super::{guidance::ship_turn_rate, state::FlightSettings, thrusters::cluster_thrusters};
 use crate::{
-    prelude::{PDController, ThrusterSectionMagnitude},
+    prelude::{DockedAssembly, PDController, ThrusterSectionMagnitude},
     sections::thruster_section::engine_direction_local,
 };
 
@@ -92,7 +92,12 @@ pub(super) fn publish_flight_authority(
     time: Res<Time>,
     settings: Res<FlightSettings>,
     mut q_root: Query<
-        (Entity, &ComputedMass, Option<&mut FlightAuthority>),
+        (
+            Entity,
+            &ComputedMass,
+            Option<&DockedAssembly>,
+            Option<&mut FlightAuthority>,
+        ),
         With<SpaceshipRootMarker>,
     >,
     q_thruster: Query<
@@ -135,7 +140,9 @@ pub(super) fn publish_flight_authority(
     }
     computers.sort_unstable_by_key(|(root, _, _)| *root);
 
-    for (root, mass, published) in &mut q_root {
+    for (root, mass, assembly, published) in &mut q_root {
+        // A docked root's engines push the whole pair.
+        let mass = assembly.map_or(mass.value(), |assembly| assembly.mass);
         engines.clear();
         engines.extend(
             run_of(drives.as_slice(), root)
@@ -150,8 +157,8 @@ pub(super) fn publish_flight_authority(
             .fold(0.0f32, f32::max);
         // The magnitude is a per-tick IMPULSE (see `ThrusterSectionMagnitude`),
         // so the acceleration it stands for depends on the tick it lands in.
-        let linear_acceleration = if dt > 0.0 && mass.value() > 0.0 {
-            (authority / mass.value()) / dt
+        let linear_acceleration = if dt > 0.0 && mass > 0.0 {
+            (authority / mass) / dt
         } else {
             0.0
         };

@@ -1,0 +1,292 @@
+diff --git a/crates/nova_ship/src/flight/tests/stacking.rs b/crates/nova_ship/src/flight/tests/stacking.rs
+index 565477ebc..9a56b53ef 100644
+--- a/crates/nova_ship/src/flight/tests/stacking.rs
++++ b/crates/nova_ship/src/flight/tests/stacking.rs
+@@ -596,3 +596,287 @@ fn losing_one_of_two_computers_degrades_handling_instead_of_stranding_the_hull()
+         "and still park the hull"
+     );
+ }
++
++// TEMPORARY(docked-helm-mass-proof): owner-approved measurement for the docked
++// helm decision. Delete this block after the owner reads the table.
++mod temporary_docked_mass_proof {
++    use super::*;
++
++    /// A box of unit hull cells centred on `centre` in the root frame.
++    fn spawn_box(app: &mut App, root: Entity, size: IVec3, centre: Vec3, density: f32) {
++        let first = centre - (size - IVec3::ONE).as_vec3() * 0.5;
++        for x in 0..size.x {
++            for y in 0..size.y {
++                for z in 0..size.z {
++                    app.world_mut().spawn((
++                        ChildOf(root),
++                        Name::new("hull"),
++                        SectionMarker,
++                        SectionCollider::Cuboid { size: Vec3::ONE },
++                        Transform::from_translation(first + IVec3::new(x, y, z).as_vec3()),
++                        Collider::cuboid(1.0, 1.0, 1.0),
++                        ColliderDensity(density),
++                    ));
++                }
++            }
++        }
++    }
++
++    /// Warship-like player: 3x2x15 cells, three shipped computers, one
++    /// vectoring drive on the transom (off until a burn row fires it).
++    fn spawn_player(app: &mut App) -> (Entity, Entity) {
++        let ship = app
++            .world_mut()
++            .spawn((
++                RigidBody::Dynamic,
++                Transform::default(),
++                SpaceshipRootMarker,
++                FlightIntent::default(),
++            ))
++            .id();
++        spawn_box(app, ship, IVec3::new(3, 2, 15), Vec3::ZERO, 1.0);
++        for _ in 0..3 {
++            app.world_mut().spawn((
++                ChildOf(ship),
++                Name::new("controller"),
++                ControllerSectionMarker,
++                ControllerSectionRotationInput::default(),
++                ControllerSectionTuning {
++                    steering_lag: 0.5,
++                    max_torque: 9760.0,
++                },
++                PDController {
++                    frequency: 4.0,
++                    damping_ratio: 4.0,
++                    max_angular_acceleration: 0.0,
++                    sustained_angular_speed: f32::INFINITY,
++                },
++                PDControllerTarget(ship),
++                Transform::default(),
++            ));
++        }
++        let drive = app
++            .world_mut()
++            .spawn((
++                ChildOf(ship),
++                Name::new("drive"),
++                ThrusterSectionMarker,
++                ThrusterSectionMagnitude(9.0),
++                ThrusterSectionInput(0.0),
++                Transform::from_xyz(0.0, 0.0, 8.0),
++            ))
++            .id();
++        (ship, drive)
++    }
++
++    #[derive(Clone, Copy)]
++    struct Partner {
++        name: &'static str,
++        size: IVec3,
++        density: f32,
++    }
++
++    const PARTNERS: [Option<Partner>; 5] = [
++        None,
++        Some(Partner {
++            name: "workship-like",
++            size: IVec3::new(3, 1, 8),
++            density: 1.0,
++        }),
++        Some(Partner {
++            name: "balanced",
++            size: IVec3::new(3, 2, 15),
++            density: 1.0,
++        }),
++        Some(Partner {
++            name: "heavy x4",
++            size: IVec3::new(3, 2, 15),
++            density: 4.0,
++        }),
++        Some(Partner {
++            name: "station x20",
++            size: IVec3::new(3, 2, 15),
++            density: 20.0,
++        }),
++    ];
++
++    /// Starboard flank dock: player face at x = 1.5, one collar cell each
++    /// side (massless), partner hull beyond. Same joint the game builds.
++    fn spawn_docked(app: &mut App, partner: Partner) -> Entity {
++        let half = partner.size.x as f32 * 0.5;
++        let offset = 1.5 + 2.0 + half;
++        let body = app
++            .world_mut()
++            .spawn((
++                RigidBody::Dynamic,
++                Transform::from_xyz(offset, 0.0, 0.0),
++            ))
++            .id();
++        spawn_box(app, body, partner.size, Vec3::ZERO, partner.density);
++        app.world_mut().spawn(
++            FixedJoint::new(Entity::PLACEHOLDER, body)
++                .with_anchor(Vec3::new(2.5, 0.0, 0.0))
++                .with_basis(Rotation(Quat::IDENTITY)),
++        );
++        body
++    }
++
++    struct Row {
++        mass_ratio: f32,
++        inertia_share: f32,
++        overshoot: f32,
++        settle: f32,
++        reversals: usize,
++        max_joint_m: f32,
++        max_joint_deg: f32,
++    }
++
++    fn relative(app: &App, ship: Entity, body: Entity) -> (Vec3, Quat) {
++        let (p0, r0) = (
++            app.world().get::<Position>(ship).unwrap().0,
++            app.world().get::<Rotation>(ship).unwrap().0,
++        );
++        let (p1, r1) = (
++            app.world().get::<Position>(body).unwrap().0,
++            app.world().get::<Rotation>(body).unwrap().0,
++        );
++        (r0.inverse() * (p1 - p0), r0.inverse() * r1)
++    }
++
++    /// Assembly yaw inertia about the combined centre of mass, and the
++    /// player's share of it (what the PD scales its torque by).
++    fn inertia_share(app: &App, ship: Entity, body: Option<Entity>) -> (f32, f32) {
++        let parts: Vec<(f32, Vec3, f32)> = [Some(ship), body]
++            .into_iter()
++            .flatten()
++            .map(|entity| {
++                let world = app.world();
++                let mass = world.get::<ComputedMass>(entity).unwrap().value();
++                let com = world.get::<Position>(entity).unwrap().0
++                    + world.get::<Rotation>(entity).unwrap().0
++                        * world.get::<ComputedCenterOfMass>(entity).unwrap().0;
++                let yaw = world
++                    .get::<ComputedAngularInertia>(entity)
++                    .unwrap()
++                    .tensor()
++                    .m11;
++                (mass, com, yaw)
++            })
++            .collect();
++        let total: f32 = parts.iter().map(|part| part.0).sum();
++        let com = parts.iter().map(|part| part.1 * part.0).sum::<Vec3>() / total;
++        let assembly: f32 = parts
++            .iter()
++            .map(|(mass, at, yaw)| {
++                let arm = (*at - com) * Vec3::new(1.0, 0.0, 1.0);
++                yaw + mass * arm.length_squared()
++            })
++            .sum();
++        (parts.get(1).map_or(0.0, |part| part.0) / parts[0].0, parts[0].2 / assembly)
++    }
++
++    /// `burn`: hold attitude with the drive lit for 3 s instead of turning.
++    fn run(partner: Option<Partner>, command: f32, burn: bool, seconds: f32) -> Row {
++        let mut app = helm_app();
++        let (ship, drive) = spawn_player(&mut app);
++        let body = partner.map(|partner| spawn_docked(&mut app, partner));
++        settle(&mut app);
++        if let Some(body) = body {
++            // FixedJoint::new needs both ends; patch the placeholder now the
++            // player exists (same pose-derived frame as the game's dock).
++            let joint = app
++                .world_mut()
++                .query_filtered::<Entity, With<FixedJoint>>()
++                .single(app.world())
++                .unwrap();
++            app.world_mut().entity_mut(joint).insert(
++                FixedJoint::new(ship, body)
++                    .with_anchor(Vec3::new(2.5, 0.0, 0.0))
++                    .with_basis(Rotation(Quat::IDENTITY)),
++            );
++            settle(&mut app);
++        }
++        let (mass_ratio, share) = inertia_share(&app, ship, body);
++        let rest = body.map(|body| relative(&app, ship, body));
++
++        app.world_mut().resource_mut::<Helm>().0 = Quat::from_rotation_y(command);
++        let dt = 1.0 / 60.0;
++        let (mut turned, mut previous, mut peak_turn, mut last_outside) = (0.0f32, 0.0, 0.0f32, 0);
++        let (mut reached, mut sign, mut reversals) = (false, 1.0f32, 0usize);
++        let (mut max_joint_m, mut max_joint_deg, mut max_hold) = (0.0f32, 0.0f32, 0.0f32);
++        for step in 0..(seconds * 60.0) as usize {
++            if burn {
++                app.world_mut().get_mut::<ThrusterSectionInput>(drive).unwrap().0 =
++                    if step < 180 { 1.0 } else { 0.0 };
++            }
++            app.update();
++            let yaw = app
++                .world()
++                .get::<Rotation>(ship)
++                .unwrap()
++                .to_euler(EulerRot::YXZ)
++                .0;
++            turned += wrapped_delta(previous, yaw);
++            previous = yaw;
++            peak_turn = peak_turn.max(turned);
++            let error = command - turned;
++            let rate = angular_speed_of(&app, ship);
++            if error.abs() > 1.0f32.to_radians() || rate > 0.05 {
++                last_outside = step;
++            }
++            max_hold = max_hold.max(error.abs());
++            if !reached && error <= 0.0 {
++                reached = true;
++                sign = -1.0;
++            }
++            if reached && error.abs() > 1.0f32.to_radians() && error.signum() != sign {
++                sign = error.signum();
++                reversals += 1;
++            }
++            if let (Some(body), Some((p0, r0))) = (body, rest) {
++                let (p, r) = relative(&app, ship, body);
++                max_joint_m = max_joint_m.max((p - p0).length() * 10.0);
++                max_joint_deg = max_joint_deg.max((r0.inverse() * r).to_axis_angle().1.to_degrees());
++            }
++        }
++        Row {
++            mass_ratio,
++            inertia_share: share,
++            overshoot: if burn {
++                max_hold.to_degrees()
++            } else {
++                (peak_turn - command).max(0.0).to_degrees()
++            },
++            settle: (last_outside + 1) as f32 * dt,
++            reversals,
++            max_joint_m,
++            max_joint_deg,
++        }
++    }
++
++    #[test]
++    fn temporary_docked_mass_ratio_table() {
++        println!(
++            "{:>6} {:>14} {:>7} {:>8} {:>9} {:>8} {:>6} {:>9} {:>9}",
++            "row", "partner", "m2/m1", "I1/Iasm", "err deg", "settle s", "rings", "joint m", "joint deg"
++        );
++        for (label, command, burn, seconds) in
++            [("yaw90", 90.0f32.to_radians(), false, 60.0), ("burn", 0.0, true, 30.0)]
++        {
++            for partner in PARTNERS {
++                let row = run(partner, command, burn, seconds);
++                println!(
++                    "{label:>6} {:>14} {:>7.2} {:>8.3} {:>9.2} {:>8.2} {:>6} {:>9.3} {:>9.3}",
++                    partner.map_or("undocked", |partner| partner.name),
++                    row.mass_ratio,
++                    row.inertia_share,
++                    row.overshoot,
++                    row.settle,
++                    row.reversals,
++                    row.max_joint_m,
++                    row.max_joint_deg
++                );
++            }
++        }
++    }
++}

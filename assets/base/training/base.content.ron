@@ -859,7 +859,7 @@
             image: "self://training/build_docking_port.webp",
             alt: "a docking port seated on a hull face in the editor, its capture envelope open in the inspector",
         ),
-        body: "Base ships do not include docking ports, so you must add one before a ship can dock. Keep the port\'s hatch facing outward and clear of other sections.",
+        body: "Only some base ships carry a docking port. Add one to any other ship before it can dock. Keep the port\'s hatch facing outward and clear of other sections.",
         wiki_path: "wiki/sections/docking#variants",
         field_notes: [
             "A ship needs a docking port before it can dock.",
@@ -878,9 +878,10 @@
             frames_per_second: 10.0,
             alt: "a tender lining up on a moored spar: the docking sight\'s face plates square up and go green, then the gap line as the hull brakes inside the capture distance, and a DOCK chip joins the verb row",
         ),
-        body: "To dock, bring the ports within 10 meters, face them toward each other, and reduce the ships\' relative movement and spin. Once docked, your ship\'s steering and thrusters are disabled.",
+        body: "To dock, bring the ports within 10 meters, face them toward each other, and reduce relative movement and spin. A dock starts neutral: you do not steer or thrust. Take the helm to fly both ships as one. Hand it back without undocking.",
         actions: [
             "dock",
+            "dock_helm",
         ],
         wiki_path: "wiki/sections/docking#flying-the-approach",
         field_notes: [

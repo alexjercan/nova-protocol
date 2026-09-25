@@ -128,10 +128,9 @@ scenario_events! {
     /// Two hulls were clamped together by `DOCK` (`id` = the ship docked
     /// with, other = the ship that asked).
     OnDocked => OnDockedEvent { label: "On Docked" },
-    /// A dock was let go, by either pilot's `DOCK`, a maneuver engaged on
-    /// either hull, or a lost port or ship. One event for every ending, and
-    /// the pair keeps the roles it docked in. A ship despawned while docked
-    /// reports only `OnDestroyed`.
+    /// A dock was let go, by either pilot's `DOCK`, or a lost port or ship.
+    /// One event for every ending, and the pair keeps the roles it docked in.
+    /// A ship despawned while docked reports only `OnDestroyed`.
     OnUndocked => OnUndockedEvent { label: "On Undocked" },
     /// A ship reached a keyed HELM order's condition - it arrived, settled on
     /// a bearing, came to rest, closed its patrol loop, or established its

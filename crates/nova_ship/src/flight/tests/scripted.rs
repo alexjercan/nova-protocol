@@ -117,3 +117,70 @@ fn a_hull_with_no_live_flight_computer_never_settles() {
         "no flight computer, no turn - and an order that honestly never completes"
     );
 }
+
+/// A docked driver aims from its pair's centre of mass, the point the pair
+/// turns about. The mark sits dead ahead of the root's own centre of mass and
+/// well off the pair's, so the two answers differ. With the assembly lost the
+/// order is refused: it neither swings nor settles on the root's own bearing.
+/// This harness has no docked wrench, so the hull never turns; the command is
+/// what is read.
+#[test]
+fn a_docked_driver_aims_its_scripted_bearing_from_the_pair_centre_of_mass() {
+    let mut app = flight_app();
+    let (ship, _, controller) = spawn_ship(&mut app);
+    settle(&mut app);
+    let world = app.world();
+    let root_com = world.get::<Position>(ship).unwrap().0
+        + world
+            .get::<Rotation>(ship)
+            .unwrap()
+            .mul_vec3(world.get::<ComputedCenterOfMass>(ship).unwrap().0);
+    let pair_com = root_com + Vec3::X * 5.0;
+    let mark = root_com + Vec3::NEG_Z * 10.0;
+    let assembly = DockedAssembly {
+        mass: 2.0 * world.get::<ComputedMass>(ship).unwrap().value(),
+        center_of_mass: pair_com,
+        linear_velocity: Vec3::ZERO,
+        inertia: *world.get::<ComputedAngularInertia>(ship).unwrap(),
+        reach: 6.0,
+    };
+    app.world_mut().entity_mut(ship).insert((
+        DockedShip {
+            connection: Entity::PLACEHOLDER,
+            helm: Quat::IDENTITY,
+            drives: true,
+        },
+        assembly,
+        ScriptedAlign {
+            look_at: mark,
+            tolerance: 0.02,
+        },
+    ));
+    let command = |app: &App| {
+        app.world()
+            .get::<ControllerSectionRotationInput>(controller)
+            .unwrap()
+            .mul_vec3(Vec3::NEG_Z)
+    };
+
+    run(&mut app, 60);
+    let pair_bearing = (mark - pair_com).normalize();
+    assert!(
+        command(&app).angle_between(pair_bearing) < 0.02,
+        "the command aims from the pair: {} vs {pair_bearing}",
+        command(&app)
+    );
+    assert!(
+        !app.world().entity(ship).contains::<ScriptedAlignSettled>(),
+        "the hull is not on the pair's bearing yet"
+    );
+
+    app.world_mut().entity_mut(ship).remove::<DockedAssembly>();
+    let held = command(&app);
+    run(&mut app, 60);
+    assert_eq!(command(&app), held, "no swing without the assembly");
+    assert!(
+        !app.world().entity(ship).contains::<ScriptedAlignSettled>(),
+        "and no completion on the root's own bearing"
+    );
+}

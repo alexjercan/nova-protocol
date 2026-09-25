@@ -9,7 +9,7 @@
 //! unit is 10 m.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{ecs::entity::EntityHashSet, prelude::*};
 use nova_gameplay::prelude::*;
 
 use super::{
@@ -109,14 +109,16 @@ pub(super) fn manual_burn_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
     q_ship: Query<
-        (Entity, &FlightIntent, Option<&ComputedCenterOfMass>),
         (
-            With<SpaceshipRootMarker>,
-            Without<Autopilot>,
-            // A docked hull is held by its joint: no throttle is commanded,
-            // so no plume lights for a burn that cannot move it.
-            Without<DockedShip>,
+            Entity,
+            &FlightIntent,
+            Option<&ComputedCenterOfMass>,
+            &Position,
+            &Rotation,
+            Option<&DockedShip>,
+            Option<&DockedAssembly>,
         ),
+        (With<SpaceshipRootMarker>, Without<Autopilot>),
     >,
     mut q_thruster: Query<
         (
@@ -133,10 +135,34 @@ pub(super) fn manual_burn_system(
             Without<SpaceshipThrusterInputBinding>,
         ),
     >,
+    // Docked drivers whose missing assembly is already logged, so the error
+    // is said once per loss, not at the fixed rate.
+    mut missing_assembly: Local<EntityHashSet>,
 ) {
     let dt = time.delta_secs();
 
-    for (ship, intent, com) in &q_ship {
+    missing_assembly.retain(|ship| {
+        q_ship
+            .get(*ship)
+            .is_ok_and(|(.., docked, assembly)| docked.is_some() && assembly.is_none())
+    });
+    for (ship, intent, com, position, rotation, docked, assembly) in &q_ship {
+        // Only a pair's driver burns: a suppressed partner commands no
+        // throttle, so no plume lights for a helm it does not hold. A driver
+        // with no assembly burns nothing rather than on its root alone.
+        match (docked, assembly) {
+            (Some(docked), _) if !docked.drives => continue,
+            (Some(_), None) => {
+                if missing_assembly.insert(ship) {
+                    error!(
+                        "manual_burn_system: docked driver {ship:?} has no DockedAssembly; \
+                         burning nothing rather than on its root alone"
+                    );
+                }
+                continue;
+            }
+            _ => {}
+        }
         let burn = intent.burn.clamp(0.0, 1.0);
 
         // The allocation set: every live unbound engine (bound thrusters keep
@@ -146,8 +172,12 @@ pub(super) fn manual_burn_system(
         // counter-torque candidates. The balance objective is frame-invariant,
         // and ComputedCenterOfMass is already body-local, so no world lift is
         // needed - lever arms are taken straight from the section transforms
-        // about the local COM.
-        let com_local = com.map(|c| c.0).unwrap_or(Vec3::ZERO);
+        // about the local COM. A docked driver balances about the pair's COM,
+        // the point the pair turns about.
+        let com_local = match assembly {
+            Some(assembly) => rotation.inverse() * (assembly.center_of_mass - position.0),
+            None => com.map(|c| c.0).unwrap_or(Vec3::ZERO),
+        };
         let mut allocation: Vec<(Entity, BalanceEngine)> = Vec::new();
         for (thruster, _, magnitude, transform, &ChildOf(parent)) in &q_thruster {
             if parent != ship {
@@ -228,8 +258,12 @@ pub(super) fn manual_burn_system(
 ///   acts in full. So RCS can only reshuffle velocity inside one sphere of
 ///   radius `cap`, never accumulate speed by spamming it diagonally.
 ///
-/// Gated on the ship's `rcs_enabled` capability, and on the hull not being
-/// docked.
+/// Gated on the ship's `rcs_enabled` capability. A docked pair's driver
+/// translates the whole pair: the budget is measured on the pair's mass and
+/// velocity, and each root takes its own share of the push at its own centre
+/// of mass, so the pair moves as one body and still does not turn. A
+/// suppressed partner's intent is not spent, and a driver with no assembly
+/// pushes neither root.
 /// Deliberately NOT gated on `Without<Autopilot>`: the autopilot follow-up
 /// drives this very primitive while engaged.
 pub(super) fn rcs_burn_system(
@@ -238,28 +272,62 @@ pub(super) fn rcs_burn_system(
     mut q_ship: Query<
         (
             Entity,
-            &RcsIntent,
+            Option<&RcsIntent>,
             Option<&RcsSpeedCap>,
             Option<&RcsReference>,
             &ComputedMass,
+            Option<&DockedShip>,
+            Option<&DockedAssembly>,
             Forces,
         ),
-        // Docked is excluded for the same reason the main drive is: the joint
-        // holds the hull, and a trim fighting it would only heat the solver.
-        (With<SpaceshipRootMarker>, Without<DockedShip>),
+        With<SpaceshipRootMarker>,
     >,
+    q_connections: Query<&DockingConnection>,
     q_capabilities: ShipCapabilityQuery,
+    mut pushes: Local<Vec<(Entity, Vec3)>>,
+    // Docked drivers whose missing assembly is already logged, so the error
+    // is said once per loss, not at the fixed rate.
+    mut missing_assembly: Local<EntityHashSet>,
 ) {
     let dt = time.delta_secs();
     if dt <= 0.0 {
         return;
     }
 
-    for (ship, intent, cap, reference, mass, mut force) in &mut q_ship {
+    pushes.clear();
+    missing_assembly.retain(|ship| {
+        q_ship
+            .get(*ship)
+            .is_ok_and(|(.., docked, assembly, _)| docked.is_some() && assembly.is_none())
+    });
+    for (ship, intent, cap, reference, mass, docked, assembly, force) in &q_ship {
         // Idle ships cost nothing.
-        if intent.0 == Vec3::ZERO {
+        let Some(intent) = intent.filter(|intent| intent.0 != Vec3::ZERO) else {
             continue;
-        }
+        };
+        let partner = match (docked, assembly) {
+            (Some(docked), _) if !docked.drives => continue,
+            (Some(_), None) => {
+                if missing_assembly.insert(ship) {
+                    error!(
+                        "rcs_burn_system: docked driver {ship:?} has no DockedAssembly; \
+                         pushing neither root rather than its root alone"
+                    );
+                }
+                continue;
+            }
+            (Some(docked), Some(_)) => {
+                let Ok(connection) = q_connections.get(docked.connection) else {
+                    continue;
+                };
+                Some(if connection.first_ship == ship {
+                    connection.second_ship
+                } else {
+                    connection.first_ship
+                })
+            }
+            (None, _) => None,
+        };
         // Capability gate: only a ship configured for RCS fine-adjusts, even
         // if something wrote an intent - so the capability stays authoritative
         // no matter who drives the primitive.
@@ -274,12 +342,14 @@ pub(super) fn rcs_burn_system(
         // The RCS cap is a few u/s by design, so the floor here guards only
         // against division blow-up on a near-zero cap.
         let taper_band = (cap * SPEED_CAP_TAPER_FRACTION).max(1e-3);
-        let mass = mass.value();
+        let (mass, velocity) = match assembly {
+            Some(assembly) => (assembly.mass, assembly.linear_velocity),
+            None => (mass.value(), force.linear_velocity()),
+        };
         if !mass.is_finite() || mass <= 0.0 {
             continue;
         }
         let rotation = *force.rotation();
-        let velocity = force.linear_velocity();
         // The cap is measured against this REFERENCE velocity: absent/zero
         // means the plain absolute cap (player fine-adjust, STOP/GOTO settle);
         // the autopilot supplies the orbital velocity here so RCS caps the
@@ -296,10 +366,20 @@ pub(super) fn rcs_burn_system(
         let step = rotation.mul_vec3(command) * settings.rcs_accel * dt;
         let delta_v = budgeted_rcs_delta_v(velocity - reference, step, cap, taper_band);
         if delta_v != Vec3::ZERO {
-            // Scale by mass so the 1/mass inside apply_linear_impulse yields
-            // exactly `delta_v`, independent of hull mass.
-            force.apply_linear_impulse(delta_v * mass);
+            pushes.push((ship, delta_v));
+            pushes.extend(partner.map(|partner| (partner, delta_v)));
         }
+    }
+
+    for &(root, delta_v) in pushes.iter() {
+        let Ok((_, _, _, _, mass, _, _, mut force)) = q_ship.get_mut(root) else {
+            continue;
+        };
+        // Scale by this root's mass so the 1/mass inside
+        // apply_linear_impulse yields exactly `delta_v`, independent of hull
+        // mass, and a pair's two roots move together.
+        let mass = mass.value();
+        force.apply_linear_impulse(delta_v * mass);
     }
 }
 

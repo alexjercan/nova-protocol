@@ -7457,7 +7457,7 @@
                     position: (
                         -2.0,
                         0.0,
-                        0.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -7474,7 +7474,7 @@
                     position: (
                         -2.0,
                         0.0,
-                        1.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -7491,23 +7491,6 @@
                     position: (
                         -2.0,
                         0.0,
-                        2.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_128",
-                    position: (
-                        -2.0,
-                        0.0,
                         3.0,
                     ),
                     rotation: (
@@ -7521,7 +7504,7 @@
                     ),
                 ),
                 (
-                    id: "plate_129",
+                    id: "plate_128",
                     position: (
                         2.0,
                         0.0,
@@ -7538,7 +7521,7 @@
                     ),
                 ),
                 (
-                    id: "plate_130",
+                    id: "plate_129",
                     position: (
                         2.0,
                         0.0,
@@ -7555,7 +7538,7 @@
                     ),
                 ),
                 (
-                    id: "plate_131",
+                    id: "plate_130",
                     position: (
                         2.0,
                         0.0,
@@ -7572,11 +7555,28 @@
                     ),
                 ),
                 (
-                    id: "plate_132",
+                    id: "plate_131",
                     position: (
                         2.0,
                         0.0,
                         -1.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "reinforced_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_132",
+                    position: (
+                        2.0,
+                        0.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -7593,7 +7593,7 @@
                     position: (
                         2.0,
                         0.0,
-                        0.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -7610,40 +7610,6 @@
                     position: (
                         2.0,
                         0.0,
-                        1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_135",
-                    position: (
-                        2.0,
-                        0.0,
-                        2.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_136",
-                    position: (
-                        2.0,
-                        0.0,
                         3.0,
                     ),
                     rotation: (
@@ -7657,7 +7623,7 @@
                     ),
                 ),
                 (
-                    id: "plate_137",
+                    id: "plate_135",
                     position: (
                         0.0,
                         2.0,
@@ -7674,7 +7640,7 @@
                     ),
                 ),
                 (
-                    id: "plate_138",
+                    id: "plate_136",
                     position: (
                         0.0,
                         2.0,
@@ -7691,7 +7657,7 @@
                     ),
                 ),
                 (
-                    id: "plate_139",
+                    id: "plate_137",
                     position: (
                         0.0,
                         2.0,
@@ -7960,6 +7926,40 @@
                     ),
                     source: Prototype(
                         id: "pdc_kinetic_turret_section",
+                    ),
+                ),
+                (
+                    id: "port_collar",
+                    position: (
+                        -2.0,
+                        0.0,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.70710677,
+                        0.0,
+                        0.70710677,
+                    ),
+                    source: Prototype(
+                        id: "docking_port_section",
+                    ),
+                ),
+                (
+                    id: "starboard_collar",
+                    position: (
+                        2.0,
+                        0.0,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        -0.70710677,
+                        0.0,
+                        0.70710677,
+                    ),
+                    source: Prototype(
+                        id: "docking_port_section",
                     ),
                 ),
             ],

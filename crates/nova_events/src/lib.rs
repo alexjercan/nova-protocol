@@ -443,8 +443,7 @@ pub struct LockEventInfo {
 pub struct OnDockedEvent;
 
 /// A docking connection was let go (`onundocked`), for ANY reason: either
-/// pilot pressed `DOCK` again, either hull engaged a maneuver, or the pair
-/// lost a port or a ship.
+/// pilot pressed `DOCK` again, or the pair lost a port or a ship.
 ///
 /// One event for every ending, the way [`OnCinematicFinishedEvent`] is one
 /// event for every way out of a scene: what a beat owes the pair back - the

@@ -373,6 +373,7 @@ pub(super) fn update_combat_flight(
             // holds station for the tick it takes to be measured.
             Option<&FlightAuthority>,
             Option<&mut Autopilot>,
+            (Option<&DockedShip>, Option<&DockedAssembly>),
         ),
         // Silent while a scenario order holds the helm: the order's own drive
         // is the single writer then (see `ShipOrderHelmAuthority`), and the
@@ -403,9 +404,27 @@ pub(super) fn update_combat_flight(
         ),
     >,
 ) {
-    for (ship, transform, com, state, target, evade, clearance, authority, autopilot) in
-        &mut q_spaceship
+    for (
+        ship,
+        transform,
+        com,
+        state,
+        target,
+        evade,
+        clearance,
+        authority,
+        autopilot,
+        (docked, assembly),
+    ) in &mut q_spaceship
     {
+        // A docked hull that does not drive its pair keeps its maneuver
+        // frozen until it drives again or undocks. A driver fights from the
+        // pair's centre of mass and reach, the numbers the autopilot flies
+        // it on. With no assembly it plans nothing: the flight writers log
+        // that state once they are asked to move it.
+        if docked.is_some_and(|docked| !docked.drives || assembly.is_none()) {
+            continue;
+        }
         let held = autopilot.as_deref().is_some_and(|autopilot| {
             matches!(autopilot.action, AutopilotAction::MatchVelocity { .. })
         });
@@ -430,7 +449,11 @@ pub(super) fn update_combat_flight(
         // Both ends of the chase vector track live structure: a root origin is
         // the build spot of the first sections and floats in empty space once
         // they are destroyed.
-        let to_target = target_anchor - live_structure_anchor(transform, com);
+        let anchor = match assembly {
+            Some(assembly) => assembly.center_of_mass,
+            None => live_structure_anchor(transform, com),
+        };
+        let to_target = target_anchor - anchor;
         // A target with no rigid body of its own is a fixed installation.
         let target_velocity = q_target_velocity
             .get(enemy)
@@ -439,14 +462,15 @@ pub(super) fn update_combat_flight(
         // asked for the target either way, so the guns keep bearing through
         // the weave instead of following the hull off its leg.
         let arm = |hull: Entity| q_arm.get(hull).map_or(0.0, |radius| **radius);
+        let own_arm = assembly.map_or_else(|| arm(ship), |assembly| assembly.reach);
         let authority = authority.copied().unwrap_or_default();
         let velocity = if *state == AIBehaviorState::Evade {
-            ai_evade_direction(to_target, evade.leg) * ai_evade_leg(arm(ship), authority).speed
+            ai_evade_direction(to_target, evade.leg) * ai_evade_leg(own_arm, authority).speed
         } else {
             ai_desired_velocity(
                 to_target,
                 ai_standoff_centre_distance(
-                    arm(ship),
+                    own_arm,
                     arm(enemy),
                     clearance.map_or(AI_STANDOFF_CLEARANCE, |clearance| clearance.0.max(0.0)),
                 ),

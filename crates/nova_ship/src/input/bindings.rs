@@ -44,7 +44,7 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         ActionBinding::new("autopilot_off", "FLIGHT", "Autopilot: Off")
             .keyboard([Keyboard(KeyCode::KeyZ)])
             .gamepad([Gamepad(GamepadButton::West)]),
-        // `D` because DOCK is modal and its own undo: the same key clamps and
+        // `D` because DOCK is its own undo: the same key clamps and
         // lets go, the way `O` does for ORBIT. Free on the flight rig - the
         // ship has no strafe keys, and NOVA OS's WASD pan lives in the Viewer
         // context. Keyboard only: every pad button the flight, camera and
@@ -53,6 +53,10 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         // rework rather than taking a maneuver's button away (the same call
         // `ship_repair` made).
         ActionBinding::new("dock", "FLIGHT", "Dock").keyboard([Keyboard(KeyCode::KeyD)]),
+        // `H` takes and hands back a docked pair's helm, and only that: the
+        // joint stays with `D`, so handing the helm over can never undock.
+        // Keyboard only, for the reason `dock` gives.
+        ActionBinding::new("dock_helm", "FLIGHT", "Helm").keyboard([Keyboard(KeyCode::KeyH)]),
         // Hold and tap share the key and the threshold constant so the
         // boundary frame cannot fall between them. `radar_clear` FOLLOWS the
         // hold: one settings row, one rebind, and the tap cannot be left
@@ -159,10 +163,10 @@ mod tests {
         assert_eq!(before, names.len(), "duplicate action name in {names:?}");
     }
 
-    /// The fixed rigs: 12 flight and targeting, 3 camera.
+    /// The fixed rigs: 13 flight and targeting, 3 camera.
     #[test]
-    fn the_fixed_rigs_name_fifteen_actions() {
-        assert_eq!(flight_bindings().len(), 12);
+    fn the_fixed_rigs_name_sixteen_actions() {
+        assert_eq!(flight_bindings().len(), 13);
         assert_eq!(camera_bindings().len(), 3);
     }
 
@@ -184,6 +188,7 @@ mod tests {
                 "autopilot_orbit",
                 "autopilot_off",
                 "dock",
+                "dock_helm",
                 "radar_hold",
                 "radar_clear",
                 "component_next",
@@ -258,6 +263,7 @@ mod tests {
                 ("Autopilot: Orbit", "O", "A"),
                 ("Autopilot: Off", "Z", "X"),
                 ("Dock", "D", "Unbound"),
+                ("Helm", "H", "Unbound"),
                 ("Radar (hold / tap)", "Ctrl", "D-Pad Up"),
                 ("Radar (tap clear)", "Ctrl", "D-Pad Up"),
                 ("Lock Next Component", "] / Scroll Up", "D-Pad Right"),

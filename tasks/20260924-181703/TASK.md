@@ -11,7 +11,7 @@
 - While the player holds control, the other ship must not fight the player's movement or steering. For the initial player-owned interaction, the request to take control is accepted; no negotiation UI is required.
 - Keep the two ships coupled. Do not treat relinquishing control as a request to release the docking joint.
 
-## Agent findings (not approved implementation)
+## Agent findings (before implementation)
 
 - Docking currently creates one `FixedJoint` and tags **both** roots with `DockedShip`: `crates/nova_ship/src/sections/docking_section/connection.rs:121-181`. It describes docking as modal with neither hull in charge (`:9-21,41-46`).
 - `DockedShip` excludes manual drive and RCS (`crates/nova_ship/src/flight/manual.rs:114-120,247-250`); the section thrust pass and attitude control also stop on docked roots (`crates/nova_ship/src/sections/thruster_section.rs:584-592`, `crates/nova_ship/src/sections/docking_section/mod.rs:10-24`). An engaged autopilot currently **breaks the joint** (`connection.rs:261-293`).
@@ -29,7 +29,7 @@
 - Replace the all-helms-disabled dock rule with explicit docked control state and one authority owner, while keeping the existing fixed-joint capture/release lifetime.
 - Route player input, AI/autopilot intent, thrust, RCS, and attitude through that owner; do not leave a competing controller applying forces to the joint.
 - Update docking controls, HUD hints, player wiki and examples when the interface is approved. Delete stale modal/no-authority claims rather than retaining aliases.
-- No implementation is authorized by this task record. Scout a code-backed design and stop for the decisions above before edits.
+- The owner approved the implementation design for the decisions above. The implementation is in open PR #76 (branch `docked-helm-control`) and is not merged.
 
 ## Verification / done when
 

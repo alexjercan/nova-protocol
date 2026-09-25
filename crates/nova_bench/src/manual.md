@@ -130,8 +130,13 @@ Flight:
   of `autopilot_goto` or `autopilot_orbit` also disengages that action.
 - `flight.dock`: tap to clamp your docking port to a port on the ship under
   `travel_lock`. Needs the lock and `me.docking.pair.eligible` true; before
-  that the tap does nothing. The dock is MODAL: while `me.docking.docked` is
-  true your drive, RCS and helm are inert, and a second tap lets go.
+  that the tap does nothing. A dock starts neutral: the other ship flies the
+  pair and your drive, RCS and helm are inert until `flight.dock_helm` takes
+  the helm. `me.docking.connection.drives` is true while your hull drives the
+  pair. A second `flight.dock` tap lets go.
+- `flight.dock_helm`: tap while docked to take the pair's helm, and again to
+  hand it back. `me.docking.connection.helm` reads `neutral` or `held`. A pair
+  the game cannot measure refuses the take, and `helm` stays `neutral`.
 - `flight.rcs_modifier`: hold to engage the RCS, the fine translation jets.
   While it is held `camera.camera_rotate` is frozen; release it to steer.
 - `flight.rcs_aim` (aim, only while `flight.rcs_modifier` is held): pushes

@@ -1,7 +1,9 @@
 //! Diegetic flight readouts: the old bottom-left status text rehomed onto
 //! the ship - a speed chip parked beside the velocity sphere and a mode chip
-//! (verb + phase) shown only while the autopilot is engaged; manual flight
-//! keeps a quiet HUD. Plus the projected marker on the GOTO destination.
+//! (verb + phase) shown only while the autopilot is engaged, `HELM FAULT` on a
+//! docked hull whose pair cannot be measured, or `NEUTRAL` on a docked hull
+//! that does not drive its pair; manual flight keeps a quiet HUD.
+//! Plus the projected marker on the GOTO destination.
 //!
 //! Anything measured here is an ENGINE figure - a world unit is 10 m, a speed
 //! is world units per second - because it comes off a bevy transform or an
@@ -12,7 +14,10 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_ship::{flight::prelude::*, prelude::CameraAuthoritySystems};
+use nova_ship::{
+    flight::prelude::*,
+    prelude::{CameraAuthoritySystems, DockedShip, DockingConnection},
+};
 use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
 
 use super::{
@@ -430,23 +435,42 @@ fn emphasize_speed_on_burn(
 
 /// The engaged maneuver's verb and phase above the speed chip; manual
 /// flight (no [`Autopilot`]) shows nothing - a quiet HUD is the manual
-/// look.
+/// look. A docked hull that does not drive its pair reads `NEUTRAL`, because
+/// its flight verbs are blocked rather than idle. That wins over a maneuver
+/// left frozen off the helm, which would otherwise read as live. A pair that
+/// cannot be measured reads `HELM FAULT` over both, from
+/// [`DockingConnection::measurement_fault`]: neither root drives then, and
+/// `drives` alone would show that as an ordinary `NEUTRAL`.
 fn drive_mode_chip(
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<ModeChipUIMarker>>,
-    q_ship: Query<&Autopilot>,
+    q_ship: Query<(Option<&Autopilot>, Option<&DockedShip>)>,
+    q_connections: Query<&DockingConnection>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
             continue;
         };
 
+        let faulted = |docked: &DockedShip| {
+            q_connections
+                .get(docked.connection)
+                .is_ok_and(|connection| connection.measurement_fault)
+        };
         match q_ship.get(**ship) {
-            Ok(autopilot) => {
+            Ok((_, Some(docked))) if faulted(docked) => {
+                **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
+                **text = "HELM FAULT".to_string();
+            }
+            Ok((_, Some(docked))) if !docked.drives => {
+                **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
+                **text = "NEUTRAL".to_string();
+            }
+            Ok((Some(autopilot), _)) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = mode_chip_label(autopilot);
             }
-            Err(_) => {
+            Ok(_) | Err(_) => {
                 **anchor = None;
                 text.clear();
             }
@@ -489,6 +513,7 @@ mod tests {
         camera::{ComputedCameraValues, RenderTargetInfo},
         ecs::system::RunSystemOnce,
     };
+    use nova_ship::prelude::DockedHelmType;
 
     use super::*;
     use crate::prelude::ManeuverChip;
@@ -562,6 +587,64 @@ mod tests {
         world.run_system_once(drive_mode_chip).unwrap();
         assert_eq!(anchor_of(&world, mode), None);
         assert!(text_of(&world, mode).is_empty());
+    }
+
+    /// The chip follows the connection's fault first and `drives` second,
+    /// never the helm: a pair that cannot be measured flies nothing, so it
+    /// must not read as a live burn or as an ordinary hand-off.
+    #[test]
+    fn a_frozen_maneuver_reads_helm_fault_then_neutral_until_its_hull_drives() {
+        let mut world = World::new();
+        let ship = world.spawn(LinearVelocity(Vec3::ZERO)).id();
+        let connection = world
+            .spawn(DockingConnection {
+                first_ship: ship,
+                first_section: Entity::PLACEHOLDER,
+                second_ship: Entity::PLACEHOLDER,
+                second_section: Entity::PLACEHOLDER,
+                helm: DockedHelmType::Held(ship),
+                measurement_fault: true,
+            })
+            .id();
+        let mut goto = Autopilot::engage(AutopilotAction::GotoPos {
+            position: Vec3::ZERO,
+        });
+        goto.phase = AutopilotPhase::Burn;
+        world.entity_mut(ship).insert((
+            goto,
+            DockedShip {
+                connection,
+                helm: Quat::IDENTITY,
+                drives: false,
+            },
+        ));
+        let (_, mode) = spawn_status_hud(&mut world, ship);
+
+        world.run_system_once(drive_mode_chip).unwrap();
+        assert_eq!(
+            text_of(&world, mode),
+            "HELM FAULT",
+            "an unmeasured pair is a fault, not a hand-off"
+        );
+
+        world
+            .get_mut::<DockingConnection>(connection)
+            .unwrap()
+            .measurement_fault = false;
+        world.run_system_once(drive_mode_chip).unwrap();
+        assert_eq!(
+            text_of(&world, mode),
+            "NEUTRAL",
+            "no live BURN off the helm"
+        );
+
+        world.get_mut::<DockedShip>(ship).unwrap().drives = true;
+        world.run_system_once(drive_mode_chip).unwrap();
+        assert_eq!(
+            text_of(&world, mode),
+            "AP GOTO - BURN",
+            "driving resumes it"
+        );
     }
 
     #[test]

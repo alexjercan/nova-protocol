@@ -697,11 +697,10 @@ reaching across the gap - the joint is what holds the pair, and the tubes are
 art that follows it.
 
 `OnUndocked` fires for EVERY ending, and carries no reason code: either pilot
-pressing DOCK again, either hull engaging ORBIT, GOTO or STOP, a
-shot-off docking port, or one of the two ships dying. What a beat owes the pair
+pressing DOCK again, a shot-off docking port, or one of the two ships dying. What a beat owes the pair
 back - the objective, the next order, the clearance to leave - is the same
 whichever way the clamp came off, and a scenario that must tell the endings
-apart has `OnDestroyed` and the maneuver events to do it with.
+apart has `OnDestroyed` to do it with.
 
 Only a pair that dies WHOLE stays quiet, the way `OnExit` and `OnOrbitEnd` do
 for a despawned body. One hull dying is a release like any other: the survivor

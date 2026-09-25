@@ -31,11 +31,15 @@ pub(crate) fn sync_map_arg_completions(
 /// Drain the arg-bearing `map goto` verb the terminal queued on submit, resolve
 /// the label to a contact, and set a flight [`Autopilot`] GOTO on the player ship
 /// (the same seam the in-app `G` key uses). Peeks the shared pending slot first so
-/// it never swallows a `ship ...` verb.
+/// it never swallows a `ship ...` verb. A docked pair that cannot be measured,
+/// a docked ship without the helm, or a GOTO to its docked partner is refused
+/// as the flight keys refuse it.
 pub(crate) fn apply_map_cli_commands(
     mut commands: Commands,
     mut terminal: ResMut<NovaOsTerminal>,
     contacts: MapContacts,
+    q_docked: Query<&DockedShip>,
+    q_connections: Query<&DockingConnection>,
 ) {
     // Only consume an invocation this handler owns; leave `ship ...` for its system
     // (`cross-app-invocation-peek-before-take`).
@@ -62,12 +66,30 @@ pub(crate) fn apply_map_cli_commands(
         }]);
         return;
     };
+    let docked = q_docked.get(player).ok();
+    let connection = docked.and_then(|docked| q_connections.get(docked.connection).ok());
 
     let rows = match contacts.resolve(label) {
         Some(contact) if contact.kind == MapContactKind::OwnShip => vec![TerminalRow {
             kind: TerminalRowKind::Dim,
             text: format!("goto: {} is your own ship", contact.code),
         }],
+        Some(_) if connection.is_some_and(|connection| connection.measurement_fault) => {
+            vec![TerminalRow {
+                kind: TerminalRowKind::Error,
+                text: "goto: helm fault, the docked pair cannot be measured".to_string(),
+            }]
+        }
+        Some(_) if docked.is_some_and(|docked| !docked.drives) => vec![TerminalRow {
+            kind: TerminalRowKind::Error,
+            text: "goto: take the helm first".to_string(),
+        }],
+        Some(contact) if connection.is_some_and(|connection| connection.joins(contact.entity)) => {
+            vec![TerminalRow {
+                kind: TerminalRowKind::Error,
+                text: format!("goto: {} is docked to you", contact.code),
+            }]
+        }
         Some(contact) => {
             commands
                 .entity(player)
