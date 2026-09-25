@@ -46,6 +46,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   mods or engine work and Wiki on Story and Lore. The landing hero and its
   four-column directory link GitHub and itch.io.
 
+### Performance
+
+- `world_clusters` probes capture mid-fill and steady 125-cell windows; worker spans separate sector generation from geometry preparation.
+
 ### Internals & Tooling
 
 - Asteroid kind and ship design ids are typed `AsteroidKindId` and

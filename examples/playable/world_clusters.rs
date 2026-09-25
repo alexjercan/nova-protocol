@@ -41,6 +41,10 @@
 //! - `NOVA_AUTOPILOT=1`: stream the home window, check the seam groups live,
 //!   frame one group with a planetoid and one group with a derelict hull, each
 //!   placed across a face, exit clean.
+//! - `NOVA_WORLD_FILL_PROBE=1` (debug builds, armed probe only): capture 40
+//!   frames from 60 live sectors, before the home window is whole, with no
+//!   warm-up or travel. It changes no gameplay; unset, the probe captures
+//!   the full home window (60 warm-up, 300 frames).
 //! - `NOVA_CAPTURE=1`: also writes `world-clusters-planetoid.png` and
 //!   `world-clusters-derelict.png`.
 
@@ -184,7 +188,39 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        app.add_plugins(clusters_script());
+        // A measured run opens its window only on the full home window and
+        // refuses it if the live set moves, so the script's shot beats, which
+        // pose the camera across the world, stay out of the armed pass.
+        // NOVA_WORLD_FILL_PROBE=1 compares the same middle of the fill:
+        // capture 40 frames starting at 60 live roots, with no warm-up.
+        let fill_probe = std::env::var("NOVA_WORLD_FILL_PROBE").is_ok_and(|value| value == "1");
+        let frametime = if fill_probe {
+            nova_probe::nova_frametime()
+                .window(0, 40)
+                .ready_when(|world: &World| {
+                    world.try_query::<&SectorRoot>().is_some_and(|mut query| {
+                        let count = query.iter(world).count();
+                        (60..125).contains(&count)
+                    })
+                })
+                .live_while(|world: &World| {
+                    world.try_query::<&SectorRoot>().is_some_and(|mut query| {
+                        let count = query.iter(world).count();
+                        (60..125).contains(&count)
+                    })
+                })
+        } else {
+            nova_probe::nova_frametime()
+                .window(60, 300)
+                .ready_when(|world: &World| {
+                    sector_set_is(CLUSTER_HOME)(world) && every_root_is_planned()(world)
+                })
+                .live_while(|world: &World| sector_set_is(CLUSTER_HOME)(world))
+        };
+        app.add_plugins(frametime);
+        if !nova_probe::probe_armed() {
+            app.add_plugins(clusters_script());
+        }
     }
 
     app.run()
