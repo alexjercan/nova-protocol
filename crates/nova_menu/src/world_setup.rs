@@ -122,8 +122,8 @@ pub(crate) fn on_new_game(
                     parent.spawn((
                         Name::new("New Game Profile"),
                         Text::new(
-                            "Ship: Line Warship. World: asteroid belts, planetoids and derelicts, \
-                             generated from the seed and streamed in as you fly. The same seed \
+                            "Ship: Line Warship. World: sparse asteroid clusters, planetoids and \
+                             derelicts, generated from the seed and streamed in as you fly. The same seed \
                              gives the same world on the same build.",
                         ),
                         TextFont {

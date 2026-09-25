@@ -8,15 +8,16 @@ description = "The base game's open world: its sector generator and the session 
 
 [dependencies]
 bevy = { version = "0.19.0" }
-# The feature field: three global `Fbm<Perlin>` layers gate the candidate
-# lattice a streamed cell reads. Same crate and version the planet and
-# asteroid surfaces already generate from, so a world field and a shipped
-# surface cannot drift onto two noise implementations.
+# The environment: three global `Fbm<Perlin>` fields every cluster and
+# background scatter reads. Same crate and version the planet and asteroid
+# surfaces already generate from, so a world field and a shipped surface
+# cannot drift onto two noise implementations.
 noise = { version = "0.9" }
 # `Meters` and `Meters3`: the generator authors every quantity in meters.
 nova_events = { path = "../nova_events" }
 # `Fnv32` and `SeedStream`, the stable hash and the deterministic draw every
-# sector choice comes from, and the player ship marker the world streams around.
+# sector choice comes from, the player ship marker the world streams around,
+# and the default `GravitySettings` a planetoid's mass is derived under.
 nova_gameplay = { path = "../nova_gameplay" }
 # The planet and asteroid tables the generator draws from, and the live
 # scenario whose role arms the world.

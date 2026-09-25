@@ -347,6 +347,64 @@ fn a_manifest_of_many_valid_bodies_is_described_whole() {
     );
 }
 
+/// A planetoid's optional overrides are part of "the same sector": changing
+/// any one of them, setting it where it was unset, or moving mass by less
+/// than a hundredth, changes the canonical description.
+#[test]
+fn every_planetoid_override_changes_the_canonical_description() {
+    let base = PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3);
+    let variants = [
+        base.clone(),
+        PlanetConfig {
+            relief: Some(Meters(40.0)),
+            ..base.clone()
+        },
+        PlanetConfig {
+            relief: Some(Meters(41.0)),
+            ..base.clone()
+        },
+        PlanetConfig {
+            sea_level: Some(0.0),
+            ..base.clone()
+        },
+        PlanetConfig {
+            sea_level: Some(0.5),
+            ..base.clone()
+        },
+        base.clone().anchored(5.0),
+        base.clone().anchored(5.004),
+        PlanetConfig {
+            lock_signature: Some(Meters(900.0)),
+            ..base.clone()
+        },
+        PlanetConfig {
+            lock_signature: Some(Meters(901.0)),
+            ..base
+        },
+    ];
+    let input = rocks().input(SectorCoord::ORIGIN);
+    let described: Vec<String> = variants
+        .into_iter()
+        .map(|config| {
+            let mut manifest = empty(input.coord, Vec::new());
+            manifest.planets.push(SectorPlanet {
+                id: sector_id(input.coord, "planet", 0),
+                position: input.coord.centre(input.geometry.sector_edge),
+                config,
+            });
+            validate_manifest(input, manifest)
+                .expect("a valid planetoid must describe")
+                .canonical()
+        })
+        .collect();
+
+    for (index, text) in described.iter().enumerate() {
+        for other in &described[index + 1..] {
+            assert_ne!(text, other, "two different planetoids described the same");
+        }
+    }
+}
+
 /// Exactly one generator per app. Two would stream two worlds over the same
 /// roots, jobs and prepared payloads, each retiring the other's cells.
 #[test]

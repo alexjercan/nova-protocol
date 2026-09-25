@@ -35,8 +35,8 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
     start.extend(ThreePointRig::around(OPEN_WORLD_SCENARIO_ID, Meters3::ZERO, 25.0).actions());
 
     ScenarioConfig {
-        description: "An open world generated from your seed: asteroid belts, planetoids and \
-                      derelicts, streamed in around your line warship as you fly."
+        description: "An open world generated from your seed: sparse asteroid clusters, \
+                      planetoids and derelicts, streamed in around your line warship as you fly."
             .to_string(),
         role: ScenarioRole::OpenWorld,
         events: vec![ScenarioEventConfig {

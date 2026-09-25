@@ -62,12 +62,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New opt-in `nova_world` crate: a plugin streams a 5x5x5 window of 32 km cells
   over one live scenario, filled by a sector generator whose bodies it checks
   before they spawn.
-- New `nova_world_base` crate owns the layered generator and its noise-gated
-  asteroid, planet and derelict features, and arms `nova_world` only while an
+- New `nova_world_base` crate grows rock, orbitable planetoid and derelict
+  clusters from three environment fields, and arms `nova_world` only while an
   open-world scenario and one player ship are live.
-- Two debug examples draw the world feature field itself: a CPU-sampled heatmap
-  of one plane with the layer's gate as a contour, and a 3D cloud of where each
-  layer clears.
+- Two debug examples draw the world's environment fields: a CPU-sampled heatmap
+  of one field on one plane, and a 3D cloud of where each field reads high with
+  the clusters ringed.
 - New `world_clusters` example streams five kinds of asteroid, planetoid and
   derelict groups that cross sector faces, drawn from three noise fields, with
   a field heatmap and seam markers.

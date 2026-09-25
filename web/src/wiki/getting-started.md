@@ -13,7 +13,7 @@ Under it sits a **field note** - one short fact taken from the handbook, with **
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 
-- **New Game** - opens the world setup: a world seed (a fresh one each time, or type your own), **Randomize**, **Create** and **Cancel**. **Create** puts you in a line warship in an open world of asteroid belts, planetoids and derelicts, generated from the seed and streamed in around you as you fly. The same seed gives the same world on the same build. **Retry** keeps the seed.
+- **New Game** - opens the world setup: a world seed (a fresh one each time, or type your own), **Randomize**, **Create** and **Cancel**. **Create** puts you in a line warship in an open world of sparse asteroid clusters, planetoids and derelicts, generated from the seed and streamed in around you as you fly. The same seed gives the same world on the same build. **Retry** keeps the seed.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
 - **Lessons** - opens the training handbook. Its first row, **Basic Training**, starts the first-flight course. Under it is one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked **read**, and one is marked **done** only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.
 - **Scenarios** - opens the complete scenario picker, every scenario your enabled mods ship included.

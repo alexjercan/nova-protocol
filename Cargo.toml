@@ -201,29 +201,30 @@ path = "examples/playable/world_sectors.rs"
 # includer is enough; the other five stay non-test.
 test = true
 
-# The same streaming loop over a world that has PLACES in it: three independent
-# global noise fields gate feature spheres on a coarse lattice, and a cell
-# holds whatever reaches it - rock fields, a real planetoid, inert derelict
-# ships. What a human judges here is whether the result reads as places or as
-# noise on a grid; the spheres themselves are drawn as gizmos so the field is
-# visible and not only its consequences.
+# The same streaming loop over the base game's world, which has PLACES in it:
+# clusters decided on a global lattice from three environment fields - rock
+# fields, real planetoids, inert derelict ships - and a few background
+# scatters. What a human judges here is whether the result reads as places or
+# as noise on a grid; each cluster's extent is drawn as a gizmo so the policy
+# is visible and not only its consequences.
 [[example]]
 name = "world_features"
 path = "examples/playable/world_features.rs"
 
-# The field itself rather than what it built: one flat plane through the world
-# sampled on the CPU at a kilometre a sample and painted as a heatmap, with the
-# layer's gate drawn on it as a contour. What a tuning pass judges here is how
-# much of the world sits just under a threshold, which no picture of the
-# accepted spheres can show.
+# The environment itself rather than what it built: one flat plane through the
+# world sampled on the CPU at a kilometre a sample and painted as a heatmap of
+# one field. What a tuning pass judges here is whether a field's regions are
+# too small, too large or too uniform, which no picture of the clusters can
+# show.
 [[example]]
 name = "world_field_slices"
 path = "examples/playable/world_field_slices.rs"
 
-# The same raw field read in three dimensions: a bounded sample lattice around
-# the feature home cell, drawn as sparse crosses wherever a layer clears its
-# gate. What a human judges here is whether the gated regions are BLOBS with
-# shape and overlap or a scatter, which a flat slice cannot answer.
+# The same environment read in three dimensions: a bounded sample lattice
+# around the feature home cell, drawn as sparse crosses wherever a field reads
+# high, with a ring round every cluster anchored there. What a human judges
+# here is whether the high regions are BLOBS with shape and overlap or a
+# scatter, which a flat slice cannot answer.
 [[example]]
 name = "world_field_clouds"
 path = "examples/playable/world_field_clouds.rs"
@@ -990,13 +991,13 @@ nova_training = { path = "crates/nova_training" }
 nova_wfc = { path = "crates/nova_wfc" }
 # The streamed open world's mechanism. The two field pictures
 # (`world_field_slices`, `world_field_clouds`) use only its grid types and read
-# the base generator's feature field through the `nova_core` prelude; the job
+# the base generator's environment fields through the `nova_core` prelude; the job
 # lifetime is driven by the two playable streaming examples and by the
 # `system_world_sectors` range. The game reaches it through `nova_core`, which
 # adds the base world's plugin; the examples name its types directly.
 nova_world = { path = "crates/nova_world" }
 # The clustered world's three environment fields are example-owned noise, built
-# on the same `noise` version `nova_world_base` builds its feature field on.
+# on the same `noise` version `nova_world_base` builds its environment on.
 noise = { version = "0.9" }
 # wfc_ships seeds its collapse from a pinned StdRng, the same generator the
 # scenario engine's scatter uses - same crate, same version, same rolls.
@@ -1214,7 +1215,7 @@ members = [
   # the bounded job lifetime that materializes and retires cells. Names no
   # content.
   "crates/nova_world",
-  # The base game's open world over it: `NovaLayeredWorld`, its feature field,
+  # The base game's open world over it: `NovaLayeredWorld`, its clusters,
   # the New Game session, and the ids both name. `AppBuilder` adds its plugin on the
   # default game path, so it builds for wasm as well.
   "crates/nova_world_base",

@@ -78,7 +78,7 @@ fn the_open_world_describes_the_same_sectors_in_any_visit_order() {
 /// planetoid and ship, to the canonical text, in the window the examples fly.
 ///
 /// The digest is FNV-1a 64 over the concatenated canonical descriptions of
-/// the 125 cells around `(2, 1, 2)`, walked in `desired_sectors` order, for
+/// the 125 cells around the origin, walked in `desired_sectors` order, for
 /// seed 20,260,922 at a 32 km edge. Every input is written out here rather
 /// than read from the session constants, so retuning New Game cannot move the
 /// recorded window. A deliberate change to the generator's output changes
@@ -92,7 +92,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         active_radius: 2,
         generator: NovaLayeredWorld,
     };
-    let canonical: String = desired_sectors(SectorCoord::new(2, 1, 2), config.active_radius)
+    let canonical: String = desired_sectors(SectorCoord::ORIGIN, config.active_radius)
         .into_iter()
         .map(|coord| {
             generate_sector(&config, coord)
@@ -102,7 +102,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0x40fd_c063_3ab6_64fb,
+        0xb521_9340_d0c4_7057,
         "the pinned window's bodies changed"
     );
 }

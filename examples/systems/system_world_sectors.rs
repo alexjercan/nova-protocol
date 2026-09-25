@@ -1,4 +1,4 @@
-//! system_world_sectors: a noise-gated world streams in and out of ONE live
+//! system_world_sectors: a clustered world streams in and out of ONE live
 //! scenario.
 //!
 //! The streamed-world direction rests on a lifetime that does not exist in
@@ -11,11 +11,12 @@
 //! and nothing routes through a scenario event action at all.
 //!
 //! It runs the FEATURED generator, not the uniform one: a cell filled from
-//! three independent global noise fields is the harder claim, because two
-//! neighbouring cells now have to agree about a sphere neither of them owns,
-//! and a cell has to place a planetoid and a derelict ship beside its rocks
-//! without any of them intersecting. The uniform generator is still asserted
-//! where it is the sharper instrument - the visit-order claim compares both.
+//! clusters that three global environment fields choose is the harder claim,
+//! because two neighbouring cells now have to agree about a cluster whose
+//! bodies both of them own, and a cell has to place a planetoid and a derelict
+//! ship beside its rocks without any of them intersecting. The uniform
+//! generator is still asserted where it is the sharper instrument - the
+//! visit-order claim compares both.
 //! Each is its own `WorldConfig<G>` type, and the app installs only the
 //! featured one: the uniform world is described here, never streamed.
 //!
@@ -28,13 +29,13 @@
 //! | 1 | `outcome: the free-play bootstrap authors no objects` | the loaded scenario declares zero objects and zero handlers, and no scenario object entity, job or prepared result exists before streaming is armed |
 //! | 2 | `outcome: a sector is the same sector in any visit order` | the 125 cells generated forward, backward and by stride give three identical canonical manifests, under both generators |
 //! | 3 | `outcome: invalid sector geometry refuses before materialization` | a finite config whose coordinate conversion overflows returns an error rather than a partial description |
-//! | 4 | `outcome: one feature sphere is one sphere from every cell that sees it` | every sphere two or more cells can see carries the same id, owner, centre, radius and strength in each of them, and exactly one cell owns it |
-//! | 5 | `outcome: same-layer feature spheres never overlap` | no two accepted spheres of one layer claim the same ground anywhere in the window |
-//! | 6 | `outcome: independent feature layers may overlap` | spheres of different layers do overlap, so blended places exist rather than a mosaic of single-purpose tiles |
-//! | 7 | `outcome: every physical object stands clear inside its own sector` | every rock, planetoid and ship is inside its owning cell's inset and clears every other object in that cell by the placement margin |
+//! | 4 | `outcome: one cluster is one cluster from every sector that owns its bodies` | every cluster two or more cells own bodies of carries the same id, type, anchor, home and extent in each of them, and at least one cluster places bodies on both sides of a face |
+//! | 5 | `outcome: a sector's cluster and scatter counts add up to its manifest` | each cell's placed count is its manifest's object count and the sum of its clusters' and its scatter's, a cell with clusters counts every skip against one of them, and the window skips at least one body |
+//! | 6 | `outcome: only a sector with no cluster body draws a background scatter` | every cell that places background rocks owns no cluster body and places one to five of them, and the window holds at least one such cell |
+//! | 7 | `outcome: every physical object stands clear inside its own sector` | every rock, planetoid and ship's clearance sphere is wholly inside its owning cell and clears every other object in that cell by the placement margin |
 //! | 8 | `outcome: arming the stream materializes the whole desired set` | exactly the desired 5x5x5 set is live, one root each, every root scenario-scoped and owning exactly the objects its manifest names |
 //! | 9 | `outcome: every sector is requested and prepared before it is materialized` | arming started 125 jobs, never more at once than the task pool has threads, preparation overlapped where the pool has more than one, all 125 came back, all 125 were spawned from a prepared result, and none was discarded |
-//! | 10 | `outcome: a featured sector owns real planetoids and inert derelict ships` | every planetoid a manifest names is a real `PlanetMarker` body and every derelict a `SpaceshipRootMarker` with no driver and neutral allegiance, each a child of the sector root whose manifest names it |
+//! | 10 | `outcome: a featured sector owns real planetoids and inert derelict ships` | every planetoid a manifest names is a real `PlanetMarker` body whose gravity well keeps its authored mass whole and offers an ORBIT ring band, and every derelict a `SpaceshipRootMarker` with no driver and neutral allegiance, each a child of the sector root whose manifest names it |
 //! | 11 | `outcome: crossing one boundary retains the shared slab and swaps a face` | after a +X crossing 100 roots are the SAME entities, 25 are gone and 25 are new |
 //! | 12 | `outcome: the return trip leaves no duplicate root` | coming back gives the original 125 cells, one root each, and the returned sectors hold the objects their manifests name |
 //! | 13 | `outcome: a destroyed streamed asteroid returns pristine after its sector retires` | a streamed rock in the face the crossing retires is exhausted through the carve chain and despawns; after the return its cell has a new root and the same rock id with empty damage marks |
@@ -44,7 +45,7 @@
 //!
 //! What this range does NOT claim: anything about a floating origin,
 //! persistence, a measured frame budget, wall-clock preparation cost,
-//! production density, or how a feature field should be tuned. The 32 km edge
+//! production density, or how the cluster policy should be tuned. The 32 km edge
 //! and the 125-cell active window are the selected baseline; this range does
 //! not prove either under production load.
 //!
@@ -78,7 +79,7 @@ use world_fixture::{free_play_scenario, world_observer_plugin};
 #[command(name = "system_world_sectors")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "A noise-gated world streams in and out of one live scenario. Autopilot-only correctness range",
+    about = "A clustered world streams in and out of one live scenario. Autopilot-only correctness range",
     long_about = None
 )]
 struct Cli;
@@ -156,16 +157,16 @@ const ABANDONED_WORK: usize = 2;
 /// INSIDE the desired window around [`FEATURE_HOME`], unlike the abandoned
 /// cells: a completion the window still wants is the one a coordinate-keyed
 /// loop would accept, so this is the piece of work that would carry the old
-/// seed into the new world. The old seed puts a planetoid here and
-/// [`REPLACEMENT_SEED`] four rocks, so the two worlds name different objects.
+/// seed into the new world. The old seed puts rocks and a derelict here and
+/// [`REPLACEMENT_SEED`] two derelicts, so the two worlds name different objects.
 #[cfg(feature = "debug")]
 const REPLACED_JOB_CELL: SectorCoord = SectorCoord::new(0, 0, 0);
 
 /// The cell whose prepared result is waiting when the `WorldConfig` is
 /// replaced. Inside the desired window for the same reason. The old seed puts
-/// one rock here and [`REPLACEMENT_SEED`] two.
+/// a background scatter here and [`REPLACEMENT_SEED`] cluster rocks.
 #[cfg(feature = "debug")]
-const REPLACED_READY_CELL: SectorCoord = SectorCoord::new(0, 0, 4);
+const REPLACED_READY_CELL: SectorCoord = SectorCoord::new(2, 0, 2);
 
 /// The seed the world is replaced WITH, mid-session.
 ///
@@ -428,14 +429,14 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .step("report the empty bootstrap")
         .on_enter(report_empty_bootstrap)
         .add()
-        // Pure, so they need no world and no frames: the generator and the
-        // feature field are the parts of the kit that can be asked the same
+        // Pure, so they need no world and no frames: the generator and its
+        // cluster plan are the parts of the kit that can be asked the same
         // question several ways in one beat.
         .step("report the visit-order comparison")
         .on_enter(report_visit_order)
         .add()
-        .step("report the feature field")
-        .on_enter(report_feature_field)
+        .step("report the cluster plan")
+        .on_enter(report_cluster_plan)
         .add()
         .step("report the placement rule")
         .on_enter(report_clearance)
@@ -684,9 +685,9 @@ fn report_empty_bootstrap(world: &mut World) {
 ///
 /// Both generators are compared, because they fail differently: the uniform
 /// one could only lose determinism through its own seed stream, while the
-/// featured one reads a global field and a thinning halo, and a halo resolved
-/// in walk order rather than by rank is exactly the bug that would pass a
-/// single-generator check.
+/// featured one reads global fields and replays a halo of cluster nodes, and
+/// a halo resolved in walk order rather than node order is exactly the bug
+/// that would pass a single-generator check.
 #[cfg(feature = "debug")]
 fn report_visit_order(world: &mut World) {
     let compared = assert_visit_order(&uniform_world_config(), SectorCoord::ORIGIN)
@@ -773,127 +774,163 @@ fn assert_visit_order<G: SectorGenerator>(config: &WorldConfig<G>, centre: Secto
     forward.len()
 }
 
-/// Claims 4, 5 and 6: the feature field is one world, thinned within a layer
-/// and free across layers.
+/// Claims 4, 5 and 6: a cluster is one cluster however many cells own its
+/// bodies, a cell's counts add up to its manifest, and only a cell with no
+/// cluster body scatters background rocks.
 ///
-/// The field is the base generator's, not the streamed world's: a manifest
-/// carries bodies only, so each cell's spheres are asked of
-/// `nova_world_base::sector_features` directly, with the same input the
+/// Claim 5 checks the diagnostics against the manifest, not against the plan:
+/// that no owned body is dropped uncounted is proved in `nova_world_base`,
+/// where the plan is visible.
+///
+/// The plan is the base generator's, not the streamed world's: a manifest
+/// carries bodies only, so each cell's clusters are asked of
+/// `nova_world_base::sector_clusters` directly, with the same input the
 /// generator was given.
 #[cfg(feature = "debug")]
-fn report_feature_field(world: &mut World) {
+fn report_cluster_plan(world: &mut World) {
     let config = featured_world_config();
 
-    // One sphere, however many cells can see it. Built as id -> every copy
-    // handed out, so a disagreement names the sphere rather than the cell.
-    let mut seen: BTreeMap<String, Vec<(SectorCoord, FeatureSphere)>> = BTreeMap::new();
+    // One cluster, however many cells own its bodies. Built as id -> every
+    // copy handed out, so a disagreement names the cluster rather than the
+    // cell.
+    let mut seen: BTreeMap<String, Vec<(SectorCoord, ClusterSummary)>> = BTreeMap::new();
+    let mut skipped_face = 0;
+    let mut skipped_clearance = 0;
+    let mut scatter_cells = 0;
     for coord in desired_sectors(FEATURE_HOME, config.active_radius) {
-        let spheres = sector_features(config.input(coord))
+        let plan = sector_clusters(config.input(coord))
             .unwrap_or_else(|fault| panic!("world sectors: {coord}: {fault}"));
-        for sphere in spheres {
-            seen.entry(sphere.id.clone())
+        let objects = describe(coord, &config).object_count();
+        assert_eq!(
+            plan.placed, objects,
+            "world sectors: {coord} plans {} placed bodies but its manifest names {objects}",
+            plan.placed
+        );
+        let cluster_placed: usize = plan.clusters.iter().map(|cluster| cluster.placed).sum();
+        assert_eq!(
+            cluster_placed + plan.background_rocks,
+            plan.placed,
+            "world sectors: {coord} places {} bodies, not its {cluster_placed} cluster bodies \
+             and {} background rocks",
+            plan.placed,
+            plan.background_rocks
+        );
+        let cluster_face: usize = plan
+            .clusters
+            .iter()
+            .map(|cluster| cluster.skipped_face)
+            .sum();
+        let cluster_clearance: usize = plan
+            .clusters
+            .iter()
+            .map(|cluster| cluster.skipped_clearance)
+            .sum();
+        // A cell with clusters draws no scatter, so every skip it makes is a
+        // cluster body's.
+        if !plan.clusters.is_empty() {
+            assert!(
+                cluster_face == plan.skipped_face && cluster_clearance == plan.skipped_clearance,
+                "world sectors: {coord} counts skips no cluster owns: {plan:?}"
+            );
+        }
+        skipped_face += plan.skipped_face;
+        skipped_clearance += plan.skipped_clearance;
+
+        if plan.background_rocks > 0 {
+            assert!(
+                plan.clusters.is_empty(),
+                "world sectors: {coord} scatters {} background rocks beside cluster bodies",
+                plan.background_rocks
+            );
+            assert!(
+                plan.background_rocks <= 5,
+                "world sectors: {coord} scatters {} background rocks, past five",
+                plan.background_rocks
+            );
+            scatter_cells += 1;
+        }
+        for cluster in plan.clusters {
+            seen.entry(cluster.id.clone())
                 .or_default()
-                .push((coord, sphere));
+                .push((coord, cluster));
         }
     }
     assert!(
         !seen.is_empty(),
-        "world sectors: the window around {FEATURE_HOME} must contain feature spheres, \
-         or every claim below is vacuous"
+        "world sectors: the window around {FEATURE_HOME} must own cluster bodies, or every \
+         claim below is vacuous"
     );
 
     let mut shared = 0;
     for (id, copies) in &seen {
         let (first_cell, first) = &copies[0];
         for (cell, other) in &copies[1..] {
-            assert_eq!(
-                first, other,
-                "world sectors: sphere '{id}' reads differently in {cell} than in {first_cell}"
+            assert!(
+                first.cluster_type == other.cluster_type
+                    && first.anchor == other.anchor
+                    && first.home == other.home
+                    && first.extent == other.extent,
+                "world sectors: cluster '{id}' reads differently in {cell} than in {first_cell}"
             );
         }
-        if copies.len() > 1 {
+        if copies
+            .iter()
+            .filter(|(_, cluster)| cluster.placed > 0)
+            .count()
+            > 1
+        {
             shared += 1;
         }
-        let owners = copies
-            .iter()
-            .filter(|(cell, sphere)| sphere.owner == *cell)
-            .count();
-        assert!(
-            owners <= 1,
-            "world sectors: sphere '{id}' is owned by {owners} of the cells that see it"
-        );
     }
     assert!(
         shared > 0,
-        "world sectors: no sphere crosses a cell boundary, so the shared-sphere claim \
+        "world sectors: no cluster places bodies in two cells, so the shared-cluster claim \
          proves nothing"
     );
-
-    let spheres: Vec<&FeatureSphere> = seen.values().map(|copies| &copies[0].1).collect();
-    let separation = |a: &FeatureSphere, b: &FeatureSphere| {
-        a.centre.distance(b.centre).get() - (a.radius.get() + b.radius.get())
-    };
-
-    let mut same_layer_pairs = 0;
-    let mut crossing_pairs = 0;
-    for (index, a) in spheres.iter().enumerate() {
-        for b in &spheres[index + 1..] {
-            if a.layer == b.layer {
-                same_layer_pairs += 1;
-                assert!(
-                    separation(a, b) >= 0.0,
-                    "world sectors: {} spheres '{}' and '{}' overlap by {:.0} m; one layer \
-                     must be thinned",
-                    a.layer,
-                    a.id,
-                    b.id,
-                    -separation(a, b)
-                );
-            } else if separation(a, b) < 0.0 {
-                crossing_pairs += 1;
-            }
-        }
-    }
     assert!(
-        same_layer_pairs > 0,
-        "world sectors: no two spheres share a layer here, so the thinning claim proves \
-         nothing"
+        skipped_face + skipped_clearance > 0,
+        "world sectors: the window skips no body, so the skip accounting proves nothing"
     );
     assert!(
-        crossing_pairs > 0,
-        "world sectors: no two layers overlap anywhere in the window, so the layers are \
-         not independent in practice, whatever the rule says"
+        scatter_cells > 0,
+        "world sectors: no cell in the window scatters background rocks, so the scatter \
+         claim proves nothing"
     );
 
-    let owned = FeatureLayer::ALL.map(|layer| {
-        spheres
-            .iter()
-            .filter(|sphere| sphere.layer == layer)
+    let by_type = ClusterType::ALL.map(|cluster_type| {
+        seen.values()
+            .filter(|copies| copies[0].1.cluster_type == cluster_type)
             .count()
     });
     nova_probe::probe_marker(
         world,
-        "outcome: one feature sphere is one sphere from every cell that sees it",
-        serde_json::json!({ "spheres": spheres.len(), "crossing_cells": shared }),
+        "outcome: one cluster is one cluster from every sector that owns its bodies",
+        serde_json::json!({ "clusters": seen.len(), "crossing_clusters": shared }),
     );
     nova_probe::probe_marker(
         world,
-        "outcome: same-layer feature spheres never overlap",
-        serde_json::json!({ "same_layer_pairs": same_layer_pairs }),
+        "outcome: a sector's cluster and scatter counts add up to its manifest",
+        serde_json::json!({
+            "skipped_face": skipped_face,
+            "skipped_clearance": skipped_clearance,
+        }),
     );
     nova_probe::probe_marker(
         world,
-        "outcome: independent feature layers may overlap",
-        serde_json::json!({ "overlapping_pairs": crossing_pairs }),
+        "outcome: only a sector with no cluster body draws a background scatter",
+        serde_json::json!({ "scatter_cells": scatter_cells }),
     );
     info!(
-        "world sectors: {} spheres ({} asteroid, {} planet, {} derelict), {shared} of them \
-         seen from more than one cell; {same_layer_pairs} same-layer pairs all clear, \
-         {crossing_pairs} cross-layer pairs overlap",
-        spheres.len(),
-        owned[FeatureLayer::Asteroid.index()],
-        owned[FeatureLayer::Planet.index()],
-        owned[FeatureLayer::Derelict.index()],
+        "world sectors: {} clusters ({}), {shared} of them placed in more than one cell; \
+         {skipped_face} face and {skipped_clearance} clearance skips; {scatter_cells} \
+         background scatters",
+        seen.len(),
+        ClusterType::ALL
+            .iter()
+            .zip(by_type)
+            .map(|(cluster_type, count)| format!("{count} {}", cluster_type.label()))
+            .collect::<Vec<_>>()
+            .join(", "),
     );
 }
 
@@ -902,13 +939,14 @@ fn report_feature_field(world: &mut World) {
 ///
 /// The clearance radii are recomputed HERE from the published constants rather
 /// than read back off the generator, so the claim is a second opinion about
-/// the rule instead of a restatement of whatever the generator did. The inset
-/// and the margin are the base generator's own `PLACEMENT_INSET` and
-/// `CLEARANCE_MARGIN`: `nova_world` itself refuses only an overlap.
+/// the rule instead of a restatement of whatever the generator did. The
+/// margin is the base generator's own `CLEARANCE_MARGIN`, and it holds only
+/// between bodies of one cell: the cell faces already separate bodies of two
+/// cells. `nova_world` itself refuses only an overlap.
 #[cfg(feature = "debug")]
 fn report_clearance(world: &mut World) {
     let config = featured_world_config();
-    let inset = config.sector_edge.get() * 0.5 * PLACEMENT_INSET;
+    let half_edge = config.sector_edge.get() * 0.5;
     let described = describe_window(FEATURE_HOME, &config);
 
     let mut objects = 0;
@@ -943,13 +981,12 @@ fn report_clearance(world: &mut World) {
             .collect();
         objects += placed.len();
 
-        for (id, position, _) in &placed {
-            let offset = (position.get() - cell_centre.get()).abs();
+        for (id, position, clearance) in &placed {
+            let reach = (position.get() - cell_centre.get()).abs().max_element() + clearance.get();
             assert!(
-                offset.max_element() <= inset,
-                "world sectors: '{id}' stands {:.0} m off the centre of {}, past the \
-                 {inset:.0} m inset - it would be half in the neighbour",
-                offset.max_element(),
+                reach <= half_edge,
+                "world sectors: '{id}' reaches {reach:.0} m off the centre of {}, past the \
+                 {half_edge:.0} m face - it would be half in the neighbour",
                 description.coord()
             );
         }
@@ -982,7 +1019,7 @@ fn report_clearance(world: &mut World) {
     );
     info!(
         "world sectors: {objects} placed objects across {} cells, {pairs} same-cell pairs \
-         all clear and inside the inset",
+         all clear and inside their cells",
         described.len()
     );
 }
@@ -1110,22 +1147,27 @@ fn report_preparation(world: &mut World) {
     );
 }
 
-/// Claim 10: a planetoid a manifest names is a real world, and a derelict it
-/// names is a ship nobody is flying.
+/// Claim 10: a planetoid a manifest names is a real world with a well a pilot
+/// can orbit, and a derelict it names is a ship nobody is flying.
 ///
 /// The counts alone would pass on a sector that spawned rocks named
 /// `..._planet_0`. What is read here is the COMPONENTS the game's own object
-/// factories insert: `PlanetMarker` for a world, `SpaceshipRootMarker` with
+/// factories insert: `PlanetMarker` for a world, a `GravityWell` whose `mu`
+/// is the manifest's mass under the live `GravitySettings` cap and whose ring
+/// band the live `FlightSettings` accept, `SpaceshipRootMarker` with
 /// `SpaceshipController::None` and `Allegiance::Neutral` for a derelict -
 /// and each of them under the root of the cell whose manifest names it. The
-/// manifest carries no feature sphere, so which sphere placed a body is
-/// proved in `nova_world_base`, not here.
+/// manifest carries no cluster, so which cluster placed a body is proved in
+/// `nova_world_base`, not here.
 #[cfg(feature = "debug")]
 fn report_places(world: &mut World) {
     let config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
+    let gravity = world.resource::<GravitySettings>().clone();
+    let flight = world.resource::<FlightSettings>().clone();
     let live = live_roots(world);
 
     let mut planets = 0;
+    let mut reach = (f32::INFINITY, 0.0_f32);
     let mut ships = 0;
     for (coord, root) in &live {
         let description = describe(*coord, &config);
@@ -1161,6 +1203,25 @@ fn report_places(world: &mut World) {
                 "world sectors: '{}' must not also be an asteroid",
                 planet.id
             );
+            let mass = planet
+                .config
+                .mass
+                .unwrap_or_else(|| panic!("world sectors: '{}' must author its mass", planet.id));
+            let well = world
+                .get::<GravityWell>(entity)
+                .unwrap_or_else(|| panic!("world sectors: '{}' must be a gravity well", planet.id));
+            assert_eq!(
+                well.mu, mass,
+                "world sectors: '{}' must keep its mass whole under the surface gravity cap",
+                planet.id
+            );
+            assert!(
+                orbit_radius_band(well, &gravity, &flight).is_some(),
+                "world sectors: '{}' must offer ORBIT a ring band",
+                planet.id
+            );
+            let soi = well.soi_radius / well.body_radius;
+            reach = (reach.0.min(soi), reach.1.max(soi));
             planets += 1;
         }
 
@@ -1207,9 +1268,17 @@ fn report_places(world: &mut World) {
     nova_probe::probe_marker(
         world,
         "outcome: a featured sector owns real planetoids and inert derelict ships",
-        serde_json::json!({ "planetoids": planets, "ships": ships }),
+        serde_json::json!({
+            "planetoids": planets,
+            "ships": ships,
+            "soi_body_radii": [reach.0, reach.1],
+        }),
     );
-    info!("world sectors: {planets} planetoid(s) and {ships} inert derelict ship(s) are live");
+    info!(
+        "world sectors: {planets} planetoid well(s) reaching {:.3}-{:.3} body radii and {ships} \
+         inert derelict ship(s) are live",
+        reach.0, reach.1
+    );
 }
 
 /// Claim 11: a crossing moves the window, it does not rebuild it.
