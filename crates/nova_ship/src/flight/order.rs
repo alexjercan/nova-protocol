@@ -451,7 +451,7 @@ pub(super) fn drive_ship_orders(
             Has<ShipOrderEngaged>,
             Has<ScriptedAlignSettled>,
             Has<ShipOrderReported>,
-            Option<&DockedShip>,
+            (Option<&DockedShip>, Option<&DockedAssembly>),
         ),
         (With<SpaceshipRootMarker>, With<ShipOrderHelmAuthority>),
     >,
@@ -466,17 +466,51 @@ pub(super) fn drive_ship_orders(
     q_engine: Query<&ChildOf, (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>)>,
     mut q_thruster_input: Query<(&mut ThrusterSectionInput, &ChildOf), With<ThrusterSectionMarker>>,
     q_standoff: Query<&FlightArrivalStandoff>,
+    // Docked drivers whose missing assembly is already logged, so the error
+    // is said once per loss, not at the fixed rate.
+    mut missing_assembly: Local<EntityHashSet>,
 ) {
-    for (ship, mut order, mut reports, position, autopilot, engaged, settled, reported, docked) in
-        &mut q_ships
+    missing_assembly.retain(|ship| {
+        q_ships
+            .get(*ship)
+            .is_ok_and(|(.., (docked, assembly))| docked.is_some() && assembly.is_none())
+    });
+    for (
+        ship,
+        mut order,
+        mut reports,
+        position,
+        autopilot,
+        engaged,
+        settled,
+        reported,
+        (docked, assembly),
+    ) in &mut q_ships
     {
         // A docked root that does not drive its pair is paused, not judged:
         // its frozen maneuver neither arrives nor gives up, so the order is
         // neither completed nor failed until the ship drives again or
-        // undocks. Nothing pauses a scenario timer that races the order.
-        if docked.is_some_and(|docked| !docked.drives) {
-            continue;
-        }
+        // undocks. Nothing pauses a scenario timer that races the order. A
+        // driver with no assembly is held the same way until the pair is
+        // measured again: its root alone is not where the pair is.
+        //
+        // A docked driver ranks a nearest well from the pair's centre of
+        // mass, the point the ORBIT autopilot flies it from.
+        let ship_position = match (docked, assembly) {
+            (Some(docked), _) if !docked.drives => continue,
+            (Some(_), None) => {
+                if missing_assembly.insert(ship) {
+                    error!(
+                        "drive_ship_orders: docked driver {ship:?} has no DockedAssembly; \
+                         holding order '{}' rather than judging it from its root alone",
+                        order.key
+                    );
+                }
+                continue;
+            }
+            (Some(_), Some(assembly)) => assembly.center_of_mass,
+            (None, _) => position.0,
+        };
         let kind = order.kind();
         let can_turn = q_computer.iter().any(|&ChildOf(parent)| parent == ship);
         let can_burn = q_engine.iter().any(|&ChildOf(parent)| parent == ship);
@@ -487,7 +521,7 @@ pub(super) fn drive_ship_orders(
                 &order,
                 &mut commands,
                 &wells,
-                position.0,
+                ship_position,
                 &mut q_thruster_input,
                 &q_standoff,
             ) {
@@ -612,7 +646,7 @@ pub(super) fn drive_ship_orders(
                     &order,
                     &mut commands,
                     &wells,
-                    position.0,
+                    ship_position,
                     &mut q_thruster_input,
                     &q_standoff,
                 ) {
@@ -1410,6 +1444,69 @@ mod tests {
             Some(west),
             "the resume ranks again from where the ship now is"
         );
+    }
+
+    /// A docked driver ranks a nearest-well orbit from its pair's centre of
+    /// mass, the point the ORBIT autopilot flies it from. The root sits
+    /// nearer one well and the pair's centre of mass nearer the other. With
+    /// no assembly the order is held: not engaged from the root alone, and
+    /// not failed.
+    #[test]
+    fn a_docked_driver_ranks_a_nearest_orbit_from_the_pair_centre_of_mass() {
+        let mut app = order_app();
+        let mut spawn_well = |id: &str, x: f32| {
+            app.world_mut()
+                .spawn((
+                    GravityWell::from_mass(2_400.0, 20.0, &GravitySettings::default()),
+                    EntityId::new(id),
+                    Position(Vec3::new(x, 0.0, 0.0)),
+                ))
+                .id()
+        };
+        spawn_well("west", -500.0);
+        let east = spawn_well("east", 500.0);
+        let ship = ordered_ship(
+            &mut app,
+            ShipOrderDirective::Orbit {
+                well: WellTargetType::NearestToShip,
+            },
+        );
+        app.world_mut().entity_mut(ship).insert((
+            Position(Vec3::new(-400.0, 0.0, 0.0)),
+            DockedShip {
+                connection: Entity::PLACEHOLDER,
+                helm: Quat::IDENTITY,
+                drives: true,
+            },
+        ));
+
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "no assembly, no engage from the root alone"
+        );
+        assert!(
+            outcomes(&app, ship).is_empty(),
+            "and the held order is not failed"
+        );
+
+        app.world_mut().entity_mut(ship).insert(DockedAssembly {
+            mass: 2.0,
+            center_of_mass: Vec3::new(400.0, 0.0, 0.0),
+            linear_velocity: Vec3::ZERO,
+            inertia: ComputedAngularInertia::new(Vec3::ONE),
+            reach: 10.0,
+        });
+        app.update();
+        assert!(
+            matches!(
+                app.world().get::<Autopilot>(ship).map(|a| a.action),
+                Some(AutopilotAction::Orbit { well, .. }) if well == east
+            ),
+            "the measured pair ranks from its centre of mass, not the root"
+        );
+        assert!(outcomes(&app, ship).is_empty());
     }
 
     /// The settle rule is the authored tolerance read as a rate: a hull

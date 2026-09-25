@@ -13,7 +13,9 @@
 //! moving ship read off it can rank a different well at an engage or resume
 //! boundary. The passive AI runs in `Update` and passes the root's
 //! `Transform` translation, the pose it steers from; an orderable root is
-//! top-level, so that is world space.
+//! top-level, so that is world space. A docked driver passes its pair's
+//! `DockedAssembly` centre of mass in both callers, and a docked root with no
+//! assembly ranks nothing.
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemParam, prelude::*};

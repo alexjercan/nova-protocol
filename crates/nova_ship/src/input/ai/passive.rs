@@ -308,8 +308,13 @@ pub(super) fn update_passive_flight(
                 // and disengages itself if the well dies, so a bare engage
                 // is enough; re-resolve and retry every calm frame (also
                 // covers a well that spawns or streams in later than the
-                // ship).
-                let well = match wells.resolve(&directive.well, transform.translation) {
+                // ship). A docked driver ranks from the pair's centre of
+                // mass, the point the ORBIT autopilot flies it from.
+                let ranked_from = match assembly {
+                    Some(assembly) => assembly.center_of_mass,
+                    None => transform.translation,
+                };
+                let well = match wells.resolve(&directive.well, ranked_from) {
                     Ok(well) => well,
                     Err(fault @ WellTargetFault::Missing(_)) => {
                         debug_once!(
@@ -1383,6 +1388,66 @@ mod orbit_directive_tests {
                 plan: None
             }),
             "a nearer well loading later does not retarget the engaged ring"
+        );
+    }
+
+    /// A docked driver's nearest-well routine ranks from its pair's centre
+    /// of mass, the point the ORBIT autopilot flies it from. The root sits
+    /// nearer one well and the pair's centre of mass nearer the other. With
+    /// no assembly it engages nothing rather than rank from the root alone.
+    #[test]
+    fn a_docked_driver_ranks_its_nearest_well_from_the_pair_centre_of_mass() {
+        let (mut world, ship) = orbit_world();
+        world
+            .entity_mut(ship)
+            .get_mut::<AIOrbitDirective>()
+            .unwrap()
+            .well = WellTargetType::NearestToShip;
+        let mut spawn_well = |id: &str, x: f32| {
+            world
+                .spawn((
+                    GravityWell {
+                        mu: 2400.0,
+                        body_radius: 20.0,
+                        soi_radius: 400.0,
+                    },
+                    EntityId::new(id),
+                    Position(Vec3::new(x, 0.0, 0.0)),
+                ))
+                .id()
+        };
+        spawn_well("west", -500.0);
+        let east = spawn_well("east", 500.0);
+        world.entity_mut(ship).insert((
+            Transform::from_translation(Vec3::new(-400.0, 0.0, 0.0)),
+            DockedShip {
+                connection: Entity::PLACEHOLDER,
+                helm: Quat::IDENTITY,
+                drives: true,
+            },
+        ));
+
+        run_pipeline(&mut world);
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "no assembly, no engage from the root alone"
+        );
+
+        world.entity_mut(ship).insert(DockedAssembly {
+            mass: 2.0,
+            center_of_mass: Vec3::new(400.0, 0.0, 0.0),
+            linear_velocity: Vec3::ZERO,
+            inertia: ComputedAngularInertia::new(Vec3::ONE),
+            reach: 10.0,
+        });
+        run_pipeline(&mut world);
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Orbit {
+                well: east,
+                plan: None
+            }),
+            "the measured pair ranks from its centre of mass, not the root"
         );
     }
 
