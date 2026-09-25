@@ -16,7 +16,7 @@
 - Check whether mining/resource kind belongs on existing asteroid content and whether all groups need value beyond mere rock presence. Coordinate with static-well gravity and moving-rock lifetime research before choosing orbit arrangements.
 
 ## Verification to design
-- Seed/edge sweep of final *placed* bodies and skipped counts; seam/reverse-order and manifest validity assertions, repeated rendered flight through rock, mixed and empty fields, and matched window fill cost. Do not assert a numeric gameplay density from a mockup.
+- Seed/edge sweep of final *placed* bodies and skipped counts; seam/reverse-order and manifest validity assertions, repeated rendered flight through rock, mixed and empty fields, and matched window fill cost. Do not assert a numeric gameplay density without a measured placement count.
 
 ## Done when
 - Owner has reviewed composition scope, guarantee/failure rule, variant pacing and proof, with any production generator change gated by a separate code-backed plan.

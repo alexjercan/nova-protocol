@@ -106,7 +106,7 @@ research-only child task specifications now exist; none authorizes a feature.
 It also flags that `20260824-125938/RESEARCH.md` predates the current one-
 bootstrap streamed world and must not be treated as implemented architecture.
 
-## Deeper comparative and visual research, 2026-09-25
+## Deeper comparative research, 2026-09-25
 
 - `COMPARATIVE-RESEARCH.md` uses official game descriptions to compare
   physics-driven mining, physical salvage, modular ship upgrades and broad
@@ -116,17 +116,70 @@ bootstrap streamed world and must not be treated as implemented architecture.
 - `ASSET-SCOUT.md` separates already credited local source art, original
   game assets, and one verified external CC0 candidate from license-unknown
   suggestions. No third-party asset was imported.
-- `artifacts/station-service.html` and `artifacts/field-salvage.html` are
-  self-contained interactive **concept pages**, not game UI or authored
-  content. They show before/after choices and refusal states. The worker
-  checked the initial pages at 1280px and 420px. A browser recheck of the
-  corrected broken-port state passed 28 scripted assertions; real mobile
-  overflow and screen-reader behavior are unverified. No game run is claimed. All values are
-  illustrative, and the mockups do not settle any interface.
 - The gravity backlog task `20260925-182711` separately researches how to
   remove the gravity exemptions for *all mobile* rocks and neutral ships while
   keeping static planet/anchor wells. Mining of moving asteroids depends on
   that lifetime/ownership decision; this spike does not choose its physics.
+- The owner rejected the two HTML concept pages from this research as bad
+  design, and they were deleted before merge. They endorse no screen, layout
+  or interaction. Only the behavioral lessons below are kept.
+
+## Owner UI review, 2026-09-25
+
+Recorded direction for future design. No runtime code and no replacement
+mockup exist; any new visual is future design work.
+
+**Approved direction**
+- Map and ship visuals stay similar to the existing NOVA OS `map` and `ship`
+  apps, but are hosted in normal themed UI tabs, not the CRT/terminal. Today
+  both render an offscreen `Camera3d` image through the NOVA OS CRT composite
+  with projected clickable UI blips (`crates/nova_os_ui/src/map/mod.rs:1-19`,
+  `crates/nova_os_ui/src/ship/mod.rs:12-27`), in phosphor colors
+  (`crates/nova_os_ui/src/map/scene.rs:86-94`).
+- Less text. No visible logs. Today the apps write result and error rows to
+  the terminal scrollback (`crates/nova_os_ui/src/map/app.rs:52-68`,
+  `crates/nova_os_ui/src/ship/app.rs:216-224`).
+- The map may show sector boundary lines, the ship-forward orientation and
+  more meaningful contact labels. Today the scene draws distance rings and a
+  central hub (`map/scene.rs:86-94`); a search of `map/scene.rs` finds no
+  sector or heading geometry. Labels are a kind prefix plus a per-kind index
+  such as `AST-2` (`crates/nova_os_ui/src/map/contacts.rs:66-75,445-456`).
+  Forward orientation reaches the player only as the bearing number in the
+  readout text (`contacts.rs:121-155`).
+- A ship projection with clickable components. Today section blips are
+  clickable and the app has Repair, Reload and Rebind buttons
+  (`crates/nova_os_ui/src/ship/scene.rs:661-662`,
+  `crates/nova_os_ui/src/ship/app.rs:109-122`).
+- Inventory must be interesting to look at, not a text ledger.
+- Undocked, the player may view map, inventory and ship. Transfers, trades
+  and other station services are dock-gated.
+
+**Open decisions**
+- Ship appearance: the existing block wireframe (`ship/mod.rs:12-19`)
+  against an editor-style 3D appearance. Consequence: the wireframe reuses
+  the current proxy blocks; the 3D look needs a render path that shows real
+  section models.
+- Station UI entry: a dedicated key against shared tabs opened with TAB.
+  Input conflict: TAB is the `novaos_toggle` keyboard binding
+  (`crates/nova_os_ui/src/bindings.rs:48-51`). In flight it opens the NOVA OS
+  shell (`crates/nova_os_ui/src/terminal/input.rs:62-80`); at the NOVA OS
+  prompt, TAB is command completion (`terminal/input.rs:235-247,308`). Consequence: a
+  dedicated key leaves TAB with NOVA OS; TAB-opened shared tabs take the
+  flight press from NOVA OS, so the terminal needs another entry or becomes a
+  tab, and completion at its prompt must not also switch tabs.
+
+**Behavioral lessons kept from the deleted pages**
+- A service is available only while docked to the right partner with the
+  port intact. Undocked, a lost port and an unloaded station record all
+  refuse and show no default services.
+- A broken dock port releases the joint and fires `OnUndocked`; it is not a
+  docked-fault state. A transaction in progress at undock needs a rollback or
+  refusal decision.
+- Free ship-app Repair and idle ammo refill leave a station nothing
+  exclusive to offer until the owner changes one of them.
+- A repeat salvage claim must refuse. Claim lifetime is a persistence
+  choice: none lets the player farm by retiring a sector, session resets on
+  restart, save keeps the claim across restart.
 
 ## Decisions the spike must reach or explicitly leave open
 
