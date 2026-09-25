@@ -1,6 +1,6 @@
 # Type asteroid kind identifiers and standardize content identity terms
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, world, content, refactor
 
