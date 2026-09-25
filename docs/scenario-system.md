@@ -843,8 +843,7 @@ one nudge does not silently cost the player three quarters of a revolution.
 
 The docking tracker reads its two edges off the CONNECTION entity rather than
 off either hull. `DOCK` builds exactly one connection per pair and every way
-out of a dock - either pilot's verb, a maneuver engaged on either hull, a
-shot-off port, a dead ship - despawns that one entity, so comparing a live
+out of a dock - either pilot's verb, a shot-off port, a dead ship - despawns that one entity, so comparing a live
 connection against the `DockEcho` BOTH hulls carry reports one `OnDocked` and
 one `OnUndocked` on every path, with no branch per ending and nothing in
 `nova_ship` knowing what a scenario event is. The echo retains the payload, not

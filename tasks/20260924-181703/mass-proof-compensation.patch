@@ -1,0 +1,511 @@
+diff --git a/crates/nova_ship/src/flight/tests/stacking.rs b/crates/nova_ship/src/flight/tests/stacking.rs
+index 565477ebc..e5ebcd4bb 100644
+--- a/crates/nova_ship/src/flight/tests/stacking.rs
++++ b/crates/nova_ship/src/flight/tests/stacking.rs
+@@ -596,3 +596,436 @@ fn losing_one_of_two_computers_degrades_handling_instead_of_stranding_the_hull()
+         "and still park the hull"
+     );
+ }
++
++// TEMPORARY(docked-helm-mass-proof): owner-approved measurement for the docked
++// helm decision. Delete this block, and `TemporaryAssemblyInertia`, after the
++// owner reads the table.
++mod temporary_docked_mass_proof {
++    use super::*;
++    use crate::sections::controller_section::TemporaryAssemblyInertia;
++
++    /// A box of unit hull cells centred on `centre` in the root frame.
++    fn spawn_box(app: &mut App, root: Entity, size: IVec3, centre: Vec3, density: f32) {
++        let first = centre - (size - IVec3::ONE).as_vec3() * 0.5;
++        for x in 0..size.x {
++            for y in 0..size.y {
++                for z in 0..size.z {
++                    app.world_mut().spawn((
++                        ChildOf(root),
++                        Name::new("hull"),
++                        SectionMarker,
++                        SectionCollider::Cuboid { size: Vec3::ONE },
++                        Transform::from_translation(first + IVec3::new(x, y, z).as_vec3()),
++                        Collider::cuboid(1.0, 1.0, 1.0),
++                        ColliderDensity(density),
++                    ));
++                }
++            }
++        }
++    }
++
++    const COMPUTERS: usize = 3;
++    const MAX_TORQUE: f32 = 9760.0;
++
++    /// Warship-like player: 3x2x15 cells, three shipped computers, one
++    /// vectoring drive on the transom (off until a burn row fires it).
++    fn spawn_player(app: &mut App) -> (Entity, Entity) {
++        let ship = app
++            .world_mut()
++            .spawn((
++                RigidBody::Dynamic,
++                Transform::default(),
++                SpaceshipRootMarker,
++                FlightIntent::default(),
++            ))
++            .id();
++        spawn_box(app, ship, IVec3::new(3, 2, 15), Vec3::ZERO, 1.0);
++        for _ in 0..COMPUTERS {
++            app.world_mut().spawn((
++                ChildOf(ship),
++                Name::new("controller"),
++                ControllerSectionMarker,
++                ControllerSectionRotationInput::default(),
++                ControllerSectionTuning {
++                    steering_lag: 0.5,
++                    max_torque: MAX_TORQUE,
++                },
++                PDController {
++                    frequency: 4.0,
++                    damping_ratio: 4.0,
++                    max_angular_acceleration: 0.0,
++                    sustained_angular_speed: f32::INFINITY,
++                },
++                PDControllerTarget(ship),
++                Transform::default(),
++            ));
++        }
++        let drive = app
++            .world_mut()
++            .spawn((
++                ChildOf(ship),
++                Name::new("drive"),
++                ThrusterSectionMarker,
++                ThrusterSectionMagnitude(9.0),
++                ThrusterSectionInput(0.0),
++                Transform::from_xyz(0.0, 0.0, 8.0),
++            ))
++            .id();
++        (ship, drive)
++    }
++
++    #[derive(Clone, Copy)]
++    struct Partner {
++        name: &'static str,
++        size: IVec3,
++        density: f32,
++    }
++
++    const PARTNERS: [Option<Partner>; 5] = [
++        None,
++        Some(Partner {
++            name: "workship-like",
++            size: IVec3::new(3, 1, 8),
++            density: 1.0,
++        }),
++        Some(Partner {
++            name: "balanced",
++            size: IVec3::new(3, 2, 15),
++            density: 1.0,
++        }),
++        Some(Partner {
++            name: "heavy x4",
++            size: IVec3::new(3, 2, 15),
++            density: 4.0,
++        }),
++        Some(Partner {
++            name: "station x20",
++            size: IVec3::new(3, 2, 15),
++            density: 20.0,
++        }),
++    ];
++
++    /// Starboard flank dock: player face at x = 1.5, one collar cell each
++    /// side (massless), partner hull beyond. Same joint the game builds.
++    fn spawn_partner(app: &mut App, partner: Partner) -> Entity {
++        let half = partner.size.x as f32 * 0.5;
++        let offset = 1.5 + 2.0 + half;
++        let body = app
++            .world_mut()
++            .spawn((RigidBody::Dynamic, Transform::from_xyz(offset, 0.0, 0.0)))
++            .id();
++        spawn_box(app, body, partner.size, Vec3::ZERO, partner.density);
++        body
++    }
++
++    #[derive(Clone, Copy, PartialEq)]
++    enum Case {
++        Yaw90,
++        /// Drive thrust line through the assembly centre of mass.
++        BurnBalanced,
++        /// Drive on the player centreline, off the assembly centre of mass.
++        BurnOffAxis,
++    }
++
++    impl Case {
++        fn label(self) -> &'static str {
++            match self {
++                Self::Yaw90 => "yaw90",
++                Self::BurnBalanced => "burn-bal",
++                Self::BurnOffAxis => "burn-off",
++            }
++        }
++    }
++
++    /// `Rigid` builds the partner's cells into the player root, no joint: the
++    /// ideal single body the compensation is trying to fly.
++    #[derive(Clone, Copy, PartialEq)]
++    enum Mode {
++        Base,
++        Comp,
++        Rigid,
++    }
++
++    impl Mode {
++        fn label(self) -> &'static str {
++            match self {
++                Self::Base => "base",
++                Self::Comp => "comp",
++                Self::Rigid => "rigid",
++            }
++        }
++    }
++
++    #[derive(PartialEq, Debug)]
++    struct Row {
++        tail_rate: f32,
++        tail_error: f32,
++        tail_joint_rate: f32,
++        mass_ratio: f32,
++        player_yaw_inertia: f32,
++        assembly_yaw_inertia: f32,
++        budget: f32,
++        error: f32,
++        settle: f32,
++        reversals: usize,
++        peak_torque_share: f32,
++        saturated_seconds: f32,
++        max_joint_m: f32,
++        max_joint_deg: f32,
++    }
++
++    fn relative(app: &App, ship: Entity, body: Entity) -> (Vec3, Quat) {
++        let (p0, r0) = (
++            app.world().get::<Position>(ship).unwrap().0,
++            app.world().get::<Rotation>(ship).unwrap().0,
++        );
++        let (p1, r1) = (
++            app.world().get::<Position>(body).unwrap().0,
++            app.world().get::<Rotation>(body).unwrap().0,
++        );
++        (r0.inverse() * (p1 - p0), r0.inverse() * r1)
++    }
++
++    /// Assembly inertia tensor about the combined centre of mass, in the
++    /// player's local frame, plus that centre in the player frame.
++    fn assembly(app: &App, ship: Entity, body: Option<Entity>) -> (f32, Mat3, Vec3) {
++        let world = app.world();
++        let (p0, r0) = (
++            world.get::<Position>(ship).unwrap().0,
++            world.get::<Rotation>(ship).unwrap().0,
++        );
++        let parts: Vec<(f32, Vec3, Mat3)> = [Some(ship), body]
++            .into_iter()
++            .flatten()
++            .map(|entity| {
++                let mass = world.get::<ComputedMass>(entity).unwrap().value();
++                let rotation = world.get::<Rotation>(entity).unwrap().0;
++                let com = world.get::<Position>(entity).unwrap().0
++                    + rotation * world.get::<ComputedCenterOfMass>(entity).unwrap().0;
++                let local = r0.inverse() * rotation;
++                let tensor = Mat3::from(
++                    world
++                        .get::<ComputedAngularInertia>(entity)
++                        .unwrap()
++                        .rotated(local)
++                        .tensor(),
++                );
++                (mass, r0.inverse() * (com - p0), tensor)
++            })
++            .collect();
++        let total: f32 = parts.iter().map(|part| part.0).sum();
++        let com = parts.iter().map(|part| part.1 * part.0).sum::<Vec3>() / total;
++        // Parallel axis theorem written out: avian 0.7's
++        // `ComputedAngularInertia::shifted_tensor` ADDS the outer product.
++        let tensor = parts.iter().fold(Mat3::ZERO, |sum, (mass, at, tensor)| {
++            let d = *at - com;
++            let outer = Mat3::from_cols(d * d.x, d * d.y, d * d.z);
++            sum + *tensor + (Mat3::from_diagonal(Vec3::splat(d.length_squared())) - outer) * *mass
++        });
++        let ratio = parts.get(1).map_or(0.0, |part| part.0) / parts[0].0;
++        (ratio, tensor, com)
++    }
++
++    fn run(partner: Option<Partner>, case: Case, mode: Mode, seconds: f32) -> Row {
++        let mut app = helm_app();
++        let (ship, drive) = spawn_player(&mut app);
++        let body = match (partner, mode) {
++            (Some(partner), Mode::Rigid) => {
++                let offset = 1.5 + 2.0 + partner.size.x as f32 * 0.5;
++                spawn_box(&mut app, ship, partner.size, Vec3::X * offset, partner.density);
++                None
++            }
++            (partner, _) => partner.map(|partner| spawn_partner(&mut app, partner)),
++        };
++        settle(&mut app);
++        if let Some(body) = body {
++            app.world_mut().spawn(
++                FixedJoint::new(ship, body)
++                    .with_anchor(Vec3::new(2.5, 0.0, 0.0))
++                    .with_basis(Rotation(Quat::IDENTITY)),
++            );
++            settle(&mut app);
++        }
++        let (mass_ratio, tensor, com) = assembly(&app, ship, body);
++        let player_yaw_inertia = app
++            .world()
++            .get::<ComputedAngularInertia>(ship)
++            .unwrap()
++            .tensor()
++            .m11;
++        let assembly_yaw_inertia = tensor.y_axis.y;
++        if mode == Mode::Comp {
++            app.world_mut()
++                .entity_mut(ship)
++                .insert(TemporaryAssemblyInertia(ComputedAngularInertia::from_tensor(
++                    avian3d::math::SymmetricMatrix::from_mat3_unchecked(tensor),
++                )));
++        }
++        if case == Case::BurnBalanced {
++            app.world_mut()
++                .get_mut::<Transform>(drive)
++                .unwrap()
++                .translation = Vec3::new(com.x, com.y, 8.0);
++        }
++        let rest = body.map(|body| relative(&app, ship, body));
++        // Let the tuning pass see the override before the command moves.
++        app.update();
++
++        let command = if case == Case::Yaw90 {
++            90.0f32.to_radians()
++        } else {
++            0.0
++        };
++        let target = Quat::from_rotation_y(command);
++        app.world_mut().resource_mut::<Helm>().0 = target;
++        let dt = 1.0 / 60.0;
++        let total_torque = COMPUTERS as f32 * MAX_TORQUE;
++        let (mut turned, mut previous, mut peak_turn, mut last_outside) = (0.0f32, 0.0, 0.0f32, 0);
++        let (mut reached, mut sign, mut reversals) = (false, 1.0f32, 0usize);
++        let (mut max_joint_m, mut max_joint_deg, mut max_hold) = (0.0f32, 0.0f32, 0.0f32);
++        let (mut peak_torque_share, mut saturated_ticks, mut budget) = (0.0f32, 0usize, 0.0f32);
++        let tail = ((seconds - 10.0) * 60.0) as usize;
++        let (mut tail_rate, mut tail_error, mut tail_joint_rate) = (0.0f32, 0.0f32, 0.0f32);
++        let mut q_output = app
++            .world_mut()
++            .query::<(&PDControllerOutput, &PDController)>();
++        for step in 0..(seconds * 60.0) as usize {
++            if case != Case::Yaw90 {
++                app.world_mut()
++                    .get_mut::<ThrusterSectionInput>(drive)
++                    .unwrap()
++                    .0 = if step < 180 { 1.0 } else { 0.0 };
++            }
++            app.update();
++            let rotation = app.world().get::<Rotation>(ship).unwrap().0;
++            let yaw = rotation.to_euler(EulerRot::YXZ).0;
++            turned += wrapped_delta(previous, yaw);
++            previous = yaw;
++            peak_turn = peak_turn.max(turned);
++            let rate = angular_speed_of(&app, ship);
++            let error = if case == Case::Yaw90 {
++                command - turned
++            } else {
++                rotation.angle_between(target)
++            };
++            if error.abs() > 1.0f32.to_radians() || rate > 0.05 {
++                last_outside = step;
++            }
++            max_hold = max_hold.max(error.abs());
++            if step >= tail {
++                tail_rate = tail_rate.max(rate);
++                tail_error = tail_error.max(error.abs());
++                if let Some(body) = body {
++                    let world = app.world();
++                    let relative_spin = world.get::<AngularVelocity>(body).unwrap().0
++                        - world.get::<AngularVelocity>(ship).unwrap().0;
++                    tail_joint_rate = tail_joint_rate.max(relative_spin.length());
++                }
++            }
++            if case == Case::Yaw90 {
++                if !reached && error <= 0.0 {
++                    reached = true;
++                    sign = -1.0;
++                }
++                if reached && error.abs() > 1.0f32.to_radians() && error.signum() != sign {
++                    sign = error.signum();
++                    reversals += 1;
++                }
++            }
++            let (torque, acceleration) = q_output
++                .iter(app.world())
++                .fold((Vec3::ZERO, 0.0), |(torque, acceleration), (output, pd)| {
++                    (torque + output.0, acceleration + pd.max_angular_acceleration)
++                });
++            if step == 0 {
++                budget = acceleration;
++            }
++            let share = torque.length() / total_torque;
++            peak_torque_share = peak_torque_share.max(share);
++            if share >= 0.99 {
++                saturated_ticks += 1;
++            }
++            if let (Some(body), Some((p0, r0))) = (body, rest) {
++                let (p, r) = relative(&app, ship, body);
++                max_joint_m = max_joint_m.max((p - p0).length() * 10.0);
++                max_joint_deg = max_joint_deg.max((r0.inverse() * r).to_axis_angle().1.to_degrees());
++            }
++        }
++        Row {
++            tail_rate,
++            tail_error: tail_error.to_degrees(),
++            tail_joint_rate,
++            mass_ratio,
++            player_yaw_inertia,
++            assembly_yaw_inertia,
++            budget,
++            error: if case == Case::Yaw90 {
++                (peak_turn - command).max(0.0).to_degrees()
++            } else {
++                max_hold.to_degrees()
++            },
++            settle: (last_outside + 1) as f32 * dt,
++            reversals,
++            peak_torque_share,
++            saturated_seconds: saturated_ticks as f32 * dt,
++            max_joint_m,
++            max_joint_deg,
++        }
++    }
++
++    fn table() -> Vec<(String, Row)> {
++        let mut rows = Vec::new();
++        for (case, seconds) in [
++            (Case::Yaw90, 60.0),
++            (Case::BurnBalanced, 30.0),
++            (Case::BurnOffAxis, 30.0),
++        ] {
++            for partner in PARTNERS {
++                for mode in [Mode::Base, Mode::Comp, Mode::Rigid] {
++                    let label = format!(
++                        "{:>8} {:>14} {:>5}",
++                        case.label(),
++                        partner.map_or("undocked", |partner| partner.name),
++                        mode.label()
++                    );
++                    rows.push((label, run(partner, case, mode, seconds)));
++                }
++            }
++        }
++        rows
++    }
++
++    #[test]
++    fn temporary_docked_mass_ratio_table() {
++        let first = table();
++        println!(
++            "{:>8} {:>14} {:>5} {:>6} {:>8} {:>8} {:>7} {:>7} {:>8} {:>8} {:>5} {:>6} {:>6} {:>7} {:>8} {:>7} {:>7} {:>8}",
++            "case", "partner", "mode", "m2/m1", "I1 yaw", "Iasm yaw", "I1/Iasm", "budget",
++            "err deg", "settle s", "rings", "peakT", "sat s", "joint m", "joint deg",
++            "tail w", "tail er", "tail jw"
++        );
++        for (label, row) in &first {
++            println!(
++                "{label} {:>6.2} {:>8.1} {:>8.1} {:>7.3} {:>7.3} {:>8.2} {:>8.2} {:>5} {:>6.3} {:>6.2} {:>7.3} {:>8.3} {:>7.4} {:>7.3} {:>8.4}",
++                row.mass_ratio,
++                row.player_yaw_inertia,
++                row.assembly_yaw_inertia,
++                row.player_yaw_inertia / row.assembly_yaw_inertia,
++                row.budget,
++                row.error,
++                row.settle,
++                row.reversals,
++                row.peak_torque_share,
++                row.saturated_seconds,
++                row.max_joint_m,
++                row.max_joint_deg,
++                row.tail_rate,
++                row.tail_error,
++                row.tail_joint_rate
++            );
++        }
++        let second = table();
++        assert_eq!(first, second, "repeat run must match bit for bit");
++        println!("repeat: identical ({} rows)", second.len());
++    }
++}
+diff --git a/crates/nova_ship/src/physics/pd_controller.rs b/crates/nova_ship/src/physics/pd_controller.rs
+index a63ebe3b7..b7ee8bb99 100644
+--- a/crates/nova_ship/src/physics/pd_controller.rs
++++ b/crates/nova_ship/src/physics/pd_controller.rs
+@@ -116,7 +116,12 @@ fn setup_pd_controller_system(add: On<Add, PDController>, mut commands: Commands
+ /// section when a split moves it onto a new hull. Before it existed this loop
+ /// logged an error at the fixed rate for the rest of the scene.
+ fn update_controller_root_torque(
+-    q_root: Query<(&ComputedAngularInertia, &Rotation, &AngularVelocity)>,
++    q_root: Query<(
++        &ComputedAngularInertia,
++        &Rotation,
++        &AngularVelocity,
++        Option<&crate::sections::controller_section::TemporaryAssemblyInertia>,
++    )>,
+     mut q_controller: Query<(
+         &PDController,
+         &PDControllerInput,
+@@ -127,7 +132,8 @@ fn update_controller_root_torque(
+     for (controller, controller_input, controller_target, mut controller_output) in
+         &mut q_controller
+     {
+-        let Ok((angular_inertia, rotation, angular_velocity)) = q_root.get(**controller_target)
++        let Ok((angular_inertia, rotation, angular_velocity, assembly)) =
++            q_root.get(**controller_target)
+         else {
+             trace!(
+                 "update_controller_root_torque: target {:?} is not a body; holding no torque",
+@@ -139,6 +145,8 @@ fn update_controller_root_torque(
+             continue;
+         };
+ 
++        // TEMPORARY(docked-helm-mass-proof): see TemporaryAssemblyInertia.
++        let angular_inertia = assembly.map_or(angular_inertia, |assembly| &assembly.0);
+         let (principal, local_frame) = angular_inertia.principal_angular_inertia_with_local_frame();
+ 
+         let torque = compute_pd_torque(
+diff --git a/crates/nova_ship/src/sections/controller_section.rs b/crates/nova_ship/src/sections/controller_section.rs
+index 1fa81dacf..8d70b73a5 100644
+--- a/crates/nova_ship/src/sections/controller_section.rs
++++ b/crates/nova_ship/src/sections/controller_section.rs
+@@ -192,8 +192,15 @@ type HullBody<'w> = (
+     &'w ComputedAngularInertia,
+     &'w AngularVelocity,
+     Option<&'w HullRadius>,
++    Option<&'w TemporaryAssemblyInertia>,
+ );
+ 
++// TEMPORARY(docked-helm-mass-proof): prototype inertia compensation. The
++// assembly tensor about the combined centre of mass, in the root's local
++// frame. Delete with the fixture in flight/tests/stacking.rs.
++#[derive(Component, Clone, Copy, Debug)]
++pub(crate) struct TemporaryAssemblyInertia(pub(crate) ComputedAngularInertia);
++
+ /// Fold every live controller on a hull into ONE attitude loop, split back
+ /// across the sections that provide it.
+ ///
+@@ -281,9 +288,11 @@ pub(crate) fn update_controller_stack_tuning(
+         // one. Leaving the controllers on their previous tuning (a fresh stack
+         // has the authored seed) is the honest answer: nothing about this hull
+         // is known yet, or anything is left to tune for.
+-        let Ok((angular_inertia, angular_velocity, Some(hull_radius))) = q_root.get(root) else {
++        let Ok((angular_inertia, angular_velocity, Some(hull_radius), assembly)) = q_root.get(root)
++        else {
+             continue;
+         };
++        let angular_inertia = assembly.map_or(angular_inertia, |assembly| &assembly.0);
+         let inertia = angular_inertia
+             .principal_angular_inertia_with_local_frame()
+             .0

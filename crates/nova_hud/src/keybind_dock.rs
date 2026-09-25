@@ -84,7 +84,7 @@ pub const DOCK_BOTTOM_PX: f32 = 14.0;
 /// The verb names, in dock display order (left to right). The component-cycle
 /// chip documents the wheel gesture: plain scroll steps the component
 /// fine-lock; CTRL+scroll steps the ship lock through the tracked candidates.
-pub const DOCK_VERBS: [&str; 8] = [
+pub const DOCK_VERBS: [&str; 9] = [
     "STOP",
     "GOTO",
     "ORBIT",
@@ -93,6 +93,7 @@ pub const DOCK_VERBS: [&str; 8] = [
     "COMPONENT",
     "RCS",
     "DOCK",
+    "HELM",
 ];
 
 /// Emphasis pulse rate and the alpha bands it sweeps. The emphasized chip
@@ -335,6 +336,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
             chip_of(5),
             chip_of(6),
             chip_of(7),
+            chip_of(8),
         ],
     )
 }
@@ -459,7 +461,8 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
         4 => &hints.radar,
         5 => &hints.component_cycle,
         6 => &hints.rcs,
-        _ => &hints.dock,
+        7 => &hints.dock,
+        _ => &hints.helm,
     }
 }
 
@@ -470,8 +473,9 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
 /// maneuver's own chip is hot (GOTO while a GOTO burns, STOP while stopping,
 /// ORBIT while parking), CANCEL is hot whenever anything is engaged (it is the
 /// live way out), RADAR is hot while a combat lock is held - the lock IS the
-/// radar's product, and it is the chip you press to change it - and DOCK is hot
-/// while the hull is held by a docking joint.
+/// radar's product, and it is the chip you press to change it - DOCK is hot
+/// while the hull is held by a docking joint, and HELM while the player holds
+/// the docked pair's helm.
 ///
 /// `Hot` is checked BEFORE availability, because it means "this is what the
 /// ship is doing", not "press this": the ORBIT offer is retired the moment you
@@ -490,6 +494,7 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
         // ports are spoken for), so without this the chip would vanish at the
         // exact moment docking becomes worth reporting.
         "DOCK" => situations.docked,
+        "HELM" => hints.helm_held,
         _ => false,
     };
     if hot {
@@ -509,7 +514,7 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
 /// positions never moved; playtested, that read as a wall of mostly-dead keys
 /// rather than "these are your options NOW".
 ///
-/// Two verbs survive the hide:
+/// Four verbs survive the hide:
 ///
 /// - a [`DockChipState::Hot`] chip, because hot means "this is what the ship is
 ///   doing" and the engaged maneuver's own offer is retired while it runs (see
@@ -517,18 +522,28 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
 ///   maneuver off the dock;
 /// - an EMPHASIZED chip, because a scenario spotlight exists precisely to point
 ///   at a verb before it lights up - that is what the
-///   `EMPHASIS_ALPHA_UNAVAILABLE` band is for.
+///   `EMPHASIS_ALPHA_UNAVAILABLE` band is for;
+/// - a verb whose hint is [`VerbHint::helm_blocked`], so the player sees the
+///   verbs the docked helm blocks rather than a dock that looks as if the ship
+///   lost them. A verb the ship withholds stays off the dock;
+/// - HELM on a pair with a [`FlightVerbHints::helm_fault`], so the chip says
+///   why the helm cannot be taken rather than leaving the dock.
 fn chip_visible(
     state: DockChipState,
-    hint: &VerbHint,
+    hints: &FlightVerbHints,
     emphasis: &HintEmphasis,
     index: usize,
 ) -> bool {
+    let hint = verb_hint(hints, index);
     if hint.key.is_empty() {
         // No flight rig: no keys to show, whatever the states say.
         return false;
     }
-    state != DockChipState::Dim || emphasis.contains(dock_verb(index))
+    let verb = dock_verb(index);
+    state != DockChipState::Dim
+        || hint.helm_blocked
+        || (verb == "HELM" && hints.helm_fault)
+        || emphasis.contains(verb)
 }
 
 /// The verb name behind chip `index`, clamped rather than panicking - the dock
@@ -622,6 +637,7 @@ fn update_dock(
         (With<ChipKeyText>, Without<DockChip>, Without<ChipGlyph>),
     >,
     mut q_text_color: Query<&mut TextColor, Or<(With<ChipLabel>, With<ChipKeyText>)>>,
+    mut q_label: Query<&mut Text, (With<ChipLabel>, Without<ChipKeyText>)>,
     q_added: Query<(), Added<DockChip>>,
 ) {
     // Skip quiet frames, but never skip freshly spawned chips (a respawned HUD
@@ -648,7 +664,7 @@ fn update_dock(
     for (chip, mut state, mut node, mut fill, mut border, children) in &mut q_chip {
         let hint = verb_hint(&hints, **chip);
         let next = chip_state(&hints, &situations, **chip);
-        let shown = chip_visible(next, hint, &emphasis, **chip);
+        let shown = chip_visible(next, &hints, &emphasis, **chip);
         let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
             node.display = display;
@@ -683,9 +699,22 @@ fn update_dock(
             &mut q_glyph,
             &mut q_key_text,
         );
+        // HELM says which way the key goes: take the pair, or hand it back,
+        // or why it cannot be taken.
+        let label = match dock_verb(**chip) {
+            "HELM" if hints.helm_held => "RELEASE HELM",
+            "HELM" if hints.helm_fault => "HELM FAULT",
+            "HELM" => "TAKE HELM",
+            verb => verb,
+        };
         for &child in children {
             if let Ok(mut color) = q_text_color.get_mut(child) {
                 color.set_if_neq(TextColor(text_color));
+            }
+            if let Ok(mut text) = q_label.get_mut(child) {
+                if **text != label {
+                    **text = label.to_string();
+                }
             }
         }
     }
@@ -754,7 +783,7 @@ fn pulse_emphasized_chips(
         // for a spotlight being cleared off an unavailable verb, which drops
         // the chip off the dock.
         let (next_border, next_label) =
-            if chip_visible(*state, hint, &emphasis, **chip) && emphasis.contains(verb) {
+            if chip_visible(*state, &hints, &emphasis, **chip) && emphasis.contains(verb) {
                 let gold = emphasis_color(hint.available, wave);
                 (gold, gold)
             } else if emphasis.is_changed() || hints.is_changed() {
@@ -888,42 +917,58 @@ mod tests {
                 key: "X".into(),
                 available: true,
                 anchor: None,
+                helm_blocked: false,
             },
             goto: VerbHint {
                 key: "G".into(),
                 available: false,
                 anchor: None,
+                helm_blocked: false,
             },
             orbit: VerbHint {
                 key: "O".into(),
                 available: orbit_available,
                 anchor: well,
+                helm_blocked: false,
             },
             cancel: VerbHint {
                 key: "Z".into(),
                 available: engaged,
                 anchor: None,
+                helm_blocked: false,
             },
             component_cycle: VerbHint {
                 key: "SCROLL".into(),
                 available: false,
                 anchor: None,
+                helm_blocked: false,
             },
             radar: VerbHint {
                 key: "CTRL".into(),
                 available: true,
                 anchor: None,
+                helm_blocked: false,
             },
             rcs: VerbHint {
                 key: "SHIFT".into(),
                 available: false,
                 anchor: None,
+                helm_blocked: false,
             },
             dock: VerbHint {
                 key: "D".into(),
                 available: false,
                 anchor: None,
+                helm_blocked: false,
             },
+            helm: VerbHint {
+                key: "H".into(),
+                available: false,
+                anchor: None,
+                helm_blocked: false,
+            },
+            helm_held: false,
+            helm_fault: false,
             engaged,
         }
     }
@@ -938,6 +983,7 @@ mod tests {
             &mut resource.component_cycle,
             &mut resource.rcs,
             &mut resource.dock,
+            &mut resource.helm,
         ] {
             hint.available = true;
         }
@@ -989,6 +1035,104 @@ mod tests {
         dock.get::<Children>().unwrap().to_vec()
     }
 
+    #[test]
+    fn the_helm_chip_reads_take_then_release() {
+        let mut app = glyph_app();
+        app.init_resource::<HintEmphasis>();
+        app.add_systems(Update, update_dock);
+        app.world_mut().spawn(keybind_dock_hud());
+        let chips = chips(&app);
+        let helm = chips[8];
+        let label = |app: &App, chip: Entity| {
+            app.world()
+                .entity(chip)
+                .get::<Children>()
+                .unwrap()
+                .iter()
+                .find_map(|child| {
+                    let entity = app.world().entity(child);
+                    entity.get::<ChipLabel>()?;
+                    Some(entity.get::<Text>()?.0.clone())
+                })
+                .unwrap()
+        };
+        let shown = |app: &App, chip: Entity| {
+            app.world().entity(chip).get::<Node>().unwrap().display == Display::Flex
+        };
+        let state =
+            |app: &App, chip: Entity| *app.world().entity(chip).get::<DockChipState>().unwrap();
+
+        // Docked in neutral: the helm is on offer, and the verbs it would
+        // give back stay on the dock, dark. RCS is withheld, so HELM would
+        // not give it back and it stays off the dock.
+        let mut neutral = hints(false, false, None);
+        neutral.stop.available = false;
+        neutral.stop.helm_blocked = true;
+        neutral.helm.available = true;
+        app.insert_resource(neutral.clone());
+        app.insert_resource(HudSituations {
+            docked: true,
+            ..default()
+        });
+        app.update();
+        assert_eq!(label(&app, helm), "TAKE HELM");
+        assert_eq!(state(&app, helm), DockChipState::Available);
+        assert!(shown(&app, chips[0]), "STOP is blocked, not gone");
+        assert_eq!(state(&app, chips[0]), DockChipState::Dim);
+        assert!(!shown(&app, chips[6]), "a withheld RCS stays off the dock");
+
+        // A pair that cannot be measured: the helm cannot be taken, and the
+        // chip stays on the dock to say why. HELM would give nothing back, so
+        // the verbs it blocked leave the dock.
+        let mut faulted = neutral.clone();
+        faulted.helm.available = false;
+        faulted.helm_fault = true;
+        faulted.stop.helm_blocked = false;
+        app.insert_resource(faulted);
+        app.update();
+        assert!(shown(&app, helm), "a faulted HELM stays on the dock");
+        assert_eq!(label(&app, helm), "HELM FAULT");
+        assert_eq!(state(&app, helm), DockChipState::Dim);
+        assert!(!shown(&app, chips[0]), "a fault blocks no STOP on the helm");
+        assert!(!shown(&app, chips[6]), "a withheld RCS stays off the dock");
+
+        // Measured again: the helm is on offer and STOP waits on it.
+        app.insert_resource(neutral.clone());
+        app.update();
+        assert_eq!(label(&app, helm), "TAKE HELM");
+        assert!(shown(&app, chips[0]), "STOP is blocked again, not gone");
+
+        let mut held = neutral;
+        held.helm_held = true;
+        held.stop.available = true;
+        held.stop.helm_blocked = false;
+        app.insert_resource(held.clone());
+        app.insert_resource(HudSituations {
+            docked: true,
+            ..default()
+        });
+        app.update();
+        assert_eq!(label(&app, helm), "RELEASE HELM");
+        assert_eq!(state(&app, helm), DockChipState::Hot);
+        assert_eq!(state(&app, chips[0]), DockChipState::Available);
+
+        // Held through a fault: the helm can still be handed back.
+        let mut held_faulted = held;
+        held_faulted.helm_fault = true;
+        held_faulted.stop.available = false;
+        app.insert_resource(held_faulted);
+        app.update();
+        assert_eq!(label(&app, helm), "RELEASE HELM");
+        assert_eq!(state(&app, helm), DockChipState::Hot);
+        assert!(!shown(&app, chips[0]), "a held fault blocks no STOP either");
+
+        // Undocked: no helm to take.
+        app.insert_resource(hints(false, false, None));
+        app.insert_resource(HudSituations::default());
+        app.update();
+        assert!(!shown(&app, helm), "the chip leaves the dock with the pair");
+    }
+
     /// DoD 1: the dock renders ONE chip per verb, each carrying the keycap
     /// picture its live binding maps to and a state marker driven by
     /// availability. A no-op dock (chips with no glyph, or every chip in the
@@ -1015,7 +1159,7 @@ mod tests {
         let chips = chips(&app);
         assert_eq!(chips.len(), DOCK_VERBS.len(), "one chip per verb");
 
-        let expected_key = ["X", "G", "O", "Z", "CTRL", "SCROLL", "SHIFT", "D"];
+        let expected_key = ["X", "G", "O", "Z", "CTRL", "SCROLL", "SHIFT", "D", "H"];
         for (index, verb) in DOCK_VERBS.iter().enumerate() {
             let stem = key_glyph_stem(expected_key[index]).unwrap();
             assert_eq!(
@@ -1670,6 +1814,7 @@ mod tests {
             key: "G".into(),
             available: true,
             anchor: Some(lock),
+            helm_blocked: false,
         };
         app.insert_resource(resource.clone());
         let (_, goto_cue) = spawn_cues(&mut app);

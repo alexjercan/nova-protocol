@@ -19,8 +19,9 @@
 //!    when the last one goes, you are inside it.
 //! 4. press the dock key. The clamp takes hold and the sleeves reach across.
 //!
-//! The dock is MODAL. While it holds, the drive, the RCS and the helm are all
-//! inert - the joint is flying the pair. Press the dock key again to let go.
+//! A dock starts neutral: the spar's side flies the pair and your drive, RCS
+//! and helm are inert. Press the helm key to fly the pair yourself, and the
+//! dock key again to let go.
 //!
 //! Roll is not assisted and not drawn: the ports are round and the capture
 //! ignores how the two hulls are clocked about the axis.

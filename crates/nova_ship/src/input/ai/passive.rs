@@ -124,6 +124,7 @@ pub(super) fn update_passive_flight(
             Option<&FlightArrivalStandoff>,
             Option<&HullRadius>,
             Option<&ComputedCenterOfMass>,
+            (Option<&DockedShip>, Option<&DockedAssembly>),
         ),
         // A ship under a scenario helm order does not fly its own routine:
         // the order owns the helm until it is interrupted or reaches a
@@ -165,11 +166,23 @@ pub(super) fn update_passive_flight(
         standoff,
         hull_radius,
         center_of_mass,
+        (docked, assembly),
     ) in &mut q_spaceship
     {
+        // A docked hull that does not drive its pair keeps its maneuver
+        // frozen until it drives again or undocks. A driver plans on the
+        // pair's reach, centre of mass and velocity, the numbers the
+        // autopilot flies it on. With no assembly it plans nothing: the
+        // flight writers log that state once they are asked to move it.
+        if docked.is_some_and(|docked| !docked.drives || assembly.is_none()) {
+            continue;
+        }
         let has_autopilot = autopilot.is_some();
         let waypoint_slack = slack.map_or(AI_WAYPOINT_SLACK, |slack| slack.0);
-        let hull_arm = hull_radius.map_or(0.0, |radius| **radius);
+        let hull_arm = match assembly {
+            Some(assembly) => assembly.reach,
+            None => hull_radius.map_or(0.0, |radius| **radius),
+        };
         // The gate mirrors the autopilot's own arrival rule, per-ship override
         // and hull size included: the leg comes to rest one resolved margin off
         // this hull's own face, so a gate that counted only the margin would
@@ -188,8 +201,14 @@ pub(super) fn update_passive_flight(
         // about a metre of headroom - and under the offset the route never
         // advances, `on_station` never latches, and the ship re-runs the same
         // GOTO forever, which is the exact churn the gate exists to prevent.
-        let position = transform.translation
-            + center_of_mass.map_or(Vec3::ZERO, |com| transform.rotation.mul_vec3(com.0));
+        let (position, velocity) = match assembly {
+            Some(assembly) => (assembly.center_of_mass, assembly.linear_velocity),
+            None => (
+                transform.translation
+                    + center_of_mass.map_or(Vec3::ZERO, |com| transform.rotation.mul_vec3(com.0)),
+                velocity.0,
+            ),
+        };
         match *state {
             AIBehaviorState::Patrol => {
                 // Patrol without a route cannot happen through the

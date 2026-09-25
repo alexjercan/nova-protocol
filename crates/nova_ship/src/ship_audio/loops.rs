@@ -156,8 +156,9 @@ pub(super) fn drive_thruster_loops(
 ///
 /// ROOT-based and DRIVER-agnostic: the `RcsIntent` on the ship root is written
 /// by the player's modal and by the autopilot both, so both make the same
-/// sound. Gated on the ship's `rcs_enabled` capability, mirroring
-/// `rcs_burn_system` - a hull that cannot RCS makes no RCS hiss.
+/// sound. Gated on the ship's `rcs_enabled` capability and on driving any
+/// docked pair, mirroring `rcs_burn_system` - a hull that cannot RCS makes no
+/// RCS hiss, and a suppressed partner's frozen intent spends nothing.
 pub(super) fn drive_rcs_loops(
     mut commands: Commands,
     time: Res<Time>,
@@ -169,6 +170,7 @@ pub(super) fn drive_rcs_loops(
             &RcsIntent,
             Option<&ShipCapabilities>,
             Option<&CachedLoopSound>,
+            Option<&DockedShip>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -176,8 +178,11 @@ pub(super) fn drive_rcs_loops(
     q_loops: Query<(Entity, &RcsLoopSfx, &mut SfxVoice)>,
 ) {
     let mut targets: HashMap<(Entity, Handle<AudioSource>), f32> = HashMap::new();
-    for (root, sounds, intent, capabilities, cached) in &q_ships {
+    for (root, sounds, intent, capabilities, cached, docked) in &q_ships {
         if !capabilities.copied().unwrap_or_default().rcs_enabled {
+            continue;
+        }
+        if docked.is_some_and(|docked| !docked.drives) {
             continue;
         }
         // AUTHORED-OR-SILENT: a ship with no rcs_loop makes no sound.

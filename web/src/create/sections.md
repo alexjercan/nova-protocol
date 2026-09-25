@@ -966,8 +966,9 @@ track the gun still charges; it just charges invisibly.
 
 `DockingSectionConfig` - a docking port: a cylindrical, rotationally symmetric
 collar that holds this hull to another one. One ship,
-`docking_port_section`, and no base ship carries one yet; build a hull with one
-in the editor, or author your own port on a modded craft.
+`docking_port_section`, carried by the workship, both frame tenders and the line
+warship; build a hull with one in the editor, or author your own port on a
+modded craft.
 
 ```ron
 kind: Docking((
@@ -1010,12 +1011,15 @@ outward face - that face is the hatch. Docking is spent through the `DOCK`
 verb, which the ship must also be PERMITTED to use: see the `dock`
 [capability](../objects/#capabilities).
 
-A dock is MODAL: while it holds, both hulls stop flying. The drive makes no
-thrust, the RCS no trim and the attitude computer no torque, on a player hull
-and an AI one alike, because the gate is read at the forces rather than at the
-input. `DOCK` again from either hull is the way out, and it is ungated - a
-capability withdrawn mid-dock can never strand a hull clamped to something. An
-engaged maneuver (ORBIT, GOTO, STOP) also ends a dock, before it is flown.
+A docked pair flies as one body, driven by ONE hull. A dock starts NEUTRAL:
+the partner's autopilot and orders fly the pair and the player's hull stands
+down. `HELM` hands the pair to the player and pauses the partner's orders
+until the helm goes back. The hull that is not driving makes no thrust, no RCS
+trim and no attitude torque, on a player hull and an AI one alike, because the
+gate is read at the forces rather than at the input. `DOCK` again from either
+hull is the way out, and it is ungated - a capability withdrawn mid-dock can
+never strand a hull clamped to something. A maneuver (ORBIT, GOTO, STOP) flies
+the pair and leaves the dock in place.
 
 <!-- Grammar verified against crates/nova_ship/src/sections/docking_section/mod.rs (config and defaults) and port.rs (the envelope and its strictest-of-two grading). Values from assets/base/sections/base.content.ron docking_port_section. -->
 

@@ -15,8 +15,8 @@ use nova_gameplay::prelude::{
 
 use crate::{
     prelude::{
-        DockedShip, PlaceholderArt, RenderMeshTransform, SectionRenderMeshTransform,
-        SectionRenderOf,
+        DockedAssembly, DockedShip, PlaceholderArt, RenderMeshTransform,
+        SectionRenderMeshTransform, SectionRenderOf,
     },
     sections::damage_plume::prelude::{plume_scale, DamagePlume},
 };
@@ -581,15 +581,18 @@ pub(crate) fn thruster_impulse_system(
         (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
     >,
     mut q_root: Query<Forces>,
-    q_docked: Query<(), With<DockedShip>>,
+    q_docked: Query<(&DockedShip, Has<DockedAssembly>)>,
 ) {
     for (transform, &ChildOf(root), magnitude, input) in &q_thruster {
-        // A DOCKED hull is held by its joint. Skipping the force here is what
-        // makes the dock modal for EVERY driver at once - pilot, AI and
-        // scripted order alike - the way the docked root is skipped in
-        // `sync_controller_section_forces` for torque. Silently, because a
-        // held hull is not an error.
-        if q_docked.contains(root) {
+        // Only a docked pair's driver burns, and only while its pair is
+        // measured. Skipping here holds that for EVERY driver at once -
+        // pilot, AI and scripted order alike - and for a throttle a refused
+        // writer left set last tick. Silently: a suppressed root is not an
+        // error, and the flight writers log a driver with no assembly.
+        if q_docked
+            .get(root)
+            .is_ok_and(|(docked, measured)| !(docked.drives && measured))
+        {
             continue;
         }
         let Ok(mut force) = q_root.get_mut(root) else {

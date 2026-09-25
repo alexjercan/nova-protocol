@@ -19,7 +19,7 @@
 
 A docking port is a **sealed hatch**: one cell of collar with a graphite sleeve behind it, and nothing proud of the cell until it is used. Lock the ship you want, bring your port face up to its port face, and <kbd>D</kbd> clamps the two hulls together. The sleeves then reach across the gap and bridge it.
 
-What a dock is NOT is a merge. The two ships stay two ships: two hulls, two pilots, two sets of controls, and nothing pooled between them. The clamp holds the pose you met in and does no more than that. It is **modal**: while it holds, your drive and your helm are dead, and <kbd>D</kbd> again is the only thing that gives them back.
+What a dock is NOT is a merge. The two ships stay two ships: two hulls, two pilots, two sets of controls, and nothing pooled between them. The clamp holds the pose you met in and does no more than that. One ship at a time flies the pair: the other ship's pilot until you take the **helm** with <kbd>H</kbd>, and you until you hand it back. <kbd>D</kbd> again lets go.
 
 <!-- Values from crates/nova_authoring/src/base_content/sections/docking_port.rs: health 90 (DOCKING_BASE_HEALTH), capture_distance 10 m, capture_angle 15 deg, maximum_relative_speed 5 m/s, maximum_relative_angular_speed 5 rad/s, DOCK_TUBE_TRAVEL 0.5 cells over 1.2 s out and 0.8 s back. -->
 
@@ -52,32 +52,34 @@ You do not choose the ports. The game pairs the nearest eligible ones on the two
 
 ## What the clamp holds
 
-<!-- Behavior verified against crates/nova_ship/src/sections/docking_section/connection.rs (one FixedJoint with an explicit anchor and basis, no velocity written) and crates/nova_ship/src/sections/controller_section.rs sync_controller_section_forces (a docked root is excluded from the attitude loop). -->
+<!-- Behavior verified against crates/nova_ship/src/sections/docking_section/connection.rs (one FixedJoint with an explicit anchor and basis, no velocity written; DockingConnection.helm starts Neutral; park_suppressed_docked_helms) and crates/nova_ship/src/sections/docking_section/assembly.rs (the driver's wrench split over both roots from the combined mass, centre of mass and inertia). -->
 
 The clamp is a single joint between the two hulls, made the instant you press the key, and it holds the **pose you met in** - the gap you crossed at, the angle you came in on, the roll you happened to carry. Nothing is snapped straight and nothing is tidied up.
 
 Your drift comes with you. A dock never brings either ship to a halt: two hulls that met while coasting keep coasting, together, and a pair caught in a well falls the way one hull would. The clamp only takes away the motion of one hull relative to the OTHER.
 
-While you are held, you are not flying. Your attitude computer stands down, your main drive makes no thrust, your RCS makes no trim, and the mouse swings the camera and nothing else - a hull straining against a clamp is a hull wasting fuel on a fight it cannot win. This is the same stand-down [ORBIT](../../flight-autopilot/#the-autopilot-flies-the-hull) does while it flies for you, and it is held at the engines rather than at the keys, so an autopilot or a scripted order is just as inert as your own throttle. Your guns, your radar and your point defense are untouched.
+A docked pair flies as **one body**, and exactly one ship flies it. Every dock starts **neutral**: the other ship keeps the helm, its autopilot and its orders fly the pair, and your drive, your helm, your RCS and your maneuver keys stand down. RCS mode ends too, even with <kbd>Shift</kbd> still held: release it and press it again once you have the helm. The mode chip reads **NEUTRAL**, and the blocked chips stay on the dock, dark.
+
+<kbd>H</kbd> takes the helm, and the chip reads **RELEASE HELM**. Now your throttle, your RCS, your mouse and <kbd>G</kbd>, <kbd>O</kbd> and <kbd>X</kbd> fly the pair, and the other ship stands down: its orders pause where they are, and pick up again when you hand the helm back with <kbd>H</kbd>. Whoever flies, the pair is flown from its combined mass and balance point: the turn is shared over both hulls, the drive is trimmed about the pair's balance point, and the autopilot brakes for the whole pair, so it turns and stops like one ship rather than one hull dragging the other. Only the flying ship's engines burn. <kbd>Z</kbd> still drops a maneuver without letting go of the clamp. Your guns, your radar and your point defense are untouched either way.
+
+If the game cannot measure the pair, neither ship flies it and the mode chip reads **HELM FAULT** until it can. <kbd>H</kbd> cannot take the helm then, and its chip reads **HELM FAULT** too, dark. The blocked chips leave the dock until the pair measures. If you held the helm when the fault came, <kbd>H</kbd> still hands it back, but you cannot take it again until the pair measures. <kbd>G</kbd> on the map and `map goto` refuse with the fault. The clamp holds, and <kbd>D</kbd> still lets go; the next dock starts clear.
 
 Only then do the sleeves move. Both ports reach 5 m out over about a second, which bridges a full cell of gap; at a shorter gap the two sleeves simply overlap inside each other and read as one tunnel. They are skin, not structure: the clamp is already holding before they start, and an extended sleeve never touches the other ship.
 
 ## Letting go
 
-<!-- Behavior verified against crates/nova_ship/src/sections/docking_section/connection.rs: on_docking_release_request is ungated and addressed to a ship; park_docked_helms_and_release_maneuvers drops a pair where either hull has engaged an autopilot; plus a destroyed port and a destroyed ship. -->
+<!-- Behavior verified against crates/nova_ship/src/sections/docking_section/connection.rs: on_docking_release_request is ungated and addressed to a ship; release_connection removes DockedShip and DockedAssembly from both roots; plus a destroyed port and a destroyed ship. -->
 
-**<kbd>D</kbd> again lets go**, the same way <kbd>O</kbd> again drops an orbit. Either ship can press it, and neither needs the other's permission - the ship you docked with can leave while you are still sitting there. Your drive, your helm and your RCS come back the moment the clamp does, and the ship inherits the heading it is already pointing rather than the order it was flying when it arrived.
+**<kbd>D</kbd> again lets go**, the same way <kbd>O</kbd> again drops an orbit. Either ship can press it, and neither needs the other's permission - the ship you docked with can leave while you are still sitting there. Each ship flies itself again the moment the clamp goes, and the helm goes with it: the next dock starts neutral.
 
-A dock has no timer and no drift. A ship parked on the clamp with its hands off the controls stays docked indefinitely, because nothing you do at the controls can end it - only the verb can.
-
-An engaged maneuver also ends it. Ask for [ORBIT](../../flight-autopilot/#the-autopilot-flies-the-hull), GOTO or STOP from either hull and the clamp goes first, so the maneuver is flown by a ship that is already free.
+A dock has no timer and no drift. A pair stays docked indefinitely, because nothing you do at the controls can end it - only the verb can. A maneuver does not end it either: [ORBIT](../../flight-autopilot/#the-autopilot-flies-the-hull), GOTO and STOP fly the whole pair.
 
 The last two endings are damage. Shoot the port off either hull, or kill either ship, and the clamp goes with it; the surviving port stows its sleeve and is free to dock again. A port is the lightest thing on a hull at 90 health, so a dock in a firefight is a dock on borrowed time.
 
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/docking_port.rs and assets/base/sections/base.content.ron. No base ship mounts one: the part is in the editor palette and the catalog only. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/docking_port.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: port_collar on the workship, both frame tenders and the line warship; starboard_collar on the line warship. -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-docking.png</span></span></span><span class="catalog__title">Docking - shipped prototypes</span></div>
 <table>
 <thead>
@@ -89,4 +91,4 @@ The last two endings are damage. Shoot the port off either hull, or kill either 
 </table>
 </div>
 
-One port ships, and no hull in the base fleet carries it: bolt one onto a hull in the ship editor to fly a ship that can dock, or fly the `docking_approach` example, which hands you a tender built for the job. It takes neighbours on every face except the one it docks through - that face is the hatch. See [Ship sections for mods](../../../create/sections/#docking) for the numbers a mod can change, the capture envelope among them, and [Events](../../../create/events/#docking-lifecycle) for the two edges a scenario scripts a dock with.
+One port ships. The Utility Workship and both Frame Tenders carry one on the port flank, and the Line Warship carries one on each flank. Bolt one onto any other hull in the ship editor to fly a ship that can dock, or fly the `docking_approach` example, which hands you a tender built for the job. It takes neighbours on every face except the one it docks through - that face is the hatch. See [Ship sections for mods](../../../create/sections/#docking) for the numbers a mod can change, the capture envelope among them, and [Events](../../../create/events/#docking-lifecycle) for the two edges a scenario scripts a dock with.

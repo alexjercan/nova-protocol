@@ -82,7 +82,7 @@ pub(super) fn on_thruster_input(
     fire: On<Start<ThrusterInput>>,
     mut commands: Commands,
     mut q_input: Query<(&mut ThrusterSectionInput, Option<&ChildOf>), With<ThrusterInputMarker>>,
-    q_docked: Query<(), With<DockedShip>>,
+    q_docked: Query<&DockedShip>,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -103,11 +103,12 @@ pub(super) fn on_thruster_input(
         return;
     };
 
-    // A docked hull is held by its joint and makes no thrust, so a bound
-    // throttle must not light a plume for a burn that cannot move it. UNDOCK
-    // is the way out, and it is a verb, not a throttle.
-    if child_of.is_some_and(|&ChildOf(ship)| q_docked.contains(ship)) {
-        debug!("on_thruster_input: a docked hull's throttle is inert");
+    // A docked hull that does not drive its pair makes no thrust, so a bound
+    // throttle must not light a plume for a burn that cannot move it. HELM is
+    // the way in, and it is a verb, not a throttle.
+    if child_of.is_some_and(|&ChildOf(ship)| q_docked.get(ship).is_ok_and(|docked| !docked.drives))
+    {
+        debug!("on_thruster_input: a docked hull's throttle is inert without the helm");
         return;
     }
 

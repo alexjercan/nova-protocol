@@ -3,6 +3,8 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
+use crate::prelude::DockedAssembly;
+
 /// Component that defines a PD controller for rotational control.
 ///
 /// `PartialEq` so a writer that re-derives this every tick can leave it alone
@@ -116,7 +118,12 @@ fn setup_pd_controller_system(add: On<Add, PDController>, mut commands: Commands
 /// section when a split moves it onto a new hull. Before it existed this loop
 /// logged an error at the fixed rate for the rest of the scene.
 fn update_controller_root_torque(
-    q_root: Query<(&ComputedAngularInertia, &Rotation, &AngularVelocity)>,
+    q_root: Query<(
+        &ComputedAngularInertia,
+        &Rotation,
+        &AngularVelocity,
+        Option<&DockedAssembly>,
+    )>,
     mut q_controller: Query<(
         &PDController,
         &PDControllerInput,
@@ -127,7 +134,8 @@ fn update_controller_root_torque(
     for (controller, controller_input, controller_target, mut controller_output) in
         &mut q_controller
     {
-        let Ok((angular_inertia, rotation, angular_velocity)) = q_root.get(**controller_target)
+        let Ok((angular_inertia, rotation, angular_velocity, assembly)) =
+            q_root.get(**controller_target)
         else {
             trace!(
                 "update_controller_root_torque: target {:?} is not a body; holding no torque",
@@ -139,6 +147,10 @@ fn update_controller_root_torque(
             continue;
         };
 
+        // A docked root turns its whole pair, so the loop scales its
+        // acceleration by the pair's inertia. The torque is applied to the
+        // pair as a wrench over both roots, not to this root alone.
+        let angular_inertia = assembly.map_or(angular_inertia, |assembly| &assembly.inertia);
         let (principal, local_frame) = angular_inertia.principal_angular_inertia_with_local_frame();
 
         let torque = compute_pd_torque(

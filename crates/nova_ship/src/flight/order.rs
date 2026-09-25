@@ -20,7 +20,7 @@
 //! scenario action that builds the directive, not this module.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{ecs::entity::EntityHashSet, prelude::*};
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 
@@ -321,11 +321,38 @@ pub(super) fn drive_scripted_align(
             &AngularVelocity,
             Option<&ComputedCenterOfMass>,
             Has<ScriptedAlignSettled>,
+            (Option<&DockedShip>, Option<&DockedAssembly>),
         ),
         With<SpaceshipRootMarker>,
     >,
+    // Docked drivers whose missing assembly is already logged, so the error
+    // is said once per loss, not at the fixed rate.
+    mut missing_assembly: Local<EntityHashSet>,
 ) {
-    for (ship, align, position, rotation, angular_velocity, com, settled) in &q_ship {
+    missing_assembly.retain(|ship| {
+        q_ship
+            .get(*ship)
+            .is_ok_and(|(.., (docked, assembly))| docked.is_some() && assembly.is_none())
+    });
+    for (ship, align, position, rotation, angular_velocity, com, settled, (docked, assembly)) in
+        &q_ship
+    {
+        // A docked root that does not drive its pair holds its bearing
+        // unflown until it drives again or undocks. A driver with no
+        // assembly neither turns nor settles on its root's own bearing.
+        match (docked, assembly) {
+            (Some(docked), _) if !docked.drives => continue,
+            (Some(_), None) => {
+                if missing_assembly.insert(ship) {
+                    error!(
+                        "drive_scripted_align: docked driver {ship:?} has no DockedAssembly; \
+                         aiming nothing rather than from its root alone"
+                    );
+                }
+                continue;
+            }
+            _ => {}
+        }
         // The avian pose, like the autopilot beside it: in `FixedUpdate` a
         // `Transform` is the previous frame's eased render pose, and a bearing
         // held off a stale attitude chases its own lag.
@@ -333,10 +360,15 @@ pub(super) fn drive_scripted_align(
         // The bearing runs from live STRUCTURE, exactly as the AI's chase
         // vector does: a root origin is the build spot of the first sections
         // and floats in empty space once they are destroyed. The COM is
-        // body-local, so it lifts to world with rotation + translation.
-        let own_anchor = com
-            .map(|com| rotation.mul_vec3(com.0) + position.0)
-            .unwrap_or(position.0);
+        // body-local, so it lifts to world with rotation + translation. A
+        // docked driver aims from the pair's centre of mass, the point the
+        // pair turns about.
+        let own_anchor = match assembly {
+            Some(assembly) => assembly.center_of_mass,
+            None => com
+                .map(|com| rotation.mul_vec3(com.0) + position.0)
+                .unwrap_or(position.0),
+        };
         let to_mark = align.look_at - own_anchor;
         let Ok(desired_direction) = Dir3::new(to_mark) else {
             // The mark is exactly under the ship's own anchor: no bearing to
@@ -419,6 +451,7 @@ pub(super) fn drive_ship_orders(
             Has<ShipOrderEngaged>,
             Has<ScriptedAlignSettled>,
             Has<ShipOrderReported>,
+            Option<&DockedShip>,
         ),
         (With<SpaceshipRootMarker>, With<ShipOrderHelmAuthority>),
     >,
@@ -434,9 +467,16 @@ pub(super) fn drive_ship_orders(
     mut q_thruster_input: Query<(&mut ThrusterSectionInput, &ChildOf), With<ThrusterSectionMarker>>,
     q_standoff: Query<&FlightArrivalStandoff>,
 ) {
-    for (ship, mut order, mut reports, position, autopilot, engaged, settled, reported) in
+    for (ship, mut order, mut reports, position, autopilot, engaged, settled, reported, docked) in
         &mut q_ships
     {
+        // A docked root that does not drive its pair is paused, not judged:
+        // its frozen maneuver neither arrives nor gives up, so the order is
+        // neither completed nor failed until the ship drives again or
+        // undocks. Nothing pauses a scenario timer that races the order.
+        if docked.is_some_and(|docked| !docked.drives) {
+            continue;
+        }
         let kind = order.kind();
         let can_turn = q_computer.iter().any(|&ChildOf(parent)| parent == ship);
         let can_burn = q_engine.iter().any(|&ChildOf(parent)| parent == ship);

@@ -1,9 +1,9 @@
 //! The docking port: a sealed hatch and the sleeve that reaches across it.
 //!
 //! Lock the ship to dock with, close to within a cell of its port with your own
-//! port facing it, and DOCK clamps the two hulls together. A clamped hull flies
-//! nothing: its drive and its helm stay dead until DOCK is pressed again, from
-//! either side.
+//! port facing it, and DOCK clamps the two hulls together. The pair flies as
+//! one body: the other ship flies it until HELM takes it, and DOCK again from
+//! either side lets go.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -67,10 +67,11 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                               want to dock with, close to within a cell of its \
                               port with your own port facing it, and DOCK \
                               clamps the two hulls together; the sleeves reach \
-                              across once the clamp holds. A clamped hull \
-                              flies nothing: its drive and its helm stay dead \
-                              until DOCK is pressed again, from either side."
-                .to_string(),
+                              across once the clamp holds. The pair flies as \
+                              one body: the other ship flies it until HELM \
+                              takes it, and DOCK again from either side lets \
+                              go."
+            .to_string(),
             // Light machinery behind a hatch: softer than the command core
             // it is bolted beside, tougher than exposed propulsion.
             health: DOCKING_BASE_HEALTH,

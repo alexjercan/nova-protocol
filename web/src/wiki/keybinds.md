@@ -105,10 +105,15 @@ A dash means the action has no binding on that device.
             <td><kbd>D</kbd></td>
             <td>unbound</td>
         </tr>
+        <tr>
+            <td>HELM - take a docked pair's helm, press again to hand it back</td>
+            <td><kbd>H</kbd></td>
+            <td>unbound</td>
+        </tr>
     </tbody>
 </table>
 
-DOCK needs a docking port on both hulls, so it is offered only on a ship built with one. No shipped ship carries one yet: build a hull with a docking port in the editor, or fly the `docking_approach` example. A dock is modal - while it holds, your drive and your helm are dead, and <kbd>D</kbd> again is what gives them back. See [Docking port](../sections/docking/).
+DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the `docking_approach` example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. See [Docking port](../sections/docking/).
 
 RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the training range hands it over for one leg of its pattern. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 

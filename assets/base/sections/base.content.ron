@@ -2484,7 +2484,7 @@
         base: (
             id: "docking_port_section",
             name: "Docking Port Section",
-            description: "A sealed-hatch docking port. Lock the ship you want to dock with, close to within a cell of its port with your own port facing it, and DOCK clamps the two hulls together; the sleeves reach across once the clamp holds. A clamped hull flies nothing: its drive and its helm stay dead until DOCK is pressed again, from either side.",
+            description: "A sealed-hatch docking port. Lock the ship you want to dock with, close to within a cell of its port with your own port facing it, and DOCK clamps the two hulls together; the sleeves reach across once the clamp holds. The pair flies as one body: the other ship flies it until HELM takes it, and DOCK again from either side lets go.",
             health: 90.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [

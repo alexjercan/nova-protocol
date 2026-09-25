@@ -25,6 +25,13 @@ pub struct VerbHint {
     /// The world entity the verb would act on (the aim lock for GOTO, the
     /// dominant well for ORBIT), for hints anchored on the object itself.
     pub anchor: Option<Entity>,
+    /// Whether only the docked pair's helm keeps the verb from being
+    /// available right now: the ship is docked and does not drive its pair,
+    /// and the verb's capability and its own conditions hold. False for a
+    /// withheld verb, and false while the pair has a
+    /// [`helm_fault`](FlightVerbHints::helm_fault), because HELM cannot take
+    /// the helm then.
+    pub helm_blocked: bool,
 }
 
 /// Optional playtest flag (adversarial round NIT): deny the fire PRESS while
@@ -66,6 +73,18 @@ pub struct FlightVerbHints {
     /// RCS is enabled - the same opt-out the mainline campaign uses while RCS
     /// is off pending rework.
     pub rcs: VerbHint,
+    /// The HELM verb hint (take or hand back a docked pair's helm), labelled
+    /// off `dock_helm`; available only while docked, and only to hand the
+    /// helm back while the pair has a [`helm_fault`](Self::helm_fault).
+    pub helm: VerbHint,
+    /// Whether the player holds its docked pair's helm, so the HELM chip
+    /// offers to hand it back rather than to take it.
+    pub helm_held: bool,
+    /// Whether the docked pair cannot be measured
+    /// ([`DockingConnection::measurement_fault`]), so HELM refuses to take
+    /// it. The HELM chip stays on the dock and reads `HELM FAULT` unless the
+    /// player holds the helm and can still hand it back.
+    pub helm_fault: bool,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
     /// another verb's availability.
@@ -100,10 +119,11 @@ pub(super) fn update_flight_verb_hints(
             Option<&TravelLock>,
             Option<&CombatLock>,
             Option<&LockFocus>,
-            Has<DockedShip>,
+            Option<&DockedShip>,
         ),
         With<PlayerSpaceshipMarker>,
     >,
+    q_connections: Query<&DockingConnection>,
     q_computer: LiveFlightComputers,
     q_capabilities: ShipCapabilityQuery,
     q_thruster: Query<&ChildOf, (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>)>,
@@ -112,7 +132,7 @@ pub(super) fn update_flight_verb_hints(
     bindings: Option<Res<InputBindings>>,
 ) {
     // The rig is the gate, not the source: a row is drawn only while the rig
-    // that answers it exists, so all eight vanish together on a ship with no
+    // that answers it exists, so all nine vanish together on a ship with no
     // flight computer.
     let rig_exists = !q_rig.is_empty();
     // The keycap an action draws, off the LIVE table. Reading the rig's own
@@ -142,26 +162,32 @@ pub(super) fn update_flight_verb_hints(
             focus,
             docked,
         ),
-        Err(_) => (None, None, None, None, None, None, false),
+        Err(_) => (None, None, None, None, None, None, None),
     };
+    let connection = docked.and_then(|docked| q_connections.get(docked.connection).ok());
+    let helm_held = ship.is_some_and(|ship| {
+        connection.is_some_and(|connection| connection.helm == DockedHelmType::Held(ship))
+    });
+    let helm_fault = connection.is_some_and(|connection| connection.measurement_fault);
+    // Read off `drives`, the flag every flight writer gates on, not off the
+    // helm: the helm changes at once, `drives` at the next fixed tick, and a
+    // held pair that cannot be measured never drives at all.
+    let docked_without_helm = docked.is_some_and(|docked| !docked.drives);
     let travel = travel.and_then(|travel| travel.0);
+    // The partner flies with the pair, so GOTO has nothing to close on it.
+    let partner_lock =
+        travel.is_some_and(|target| connection.is_some_and(|connection| connection.joins(target)));
     let combat = combat.and_then(|combat| combat.0);
     // The autopilot needs a live flight computer and at least one live
     // engine or it disengages on its next tick; a hint below that bar
     // would light a key that visibly does nothing.
-    // A DOCKED hull flies nothing: its drive, its trim and its attitude loop
-    // are all held by the joint until it lets go. Folding that in here empties
-    // the verb row down to DOCK itself, which is the one key that still does
-    // something - and the row is then an honest picture of a modal state
-    // rather than four keys that quietly no-op.
-    let flyable = !docked
-        && ship.is_some_and(|ship| {
-            ship_has_attitude_authority(ship, &q_computer)
-                && q_thruster.iter().any(|&ChildOf(parent)| parent == ship)
-        });
+    let hardware = ship.is_some_and(|ship| {
+        ship_has_attitude_authority(ship, &q_computer)
+            && q_thruster.iter().any(|&ChildOf(parent)| parent == ship)
+    });
     // The individual maneuvers are the SHIP's own capabilities, read from the
     // same root the input observers read, so a lit hint and a firing key can
-    // never disagree. Kept SEPARATE from `flyable` above (which only asks "is
+    // never disagree. Kept SEPARATE from `hardware` above (which only asks "is
     // there a live controller + engine"): the two answer different questions -
     // hardware versus permission - and folding them would let a hulk's dead
     // attitude loop silently erase what the ship was configured to do. The
@@ -174,28 +200,38 @@ pub(super) fn update_flight_verb_hints(
         autopilot.map(|ap| ap.action),
         Some(AutopilotAction::Orbit { .. })
     );
+    // A docked hull that does not drive its pair flies nothing: the input
+    // observers refuse its drive, trim and maneuvers until it drives again.
+    // Each verb is split into what it needs with the helm, and whether the
+    // helm is what is missing, so the HUD keeps a blocked verb on the dock,
+    // dark, and a withheld one off it. A fault refuses HELM, so the helm is
+    // not all that is missing and the verb leaves the dock.
+    let helm_gate = |ready: bool| VerbHint {
+        available: ready && !docked_without_helm,
+        helm_blocked: ready && docked_without_helm && !helm_fault,
+        ..default()
+    };
 
     let next = FlightVerbHints {
         stop: VerbHint {
             key: label("autopilot_stop"),
-            available: flyable && capabilities.stop_enabled,
-            anchor: None,
+            ..helm_gate(hardware && capabilities.stop_enabled)
         },
         goto: VerbHint {
             key: label("autopilot_goto"),
-            available: flyable && capabilities.goto_enabled && travel.is_some(),
             anchor: travel,
+            ..helm_gate(hardware && capabilities.goto_enabled && travel.is_some() && !partner_lock)
         },
         orbit: VerbHint {
             key: label("autopilot_orbit"),
-            available: flyable && capabilities.orbit_enabled && dominant.is_some() && !orbiting,
             anchor: dominant.map(|well| **well),
+            ..helm_gate(hardware && capabilities.orbit_enabled && dominant.is_some() && !orbiting)
         },
         cancel: VerbHint {
             key: label("autopilot_off"),
             // Z always answers while engaged, even on a crippled ship.
             available: engaged,
-            anchor: None,
+            ..default()
         },
         // The one row that stays a literal: the wheel belongs to the ACTION,
         // not its spec, so no rebind can move it. Gated on the rig existing to
@@ -212,12 +248,12 @@ pub(super) fn update_flight_verb_hints(
                         .count()
                         >= 2
             }),
-            anchor: None,
+            ..default()
         },
         radar: VerbHint {
             key: label("radar_hold"),
             available: capabilities.lock_enabled,
-            anchor: None,
+            ..default()
         },
         // The one verb whose availability is the real answer: the search that
         // lights the chip is the search the command runs, so a lit DOCK means
@@ -226,20 +262,28 @@ pub(super) fn update_flight_verb_hints(
         // draws it inverted, because that is the state the key would leave.
         dock: VerbHint {
             key: label("dock"),
-            available: docked
+            available: docked.is_some()
                 || ship.is_some_and(|ship| {
                     capabilities.dock_enabled
                         && travel.is_some_and(|target| ports.best_candidate(ship, target).is_some())
                 }),
             anchor: travel,
+            ..default()
         },
         rcs: VerbHint {
-            // Shown only while the computer grants RCS. A docked hull has no
-            // trim authority, so the chip goes with the rest of the row.
+            // Shown only while the computer grants RCS, and only to the pair's
+            // driver while docked.
             key: label("rcs_modifier"),
-            available: !docked && capabilities.rcs_enabled,
-            anchor: None,
+            ..helm_gate(capabilities.rcs_enabled)
         },
+        helm: VerbHint {
+            key: label("dock_helm"),
+            // A fault refuses taking the helm, never handing it back.
+            available: docked.is_some() && (helm_held || !helm_fault),
+            ..default()
+        },
+        helm_held,
+        helm_fault,
         engaged,
     };
     // set_if_neq semantics by hand: only dirty the resource on real change.
@@ -470,5 +514,126 @@ mod tests {
         let hints = world.resource::<FlightVerbHints>().clone();
         assert!(hints.goto.available, "GOTO lights once enabled");
         assert!(hints.orbit.available, "ORBIT lights once enabled");
+    }
+
+    #[test]
+    fn a_neutral_dock_blocks_only_the_verbs_the_helm_would_give_back() {
+        let mut world = hint_world();
+        let (ship, _controller) = spawn_flyable_ship(&mut world);
+        let lock = world.spawn_empty().id();
+        let well = world.spawn_empty().id();
+        let partner = world.spawn(SpaceshipRootMarker).id();
+        let ports = [(); 2].map(|_| world.spawn_empty().id());
+        let connection = world
+            .spawn(DockingConnection {
+                first_ship: ship,
+                first_section: ports[0],
+                second_ship: partner,
+                second_section: ports[1],
+                helm: DockedHelmType::Neutral,
+                measurement_fault: false,
+            })
+            .id();
+        world.entity_mut(ship).insert((
+            TravelLock(Some(lock)),
+            DominantWell(well),
+            DockedShip {
+                connection,
+                helm: Quat::IDENTITY,
+                drives: false,
+            },
+        ));
+        let blocked = |world: &World| {
+            let hints = world.resource::<FlightVerbHints>();
+            [&hints.stop, &hints.goto, &hints.orbit, &hints.rcs].map(|hint| {
+                assert!(!hint.available, "nothing flies off the helm");
+                hint.helm_blocked
+            })
+        };
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert_eq!(blocked(&world), [true; 4], "granted verbs wait on the helm");
+
+        world.entity_mut(ship).insert(ShipCapabilities {
+            stop_enabled: false,
+            goto_enabled: false,
+            orbit_enabled: false,
+            rcs_enabled: false,
+            ..default()
+        });
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert_eq!(
+            blocked(&world),
+            [false; 4],
+            "the helm gives back no withheld verb"
+        );
+
+        // The helm is taken at once, but the pair drives only from the next
+        // fixed tick, and never while it cannot be measured.
+        world.entity_mut(ship).insert(ShipCapabilities::default());
+        world.get_mut::<DockingConnection>(connection).unwrap().helm = DockedHelmType::Held(ship);
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert_eq!(
+            blocked(&world),
+            [true; 4],
+            "a held helm that does not drive yet keeps them blocked"
+        );
+
+        world.get_mut::<DockedShip>(ship).unwrap().drives = true;
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>();
+        for hint in [&hints.stop, &hints.goto, &hints.orbit, &hints.rcs] {
+            assert!(
+                hint.available && !hint.helm_blocked,
+                "the helm gives them back"
+            );
+        }
+
+        // A fault leaves the held helm free to hand back and refuses taking
+        // it; HELM is never one of the verbs the helm would give back.
+        let helm = |world: &World| {
+            let hints = world.resource::<FlightVerbHints>();
+            (
+                hints.helm.available,
+                hints.helm.helm_blocked,
+                hints.helm_fault,
+            )
+        };
+        world
+            .get_mut::<DockingConnection>(connection)
+            .unwrap()
+            .measurement_fault = true;
+        world.get_mut::<DockedShip>(ship).unwrap().drives = false;
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert_eq!(helm(&world), (true, false, true), "held: release it");
+        assert_eq!(
+            blocked(&world),
+            [false; 4],
+            "HELM gives nothing back through a fault"
+        );
+        world.get_mut::<DockingConnection>(connection).unwrap().helm = DockedHelmType::Neutral;
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert_eq!(helm(&world), (false, false, true), "neutral: not taken");
+        assert_eq!(
+            blocked(&world),
+            [false; 4],
+            "a faulted pair blocks nothing on the helm"
+        );
+
+        world
+            .get_mut::<DockingConnection>(connection)
+            .unwrap()
+            .measurement_fault = false;
+        world.entity_mut(ship).insert(ShipCapabilities {
+            rcs_enabled: false,
+            ..default()
+        });
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert_eq!(helm(&world), (true, false, false), "measured: take it");
+        assert_eq!(
+            blocked(&world),
+            [true, true, true, false],
+            "measured: the granted verbs wait on the helm again, a withheld one does not"
+        );
     }
 }

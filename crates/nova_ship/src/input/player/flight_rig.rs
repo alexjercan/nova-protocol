@@ -58,6 +58,11 @@ pub(super) struct AutopilotOffInput;
 #[action_output(bool)]
 pub(super) struct DockInput;
 
+/// Take the helm of the docked pair, or hand it back.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(super) struct DockHelmInput;
+
 /// The RCS fine-adjust modifier: held (SHIFT) to enter the docking translation
 /// mode. A plain Down action read as a held modifier (the `action_held` pattern,
 /// not a binding Chord - see `modal-input-observer-dispatch`), whose Start/Stop
@@ -167,6 +172,15 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         ..default()
                     },
                     bindings.bundle("dock"),
+                ),
+                (
+                    Name::new("Input: Dock Helm"),
+                    Action::<DockHelmInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings.bundle("dock_helm"),
                 ),
                 (
                     // The radar hold: Start = search opens (slot latched),
@@ -337,7 +351,15 @@ pub(super) fn on_player_removed_despawn_flight_input(
 pub(super) fn on_flight_burn_input(
     fire: On<Fire<FlightBurnInput>>,
     mut commands: Commands,
-    ship: Single<(Entity, &mut FlightIntent, Has<Autopilot>), With<PlayerSpaceshipMarker>>,
+    ship: Single<
+        (
+            Entity,
+            &mut FlightIntent,
+            Has<Autopilot>,
+            Option<&DockedShip>,
+        ),
+        With<PlayerSpaceshipMarker>,
+    >,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -348,7 +370,11 @@ pub(super) fn on_flight_burn_input(
         return;
     }
 
-    let (entity, mut intent, engaged) = ship.into_inner();
+    let (entity, mut intent, engaged, docked) = ship.into_inner();
+    if docked.is_some_and(|docked| !docked.drives) {
+        debug!("on_flight_burn_input: a docked hull burns only with the helm");
+        return;
+    }
     intent.burn = fire.value;
     // Grabbing the throttle is a flight input: it takes the ship back.
     if engaged {
@@ -368,7 +394,7 @@ pub(super) fn on_flight_burn_input_completed(
 pub(super) fn on_autopilot_stop_input(
     _: On<Start<AutopilotStopInput>>,
     mut commands: Commands,
-    ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
+    ship: Single<(Entity, Option<&Autopilot>, Option<&DockedShip>), With<PlayerSpaceshipMarker>>,
     q_capabilities: ShipCapabilityQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
@@ -377,7 +403,11 @@ pub(super) fn on_autopilot_stop_input(
         return;
     }
 
-    let (entity, autopilot) = ship.into_inner();
+    let (entity, autopilot, docked) = ship.into_inner();
+    if docked.is_some_and(|docked| !docked.drives) {
+        debug!("on_autopilot_stop_input: a docked hull flies STOP only with the helm");
+        return;
+    }
     match autopilot.map(|ap| ap.action) {
         // Toggle off an active STOP... (disengage stays ungated so a
         // capability withdrawn mid-maneuver can never strand the ship
@@ -404,7 +434,16 @@ pub(super) fn on_autopilot_stop_input(
 pub(super) fn on_autopilot_goto_input(
     _: On<Start<AutopilotGotoInput>>,
     mut commands: Commands,
-    ship: Single<(Entity, Option<&Autopilot>, Option<&TravelLock>), With<PlayerSpaceshipMarker>>,
+    ship: Single<
+        (
+            Entity,
+            Option<&Autopilot>,
+            Option<&TravelLock>,
+            Option<&DockedShip>,
+        ),
+        With<PlayerSpaceshipMarker>,
+    >,
+    q_connections: Query<&DockingConnection>,
     q_capabilities: ShipCapabilityQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
@@ -413,7 +452,18 @@ pub(super) fn on_autopilot_goto_input(
         return;
     }
 
-    let (entity, autopilot, travel) = ship.into_inner();
+    let (entity, autopilot, travel, docked) = ship.into_inner();
+    if let Some(docked) = docked.filter(|docked| !docked.drives) {
+        if q_connections
+            .get(docked.connection)
+            .is_ok_and(|connection| connection.measurement_fault)
+        {
+            debug!("on_autopilot_goto_input: a docked pair that cannot be measured flies no GOTO");
+        } else {
+            debug!("on_autopilot_goto_input: a docked hull flies GOTO only with the helm");
+        }
+        return;
+    }
 
     // Already flying somewhere? G toggles the trip off. Disengage stays
     // ungated so a verb disabled mid-trip can never strand the ship in GOTO.
@@ -443,6 +493,14 @@ pub(super) fn on_autopilot_goto_input(
         debug!("on_autopilot_goto_input: no travel lock, nothing to fly to");
         return;
     };
+    // The partner moves with the pair, so a trip to it never closes.
+    let partner = docked
+        .and_then(|docked| q_connections.get(docked.connection).ok())
+        .is_some_and(|connection| connection.joins(target));
+    if partner {
+        debug!("on_autopilot_goto_input: the travel lock is the docked partner");
+        return;
+    }
 
     debug!("on_autopilot_goto_input: engaging GOTO {target:?}");
     commands
@@ -453,7 +511,15 @@ pub(super) fn on_autopilot_goto_input(
 pub(super) fn on_autopilot_orbit_input(
     _: On<Start<AutopilotOrbitInput>>,
     mut commands: Commands,
-    ship: Single<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
+    ship: Single<
+        (
+            Entity,
+            Option<&Autopilot>,
+            Option<&DominantWell>,
+            Option<&DockedShip>,
+        ),
+        With<PlayerSpaceshipMarker>,
+    >,
     q_capabilities: ShipCapabilityQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
@@ -462,7 +528,11 @@ pub(super) fn on_autopilot_orbit_input(
         return;
     }
 
-    let (entity, autopilot, dominant) = ship.into_inner();
+    let (entity, autopilot, dominant, docked) = ship.into_inner();
+    if docked.is_some_and(|docked| !docked.drives) {
+        debug!("on_autopilot_orbit_input: a docked hull flies ORBIT only with the helm");
+        return;
+    }
 
     // Already orbiting? O toggles the parking off. Disengage stays ungated so
     // a capability withdrawn mid-orbit can never strand the ship
@@ -532,10 +602,10 @@ pub(super) fn on_autopilot_off_input(
 /// the pair that is built. A press with no candidate is a silent no-op, which
 /// is what the dark chip already says.
 ///
-/// A dock is MODAL, so the same key is the way out, exactly as `ORBIT` is
-/// left by pressing `ORBIT`. The undock branch is deliberately ahead of the
-/// capability gate: a `dock_enabled` withdrawn while a hull is clamped to
-/// something must never be able to strand it.
+/// The same key is the way out, exactly as `ORBIT` is left by pressing
+/// `ORBIT`, whoever holds the pair's helm. The undock branch is deliberately
+/// ahead of the capability gate: a `dock_enabled` withdrawn while a hull is
+/// clamped to something must never be able to strand it.
 pub(super) fn on_dock_input(
     _: On<Start<DockInput>>,
     mut commands: Commands,
@@ -568,6 +638,27 @@ pub(super) fn on_dock_input(
     commands.trigger(DockingConnectionRequest { entity, target });
 }
 
+/// Take the docked pair's helm, or hand it back: the request decides which
+/// ([`DockingHelmRequest`]). The joint is never touched here; `D` owns it.
+pub(super) fn on_dock_helm_input(
+    _: On<Start<DockHelmInput>>,
+    mut commands: Commands,
+    ship: Single<(Entity, Has<DockedShip>), With<PlayerSpaceshipMarker>>,
+    pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
+) {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
+        return;
+    }
+
+    let (entity, docked) = ship.into_inner();
+    if !docked {
+        debug!("on_dock_helm_input: not docked, no helm to take");
+        return;
+    }
+    commands.trigger(DockingHelmRequest { entity });
+}
+
 /// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller
 /// has the RCS capability, mark it [`RcsActive`] (the modal gate the helm, camera
 /// and scroll all read) and disengage any autopilot - entering RCS is a flight
@@ -575,7 +666,7 @@ pub(super) fn on_dock_input(
 pub(super) fn on_rcs_modifier_start(
     _: On<Start<RcsModifierInput>>,
     mut commands: Commands,
-    ship: Single<Entity, With<PlayerSpaceshipMarker>>,
+    ship: Single<(Entity, Option<&DockedShip>), With<PlayerSpaceshipMarker>>,
     q_capabilities: ShipCapabilityQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
@@ -583,7 +674,11 @@ pub(super) fn on_rcs_modifier_start(
     if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
-    let entity = *ship;
+    let (entity, docked) = ship.into_inner();
+    if docked.is_some_and(|docked| !docked.drives) {
+        debug!("on_rcs_modifier_start: a docked hull trims only with the helm");
+        return;
+    }
     if !ship_capabilities(entity, &q_capabilities).rcs_enabled {
         debug!("on_rcs_modifier_start: RCS is not enabled on this ship");
         return;
@@ -612,6 +707,30 @@ pub(super) fn on_rcs_modifier_released(
         intent.0 = Vec3::ZERO;
     }
     commands.entity(entity).remove::<RcsActive>();
+}
+
+/// Leave RCS mode while the player's docked hull does not fly its pair: a
+/// dock made with SHIFT held, a helm handed back, or a pair that cannot be
+/// measured. Left on, [`RcsActive`] would freeze the camera and read RCS on
+/// the HUD for trim that nothing burns. After taking the helm, SHIFT must be
+/// released and pressed again: [`on_rcs_modifier_start`] hears only a fresh
+/// press.
+pub(super) fn release_rcs_without_the_helm(
+    mut commands: Commands,
+    mut q_player: Query<
+        (Entity, &DockedShip, Option<&mut RcsIntent>),
+        (With<PlayerSpaceshipMarker>, With<RcsActive>),
+    >,
+) {
+    for (ship, docked, intent) in &mut q_player {
+        if docked.drives {
+            continue;
+        }
+        if let Some(mut intent) = intent {
+            intent.0 = Vec3::ZERO;
+        }
+        commands.entity(ship).remove::<RcsActive>();
+    }
 }
 
 /// Accumulate mouse motion into the ship-local `RcsIntent` XZ plane while RCS is
@@ -1435,6 +1554,219 @@ mod tests {
         assert!(
             (intent - 1.0).abs() < 1e-4,
             "the stick carries no sensitivity of its own (got {intent})"
+        );
+    }
+
+    /// A player ship docked to a partner in neutral, built by hand: the
+    /// docking plugin supplies the helm and release observers, and neither
+    /// hull drives. Time never advances, so `FixedUpdate` never runs: the
+    /// ports are bare entities, and `release_broken_docking_connections`
+    /// would release the dock on the first fixed tick.
+    fn docked_rig_app() -> (App, Entity, Entity) {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::ZERO,
+        ));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_plugins(DockingSectionPlugin { render: false });
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_flight_burn_input)
+            .add_observer(on_autopilot_stop_input)
+            .add_observer(on_autopilot_goto_input)
+            .add_observer(on_autopilot_orbit_input)
+            .add_observer(on_autopilot_off_input)
+            .add_observer(on_dock_input)
+            .add_observer(on_dock_helm_input)
+            .add_observer(on_rcs_modifier_start);
+
+        let (ship, _) = spawn_flyable_ship(app.world_mut());
+        let partner = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let ports = [(); 2].map(|_| app.world_mut().spawn_empty().id());
+        let connection = app
+            .world_mut()
+            .spawn(DockingConnection {
+                first_ship: ship,
+                first_section: ports[0],
+                second_ship: partner,
+                second_section: ports[1],
+                helm: DockedHelmType::Neutral,
+                measurement_fault: false,
+            })
+            .id();
+        for hull in [ship, partner] {
+            app.world_mut().entity_mut(hull).insert(DockedShip {
+                connection,
+                helm: Quat::IDENTITY,
+                drives: false,
+            });
+        }
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig(&mut app);
+        app.update();
+        (app, ship, connection)
+    }
+
+    /// Press `key`, let the rig act, and let it go again.
+    fn tap(app: &mut App, key: KeyCode) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+        app.update();
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(key);
+        app.update();
+    }
+
+    #[test]
+    fn h_takes_and_releases_the_helm_and_d_still_undocks() {
+        let (mut app, ship, connection) = docked_rig_app();
+        let helm = |app: &App| {
+            app.world()
+                .get::<DockingConnection>(connection)
+                .map(|c| c.helm)
+        };
+
+        tap(&mut app, KeyCode::KeyH);
+        assert_eq!(
+            helm(&app),
+            Some(DockedHelmType::Held(ship)),
+            "H takes the helm"
+        );
+        tap(&mut app, KeyCode::KeyH);
+        assert_eq!(helm(&app), Some(DockedHelmType::Neutral), "H hands it back");
+        tap(&mut app, KeyCode::KeyH);
+        assert!(
+            app.world().get::<DockedShip>(ship).is_some(),
+            "neither press let go of the dock"
+        );
+
+        tap(&mut app, KeyCode::KeyD);
+        assert!(
+            app.world().get::<DockedShip>(ship).is_none(),
+            "D undocks, whoever holds the helm"
+        );
+        assert!(app.world().get_entity(connection).is_err());
+    }
+
+    /// RCS mode never outlives the helm. `FixedUpdate` does not run in this
+    /// rig, so the test writes `drives` the way the assembly pass would.
+    #[test]
+    fn rcs_mode_ends_whenever_the_docked_player_does_not_drive() {
+        let (mut app, ship, _) = docked_rig_app();
+        app.add_observer(on_rcs_modifier_released)
+            .add_systems(Update, release_rcs_without_the_helm);
+        let set_drives = |app: &mut App, drives: bool| {
+            app.world_mut().get_mut::<DockedShip>(ship).unwrap().drives = drives;
+        };
+        let rcs = |app: &App| {
+            (
+                app.world().get::<RcsActive>(ship).is_some(),
+                app.world().get::<RcsIntent>(ship).unwrap().0,
+            )
+        };
+        let shift = |app: &mut App, down: bool| {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            if down {
+                keys.press(KeyCode::ShiftLeft);
+            } else {
+                keys.release(KeyCode::ShiftLeft);
+            }
+        };
+
+        // Docked with SHIFT already held from the approach.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert((RcsActive, RcsIntent(Vec3::X)));
+        app.update();
+        assert_eq!(rcs(&app), (false, Vec3::ZERO), "a neutral dock ends RCS");
+
+        // Take the helm and trim: RCS holds while the player drives.
+        tap(&mut app, KeyCode::KeyH);
+        set_drives(&mut app, true);
+        shift(&mut app, true);
+        app.update();
+        app.update();
+        app.world_mut().get_mut::<RcsIntent>(ship).unwrap().0 = Vec3::X;
+        app.update();
+        assert!(rcs(&app).0, "the driver keeps RCS");
+
+        // Hand the helm back with SHIFT still held.
+        tap(&mut app, KeyCode::KeyH);
+        set_drives(&mut app, false);
+        app.update();
+        assert_eq!(rcs(&app), (false, Vec3::ZERO), "relinquishing ends RCS");
+
+        // Retaking the helm does not restore it; a fresh SHIFT press does.
+        tap(&mut app, KeyCode::KeyH);
+        set_drives(&mut app, true);
+        app.update();
+        assert!(!rcs(&app).0, "RCS waits for a fresh SHIFT");
+        shift(&mut app, false);
+        app.update();
+        shift(&mut app, true);
+        app.update();
+        app.update();
+        assert!(rcs(&app).0, "a fresh SHIFT enters RCS");
+    }
+
+    #[test]
+    fn neutral_refuses_player_flight_verbs_but_z_disengages() {
+        let (mut app, ship, _) = docked_rig_app();
+        let beacon = app.world_mut().spawn_empty().id();
+        let well = app.world_mut().spawn_empty().id();
+        // A maneuver left frozen from when the player last held the helm.
+        app.world_mut().entity_mut(ship).insert((
+            FlightIntent::default(),
+            RcsIntent::default(),
+            TravelLock(Some(beacon)),
+            DominantWell(well),
+            Autopilot::engage(AutopilotAction::Stop),
+        ));
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().get::<FlightIntent>(ship).unwrap().burn,
+            0.0,
+            "no burn"
+        );
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyW);
+        app.update();
+        tap(&mut app, KeyCode::ShiftLeft);
+        assert!(app.world().get::<RcsActive>(ship).is_none(), "no RCS");
+        for key in [KeyCode::KeyX, KeyCode::KeyG, KeyCode::KeyO] {
+            tap(&mut app, key);
+            assert_eq!(
+                app.world()
+                    .get::<Autopilot>(ship)
+                    .map(|autopilot| autopilot.action),
+                Some(AutopilotAction::Stop),
+                "{key:?} neither toggles nor replaces the frozen maneuver"
+            );
+        }
+
+        tap(&mut app, KeyCode::KeyZ);
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "Z still disengages"
+        );
+        assert!(
+            app.world().get::<DockedShip>(ship).is_some(),
+            "and keeps the dock"
         );
     }
 }

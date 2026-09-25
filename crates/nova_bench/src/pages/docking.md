@@ -2,9 +2,10 @@
 
 A docking port is a sealed hatch on one cell of hull. `flight.dock` clamps
 your port to a port on the ship under `me.travel_lock`. The clamp holds the
-pose you met in and no more: two ships stay two ships. It is MODAL - while
-it holds, your drive, RCS and helm are dead, and a second tap of
-`flight.dock` is the only thing that gives them back.
+pose you met in and no more: two ships stay two ships. A dock starts
+neutral: the other ship flies the pair, and your drive, RCS, helm and
+maneuvers are inert. Tap `flight.dock_helm` to fly the pair yourself, and
+again to hand it back. A second tap of `flight.dock` lets go.
 
 ## What has to be true
 
@@ -45,8 +46,9 @@ does nothing and reports nothing.
    a 70 m gap that is a 30 second coast. The main drive is too coarse for
    this range; if you use it, tap it for a tick or two, never hold it.
 5. With `eligible` true, tap `flight.dock`. `me.docking.docked` turns true
-   and `connection` names the ship and the two ports. Your controls are now
-   inert until you tap `flight.dock` again.
+   and `connection` names the ship and the two ports. The dock starts with
+   `connection.helm` `neutral` and `connection.drives` false: your controls
+   are inert until you tap `flight.dock_helm`.
 
 Small acts. Push, run 30 to 60 ticks, read `gap_m`, `their_face_offset_m`,
 `facing_deg` and `relative_mps`, push again. Every push keeps going after

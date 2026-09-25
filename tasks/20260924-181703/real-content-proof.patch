@@ -1,0 +1,1163 @@
+diff --git a/crates/nova_scenario/src/tests/mod.rs b/crates/nova_scenario/src/tests/mod.rs
+index 86ea618aa..cf8f70772 100644
+--- a/crates/nova_scenario/src/tests/mod.rs
++++ b/crates/nova_scenario/src/tests/mod.rs
+@@ -2,3 +2,6 @@
+ 
+ mod names;
+ mod syntax;
++
++// TEMPORARY(docked-helm-mass-proof): delete with the file.
++mod temporary_docked_helm_proof;
+diff --git a/crates/nova_ship/src/flight/guidance.rs b/crates/nova_ship/src/flight/guidance.rs
+index 6ad12f2cf..99461232d 100644
+--- a/crates/nova_ship/src/flight/guidance.rs
++++ b/crates/nova_ship/src/flight/guidance.rs
+@@ -355,7 +355,7 @@ pub(super) fn orbit_ring_offset(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
+ /// error small, where its damping actually works. Reaching the target
+ /// exactly (instead of asymptotically) keeps fine aiming crisp. Pure for
+ /// unit testing.
+-pub(crate) fn slew_rotation(current: Quat, target: Quat, max_step: f32) -> Quat {
++pub fn slew_rotation(current: Quat, target: Quat, max_step: f32) -> Quat {
+     let step = max_step.max(0.0);
+     let angle = current.angle_between(target);
+     if angle <= step || angle <= f32::EPSILON {
+@@ -444,7 +444,7 @@ pub(crate) fn spool_tail(accel: f32, pull: f32, rate: f32) -> f32 {
+ /// The budget is the sum of the live shares. The stack pass has already
+ /// applied diminishing returns, so this reads one ship-level authority rather
+ /// than paying a stack linearly.
+-pub(crate) fn ship_turn_rate(
++pub fn ship_turn_rate(
+     accelerations: impl Iterator<Item = f32>,
+     settings: &FlightSettings,
+ ) -> Option<f32> {
+diff --git a/crates/nova_ship/src/flight/mod.rs b/crates/nova_ship/src/flight/mod.rs
+index abc26cf85..54eb869b4 100644
+--- a/crates/nova_ship/src/flight/mod.rs
++++ b/crates/nova_ship/src/flight/mod.rs
+@@ -76,11 +76,13 @@ use self::{
+     order::{drive_scripted_align, drive_ship_orders},
+     state::remove_maneuver_telemetry,
+ };
++// TEMPORARY(docked-helm-mass-proof): widened for the nova_scenario proof.
++pub use self::guidance::{ship_turn_rate, slew_rotation};
+ pub(crate) use self::{
+     capability::{
+         ship_capabilities, ship_has_attitude_authority, LiveFlightComputers, ShipCapabilityQuery,
+     },
+-    guidance::{arrival_speed_limit, flip_lead, ship_turn_rate, slew_rotation},
++    guidance::{arrival_speed_limit, flip_lead},
+     manual::accumulate_rcs_axis,
+ };
+ 
+diff --git a/crates/nova_ship/src/physics/pd_controller.rs b/crates/nova_ship/src/physics/pd_controller.rs
+index a63ebe3b7..b7ee8bb99 100644
+--- a/crates/nova_ship/src/physics/pd_controller.rs
++++ b/crates/nova_ship/src/physics/pd_controller.rs
+@@ -116,7 +116,12 @@ fn setup_pd_controller_system(add: On<Add, PDController>, mut commands: Commands
+ /// section when a split moves it onto a new hull. Before it existed this loop
+ /// logged an error at the fixed rate for the rest of the scene.
+ fn update_controller_root_torque(
+-    q_root: Query<(&ComputedAngularInertia, &Rotation, &AngularVelocity)>,
++    q_root: Query<(
++        &ComputedAngularInertia,
++        &Rotation,
++        &AngularVelocity,
++        Option<&crate::sections::controller_section::TemporaryAssemblyInertia>,
++    )>,
+     mut q_controller: Query<(
+         &PDController,
+         &PDControllerInput,
+@@ -127,7 +132,8 @@ fn update_controller_root_torque(
+     for (controller, controller_input, controller_target, mut controller_output) in
+         &mut q_controller
+     {
+-        let Ok((angular_inertia, rotation, angular_velocity)) = q_root.get(**controller_target)
++        let Ok((angular_inertia, rotation, angular_velocity, assembly)) =
++            q_root.get(**controller_target)
+         else {
+             trace!(
+                 "update_controller_root_torque: target {:?} is not a body; holding no torque",
+@@ -139,6 +145,8 @@ fn update_controller_root_torque(
+             continue;
+         };
+ 
++        // TEMPORARY(docked-helm-mass-proof): see TemporaryAssemblyInertia.
++        let angular_inertia = assembly.map_or(angular_inertia, |assembly| &assembly.0);
+         let (principal, local_frame) = angular_inertia.principal_angular_inertia_with_local_frame();
+ 
+         let torque = compute_pd_torque(
+diff --git a/crates/nova_ship/src/sections/controller_section.rs b/crates/nova_ship/src/sections/controller_section.rs
+index 1fa81dacf..86f354a33 100644
+--- a/crates/nova_ship/src/sections/controller_section.rs
++++ b/crates/nova_ship/src/sections/controller_section.rs
+@@ -192,8 +192,16 @@ type HullBody<'w> = (
+     &'w ComputedAngularInertia,
+     &'w AngularVelocity,
+     Option<&'w HullRadius>,
++    Option<&'w TemporaryAssemblyInertia>,
+ );
+ 
++// TEMPORARY(docked-helm-mass-proof): prototype inertia compensation. The
++// assembly tensor about the combined centre of mass, in the root's local
++// frame. Delete with the fixture in flight/tests/stacking.rs.
++#[derive(Component, Clone, Copy, Debug)]
++/// Temporary proof hook: the assembly tensor the PD flies on.
++pub struct TemporaryAssemblyInertia(pub ComputedAngularInertia);
++
+ /// Fold every live controller on a hull into ONE attitude loop, split back
+ /// across the sections that provide it.
+ ///
+@@ -281,9 +289,11 @@ pub(crate) fn update_controller_stack_tuning(
+         // one. Leaving the controllers on their previous tuning (a fresh stack
+         // has the authored seed) is the honest answer: nothing about this hull
+         // is known yet, or anything is left to tune for.
+-        let Ok((angular_inertia, angular_velocity, Some(hull_radius))) = q_root.get(root) else {
++        let Ok((angular_inertia, angular_velocity, Some(hull_radius), assembly)) = q_root.get(root)
++        else {
+             continue;
+         };
++        let angular_inertia = assembly.map_or(angular_inertia, |assembly| &assembly.0);
+         let inertia = angular_inertia
+             .principal_angular_inertia_with_local_frame()
+             .0
+diff --git a/crates/nova_scenario/src/tests/temporary_docked_helm_proof.rs b/crates/nova_scenario/src/tests/temporary_docked_helm_proof.rs
+new file mode 100644
+index 000000000..94e7d18aa
+--- /dev/null
++++ b/crates/nova_scenario/src/tests/temporary_docked_helm_proof.rs
+@@ -0,0 +1,1034 @@
++//! TEMPORARY(docked-helm-mass-proof): owner-approved disposable proof of the
++//! player-commanded `splitW` helm split on REAL catalog ships. Delete this
++//! file, its `mod` line, `TemporaryAssemblyInertia` and the widened helm
++//! functions after the owner reads the tables.
++
++use std::collections::BTreeMap;
++
++use avian3d::prelude::*;
++use bevy::prelude::*;
++use nova_gameplay::{
++    prelude::*,
++    test_support::{settle, unfinished_integrity_physics_app},
++};
++use nova_ship::{
++    flight::{ship_turn_rate, slew_rotation},
++    prelude::*,
++    sections::controller_section::TemporaryAssemblyInertia,
++};
++use serde::Deserialize;
++
++use crate::prelude::*;
++
++const WARSHIP: &str = "block_line_warship";
++const TENDER: &str = "block_frame_tender";
++const WORKSHIP: &str = "block_workship";
++/// TEST-ONLY station: never shipped, never in the catalog. A dynamic ship of
++/// real `reinforced_hull_section` cells with one real docking port.
++const STATION: &str = "temporary_test_station";
++const STATION_CELLS: IVec3 = IVec3::new(16, 10, 24);
++const PLAYER_COLLAR: &str = "starboard_collar";
++const PARTNER_COLLAR: &str = "port_collar";
++/// Face-to-face gap at capture, cells. Inside the 1-cell capture distance;
++/// 0.1 put a workship collider into the warship before the dock.
++fn gap() -> f32 {
++    std::env::var("PROOF_GAP").map_or(0.5, |gap| gap.parse().unwrap())
++}
++const DT: f32 = 1.0 / 60.0;
++
++#[derive(Deserialize)]
++enum Entry {
++    Section(SectionConfig),
++    Ship(ShipDesignPrototype),
++}
++
++fn load(path: &str) -> Vec<Entry> {
++    let file = format!("{}/../../assets/base/{path}", env!("CARGO_MANIFEST_DIR"));
++    ron::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap()
++}
++
++fn catalogs() -> (GameSections, GameShipDesigns) {
++    let sections = load("sections/base.content.ron")
++        .into_iter()
++        .filter_map(|entry| match entry {
++            Entry::Section(section) => Some(section),
++            Entry::Ship(_) => None,
++        })
++        .collect();
++    let ships = load("ships/base.content.ron")
++        .into_iter()
++        .filter_map(|entry| match entry {
++            Entry::Ship(ship) => Some(ship),
++            Entry::Section(_) => None,
++        })
++        .collect();
++    (GameSections(sections), GameShipDesigns(ships))
++}
++
++/// Solid box of real hull cells, x in `0..16`, collar at `(-1, 0, 0)` with its
++/// hatch on `-X`, like the catalog's port flank collars.
++fn station_design() -> ShipDesignPrototype {
++    let mut sections = Vec::new();
++    for x in 0..STATION_CELLS.x {
++        for y in 0..STATION_CELLS.y {
++            for z in 0..STATION_CELLS.z {
++                let cell = IVec3::new(x, y - STATION_CELLS.y / 2, z - STATION_CELLS.z / 2);
++                sections.push(SpaceshipSectionConfig {
++                    id: format!("hull_{}_{}_{}", cell.x, cell.y, cell.z),
++                    position: cell.as_vec3(),
++                    rotation: Quat::IDENTITY,
++                    source: SectionSource::prototype(REINFORCED_HULL_SECTION_ID),
++                });
++            }
++        }
++    }
++    sections.push(SpaceshipSectionConfig {
++        id: PARTNER_COLLAR.to_string(),
++        position: Vec3::new(-1.0, 0.0, 0.0),
++        rotation: Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
++        source: SectionSource::prototype(DOCKING_PORT_SECTION_ID),
++    });
++    ShipDesignPrototype {
++        id: STATION.into(),
++        name: "TEST-ONLY station".to_string(),
++        design: ShipDesign {
++            sections,
++            ..default()
++        },
++    }
++}
++
++/// Player helm target, one per flown root.
++#[derive(Component, Clone, Copy)]
++struct Helm(Quat);
++
++/// The shipped command path of the stacking rig: `ship_turn_rate` then
++/// `slew_rotation`. A root in neutral (`DockedShip`) parks on its attitude.
++fn slew_helm(
++    time: Res<Time>,
++    settings: Res<FlightSettings>,
++    q_ship: Query<(Entity, &Helm, &Rotation, Has<DockedShip>)>,
++    mut q_command: Query<
++        (&mut ControllerSectionRotationInput, &ChildOf),
++        With<ControllerSectionMarker>,
++    >,
++    q_computer: Query<
++        (&PDController, &ChildOf),
++        (
++            With<ControllerSectionMarker>,
++            Without<SectionInactiveMarker>,
++        ),
++    >,
++) {
++    for (ship, helm, rotation, neutral) in &q_ship {
++        let Some(turn_rate) = ship_turn_rate(
++            q_computer
++                .iter()
++                .filter(|(_, &ChildOf(parent))| parent == ship)
++                .map(|(pd, _)| pd.max_angular_acceleration),
++            &settings,
++        ) else {
++            continue;
++        };
++        let max_step = turn_rate * time.delta_secs();
++        for (mut command, _) in q_command
++            .iter_mut()
++            .filter(|(_, &ChildOf(parent))| parent == ship)
++        {
++            **command = if neutral {
++                rotation.0
++            } else {
++                slew_rotation(**command, helm.0, max_step)
++            };
++        }
++    }
++}
++
++#[derive(Clone, Copy, Debug)]
++struct SplitPart {
++    entity: Entity,
++    mass: f32,
++    offset: Vec3,
++    own: Mat3,
++    about_assembly: Mat3,
++}
++
++/// `splitW`: each root gets `I_own * a` plus `m * (a x r)` at its centre of
++/// mass, with `a = Iasm^-1 * tau`. Skipped while the player is neutral, the
++/// same gate `sync_controller_section_forces` uses.
++#[derive(Component, Clone, Copy)]
++struct TemporarySplit {
++    parts: [SplitPart; 2],
++    inverse_assembly: Mat3,
++}
++
++fn split_helm_torque(
++    q_split: Query<(Entity, &TemporarySplit, &Rotation), Without<DockedShip>>,
++    q_output: Query<(&PDControllerOutput, &PDControllerTarget)>,
++    mut q_forces: Query<Forces>,
++) {
++    for (ship, split, rotation) in &q_split {
++        let commanded = q_output
++            .iter()
++            .filter(|(_, target)| ***target == ship)
++            .map(|(output, _)| output.0)
++            .sum::<Vec3>();
++        let r0 = rotation.0;
++        let alpha = split.inverse_assembly * (r0.inverse() * commanded);
++        for (index, part) in split.parts.iter().enumerate() {
++            let mut torque = r0 * (part.own * alpha);
++            // `sync_controller_section_forces` already put all of it on the
++            // player root.
++            if index == 0 {
++                torque -= commanded;
++            }
++            let mut forces = q_forces.get_mut(part.entity).unwrap();
++            forces.apply_torque(torque);
++            forces.apply_force(r0 * (alpha.cross(part.offset) * part.mass));
++        }
++    }
++}
++
++fn app() -> App {
++    let mut app = unfinished_integrity_physics_app();
++    app.add_plugins((
++        PDControllerPlugin,
++        SpaceshipSectionPlugin { render: false },
++        SpaceshipPlugin,
++    ));
++    app.init_resource::<FlightSettings>();
++    let (sections, mut ships) = catalogs();
++    ships.0.push(station_design());
++    app.insert_resource(sections);
++    app.insert_resource(ships);
++    app.add_systems(
++        FixedUpdate,
++        (
++            slew_helm
++                .after(DockingSystems::Release)
++                .before(ControllerSectionSystems::SyncRotationInput),
++            split_helm_torque.after(SpaceshipSectionSystems),
++        ),
++    );
++    app.finish();
++    app
++}
++
++fn resolved(app: &App, id: &str) -> ResolvedShipDesign {
++    let (design, errors) = resolve_ship_design(
++        &ShipDesignSource::prototype(id),
++        app.world().resource::<GameShipDesigns>(),
++        app.world().resource::<GameSections>(),
++    );
++    assert!(errors.is_empty(), "{id}: {errors:?}");
++    design
++}
++
++fn collar(design: &ResolvedShipDesign, id: &str) -> Vec3 {
++    design
++        .sections
++        .iter()
++        .find(|section| section.id == id)
++        .unwrap_or_else(|| panic!("no '{id}'"))
++        .position
++}
++
++/// Partner root offset from the player root, both unrotated: the partner's
++/// port collar one cell plus `gap()` outboard of the player's starboard collar.
++fn partner_offset(app: &App, partner: &str) -> Vec3 {
++    let player = resolved(app, WARSHIP);
++    let partner = resolved(app, partner);
++    collar(&player, PLAYER_COLLAR) + Vec3::X * (1.0 + gap()) - collar(&partner, PARTNER_COLLAR)
++}
++
++fn spawn_ship(app: &mut App, design: ShipDesignSource, at: Vec3) -> Entity {
++    app.world_mut()
++        .spawn((
++            Transform::from_translation(at),
++            spaceship_scenario_object(SpaceshipConfig {
++                design,
++                controller: SpaceshipController::None,
++                allegiance: None,
++                capabilities: default(),
++            }),
++        ))
++        .id()
++}
++
++fn children_count(app: &App, root: Entity) -> usize {
++    app.world()
++        .get::<Children>(root)
++        .map_or(0, |children| children.len())
++}
++
++fn controllers(app: &mut App, root: Entity) -> (usize, f32) {
++    let mut query = app
++        .world_mut()
++        .query_filtered::<(&ChildOf, &ControllerSectionTuning), With<ControllerSectionMarker>>();
++    query
++        .iter(app.world())
++        .filter(|(parent, _)| parent.0 == root)
++        .fold((0, 0.0), |(count, torque), (_, tuning)| {
++            (count + 1, torque + tuning.max_torque)
++        })
++}
++
++/// Forward drives on `root`: entity, local push direction, local mount point.
++fn drives(app: &mut App, root: Entity) -> Vec<(Entity, Vec3, Vec3, f32)> {
++    let mut query = app.world_mut().query_filtered::<(
++        Entity,
++        &ChildOf,
++        &Transform,
++        &ThrusterSectionMagnitude,
++        &nova_events::EntityId,
++    ), With<ThrusterSectionMarker>>();
++    // A rigid reference burns only the player's own drives.
++    let mut drives: Vec<_> = query
++        .iter(app.world())
++        .filter(|(_, parent, .., id)| parent.0 == root && !id.0.starts_with("partner_"))
++        .map(|(entity, _, transform, magnitude, _)| {
++            (
++                entity,
++                transform.rotation * Vec3::NEG_Z,
++                transform.translation,
++                magnitude.0,
++            )
++        })
++        .collect();
++    drives.sort_by(|a, b| a.2.x.total_cmp(&b.2.x).then(a.2.z.total_cmp(&b.2.z)));
++    drives
++}
++
++/// Mass, tensors and offsets in the player frame, fixed at call time.
++fn assembly(app: &App, ship: Entity, body: Option<Entity>) -> (Mat3, Vec3, Vec<SplitPart>) {
++    let world = app.world();
++    let (p0, r0) = (
++        world.get::<Position>(ship).unwrap().0,
++        world.get::<Rotation>(ship).unwrap().0,
++    );
++    let parts: Vec<(f32, Vec3, Mat3, Entity)> = [Some(ship), body]
++        .into_iter()
++        .flatten()
++        .map(|entity| {
++            let mass = world.get::<ComputedMass>(entity).unwrap().value();
++            let rotation = world.get::<Rotation>(entity).unwrap().0;
++            let com = world.get::<Position>(entity).unwrap().0
++                + rotation * world.get::<ComputedCenterOfMass>(entity).unwrap().0;
++            let tensor = Mat3::from(
++                world
++                    .get::<ComputedAngularInertia>(entity)
++                    .unwrap()
++                    .rotated(r0.inverse() * rotation)
++                    .tensor(),
++            );
++            (mass, r0.inverse() * (com - p0), tensor, entity)
++        })
++        .collect();
++    let total: f32 = parts.iter().map(|part| part.0).sum();
++    let com = parts.iter().map(|part| part.1 * part.0).sum::<Vec3>() / total;
++    // Parallel axis written out: avian 0.7 `shifted_tensor` adds the outer
++    // product.
++    let split: Vec<SplitPart> = parts
++        .iter()
++        .map(|&(mass, at, own, entity)| {
++            let offset = at - com;
++            let outer = Mat3::from_cols(offset * offset.x, offset * offset.y, offset * offset.z);
++            SplitPart {
++                entity,
++                mass,
++                offset,
++                own,
++                about_assembly: own
++                    + (Mat3::from_diagonal(Vec3::splat(offset.length_squared())) - outer) * mass,
++            }
++        })
++        .collect();
++    let tensor = split
++        .iter()
++        .fold(Mat3::ZERO, |sum, part| sum + part.about_assembly);
++    (tensor, com, split)
++}
++
++fn angular_momentum(app: &App, bodies: &[Entity]) -> Vec3 {
++    let world = app.world();
++    let parts: Vec<(f32, Vec3, Vec3, Vec3)> = bodies
++        .iter()
++        .map(|&entity| {
++            let mass = world.get::<ComputedMass>(entity).unwrap().value();
++            let rotation = world.get::<Rotation>(entity).unwrap().0;
++            let com = world.get::<Position>(entity).unwrap().0
++                + rotation * world.get::<ComputedCenterOfMass>(entity).unwrap().0;
++            let tensor = Mat3::from(
++                world
++                    .get::<ComputedAngularInertia>(entity)
++                    .unwrap()
++                    .rotated(rotation)
++                    .tensor(),
++            );
++            let spin = tensor * world.get::<AngularVelocity>(entity).unwrap().0;
++            (
++                mass,
++                com,
++                world.get::<LinearVelocity>(entity).unwrap().0,
++                spin,
++            )
++        })
++        .collect();
++    let total: f32 = parts.iter().map(|part| part.0).sum();
++    let com = parts.iter().map(|part| part.1 * part.0).sum::<Vec3>() / total;
++    let velocity = parts.iter().map(|part| part.2 * part.0).sum::<Vec3>() / total;
++    parts
++        .iter()
++        .map(|(mass, at, v, spin)| *spin + (*at - com).cross(*v - velocity) * *mass)
++        .sum()
++}
++
++fn relative(app: &App, ship: Entity, body: Entity) -> (Vec3, Quat) {
++    let world = app.world();
++    let (p0, r0) = (
++        world.get::<Position>(ship).unwrap().0,
++        world.get::<Rotation>(ship).unwrap().0,
++    );
++    let (p1, r1) = (
++        world.get::<Position>(body).unwrap().0,
++        world.get::<Rotation>(body).unwrap().0,
++    );
++    (r0.inverse() * (p1 - p0), r0.inverse() * r1)
++}
++
++/// Signed residual along the command axis (positive = past the target) and
++/// the off-axis residual, both radians.
++fn residual(rotation: Quat, target: Quat, axis: Vec3) -> (f32, f32) {
++    let mut error = target.inverse() * rotation;
++    if error.w < 0.0 {
++        error = -error;
++    }
++    let scaled = error.to_scaled_axis();
++    let along = scaled.dot(axis);
++    (along, (scaled - axis * along).length())
++}
++
++#[derive(Clone, Copy, PartialEq, Debug)]
++enum Case {
++    Step(Vec3, &'static str),
++    /// All forward drives at full for 3 s.
++    BurnAll,
++    /// The forward-drive subset whose thrust line passes nearest the assembly
++    /// centre of mass, for 3 s.
++    BurnBalanced,
++    /// Yaw 45 deg; neutral at 2 s mid-slew for 10 s; resume.
++    Authority,
++    /// Yaw 90 deg; release at 20 s; re-dock at 22 s; yaw back to 0.
++    Redock,
++}
++
++impl Case {
++    fn label(self) -> &'static str {
++        match self {
++            Self::Step(_, label) => label,
++            Self::BurnAll => "burn-all",
++            Self::BurnBalanced => "burn-bal",
++            Self::Authority => "auth",
++            Self::Redock => "redock",
++        }
++    }
++
++    fn seconds(self) -> f32 {
++        match self {
++            Self::Step(..) => 40.0,
++            Self::BurnAll | Self::BurnBalanced => 30.0,
++            Self::Authority => 40.0,
++            Self::Redock => 50.0,
++        }
++    }
++}
++
++#[derive(Clone, Copy, PartialEq, Debug)]
++enum Mode {
++    /// Shipped controller, player inertia, torque on the player root.
++    Base,
++    /// Assembly tensor in the PD, torque on the player root only.
++    Comp,
++    /// Assembly tensor in the PD, `splitW` over both roots.
++    SplitW,
++    /// Partner sections built into the player root, partner computers removed.
++    Rigid,
++}
++
++impl Mode {
++    fn label(self) -> &'static str {
++        match self {
++            Self::Base => "base",
++            Self::Comp => "comp",
++            Self::SplitW => "splitW",
++            Self::Rigid => "rigid",
++        }
++    }
++}
++
++#[derive(PartialEq, Debug, Default)]
++struct Row {
++    mass_ratio: f32,
++    /// Player principal-axis diagonal (x pitch, y yaw, z roll), player frame.
++    player_inertia: Vec3,
++    assembly_inertia: Vec3,
++    budget: f32,
++    error: f32,
++    off_axis: f32,
++    settle: f32,
++    reversals: usize,
++    peak_torque: f32,
++    saturated: f32,
++    joint_m: f32,
++    joint_deg: f32,
++    max_joint_rate: f32,
++    tail_rate: f32,
++    tail_error: f32,
++    tail_joint_rate: f32,
++    burn_arm_m: f32,
++    joint_alive: bool,
++    /// Authority: assembly rotation and `|dL| / Iasm yaw` over the neutral
++    /// window. Redock: whether the re-dock took and the pose change.
++    neutral_turn_deg: f32,
++    neutral_dl: f32,
++    redocked: bool,
++    redock_m: f32,
++    redock_deg: f32,
++    after_settle: f32,
++    after_error: f32,
++}
++
++fn diag(tensor: Mat3) -> Vec3 {
++    Vec3::new(tensor.x_axis.x, tensor.y_axis.y, tensor.z_axis.z)
++}
++
++fn apply_split(app: &mut App, ship: Entity, body: Entity, mode: Mode) {
++    let (tensor, _, parts) = assembly(app, ship, Some(body));
++    let mut ship = app.world_mut().entity_mut(ship);
++    ship.remove::<(TemporaryAssemblyInertia, TemporarySplit)>();
++    if mode == Mode::Comp || mode == Mode::SplitW {
++        ship.insert(TemporaryAssemblyInertia(
++            ComputedAngularInertia::from_tensor(
++                avian3d::math::SymmetricMatrix::from_mat3_unchecked(tensor),
++            ),
++        ));
++    }
++    if mode == Mode::SplitW {
++        ship.insert(TemporarySplit {
++            parts: [parts[0], parts[1]],
++            inverse_assembly: tensor.inverse(),
++        });
++    }
++}
++
++fn dock(app: &mut App, ship: Entity, body: Entity) -> Option<Entity> {
++    app.world_mut().trigger(DockingConnectionRequest {
++        entity: ship,
++        target: body,
++    });
++    app.update();
++    let connection = app.world().get::<DockedShip>(ship)?.connection;
++    assert!(app.world().get::<DockedShip>(body).is_some());
++    assert!(app.world().get::<FixedJoint>(connection).is_some());
++    Some(connection)
++}
++
++fn run(partner: Option<&'static str>, case: Case, mode: Mode, report: bool) -> Row {
++    let mut app = app();
++    let offset = partner.map(|partner| partner_offset(&app, partner));
++    let design = match (partner, mode) {
++        (Some(partner), Mode::Rigid) => {
++            let player = app
++                .world()
++                .resource::<GameShipDesigns>()
++                .get_design(&WARSHIP.into())
++                .unwrap()
++                .design
++                .clone();
++            let other = app
++                .world()
++                .resource::<GameShipDesigns>()
++                .get_design(&partner.into())
++                .unwrap()
++                .design
++                .clone();
++            let mut merged = player;
++            merged
++                .sections
++                .extend(other.sections.into_iter().map(|mut section| {
++                    section.id = format!("partner_{}", section.id);
++                    section.position += offset.unwrap();
++                    section
++                }));
++            ShipDesignSource::Inline(merged)
++        }
++        _ => ShipDesignSource::prototype(WARSHIP),
++    };
++    let ship = spawn_ship(&mut app, design, Vec3::ZERO);
++    let body = match (partner, mode) {
++        (Some(partner), Mode::Base | Mode::Comp | Mode::SplitW) => Some(spawn_ship(
++            &mut app,
++            ShipDesignSource::prototype(partner),
++            offset.unwrap(),
++        )),
++        _ => None,
++    };
++    settle(&mut app);
++    if mode == Mode::Rigid && partner.is_some() {
++        // The partner's computers are neutral in the docked modes, so the
++        // reference flies on the player's computers alone.
++        let mut query = app
++            .world_mut()
++            .query_filtered::<(Entity, &nova_events::EntityId, &ChildOf), With<ControllerSectionMarker>>();
++        let partner_computers: Vec<Entity> = query
++            .iter(app.world())
++            .filter(|(_, id, parent)| parent.0 == ship && id.0.starts_with("partner_"))
++            .map(|(entity, ..)| entity)
++            .collect();
++        for computer in partner_computers {
++            app.world_mut().entity_mut(computer).remove::<(
++                ControllerSectionMarker,
++                PDController,
++                PDControllerInput,
++                PDControllerOutput,
++                PDControllerTarget,
++                ControllerSectionRotationInput,
++                ControllerSectionTuning,
++            )>();
++        }
++    }
++    settle(&mut app);
++    let roots_before = app
++        .world_mut()
++        .query_filtered::<(), With<SpaceshipRootMarker>>()
++        .iter(app.world())
++        .count();
++    let speeds: Vec<(f32, f32)> = [Some(ship), body]
++        .into_iter()
++        .flatten()
++        .map(|entity| {
++            (
++                app.world().get::<LinearVelocity>(entity).unwrap().0.length(),
++                app.world().get::<AngularVelocity>(entity).unwrap().0.length(),
++            )
++        })
++        .collect();
++    assert!(
++        speeds.iter().all(|(v, w)| *v < 1e-4 && *w < 1e-4),
++        "hulls touch before docking: {speeds:?}"
++    );
++    let mut connection = match body {
++        Some(body) => {
++            let connection = dock(&mut app, ship, body).expect("real dock refused");
++            // Take control: the player root leaves neutral, the partner stays.
++            app.world_mut().entity_mut(ship).remove::<DockedShip>();
++            Some(connection)
++        }
++        None => None,
++    };
++    settle(&mut app);
++    let (tensor, com, _) = assembly(&app, ship, body);
++    let player_tensor = Mat3::from(
++        app.world()
++            .get::<ComputedAngularInertia>(ship)
++            .unwrap()
++            .tensor(),
++    );
++    let (computer_count, total_torque) = controllers(&mut app, ship);
++    let player_mass = app.world().get::<ComputedMass>(ship).unwrap().value();
++    let mass_ratio =
++        body.map_or(0.0, |body| app.world().get::<ComputedMass>(body).unwrap().value())
++            / player_mass;
++    if let Some(body) = body {
++        apply_split(&mut app, ship, body, mode);
++    }
++    let forward: Vec<_> = drives(&mut app, ship)
++        .into_iter()
++        .filter(|(_, push, ..)| push.dot(Vec3::NEG_Z) > 0.9)
++        .collect();
++    // Burn subset: the forward drives whose summed moment about the assembly
++    // centre of mass is smallest per unit thrust.
++    let mut best = (f32::INFINITY, 0u32);
++    for mask in 1u32..(1 << forward.len()) {
++        let (force, moment) = forward
++            .iter()
++            .enumerate()
++            .filter(|(index, _)| mask & (1 << index) != 0)
++            .fold((Vec3::ZERO, Vec3::ZERO), |(f, m), (_, drive)| {
++                let push = drive.1 * drive.3;
++                (f + push, m + (drive.2 - com).cross(push))
++            });
++        let arm = moment.length() / force.length();
++        if arm < best.0 - 1e-4 {
++            best = (arm, mask);
++        }
++    }
++    let (burn_mask, burn_arm_m) = match case {
++        Case::BurnAll => {
++            let all = (1u32 << forward.len()) - 1;
++            let (force, moment) = forward
++                .iter()
++                .fold((Vec3::ZERO, Vec3::ZERO), |(f, m), drive| {
++                    let push = drive.1 * drive.3;
++                    (f + push, m + (drive.2 - com).cross(push))
++                });
++            (all, moment.length() / force.length() * 10.0)
++        }
++        Case::BurnBalanced => (best.1, best.0 * 10.0),
++        _ => (0, 0.0),
++    };
++    if report {
++        println!(
++            "  setup {:>9} {:>6}: player {} sections, mass {:.1}, partner/player {:.3}, \
++             computers {}, sum max_torque {:.0}, HullRadius {:.2}, forward drives {:?}, \
++             assembly COM {:.2?}, burn mask {:b}",
++            partner.unwrap_or("undocked"),
++            mode.label(),
++            children_count(&app, ship),
++            player_mass,
++            mass_ratio,
++            computer_count,
++            total_torque,
++            app.world().get::<HullRadius>(ship).map_or(0.0, |r| r.0),
++            forward
++                .iter()
++                .map(|d| (d.2.to_array(), d.3))
++                .collect::<Vec<_>>(),
++            com,
++            burn_mask,
++        );
++    }
++
++    let bodies: Vec<Entity> = [Some(ship), body].into_iter().flatten().collect();
++    let start = app.world().get::<Rotation>(ship).unwrap().0;
++    app.world_mut().entity_mut(ship).insert(Helm(start));
++    app.update();
++
++    let (axis, command) = match case {
++        Case::Step(axis, _) => (axis, 90.0f32.to_radians()),
++        Case::Authority => (Vec3::Y, 45.0f32.to_radians()),
++        Case::Redock => (Vec3::Y, 90.0f32.to_radians()),
++        _ => (Vec3::Y, 0.0),
++    };
++    let mut target = Quat::from_axis_angle(axis, command);
++    app.world_mut().get_mut::<Helm>(ship).unwrap().0 = target;
++    let mut rest = body.map(|body| relative(&app, ship, body));
++    let steps = (case.seconds() / DT) as usize;
++    let tail = steps - (10.0 / DT) as usize;
++    let mut row = Row {
++        mass_ratio,
++        player_inertia: diag(player_tensor),
++        assembly_inertia: diag(tensor),
++        burn_arm_m,
++        ..default()
++    };
++    let (mut reached, mut sign, mut last_outside, mut peak_along) = (false, 1.0f32, 0usize, 0.0f32);
++    let mut saturated = 0usize;
++    let mut q_output = app
++        .world_mut()
++        .query::<(&PDControllerOutput, &PDController, &PDControllerTarget)>();
++    let neutral_window = ((2.0 / DT) as usize, (12.0 / DT) as usize);
++    let redock_window = ((20.0 / DT) as usize, (22.0 / DT) as usize);
++    let mut neutral_start = (Vec3::ZERO, Quat::IDENTITY);
++    let mut after_start = 0usize;
++    for step in 0..steps {
++        // Scripted events before the tick.
++        if matches!(case, Case::BurnAll | Case::BurnBalanced) {
++            for (index, drive) in forward.iter().enumerate() {
++                let on = step < 180 && burn_mask & (1 << index) != 0;
++                app.world_mut()
++                    .get_mut::<ThrusterSectionInput>(drive.0)
++                    .unwrap()
++                    .0 = if on { 1.0 } else { 0.0 };
++            }
++        }
++        if case == Case::Authority && step == neutral_window.0 {
++            let rotation = app.world().get::<Rotation>(ship).unwrap().0;
++            app.world_mut().entity_mut(ship).insert(DockedShip {
++                connection: connection.unwrap_or(Entity::PLACEHOLDER),
++                helm: rotation,
++            });
++            neutral_start = (angular_momentum(&app, &bodies), rotation);
++        }
++        if case == Case::Authority && step == neutral_window.1 {
++            let rotation = app.world().get::<Rotation>(ship).unwrap().0;
++            row.neutral_turn_deg = neutral_start.1.angle_between(rotation).to_degrees();
++            row.neutral_dl = (angular_momentum(&app, &bodies) - neutral_start.0).length()
++                / tensor.y_axis.y;
++            app.world_mut().entity_mut(ship).remove::<DockedShip>();
++            after_start = step;
++        }
++        if case == Case::Redock && step == redock_window.0 {
++            if let Some(body) = body {
++                app.world_mut()
++                    .trigger(DockingReleaseRequest { entity: body });
++                app.world_mut()
++                    .entity_mut(ship)
++                    .remove::<(TemporaryAssemblyInertia, TemporarySplit)>();
++            }
++        }
++        if case == Case::Redock && step == redock_window.1 {
++            if let Some(body) = body {
++                let before = rest.unwrap();
++                connection = dock(&mut app, ship, body);
++                row.redocked = connection.is_some();
++                if row.redocked {
++                    app.world_mut().entity_mut(ship).remove::<DockedShip>();
++                    apply_split(&mut app, ship, body, mode);
++                    let now = relative(&app, ship, body);
++                    row.redock_m = (now.0 - before.0).length() * 10.0;
++                    row.redock_deg = (before.1.inverse() * now.1).to_axis_angle().1.to_degrees();
++                    rest = Some(now);
++                }
++            } else {
++                row.redocked = true;
++            }
++            target = Quat::IDENTITY;
++            app.world_mut().get_mut::<Helm>(ship).unwrap().0 = target;
++            after_start = step;
++            reached = false;
++            sign = 1.0;
++        }
++
++        app.update();
++
++        let rotation = app.world().get::<Rotation>(ship).unwrap().0;
++        let rate = app.world().get::<AngularVelocity>(ship).unwrap().0.length();
++        let step_axis = if case == Case::Redock && step >= redock_window.1 {
++            -axis
++        } else {
++            axis
++        };
++        let (along, off) = residual(rotation, target, step_axis);
++        let error = along.abs().max(off);
++        let in_window = !(case == Case::Redock
++            && (redock_window.0..=redock_window.1).contains(&step));
++        if error > 1.0f32.to_radians() || rate > 0.05 {
++            last_outside = step;
++        }
++        if command != 0.0 && in_window {
++            if !reached && along >= 0.0 {
++                reached = true;
++                sign = 1.0;
++            }
++            if reached {
++                peak_along = peak_along.max(along);
++                if along.abs() > 1.0f32.to_radians() && along.signum() != sign {
++                    sign = along.signum();
++                    row.reversals += 1;
++                }
++            }
++        } else if command == 0.0 {
++            row.error = row.error.max(rotation.angle_between(target));
++        }
++        row.off_axis = row.off_axis.max(off);
++        if step >= tail {
++            row.tail_rate = row.tail_rate.max(rate);
++            row.tail_error = row.tail_error.max(error);
++        }
++        let (torque, acceleration) = q_output
++            .iter(app.world())
++            .filter(|(.., target)| target.0 == ship)
++            .fold((Vec3::ZERO, 0.0), |(torque, acceleration), (output, pd, _)| {
++                (torque + output.0, acceleration + pd.max_angular_acceleration)
++            });
++        if step == 0 {
++            row.budget = acceleration;
++        }
++        let neutral = app.world().get::<DockedShip>(ship).is_some();
++        if !neutral {
++            let share = torque.length() / total_torque;
++            row.peak_torque = row.peak_torque.max(share);
++            if share >= 0.99 {
++                saturated += 1;
++            }
++        }
++        if let (Some(body), Some((p0, r0))) = (body, rest) {
++            let attached = connection.is_some_and(|c| app.world().get_entity(c).is_ok());
++            if attached {
++                let (p, r) = relative(&app, ship, body);
++                row.joint_m = row.joint_m.max((p - p0).length() * 10.0);
++                row.joint_deg = row
++                    .joint_deg
++                    .max((r0.inverse() * r).to_axis_angle().1.to_degrees());
++                let spin = (app.world().get::<AngularVelocity>(body).unwrap().0
++                    - app.world().get::<AngularVelocity>(ship).unwrap().0)
++                    .length();
++                row.max_joint_rate = row.max_joint_rate.max(spin);
++                if step >= tail {
++                    row.tail_joint_rate = row.tail_joint_rate.max(spin);
++                }
++            }
++        }
++    }
++    if command != 0.0 {
++        row.error = peak_along.max(0.0);
++    }
++    row.error = row.error.to_degrees();
++    row.off_axis = row.off_axis.to_degrees();
++    row.tail_error = row.tail_error.to_degrees();
++    row.settle = (last_outside + 1) as f32 * DT;
++    row.saturated = saturated as f32 * DT;
++    if matches!(case, Case::Authority | Case::Redock) {
++        row.after_settle = (last_outside.saturating_sub(after_start) + 1) as f32 * DT;
++        let rotation = app.world().get::<Rotation>(ship).unwrap().0;
++        row.after_error = rotation.angle_between(target).to_degrees();
++    }
++    row.joint_alive = match (body, connection) {
++        (Some(_), Some(connection)) => {
++            app.world().get::<FixedJoint>(connection).is_some()
++                && app.world().get::<DockingConnection>(connection).is_some()
++        }
++        (Some(_), None) => false,
++        (None, _) => true,
++    };
++    let roots_after = app
++        .world_mut()
++        .query_filtered::<(), With<SpaceshipRootMarker>>()
++        .iter(app.world())
++        .count();
++    assert_eq!(roots_before, roots_after, "a hull split during the run");
++    row
++}
++
++const PARTNERS: [Option<&str>; 4] = [None, Some(WORKSHIP), Some(TENDER), Some(WARSHIP)];
++
++/// `PROOF_STATION` runs the test-only station rows alone, so the 91 real
++/// content rows stay as recorded.
++fn partners() -> Vec<Option<&'static str>> {
++    if std::env::var("PROOF_STATION").is_ok() {
++        vec![Some(STATION)]
++    } else {
++        PARTNERS.to_vec()
++    }
++}
++
++fn table(report: bool) -> BTreeMap<String, Row> {
++    let cases = [
++        Case::Step(Vec3::Y, "yaw90"),
++        Case::Step(Vec3::X, "pitch90"),
++        Case::Step(Vec3::Z, "roll90"),
++        Case::BurnAll,
++        Case::BurnBalanced,
++        Case::Authority,
++        Case::Redock,
++    ];
++    let mut rows = BTreeMap::new();
++    for (case_index, case) in cases.into_iter().enumerate() {
++        for (partner_index, partner) in partners().into_iter().enumerate() {
++            let modes: &[Mode] = if partner.is_none() {
++                &[Mode::Base]
++            } else {
++                &[Mode::Base, Mode::Comp, Mode::SplitW, Mode::Rigid]
++            };
++            for (mode_index, &mode) in modes.iter().enumerate() {
++                let key = format!(
++                    "{case_index}{partner_index}{mode_index} {:>8} {:>18} {:>6}",
++                    case.label(),
++                    partner.unwrap_or("undocked"),
++                    mode.label()
++                );
++                let row = run(partner, case, mode, report && case_index == 3);
++                eprintln!("{key} done");
++                rows.insert(key, row);
++            }
++        }
++    }
++    rows
++}
++
++fn print(rows: &BTreeMap<String, Row>) {
++    println!(
++        "{:>3} {:>8} {:>18} {:>6} {:>6} {:>21} {:>21} {:>6} {:>7} {:>6} {:>7} {:>4} {:>6} {:>6} {:>7} {:>7} {:>7} {:>7} {:>7} {:>7} {:>6} {:>5}",
++        "key", "case", "partner", "mode", "m2/m1", "I1 diag x/y/z", "Iasm diag x/y/z",
++        "budget", "err deg", "off deg", "settle", "rng", "peakT", "sat s", "joint m",
++        "joint d", "jw max", "tail w", "tail er", "tail jw", "arm m", "alive"
++    );
++    for (key, row) in rows {
++        println!(
++            "{key} {:>6.3} {:>6.0}/{:>6.0}/{:>6.0} {:>6.0}/{:>6.0}/{:>6.0} {:>6.3} {:>7.2} {:>6.2} {:>7.2} {:>4} {:>6.3} {:>6.2} {:>7.3} {:>7.3} {:>7.4} {:>7.4} {:>7.3} {:>7.4} {:>6.2} {:>5}",
++            row.mass_ratio,
++            row.player_inertia.x,
++            row.player_inertia.y,
++            row.player_inertia.z,
++            row.assembly_inertia.x,
++            row.assembly_inertia.y,
++            row.assembly_inertia.z,
++            row.budget,
++            row.error,
++            row.off_axis,
++            row.settle,
++            row.reversals,
++            row.peak_torque,
++            row.saturated,
++            row.joint_m,
++            row.joint_deg,
++            row.max_joint_rate,
++            row.tail_rate,
++            row.tail_error,
++            row.tail_joint_rate,
++            row.burn_arm_m,
++            row.joint_alive,
++        );
++    }
++    println!("transition rows (auth: neutral 2-12 s; redock: release 20 s, re-dock 22 s)");
++    println!(
++        "{:>3} {:>8} {:>18} {:>6} {:>9} {:>8} {:>8} {:>8} {:>8} {:>9} {:>9}",
++        "key", "case", "partner", "mode", "neut deg", "neut dL", "redock", "re m", "re deg",
++        "after s", "after er"
++    );
++    for (key, row) in rows
++        .iter()
++        .filter(|(key, _)| key.contains(" auth ") || key.contains(" redock "))
++    {
++        println!(
++            "{key} {:>9.2} {:>8.4} {:>8} {:>8.3} {:>8.3} {:>9.2} {:>9.3}",
++            row.neutral_turn_deg,
++            row.neutral_dl,
++            row.redocked,
++            row.redock_m,
++            row.redock_deg,
++            row.after_settle,
++            row.after_error
++        );
++    }
++}
++
++#[test]
++#[ignore = "TEMPORARY docked helm proof, run by hand"]
++fn temporary_docked_helm_real_content_table() {
++    let only = std::env::var("PROOF_ONLY").ok();
++    if let Some(only) = only {
++        // One quick row for smoke and timing: "<case> <partner> <mode>".
++        let parts: Vec<&str> = only.split(' ').collect();
++        let case = match parts[0] {
++            "yaw90" => Case::Step(Vec3::Y, "yaw90"),
++            "pitch90" => Case::Step(Vec3::X, "pitch90"),
++            "roll90" => Case::Step(Vec3::Z, "roll90"),
++            "burn-all" => Case::BurnAll,
++            "burn-bal" => Case::BurnBalanced,
++            "auth" => Case::Authority,
++            _ => Case::Redock,
++        };
++        let partner = [None, Some(WORKSHIP), Some(TENDER), Some(WARSHIP), Some(STATION)]
++            .into_iter()
++            .find(|partner| partner.unwrap_or("undocked") == parts[1])
++            .unwrap();
++        let mode = [Mode::Base, Mode::Comp, Mode::SplitW, Mode::Rigid]
++            .into_iter()
++            .find(|mode| mode.label() == parts[2])
++            .unwrap();
++        let row = run(partner, case, mode, true);
++        let mut rows = BTreeMap::new();
++        rows.insert(format!("000 {only}"), row);
++        print(&rows);
++        return;
++    }
++    let first = table(true);
++    print(&first);
++    if std::env::var("PROOF_REPEAT").is_ok() {
++        let second = table(false);
++        assert_eq!(first, second, "repeat run must match bit for bit");
++        println!("repeat: identical ({} rows)", second.len());
++    }
++}

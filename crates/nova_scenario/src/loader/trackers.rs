@@ -378,8 +378,8 @@ pub(super) struct DockEcho {
 /// Emit the docking lifecycle from the live connections.
 ///
 /// The edge source is the CONNECTION entity: `DOCK` builds exactly one per
-/// pair and every way out of a dock - either pilot's verb, a maneuver engaged
-/// on either hull, a shot-off port, a dead ship - despawns that one entity.
+/// pair and every way out of a dock - either pilot's verb, a shot-off port, a
+/// dead ship - despawns that one entity.
 /// Comparing the echoes against the live connections therefore reports each
 /// capture and each release once, on every path, and `nova_ship` still knows
 /// nothing about scenario events.
@@ -1452,7 +1452,7 @@ mod tests {
     fn a_docking_connection_reports_one_capture_and_one_release() {
         use nova_events::prelude::GameEventsPlugin;
         use nova_gameplay::prelude::GameObjectives;
-        use nova_ship::prelude::DockingConnection;
+        use nova_ship::prelude::{DockedHelmType, DockingConnection};
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -1478,6 +1478,8 @@ mod tests {
             first_section: Entity::PLACEHOLDER,
             second_ship,
             second_section: Entity::PLACEHOLDER,
+            helm: DockedHelmType::Neutral,
+            measurement_fault: false,
         };
 
         let connection = app.world_mut().spawn(pair(tender, derelict)).id();

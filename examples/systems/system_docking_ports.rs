@@ -3,11 +3,12 @@
 //!
 //! The mechanic is one verb wide and is deliberately NOT an attachment: two
 //! docked hulls stay two rigid bodies held by one avian `FixedJoint` and the
-//! sleeves that reach across are art. It is also MODAL - a docked hull's drive
-//! is inert until the verb is pressed again - and that is a claim about
-//! FORCES, not about state. Which is why these are staged here rather than in
-//! the unit tests beside the code: the unit tests grade the candidate search,
-//! this range grades what the SOLVER does with the joint the search produces.
+//! sleeves that reach across are art. One hull drives the pair, and the hull
+//! off the helm has an inert drive until the verb lets go - and that is a
+//! claim about FORCES, not about state. Which is why these are staged here
+//! rather than in the unit tests beside the code: the unit tests grade the
+//! candidate search, this range grades what the SOLVER does with the joint the
+//! search produces.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -16,8 +17,8 @@
 //! | 3 | `outcome: the sleeve never changes what the hull collides with` | the port's collider is the same box extended as retracted |
 //! | 4 | `outcome: the joint carries the pair without zeroing its drift` | a hull pushed while docked tows the other one, and the pair keeps the velocity it was given |
 //! | 5 | `outcome: the joint holds the pose the two hulls met in` | after the tow, the second hull sits where it sat in the first hull's frame at capture |
-//! | 6 | `outcome: a docked hull ignores the throttle` | a full burn held on a docked hull moves neither ship: the drive is gated at the force, not at the key |
-//! | 7 | `outcome: the dock verb takes the dock away from either hull` | the ship that did NOT issue `DOCK` asks to be released, and the connection, the joint and both reservations go |
+//! | 6 | `outcome: the hull off the helm ignores the throttle` | a full burn held on the hull that does not drive the neutral pair moves neither ship: the drive is gated at the force, not at the key |
+//! | 7 | `outcome: the dock verb takes the dock away from either hull` | the ship that did NOT issue `DOCK`, and so drives the neutral pair, asks to be released, and the connection, the joint and both reservations go |
 //! | 8 | `outcome: the throttle bites the moment the dock lets go` | the SAME burn, still held, accelerates the same hull once it is free - so claim 6 is the dock and not a dead engine |
 //! | 9 | `outcome: a destroyed port frees its partner` | destroying one port cleans the connection up and leaves the surviving port free and stowing |
 //! | 10 | `outcome: the dock geometry is recorded` | RECORD: the face gap at capture, the tow distance, and the pose error the joint carried |
@@ -78,7 +79,7 @@ const TOW_DISTANCE: f32 = 2.0;
 /// that NEITHER hull was stopped - not that both hold the speed one was given.
 const TOWED_SPEED_FLOOR: f32 = 1.0;
 
-/// Frames a full burn is held on the docked pair before the modal claim is
+/// Frames a full burn is held on the docked pair before the helm claim is
 /// read. Long enough that an ungated drive would have moved the pair well past
 /// [`HELD_SPEED_CEILING`], which is the only thing that makes "it did not
 /// move" mean anything.
@@ -121,7 +122,7 @@ enum Stage {
     Settling,
     /// Docked; being towed, so the joint can be read under load.
     Towing,
-    /// Docked, at rest, with a full burn commanded: the modal claim.
+    /// Docked, at rest, with a full burn commanded off the helm: the helm claim.
     Holding,
     /// Docked with the burn still held; waiting for the verb to let go.
     Releasing,
@@ -180,8 +181,8 @@ fn range_plugin(app: &mut App) {
 ///
 /// `configure_scenario_gating` holds `SpaceshipSectionSystems` on
 /// `scenario_is_live`, and the drive's impulse is in that set. The two hulls
-/// here are hand-built rather than authored, so without a live scenario a
-/// docked hull's throttle would be inert because NOTHING RAN - which is the
+/// here are hand-built rather than authored, so without a live scenario the
+/// throttle of the hull off the helm would be inert because NOTHING RAN - which is the
 /// one reading that would make claim 6 worthless. The scenario carries no
 /// objects: this range spawns its own camera, light and hulls.
 ///
@@ -269,8 +270,8 @@ fn spawn_hull(
             Transform::from_translation(at).with_rotation(facing),
             Visibility::default(),
             TransformInterpolation,
-            // A sleeping body ignores an applied force. The modal claim is
-            // "the throttle does nothing while docked", and a pair that avian
+            // A sleeping body ignores an applied force. The helm claim is
+            // "the throttle off the helm does nothing", and a pair that avian
             // had put to sleep would satisfy it for the wrong reason - as
             // would the claim after it, which reads the same throttle biting.
             SleepingDisabled,
@@ -656,20 +657,23 @@ fn tow(world: &mut World, first: Entity, second: Entity) {
     probe.towed = travelled;
     probe.pose_error = slip;
     // The tow left the pair moving. Bring it back to rest by hand so the
-    // modal claim is read against a pair that is standing still.
+    // helm claim is read against a pair that is standing still.
     probe.stage = Stage::Holding;
     probe.stage_frames = 0;
 }
 
-/// Stage 3: hold a full burn on the docked pair and read that nothing moves.
+/// Stage 3: hold a full burn on the hull off the helm and read that nothing
+/// moves.
 ///
-/// The claim is about FORCES. `manual_burn_system` never writes the input on a
-/// docked root and `thruster_impulse_system` never applies the impulse on one,
-/// so a throttle held here reaches the drive through neither path - and this
-/// hull HAS a drive, which the next stage proves by using it.
+/// Neither hull is the player's, so the neutral pair is driven by
+/// `second_ship` - `second` here - and `first` is off the helm. The claim is
+/// about FORCES. `manual_burn_system` never writes the input on a root with
+/// `DockedShip.drives` false and `thruster_impulse_system` never applies the
+/// impulse on one, so a throttle held here reaches the drive through neither
+/// path - and this hull HAS a drive, which the next stage proves by using it.
 fn hold_against_the_throttle(world: &mut World, first: Entity, second: Entity, stage_frames: u32) {
-    if world.get::<FlightIntent>(second).is_none() {
-        world.entity_mut(second).insert(FlightIntent { burn: 1.0 });
+    if world.get::<FlightIntent>(first).is_none() {
+        world.entity_mut(first).insert(FlightIntent { burn: 1.0 });
         return;
     }
     if stage_frames < HOLD_FRAMES {
@@ -693,16 +697,16 @@ fn hold_against_the_throttle(world: &mut World, first: Entity, second: Entity, s
         .collect();
     assert!(
         speeds.iter().all(|speed| *speed < HELD_SPEED_CEILING),
-        "docking_ports: a docked hull's drive must be inert: {speeds:?}"
+        "docking_ports: the drive off the helm must be inert: {speeds:?}"
     );
     nova_probe::probe_marker(
         world,
-        "outcome: a docked hull ignores the throttle",
+        "outcome: the hull off the helm ignores the throttle",
         serde_json::json!({
             "held_frames": HOLD_FRAMES,
-            "commanded_by": "the ship that did not issue DOCK",
-            "pushed_hull_mps": MetersPerSecond::from_engine(speeds[1]).get(),
-            "partner_hull_mps": MetersPerSecond::from_engine(speeds[0]).get(),
+            "commanded_by": "the hull off the helm",
+            "pushed_hull_mps": MetersPerSecond::from_engine(speeds[0]).get(),
+            "partner_hull_mps": MetersPerSecond::from_engine(speeds[1]).get(),
         }),
     );
 
@@ -712,7 +716,7 @@ fn hold_against_the_throttle(world: &mut World, first: Entity, second: Entity, s
 }
 
 /// Stage 4: the hull that did NOT issue the command asks to be let go, and
-/// the burn it was already holding takes it away.
+/// the burn its partner was already holding takes the partner away.
 ///
 /// The burn is deliberately left ON across the release. Stage 3's claim is
 /// only worth something if the same command, on the same drive, moves the same
@@ -769,8 +773,8 @@ fn release_on_request(
         return;
     }
 
-    // The burn is still held. Give it the same window the docked hull was
-    // given, then read the drive it was reaching for all along.
+    // The burn is still held. Give it the same window the hull off the helm
+    // was given, then read the drive it was reaching for all along.
     let released_at = world
         .resource::<DockProbe>()
         .released_at
@@ -779,7 +783,7 @@ fn release_on_request(
         return;
     }
     let freed = world
-        .get::<LinearVelocity>(second)
+        .get::<LinearVelocity>(first)
         .expect("the freed hull keeps its velocity")
         .0
         .length();
@@ -798,7 +802,7 @@ fn release_on_request(
 
     // Stop the burn and bring the pair back to rest for the last claim: a
     // hull that is still commanding a burn can never hold a second dock.
-    world.entity_mut(second).remove::<FlightIntent>();
+    world.entity_mut(first).remove::<FlightIntent>();
     for ship in [first, second] {
         world.entity_mut(ship).insert(LinearVelocity(Vec3::ZERO));
         world.entity_mut(ship).insert(AngularVelocity(Vec3::ZERO));

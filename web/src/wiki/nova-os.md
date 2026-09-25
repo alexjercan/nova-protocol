@@ -155,12 +155,12 @@ Reopening after events happened in flight adds an unread count with the latest h
      Longest-name matching: shell.rs:189-244.
      launching row: crates/nova_os/src/terminal/edit.rs:126-138.
      ship action results/errors: crates/nova_os_ui/src/ship/sections.rs:384-415,495-507,536-586.
-     map goto results/errors: crates/nova_os_ui/src/map/app.rs:33-101.
+     map goto results/errors: crates/nova_os_ui/src/map/app.rs:36-117.
      Actions instant and free today: sections.rs:512-513,533-535. -->
 
 Output is honest terminal text: `log` numbers its entries (`0001 COMMS OKONO > Strip it clean.`), `version` signs off with `cockpit link nominal - (c) Nova Dynamics, all reactors reserved`, and launching an app prints `launching map ...` before the screen hands over. Multi-word commands resolve longest name first, so `map view` is its own command, not `map` with an argument.
 
-The acting verbs answer with what actually happened, or with why not: a hull section refuses `reload` (`reload: HULL-3 is a hull section, no ammo feed`), a healthy section refuses `repair`, and a bad code lists the codes that exist. `map goto SELF` politely declines to fly you to yourself. Reloads and repairs are instant and free today; that may change.
+The acting verbs answer with what actually happened, or with why not: a hull section refuses `reload` (`reload: HULL-3 is a hull section, no ammo feed`), a healthy section refuses `repair`, and a bad code lists the codes that exist. `map goto SELF` politely declines to fly you to yourself. Docked, `map goto` and <kbd>G</kbd> refuse while the game cannot measure the pair (`goto: helm fault, the docked pair cannot be measured`), refuse until you hold the [helm](../sections/docking/#what-the-clamp-holds) (`goto: take the helm first`), and never fly to the ship you are docked to (`goto: HOST-1 is docked to you`). Reloads and repairs are instant and free today; that may change.
 
 </details>
 
@@ -201,7 +201,7 @@ An app swallows the whole monitor: the header breadcrumb switches to `APPS / MAP
 <!-- Contact kinds + codes: crates/nova_os_ui/src/map/contacts.rs:28-36,59-69.
      Readout format + notes: contacts.rs:49-57,126-147. Blips + selection:
      crates/nova_os_ui/src/map/scene.rs:231-259,413-449,468-541. G = GOTO with
-     flash: scene.rs:369-383. Persists after close:
+     flash and docked refusal: scene.rs:362-389. Persists after close:
      crates/nova_os_ui/src/map/app.rs:69-84. -->
 
 Every contact carries a short label you can select, read, and hand to `map goto`:

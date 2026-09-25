@@ -9,7 +9,7 @@
 //! unit per second squared.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{ecs::entity::EntityHashSet, prelude::*};
 use nova_gameplay::prelude::*;
 
 use super::{
@@ -94,6 +94,10 @@ pub(super) fn autopilot_system(
             // velocity here so RCS trims a fast orbit by a sub-cap delta; zero
             // (or absent) everywhere else.
             Option<&mut RcsReference>,
+            // A docked root flies the pair only while it drives it, and then
+            // plans on the pair's mass, centre of mass, velocity and reach.
+            // A suppressed partner's maneuver is frozen, not released.
+            (Option<&DockedShip>, Option<&DockedAssembly>),
             Has<PlayerSpaceshipMarker>,
         ),
         With<SpaceshipRootMarker>,
@@ -155,9 +159,17 @@ pub(super) fn autopilot_system(
     // target radius), inheriting the same statement: a ship target never
     // contributes a well radius - ships stay center-relative.
     q_wells: Query<(&Position, &GravityWell), Without<SpaceshipRootMarker>>,
+    // Docked drivers whose missing assembly is already logged, so the error
+    // is said once per loss, not at the fixed rate.
+    mut missing_assembly: Local<EntityHashSet>,
 ) {
     let dt = time.delta_secs();
 
+    missing_assembly.retain(|ship| {
+        q_ship
+            .get(*ship)
+            .is_ok_and(|(.., (docked, assembly), _)| docked.is_some() && assembly.is_none())
+    });
     for (
         ship,
         mut autopilot,
@@ -172,14 +184,31 @@ pub(super) fn autopilot_system(
         rcs_cap_override,
         rcs_intent,
         rcs_reference,
+        (docked, assembly),
         is_player,
     ) in &mut q_ship
     {
+        match (docked, assembly) {
+            (Some(docked), _) if !docked.drives => continue,
+            (Some(_), None) => {
+                if missing_assembly.insert(ship) {
+                    error!(
+                        "autopilot_system: docked driver {ship:?} has no DockedAssembly; \
+                         flying nothing rather than on its root alone"
+                    );
+                }
+                continue;
+            }
+            _ => {}
+        }
         let has_telemetry = prev_telemetry.is_some();
         let arrival_standoff = resolved_arrival_standoff(standoff_override, &settings);
         // The mover's half of the model. Every centre distance below is
         // `target radius + this + margin`.
-        let mover_radius = hull_radius.map_or(0.0, |radius| **radius);
+        let mover_radius = match assembly {
+            Some(assembly) => assembly.reach,
+            None => hull_radius.map_or(0.0, |radius| **radius),
+        };
         // The point the leg flies: the centre of mass, whose velocity is the
         // avian LinearVelocity and which coasts straight while the hull turns
         // about it. The body origin swings around it with attitude - on the
@@ -188,9 +217,16 @@ pub(super) fn autopilot_system(
         // halfway, and the park set the origin at the margin with the face
         // (measured from the COM, see HullRadius) 50 m inside it. Body-local;
         // lifted to world with rotation + translation (never render scale).
-        let com_world = com
-            .map(|c| rotation.mul_vec3(c.0) + position.0)
-            .unwrap_or(position.0);
+        let com_world = match assembly {
+            Some(assembly) => assembly.center_of_mass,
+            None => com
+                .map(|c| rotation.mul_vec3(c.0) + position.0)
+                .unwrap_or(position.0),
+        };
+        let (mass, velocity) = match assembly {
+            Some(assembly) => (assembly.mass, assembly.linear_velocity),
+            None => (mass.value(), velocity.0),
+        };
         // No flight computer, no autopilot - the ship is adrift on manual.
         let Some(turn_rate) = ship_turn_rate(
             q_computer
@@ -266,7 +302,7 @@ pub(super) fn autopilot_system(
         // ship is at rest" - so the release test completes a leg that never
         // flew. The hull is still being assembled, not arrived: hold the leg
         // and wait for the mass rather than commanding or releasing on it.
-        if mass.value() <= 0.0 {
+        if mass <= 0.0 {
             continue;
         }
         let groups = cluster_thrusters(&engines, FORWARD_ALIGNMENT_COS);
@@ -284,7 +320,7 @@ pub(super) fn autopilot_system(
                 &groups,
                 brake_dir,
                 brake_speed,
-                mass.value(),
+                mass,
                 dt,
                 turn_rate,
                 settings.rotation_bias,
@@ -292,8 +328,8 @@ pub(super) fn autopilot_system(
             let (brake_authority, brake_angle) = brake
                 .map(|g| (g.authority, g.world_dir.angle_between(brake_dir)))
                 .unwrap_or((0.0, 0.0));
-            let accel = if dt > 0.0 && mass.value() > 0.0 {
-                (brake_authority / mass.value()) / dt
+            let accel = if dt > 0.0 && mass > 0.0 {
+                (brake_authority / mass) / dt
             } else {
                 0.0
             };
@@ -348,7 +384,7 @@ pub(super) fn autopilot_system(
             };
             let plan = OrbitPlan {
                 radius,
-                normal: orbit_plane_normal(r_vec, **velocity, rotation.mul_vec3(Vec3::Y)),
+                normal: orbit_plane_normal(r_vec, velocity, rotation.mul_vec3(Vec3::Y)),
             };
             autopilot.action = AutopilotAction::Orbit {
                 well,
@@ -728,7 +764,7 @@ pub(super) fn autopilot_system(
             None => {}
         }
 
-        let error = desired - **velocity;
+        let error = desired - velocity;
         let error_speed = error.length();
         let error_dir = (error_speed > 1e-3).then(|| error / error_speed);
 
@@ -950,7 +986,7 @@ pub(super) fn autopilot_system(
                 &groups,
                 brake_dir,
                 brake_speed,
-                mass.value(),
+                mass,
                 dt,
                 turn_rate,
                 settings.rotation_bias,
@@ -989,7 +1025,7 @@ pub(super) fn autopilot_system(
         let hover_input = error_dir
             .filter(|_| firing_authority > 0.0)
             .map_or(0.0, |error_dir| {
-                gravity_along(com_world, -error_dir) * mass.value() * dt / firing_authority
+                gravity_along(com_world, -error_dir) * mass * dt / firing_authority
             });
         if done && hottest_input <= 0.05 + hover_input && rcs_rested {
             // A GOTO that arrived at a well body parks into orbit instead of
@@ -1042,7 +1078,7 @@ pub(super) fn autopilot_system(
                                     radius,
                                     normal: orbit_plane_normal(
                                         r_vec,
-                                        **velocity,
+                                        velocity,
                                         rotation.mul_vec3(Vec3::Y),
                                     ),
                                 }),
@@ -1109,7 +1145,7 @@ pub(super) fn autopilot_system(
                     &groups,
                     aim_dir,
                     burn_ahead,
-                    mass.value(),
+                    mass,
                     dt,
                     turn_rate,
                     settings.rotation_bias,
@@ -1186,9 +1222,9 @@ pub(super) fn autopilot_system(
             // Counted whole, a hover's tail read above the rest epsilon and
             // the cutoff chopped the hover into a fall-and-relight cycle that
             // never rested.
-            let lands = desired == Vec3::ZERO || error.dot(**velocity) > 0.0;
+            let lands = desired == Vec3::ZERO || error.dot(velocity) > 0.0;
             let mut tail_dv = 0.0;
-            if lands && !is_orbit && dt > 0.0 && mass.value() > 0.0 {
+            if lands && !is_orbit && dt > 0.0 && mass > 0.0 {
                 let mut push = 0.0;
                 for (_, input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
                     if parent != ship {
@@ -1197,7 +1233,7 @@ pub(super) fn autopilot_system(
                     let Some(dir) = engine_direction(rotation, transform) else {
                         continue;
                     };
-                    push += dir.dot(error_dir).max(0.0) * **magnitude * **input / dt / mass.value();
+                    push += dir.dot(error_dir).max(0.0) * **magnitude * **input / dt / mass;
                 }
                 tail_dv = spool_tail(
                     push,
@@ -1212,7 +1248,7 @@ pub(super) fn autopilot_system(
             } else if lands && !is_orbit && error_speed <= tail_dv {
                 0.0
             } else {
-                firing_authority * burn_input(error_speed * mass.value(), firing_authority)
+                firing_authority * burn_input(error_speed * mass, firing_authority)
             };
             let coeffs: Vec<BalanceEngine> = allocation.iter().map(|(_, e)| *e).collect();
             throttles = balance_throttles(&coeffs, demand);

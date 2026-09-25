@@ -143,14 +143,14 @@ use nova_scenario::{
 use nova_ship::prelude::{
     derive_skin, muzzle_aim_error, on_target_cone, read_plates, read_structure, section_cell,
     skin_report, skin_summary, AITarget, Autopilot, AutopilotAction, BodyRadius, CombatLock,
-    DockedShip, DockingConnection, DockingPair, DockingPorts, GameStyles, PlacedPart, PlateReport,
-    PlayerAutopilotCompleted, PointDefenseMount, RadarState, RailgunCharge, RailgunSectionInput,
-    SectionAmmo, SectionExit, SectionFixture, SectionFootprint, SectionLinkPoints, SectionReload,
-    ShipCapabilities, ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle, SkinReport,
-    StructuralCollapseMarker, TorpedoArming, TorpedoBlast, TorpedoSectionInput,
-    TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock, TurretDefenseTarget,
-    TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionTargetInput,
-    TurretSectionTargetRadius, WeaponsHot,
+    DockedHelmType, DockedShip, DockingConnection, DockingPair, DockingPorts, GameStyles,
+    PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RadarState,
+    RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
+    SectionLinkPoints, SectionReload, ShipCapabilities, ShipDecorMarker, ShipSkin, ShipSkinMarker,
+    ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast,
+    TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock,
+    TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity,
+    TurretSectionTargetInput, TurretSectionTargetRadius, WeaponsHot,
 };
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
@@ -698,7 +698,10 @@ fn docking_pairs(
 /// The ship's docking state as the DOCK chip and the docking sight read it.
 ///
 /// `docked` and `connection` say whether a clamp holds this hull, and name
-/// the other ship and the two reserved ports when one does. `pair` is the
+/// the other ship and the two reserved ports when one does. The connection
+/// also carries the pair's `helm` (`"neutral"` or `"held"`), the ship holding
+/// it (`helm_holder`, `null` in neutral), and whether THIS ship `drives` the
+/// pair this tick. `pair` is the
 /// approach: the nearest pair of free ports between this ship and its travel
 /// lock, graded against the stricter of the two envelopes whether or not it
 /// passes, so a reader watches the gap and the facing close all the way in
@@ -708,8 +711,8 @@ fn docking_pairs(
 /// while nothing is measurable: no lock, no free ports, or either hull
 /// already docked.
 fn docking_record(world: &World, entity: Entity, pair: Option<&DockingPair>) -> serde_json::Value {
-    let connection = world
-        .get::<DockedShip>(entity)
+    let docked = world.get::<DockedShip>(entity);
+    let connection = docked
         .and_then(|docked| world.get::<DockingConnection>(docked.connection))
         .map(|connection| {
             let (ship, my_port, their_port) = if connection.first_ship == entity {
@@ -725,10 +728,17 @@ fn docking_record(world: &World, entity: Entity, pair: Option<&DockingPair>) -> 
                     connection.first_section,
                 )
             };
+            let (helm, holder) = match connection.helm {
+                DockedHelmType::Neutral => ("neutral", None),
+                DockedHelmType::Held(holder) => ("held", Some(label(world, holder))),
+            };
             serde_json::json!({
                 "ship": label(world, ship),
                 "my_port": label(world, my_port),
                 "their_port": label(world, their_port),
+                "helm": helm,
+                "helm_holder": holder,
+                "drives": docked.is_some_and(|docked| docked.drives),
             })
         });
     let pair = pair.map(|pair| {

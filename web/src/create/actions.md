@@ -406,7 +406,7 @@ HintEmphasisSet((verb: "RADAR")),
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `verb` | string | required | one of `"STOP"`, `"GOTO"`, `"ORBIT"`, `"CANCEL"`, `"RADAR"`, `"COMPONENT"`, `"RCS"`; unknown verbs warn and do nothing |
+| `verb` | string | required | one of `"STOP"`, `"GOTO"`, `"ORBIT"`, `"CANCEL"`, `"RADAR"`, `"COMPONENT"`, `"RCS"`, `"DOCK"`, `"HELM"`; unknown verbs warn and do nothing |
 
 The dock normally hides verbs the player cannot use yet, so emphasizing an
 unavailable verb REVEALS its chip dimmed and pulses it. Emphasis never

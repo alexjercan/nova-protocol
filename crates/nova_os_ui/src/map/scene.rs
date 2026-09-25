@@ -278,6 +278,8 @@ pub(crate) fn map_input(
     contacts: MapContacts,
     mut commands: Commands,
     mut q_camera: Query<(&mut MapOrbit, &Transform), With<MapCameraMarker>>,
+    q_docked: Query<&DockedShip>,
+    q_connections: Query<&DockingConnection>,
 ) {
     // Only touch input while the map owns the screen; at the terminal the mouse
     // and keys belong to the prompt (history scroll, PageUp/PageDown, etc.).
@@ -360,15 +362,31 @@ pub(crate) fn map_input(
 
     // GOTO on the selected contact (skip own ship). Sets a flight autopilot on
     // the player ship directly - this intentionally bypasses the normal
-    // GOTO capability check (fine for the PoC nav computer).
+    // GOTO capability check (fine for the PoC nav computer). The docked rule
+    // is NOT bypassed: a GOTO set without the helm would fly the pair the
+    // moment the player takes it, and a pair that cannot be measured is
+    // flown by no one.
     if input.just_pressed("map_goto") {
         if let (Some(sel), Some((player, _, _))) = (runtime.selected, contacts.player_frame()) {
             if let Some(contact) = list.iter().find(|c| c.entity == sel) {
                 if contact.kind != MapContactKind::OwnShip {
-                    commands
-                        .entity(player)
-                        .insert(Autopilot::engage(AutopilotAction::Goto { target: sel }));
-                    runtime.goto_note = Some((format!("GOTO SET: {}", contact.name), 2.5));
+                    let docked = q_docked.get(player).ok();
+                    let connection =
+                        docked.and_then(|docked| q_connections.get(docked.connection).ok());
+                    let note = if connection.is_some_and(|connection| connection.measurement_fault)
+                    {
+                        "GOTO REFUSED: HELM FAULT".to_string()
+                    } else if docked.is_some_and(|docked| !docked.drives) {
+                        "GOTO REFUSED: TAKE THE HELM".to_string()
+                    } else if connection.is_some_and(|connection| connection.joins(sel)) {
+                        "GOTO REFUSED: DOCKED PARTNER".to_string()
+                    } else {
+                        commands
+                            .entity(player)
+                            .insert(Autopilot::engage(AutopilotAction::Goto { target: sel }));
+                        format!("GOTO SET: {}", contact.name)
+                    };
+                    runtime.goto_note = Some((note, 2.5));
                 }
             }
         }
