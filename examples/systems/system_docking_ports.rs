@@ -18,13 +18,16 @@
 //! | 4 | `outcome: the joint carries the pair without zeroing its drift` | a hull pushed while docked tows the other one, and the pair keeps the velocity it was given |
 //! | 5 | `outcome: the joint holds the pose the two hulls met in` | after the tow, the second hull sits where it sat in the first hull's frame at capture |
 //! | 6 | `outcome: the hull off the helm ignores the throttle` | a full burn held on the hull that does not drive the neutral pair moves neither ship: the drive is gated at the force, not at the key |
-//! | 7 | `outcome: the dock verb takes the dock away from either hull` | the ship that did NOT issue `DOCK`, and so drives the neutral pair, asks to be released, and the connection, the joint and both reservations go |
-//! | 8 | `outcome: the throttle bites the moment the dock lets go` | the SAME burn, still held, accelerates the same hull once it is free - so claim 6 is the dock and not a dead engine |
-//! | 9 | `outcome: a destroyed port frees its partner` | destroying one port cleans the connection up and leaves the surviving port free and stowing |
-//! | 10 | `outcome: the dock geometry is recorded` | RECORD: the face gap at capture, the tow distance, and the pose error the joint carried |
-//! | 11 | `outcome: the scenario hears every dock and every release` | both captures and both releases - the verb's and the destroyed port's - reach authored `OnDocked` / `OnUndocked` handlers, through an `Entity` filter on the acting hull the payload has to fill |
+//! | 7 | `outcome: the neutral partner can drive the pair` | the partner's full burn moves both roots before the player takes the helm |
+//! | 8 | `outcome: taking the helm drives the pair without breaking the joint` | H hands the player the pair, the partner's competing burn is cut, and the same held burn moves both roots while the joint stays |
+//! | 9 | `outcome: relinquishing the helm restores neutral without undocking` | H hands the pair back, neither connection nor joint is removed, and the player's held burn is inert again |
+//! | 10 | `outcome: the dock verb takes the dock away from either hull` | the ship that did NOT issue `DOCK`, and so drives the neutral pair, asks to be released, and the connection, the joint and both reservations go |
+//! | 11 | `outcome: the throttle bites the moment the dock lets go` | the SAME burn, still held, accelerates the same hull once it is free - so claim 6 is the dock and not a dead engine |
+//! | 12 | `outcome: a destroyed port frees its partner` | destroying one port cleans the connection up and leaves the surviving port free and stowing |
+//! | 13 | `outcome: the dock geometry is recorded` | RECORD: the face gap at capture, the tow distance, and the pose error the joint carried |
+//! | 14 | `outcome: the scenario hears every dock and every release` | both captures and both releases - the verb's and the destroyed port's - reach authored `OnDocked` / `OnUndocked` handlers, through an `Entity` filter on the acting hull the payload has to fill |
 //!
-//! Claim 10 asserts nothing. It is the geometry the other claims are read
+//! Claim 13 asserts nothing. It is the geometry the other claims are read
 //! against, kept so a later change to the envelope can be compared rather than
 //! argued about.
 //!
@@ -124,6 +127,12 @@ enum Stage {
     Towing,
     /// Docked, at rest, with a full burn commanded off the helm: the helm claim.
     Holding,
+    /// Docked in neutral; the partner's commanded burn moves the pair.
+    PartnerBurn,
+    /// Docked; the player takes the helm and the same held burn moves the pair.
+    TakingHelm,
+    /// Docked; the player hands the helm back without releasing the joint.
+    RelinquishingHelm,
     /// Docked with the burn still held; waiting for the verb to let go.
     Releasing,
     /// Docked a third time; waiting for a destroyed port to break it.
@@ -391,6 +400,7 @@ fn setup_range(
         tailwind::ORANGE_500,
     );
 
+    commands.entity(first).insert(PlayerSpaceshipMarker);
     probe.first = Some(first);
     probe.first_port = Some(first_port);
     probe.second = Some(second);
@@ -464,6 +474,9 @@ fn drive_range(world: &mut World) {
         }
         Stage::Towing => tow(world, first, second),
         Stage::Holding => hold_against_the_throttle(world, first, second, stage_frames),
+        Stage::PartnerBurn => burn_with_neutral_partner(world, first, second, stage_frames),
+        Stage::TakingHelm => take_helm_and_burn(world, first, second, stage_frames),
+        Stage::RelinquishingHelm => relinquish_helm(world, first, second, stage_frames),
         Stage::Releasing => {
             release_on_request(world, first, first_port, second, second_port, stage_frames)
         }
@@ -662,11 +675,11 @@ fn tow(world: &mut World, first: Entity, second: Entity) {
     probe.stage_frames = 0;
 }
 
-/// Stage 3: hold a full burn on the hull off the helm and read that nothing
-/// moves.
+/// Stage 3: hold a full burn on the player hull off the helm and read that
+/// nothing moves.
 ///
-/// Neither hull is the player's, so the neutral pair is driven by
-/// `second_ship` - `second` here - and `first` is off the helm. The claim is
+/// In neutral the pair is driven by `second_ship` - `second` here - and
+/// `first` is off the helm. The claim is
 /// about FORCES. `manual_burn_system` never writes the input on a root with
 /// `DockedShip.drives` false and `thruster_impulse_system` never applies the
 /// impulse on one, so a throttle held here reaches the drive through neither
@@ -711,11 +724,203 @@ fn hold_against_the_throttle(world: &mut World, first: Entity, second: Entity, s
     );
 
     let mut probe = world.resource_mut::<DockProbe>();
+    probe.stage = Stage::PartnerBurn;
+    probe.stage_frames = 0;
+}
+
+/// Stage 4: the neutral partner may command a drive that moves both roots.
+fn burn_with_neutral_partner(world: &mut World, first: Entity, second: Entity, frames: u32) {
+    if frames < HOLD_FRAMES {
+        world.entity_mut(second).insert(FlightIntent { burn: 1.0 });
+        return;
+    }
+    let first_docked = world
+        .get::<DockedShip>(first)
+        .expect("player remains docked");
+    let second_docked = world
+        .get::<DockedShip>(second)
+        .expect("partner remains docked");
+    assert!(!first_docked.drives && second_docked.drives);
+    assert_eq!(connection_count(world), 1);
+    assert_eq!(joint_count(world), 1);
+    let speeds: Vec<f32> = [first, second]
+        .into_iter()
+        .map(|ship| {
+            world
+                .get::<LinearVelocity>(ship)
+                .expect("live hull")
+                .0
+                .length()
+        })
+        .collect();
+    assert!(
+        speeds.iter().all(|speed| *speed > FREED_SPEED_FLOOR),
+        "the neutral partner must tow both docked roots: {speeds:?}"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the neutral partner can drive the pair",
+        serde_json::json!({ "pair_mps": speeds, "joints": 1 }),
+    );
+    world.entity_mut(second).remove::<FlightIntent>();
+    for ship in [first, second] {
+        world.entity_mut(ship).insert(LinearVelocity(Vec3::ZERO));
+        world.entity_mut(ship).insert(AngularVelocity(Vec3::ZERO));
+    }
+    let mut probe = world.resource_mut::<DockProbe>();
+    probe.stage = Stage::TakingHelm;
+    probe.stage_frames = 0;
+}
+
+/// Stage 5: H hands the helm to the player without changing the connection.
+fn take_helm_and_burn(world: &mut World, first: Entity, second: Entity, frames: u32) {
+    if frames == 1 {
+        world.trigger(DockingHelmRequest { entity: first });
+        return;
+    }
+    if frames < HOLD_FRAMES {
+        world.entity_mut(first).insert(FlightIntent { burn: 1.0 });
+        world.entity_mut(second).insert(FlightIntent { burn: 1.0 });
+        return;
+    }
+
+    let docked = world
+        .get::<DockedShip>(first)
+        .expect("player remains docked");
+    let connection = world
+        .get::<DockingConnection>(docked.connection)
+        .expect("docked connection remains live");
+    assert_eq!(connection.helm, DockedHelmType::Held(first));
+    assert!(docked.drives, "player takes authority over the pair");
+    assert!(
+        !world
+            .get::<DockedShip>(second)
+            .expect("partner remains docked")
+            .drives,
+        "partner may not fight the player's helm"
+    );
+    assert_eq!(connection_count(world), 1);
+    assert_eq!(
+        joint_count(world),
+        1,
+        "taking the helm cannot release the joint"
+    );
+    let throttles: Vec<_> = world
+        .query::<(&ChildOf, &ThrusterSectionInput)>()
+        .iter(world)
+        .filter(|(parent, _)| parent.0 == first || parent.0 == second)
+        .map(|(parent, input)| (parent.0, **input))
+        .collect();
+    assert_eq!(throttles.len(), 2, "both hulls must have a working drive");
+    assert!(
+        throttles
+            .iter()
+            .any(|(ship, input)| *ship == first && *input > 0.0),
+        "the player's drive must obey the held burn: {throttles:?}"
+    );
+    assert!(
+        throttles
+            .iter()
+            .any(|(ship, input)| *ship == second && *input == 0.0),
+        "the partner's competing burn must be cut: {throttles:?}"
+    );
+    let speeds: Vec<f32> = [first, second]
+        .into_iter()
+        .map(|ship| {
+            world
+                .get::<LinearVelocity>(ship)
+                .expect("live hull")
+                .0
+                .length()
+        })
+        .collect();
+    assert!(
+        speeds.iter().all(|speed| *speed > FREED_SPEED_FLOOR),
+        "the player's held burn must tow both docked roots: {speeds:?}"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: taking the helm drives the pair without breaking the joint",
+        serde_json::json!({ "pair_mps": speeds, "throttles": format!("{throttles:?}"), "joints": 1 }),
+    );
+
+    world.entity_mut(second).remove::<FlightIntent>();
+    for ship in [first, second] {
+        world.entity_mut(ship).insert(LinearVelocity(Vec3::ZERO));
+        world.entity_mut(ship).insert(AngularVelocity(Vec3::ZERO));
+    }
+    let mut probe = world.resource_mut::<DockProbe>();
+    probe.stage = Stage::RelinquishingHelm;
+    probe.stage_frames = 0;
+}
+
+/// Stage 6: H gives the helm back, but the player's burn stays held.
+fn relinquish_helm(world: &mut World, first: Entity, second: Entity, frames: u32) {
+    if frames == 1 {
+        world.trigger(DockingHelmRequest { entity: first });
+        return;
+    }
+    if frames == 2 {
+        // The final held-frame impulse has already been queued. Read the
+        // neutral burn from rest, not that previous impulse's momentum.
+        for ship in [first, second] {
+            world.entity_mut(ship).insert(LinearVelocity(Vec3::ZERO));
+            world.entity_mut(ship).insert(AngularVelocity(Vec3::ZERO));
+        }
+        return;
+    }
+    if frames < HOLD_FRAMES {
+        return;
+    }
+    let docked = world
+        .get::<DockedShip>(first)
+        .expect("player remains docked");
+    let connection = world
+        .get::<DockingConnection>(docked.connection)
+        .expect("docked connection remains live");
+    assert_eq!(connection.helm, DockedHelmType::Neutral);
+    assert!(
+        !docked.drives,
+        "the player's held burn must be suppressed again"
+    );
+    assert!(
+        world
+            .get::<DockedShip>(second)
+            .expect("partner remains docked")
+            .drives,
+        "the partner regains authority in neutral"
+    );
+    assert_eq!(connection_count(world), 1);
+    assert_eq!(
+        joint_count(world),
+        1,
+        "handing back the helm keeps the joint"
+    );
+    let speeds: Vec<f32> = [first, second]
+        .into_iter()
+        .map(|ship| {
+            world
+                .get::<LinearVelocity>(ship)
+                .expect("live hull")
+                .0
+                .length()
+        })
+        .collect();
+    assert!(
+        speeds.iter().all(|speed| *speed < HELD_SPEED_CEILING),
+        "the player's held burn must be inert again: {speeds:?}"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: relinquishing the helm restores neutral without undocking",
+        serde_json::json!({ "pair_mps": speeds, "joints": 1 }),
+    );
+    let mut probe = world.resource_mut::<DockProbe>();
     probe.stage = Stage::Releasing;
     probe.stage_frames = 0;
 }
 
-/// Stage 4: the hull that did NOT issue the command asks to be let go, and
+/// Stage 7: the hull that did NOT issue the command asks to be let go, and
 /// the burn its partner was already holding takes the partner away.
 ///
 /// The burn is deliberately left ON across the release. Stage 3's claim is
@@ -812,7 +1017,7 @@ fn release_on_request(
     probe.stage_frames = 0;
 }
 
-/// Stage 4: dock again, then destroy one port and read what the survivor is
+/// Stage 8: dock again, then destroy one port and read what the survivor is
 /// left holding.
 fn release_on_destruction(world: &mut World, first_port: Entity, second_port: Entity) {
     let (first, second) = {
@@ -875,7 +1080,7 @@ fn release_on_destruction(world: &mut World, first_port: Entity, second_port: En
     probe.stage_frames = 0;
 }
 
-/// Stage 6: read what the SCENARIO heard.
+/// Stage 9: read what the SCENARIO heard.
 ///
 /// The physical claims above are made against the connection entity; this one
 /// is made against the authored vocabulary on the other side of the tracker.

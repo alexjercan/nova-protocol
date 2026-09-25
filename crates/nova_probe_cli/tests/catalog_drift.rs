@@ -399,6 +399,9 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the joint carries the pair without zeroing its drift",
             "the joint holds the pose the two hulls met in",
             "the hull off the helm ignores the throttle",
+            "the neutral partner can drive the pair",
+            "taking the helm drives the pair without breaking the joint",
+            "relinquishing the helm restores neutral without undocking",
             "the dock verb takes the dock away from either hull",
             "the throttle bites the moment the dock lets go",
             "a destroyed port frees its partner",
@@ -914,7 +917,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 445;
+const SYSTEMS_INVARIANTS: usize = 448;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
