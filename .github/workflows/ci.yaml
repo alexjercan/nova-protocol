@@ -26,7 +26,11 @@ jobs:
     # examples were added and got heavier, which put the serial worst case near
     # 76 min. The three are independent, so they are three jobs now and this one
     # keeps only the compile-and-test gate.
-    timeout-minutes: 45
+    #
+    # That gate then outgrew 45 min: master went green at 42m57s and 44m19s on
+    # 2026-09-24, and run 36100790901 hit the cap with a full-match cache
+    # restore because `cargo test` spent 37m29s compiling the `test` profile.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -153,7 +157,7 @@ jobs:
   #
   # Its own job because it shares nothing with the Rust gates: no toolchain, no
   # apt tier, no cargo cache. The whole thing measured 1m19s locally against
-  # `check`'s 45-minute budget, so the web signal arrives while the compile
+  # `check`'s 75-minute budget, so the web signal arrives while the compile
   # gate is still linking.
   web:
     name: web / npm suite + python tests
