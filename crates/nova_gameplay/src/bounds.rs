@@ -330,6 +330,39 @@ mod tests {
         assert_eq!(aabb.max, Vec3::new(6.0, 1.0, 1.0));
     }
 
+    /// A subtree with no solid collider has no bounds, and the row stands the
+    /// ship on its own origin. The editor's placement ghost keeps a stale
+    /// `ColliderAabb` with no `Collider`, and a sensor is not size, so neither
+    /// gives the ship a width.
+    #[test]
+    fn the_local_walk_of_a_ship_without_a_solid_collider_has_no_bounds() {
+        let mut world = World::new();
+        let ghost = world
+            .spawn((
+                Transform::from_xyz(-1.0, 0.0, 0.0),
+                ColliderAabb::from_min_max(Vec3::splat(-1.0), Vec3::ONE),
+            ))
+            .id();
+        let trigger = world
+            .spawn((Transform::default(), Collider::sphere(50.0), Sensor))
+            .id();
+        let ship = world
+            .spawn(Transform::from_xyz(100.0, 0.0, 0.0))
+            .add_children(&[ghost, trigger])
+            .id();
+
+        let mut state: SystemState<(
+            Query<&Children>,
+            Query<&Transform>,
+            Query<&Collider, Without<Sensor>>,
+        )> = SystemState::new(&mut world);
+        let (q_children, q_transforms, q_colliders) = state.get(&world).unwrap();
+
+        assert!(
+            subtree_local_collider_aabb(ship, &q_children, &q_transforms, &q_colliders).is_none()
+        );
+    }
+
     /// Rotations compose down the chain, and the entity's own rotation counts
     /// while its translation does not: the box is about the entity's origin,
     /// in its parent's axes.
