@@ -1,33 +1,24 @@
-//! world_field_slices: look straight at the noise the world is gated on.
+//! world_field_slices: look straight at the environment the world is read from.
 //!
-//! `world_features` shows what the field DID - the spheres it accepted and the
-//! rocks, worlds and derelicts they placed. This example shows the field
-//! itself: one flat plane through the world, sampled on the CPU at one sample
-//! per kilometre, painted into an image, and put on the screen.
+//! `world_features` shows what the environment DID - the clusters it grew and
+//! the rocks, worlds and derelicts they placed. This example shows one
+//! environment field itself: one flat plane through the world, sampled on the
+//! CPU at one sample per kilometre, painted into an image, and put on the
+//! screen.
 //!
-//! What is drawn is the RAW `Fbm<Perlin>` reading of one [`FeatureLayer`], NOT
-//! a body count and NOT a density. A cell's rocks come from accepted spheres,
-//! and a sphere is accepted only after the reading clears the layer's
-//! threshold AND survives same-layer thinning against its neighbours. This
-//! picture is the first of those three steps, which is exactly why it is worth
-//! looking at on its own: a threshold that never gets cleared and a threshold
-//! that gets cleared everywhere look identical once the spheres are drawn.
+//! What is drawn is ONE [`EnvironmentFieldType`] reading in `[0, 1]`, NOT a body
+//! count and NOT a density. A cluster reads all three fields together at its
+//! anchor, and the fields only weight its chances, so no single field has a
+//! gate to draw. That is exactly why each field is worth looking at on its
+//! own: a field whose regions are too small, too large or too uniform is
+//! invisible once the clusters are drawn.
 //!
 //! # Reading the picture
 //!
-//! The ramp pivots on the layer's threshold, so the gate is a colour boundary
-//! rather than a cliff:
-//!
 //! | what you see | what it means |
 //! | - | - |
-//! | near-black to steel blue | BELOW the threshold, continuously - far below is black, just below is blue. No candidate here. |
-//! | dim to bright layer colour | ABOVE the threshold, ramped by the same normalization the generator's `strength` uses |
-//! | white contour | exactly the threshold: the line a candidate is gated on |
-//! | faint grey grid | the 32 km sector lattice, so a feature's size is readable in cells |
-//!
-//! Below-threshold ground keeps its shading on purpose. Clipping it to one
-//! flat colour would hide how CLOSE a region is to gating, which is the thing
-//! a threshold change moves and the thing a tuning pass needs to see.
+//! | near-black to bright field colour | the field reading, from 0 to 1 |
+//! | faint grey grid | the 32 km sector lattice, so a region's size is readable in cells |
 //!
 //! # Hand-run
 //!
@@ -37,16 +28,16 @@
 //!
 //! | key | what it does |
 //! | - | - |
-//! | 1 / 2 / 3 | asteroid / planet / derelict layer |
+//! | 1 / 2 / 3 | material density / volatiles / human activity |
 //! | X / Y / Z | the XY, XZ or YZ plane |
 //! | Up / Down | step the plane one 32 km sector along its fixed axis |
 //! | R | back to the opening slice |
 //!
 //! Harnessed mode:
 //! - `NOVA_AUTOPILOT=1`: walk three representative slices and exit clean.
-//! - `NOVA_CAPTURE=1`: also writes `world-field-slice-asteroid-xy.png`,
-//!   `world-field-slice-planet-xz.png` and
-//!   `world-field-slice-derelict-yz.png`.
+//! - `NOVA_CAPTURE=1`: also writes `world-field-slice-material-density-xy.png`,
+//!   `world-field-slice-volatiles-xz.png` and
+//!   `world-field-slice-human-activity-yz.png`.
 
 #[path = "../shared/world_fixture/mod.rs"]
 pub mod world_fixture;
@@ -67,14 +58,14 @@ use world_fixture::{featured_world_config, free_play_scenario, EXAMPLE_SECTOR_ED
 #[command(name = "world_field_slices")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Paint a flat plane of the raw world feature field as a heatmap, one layer at a time",
+    about = "Paint a flat plane of one world environment field as a heatmap",
     long_about = None
 )]
 struct Cli;
 
 /// The empty bootstrap this session runs inside.
 ///
-/// The field is a pure function of the config, so this example streams
+/// The fields are a pure function of the seed, so this example streams
 /// nothing: it loads the bootstrap for a session, a camera and a sky, and
 /// everything on the screen after that is one image and one readout.
 const SCENARIO_ID: &str = "world_field_slices_observer";
@@ -82,32 +73,17 @@ const SCENARIO_ID: &str = "world_field_slices_observer";
 /// How many samples across the painted square.
 ///
 /// 512, with [`SLICE_EXTENT`] at 512 km, is exactly one sample per kilometre -
-/// 32 samples across a sector and 128 across a lattice spacing. Fine enough
-/// that the threshold contour is a line rather than a staircase, coarse enough
-/// that one recomputation is a fraction of a second on one worker.
+/// 32 samples across a sector and 50 across a cluster lattice spacing. Fine
+/// enough that a region's edge is a curve rather than a staircase, coarse
+/// enough that one recomputation is a fraction of a second on one worker.
 const SLICE_PIXELS: u32 = 512;
 
 /// How much world the painted square covers, on both of its axes.
 ///
-/// 512 km: sixteen sectors and four lattice spacings across, so a slice holds
-/// several candidate nodes and shows a feature as a REGION with neighbours
-/// rather than as one blob filling the frame.
+/// 512 km: sixteen sectors and about three field wavelengths across, so a
+/// slice shows a region with neighbours rather than one blob filling the
+/// frame.
 const SLICE_EXTENT: Meters = Meters(512_000.0);
-
-/// How far below a layer's threshold the ramp keeps shading.
-///
-/// The field's practical floor. Readings further down than this are painted
-/// the same near-black, which costs nothing: what a tuning pass needs to see
-/// is the ground just below the gate, not the bottom of the well.
-const SLICE_FLOOR: f32 = -0.6;
-
-/// How close to the threshold a sample has to read to be painted as the
-/// contour, as a fraction of the value range the ramp spans.
-///
-/// A band rather than a zero-crossing search: the sample grid is 1 km and the
-/// contour has to be visible, so the line is the set of samples within this
-/// much of the gate.
-const CONTOUR_BAND: f32 = 0.004;
 
 /// The opening slice: the plane through the feature home cell's own centre.
 const OPENING_STEP: i32 = 0;
@@ -164,8 +140,8 @@ impl SlicePlane {
 /// dials.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 struct SliceView {
-    /// Which layer's field is painted.
-    layer: FeatureLayer,
+    /// Which field is painted.
+    field: EnvironmentFieldType,
     /// Which pair of axes the plane spans.
     plane: SlicePlane,
     /// How many whole sectors along the fixed axis the plane sits, measured
@@ -189,10 +165,10 @@ struct SlicePainting {
     handle: Handle<Image>,
     /// The slice that image is of, or `None` before the first paint lands.
     painted: Option<SliceView>,
-    /// The lowest and highest raw reading in the painted slice.
+    /// The lowest and highest reading in the painted slice.
     range: (f32, f32),
-    /// What share of the slice reads at or past the generator's rank ceiling.
-    saturated: f32,
+    /// The mean reading over the painted slice.
+    mean: f32,
 }
 
 /// One slice being painted on a worker.
@@ -213,10 +189,10 @@ struct SliceJob {
 struct SlicePixels {
     /// `SLICE_PIXELS * SLICE_PIXELS` RGBA texels, top row first.
     texels: Vec<u8>,
-    /// The lowest and highest raw reading in the slice.
+    /// The lowest and highest reading in the slice.
     range: (f32, f32),
-    /// What share of the slice reads at or past the generator's rank ceiling.
-    saturated: f32,
+    /// The mean reading over the slice.
+    mean: f32,
 }
 
 /// Marks the readout line.
@@ -238,7 +214,7 @@ fn main() -> bevy::app::AppExit {
 
 fn slices_plugin(app: &mut App) {
     app.insert_resource(SliceView {
-        layer: FeatureLayer::Asteroid,
+        field: EnvironmentFieldType::MaterialDensity,
         plane: SlicePlane::Xy,
         step: OPENING_STEP,
     });
@@ -267,7 +243,7 @@ fn boot_slices(
         handle: handle.clone(),
         painted: None,
         range: (0.0, 0.0),
-        saturated: 0.0,
+        mean: 0.0,
     });
 
     // The panel is square and left of centre, and the readout sits under it:
@@ -328,16 +304,15 @@ fn blank_slice() -> Image {
     image
 }
 
-/// The hand affordance: pick a layer, pick a plane, walk the fixed axis.
+/// The hand affordance: pick a field, pick a plane, walk the fixed axis.
 fn read_keys(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<SliceView>) {
     let mut next = *view;
-    for (key, layer) in [
-        (KeyCode::Digit1, FeatureLayer::Asteroid),
-        (KeyCode::Digit2, FeatureLayer::Planet),
-        (KeyCode::Digit3, FeatureLayer::Derelict),
-    ] {
+    for (key, field) in [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3]
+        .into_iter()
+        .zip(EnvironmentFieldType::ALL)
+    {
         if keys.just_pressed(key) {
-            next.layer = layer;
+            next.field = field;
         }
     }
     for (key, plane) in [
@@ -357,7 +332,7 @@ fn read_keys(keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<SliceView>) {
     }
     if keys.just_pressed(KeyCode::KeyR) {
         next = SliceView {
-            layer: FeatureLayer::Asteroid,
+            field: EnvironmentFieldType::MaterialDensity,
             plane: SlicePlane::Xy,
             step: OPENING_STEP,
         };
@@ -409,16 +384,16 @@ fn collect_paint(
     image.data = Some(pixels.texels);
     painting.painted = Some(view);
     painting.range = pixels.range;
-    painting.saturated = pixels.saturated;
+    painting.mean = pixels.mean;
     debug!(
         "world field slices: painted the {} {} plane at step {}",
-        view.layer,
+        view.field.label(),
         view.plane.label(),
         view.step
     );
 }
 
-/// Sample one plane of one layer's raw field and colour it.
+/// Sample one plane of one environment field and colour it.
 ///
 /// PURE, and the whole cost of this example: [`SLICE_PIXELS`] squared
 /// three-octave readings, taken on a worker.
@@ -428,7 +403,7 @@ fn collect_paint(
 /// On a [`SectorFault`] from the field. A non-finite reading is a refusal, and
 /// a heatmap that painted it as some colour would be a picture of a bug.
 fn paint_slice(config: &WorldConfig<NovaLayeredWorld>, view: SliceView) -> SlicePixels {
-    let fields = FeatureFields::new(config.seed);
+    let fields = EnvironmentFields::new(config.seed);
     let home = world_fixture::FEATURE_HOME.centre(config.sector_edge).get();
     let fixed = match view.plane {
         SlicePlane::Xy => home.z,
@@ -446,7 +421,7 @@ fn paint_slice(config: &WorldConfig<NovaLayeredWorld>, view: SliceView) -> Slice
     let per_texel = span / SLICE_PIXELS as f32;
     let mut texels = Vec::with_capacity(pixels * pixels * 4);
     let mut range = (f32::INFINITY, f32::NEG_INFINITY);
-    let mut saturated = 0_usize;
+    let mut sum = 0.0;
 
     for row in 0..pixels {
         // Row 0 is the TOP of the image, which is the HIGHEST vertical-axis
@@ -457,22 +432,21 @@ fn paint_slice(config: &WorldConfig<NovaLayeredWorld>, view: SliceView) -> Slice
             let horizontal = horizontal_centre - span * 0.5 + (column as f32 + 0.5) * per_texel;
             let point = view.plane.point(horizontal, vertical, fixed);
             let value = fields
-                .sample(view.layer, point)
-                .unwrap_or_else(|fault| panic!("world field slices: {fault}"));
+                .sample(point)
+                .unwrap_or_else(|fault| panic!("world field slices: {fault}"))
+                .get(view.field);
             range.0 = range.0.min(value);
             range.1 = range.1.max(value);
-            if FeatureFields::strength_of(view.layer, value) >= 1.0 {
-                saturated += 1;
-            }
+            sum += value;
             let grid = on_sector_grid(horizontal, per_texel) || on_sector_grid(vertical, per_texel);
-            texels.extend_from_slice(&slice_texel(view.layer, value, grid));
+            texels.extend_from_slice(&slice_texel(view.field, value, grid));
         }
     }
 
     SlicePixels {
         texels,
         range,
-        saturated: saturated as f32 / (pixels * pixels) as f32,
+        mean: sum / (pixels * pixels) as f32,
     }
 }
 
@@ -486,42 +460,13 @@ fn on_sector_grid(meters: f32, per_texel: f32) -> bool {
     fraction < per_texel
 }
 
-/// The colour one sample reads as.
-///
-/// The ramp PIVOTS on the layer's threshold. Below it the shading is
-/// continuous down to [`SLICE_FLOOR`], so ground that nearly gated still looks
-/// different from ground that never could. Above it the ramp is the same
-/// normalization the generator's `strength` uses, so a bright pixel is a
-/// strong candidate and not just a big number.
-fn slice_texel(layer: FeatureLayer, value: f32, grid: bool) -> [u8; 4] {
-    let threshold = layer.threshold();
-    let below_span = (threshold - SLICE_FLOOR).max(f32::EPSILON);
-    let colour = if (value - threshold).abs() <= CONTOUR_BAND * (1.0 - SLICE_FLOOR) {
-        // The gate itself, drawn as a line so the boundary is a thing you can
-        // point at rather than a colour you have to judge.
-        Srgba::WHITE
-    } else if value <= threshold {
-        let depth = ((threshold - value) / below_span).clamp(0.0, 1.0);
-        lerp_srgba(
-            Srgba::new(0.16, 0.26, 0.42, 1.0),
-            Srgba::new(0.02, 0.02, 0.05, 1.0),
-            depth,
-        )
-    } else {
-        let strength = FeatureFields::strength_of(layer, value);
-        let (dim, bright) = layer_ramp(layer);
-        let ramped = lerp_srgba(dim, bright, strength);
-        if strength >= 1.0 {
-            // Washed out, and a flat tone on purpose: the generator's rank
-            // range ENDS here, so every candidate in this region ranks the
-            // same no matter how much higher the field reads. A picture that
-            // kept brightening past it would suggest a difference the thinning
-            // cannot see.
-            lerp_srgba(ramped, Srgba::WHITE, 0.4)
-        } else {
-            ramped
-        }
-    };
+/// The colour one sample reads as: the field's ramp, from near-black at 0 to
+/// its bright colour at 1. Linear, because the cluster weights read the value
+/// linearly or through a smooth ramp; a stretched picture would suggest edges
+/// the generator does not have.
+fn slice_texel(field: EnvironmentFieldType, value: f32, grid: bool) -> [u8; 4] {
+    let (dim, bright) = field_ramp(field);
+    let colour = lerp_srgba(dim, bright, value);
     // The lattice is drawn OVER the field and tinted rather than replacing it,
     // so a grid line never hides the reading underneath it.
     let colour = if grid {
@@ -537,20 +482,20 @@ fn slice_texel(layer: FeatureLayer, value: f32, grid: bool) -> [u8; 4] {
     ]
 }
 
-/// The dim and bright ends of a layer's above-threshold ramp. The same three
-/// hues `world_features` rings its spheres in.
-fn layer_ramp(layer: FeatureLayer) -> (Srgba, Srgba) {
-    match layer {
-        FeatureLayer::Asteroid => (
-            Srgba::new(0.35, 0.22, 0.03, 1.0),
+/// The dark and bright ends of a field's ramp. The same three hues
+/// `world_field_clouds` marks the fields in.
+fn field_ramp(field: EnvironmentFieldType) -> (Srgba, Srgba) {
+    match field {
+        EnvironmentFieldType::MaterialDensity => (
+            Srgba::new(0.02, 0.02, 0.05, 1.0),
             Srgba::new(1.0, 0.75, 0.25, 1.0),
         ),
-        FeatureLayer::Planet => (
-            Srgba::new(0.04, 0.26, 0.31, 1.0),
+        EnvironmentFieldType::Volatiles => (
+            Srgba::new(0.02, 0.02, 0.05, 1.0),
             Srgba::new(0.25, 0.92, 1.0, 1.0),
         ),
-        FeatureLayer::Derelict => (
-            Srgba::new(0.30, 0.05, 0.30, 1.0),
+        EnvironmentFieldType::HumanActivity => (
+            Srgba::new(0.02, 0.02, 0.05, 1.0),
             Srgba::new(1.0, 0.35, 1.0, 1.0),
         ),
     }
@@ -566,9 +511,8 @@ fn lerp_srgba(from: Srgba, to: Srgba, t: f32) -> Srgba {
     )
 }
 
-/// Say what is on the screen, in the terms a tuning pass needs: which layer,
-/// which plane, where the plane sits, what the field actually read there, and
-/// what the gate it is being judged against is.
+/// Say what is on the screen, in the terms a tuning pass needs: which field,
+/// which plane, where the plane sits, and what the field actually read there.
 fn update_readout(
     view: Res<SliceView>,
     painting: Option<Res<SlicePainting>>,
@@ -588,22 +532,19 @@ fn update_readout(
     let status = match (&job, painting.painted) {
         (Some(_), _) => "painting...".to_string(),
         (None, Some(painted)) if painted == *view => format!(
-            "read {:+.3} .. {:+.3}\n\
-             {:.0}% of it past the rank ceiling (pale: every candidate there ties)",
-            painting.range.0,
-            painting.range.1,
-            painting.saturated * 100.0
+            "read {:.2} .. {:.2}, mean {:.2}",
+            painting.range.0, painting.range.1, painting.mean
         ),
         _ => "waiting".to_string(),
     };
 
     **text = format!(
-        "RAW {} FIELD - the noise the gate reads, NOT rocks per cell\n\
+        "{} FIELD, 0 to 1 - one of three the clusters read together, NOT rocks per cell\n\
          {} plane, {} = {:+.0} m (cell {}), step {:+}\n\
          {:.0} km across at {:.0} m per sample, {:.0} m sector grid\n\
-         gate {:.3} (white contour), {status}\n\
-         [1/2/3] layer  [X/Y/Z] plane  [Up/Down] step one sector  [R] reset",
-        view.layer.to_string().to_uppercase(),
+         {status}\n\
+         [1/2/3] field  [X/Y/Z] plane  [Up/Down] step one sector  [R] reset",
+        view.field.label().to_uppercase(),
         view.plane.label(),
         view.plane.fixed_axis(),
         fixed_cell as f32 * edge,
@@ -612,27 +553,24 @@ fn update_readout(
         SLICE_EXTENT.get() / 1_000.0,
         SLICE_EXTENT.get() / SLICE_PIXELS as f32,
         edge,
-        view.layer.threshold(),
     );
 }
 
-/// The picture of the asteroid layer, the loosest gate and the one that fills
-/// most of the world.
+/// The picture of material density, the field most cluster types grow in.
 #[cfg(feature = "debug")]
-const ASTEROID_SHOT: &str = "world-field-slice-asteroid-xy.png";
+const MATERIAL_SHOT: &str = "world-field-slice-material-density-xy.png";
 
-/// The picture of the planet layer: the tightest gate, and the one whose
-/// accepted regions are islands.
+/// The picture of volatiles on the second plane.
 #[cfg(feature = "debug")]
-const PLANET_SHOT: &str = "world-field-slice-planet-xz.png";
+const VOLATILES_SHOT: &str = "world-field-slice-volatiles-xz.png";
 
-/// The picture of the derelict layer on the third plane, two sectors off the
-/// home cell - the slice that shows a stepped plane is a DIFFERENT field and
-/// not the same picture shifted.
+/// The picture of human activity on the third plane, two sectors off the home
+/// cell - the slice that shows a stepped plane is a DIFFERENT field and not
+/// the same picture shifted.
 #[cfg(feature = "debug")]
-const DERELICT_SHOT: &str = "world-field-slice-derelict-yz.png";
+const ACTIVITY_SHOT: &str = "world-field-slice-human-activity-yz.png";
 
-/// The run gate: three representative slices, one per layer and one per plane,
+/// The run gate: three representative slices, one per field and one per plane,
 /// with the last one stepped off the home cell.
 #[cfg(feature = "debug")]
 fn slices_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
@@ -655,37 +593,37 @@ fn slices_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .until(frames(SETTLE_FRAMES))
         .add()
-        .step("shoot the asteroid XY slice")
-        .on_enter(|world: &mut World| shoot(world, ASTEROID_SHOT))
-        .until(shot_written(ASTEROID_SHOT))
+        .step("shoot the material density XY slice")
+        .on_enter(|world: &mut World| shoot(world, MATERIAL_SHOT))
+        .until(shot_written(MATERIAL_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        .step("paint the planet XZ slice")
+        .step("paint the volatiles XZ slice")
         .on_enter(show_slice(SliceView {
-            layer: FeatureLayer::Planet,
+            field: EnvironmentFieldType::Volatiles,
             plane: SlicePlane::Xz,
             step: 0,
         }))
         .until(and(slice_is_painted(), frames(SETTLE_FRAMES)))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("shoot the planet XZ slice")
-        .on_enter(|world: &mut World| shoot(world, PLANET_SHOT))
-        .until(shot_written(PLANET_SHOT))
+        .step("shoot the volatiles XZ slice")
+        .on_enter(|world: &mut World| shoot(world, VOLATILES_SHOT))
+        .until(shot_written(VOLATILES_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        .step("paint the derelict YZ slice two sectors out")
+        .step("paint the human activity YZ slice two sectors out")
         .on_enter(show_slice(SliceView {
-            layer: FeatureLayer::Derelict,
+            field: EnvironmentFieldType::HumanActivity,
             plane: SlicePlane::Yz,
             step: 2,
         }))
         .until(and(slice_is_painted(), frames(SETTLE_FRAMES)))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("shoot the derelict YZ slice")
-        .on_enter(|world: &mut World| shoot(world, DERELICT_SHOT))
-        .until(shot_written(DERELICT_SHOT))
+        .step("shoot the human activity YZ slice")
+        .on_enter(|world: &mut World| shoot(world, ACTIVITY_SHOT))
+        .until(shot_written(ACTIVITY_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
 }

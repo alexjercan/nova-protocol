@@ -130,9 +130,14 @@ impl SectorDescription {
     /// The description as one comparable block of text.
     ///
     /// What "the same sector" MEANS, written down: two generations are the
-    /// same when this matches. Positions are printed at centimeter resolution
-    /// rather than compared as floats, so the comparison is a fact about the
-    /// generator and not about the last bit of an f32.
+    /// same when this matches. Positions and radii are printed at centimeter
+    /// resolution and yaw at a ten-thousandth of a radian, deliberately
+    /// rounded, so the comparison is a fact about the generator and not about
+    /// the last bit of an f32. A planetoid's optional overrides - relief, sea
+    /// level, mass and lock signature - are authoring values, not placement:
+    /// they are printed exact, as the shortest text that reads back to the
+    /// same f32, and `None` prints apart from every `Some`. Rounding them
+    /// would call two different worlds the same one.
     pub fn canonical(&self) -> String {
         let point = |position: Meters3| {
             let p = position.get();
@@ -151,12 +156,17 @@ impl SectorDescription {
         }
         for planet in &self.planets {
             out.push_str(&format!(
-                "planet {} {} {:?} r{:.2} s{}\n",
+                "planet {} {} {:?} r{:.2} s{} relief {:?} sea_level {:?} mass {:?} \
+                 lock_signature {:?}\n",
                 planet.id,
                 point(planet.position),
                 planet.config.planet_type,
                 planet.config.radius.get(),
-                planet.config.seed
+                planet.config.seed,
+                planet.config.relief.map(Meters::get),
+                planet.config.sea_level,
+                planet.config.mass,
+                planet.config.lock_signature.map(Meters::get),
             ));
         }
         for ship in &self.ships {

@@ -433,7 +433,7 @@ impl CellPlan {
                     id,
                     position,
                     radius: *radius,
-                    kind: kind.to_string(),
+                    kind: (*kind).into(),
                 }),
                 ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
                     id,
@@ -444,7 +444,7 @@ impl CellPlan {
                     id,
                     position,
                     yaw: *yaw,
-                    design: design.to_string(),
+                    design: (*design).into(),
                 }),
             }
         }

@@ -1,7 +1,7 @@
 //! world_clusters: fly a streamed world whose bodies come in groups.
 //!
-//! `world_features` fills a cell from feature spheres that reach it. This
-//! example fills it from GROUPS decided on a global 24 km lattice - about two
+//! The shipped `world_features` grows clusters on a sparse 50 km lattice. This
+//! example grows denser GROUPS on a global 24 km lattice - about two
 //! a sector, with open space between them - and owned body by body by the cell
 //! each body's centre falls in. A group is asteroid-rich (with one or two
 //! planetoids in quiet material and a derelict in traffic), rock-only,

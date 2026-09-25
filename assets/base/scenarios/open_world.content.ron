@@ -2,7 +2,7 @@
     Scenario((
         id: "open_world",
         name: "Open World",
-        description: "An open world generated from your seed: asteroid belts, planetoids and derelicts, streamed in around your line warship as you fly.",
+        description: "An open world generated from your seed: sparse asteroid clusters, planetoids and derelicts, streamed in around your line warship as you fly.",
         cubemap: "self://textures/cubemap.png",
         role: OpenWorld,
         events: [

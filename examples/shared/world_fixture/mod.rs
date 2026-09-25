@@ -4,9 +4,10 @@
 //!
 //! `nova_world` owns the streaming loop and the manifest check and names no
 //! content. The featured world is the base game's generator,
-//! `NovaLayeredWorld`, and its feature field, both from `nova_world_base`; the
-//! uniform baseline and the clustered world with its environment fields are
-//! example-owned and live beside this file. Everything
+//! `NovaLayeredWorld`, its cluster policy and its environment fields, all from
+//! `nova_world_base`; the uniform baseline and the clustered world with its
+//! own environment fields are example-owned and live beside this file.
+//! Everything
 //! else `nova_world` refuses to assume - a seed, a cell edge, an active
 //! radius - is decided HERE, once, so the six example targets that share it
 //! are looking at one world rather than six that happen to agree.
@@ -69,8 +70,7 @@ pub const EXAMPLE_ACTIVE_RADIUS: i32 = 2;
 /// DRAWS: the meshed radius reaches 3.5-6x past it, so this draws about
 /// 210-720 m diameters. Four bodies in a 32 km cell read as scattered
 /// landmarks rather than a belt, which is what the crossing claim needs and is
-/// not a claim about how dense a real sector should be. Four is also the mean
-/// the base generator draws at full asteroid strength.
+/// not a claim about how dense a real sector should be.
 /// The kinds are the four natural ones; `plain` is the texture control, not a
 /// rock a world would contain.
 ///
@@ -111,14 +111,12 @@ pub fn featured_world_config() -> WorldConfig<NovaLayeredWorld> {
 
 /// The cell the featured examples open in.
 ///
-/// NOT the origin, and chosen rather than assumed: the window around it is the
-/// one near the origin that holds all three layers at once - two asteroid
-/// spheres, one planet sphere (owned by cell `(0, 0, 0)` itself) and three
-/// derelict spheres, one of which puts its hulls inside the window at
-/// `(4, 3, 0)` - beside cells that no feature sphere reaches. A run that
-/// opened at the origin would see a planetoid and a handful of rocks and
-/// nothing else, which proves a generator but not a WORLD.
-pub const FEATURE_HOME: SectorCoord = SectorCoord::new(2, 1, 2);
+/// Chosen by a scan of the windows near the origin, not assumed: the window
+/// around the origin holds planetoids and derelict hulls, a cluster with a
+/// planetoid and one with a hull that each place bodies on both sides of a
+/// face, cells with a background scatter, empty cells, and rocks in the face
+/// a +X crossing retires.
+pub const FEATURE_HOME: SectorCoord = SectorCoord::ORIGIN;
 
 /// The same seed, window and edge, filled by the example-owned clustered
 /// generator: asteroid-rich, rock-only, planet-heavy, derelict-only and

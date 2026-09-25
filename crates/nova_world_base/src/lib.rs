@@ -3,15 +3,17 @@
 //! around the player while an open-world scenario runs.
 //!
 //! `nova_world` owns the mechanism and names no content. This crate is the
-//! complete concrete generator: its feature field, its placement inset and
-//! spacing, and the base content it fills cells from. It names base content,
-//! so the stable ids the world and its bootstrap are built from live here too:
-//! the authoring builders and the generator read the same constants.
+//! complete concrete generator: its environment fields, its cluster policy,
+//! its clearance margin, and the base content it fills cells from. It names
+//! base content, so the stable ids the world and its bootstrap are built from
+//! live here too: the authoring builders and the generator read the same
+//! constants.
 //!
-//! The feature field is diagnosable from outside: [`sector_features`] and
-//! [`sector_strengths`] answer what reaches a cell and how strongly, with the
-//! same numbers the generator used. Nothing puts them on a streamed entity; a
-//! debug view asks for them.
+//! The policy is diagnosable from outside: [`EnvironmentFields`] reads the
+//! three fields anywhere, and [`sector_clusters`] answers which clusters a
+//! sector owns bodies of and what it placed and skipped, with the same numbers
+//! the generator used. Nothing puts them on a streamed entity; a debug view
+//! asks for them.
 //!
 //! The one promise a world seed makes: the same build on the same platform
 //! generates the same pristine sectors from it, in any exploration order.
@@ -25,26 +27,28 @@ use nova_gameplay::prelude::PlayerSpaceshipMarker;
 use nova_scenario::prelude::{CurrentScenario, ScenarioRole};
 use nova_world::prelude::*;
 
-mod features;
+mod clusters;
+mod environment;
 mod layered;
 
 #[cfg(test)]
 mod tests;
 
 pub use crate::{
-    features::{sector_features, sector_strengths, FeatureFields, FeatureLayer, FeatureSphere},
-    layered::{NovaLayeredWorld, CLEARANCE_MARGIN, PLACEMENT_INSET},
+    clusters::{sector_clusters, ClusterSummary, ClusterType, SectorClusters},
+    environment::{Environment, EnvironmentFieldType, EnvironmentFields},
+    layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
 };
 
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
-/// the session, the generator, its placement constants, the feature-field
-/// diagnostics and the base-world ids into scope.
+/// the session, the generator, its clearance margin, the environment and
+/// cluster diagnostics and the base-world ids into scope.
 pub mod prelude {
     pub use super::{
-        sector_features, sector_strengths, FeatureFields, FeatureLayer, FeatureSphere,
-        NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession,
+        sector_clusters, ClusterSummary, ClusterType, Environment, EnvironmentFieldType,
+        EnvironmentFields, NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession, SectorClusters,
         BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID,
-        CLEARANCE_MARGIN, OPEN_WORLD_SCENARIO_ID, PLACEMENT_INSET,
+        CLEARANCE_MARGIN, OPEN_WORLD_SCENARIO_ID,
     };
 }
 
@@ -58,12 +62,12 @@ pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
 pub const BLOCK_LINE_WARSHIP_SHIP_ID: &str = "block_line_warship";
 
 /// The id the damaged frame tender is spawned by: the frame tender with its
-/// stern and its main drive gone. One of the two hulls a derelict field is
-/// drawn from.
+/// stern and its main drive gone. One of the two hulls a cluster's derelicts
+/// are drawn from.
 pub const BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID: &str = "block_frame_tender_damaged";
 
 /// The id loose debris plating is spawned by: no computer, drive or gun. One
-/// of the two hulls a derelict field is drawn from.
+/// of the two hulls a cluster's derelicts are drawn from.
 pub const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
 
 /// The open world's cell edge.
