@@ -34,6 +34,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Asteroids and planets drop `invulnerable`: every asteroid can
   be destroyed, no planet can. Both reject unknown keys: a stale or
   misspelled field fails to load, not ignored.
+- **(breaking)** `OrbitShip` `well` and AI `orbit` take `Authored("id")` or
+  `NearestToShip`, the nearest loaded orbitable well. A bare id string fails
+  to load; an unknown AI `orbit` id fails lint.
 
 ### Interface & HUD
 
@@ -52,6 +55,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Fixes
 
+- A ship holding a completed `OrbitShip` ring no longer keeps its helm forever
+  after the well is despawned or destroyed. The order retires and its AI flies
+  again.
 - A second editor ship no longer drifts off along the row and crashes the game
   when frames outrun physics steps; the row measures hull shapes, not the last
   step's bounds.

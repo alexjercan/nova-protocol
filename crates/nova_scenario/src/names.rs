@@ -173,7 +173,12 @@ fn walk_field(value: &dyn PartialReflect, field: &str, visit: &mut dyn FnMut(Aut
     }
 }
 
-/// The string a field holds - itself, or the payload of a `Some`.
+/// The string a field holds - itself, or the first payload of the variant it
+/// holds, however many enums deep.
+///
+/// Deep because an AI `orbit` is `Some(Authored("planetoid"))`: stopping at
+/// the `Some` found a `WellTargetType` rather than the id, and the lint never
+/// saw the reference.
 fn text_of(value: &dyn PartialReflect) -> Option<&str> {
     if let Some(text) = value.try_downcast_ref::<String>() {
         return Some(text);
@@ -181,10 +186,7 @@ fn text_of(value: &dyn PartialReflect) -> Option<&str> {
     let ReflectRef::Enum(chosen) = value.reflect_ref() else {
         return None;
     };
-    chosen
-        .field_at(0)?
-        .try_downcast_ref::<String>()
-        .map(String::as_str)
+    text_of(chosen.field_at(0)?)
 }
 
 /// Whether `target` names an object the scenario puts on the board.
@@ -221,6 +223,7 @@ where
 #[cfg(test)]
 mod tests {
     use nova_events::prelude::*;
+    use nova_ship::prelude::WellTargetType;
 
     use crate::prelude::*;
 
@@ -264,6 +267,57 @@ mod tests {
                 ("look_at".to_string(), "raider_1".to_string()),
             ]
         );
+    }
+
+    /// An orbit's well is an object reference only when it is authored: the
+    /// nearest-well target names nothing the lint could resolve.
+    #[test]
+    fn an_orbit_well_names_an_object_only_when_authored() {
+        let names = |well| {
+            let config = OrbitShipActionConfig {
+                order: "ring".to_string(),
+                ship: "surveyor".to_string(),
+                well,
+            };
+            let mut found = Vec::new();
+            walk_names(&config, &mut |named| {
+                if named.names == Names::Object {
+                    found.push((named.field.to_string(), named.text.to_string()));
+                }
+            });
+            found
+        };
+
+        assert_eq!(
+            names(WellTargetType::Authored("planetoid".to_string())),
+            vec![
+                ("ship".to_string(), "surveyor".to_string()),
+                ("well".to_string(), "planetoid".to_string()),
+            ]
+        );
+        assert_eq!(
+            names(WellTargetType::NearestToShip),
+            vec![("ship".to_string(), "surveyor".to_string())]
+        );
+
+        // The AI routine holds the same target one `Option` deeper.
+        let orbit = |orbit| {
+            let mut found = Vec::new();
+            walk_names(
+                &AIControllerConfig {
+                    orbit,
+                    ..Default::default()
+                },
+                &mut |named| found.push((named.names, named.text.to_string())),
+            );
+            found
+        };
+        assert_eq!(
+            orbit(Some(WellTargetType::Authored("planetoid".to_string()))),
+            vec![(Names::Object, "planetoid".to_string())]
+        );
+        assert!(orbit(Some(WellTargetType::NearestToShip)).is_empty());
+        assert!(orbit(None).is_empty());
     }
 
     /// An unfilled `id_prefix` satisfies NOTHING. Every string starts with the

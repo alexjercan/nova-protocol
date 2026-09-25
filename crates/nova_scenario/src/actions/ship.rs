@@ -435,9 +435,11 @@ pub struct OrbitShipActionConfig {
     /// The `EntityId` of the scoped ship to put in orbit.
     #[reflect(@Names::Object)]
     pub ship: String,
-    /// The `EntityId` of the gravity well to orbit - a planetoid, not a rock.
+    /// Which gravity well to orbit: `Authored` names one well the scenario
+    /// spawned by id, `NearestToShip` takes the loaded well nearest the ship
+    /// when the order engages.
     #[reflect(@Names::Object)]
-    pub well: String,
+    pub well: WellTargetType,
 }
 
 impl EventAction<NovaEventWorld> for OrbitShipActionConfig {
@@ -445,7 +447,7 @@ impl EventAction<NovaEventWorld> for OrbitShipActionConfig {
         let order = self.order.clone();
         let id = self.ship.clone();
         let well = self.well.clone();
-        debug!("OrbitShip: '{}' order '{}' around '{}'", id, order, well);
+        debug!("OrbitShip: '{}' order '{}' around {}", id, order, well);
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
@@ -1358,7 +1360,7 @@ mod tests {
             &OrbitShipActionConfig {
                 order: "hold".to_string(),
                 ship: "warship".to_string(),
-                well: "planetoid".to_string(),
+                well: WellTargetType::Authored("planetoid".to_string()),
             },
         );
         run(

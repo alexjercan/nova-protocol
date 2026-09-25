@@ -2231,6 +2231,49 @@ mod tests {
         );
     }
 
+    /// An AI ship's authored orbit well is a reference like any action's: an
+    /// id nothing spawns is an error. The nearest-well target and no orbit at
+    /// all name nothing, so neither is.
+    #[test]
+    fn an_ai_orbit_naming_an_unknown_well_is_an_error() {
+        let orbiter = |id: &str, orbit| {
+            spawn_armed_ship(
+                id,
+                SpaceshipController::AI(AIControllerConfig { orbit, ..default() }),
+            )
+        };
+        let s = scenario(
+            vec![
+                spawn_object("planetoid"),
+                orbiter(
+                    "known",
+                    Some(nova_ship::prelude::WellTargetType::Authored(
+                        "planetoid".to_string(),
+                    )),
+                ),
+                orbiter(
+                    "lost",
+                    Some(nova_ship::prelude::WellTargetType::Authored(
+                        "ghost".to_string(),
+                    )),
+                ),
+                orbiter(
+                    "nearest",
+                    Some(nova_ship::prelude::WellTargetType::NearestToShip),
+                ),
+                orbiter("idle", None),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(
+            errs[0].message.contains("`orbit`") && errs[0].message.contains("ghost"),
+            "{issues:?}"
+        );
+    }
+
     /// Nothing on a planet is allowed to be nonsense-but-tolerated.
     ///
     /// The generator divides the authored relief by the radius and measures

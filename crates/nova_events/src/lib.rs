@@ -88,10 +88,10 @@ impl EntityId {
 /// It lives here, beside [`EntityId`], because the rule has to be readable
 /// from every crate that resolves one. `nova_scenario` filters its own
 /// actions on it, and so does `nova_ship`, which is BELOW `nova_scenario`
-/// and resolves the authored well of an orbit directive or an Orbit helm
-/// order. A live-world surface that discovers entities rather than being
-/// told their names - the `cmd>` shell's completion - deliberately does not
-/// filter on it.
+/// and resolves an authored well target of an orbit directive or an Orbit
+/// helm order. A live-world surface that discovers entities rather than being
+/// told their names - the `cmd>` shell's completion, a nearest-well orbit
+/// target - deliberately does not filter on it.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ScenarioAddressableMarker;
 

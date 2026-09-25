@@ -75,6 +75,7 @@ pub(super) fn ai_test_world() -> World {
     world.init_resource::<avian3d::collider_tree::ColliderTrees>();
     world.init_resource::<crate::input::targeting::prelude::TargetingSettings>();
     world.init_resource::<crate::prelude::FlightSettings>();
+    world.init_resource::<nova_gameplay::prelude::GravitySettings>();
     world
 }
 
@@ -376,8 +377,10 @@ mod tests {
         const FRAME_SECS: f32 = 2.0;
         let mut app = unfinished_integrity_physics_app();
         app.add_plugins(SpaceshipAIInputPlugin);
-        // Normally supplied by SpaceshipFlightPlugin, which this rig omits.
+        // Normally supplied by SpaceshipFlightPlugin and NovaGravityPlugin,
+        // which this rig omits.
         app.init_resource::<FlightSettings>();
+        app.init_resource::<GravitySettings>();
         app.init_resource::<FiringSamples>();
         app.finish();
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(

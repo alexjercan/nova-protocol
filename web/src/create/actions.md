@@ -1020,7 +1020,8 @@ Put a ship in a stable ring around a gravity well and hold it there. The
 ship's own ORBIT maneuver, so it aligns, burns into the band, and stays.
 
 ```ron
-OrbitShip((order: "take_the_ring", ship: "surveyor", well: "planetoid")),
+OrbitShip((order: "take_the_ring", ship: "surveyor", well: Authored("planetoid"))),
+OrbitShip((order: "park", ship: "surveyor", well: NearestToShip)),
 ```
 
 <details class="explain">
@@ -1030,16 +1031,21 @@ OrbitShip((order: "take_the_ring", ship: "surveyor", well: "planetoid")),
 |---|---|---|---|
 | `order` | string | required | the key this order's completion is reported under |
 | `ship` | string | required | scoped `None`- or AI-controller ship root |
-| `well` | string | required | scoped id of the gravity-well object to orbit; a dangling id is a lint Error |
+| `well` | `Authored(id)` or `NearestToShip` | required | `Authored` names one gravity-well object this scenario spawned; a dangling id is a lint Error. `NearestToShip` takes the loaded well with a stable ring whose surface is nearest the ship when the order engages, streamed wells included. An order resumed after an interruption picks again and can take another well |
 
 Completes with `kind: Orbit` the moment the ring is ESTABLISHED - the ship is
 in the band and holding - and then keeps holding it, the same way
 [`ForceAlign`](#forcealign) keeps its bearing. A completion here means "it is
 in orbit now", not "it has stopped orbiting".
 
-A well too small, too far, or with no stable band for this hull fails the
-order rather than leaving the beat waiting: see
-[`OnShipOrderFailed`](../events/#onshiporderfailed).
+No loaded well that matches, two wells that match equally, or a well with no
+stable band for this hull fails the order rather than leaving the beat
+waiting: see [`OnShipOrderFailed`](../events/#onshiporderfailed). Two wells
+at the same surface distance fall to the lower id.
+
+If the well goes after the ring is established - a streamed sector unloads,
+the body is destroyed - the order retires without another event and the helm
+goes back to the ship. It does not pick the well up again if it reloads.
 
 </details>
 

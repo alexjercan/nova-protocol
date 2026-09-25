@@ -21,8 +21,9 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
 
-use crate::objects::ship_design::prelude::{
-    resolve_ship_design, GameShipDesigns, ShipDesignSource,
+use crate::{
+    names::prelude::Names,
+    objects::ship_design::prelude::{resolve_ship_design, GameShipDesigns, ShipDesignSource},
 };
 
 /// The spaceship scenario object, its config and section sources, the player and AI controller
@@ -99,15 +100,16 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
     pub patrol: Vec<Meters3>,
-    /// Scenario id of a gravity-well entity to orbit while nothing hostile
-    /// is in detection range. Takes precedence over `patrol` when both are
-    /// set (passive fallback: orbit > patrol > idle). None = no orbit
-    /// assignment.
+    /// Gravity well to orbit while nothing hostile is in detection range.
+    /// Takes precedence over `patrol` when both are set (passive fallback:
+    /// orbit > patrol > idle). A target that matches no loaded well leaves
+    /// the ship drifting until one loads. None = no orbit assignment.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub orbit: Option<String>,
+    #[reflect(@Names::Object)]
+    pub orbit: Option<WellTargetType>,
     /// Territorial tether radius: combat breaks off beyond
     /// this distance from the patrol centroid (or the spawn position when
     /// there is no route) and the ship returns to its routine. None = the
@@ -712,9 +714,9 @@ fn insert_spaceship_sections(
                 ));
             }
             if let Some(well) = &config.orbit {
-                commands.entity(entity).insert(AIOrbitDirective {
-                    well: EntityId::new(well.clone()),
-                });
+                commands
+                    .entity(entity)
+                    .insert(AIOrbitDirective { well: well.clone() });
             }
             if let Some(radius) = config.leash {
                 // Anchor on the patrol centroid: the route IS the
@@ -849,12 +851,15 @@ mod tests {
         let orbiter = spawn(
             &mut world,
             AIControllerConfig {
-                orbit: Some("planetoid".to_string()),
+                orbit: Some(WellTargetType::Authored("planetoid".to_string())),
                 ..default()
             },
         );
         let directive = world.entity(orbiter).get::<AIOrbitDirective>().unwrap();
-        assert_eq!(*directive.well, "planetoid");
+        assert_eq!(
+            directive.well,
+            WellTargetType::Authored("planetoid".to_string())
+        );
         assert!(world.entity(orbiter).get::<AIPatrolRoute>().is_none());
         assert!(world.entity(orbiter).contains::<AISpaceshipMarker>());
 
@@ -875,7 +880,7 @@ mod tests {
             &mut world,
             AIControllerConfig {
                 patrol: vec![Meters3::ZERO, Meters3::new(10.0, 0.0, 0.0)],
-                orbit: Some("planetoid".to_string()),
+                orbit: Some(WellTargetType::Authored("planetoid".to_string())),
                 leash: None,
                 engage_delay: None,
                 engage_range: None,

@@ -8,7 +8,6 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 
 #[cfg(test)]
@@ -18,7 +17,10 @@ use super::{behavior::update_behavior_state, maneuver::update_combat_flight};
 #[cfg(test)]
 #[cfg(test)]
 use crate::input::targeting::update_sensor_contacts;
-use crate::prelude::*;
+use crate::{
+    flight::{LiveWells, WellTargetFault},
+    prelude::*,
+};
 
 /// Arrival slack (world units, 250 m) on top of the autopilot's arrival
 /// standoff for calling a patrol waypoint reached and turning onto the next leg. Turning early,
@@ -133,7 +135,7 @@ pub(super) fn update_passive_flight(
             Without<ShipOrderHelmAuthority>,
         ),
     >,
-    q_wells: Query<(Entity, &EntityId), (With<GravityWell>, With<ScenarioAddressableMarker>)>,
+    wells: LiveWells,
     // A nav beacon publishes a BodyRadius so a GOTO can park off its face, but
     // it is a mark to fly TO, not a rock to fly around: its volume stops
     // nothing, and a route whose waypoints ARE its beacons (the menu's weave
@@ -277,21 +279,33 @@ pub(super) fn update_passive_flight(
                     Some(_) => continue,
                     None => None,
                 };
+                // The nearest well is picked when the ORBIT engages: ranking
+                // again every frame would hop between two wells whose
+                // surfaces a ring passes equally close to.
+                if engaged_well.is_some() && directive.well == WellTargetType::NearestToShip {
+                    continue;
+                }
                 // The ORBIT autopilot self-plans on its first engaged tick
                 // and disengages itself if the well dies, so a bare engage
                 // is enough; re-resolve and retry every calm frame (also
-                // covers a well that spawns later than the ship).
-                let Some(well) = q_wells
-                    .iter()
-                    .find(|(_, id)| ***id == *directive.well)
-                    .map(|(entity, _)| entity)
-                else {
-                    debug_once!(
-                        "update_passive_flight: orbit directive well '{}' matches no live \
-                         ADDRESSABLE GravityWell entity; ship {ship:?} drifts until it appears",
-                        *directive.well
-                    );
-                    continue;
+                // covers a well that spawns or streams in later than the
+                // ship).
+                let well = match wells.resolve(&directive.well, transform.translation) {
+                    Ok(well) => well,
+                    Err(fault @ WellTargetFault::Missing(_)) => {
+                        debug_once!(
+                            "update_passive_flight: {fault}; ship {ship:?} drifts until one \
+                             loads"
+                        );
+                        continue;
+                    }
+                    Err(fault @ WellTargetFault::Ambiguous { .. }) => {
+                        warn_once!(
+                            "update_passive_flight: {fault}; ship {ship:?} refuses to pick \
+                             one and drifts"
+                        );
+                        continue;
+                    }
                 };
                 // (Re)engage when nothing is engaged or the directive was
                 // retargeted to another well - the ORBIT analogue of the
@@ -1103,6 +1117,7 @@ mod patrol_idle_tests {
 #[cfg(test)]
 mod orbit_directive_tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_events::prelude::*;
 
     use super::*;
 
@@ -1127,7 +1142,7 @@ mod orbit_directive_tests {
                 AISpaceshipMarker,
                 RigidBody::Dynamic,
                 AIOrbitDirective {
-                    well: EntityId::new(WELL_ID),
+                    well: WellTargetType::Authored(WELL_ID.to_string()),
                 },
                 Transform::default(),
                 LinearVelocity(Vec3::ZERO),
@@ -1147,7 +1162,7 @@ mod orbit_directive_tests {
                 },
                 EntityId::new(WELL_ID),
                 ScenarioAddressableMarker,
-                Transform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
+                Position(Vec3::new(0.0, 0.0, -200.0)),
             ))
             .id()
     }
@@ -1225,50 +1240,6 @@ mod orbit_directive_tests {
     }
 
     #[test]
-    fn a_generated_well_never_answers_an_authored_orbit_directive() {
-        // A streamed sector's planetoid is scenario-SCOPED and carries an
-        // `EntityId` its generator wrote, so it reaches this query - but the
-        // directive's id is an AUTHORED name. Without the capability filter a
-        // scenario that circled "planet-alpha" would circle whichever body a
-        // cell happened to generate under that name.
-        let (mut world, ship) = orbit_world();
-        let generated = world
-            .spawn((
-                GravityWell {
-                    mu: 2400.0,
-                    body_radius: 20.0,
-                    soi_radius: 400.0,
-                },
-                EntityId::new(WELL_ID),
-                Transform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
-            ))
-            .id();
-
-        run_pipeline(&mut world);
-
-        assert!(
-            world.entity(ship).get::<Autopilot>().is_none(),
-            "an unmarked well is not a well this directive may name"
-        );
-
-        // The delivery guard: the SAME entity, now marked, does resolve, so
-        // the refusal is the marker and not a broken fixture.
-        world
-            .entity_mut(generated)
-            .insert(ScenarioAddressableMarker);
-        run_pipeline(&mut world);
-
-        assert_eq!(
-            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
-            Some(AutopilotAction::Orbit {
-                well: generated,
-                plan: None
-            }),
-            "the authored capability is what opens the lookup"
-        );
-    }
-
-    #[test]
     fn a_mid_flight_orbit_is_left_alone() {
         // Re-running the pipeline must not re-engage (churn would reset the
         // autopilot's plan every frame). A re-engage produces a component
@@ -1319,7 +1290,7 @@ mod orbit_directive_tests {
                 },
                 EntityId::new("moon"),
                 ScenarioAddressableMarker,
-                Transform::from_translation(Vec3::new(0.0, 0.0, 300.0)),
+                Position(Vec3::new(0.0, 0.0, 300.0)),
             ))
             .id();
 
@@ -1328,7 +1299,7 @@ mod orbit_directive_tests {
             .entity_mut(ship)
             .get_mut::<AIOrbitDirective>()
             .unwrap()
-            .well = EntityId::new("moon");
+            .well = WellTargetType::Authored("moon".to_string());
         run_pipeline(&mut world);
 
         assert_eq!(
@@ -1338,6 +1309,61 @@ mod orbit_directive_tests {
                 plan: None
             }),
             "the retargeted directive re-engages on the new well"
+        );
+    }
+
+    /// A nearest-well routine ranks once, when the ORBIT engages. A nearer
+    /// well loading afterwards does not pull the ship off the ring it is
+    /// flying, or a ring passing between two wells would hop forever.
+    #[test]
+    fn a_nearest_well_routine_keeps_the_well_it_engaged() {
+        let (mut world, ship) = orbit_world();
+        world
+            .entity_mut(ship)
+            .get_mut::<AIOrbitDirective>()
+            .unwrap()
+            .well = WellTargetType::NearestToShip;
+        // Generated, not addressable: the nearest target takes any loaded
+        // orbitable well.
+        let first = world
+            .spawn((
+                GravityWell {
+                    mu: 2400.0,
+                    body_radius: 20.0,
+                    soi_radius: 400.0,
+                },
+                EntityId::new("sector_0_0_0_planetoid_0"),
+                Position(Vec3::new(0.0, 0.0, -200.0)),
+            ))
+            .id();
+
+        run_pipeline(&mut world);
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Orbit {
+                well: first,
+                plan: None
+            }),
+            "the only loaded well is the nearest"
+        );
+
+        world.spawn((
+            GravityWell {
+                mu: 2400.0,
+                body_radius: 20.0,
+                soi_radius: 400.0,
+            },
+            EntityId::new("sector_0_0_0_planetoid_1"),
+            Position(Vec3::new(0.0, 0.0, 100.0)),
+        ));
+        run_pipeline(&mut world);
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Orbit {
+                well: first,
+                plan: None
+            }),
+            "a nearer well loading later does not retarget the engaged ring"
         );
     }
 
