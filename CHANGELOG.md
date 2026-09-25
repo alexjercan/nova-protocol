@@ -50,6 +50,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - `world_clusters` probes capture mid-fill and steady 125-cell windows; worker spans separate sector generation from geometry preparation.
 
+### Fixes
+
+- A second editor ship no longer drifts off along the row and crashes the game
+  when frames outrun physics steps; the row measures hull shapes, not the last
+  step's bounds.
+
 ### Internals & Tooling
 
 - Asteroid kind and ship design ids are typed `AsteroidKindId` and
