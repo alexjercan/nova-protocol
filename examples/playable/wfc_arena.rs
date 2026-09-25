@@ -1166,7 +1166,7 @@ fn rock_ring(
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 // DIRECT paths, not dep://: this scenario is built at runtime
                 // outside the mod merge, so scheme refs would never rewrite.
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
                 radius: radius.0,
                 texture: AssetRef::from(game_assets.asteroid_texture.clone()),
@@ -1176,7 +1176,7 @@ fn rock_ring(
             }),
         },
         asteroid_radius: Some(radius),
-        asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
+        asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
         min_separation: Some(separation),
     })
 }

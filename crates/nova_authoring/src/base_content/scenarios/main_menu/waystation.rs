@@ -75,7 +75,7 @@ pub(crate) fn menu_waystation(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: Meters(10.0),
                 texture: asteroid_texture,
@@ -90,9 +90,9 @@ pub(crate) fn menu_waystation(
         // at five parts in eighteen, and exactly one metal body in the lane
         // says the ore is out here without saying it is common.
         asteroid_kinds: vec![
-            (KIND_ROCK.to_string(), 12),
-            (KIND_ICE.to_string(), 5),
-            (KIND_METAL.to_string(), 1),
+            (KIND_ROCK.into(), 12),
+            (KIND_ICE.into(), 5),
+            (KIND_METAL.into(), 1),
         ],
         min_separation: None,
     });

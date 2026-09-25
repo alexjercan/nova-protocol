@@ -52,6 +52,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
+- Asteroid kind and ship design ids are typed `AsteroidKindId` and
+  `ShipDesignId` in every owning lookup. Authored RON is unchanged.
 - Agent Bench enforces post-run grace on persistent clients and rejects
   shared-key gestures that conflict with actions held from prior acts.
 - Probe snapshot bodies and Agent Bench body records drop `invulnerable`. The

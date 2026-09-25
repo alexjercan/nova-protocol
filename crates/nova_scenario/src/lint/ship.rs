@@ -31,14 +31,16 @@ pub(super) fn check_object_prototypes(
         return;
     };
     let catalog = GameShipDesigns(
-        designs
-            .get(ship.design.prototype_id().unwrap_or_default())
-            .map(|design| {
-                vec![ShipDesignPrototype {
-                    id: ship.design.prototype_id().unwrap_or_default().to_string(),
-                    name: String::new(),
-                    design: design.clone(),
-                }]
+        ship.design
+            .prototype_id()
+            .and_then(|id| {
+                designs.get(id).map(|design| {
+                    vec![ShipDesignPrototype {
+                        id: id.clone(),
+                        name: String::new(),
+                        design: design.clone(),
+                    }]
+                })
             })
             .unwrap_or_default(),
     );
@@ -841,7 +843,7 @@ mod tests {
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                     design: ShipDesignSource::Prototype {
-                        id: "block_gunship".to_string(),
+                        id: "block_gunship".into(),
                         section_patches: [(
                             section.to_string(),
                             SpaceshipSectionConfigPatch {
@@ -893,7 +895,7 @@ mod tests {
     #[test]
     fn a_section_mounted_on_a_degenerate_rotation_is_an_error() {
         let ship = |rotation: Quat| ShipDesignPrototype {
-            id: "block_gunship".to_string(),
+            id: "block_gunship".into(),
             name: "Gunship".to_string(),
             design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
@@ -967,7 +969,7 @@ mod tests {
     #[test]
     fn a_catalog_ship_is_linted_where_it_is_authored() {
         let ship = |proto: &str| ShipDesignPrototype {
-            id: "block_gunship".to_string(),
+            id: "block_gunship".into(),
             name: "Gunship".to_string(),
             design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
@@ -1455,7 +1457,7 @@ mod tests {
             source: SectionSource::prototype(prototype),
         };
         let ship = ShipDesignPrototype {
-            id: "drifter".to_string(),
+            id: "drifter".into(),
             name: "Drifter".to_string(),
             design: ShipDesign {
                 sections: vec![

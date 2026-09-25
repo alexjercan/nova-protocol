@@ -264,7 +264,9 @@ fn the_racer_course_arms_only_the_next_gate_and_freezes_its_clock_at_finish() {
             _ => None,
         })
         .unwrap();
-    assert!(matches!(&player.design, ShipDesignSource::Prototype { id, .. } if id == "racer"));
+    assert!(
+        matches!(&player.design, ShipDesignSource::Prototype { id, .. } if id.as_str() == "racer")
+    );
     let SpaceshipController::Player(controller) = &player.controller else {
         panic!("player driver")
     };
@@ -582,7 +584,7 @@ fn the_platform_stays_within_its_encounter_health_budget() {
     let ship = content
         .iter()
         .find_map(|item| match item {
-            Content::Ship(ship) if ship.id == "ledger_platform" => Some(ship),
+            Content::Ship(ship) if ship.id.as_str() == "ledger_platform" => Some(ship),
             _ => None,
         })
         .unwrap();

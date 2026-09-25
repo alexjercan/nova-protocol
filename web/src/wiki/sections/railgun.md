@@ -227,4 +227,6 @@ Your warning is the same one you give: the charge. A ship whose nose swings dead
 </table>
 </div>
 
+Reach is derived, not authored: 15,000 m/s times the 1.2 s slug lifetime. It is nominal travel, not a guaranteed hit range. Every other column is the configured base prototype; a mod can author its own.
+
 One railgun ships. It is the one you bolt on yourself in the ship editor; no hull in the base fleet carries it. See [Ship sections for mods](../../../create/sections/#railgun) for the numbers a mod can change, the rake radius among them.

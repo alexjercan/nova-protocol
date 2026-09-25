@@ -1192,8 +1192,8 @@ it.
   expensive (the spaced-armour intuition), and softening a section with other
   fire cannot open a cheaper hole through it. A rake's TOTAL damage therefore
   exceeds what it was fired with, which is intended. `PIERCE_BASE_POWER` (300 hp
-  of thickness) is the budget and `MAX_PIERCE_LAYERS` (6) the backstop under it,
-  because cheap plating alone would not bound the chain.
+  of thickness) is the budget, and power is the only bound: cheap plating lets
+  one round chain through many layers. A layer that costs no power stops it.
 
 A target with no `Health` on the hit collider (an asteroid, a planetoid, a pool
 that lives on an ancestor) has no thickness to price and nothing provably

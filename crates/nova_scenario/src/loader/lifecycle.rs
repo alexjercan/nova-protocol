@@ -1154,6 +1154,77 @@ mod tests {
         );
     }
 
+    /// A scenario that spawns a rock of a kind nobody ships refuses to start,
+    /// even when no merge filed a finding for it: the load lints the config in
+    /// hand, so a typo reaches the player as a refusal naming the id, not as
+    /// an invisible rock.
+    #[test]
+    fn a_scenario_spawning_an_unknown_asteroid_kind_refuses_to_start() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<ScenarioStartFailure>();
+        app.register_input_actions(scenario_bindings());
+        app.add_observer(on_load_scenario);
+
+        let rock = ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "rock".to_string(),
+                name: "Rock".to_string(),
+                position: Meters3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                kind: "granit".into(),
+                destroy_sound: None,
+                radius: Meters(20.0),
+                texture: AssetRef::from("textures/asteroid.png"),
+                mass: None,
+                seed: None,
+                lock_signature: None,
+            }),
+        };
+        let scenario = ScenarioConfig {
+            description: "a belt with a typo in it".to_string(),
+            events: vec![ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnStart,
+                once: true,
+                filters: vec![],
+                actions: vec![EventActionConfig::SpawnScenarioObject(rock)],
+            }],
+            ..ScenarioConfig::new(
+                "typo_belt".to_string(),
+                "Typo Belt".to_string(),
+                AssetRef::from("textures/x.png".to_string()),
+            )
+        };
+
+        app.world_mut().trigger(LoadScenario(scenario));
+        app.update();
+
+        let spawned = app
+            .world_mut()
+            .query_filtered::<(), With<ScenarioScopedMarker>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(spawned, 0, "a refused start must spawn nothing");
+        let failure = app.world().resource::<ScenarioStartFailure>();
+        let report = failure.0.as_ref().expect("the refusal sets the report");
+        assert!(
+            report
+                .messages
+                .iter()
+                .any(|message| message.contains("granit")),
+            "the refusal names the unknown kind: {:?}",
+            report.messages
+        );
+    }
+
     /// A scenario naming ITSELF in a retry loads: the id it chains to is the
     /// one id that is certainly loadable, and the editor's sandbox is absent
     /// from `GameScenarios` on a rig that never merged content.

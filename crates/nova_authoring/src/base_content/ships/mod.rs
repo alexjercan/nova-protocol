@@ -122,7 +122,7 @@ pub(crate) fn patched_design(
     patches: impl IntoIterator<Item = (SectionId, SpaceshipSectionConfigPatch)>,
 ) -> ShipDesignSource {
     ShipDesignSource::Prototype {
-        id: id.to_string(),
+        id: id.into(),
         section_patches: patches.into_iter().collect(),
     }
 }
@@ -280,7 +280,7 @@ fn ship(
     sections: Vec<SpaceshipSectionConfig>,
 ) -> ShipDesignPrototype {
     ShipDesignPrototype {
-        id: id.to_string(),
+        id: id.into(),
         name: name.to_string(),
         design: ShipDesign {
             sections,

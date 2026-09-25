@@ -172,7 +172,7 @@ fn stock_asteroid() -> AsteroidConfig {
     AsteroidConfig {
         radius: Meters(30.0),
         texture: default(),
-        kind: KIND_ROCK.to_string(),
+        kind: KIND_ROCK.into(),
         destroy_sound: None,
         mass: None,
         seed: None,
@@ -386,7 +386,7 @@ fn the_kind_reads_as_a_pick_list_of_the_shipped_kinds() {
 #[test]
 fn a_kind_the_game_does_not_ship_stays_the_text_it_is() {
     let rock = asteroid(AsteroidConfig {
-        kind: "obsidian".to_string(),
+        kind: "obsidian".into(),
         ..stock_asteroid()
     });
 
@@ -404,7 +404,7 @@ fn only_an_asteroid_gets_the_asteroid_vocabulary() {
         FieldRoot::Config,
         vec![PathStep::Field("kind".to_string())],
         false,
-        RowValue::Text(KIND_ROCK.to_string()),
+        RowValue::Text(KIND_ROCK.into()),
     )];
 
     offer_object_vocabularies(
@@ -432,7 +432,7 @@ fn choosing_a_kind_writes_the_id_into_the_config() {
     let ScenarioObjectKind::Asteroid(tuned) = &object.kind else {
         panic!("still an asteroid");
     };
-    assert_eq!(tuned.kind, KIND_ICE);
+    assert_eq!(tuned.kind.as_str(), KIND_ICE);
 }
 
 #[test]
@@ -1357,7 +1357,7 @@ fn a_scrub_of_a_whole_number_stays_whole() {
     let mut config = AsteroidConfig {
         radius: Meters(30.0),
         texture: default(),
-        kind: KIND_ROCK.to_string(),
+        kind: KIND_ROCK.into(),
         destroy_sound: None,
         mass: None,
         seed: Some(7),
@@ -1384,7 +1384,7 @@ fn a_scrub_of_an_unsigned_number_stops_at_zero() {
     let mut config = AsteroidConfig {
         radius: Meters(30.0),
         texture: default(),
-        kind: KIND_ROCK.to_string(),
+        kind: KIND_ROCK.into(),
         destroy_sound: None,
         mass: None,
         seed: Some(3),
@@ -1414,7 +1414,7 @@ fn a_scrub_of_an_empty_optional_says_to_type_one() {
     let mut config = AsteroidConfig {
         radius: Meters(30.0),
         texture: default(),
-        kind: KIND_ROCK.to_string(),
+        kind: KIND_ROCK.into(),
         destroy_sound: None,
         mass: None,
         seed: None,

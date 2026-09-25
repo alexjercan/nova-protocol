@@ -63,6 +63,8 @@ before adding a type, function, or test. Continue an approved design directly.
 - Edit Rust builders; regenerate, lint, and run content. Never hand-edit
   generated base RON. Search every runtime-ID consumer.
 - Put shared IDs in the lowest shared crate. Keep fixture IDs local.
+- Name a closed Rust enum `<Name>Type`, an open registry ID `<Name>KindId`, and
+  an authored catalog ID `<Name>DesignId`. Owning lookups take the typed ID.
 - Ship invalidated docs with code. Remove docs for removed unshipped behavior.
   Do not cite tasks in durable docs except an active `TODO(<task-id>)`.
 

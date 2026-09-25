@@ -300,7 +300,7 @@ fn scatter(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                kind: KIND_ICE.to_string(),
+                kind: KIND_ICE.into(),
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: radius.0,
                 texture: texture.clone(),
@@ -313,9 +313,9 @@ fn scatter(
         // Mostly water ice, with stone and carbon in it: the mix is what
         // makes the lane read white rather than as another grey belt.
         asteroid_kinds: vec![
-            (KIND_ICE.to_string(), 10),
-            (KIND_ROCK.to_string(), 4),
-            (KIND_CARBON.to_string(), 2),
+            (KIND_ICE.into(), 10),
+            (KIND_ROCK.into(), 4),
+            (KIND_CARBON.into(), 2),
         ],
         min_separation: Some(min_separation),
     })

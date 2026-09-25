@@ -123,7 +123,7 @@ pub(crate) fn menu_weave(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                kind: KIND_ROCK.to_string(),
+                kind: KIND_ROCK.into(),
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: Meters(10.0),
                 texture: asteroid_texture,
@@ -139,10 +139,10 @@ pub(crate) fn menu_weave(
         // surface. Metal at one part in twenty puts one or two nickel-iron
         // bodies in a 40-rock band - findable, never common.
         asteroid_kinds: vec![
-            (KIND_ROCK.to_string(), 12),
-            (KIND_CARBON.to_string(), 4),
-            (KIND_ICE.to_string(), 3),
-            (KIND_METAL.to_string(), 1),
+            (KIND_ROCK.into(), 12),
+            (KIND_CARBON.into(), 4),
+            (KIND_ICE.into(), 3),
+            (KIND_METAL.into(), 1),
         ],
         min_separation: Some(Meters(450.0)),
     });

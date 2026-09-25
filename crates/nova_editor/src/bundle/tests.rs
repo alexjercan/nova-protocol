@@ -30,7 +30,7 @@ fn section(id: &str) -> SpaceshipSectionConfig {
 
 fn design(id: &str) -> Content {
     Content::Ship(ShipDesignPrototype {
-        id: id.to_string(),
+        id: id.into(),
         name: id.to_string(),
         design: ShipDesign {
             sections: vec![section("hull_1")],

@@ -44,7 +44,7 @@ pub struct UniformAsteroids {
     /// Largest nominal body radius drawn.
     pub radius_max: Meters,
     /// The asteroid kind ids a body may be drawn from.
-    pub asteroid_kinds: Vec<&'static str>,
+    pub asteroid_kinds: Vec<AsteroidKindId>,
 }
 
 impl SectorGenerator for UniformAsteroids {
@@ -83,9 +83,7 @@ impl SectorGenerator for UniformAsteroids {
             .iter()
             .find(|kind| !is_asteroid_kind(kind))
         {
-            return Err(SectorFault::UnknownKind {
-                kind: kind.to_string(),
-            });
+            return Err(SectorFault::UnknownKind { kind: kind.clone() });
         }
         geometry.require_owning_edge(
             PLACEMENT_INSET,
@@ -135,13 +133,14 @@ impl SectorGenerator for UniformAsteroids {
                     attempts: PLACEMENT_ATTEMPTS,
                 });
             };
-            let kind = self.asteroid_kinds[stream.next_u32() as usize % self.asteroid_kinds.len()];
+            let kind =
+                self.asteroid_kinds[stream.next_u32() as usize % self.asteroid_kinds.len()].clone();
             asteroids.push(SectorAsteroid {
                 seed: asteroid_seed_from_id(&id),
                 id,
                 position,
                 radius,
-                kind: kind.to_string(),
+                kind,
             });
         }
         Ok(SectorManifest {
@@ -162,7 +161,9 @@ mod tests {
             body_count: 4,
             radius_min: Meters(30.0),
             radius_max: Meters(60.0),
-            asteroid_kinds: vec![KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON],
+            asteroid_kinds: [KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON]
+                .map(Into::into)
+                .to_vec(),
         }
     }
 
@@ -237,12 +238,12 @@ mod tests {
             "generator.asteroid_kinds",
         );
         let fault = validate(UniformAsteroids {
-            asteroid_kinds: vec![KIND_ROCK, "not_a_kind"],
+            asteroid_kinds: vec![KIND_ROCK.into(), "not_a_kind".into()],
             ..baseline()
         })
         .expect_err("an unshipped kind must refuse");
         assert!(
-            matches!(&fault, SectorFault::UnknownKind { kind } if kind == "not_a_kind"),
+            matches!(&fault, SectorFault::UnknownKind { kind } if kind.as_str() == "not_a_kind"),
             "an unshipped kind must be named, got {fault:?}"
         );
     }

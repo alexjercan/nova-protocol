@@ -473,7 +473,7 @@ fn the_drones_are_handicapped_and_the_trainer_cannot_be_shot_dry_of_its_gun() {
     let sections = crate::base_content::sections::section_catalog(&BaseContentAssets::from_paths());
     let gun_prototype = catalog
         .iter()
-        .find(|entry| entry.id == ships::BLOCK_PICKET_SHIP_ID)
+        .find(|entry| entry.id.as_str() == ships::BLOCK_PICKET_SHIP_ID)
         .and_then(|entry| entry.design.sections.iter().find(|s| s.id == TRAINER_GUN))
         .map(|s| match &s.source {
             SectionSource::Prototype { id, .. } => id.clone(),

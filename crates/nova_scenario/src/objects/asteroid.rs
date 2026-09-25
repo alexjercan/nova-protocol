@@ -18,7 +18,7 @@ use nova_ship::prelude::*;
 
 use super::{
     asteroid_carve::pristine_rock_mesh,
-    asteroid_kind::prelude::{asteroid_kind_look, AsteroidKind, ASTEROID_KINDS},
+    asteroid_kind::prelude::{asteroid_kind_look, AsteroidKind, AsteroidKindId, ASTEROID_KINDS},
     asteroid_surface::prelude::{AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt},
 };
 
@@ -69,9 +69,9 @@ pub struct AsteroidConfig {
     /// `metal`, `ice`, `carbon` and the `plain` control. There is no default
     /// and no fallback - a rock that does not say what it is fails to
     /// deserialize, and one that names a kind nobody ships is a lint error and
-    /// a loud refusal at render time. A body this big in the frame does not get
-    /// to be a shrug.
-    pub kind: String,
+    /// a loud refusal at spawn. A body this big in the frame does not get to
+    /// be a shrug.
+    pub kind: AsteroidKindId,
     /// The sound this rock's destruction plays. Authorable asset ref;
     /// AUTHORED-OR-SILENT, snapshotted into [`DestroySound`] on the same
     /// parent. Per-target, unlike the hit voice: a rock breaking up is one
@@ -333,7 +333,7 @@ pub fn asteroid_scenario_object_prepared(
         // Nested so the bundle stays inside the 15-element tuple limit. The
         // two are NOT one fact: the kind is how a rock is shaded, the surface
         // is what a round bites into, and every kind bites the same.
-        (AsteroidKind::new(kind), ImpactSurface::Rock),
+        (AsteroidKind(kind), ImpactSurface::Rock),
         AsteroidMass(config.mass),
         AsteroidSeed(seed),
         // What the rock returns to a scanner: a floor every rock clears
@@ -557,10 +557,10 @@ fn insert_asteroid_render(
     // same handle to a remeshed rock and to every piece it throws, so the kind
     // and the per-body jitter survive being shot at without anything having to
     // rebuild them.
-    // No house look for an id nobody ships: the lint refuses one statically and
-    // this refuses it again, because a mod loads content the lint never saw.
-    // The rock keeps its collider and gets no mesh, which is as loud as a
-    // content error can be made without taking the scenario down.
+    // No house look for an id nobody ships. The lint, the spawn actions and the
+    // world validator all refuse one before the rock exists; this is the
+    // backstop for a factory caller that skipped them. The rock keeps its
+    // collider and gets no mesh, and the log names the body and the id.
     let Some(look) = asteroid_kind_look(kind) else {
         error!(
             "insert_asteroid_render: asteroid {:?} is made of '{}', which is not a kind. \
@@ -1218,7 +1218,7 @@ mod tests {
     /// are in world units - a 200 m rock is 20 of them.
     fn rock(radius: Meters, mass: Option<f32>) -> AsteroidConfig {
         AsteroidConfig {
-            kind: KIND_ROCK.to_string(),
+            kind: KIND_ROCK.into(),
             destroy_sound: None,
             radius,
             texture: AssetRef::default(),

@@ -1322,7 +1322,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<GameSections>();
         world.insert_resource(GameShipDesigns(vec![ShipDesignPrototype {
-            id: "corvette".to_string(),
+            id: "corvette".into(),
             name: "Corvette".to_string(),
             design: ShipDesign {
                 sections: vec![SpaceshipSectionConfig {
@@ -1351,7 +1351,7 @@ mod tests {
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
                     design: ShipDesignSource::Prototype {
-                        id: "corvette".to_string(),
+                        id: "corvette".into(),
                         section_patches: [(
                             "fuselage".to_string(),
                             SpaceshipSectionConfigPatch {

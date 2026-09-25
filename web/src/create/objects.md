@@ -100,8 +100,8 @@ different questions, so a mod keeps its own rock texture and still picks a kind.
 
 **There is no default and no fallback.** A rock that does not say what it is
 made of fails to load, and one that names a kind nobody ships is a `content
-lint` error and a refusal to render. A body this big in the frame does not get
-to be a shrug.
+lint` error, and the scenario refuses to start. A body this big in the frame
+does not get to be a shrug.
 
 **Migrating an older file:** the field was called `material:` in 0.13.x - rename
 it to `kind:`, and nothing else about it changed. A file written for 0.12.0 or

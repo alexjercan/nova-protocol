@@ -670,7 +670,7 @@ mod tests {
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                         radius: Meters(70.0),
                         texture: default(),
-                        kind: KIND_ROCK.to_string(),
+                        kind: KIND_ROCK.into(),
                         destroy_sound: None,
                         mass: None,
                         seed: None,
