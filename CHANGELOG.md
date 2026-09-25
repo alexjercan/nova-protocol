@@ -58,6 +58,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A ship holding a completed `OrbitShip` ring no longer keeps its helm forever
   after the well is despawned or destroyed. The order retires and its AI flies
   again.
+- A second editor ship no longer drifts off along the row and crashes the game
+  when frames outrun physics steps; the row measures hull shapes, not the last
+  step's bounds.
 
 ### Internals & Tooling
 
