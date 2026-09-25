@@ -32,6 +32,10 @@ const MARK: f32 = 100.0;
 const STANDOFF: f32 = 5.0;
 
 #[derive(Deserialize)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "each catalog entry is parsed once and moved out"
+)]
 enum Entry {
     Section(SectionConfig),
     Ship(ShipDesignPrototype),

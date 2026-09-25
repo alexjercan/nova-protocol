@@ -277,7 +277,6 @@ pub(super) fn measure_docked_assemblies(
 /// skips both docked roots, so the loop is applied once. A held root's loop
 /// is ignored, and a driver with no live computer turns nothing: its pilot
 /// still has the drive.
-#[expect(clippy::type_complexity, reason = "one query per role")]
 pub(super) fn apply_docked_helm_wrench(
     q_connections: Query<&DockingConnection>,
     q_roots: Query<(
