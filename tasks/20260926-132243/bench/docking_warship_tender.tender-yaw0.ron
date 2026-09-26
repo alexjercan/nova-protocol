@@ -1,0 +1,67 @@
+// Variant of crates/nova_bench/scenarios/docking_warship_tender.content.ron for
+// task 20260926-132243: ONLY the tender pose differs. The tender is not yawed
+// and its origin is moved so its port_collar face still lands at (140, 0, 0),
+// 115 m from the warship's starboard_collar, exactly opposed. With an identity
+// tender rotation, avian 0.7's FromGlobal basis (basis * rot^-1) equals the
+// correct rot^-1 * basis whatever the warship's attitude.
+// Run this loose fixture as the yaw-zero control; do not install it as
+// authored gameplay content. The yawed fixture is
+// crates/nova_bench/scenarios/docking_warship_tender.content.ron.
+// The 115 m initial collar gap lets the warship turn for radar lock without
+// sweeping through the tender before DOCK; both are real multi-section hulls.
+[
+    Scenario((
+        id: "bench_docking_warship_tender",
+        name: "Bench: Warship and Tender",
+        description: "A Line Warship and a damaged frame tender, collars 115 m apart. No objective; the goal is yours.",
+        cubemap: "base/textures/cubemap.png",
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "key",
+                            name: "Key Light",
+                            position: (-460.0, 408.0, 360.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((red: 1.0, green: 0.96, blue: 0.9, alpha: 1.0)),
+                            shadows: false,
+                            aim: Some((60.0, 0.0, 15.0)),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player",
+                            name: "Line Warship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(id: "block_line_warship"),
+                            controller: Player((
+                                input_mapping: {},
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "tender",
+                            name: "Frame Tender",
+                            position: (165.0, 0.0, 30.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(id: "block_frame_tender_damaged"),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

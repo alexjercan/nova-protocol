@@ -39,7 +39,7 @@ cargo run --features debug bench play <scenario> --agent 'cmd:python3 my_agent.p
 ```
 
 `<scenario>` is an installed scenario id, or a path ending in `.ron` loaded
-as a loose content file. The bench ships five fixtures under `crates/nova_bench/scenarios/`:
+as a loose content file. The bench ships six fixtures under `crates/nova_bench/scenarios/`:
 
 - `hunt.content.ron`: one player gunship, one hostile inline raider parked 2600 m
   ahead, an objective and both outcomes. The scenario scores itself.
@@ -56,8 +56,11 @@ as a loose content file. The bench ships five fixtures under `crates/nova_bench/
 - `docking.content.ron`: the `docking_approach` example as a fixture. A
   tender with a port on its bow and an inert spar 120 m ahead, turned out of
   square, support docking and RCS goals; `me.docking` carries the approach.
+- `docking_warship_tender.content.ron`: the catalog Line Warship and an
+  inert damaged frame tender, their collars 115 m apart and 12 degrees out of
+  square, support docking captures between real multi-section hulls.
 
-The four sandboxes are bounded by `--ticks` and `--deadline`; a reader grades
+The five sandboxes are bounded by `--ticks` and `--deadline`; a reader grades
 the `end` block of the score and any recorded footage. The red-team rules are
 in `crates/nova_bench/scenarios/README.md`, and the goal deck itself is
 `scripts/bench-plays.sh`, which runs any of twelve named plays with its goal,

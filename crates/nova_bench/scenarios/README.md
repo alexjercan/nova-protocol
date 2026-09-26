@@ -37,6 +37,10 @@ appear in the scenario.
   degrees out of square, with the RCS and DOCK granted. Use it for docking,
   RCS and close-quarters tests. `me.docking` is the readout; the score's end
   row says `docked spar` or the gap the run ended at.
+- `docking_warship_tender.content.ron`: two catalog ships and a light. The
+  player's Line Warship has its starboard collar 115 m from the port collar
+  of an inert damaged frame tender, 12 degrees out of square. Use it for
+  captures between real multi-section hulls. It has no goal in the deck.
 
 ## Goal deck
 

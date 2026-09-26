@@ -1,0 +1,76 @@
+// A capture between two catalog ships, loaded loose, never installed:
+//   cargo run --features dev bench play \
+//       crates/nova_bench/scenarios/docking_warship_tender.content.ron \
+//       --agent pi --goal "..." --ticks 12000
+// No props, no combat, no gravity, no objective and no outcome: only the two
+// real multi-section hulls and a light, so a capture that goes wrong has no
+// other cause in the scene.
+//
+//   - the player flies `block_line_warship`. Its starboard_collar is cell
+//     (2, 0, 0) turned to face +X, so the port face stands 25 m to starboard
+//     of the hull's origin at (25, 0, 0);
+//   - the tender is `block_frame_tender_damaged`, neutral, with no
+//     controller. Its port_collar is cell (-2, 0, -3) turned to face -X, so
+//     its face stands at (-25, 0, -30) in the tender's frame;
+//   - the tender is yawed 12 degrees about Y, (0, sin 6, 0, cos 6), and its
+//     origin is placed so that face lands at (65, 0, 0): the two faces start
+//     on one line, 40 m apart and 12 degrees out of square, inside the 15
+//     degree facing gate and 30 m outside the 10 m gap gate.
+// The warship's port_collar faces -X, away from the tender, so the nearest
+// pair is starboard_collar to port_collar.
+[
+    Scenario((
+        id: "bench_docking_warship_tender",
+        name: "Bench: Warship and Tender",
+        description: "A Line Warship and a damaged frame tender, collars 40 m apart. No objective; the goal is yours.",
+        cubemap: "base/textures/cubemap.png",
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "key",
+                            name: "Key Light",
+                            position: (-460.0, 408.0, 360.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((red: 1.0, green: 0.96, blue: 0.9, alpha: 1.0)),
+                            shadows: false,
+                            aim: Some((60.0, 0.0, 15.0)),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player",
+                            name: "Line Warship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(id: "block_line_warship"),
+                            controller: Player((
+                                input_mapping: {},
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "tender",
+                            name: "Frame Tender",
+                            position: (95.69, 0.0, 24.15),
+                            rotation: (0.0, 0.104528, 0.0, 0.994522),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(id: "block_frame_tender_damaged"),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
