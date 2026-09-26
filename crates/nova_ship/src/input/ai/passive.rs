@@ -124,6 +124,7 @@ pub(super) fn update_passive_flight(
             Option<&FlightArrivalStandoff>,
             Option<&HullRadius>,
             Option<&ComputedCenterOfMass>,
+            Option<&DominantWell>,
             (Option<&DockedShip>, Option<&DockedAssembly>),
         ),
         // A ship under a scenario helm order does not fly its own routine:
@@ -166,6 +167,7 @@ pub(super) fn update_passive_flight(
         standoff,
         hull_radius,
         center_of_mass,
+        dominant,
         (docked, assembly),
     ) in &mut q_spaceship
     {
@@ -314,7 +316,11 @@ pub(super) fn update_passive_flight(
                     Some(assembly) => assembly.center_of_mass,
                     None => transform.translation,
                 };
-                let well = match wells.resolve(&directive.well, ranked_from) {
+                let well = match wells.resolve(
+                    &directive.well,
+                    ranked_from,
+                    dominant.map(|dominant| **dominant),
+                ) {
                     Ok(well) => well,
                     Err(fault @ WellTargetFault::Missing(_)) => {
                         debug_once!(

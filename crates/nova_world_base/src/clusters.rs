@@ -1680,11 +1680,12 @@ mod tests {
     /// Across several seeds, every hull placed in any cell a scanned cluster
     /// owns stands where its own cluster placed a rock or planetoid; and the
     /// scan holds such a hull placed across a face from its cluster's home
-    /// cell, and a hull whose companion is its own placed escort.
+    /// cell, a hull whose companion is its own placed escort, and a hull
+    /// skipped for want of a companion.
     #[test]
     fn every_placed_hull_has_a_companion_of_its_own_cluster_in_its_cell() {
-        let (mut away, mut escorted) = (0, 0);
-        for seed in [SEED, 1, 7, 42] {
+        let (mut away, mut escorted, mut alone) = (0, 0, 0);
+        for seed in [SEED, 0, 1, 7, 42] {
             let config = WorldConfig { seed, ..config() };
             let fields = EnvironmentFields::new(seed);
             let mut homes = BTreeMap::new();
@@ -1706,6 +1707,9 @@ mod tests {
             for coord in coords {
                 let plan = plan_sector(&fields, config.input(coord))
                     .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"));
+                alone += (plan.bodies.iter())
+                    .filter(|body| body.skipped == Some(SkipType::Companion))
+                    .count();
                 let placed = || plan.bodies.iter().filter(|body| body.skipped.is_none());
                 for body in placed() {
                     let BodySource::Hull(node, _) = body.source else {
@@ -1736,8 +1740,9 @@ mod tests {
             }
         }
         assert!(
-            away > 0 && escorted > 0,
-            "{away} hulls placed across a face from home, {escorted} beside only an escort"
+            away > 0 && escorted > 0 && alone > 0,
+            "{away} hulls placed across a face from home, {escorted} beside only an escort, \
+             {alone} skipped with no companion"
         );
     }
 
