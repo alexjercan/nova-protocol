@@ -1,6 +1,6 @@
 # Spike: stations, ship inventory, and the NOVA OS/UI direction
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.15.0,spike,ui,stations,inventory,design
 
@@ -10,6 +10,14 @@ it is now the highest-priority v0.15.0 spike. Epic: `20260921-231507`.
 
 This is a SPIKE. It produces decisions, recorded open choices, and child
 tasks. It does not implement stations, inventory, or the UI rework.
+
+Closed on 2026-09-26 after the owner accepted PR #77's UI look and split the
+remaining work into `20260926-174836` (breaking TAB/app/command migration) and
+`20260926-174806` (station/inventory research). PR #77 merged separately as
+`2bbd743ca`, an example-only sketch. Closing this research spike does not ship
+the new UI or approve station mechanics. The original direction and
+open-choice lists below record earlier research; the newer owner decision in
+"Closure and handoff" supersedes them where they conflict.
 
 ## What it explores
 
@@ -254,7 +262,37 @@ specifications now exist, but their classification and feature scope remain
   broader ship/service cast. These are research options, not new tasks or
   priority claims; they need measured cost and a coherent first loop.
 
-## Done when
+## Closure and handoff, 2026-09-26
+
+- **UI direction decided:** the themed, 3D map/ship and illustrative inventory
+  sketch in `UI-APP-VARIANTS.md` / PR #77 is the accepted *visual direction*.
+  Its fixture economy, stock, loot, repair, credits and contexts are not live
+  gameplay or approved service rules. PR #77 merged as `2bbd743ca`; the
+  example stays example-only and adds no gameplay runtime.
+- **Breaking input/interface decision:** TAB will open the new themed panels,
+  not the old NOVA OS computer. `:` must continue to open the command entry
+  with its existing capabilities. Migrate NOVA OS apps and commands into the
+  new interface and command entry; delete the old app host/CRT screen and
+  obsolete paths, adapters, aliases and defaults. No backward compatibility.
+  The earlier "terminal stays" and dedicated-key-versus-TAB choice above are
+  superseded by this decision; the command *capability* stays, not the old
+  terminal-first UI. The old command registry's split between launching apps
+  and performing gameplay actions needs a code-backed migration design in
+  `20260926-174836`, not an assumed rewrite of command effects.
+- **Station/inventory choices delegated:** station identity, visits, inventory
+  and market ownership, transaction/undock failure, repair/reload policy,
+  physical payoff and UI integration belong to `20260926-174806` with existing
+  `20260925-190219`. Persistent player/world mutations and shared save policy
+  remain with `20260925-190156`. Neither child inherits approved fixture
+  numbers or services. This is an explicit recorded open decision, not a
+  missing implementation claimed as done.
+- **Classification:** UI replacement is a v0.15.0 follow-up; station/inventory
+  mechanics remain v0.15.0 research, not a release commitment to implement.
+  Other child proposals and their candidate 1.0/nice-to-have/later categories
+  remain recorded above. The research handoff, not their delivery, closes the
+  spike.
+
+## Done when (original spike acceptance)
 
 - The current docking, UI, and theme seams are captured with verified
   `path:line` evidence, including what is absent.
