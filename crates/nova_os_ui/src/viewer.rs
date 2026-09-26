@@ -40,7 +40,7 @@ const ORBIT_DRAG_RADIANS_PER_PX: f32 = 0.0024;
 const ORBIT_ZOOM_PER_NOTCH: f32 = 0.12;
 
 /// The camera eye offset from the focus for a given orbit, on a Y-up sphere.
-pub(crate) fn orbit_eye(radius: f32, theta: f32, phi: f32) -> Vec3 {
+pub fn orbit_eye(radius: f32, theta: f32, phi: f32) -> Vec3 {
     let horizontal = radius * phi.cos();
     Vec3::new(
         horizontal * theta.sin(),
@@ -55,18 +55,18 @@ pub(crate) fn orbit_eye(radius: f32, theta: f32, phi: f32) -> Vec3 {
 /// feel in [`OrbitGesture::apply`] - every rate and rail the player can sense -
 /// is one testable answer instead of two copies inside two systems.
 #[derive(Clone, Copy, Default, PartialEq, Debug)]
-pub(crate) struct OrbitGesture {
+pub struct OrbitGesture {
     /// `novaos_orbit_left` held: turn the eye left around the focus.
-    pub(crate) turn_left: bool,
+    pub turn_left: bool,
     /// `novaos_orbit_right` held.
-    pub(crate) turn_right: bool,
+    pub turn_right: bool,
     /// `novaos_orbit_up` held: tilt the eye up off the focus plane.
-    pub(crate) tilt_up: bool,
+    pub tilt_up: bool,
     /// `novaos_orbit_down` held.
-    pub(crate) tilt_down: bool,
+    pub tilt_down: bool,
     /// The frame's mouse travel, in physical pixels, while the RIGHT button is
     /// down. `None` means it is up, and the drag contributes nothing.
-    pub(crate) drag: Option<Vec2>,
+    pub drag: Option<Vec2>,
 }
 
 impl OrbitGesture {
@@ -113,7 +113,7 @@ impl OrbitGesture {
     ///
     /// Applied straight to the angles, with no smoothing layer between the
     /// press and the camera.
-    pub(crate) fn apply(self, dt: f32, mut theta: f32, mut phi: f32) -> (f32, f32) {
+    pub fn apply(self, dt: f32, mut theta: f32, mut phi: f32) -> (f32, f32) {
         let turn = ORBIT_TURN_RATE * dt;
         if self.turn_left {
             theta += turn;
@@ -141,7 +141,7 @@ impl OrbitGesture {
 /// The bounds are the viewers' one deliberate difference here: the map's
 /// ceiling tracks the live contact spread (a fixed one left a contact 20 km out
 /// permanently off the map), the ship's is the fixed reach of a hull.
-pub(crate) fn zoom_radius(radius: f32, wheel: f32, min: f32, max: f32) -> f32 {
+pub fn zoom_radius(radius: f32, wheel: f32, min: f32, max: f32) -> f32 {
     (radius * (1.0 - wheel * ORBIT_ZOOM_PER_NOTCH)).clamp(min, max)
 }
 

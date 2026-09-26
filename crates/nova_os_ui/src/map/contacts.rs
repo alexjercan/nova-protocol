@@ -20,16 +20,22 @@ use crate::terminal::{NOVA_OS_AMBER, NOVA_OS_PHOSPHOR};
 
 /// What a map contact is, driving its color language and readout label.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum MapContactKind {
+pub enum MapContactKind {
+    /// The player ship.
     OwnShip,
+    /// A ship on the player's side.
     Ally,
+    /// A ship on the enemy side.
     Hostile,
+    /// A mission objective marker.
     Objective,
+    /// An asteroid, planet, or ship with no side.
     Terrain,
 }
 
 impl MapContactKind {
-    pub(crate) fn label(self) -> &'static str {
+    /// The upper-case kind word the readout and `map view` print.
+    pub fn label(self) -> &'static str {
         match self {
             MapContactKind::OwnShip => "OWN SHIP",
             MapContactKind::Ally => "ALLY",
@@ -106,18 +112,22 @@ pub struct MapContactCode(pub String);
 /// One plotted contact: its live world position plus range/bearing relative to
 /// the player ship.
 #[derive(Clone)]
-pub(crate) struct MapContact {
-    pub(crate) entity: Entity,
-    pub(crate) kind: MapContactKind,
+pub struct MapContact {
+    /// The contact's entity.
+    pub entity: Entity,
+    /// What the contact is.
+    pub kind: MapContactKind,
     /// The unique, typeable label (`SELF`, `HOST-1`, ...). Falls back to the
-    /// uppercased name until [`assign_map_contact_codes`] mints the real code.
-    pub(crate) code: String,
-    pub(crate) name: String,
-    pub(crate) world_pos: Vec3,
+    /// uppercased name until `assign_map_contact_codes` mints the real code.
+    pub code: String,
+    /// The contact's display name.
+    pub name: String,
+    /// The contact's live world position, in engine units.
+    pub world_pos: Vec3,
     /// Range from the player ship in world units - it is measured off live
     /// transforms. It crosses to meters where it is rendered, and the shared
     /// distance policy formats it from there.
-    pub(crate) range: f32,
+    pub range: f32,
     /// Bearing in the player's local frame: 0 dead ahead, +90 to starboard.
     pub(crate) bearing_deg: f32,
     /// Elevation ("mark") above/below the player's horizontal plane.
@@ -127,7 +137,7 @@ pub(crate) struct MapContact {
     /// [`BodyRadius`]. `None` is a nav point rather than a thing - an
     /// objective marker has a position and no size - and plots at the map's
     /// minimum dot.
-    pub(crate) radius: Option<f32>,
+    pub radius: Option<f32>,
 }
 
 impl MapContact {
@@ -320,7 +330,7 @@ impl MapContacts<'_, '_> {
     }
 
     /// Enumerate every contact with live range/bearing, own ship first.
-    pub(crate) fn collect(&self) -> Vec<MapContact> {
+    pub fn collect(&self) -> Vec<MapContact> {
         let (player_entity, player_pos, player_rot) = match self.player_frame() {
             Some(frame) => frame,
             None => (Entity::PLACEHOLDER, Vec3::ZERO, Quat::IDENTITY),

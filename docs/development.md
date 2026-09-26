@@ -254,8 +254,8 @@ What is on disk today, in reading order:
   selection ring, a focus turntable, pedestal and cell-frame toggles),
   `parts_viewer` (a paged grid, a focus turntable and a reassembled recipe ship
   with an explode toggle), `widget_zoo` (every `nova_ui` widget factory, live
-  and clickable in both skins), `ui_app_variants` (a clickable, themed sketch
-  of map, ship, inventory and docked screens over sample data),
+  and clickable in both skins), `ui_app_variants` (themed map, ship and
+  inventory screens over a paused fixture scenario, with orbitable 3D panes),
   `compare_asteroids` / `compare_planets` (the number keys re-dress the focus
   subject) and `asteroid_kinds` / `planet_types`
   (the whole authored range of each, side by side). Last, the mission-scale

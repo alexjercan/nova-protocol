@@ -161,8 +161,8 @@ path = "examples/playable/parts_viewer.rs"
 name = "widget_zoo"
 path = "examples/playable/widget_zoo.rs"
 
-# A clickable sketch of themed map, ship, inventory and docked screens over an
-# empty scenario. Sample data only: no live state and no working services.
+# Themed map, ship and inventory screens over a paused fixture scenario. Mock
+# station trade, loot and repair only: nothing docks, boards or changes play.
 [[example]]
 name = "ui_app_variants"
 path = "examples/playable/ui_app_variants.rs"

@@ -32,7 +32,10 @@ pub mod terminal;
 /// The 3D viewer the `map` and `ship` apps are two framings of: the orbit
 /// camera's math and feel, the wrapping selection cycle, and the unlit material
 /// their proxy meshes share. Crate-internal - it is how the two apps behave,
-/// not something a consumer configures.
+/// not something a consumer configures - except the pure orbit helpers
+/// ([`orbit_eye`](prelude::orbit_eye), [`OrbitGesture`](prelude::OrbitGesture),
+/// [`zoom_radius`](prelude::zoom_radius)) a viewer outside NOVA OS frames and
+/// moves the same scenes with.
 mod viewer;
 
 /// The pure terminal model this crate renders. Re-exported because the two are
@@ -49,7 +52,11 @@ mod pointer_rig;
 /// Glob-import surface: `use nova_os_ui::prelude::*`.
 pub mod prelude {
     pub use super::{
-        bindings::novaos_bindings, map::prelude::*, ship::prelude::*, terminal::prelude::*,
+        bindings::novaos_bindings,
+        map::prelude::*,
+        ship::prelude::*,
+        terminal::prelude::*,
+        viewer::{orbit_eye, zoom_radius, OrbitGesture},
         NovaOsUiPlugin,
     };
 }

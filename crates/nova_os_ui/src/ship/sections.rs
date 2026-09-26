@@ -170,13 +170,19 @@ pub(crate) fn assign_section_codes(
 /// this local/scene space, independent of where the ship is flying in world
 /// space), authored half-extents, integrity and ammo.
 #[derive(Clone)]
-pub(crate) struct ShipSectionView {
-    pub(crate) entity: Entity,
-    pub(crate) code: String,
-    pub(crate) kind: SectionClass,
-    pub(crate) name: String,
-    pub(crate) local: Transform,
-    pub(crate) half_extents: Vec3,
+pub struct ShipSectionView {
+    /// The section's entity.
+    pub entity: Entity,
+    /// The section's [`SectionCode`] (`HULL-3`).
+    pub code: String,
+    /// What the section is.
+    pub kind: SectionClass,
+    /// The section's display name, or its code when it has none.
+    pub name: String,
+    /// The section's transform in its ship's local space.
+    pub local: Transform,
+    /// Half the authored collider size, in engine units.
+    pub half_extents: Vec3,
     pub(crate) link_points: Vec<LinkPoint>,
     pub(crate) health: Option<Health>,
     pub(crate) ammo: Option<SectionAmmo>,
@@ -316,7 +322,7 @@ impl ShipSections<'_, '_> {
     }
 
     /// Collect the live sections, sorted by code for a stable order.
-    pub(crate) fn collect(&self) -> Vec<ShipSectionView> {
+    pub fn collect(&self) -> Vec<ShipSectionView> {
         let Some((ship, _)) = self.ship() else {
             return Vec::new();
         };

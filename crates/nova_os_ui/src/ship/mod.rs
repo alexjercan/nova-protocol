@@ -51,16 +51,23 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::InputBindings;
 use nova_os::prelude::*;
 
-pub use self::sections::SectionCode;
 pub(crate) use self::{app::*, rebind::*, scene::*, sections::*};
+pub use self::{
+    scene::{cuboid_edges, ease_orbit_center, ship_framing, SHIP_BLOCK_FILL_SCALE},
+    sections::{SectionCode, ShipSections},
+};
 use crate::bindings::hint;
 
 /// Glob-import surface: `use nova_os_ui::ship::prelude::*`.
 pub mod prelude {
-    // `sections::SectionCode` explicitly: `super::SectionCode` is reachable
-    // both `pub` (the re-export above) and `pub(crate)` (the module glob),
-    // which rustc rejects as an ambiguous import visibility.
-    pub use super::sections::SectionCode;
+    // Named by module path: each item is reachable both `pub` (here) and
+    // `pub(crate)` (the module glob above), which rustc rejects as an
+    // ambiguous import visibility through `super::`.
+    pub use super::{
+        scene::{cuboid_edges, ease_orbit_center, ship_framing, SHIP_BLOCK_FILL_SCALE},
+        sections::{SectionCode, ShipSections},
+        SHIP_RADIUS_MAX, SHIP_RADIUS_MIN,
+    };
 }
 
 /// The launch word / stable id of the ship app.
@@ -73,8 +80,11 @@ const SHIP_LAYER: usize = 22;
 /// camera (-30) so the two never share an order even mid-teardown.
 const SHIP_CAMERA_ORDER: isize = -31;
 
-const SHIP_RADIUS_MIN: f32 = 3.0;
-const SHIP_RADIUS_MAX: f32 = 400.0;
+/// Orbit-radius zoom clamp floor (world units from the center): close enough to
+/// read one section.
+pub const SHIP_RADIUS_MIN: f32 = 3.0;
+/// Orbit-radius zoom clamp ceiling: the fixed reach of a hull.
+pub const SHIP_RADIUS_MAX: f32 = 400.0;
 const SHIP_THETA_DEFAULT: f32 = 0.7;
 const SHIP_PHI_DEFAULT: f32 = 0.5;
 /// Exponential ease rate (1/s) for the orbit center chasing the selected
