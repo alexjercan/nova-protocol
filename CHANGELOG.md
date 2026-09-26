@@ -85,9 +85,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New opt-in `nova_world` crate: a plugin streams a 5x5x5 window of 32 km cells
   over one live scenario, filled by a sector generator whose bodies it checks
   before they spawn.
-- New `nova_world_base` crate grows rock, orbitable planetoid and derelict
-  clusters from three environment fields, and arms `nova_world` only while an
-  open-world scenario and one player ship are live.
+- New `nova_world_base` crate grows rock, 2-4 planetoid and rocky wreck
+  clusters from three fields, never a lone wreck in a cell, and arms
+  `nova_world` only while an open world has one player ship.
 - Two debug examples draw the world's environment fields: a CPU-sampled heatmap
   of one field on one plane, and a 3D cloud of where each field reads high with
   the clusters ringed.

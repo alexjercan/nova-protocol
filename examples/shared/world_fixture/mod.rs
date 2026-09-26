@@ -113,9 +113,9 @@ pub fn featured_world_config() -> WorldConfig<NovaLayeredWorld> {
 ///
 /// Chosen by a scan of the windows near the origin, not assumed: the window
 /// around the origin holds planetoids and derelict hulls, a cluster with a
-/// planetoid and one with a hull that each place bodies on both sides of a
-/// face, cells with a background scatter, empty cells, and rocks in the face
-/// a +X crossing retires.
+/// planetoid that places bodies on both sides of a face, cells with a
+/// background scatter, empty cells, and rocks in the face a +X crossing
+/// retires.
 pub const FEATURE_HOME: SectorCoord = SectorCoord::ORIGIN;
 
 /// The same seed, window and edge, filled by the example-owned clustered

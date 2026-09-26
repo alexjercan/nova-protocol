@@ -30,7 +30,7 @@
 //! | 2 | `outcome: a sector is the same sector in any visit order` | the 125 cells generated forward, backward and by stride give three identical canonical manifests, under both generators |
 //! | 3 | `outcome: invalid sector geometry refuses before materialization` | a finite config whose coordinate conversion overflows returns an error rather than a partial description |
 //! | 4 | `outcome: one cluster is one cluster from every sector that owns its bodies` | every cluster two or more cells own bodies of carries the same id, type, anchor, home and extent in each of them, and at least one cluster places bodies on both sides of a face |
-//! | 5 | `outcome: a sector's cluster and scatter counts add up to its manifest` | each cell's placed count is its manifest's object count and the sum of its clusters' and its scatter's, a cell with clusters counts every skip against one of them, and the window skips at least one body |
+//! | 5 | `outcome: a sector's cluster and scatter counts add up to its manifest` | each cell's placed count is its manifest's object count and the sum of its clusters' and its scatter's, every companion skip and escort is counted against a cluster, a cell with clusters counts every skip against one of them, and the window skips at least one body |
 //! | 6 | `outcome: only a sector with no cluster body draws a background scatter` | every cell that places background rocks owns no cluster body and places one to five of them, and the window holds at least one such cell |
 //! | 7 | `outcome: every physical object stands clear inside its own sector` | every rock, planetoid and ship's clearance sphere is wholly inside its owning cell and clears every other object in that cell by the placement margin |
 //! | 8 | `outcome: arming the stream materializes the whole desired set` | exactly the desired 5x5x5 set is live, one root each, every root scenario-scoped and owning exactly the objects its manifest names |
@@ -157,8 +157,9 @@ const ABANDONED_WORK: usize = 2;
 /// INSIDE the desired window around [`FEATURE_HOME`], unlike the abandoned
 /// cells: a completion the window still wants is the one a coordinate-keyed
 /// loop would accept, so this is the piece of work that would carry the old
-/// seed into the new world. The old seed puts rocks and a derelict here and
-/// [`REPLACEMENT_SEED`] two derelicts, so the two worlds name different objects.
+/// seed into the new world. The old seed puts asteroid-rich rocks here and
+/// [`REPLACEMENT_SEED`] a derelict field's rocks, so the two worlds name
+/// different objects.
 #[cfg(feature = "debug")]
 const REPLACED_JOB_CELL: SectorCoord = SectorCoord::new(0, 0, 0);
 
@@ -796,6 +797,8 @@ fn report_cluster_plan(world: &mut World) {
     let mut seen: BTreeMap<String, Vec<(SectorCoord, ClusterSummary)>> = BTreeMap::new();
     let mut skipped_face = 0;
     let mut skipped_clearance = 0;
+    let mut skipped_companion = 0;
+    let mut escorts = 0;
     let mut scatter_cells = 0;
     for coord in desired_sectors(FEATURE_HOME, config.active_radius) {
         let plan = sector_clusters(config.input(coord))
@@ -825,6 +828,16 @@ fn report_cluster_plan(world: &mut World) {
             .iter()
             .map(|cluster| cluster.skipped_clearance)
             .sum();
+        let cluster_companion: usize = plan
+            .clusters
+            .iter()
+            .map(|cluster| cluster.skipped_companion)
+            .sum();
+        let cluster_escorts: usize = plan.clusters.iter().map(|cluster| cluster.escorts).sum();
+        assert!(
+            cluster_companion == plan.skipped_companion && cluster_escorts == plan.escorts,
+            "world sectors: {coord} counts companion skips or escorts no cluster owns: {plan:?}"
+        );
         // A cell with clusters draws no scatter, so every skip it makes is a
         // cluster body's.
         if !plan.clusters.is_empty() {
@@ -835,6 +848,8 @@ fn report_cluster_plan(world: &mut World) {
         }
         skipped_face += plan.skipped_face;
         skipped_clearance += plan.skipped_clearance;
+        skipped_companion += plan.skipped_companion;
+        escorts += plan.escorts;
 
         if plan.background_rocks > 0 {
             assert!(
@@ -913,6 +928,8 @@ fn report_cluster_plan(world: &mut World) {
         serde_json::json!({
             "skipped_face": skipped_face,
             "skipped_clearance": skipped_clearance,
+            "skipped_companion": skipped_companion,
+            "escorts": escorts,
         }),
     );
     nova_probe::probe_marker(
@@ -922,8 +939,8 @@ fn report_cluster_plan(world: &mut World) {
     );
     info!(
         "world sectors: {} clusters ({}), {shared} of them placed in more than one cell; \
-         {skipped_face} face and {skipped_clearance} clearance skips; {scatter_cells} \
-         background scatters",
+         {skipped_face} face, {skipped_clearance} clearance and {skipped_companion} companion \
+         skips; {escorts} escorts; {scatter_cells} background scatters",
         seen.len(),
         ClusterType::ALL
             .iter()

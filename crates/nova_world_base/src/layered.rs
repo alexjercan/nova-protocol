@@ -49,8 +49,8 @@ pub struct NovaLayeredWorld;
 
 impl SectorGenerator for NovaLayeredWorld {
     /// Refuse an edge wider than the 128 km `SECTOR_EDGE_MAX`, one too narrow
-    /// to hold the widest pair of worlds or background scatter, and a
-    /// planetoid reach past the default surface gravity cap.
+    /// to hold the widest core of worlds or background scatter, and the
+    /// cluster bands `validate_cluster_geometry` refuses.
     fn validate(&self, geometry: WorldGeometry) -> Result<(), SectorFault> {
         if geometry.sector_edge > SECTOR_EDGE_MAX {
             return Err(SectorFault::Config {
@@ -83,35 +83,30 @@ mod tests {
         }
     }
 
-    /// The floor is set by the widest pair of worlds: two 1,272 m planetoids
-    /// at the outer twin offset, so the core reaches 3,023 m from its anchor
-    /// and a cell has to be twice that wide. Naming the pair tells a caller
-    /// what they would have to shrink.
+    /// The floor is set by the widest core of worlds: four 1,696 m planetoids
+    /// at the corners of a tetrahedron at the outer spacing, so the core
+    /// reaches 4,330 m from its anchor and a cell has to be twice that wide.
+    /// That is wider than the widest background scatter needs, so it is the
+    /// floor a narrow edge meets. Naming the core tells a caller what they
+    /// would have to shrink.
     #[test]
-    fn an_edge_too_narrow_to_hold_a_pair_of_worlds_is_refused() {
-        for edge in [Meters(1_000.0), Meters(6_000.0), Meters(6_045.0)] {
+    fn an_edge_too_narrow_to_hold_a_core_of_worlds_is_refused() {
+        for edge in [Meters(1_000.0), Meters(7_500.0), Meters(8_660.0)] {
             let fault = layered(edge)
                 .validate()
-                .expect_err("a cell narrower than its own pair of worlds must refuse");
+                .expect_err("a cell narrower than its own core of worlds must refuse");
             assert!(
                 matches!(
                     &fault,
                     SectorFault::Config { field: "sector_edge", value }
-                        if value.contains("pair of planetoids")
+                        if value.contains("core of planetoids")
                 ),
-                "a {edge:?} cell must refuse by naming the pair of planetoids, got {fault:?}"
+                "a {edge:?} cell must refuse by naming the core of planetoids, got {fault:?}"
             );
         }
-        let fault = layered(Meters(6_047.0))
-            .validate()
-            .expect_err("a cell wide enough for the worlds must still hold a scatter");
         assert!(
-            matches!(&fault, SectorFault::Config { value, .. } if value.contains("scatter")),
-            "got {fault:?}"
-        );
-        assert!(
-            layered(Meters(6_723.0)).validate().is_ok(),
-            "a cell just wide enough for a 3,361 m scatter must arm"
+            layered(Meters(8_661.0)).validate().is_ok(),
+            "a cell just wide enough for a 4,330 m core must arm"
         );
     }
 
