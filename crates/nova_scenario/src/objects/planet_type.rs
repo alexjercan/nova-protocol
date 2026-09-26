@@ -363,9 +363,11 @@ pub struct PlanetConfig {
     pub sea_level: Option<f32>,
     /// Well STRENGTH: the mass parameter making this body a gravity well.
     /// Same meaning and same units as
-    /// [`AsteroidConfig::mass`](super::asteroid::AsteroidConfig::mass), and
-    /// `None` falls back to the same global rule. Tune it by the sphere of
-    /// influence you want, not by a number that means anything on its own.
+    /// [`AsteroidConfig::mass`](super::asteroid::AsteroidConfig::mass). `None`
+    /// differs from a rock's: it is `GravitySettings::default_mass` when the
+    /// radius reaches `GravitySettings::min_well_radius`, and no well below
+    /// it. Tune it by the sphere of influence you want, not by a number that
+    /// means anything on its own.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")

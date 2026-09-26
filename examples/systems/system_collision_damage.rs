@@ -238,9 +238,8 @@ const PAIRS: [RamPair; 6] = [
 
 /// The rock the hull is flown into.
 ///
-/// Well under `GravitySettings::min_well_radius` and authored with no mass, so
-/// it stays a plain dynamic body: a designated well is put on rails and would
-/// pull the lanes either side of it out of shape.
+/// Authored with no mass, so it stays a plain dynamic body: a well is put on
+/// rails and would pull the lanes either side of it out of shape.
 const ROCK_RADIUS: Meters = Meters(40.0);
 
 /// How hard the destructive contact is.

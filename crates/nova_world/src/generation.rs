@@ -13,8 +13,9 @@ use std::collections::BTreeSet;
 use bevy::log::info_span;
 use nova_events::prelude::{Meters, Meters3};
 use nova_scenario::prelude::{
-    is_asteroid_kind, prepare_asteroid_geometry, prepare_planet, AsteroidKindId, PlanetConfig,
-    PreparedAsteroid, PreparedPlanet, ShipDesignId, ASTEROID_GEOMETRIC_FACTOR_MAX,
+    is_asteroid_kind, is_valid_asteroid_mass, prepare_asteroid_geometry, prepare_planet,
+    AsteroidKindId, PlanetConfig, PreparedAsteroid, PreparedPlanet, ShipDesignId,
+    ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
 use crate::{SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, WorldConfig};
@@ -32,6 +33,10 @@ pub struct SectorAsteroid {
     pub kind: AsteroidKindId,
     /// Its silhouette seed.
     pub seed: u32,
+    /// Its well mass, as `AsteroidConfig::mass`: `Some` makes a static well,
+    /// `None` a dynamic rock with no well. The generator decides; there is no
+    /// radius rule downstream.
+    pub mass: Option<f32>,
 }
 
 /// One generated planetoid: a real [`PlanetConfig`], not a big rock.
@@ -133,11 +138,11 @@ impl SectorDescription {
     /// same when this matches. Positions and radii are printed at centimeter
     /// resolution and yaw at a ten-thousandth of a radian, deliberately
     /// rounded, so the comparison is a fact about the generator and not about
-    /// the last bit of an f32. A planetoid's optional overrides - relief, sea
-    /// level, mass and lock signature - are authoring values, not placement:
-    /// they are printed exact, as the shortest text that reads back to the
-    /// same f32, and `None` prints apart from every `Some`. Rounding them
-    /// would call two different worlds the same one.
+    /// the last bit of an f32. A rock's mass and a planetoid's optional
+    /// overrides - relief, sea level, mass and lock signature - are authoring
+    /// values, not placement: they are printed exact, as the shortest text
+    /// that reads back to the same f32, and `None` prints apart from every
+    /// `Some`. Rounding them would call two different worlds the same one.
     pub fn canonical(&self) -> String {
         let point = |position: Meters3| {
             let p = position.get();
@@ -146,12 +151,13 @@ impl SectorDescription {
         let mut out = format!("{}\n", self.coord);
         for body in &self.asteroids {
             out.push_str(&format!(
-                "asteroid {} {} r{:.2} {} s{}\n",
+                "asteroid {} {} r{:.2} {} s{} mass {:?}\n",
                 body.id,
                 point(body.position),
                 body.radius.get(),
                 body.kind,
-                body.seed
+                body.seed,
+                body.mass
             ));
         }
         for planet in &self.planets {
@@ -265,8 +271,9 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// asked for; finite geometry; ids unique and prefixed with the cell's slug,
 /// so two cells never claim one object; every body standing inside its own
 /// cell with its whole clearance sphere, so retiring a neighbour never takes
-/// it; no two bodies overlapping; shipped asteroid kinds; and planet configs
-/// that [`PlanetConfig::validate`] accepts. How many bodies a generator places
+/// it; no two bodies overlapping; shipped asteroid kinds; asteroid masses
+/// that [`is_valid_asteroid_mass`] accepts; and planet configs that
+/// [`PlanetConfig::validate`] accepts. How many bodies a generator places
 /// and how far apart it spaces them is its own policy; this check only refuses
 /// what cannot be materialized. The ship design is only checked for a blank id
 /// here; the catalog lookup is main-thread work in `materialize_sector`.
@@ -277,7 +284,8 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// positive length, and [`SectorFault::InvalidGeometry`] for a cell whose
 /// centre has no finite position in meters;
 /// [`SectorFault::Manifest`] for the wrong cell, an object outside its cell or
-/// overlapping another, an id another cell owns, a planet config
+/// overlapping another, an id another cell owns, an asteroid mass
+/// [`is_valid_asteroid_mass`] refuses, a planet config
 /// [`PlanetConfig::validate`] refuses, or a blank ship design;
 /// [`SectorFault::InvalidGeometry`] for non-finite geometry;
 /// [`SectorFault::DuplicateId`] and [`SectorFault::UnknownKind`].
@@ -338,6 +346,9 @@ pub fn validate_manifest(
             return Err(SectorFault::UnknownKind {
                 kind: body.kind.clone(),
             });
+        }
+        if let Some(mass) = body.mass.filter(|mass| !is_valid_asteroid_mass(*mass)) {
+            return Err(refuse(&body.id, "mass", mass.to_string()));
         }
         let clearance = Meters(body.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
         stand_inside(input, &mut standing, &body.id, body.position, clearance)?;

@@ -1,8 +1,8 @@
 # Orbit: flying a ring
 
-A planet or a large rock has a gravity well. `me.gravity_well` names the body
-whose well you are inside, or is `null` in open space - roughly 3 km off a
-planetoid's surface.
+A planet or a rock given a mass has a gravity well. `me.gravity_well` names
+the body whose well you are inside, or is `null` in open space - roughly 3 km
+off a planetoid's surface.
 
 ## Taking a ring
 

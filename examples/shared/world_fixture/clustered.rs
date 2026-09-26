@@ -434,6 +434,7 @@ impl CellPlan {
                     position,
                     radius: *radius,
                     kind: (*kind).into(),
+                    mass: super::rock_mass(*radius),
                 }),
                 ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
                     id,
