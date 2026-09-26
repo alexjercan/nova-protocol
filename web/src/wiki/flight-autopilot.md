@@ -25,6 +25,14 @@ Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothin
 
 You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. Nothing caps your speed: a burn adds to the velocity you already carry, a held throttle keeps building it, and letting go keeps whatever you built rather than bleeding it back off. Turning the nose aims the next burn and nothing else - your velocity does not follow the hull around. Speed only comes off the way it went on, by burning against it: swing retrograde and burn, or press **STOP** and let the flight computer fly the braking for you. GOTO plans its own flight independently.
 
+### Chase camera zoom
+
+In normal flight and in <kbd>Alt</kbd> free look, the scroll wheel zooms the chase camera. Wheel up moves the camera closer. Wheel down moves it farther. The closest view is the ordinary framing. The farthest view sits several times farther back. The camera dollies along its arm; the field of view does not change.
+
+Normal flight and free look share one zoom level, and free look stays farther out than normal flight. The level lasts for the game session, so a mode switch or a respawn keeps it. It is not saved, and the HUD does not show it. A planned ORBIT opens at its own survey distance. The wheel adjusts from there, and it cannot go closer than the ordinary framing. Leaving ORBIT restores your earlier level.
+
+With weapons raised (hold the right mouse button) the wheel does not zoom. It steps the component [fine-lock](../targeting-radar/) instead, and the combat camera stays as it is. While you hold <kbd>Shift</kbd> for RCS, the wheel drives vertical thrust. The gamepad has no zoom gesture.
+
 ## The hull decides the handling
 
 Nothing about handling is authored; it falls out of the hull you built. A section weighs the box it is hit on, so a ship's mass is its shape. The main drive is whatever thrusters point forward, balanced through the live centre of mass so an asymmetric or battle-damaged layout still flies straight. And how hard the hull turns is the lower of two limits - what its flight computers can twist against the mass they swing, and what its own metal survives at 8 G out at the furthest section - so a small craft whips around, a hauler handles like the freighter it is, and a wreck that has lost its nose turns sharper than the whole ship did. The [Thruster](../sections/thruster/) and [Controller](../sections/controller/) pages put scopes and numbers on both halves.

@@ -179,10 +179,10 @@ pub(super) fn update_component_lock(
     }
 }
 
-/// Shared body of the cycle observers: step the fine lock through the locked
+/// Shared body of the cycle observers and the wheel: step the fine lock through the locked
 /// ship's attached sections in [`cycle_order`] and pin the choice for
 /// [`COMPONENT_PIN_WINDOW`] seconds.
-fn step_component_lock(
+pub(crate) fn step_component_lock(
     direction: isize,
     time: &Time,
     lock: &CombatLock,
@@ -223,12 +223,12 @@ fn step_component_lock(
     };
 }
 
-/// One scroll notch's step on the RCS vertical (Y, up/down) axis while RCS
-/// fine-adjust is held. A discrete nudge that the per-tick decay then bleeds
-/// off, so each notch is a transient burst rather than a persistent offset.
-/// Feel-tunable (raised 0.25 -> 0.75 in so scroll bites noticeably harder
-/// than the mouse).
-const RCS_SCROLL_STEP: f32 = 0.75;
+/// One scroll stream's or cycle key's step on the RCS vertical (Y, up/down)
+/// axis while RCS fine-adjust is held. A discrete nudge that the per-tick decay
+/// then bleeds off, so each step is a transient burst rather than a persistent
+/// offset. Feel-tunable (raised 0.25 -> 0.75 in so scroll bites noticeably
+/// harder than the mouse).
+pub(crate) const RCS_SCROLL_STEP: f32 = 0.75;
 
 pub(crate) fn on_component_cycle_next(
     _: On<Start<ComponentCycleNextInput>>,
@@ -253,9 +253,9 @@ pub(crate) fn on_component_cycle_next(
         return;
     }
     for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
-        // While RCS is held the wheel drives the RCS vertical axis (up = +Y)
-        // instead of stepping the component lock - the same "modifier decides"
-        // rule the CTRL layer uses for the ship lock (player.rs).
+        // While RCS is held the cycle keys drive the RCS vertical axis
+        // (next = +Y) instead of stepping the component lock, as the wheel
+        // does (`input::player::wheel`).
         if rcs_active {
             if let Some(mut intent) = rcs_intent {
                 intent.y = crate::flight::accumulate_rcs_axis(intent.y, RCS_SCROLL_STEP);
@@ -266,7 +266,7 @@ pub(crate) fn on_component_cycle_next(
     }
 }
 
-pub(super) fn on_component_cycle_prev(
+pub(crate) fn on_component_cycle_prev(
     _: On<Start<ComponentCyclePrevInput>>,
     time: Res<Time>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,

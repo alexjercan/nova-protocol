@@ -9,7 +9,7 @@ use nova_input::prelude::*;
 
 use super::{
     chase::ChaseCamera, framing::spaceship_camera_rig, handback::CameraHandbackBlend,
-    mode::SpaceshipCameraControlMode,
+    mode::SpaceshipCameraControlMode, zoom::ChaseZoom,
 };
 use crate::prelude::HullEnvelopeRadius;
 
@@ -88,11 +88,15 @@ pub struct SpaceshipRotationInputActiveMarker;
 /// (nothing has weighed a hull that is still assembling), and an unmeasured
 /// hull takes the authored composition - the same rig the per-frame system
 /// corrects on its first pass.
+///
+/// The rig opens at the session zoom level, and wheel lines left over from the
+/// previous life are dropped so the new life does not open with a dolly.
 pub(super) fn insert_camera_controller(
     add: On<Add, SpaceshipCameraController>,
     mut commands: Commands,
     q_camera: Query<Entity, With<SpaceshipCameraController>>,
     mode: Res<SpaceshipCameraControlMode>,
+    mut zoom: ResMut<ChaseZoom>,
     q_player: Query<&HullEnvelopeRadius, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     let entity = add.entity;
@@ -107,10 +111,16 @@ pub(super) fn insert_camera_controller(
     };
 
     let envelope = q_player.iter().next().map_or(0.0, |envelope| **envelope);
+    zoom.pending_lines = 0.0;
+    let level = if matches!(*mode, SpaceshipCameraControlMode::Turret) {
+        1.0
+    } else {
+        zoom.manual
+    };
 
     commands
         .entity(camera)
-        .insert(spaceship_camera_rig(&mode, envelope))
+        .insert(spaceship_camera_rig(&mode, envelope, level))
         // A fresh controller starts blend-free: a stale handback blend
         // surviving a death/respawn path that skipped the teardown would
         // play a wrong 0.45s swing on the first frame of the new life.
@@ -307,6 +317,43 @@ mod tests {
 
     use super::*;
     use crate::{camera::mode::on_rotation_input, input::bindings::camera_bindings};
+
+    /// A respawned camera opens at the session zoom level, still outside a
+    /// hull that does not fit the authored rig, and wheel lines left over from
+    /// the previous life are dropped.
+    #[test]
+    fn a_respawned_camera_opens_at_the_session_zoom() {
+        const CARRIER_ENVELOPE: f32 = 19.53;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<SpaceshipCameraControlMode>();
+        app.insert_resource(ChaseZoom {
+            manual: 3.0,
+            pending_lines: 2.0,
+            ..default()
+        });
+        app.add_observer(insert_camera_controller);
+        app.world_mut().spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            HullEnvelopeRadius(CARRIER_ENVELOPE),
+        ));
+        let camera = app.world_mut().spawn(SpaceshipCameraController).id();
+        app.update();
+
+        let cleared =
+            spaceship_camera_rig(&SpaceshipCameraControlMode::Normal, CARRIER_ENVELOPE, 1.0);
+        assert!(
+            cleared.offset.length()
+                >= CARRIER_ENVELOPE + super::super::CAMERA_HULL_CLEARANCE.to_engine() - 1e-4
+        );
+        assert_eq!(
+            app.world().get::<ChaseCamera>(camera).unwrap().offset,
+            cleared.offset * 3.0
+        );
+        assert_eq!(app.world().resource::<ChaseZoom>().pending_lines, 0.0);
+    }
 
     /// The look sensitivity drives the REAL camera rig, through the same
     /// `camera_rotate` action that normal steering, free look and turret aim

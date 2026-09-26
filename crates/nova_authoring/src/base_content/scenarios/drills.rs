@@ -551,8 +551,8 @@ fn gunnery(assets: &BaseContentAssets) -> ScenarioConfig {
                     clear_hint_emphasis(HINT_RADAR),
                     comms(
                         TRAINING,
-                        "That red lock is the weapon lock. Scroll the wheel to step the lock \
-                         onto one section, such as a drive or a turret.",
+                        "That red lock is the weapon lock. Raise your weapons and scroll the \
+                         wheel to step the lock onto one section, such as a drive or a turret.",
                     ),
                 ],
             ),

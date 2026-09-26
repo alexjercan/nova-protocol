@@ -22,6 +22,7 @@ pub mod intent;
 #[cfg(test)]
 pub(crate) mod test_support;
 mod weapons;
+mod wheel;
 
 use control::player_control_is_suspended;
 use flight_rig::{
@@ -43,6 +44,7 @@ use weapons::{
     on_turret_input_completed, RailgunInputMarker, ThrusterInputMarker, TorpedoInputMarker,
     TurretInputMarker,
 };
+use wheel::{on_wheel_step, on_wheel_zoom, WheelDownInput, WheelUpInput};
 
 pub(crate) use self::flight_rig::FlightInputMarker;
 pub use self::{
@@ -123,6 +125,10 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_observer(on_rcs_modifier_start);
         app.add_observer(on_rcs_modifier_released);
         app.add_observer(on_rcs_aim);
+        app.add_observer(on_wheel_step::<WheelUpInput>);
+        app.add_observer(on_wheel_step::<WheelDownInput>);
+        app.add_observer(on_wheel_zoom::<WheelUpInput>);
+        app.add_observer(on_wheel_zoom::<WheelDownInput>);
 
         app.add_input_context::<ThrusterInputMarker>();
         app.add_observer(on_thruster_input_binding);

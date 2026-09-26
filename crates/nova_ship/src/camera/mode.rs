@@ -240,6 +240,7 @@ mod tests {
     use crate::camera::{
         framing::{update_camera_rig, CAMERA_SMOOTHING},
         rig::PlayerInputMarker,
+        zoom::ChaseZoom,
         SpaceshipCameraController,
     };
 
@@ -253,6 +254,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.add_plugins(ChaseCameraPlugin);
         app.init_resource::<SpaceshipCameraControlMode>();
+        app.init_resource::<ChaseZoom>();
         app.add_systems(
             Update,
             (sync_spaceship_control_mode, update_camera_rig).chain(),
