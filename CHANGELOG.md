@@ -79,6 +79,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   `ShipDesignId` in every owning lookup. Authored RON is unchanged.
 - Agent Bench enforces post-run grace on persistent clients and rejects
   shared-key gestures that conflict with actions held from prior acts.
+- Agent Bench has a warship-tender docking sandbox: the catalog Line Warship
+  and an inert damaged frame tender, collars 115 m apart, for captures between
+  multi-section hulls.
 - Probe snapshot bodies and Agent Bench body records drop `invulnerable`. The
   body `kind` decides it: an `Asteroid` can be destroyed, a `Planet` cannot.
 - PR and master-push CI run a twelve-example probe smoke instead of the whole catalog. The complete sharded suite remains manual and gates every release platform build.
