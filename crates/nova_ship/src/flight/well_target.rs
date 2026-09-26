@@ -15,7 +15,8 @@
 //! `Transform` translation, the pose it steers from; an orderable root is
 //! top-level, so that is world space. A docked driver passes its pair's
 //! `DockedAssembly` centre of mass in both callers, and a docked root with no
-//! assembly ranks nothing.
+//! assembly ranks nothing. Both callers pass the root's own [`DominantWell`]:
+//! the gravity system measures dominance per root, not per docked pair.
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemParam, prelude::*};
@@ -35,11 +36,19 @@ pub enum WellTargetType {
     /// answers to an id an author wrote. Two addressable wells with the id are
     /// refused rather than picked between.
     Authored(String),
-    /// The loaded well whose surface is nearest the ship when the orbit
-    /// engages, among wells with a stable band ORBIT can plan.
+    /// The loaded well whose gravity owns the ship when the orbit engages,
+    /// else the loaded well whose surface is nearest the ship; either only
+    /// among wells with a stable band ORBIT can plan.
     ///
-    /// Any loaded well qualifies, streamed or authored. Ties on surface
-    /// distance fall to the lower [`EntityId`]; a tie on both is refused.
+    /// The ship's [`DominantWell`] wins when it has such a band: a ship
+    /// nearer a small world's surface but inside a big neighbour's stronger
+    /// pull circles the big one. With no dominant well, or one ORBIT cannot
+    /// plan a band around, the nearest surface wins. Any loaded well
+    /// qualifies, streamed or authored. Ties on surface distance fall to the
+    /// lower [`EntityId`]; a tie on both is refused.
+    ///
+    /// The pick does not make the ring safe: the band ORBIT plans around the
+    /// picked well can still cross a neighbour's sphere of influence or body.
     ///
     /// Ranked again at EVERY engage, not once per target: an ORBIT order
     /// resumed after an interruption and an AI routine back from a fight each
@@ -111,11 +120,13 @@ pub(crate) struct LiveWells<'w, 's> {
 
 impl LiveWells<'_, '_> {
     /// The one well `target` names in the live world for a ship at
-    /// `ship_position`.
+    /// `ship_position` whose gravity is owned by `dominant`, the ship's
+    /// [`DominantWell`].
     pub(crate) fn resolve(
         &self,
         target: &WellTargetType,
         ship_position: Vec3,
+        dominant: Option<Entity>,
     ) -> Result<Entity, WellTargetFault> {
         match target {
             WellTargetType::Authored(wanted) => {
@@ -157,6 +168,11 @@ impl LiveWells<'_, '_> {
                             .then_some((surface, id.0.as_str(), entity))
                     })
                     .collect();
+                if let Some(dominant) =
+                    dominant.filter(|dominant| ranked.iter().any(|(.., entity)| entity == dominant))
+                {
+                    return Ok(dominant);
+                }
                 ranked.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(b.1)));
                 let Some(&(surface, id, entity)) = ranked.first() else {
                     return Err(WellTargetFault::Missing(target.clone()));
@@ -207,7 +223,7 @@ mod tests {
 
     fn resolve(world: &mut World, target: WellTargetType) -> Result<Entity, WellTargetFault> {
         world
-            .run_system_once(move |wells: LiveWells| wells.resolve(&target, Vec3::ZERO))
+            .run_system_once(move |wells: LiveWells| wells.resolve(&target, Vec3::ZERO, None))
             .unwrap()
     }
 
@@ -243,10 +259,10 @@ mod tests {
         );
     }
 
-    /// The nearest target ranks every loaded orbitable well by surface
-    /// distance, addressable or not, breaks a distance tie by the lower id,
-    /// skips a well with no stable band or no placed position, and refuses a
-    /// tie on both.
+    /// With no plannable dominant well, the nearest target ranks every loaded
+    /// orbitable well by surface distance, addressable or not, breaks a
+    /// distance tie by the lower id, skips a well with no stable band or no
+    /// placed position, and refuses a tie on both.
     #[test]
     fn the_nearest_well_ranks_by_surface_then_id_and_refuses_a_full_tie() {
         let mut world = world();
@@ -256,15 +272,17 @@ mod tests {
         );
 
         // Closest centre, but no band ORBIT can plan: never a candidate.
-        world.spawn((
-            GravityWell {
-                mu: 100.0,
-                body_radius: 10.0,
-                soi_radius: 12.0,
-            },
-            EntityId::new("pebble"),
-            Position(Vec3::new(30.0, 0.0, 0.0)),
-        ));
+        let pebble = world
+            .spawn((
+                GravityWell {
+                    mu: 100.0,
+                    body_radius: 10.0,
+                    soi_radius: 12.0,
+                },
+                EntityId::new("pebble"),
+                Position(Vec3::new(30.0, 0.0, 0.0)),
+            ))
+            .id();
         // Spawned, but avian has not written its first `Position` yet.
         world.spawn((
             GravityWell::from_mass(2_400.0, 20.0, &GravitySettings::default()),
@@ -297,6 +315,15 @@ mod tests {
             "surface distance, not centre distance, and the streamed well counts"
         );
         assert_ne!(far, big);
+        assert_eq!(
+            world
+                .run_system_once(move |wells: LiveWells| {
+                    wells.resolve(&WellTargetType::NearestToShip, Vec3::ZERO, Some(pebble))
+                })
+                .unwrap(),
+            Ok(big),
+            "a dominant well with no band gives way to the nearest surface"
+        );
 
         let beta = well(&mut world, "beta", 40.0, false);
         let alpha = well(&mut world, "alpha", -40.0, false);
@@ -314,6 +341,71 @@ mod tests {
                 target: WellTargetType::NearestToShip,
                 count: 2,
             })
+        );
+    }
+
+    /// Two cluster worlds, 525 m and 1680 m, 4.1 km apart, each with the
+    /// 3.5-radii well the world generator gives a planetoid. A ship 1.2 km
+    /// from the small one is nearer its surface but inside the big one's
+    /// stronger pull. With no dominant well the nearest surface wins.
+    #[test]
+    fn the_nearest_well_is_the_well_whose_gravity_owns_the_ship() {
+        let mut world = world();
+        let settings = GravitySettings::default();
+        let planetoid = |world: &mut World, id: &str, x: f32, radius: f32| {
+            let soi = 3.5 * radius;
+            let well =
+                GravityWell::from_mass(settings.soi_cutoff_accel * soi * soi, radius, &settings);
+            let entity = world
+                .spawn((
+                    well.clone(),
+                    EntityId::new(id),
+                    Position(Vec3::new(x, 0.0, 0.0)),
+                ))
+                .id();
+            (entity, well, x)
+        };
+        let small = planetoid(&mut world, "small", 0.0, 52.5);
+        let big = planetoid(&mut world, "big", 410.0, 168.0);
+        let ship = Vec3::new(120.0, 0.0, 0.0);
+
+        let pulls: Vec<(Entity, f32)> = [&small, &big]
+            .iter()
+            .map(|(entity, well, x)| {
+                let accel = well_accel(
+                    well.mu,
+                    ship.distance(Vec3::new(*x, 0.0, 0.0)),
+                    well.body_radius,
+                    well.soi_radius,
+                    settings.fade_fraction,
+                    settings.surface_margin,
+                );
+                (*entity, accel)
+            })
+            .collect();
+        let owner = dominant_well(None, &pulls, settings.switch_hysteresis);
+        assert_eq!(owner, Some(big.0), "the big world's pull owns the ship");
+        assert!(
+            ship.distance(Vec3::X * small.2) - small.1.body_radius
+                < ship.distance(Vec3::X * big.2) - big.1.body_radius,
+            "the small world's surface is nearer"
+        );
+        let mut resolve = |dominant| {
+            world
+                .run_system_once(move |wells: LiveWells| {
+                    wells.resolve(&WellTargetType::NearestToShip, ship, dominant)
+                })
+                .unwrap()
+        };
+        assert_eq!(
+            resolve(owner),
+            Ok(big.0),
+            "ORBIT circles the well gravity gives the ship"
+        );
+        assert_eq!(
+            resolve(None),
+            Ok(small.0),
+            "outside every pull, the nearest surface wins"
         );
     }
 }
