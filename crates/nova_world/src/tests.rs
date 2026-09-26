@@ -1,11 +1,14 @@
 //! What the world refuses: a config nobody could generate from, a generator
 //! answer nobody could materialize, and a second generator in one app.
 //!
-//! Pure validation, so a unit test is the cheapest thing that observes it. The
-//! claim each one carries is that a bad input is a REFUSAL and never a silent
-//! fallback: an oversized window is not clamped, a rock outside its cell is
-//! not moved, and an unshipped kind id is not skipped. Each of those would put
-//! a world nobody authored in front of a player.
+//! Mostly pure validation, so a unit test is the cheapest thing that observes
+//! it. The claim each one carries is that a bad input is a REFUSAL and never a
+//! silent fallback: an oversized window is not clamped, a rock outside its
+//! cell is not moved, and an unshipped kind id is not skipped. Each of those
+//! would put a world nobody authored in front of a player.
+//!
+//! One test materializes a sector: the validator checks a rock's manifest mass
+//! but not that `materialize_sector` hands it on to the spawned rock.
 //!
 //! The generators here are test-local. The shipped policies live outside this
 //! crate - the base game's in `nova_world_base`, the uniform baseline with the
@@ -13,12 +16,17 @@
 
 use bevy::prelude::*;
 use nova_events::prelude::{Meters, Meters3};
-use nova_scenario::prelude::{PlanetConfig, PlanetType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK};
+use nova_gameplay::prelude::{AssetRef, GravityWell};
+use nova_scenario::prelude::{
+    AsteroidMass, AsteroidPlugin, GameShipDesigns, PlanetConfig, PlanetType,
+    ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
+};
 
 use crate::{
-    generate_sector, prepare_sector, sector_id, validate_manifest, NovaWorldPlugin, SectorAsteroid,
-    SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet,
-    SectorShip, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
+    generate_sector, materialize_sector, prepare_sector, sector_id, validate_manifest,
+    NovaWorldPlugin, SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput,
+    SectorGenerator, SectorManifest, SectorPlanet, SectorShip, WorldConfig, WorldGeometry,
+    ACTIVE_WINDOW_SECTORS_MAX,
 };
 
 /// The fixture generator's placement inset: its rocks stand at a quarter
@@ -454,6 +462,69 @@ fn canonical_text_tells_asteroid_masses_apart() {
             assert_ne!(text, other, "two different rock masses described the same");
         }
     }
+}
+
+/// A streamed rock is a well only when its manifest gives it a mass.
+/// `materialize_sector` is the one bridge from `SectorAsteroid::mass` to the
+/// spawned rock. That a well is static and a well-less rock dynamic is the
+/// asteroid factory's rule, proved in `nova_scenario`.
+#[test]
+fn a_materialized_rock_is_a_well_only_when_its_manifest_gives_it_mass() {
+    let prepared = prepare_sector(
+        answering(|input| {
+            let centre = input.coord.centre(input.geometry.sector_edge);
+            // By `ASTEROID_GEOMETRIC_FACTOR_MIN`, 60 m derives a surface of at
+            // least 210 m, so the surface-gravity cap stays above 4000 and the
+            // well keeps the mass.
+            let rock = |index: usize, offset: f32, mass: Option<f32>| SectorAsteroid {
+                id: sector_id(input.coord, "body", index),
+                position: centre + Meters3::new(offset, 0.0, 0.0),
+                radius: Meters(60.0),
+                kind: KIND_ROCK.into(),
+                seed: index as u32,
+                mass,
+            };
+            empty(
+                input.coord,
+                vec![rock(0, 0.0, Some(4_000.0)), rock(1, 1_000.0, None)],
+            )
+        }),
+        SectorCoord::ORIGIN,
+    )
+    .expect("two valid rocks must be prepared");
+
+    let mut app = App::new();
+    app.add_plugins(AsteroidPlugin { render: false });
+    let world = app.world_mut();
+    materialize_sector(
+        &mut world.commands(),
+        prepared,
+        &AssetRef::default(),
+        &GameShipDesigns::default(),
+    );
+    world.flush();
+    app.update();
+
+    let mut rocks = app
+        .world_mut()
+        .query::<(&Name, &AsteroidMass, Option<&GravityWell>)>();
+    let mut materialized: Vec<(String, Option<f32>, Option<f32>)> = rocks
+        .iter(app.world())
+        .map(|(name, mass, well)| (name.to_string(), **mass, well.map(|well| well.mu)))
+        .collect();
+    materialized.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        materialized,
+        vec![
+            (
+                sector_id(SectorCoord::ORIGIN, "body", 0),
+                Some(4_000.0),
+                Some(4_000.0)
+            ),
+            (sector_id(SectorCoord::ORIGIN, "body", 1), None, None),
+        ],
+        "each rock must carry its manifest mass, and only the massed one a well"
+    );
 }
 
 /// Exactly one generator per app. Two would stream two worlds over the same
