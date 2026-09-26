@@ -139,24 +139,19 @@ pub struct DominantWell(pub Entity);
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct GravitySettings {
-    /// Mass parameter (`mu`, u^3/s^2) a designated body gets when the
-    /// scenario does not author one. Fixed rather than radius-scaled - reach
-    /// and strength are properties of mass alone - which means it can only be
-    /// right for one size of body, so it is sized for the bodies that
-    /// ACTUALLY take it: the 50-80 m set-dressing rocks that clear
-    /// [`Self::min_well_radius`] without being anything a beat is built on
-    /// (every planetoid a player orbits authors its own mass). At 4 000 those
-    /// run 1.7-8.2 u/s^2 at their geometric surface and a ~126 u (1.26 km)
-    /// SOI, near the 6 u/s^2 / 8-radii well they used to get.
-    /// A much larger default would be clamped straight to
-    /// [`Self::max_surface_gravity`] on every one of them - a fixed mass on a
-    /// small body is a strong body. A body big enough for 4 000 to feel thin
-    /// is a body worth authoring.
+    /// Mass parameter (`mu`, u^3/s^2) a planet gets when the scenario does
+    /// not author one and its radius clears [`Self::min_well_radius`]. An
+    /// asteroid never takes it: a rock without an authored mass has no well.
+    /// Fixed rather than radius-scaled - reach and strength are properties of
+    /// mass alone - so 4 000 is a ~126 u (1.26 km) SOI on any body. A much
+    /// larger default would be clamped straight to
+    /// [`Self::max_surface_gravity`] on a small body - a fixed mass on a small
+    /// body is a strong body. A body big enough for 4 000 to feel thin is a
+    /// body worth authoring.
     pub default_mass: f32,
-    /// Bodies below this nominal radius (world units - the default 5.0 is the
-    /// 50 m a scenario authors) get no well by default; the 10-30 m field
-    /// rocks stay flat space. A scenario can still author a well onto a small
-    /// body explicitly.
+    /// Planets below this nominal radius (world units - the default 5.0 is
+    /// the 50 m a scenario authors) get no well by default. An asteroid
+    /// ignores it: its well comes from its authored mass alone.
     pub min_well_radius: f32,
     /// Acceleration (u/s^2) below which a well is treated as having no reach:
     /// the SOI is the distance at which `mu / r^2` decays to this. The one

@@ -331,8 +331,8 @@ kind in the directory, split across three modules with two plugins, carrying no
    first, a loud refusal on the load path second. It is never resolved to a
    house answer. An `Option` is right only where absence is a documented
    OVERRIDE with runtime-derived behavior behind it, and the field's own doc
-   comment says what the absence MEANS: `AsteroidConfig::mass` (absent = the
-   global rule about which radii are wells) and `lock_signature` (absent = the
+   comment says what the absence MEANS: `AsteroidConfig::mass` (absent = no
+   well, and the rock stays dynamic) and `lock_signature` (absent = the
    radius) are the shipped precedent. `AsteroidConfig::kind` is the
    counter-example: it is a plain required `String`, because "how is this rock
    shaded" has no runtime answer to fall back on.

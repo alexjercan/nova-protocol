@@ -184,10 +184,9 @@ pub fn planet_scenario_object_prepared(entity: &mut EntityCommands, prepared: Pr
 /// goes on rails (`RigidBody::Static`, overriding the bundle's Dynamic) so a
 /// hit cannot shove a well and drag every orbit in it along.
 ///
-/// Qualification differs in one way and it matters. A rock qualifies on its
-/// nominal radius against `min_well_radius`, because that number is the
-/// designation intent. A planet's radius is its real size, so an unmassed
-/// planet qualifies on the same threshold but means it literally.
+/// Qualification differs in one way and it matters. A rock without an
+/// authored mass has no well. An unmassed planet takes `default_mass` when its
+/// radius, which is its real size, reaches `min_well_radius`.
 fn insert_planet_gravity_well(
     add: On<Add, BodyRadius>,
     mut commands: Commands,

@@ -10,7 +10,7 @@ type name the `type_name` filters match:
 | kind | type name | body | what it is |
 |---|---|---|---|
 | [`Anchor`](#anchor) | `"anchor"` | static | invisible authored gravity well (framing/orbit target) |
-| [`Asteroid`](#asteroid) | `"asteroid"` | dynamic | destructible rock, optional gravity well |
+| [`Asteroid`](#asteroid) | `"asteroid"` | dynamic, static with a `mass` | destructible rock, optional gravity well |
 | [`Planet`](#planet) | `"planet"` | dynamic | a seeded WORLD: biomes, terrain, optional gravity well |
 | [`Spaceship`](#spaceship) | `"spaceship"` | dynamic | a multi-section ship, player- or AI-flown |
 | [`Beacon`](#beacon) | `"beacon"` | static | lockable nav marker with a HUD chip |
@@ -52,8 +52,8 @@ fires destruction events.
 
 ## Asteroid
 
-A noise-generated destructible rock. `radius` drives the mesh, collider,
-default mass and radar signature together. Every asteroid can be carved and
+A noise-generated destructible rock. `radius` drives the mesh, collider
+and radar signature together. Every asteroid can be carved and
 destroyed, its gravity well with it. A body that must last the whole scenario
 is a [planet](#planet).
 
@@ -61,7 +61,7 @@ is a [planet](#planet).
 |---|---|---|---|
 | `radius` | number | required | nominal radius in meters, and the rock's DURABILITY - see below. The true mesh extent reaches up to 6x this (matters for [`min_separation`](../actions/#scatterobjects)) |
 | `texture` | asset ref | required | the fine crevice GRAIN the kind modulates, not the rock's colour (`dep://base/textures/asteroid.png` is the stock one) |
-| `mass` | `Option` number | `None` | well STRENGTH (the parameter mu), an engine dial rather than an SI mass - see [Anchor](#anchor). `Some` ALWAYS makes this rock a well. Size it by the reach you want, which is metric: `mass = (soi / 20)^2` for an `soi` in meters, so the campaign planetoid's 27,000 buys 3.29 km. `None` = the global rule (a default mass only if the radius qualifies it as a well: below 50 m a rock stays flat space) |
+| `mass` | `Option` number | `None` | well STRENGTH (the parameter mu), an engine dial rather than an SI mass - see [Anchor](#anchor). `Some` makes this rock a well at any size and pins it static; `Some(0.0)` pins it with no pull. It must be finite and 0 or more, or lint and spawn refuse the rock. Size it by the reach you want, which is metric: `mass = (soi / 20)^2` for an `soi` in meters, so the campaign planetoid's 27,000 buys 3.29 km. `None` = no well at any size: the rock stays dynamic |
 | `kind` | string | required | the rock's KIND: `"rock"`, `"metal"`, `"ice"`, `"carbon"` or `"plain"`. It decides how the rock LOOKS - see [below](#what-a-rock-is-made-of). There is no default and no fallback |
 | `destroy_sound` | `Option` asset ref | `None` | played on destruction (`Some("dep://base/sounds/destroy_rock.wav")`); omitted = silent |
 | `lock_signature` | `Option` number | `None` | radar signature override, meters; `None` = 100 m plus half the rock's TRUE geometric radius (the meshed extent, not the nominal `radius` above), so a pebble is a close-range contact and a belt body a landmark. Lock range is thirty times the signature. Separately, and whatever the signature says, EVERY asteroid blocks radar: nothing behind it can be locked or detected while it is on the line - see [line of sight](#radar-line-of-sight) |
@@ -155,7 +155,7 @@ well lasts the whole scenario.
 | `planet_type` | type name | required | `BarrenRock`, `DustWorld`, `IceWorld`, `Volcanic`, `Greenhouse` or `Temperate`. A name outside that list is a LOAD ERROR, not a fallback |
 | `radius` | number | required | MEAN radius in meters, and the body's real size. Unlike a rock's nominal radius, the surface stands only `1 + relief` off this - a few percent - so this is very nearly what everything measures from |
 | `seed` | number | required | which world of that type: the biome in every band, the cap latitude, the palette tint and the terrain itself. Required on purpose - a landmark cannot be a body the engine picked for you |
-| `mass` | `Option` number | `None` | well STRENGTH, exactly as on an [asteroid](#asteroid): `mass = (soi / 20)^2` for an `soi` in meters. `None` = the global rule |
+| `mass` | `Option` number | `None` | well STRENGTH, exactly as on an [asteroid](#asteroid): `mass = (soi / 20)^2` for an `soi` in meters. `None` = a default 4,000 (a 1.26 km reach) when the radius is 50 m or more, and no well below that |
 | `relief` | `Option` number | `None` | how far the highest ground stands above the mean radius, in meters. `None` = the type's own (2% of the radius on a hazy greenhouse, 6% on a volcanic world). Must be positive and smaller than the radius |
 | `sea_level` | `Option` number | `None` | where the surface flattens into sea, as a fraction 0-1 of the height range. `Some(0.0)` drains a sea; `None` = the type's own (only `IceWorld` and `Temperate` have one) |
 | `lock_signature` | `Option` number | `None` | radar signature override in meters; `None` = ten times the outer surface radius (`radius * (1 + relief)`), which makes any world a landmark from anywhere a scanner reaches. A planet also blocks radar over its whole sphere - the largest piece of cover you can place - see [line of sight](#radar-line-of-sight) |

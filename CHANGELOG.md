@@ -45,6 +45,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `OrbitShip` `well` and AI `orbit` take `Authored("id")` or
   `NearestToShip`, the nearest loaded orbitable well. A bare id string fails
   to load; an unknown AI `orbit` id fails lint.
+- **(breaking)** An asteroid without `mass` has no gravity well and stays
+  dynamic at any size. `mass: Some(..)` makes a static well and must be finite
+  and 0 or more.
 
 ### Interface & HUD
 

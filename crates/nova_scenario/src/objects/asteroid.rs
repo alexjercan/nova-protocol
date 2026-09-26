@@ -1,8 +1,8 @@
 //! The asteroid scenario object: config, spawn bundle, mesh and texture
 //! selection, collider, and gravity well.
 //!
-//! Radius drives mass, gravity and collider together, so the scenario author
-//! sets one number rather than four that can disagree.
+//! Radius drives the mesh, collider and radar signature together, so the
+//! scenario author sets one number rather than three that can disagree.
 //!
 //! Touch this module when changing what an authored asteroid spawns as.
 
@@ -28,10 +28,10 @@ use super::{
 pub mod prelude {
     pub use super::{
         asteroid_scenario_object, asteroid_scenario_object_prepared, asteroid_seed_from_id,
-        prepare_asteroid_geometry, AsteroidConfig, AsteroidMarker, AsteroidMass, AsteroidPlugin,
-        AsteroidRadius, AsteroidRenderMesh, AsteroidSeed, AsteroidTexture, PlanetHeight,
-        PlanetHeightNoise, PreparedAsteroid, ASTEROID_GEOMETRIC_FACTOR_MAX,
-        ASTEROID_GEOMETRIC_FACTOR_MIN,
+        is_valid_asteroid_mass, prepare_asteroid_geometry, AsteroidConfig, AsteroidMarker,
+        AsteroidMass, AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSeed,
+        AsteroidTexture, PlanetHeight, PlanetHeightNoise, PreparedAsteroid,
+        ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
     };
 }
 
@@ -49,7 +49,7 @@ pub mod prelude {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AsteroidConfig {
-    /// Nominal radius; drives well qualification and mesh scale.
+    /// Nominal radius; drives mesh scale.
     pub radius: Meters,
     /// Surface texture. Authored as an asset path; resolved to a live handle
     /// at spawn time (see `insert_asteroid_render`).
@@ -84,12 +84,12 @@ pub struct AsteroidConfig {
     pub destroy_sound: Option<AssetRef<AudioSource>>,
     /// Well STRENGTH: the mass parameter `mu` making this body a gravity well:
     /// `a = mu / r^2`, and the sphere of influence is where that decays to
-    /// [`GravitySettings::soi_cutoff_accel`]. `Some` always makes this
-    /// asteroid a well (subject to the
-    /// [`GravitySettings::max_surface_gravity`] cap), even below the radius
-    /// threshold; `None` falls back to the global rule
-    /// ([`GravitySettings::default_mass`] when
-    /// `radius >= GravitySettings::min_well_radius`, no well otherwise).
+    /// [`GravitySettings::soi_cutoff_accel`]. `Some` makes this asteroid a
+    /// static well at any radius (subject to the
+    /// [`GravitySettings::max_surface_gravity`] cap); `Some(0.0)` pins it
+    /// static with no pull. `None` is no well: the rock stays dynamic at any
+    /// radius. [`is_valid_asteroid_mass`] decides what `Some` may hold; lint
+    /// and the spawn action refuse anything else.
     ///
     /// Tune this by the SOI you want, not by a number that means anything on
     /// its own: mass is invisible in game, the sphere of influence is what a
@@ -130,6 +130,13 @@ pub struct AsteroidConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub seed: Option<u32>,
+}
+
+/// Whether `mass` is a well mass an asteroid may carry: finite and 0 or
+/// more. Zero is a static pin with no pull. The one rule the lint, the spawn
+/// action, the streamed-sector check and the spawn builder share.
+pub fn is_valid_asteroid_mass(mass: f32) -> bool {
+    mass.is_finite() && mass >= 0.0
 }
 
 /// The silhouette seed an asteroid gets when its config authors none: a stable
@@ -285,7 +292,10 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
 ///
 /// When `geometry` was not prepared for this `seed` and this
 /// `config.radius`. The alternative is a rock drawn as one shape and collided
-/// as another, which nothing downstream can detect.
+/// as another, which nothing downstream can detect. Also when `config.mass`
+/// is a mass [`is_valid_asteroid_mass`] refuses: authored content and
+/// streamed sectors are checked before they get here, so only a Rust caller
+/// that skipped both can reach it.
 pub fn asteroid_scenario_object_prepared(
     entity: &mut EntityCommands,
     config: AsteroidConfig,
@@ -297,6 +307,11 @@ pub fn asteroid_scenario_object_prepared(
         config
     );
 
+    assert!(
+        config.mass.is_none_or(is_valid_asteroid_mass),
+        "asteroid_scenario_object_prepared: mass {:?} is not a finite mass of 0 or more",
+        config.mass
+    );
     assert!(
         geometry.seed == seed && geometry.radius == config.radius,
         "asteroid_scenario_object_prepared: geometry was prepared for seed {} at {} m, \
@@ -402,7 +417,7 @@ pub struct AsteroidTexture(#[reflect(ignore)] pub AssetRef<Image>);
 pub struct AsteroidRenderMesh(pub Mesh);
 
 /// The asteroid's authored NOMINAL radius (world units), carried on the root
-/// from [`AsteroidConfig::radius`]. Drives well qualification and mesh scale;
+/// from [`AsteroidConfig::radius`]. Drives mesh scale and carving;
 /// the true geometric extent is the separately derived `BodyRadius`.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidRadius(pub f32);
@@ -446,42 +461,36 @@ impl Plugin for AsteroidPlugin {
     }
 }
 
-/// Designate qualifying asteroids as gravity wells: an authored
-/// [`AsteroidMass`] always makes a well at that mass; otherwise big rocks
-/// (nominal radius at or above [`GravitySettings::min_well_radius`]) get a
-/// [`GravitySettings::default_mass`] well and the small field rocks stay flat
-/// space. Strength and SOI derive from the mass alone through
+/// Make every asteroid with an authored [`AsteroidMass`] a gravity well at
+/// that mass, at any radius; a rock without one stays flat space. Strength
+/// and SOI derive from the mass alone through
 /// [`GravityWell::from_mass`]; the GEOMETRIC [`BodyRadius`] the collider
 /// observer derives is passed rather than the nominal designation radius
 /// because it is the real surface - what the pull clamps at and what the
 /// escapability cap is measured against (a well sized on the nominal radius
 /// cannot contain an orbit band above the real surface - the 2026-07-10 "no
 /// stable band" regression). Triggering on
-/// `On<Add, BodyRadius>` is what sequences this after the collider derivation;
-/// qualification stays keyed on the nominal radius (the designation intent,
-/// seed-independent). The well goes on the asteroid root - which never carries
+/// `On<Add, BodyRadius>` is what sequences this after the collider
+/// derivation. The well goes on the asteroid root - which never carries
 /// `GravityAffected`, so wells stay one-way and the field cannot clump - and
 /// the source is put on rails (`RigidBody::Static`, overriding the asteroid
 /// bundle's Dynamic): a well that rams, blasts, or recoil could shove
 /// around would drag its SOI and every orbit in it along (spike option B,
-/// "bodies on rails"). Small well-less rocks stay dynamic.
+/// "bodies on rails"). Well-less rocks stay dynamic.
 fn insert_asteroid_gravity_well(
     add: On<Add, BodyRadius>,
     mut commands: Commands,
     settings: Res<GravitySettings>,
-    q_asteroid: Query<(&AsteroidRadius, &BodyRadius, &AsteroidMass), With<AsteroidMarker>>,
+    q_asteroid: Query<(&BodyRadius, &AsteroidMass), With<AsteroidMarker>>,
 ) {
     let entity = add.entity;
     // BodyRadius on non-asteroid entities is legitimate (any sized
-    // scenario object); only designated rocks become wells.
-    let Ok((radius, body_radius, authored)) = q_asteroid.get(entity) else {
+    // scenario object); only massed rocks become wells.
+    let Ok((body_radius, authored)) = q_asteroid.get(entity) else {
         return;
     };
-
-    let mu = match **authored {
-        Some(mass) => mass,
-        None if **radius >= settings.min_well_radius => settings.default_mass,
-        None => return,
+    let Some(mu) = **authored else {
+        return;
     };
 
     commands.entity(entity).insert((
@@ -1251,28 +1260,25 @@ mod tests {
     }
 
     #[test]
-    fn a_big_rock_gets_a_default_well_and_a_field_rock_gets_none() {
+    fn an_unmassed_rock_stays_dynamic_at_any_radius() {
         let mut app = gravity_app();
-        let settings = GravitySettings::default();
         let big = spawn_rock(&mut app, rock(Meters(200.0), None), 21);
         let small = spawn_rock(&mut app, rock(Meters(20.0), None), 22);
         app.update();
 
-        // The default mass, through the same constructor the observer uses,
-        // measured against the rock's OWN derived surface: qualification is
-        // on the nominal radius, the well's numbers are not.
-        let well = app.world().get::<GravityWell>(big).expect("big rock well");
-        let expected =
-            GravityWell::from_mass(settings.default_mass, body_radius(&app, big), &settings);
-        assert_eq!(well.mu, expected.mu);
-        assert_eq!(well.soi_radius, expected.soi_radius);
-        assert!(
-            app.world().get::<GravityWell>(small).is_none(),
-            "field rocks below the radius threshold stay flat space"
-        );
+        for rock in [big, small] {
+            assert!(
+                app.world().get::<GravityWell>(rock).is_none(),
+                "a rock without a mass is flat space at any radius"
+            );
+            assert_eq!(
+                app.world().get::<RigidBody>(rock),
+                Some(&RigidBody::Dynamic)
+            );
+        }
 
         // The lock scanner sees every rock in proportion to its TRUE
-        // geometric size, the same derived surface the well is sized on -
+        // geometric size, the same derived surface a well is sized on -
         // never the designation radius the author typed.
         for rock in [big, small] {
             assert_eq!(
@@ -1285,28 +1291,33 @@ mod tests {
                 > app.world().get::<LockSignature>(small).map(|s| **s),
             "a belt body is a landmark and a field pebble is a close-range contact"
         );
+    }
 
-        // Well sources go on rails so nothing can shove an SOI around;
-        // well-less rocks keep the base bundle's dynamic body.
+    #[test]
+    fn a_zero_mass_rock_is_a_static_well() {
+        let mut app = gravity_app();
+        let pin = spawn_rock(&mut app, rock(Meters(20.0), Some(0.0)), 23);
+        app.update();
+
+        let well = app.world().get::<GravityWell>(pin).expect("zero-mass well");
+        assert_eq!(well.mu, 0.0);
         assert_eq!(
-            app.world().get::<RigidBody>(big),
+            app.world().get::<RigidBody>(pin),
             Some(&RigidBody::Static),
-            "a well source must be static"
-        );
-        assert_eq!(
-            app.world().get::<RigidBody>(small),
-            Some(&RigidBody::Dynamic)
+            "a zero mass pins the rock"
         );
     }
 
     #[test]
-    fn an_authored_mass_overrides_the_threshold_and_is_capped() {
+    fn an_authored_mass_makes_a_static_well_and_is_capped() {
         let mut app = gravity_app();
         let settings = GravitySettings::default();
-        // Authored well on a rock below the threshold: still a well.
+        // A small rock with a mass is a well.
         let small = spawn_rock(&mut app, rock(Meters(20.0), Some(4.0)), 31);
         // Authored mass beyond the guardrail: capped, not honored.
         let hot = spawn_rock(&mut app, rock(Meters(200.0), Some(500_000.0)), 32);
+        // The mass the base world generator gives its 50 m and larger rocks.
+        let belt = spawn_rock(&mut app, rock(Meters(200.0), Some(4_000.0)), 33);
         app.update();
 
         let small_well = app
@@ -1322,5 +1333,19 @@ mod tests {
             hot_well.mu,
             settings.max_surface_gravity * surface * surface
         );
+        // Measured against the rock's OWN derived surface, through the same
+        // constructor the observer uses.
+        let belt_well = app.world().get::<GravityWell>(belt).expect("belt well");
+        let expected = GravityWell::from_mass(4_000.0, body_radius(&app, belt), &settings);
+        assert_eq!(belt_well.mu, expected.mu);
+        assert_eq!(belt_well.soi_radius, expected.soi_radius);
+
+        for rock in [small, hot, belt] {
+            assert_eq!(
+                app.world().get::<RigidBody>(rock),
+                Some(&RigidBody::Static),
+                "a well source must be static"
+            );
+        }
     }
 }

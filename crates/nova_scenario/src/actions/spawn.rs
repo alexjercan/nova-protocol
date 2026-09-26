@@ -128,7 +128,7 @@ pub enum ScenarioObjectKind {
     /// An invisible authored point publishing a deterministic gravity well
     /// (camera framing, orbit targets) with no mesh, collider, or BodyRadius.
     Anchor(AnchorConfig),
-    /// A destructible rock with a gravity well.
+    /// A destructible rock; a gravity well when it authors a mass.
     Asteroid(AsteroidConfig),
     /// A ship built from sections, with a controller (None/Player/AI).
     Spaceship(SpaceshipConfig),
@@ -157,6 +157,16 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                     "SpawnScenarioObject: asteroid '{}' is made of '{}', which is not a kind; \
                      nothing spawned. Author one of {:?}.",
                     self.base.id, asteroid.kind, ASTEROID_KINDS
+                );
+                return;
+            }
+            // The same gap for a mass: a NaN or negative `mu` would build a
+            // well no integrator can spend.
+            if let Some(mass) = asteroid.mass.filter(|mass| !is_valid_asteroid_mass(*mass)) {
+                error!(
+                    "SpawnScenarioObject: asteroid '{}' authors a mass of {mass}; nothing \
+                     spawned. Author a finite mass of 0 or more, or omit it for no well.",
+                    self.base.id
                 );
                 return;
             }
@@ -1657,6 +1667,46 @@ mod tests {
             ids.is_empty(),
             "a rock of an unknown kind spawns no entity: {ids:?}"
         );
+    }
+
+    /// A direct spawn refuses a mass no well can be built from, the same way
+    /// it refuses an unknown kind: nothing spawns.
+    #[test]
+    fn spawn_refuses_an_asteroid_with_an_invalid_mass() {
+        for mass in [-1.0, f32::NAN, f32::INFINITY] {
+            let mut world = World::new();
+            world.init_resource::<NovaEventWorld>();
+            world.init_resource::<GameObjectives>();
+            let config = ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "rock".to_string(),
+                    name: "Rock".to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    kind: KIND_ROCK.into(),
+                    destroy_sound: None,
+                    radius: Meters(20.0),
+                    texture: nova_gameplay::prelude::AssetRef::default(),
+                    mass: Some(mass),
+                    seed: None,
+                    lock_signature: None,
+                }),
+            };
+            {
+                let mut event_world = world.resource_mut::<NovaEventWorld>();
+                config.action(&mut event_world, &GameEventInfo::default());
+            }
+            drain(&mut world);
+
+            let mut spawned = world.query::<&EntityId>();
+            let ids: Vec<String> = spawned.iter(&world).map(|id| id.0.clone()).collect();
+            assert!(
+                ids.is_empty(),
+                "a rock with a mass of {mass} spawns no entity: {ids:?}"
+            );
+        }
     }
 
     /// Scatter is gameplay content, so it spawns the full authored count on

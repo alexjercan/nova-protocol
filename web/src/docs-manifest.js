@@ -76,7 +76,7 @@ const WIKI_PAGES = [
         category: "World",
         tags: ["flight", "world"],
         summary:
-            "Large asteroids pull ships and torpedoes with real inverse-square gravity; the dominant well is what the ORBIT autopilot flies around.",
+            "Planetoids and asteroids given a mass pull ships and torpedoes with real inverse-square gravity; the dominant well is what the ORBIT autopilot flies around.",
         related: ["flight-autopilot", "ships", "scenarios"],
         headings: ["The pull", "Sphere of influence", "The dominant well"],
     },

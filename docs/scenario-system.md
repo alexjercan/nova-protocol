@@ -722,7 +722,11 @@ Four engine facts the object configs do not show:
   `GravitySettings::soi_cutoff_accel` (0.25 u/s^2, which is 2.5 m/s^2), so a
   well is authored by the SOI it should have: `mu = soi_cutoff_accel * soi^2`,
   both terms engine-side. The inspection planetoid's 27 000 buys a 328.6 u
-  sphere of influence, and 328.6 u is the 3.29 km the HUD reads. An `Anchor`
+  sphere of influence, and 328.6 u is the 3.29 km the HUD reads. An asteroid
+  without a `mass` has no well at any radius and stays dynamic; any `Some`,
+  `Some(0.0)` included, makes a static well, and a negative or non-finite one
+  is a `content lint` error and a spawn refusal. A world generator writes the
+  mass of every rock it places. An `Anchor`
   publishes the same `GravityWell` from an AUTHORED radius instead of a
   mesh-derived one, which is what makes it deterministic where a carved rock is
   not.

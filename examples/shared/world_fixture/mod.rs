@@ -60,6 +60,19 @@ pub const EXAMPLE_SECTOR_EDGE: Meters = Meters(32_000.0);
 /// anywhere in the centre cell.
 pub const EXAMPLE_ACTIVE_RADIUS: i32 = 2;
 
+/// The nominal radius from which a rock the uniform and clustered generators
+/// place is a gravity well. Smaller rocks carry no mass and stay dynamic.
+const ROCK_WELL_RADIUS: Meters = Meters(50.0);
+
+/// The well mass (`mu`) a rock of [`ROCK_WELL_RADIUS`] or more carries.
+const ROCK_WELL_MASS: f32 = 4_000.0;
+
+/// The well mass of a generated rock of nominal `radius`: the example
+/// generators' policy, written out because a rock without a mass has no well.
+fn rock_mass(radius: Meters) -> Option<f32> {
+    (radius >= ROCK_WELL_RADIUS).then_some(ROCK_WELL_MASS)
+}
+
 /// The streaming baseline: every cell filled the same way from its own seed.
 ///
 /// Nothing about the WORLD can explain away a sector that failed to come up,

@@ -55,6 +55,7 @@ impl SectorGenerator for Rocks {
                 radius: self.radius_max,
                 kind: KIND_ROCK.into(),
                 seed: index as u32,
+                mass: None,
             })
             .collect();
         Ok(empty(input.coord, asteroids))
@@ -140,13 +141,14 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             radius: Meters(40.0),
             kind: KIND_ROCK.into(),
             seed: 7,
+            mass: None,
         }
     }
     let cases: [(
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 9] = [
+    ); 11] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
@@ -210,6 +212,24 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                 empty(input.coord, vec![body])
             },
             |fault| matches!(fault, SectorFault::UnknownKind { kind } if kind.as_str() == "obsidian"),
+        ),
+        (
+            "a rock with a negative mass",
+            |input| {
+                let mut body = rock(input, "body_0", 0.0);
+                body.mass = Some(-1.0);
+                empty(input.coord, vec![body])
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "mass", .. }),
+        ),
+        (
+            "a rock with a NaN mass",
+            |input| {
+                let mut body = rock(input, "body_0", 0.0);
+                body.mass = Some(f32::NAN);
+                empty(input.coord, vec![body])
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "mass", .. }),
         ),
         (
             "a planetoid whose well has a NaN mass",
@@ -282,6 +302,7 @@ fn bodies_closer_than_a_generator_margin_but_not_overlapping_are_accepted() {
                 radius: Meters(40.0),
                 kind: KIND_ROCK.into(),
                 seed: index as u32,
+                mass: None,
             };
             empty(input.coord, vec![rock(0, 0.0), rock(1, 580.0)])
         }),
@@ -311,6 +332,7 @@ fn populated(input: SectorGenerationInput, rocks: usize, count: usize) -> Sector
             radius: Meters(40.0),
             kind: KIND_ROCK.into(),
             seed: index as u32,
+            mass: None,
         })
         .collect();
     let mut manifest = empty(coord, asteroids);
@@ -401,6 +423,35 @@ fn every_planetoid_override_changes_the_canonical_description() {
     for (index, text) in described.iter().enumerate() {
         for other in &described[index + 1..] {
             assert_ne!(text, other, "two different planetoids described the same");
+        }
+    }
+}
+
+/// A rock's mass is part of "the same sector": no well, a zero-mass pin and
+/// two masses less than a hundredth apart describe four different cells.
+#[test]
+fn canonical_text_tells_asteroid_masses_apart() {
+    let input = rocks().input(SectorCoord::ORIGIN);
+    let described: Vec<String> = [None, Some(0.0), Some(4_000.0), Some(4_000.001)]
+        .into_iter()
+        .map(|mass| {
+            let body = SectorAsteroid {
+                id: sector_id(input.coord, "body", 0),
+                position: input.coord.centre(input.geometry.sector_edge),
+                radius: Meters(40.0),
+                kind: KIND_ROCK.into(),
+                seed: 7,
+                mass,
+            };
+            validate_manifest(input, empty(input.coord, vec![body]))
+                .expect("a valid rock must describe")
+                .canonical()
+        })
+        .collect();
+
+    for (index, text) in described.iter().enumerate() {
+        for other in &described[index + 1..] {
+            assert_ne!(text, other, "two different rock masses described the same");
         }
     }
 }

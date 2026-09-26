@@ -81,6 +81,14 @@ const CLUSTER_EXTENT_MAX: Meters = Meters(8_000.0);
 /// is spaced by.
 const ROCK_RADIUS: (Meters, Meters) = (Meters(30.0), Meters(60.0));
 
+/// The nominal radius from which a generated rock is a gravity well. Smaller
+/// rocks carry no mass and stay dynamic.
+const ROCK_WELL_RADIUS: Meters = Meters(50.0);
+
+/// The well mass (`mu`) a rock of [`ROCK_WELL_RADIUS`] or more carries: the
+/// ~1.26 km sphere of influence a 50-60 m rock is sized for.
+const ROCK_WELL_MASS: f32 = 4_000.0;
+
 /// The mean radius band a planetoid is drawn from.
 ///
 /// 600-1,200 m: big enough to read as a WORLD against a 60 m rock beside it,
@@ -434,6 +442,7 @@ impl SectorPlan {
                     position,
                     radius: *radius,
                     kind: (*kind).into(),
+                    mass: rock_mass(*radius),
                 }),
                 ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
                     id,
@@ -613,6 +622,12 @@ fn rock(environment: Environment, stream: &mut SeedStream) -> ClusterBody {
         radius: across(ROCK_RADIUS, stream.unit()),
         kind: rock_kind(environment, stream.unit()),
     }
+}
+
+/// The well mass of a generated rock of nominal `radius`: this generator's
+/// policy, written out because a rock without a mass has no well.
+fn rock_mass(radius: Meters) -> Option<f32> {
+    (radius >= ROCK_WELL_RADIUS).then_some(ROCK_WELL_MASS)
 }
 
 fn hull(environment: Environment, stream: &mut SeedStream) -> ClusterBody {
@@ -1475,5 +1490,24 @@ mod tests {
             }
         }
         assert!(planetoids > 0, "the scan must hold planetoids");
+    }
+
+    /// A streamed rock of 50 m or more carries the 4 000 well mass and a
+    /// smaller one carries none, and the window holds both.
+    #[test]
+    fn generated_rocks_carry_a_well_from_50_m() {
+        let (mut wells, mut free) = (0, 0);
+        for plan in window_plans().values() {
+            for rock in plan.manifest().asteroids {
+                if rock.radius >= Meters(50.0) {
+                    assert_eq!(rock.mass, Some(4_000.0), "{} at {:?}", rock.id, rock.radius);
+                    wells += 1;
+                } else {
+                    assert_eq!(rock.mass, None, "{} at {:?}", rock.id, rock.radius);
+                    free += 1;
+                }
+            }
+        }
+        assert!(wells > 0 && free > 0, "{wells} wells, {free} free rocks");
     }
 }

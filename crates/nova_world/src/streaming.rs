@@ -197,7 +197,7 @@ pub fn materialize_sector(
                 texture: texture.clone(),
                 kind: body.kind.clone(),
                 destroy_sound: None,
-                mass: None,
+                mass: body.mass,
                 lock_signature: None,
                 seed: Some(body.seed),
             },

@@ -141,6 +141,7 @@ impl SectorGenerator for UniformAsteroids {
                 position,
                 radius,
                 kind,
+                mass: super::rock_mass(radius),
             });
         }
         Ok(SectorManifest {
