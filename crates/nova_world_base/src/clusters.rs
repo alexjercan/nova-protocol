@@ -1625,9 +1625,9 @@ mod tests {
 
     /// A hull is placed beside a rock its own cluster placed in the cell
     /// without an escort; alone, it places the first escort that fits, before
-    /// itself, and counts each escort it tried first; and when no escort fits
-    /// - past the face, or over a rock of ANOTHER cluster, which is no
-    /// companion - it is skipped as companion and places nothing.
+    /// itself, and counts each escort it tried first. When no escort fits
+    /// (past the face or over a rock of another cluster), it is skipped as
+    /// companion and places nothing.
     #[test]
     fn a_hull_alone_in_its_cell_places_its_first_fitting_escort_or_is_skipped() {
         let input = config().input(SectorCoord::ORIGIN);
