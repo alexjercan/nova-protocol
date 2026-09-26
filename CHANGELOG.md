@@ -97,6 +97,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `world_clusters` example streams five kinds of asteroid, planetoid and
   derelict groups that cross sector faces, drawn from three noise fields, with
   a field heatmap and seam markers.
+- New `ui_app_variants` example: themed map, ship and inventory screens over a
+  paused fixture scenario, with orbitable 3D panes, a map legend, and mock
+  station trade, loot and repair.
 - Capture loops write `<loop>.webm` with a stereo Opus track from the engine's
   per-voice mix and pan, PCM peak cut to -1 dBFS before Opus, plus a v1
   `<loop>.jsonl` SFX sidecar and its samples.

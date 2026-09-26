@@ -181,6 +181,18 @@ mockup exist; any new visual is future design work.
   choice: none lets the player farm by retiring a sector, session resets on
   restart, save keeps the claim across restart.
 
+## UI sketch example, 2026-09-26
+
+`UI-APP-VARIANTS.md` records a playable, example-local sketch of themed map,
+ship and inventory screens: `examples/playable/ui_app_variants.rs`, with
+frames in `ui-app-variants/`. It runs over a paused fixture scenario with
+three mock contexts: undocked, at a mock station, and boarded on a parked
+raider. Station trade is paid, boarded loot is free, and repair works only at
+the station. All of it is example-local fixture state that changes no
+gameplay state. It adds no station, inventory, docking, boarding or UI
+runtime, content or schema, and leaves both open decisions above open. Its
+limits are listed in that file.
+
 ## Decisions the spike must reach or explicitly leave open
 
 - **What a station is**: a scenario object, a world object, or both; who

@@ -190,18 +190,7 @@ pub(crate) fn manage_ship_scene(
 
     let views = sections.collect();
     runtime.show_mates = false;
-    // Frame the whole ship: centroid of the section blocks + a radius that fits
-    // the furthest one.
-    let centroid = if views.is_empty() {
-        Vec3::ZERO
-    } else {
-        views.iter().map(|v| v.local.translation).sum::<Vec3>() / views.len() as f32
-    };
-    let extent = views
-        .iter()
-        .map(|v| (v.local.translation - centroid).length() + v.half_extents.max_element())
-        .fold(2.0_f32, f32::max);
-    let radius = (extent * 2.6).clamp(SHIP_RADIUS_MIN, SHIP_RADIUS_MAX);
+    let (centroid, radius) = ship_framing(&views);
 
     let image = images.add(new_render_target_image(UVec2::splat(64)));
     runtime.image = Some(image.clone());
@@ -311,6 +300,24 @@ pub(crate) fn manage_ship_scene(
     runtime.selected = views.first().map(|v| v.entity);
 }
 
+/// The whole-ship framing in ship-local space: the centroid of the sections
+/// and the orbit radius that fits the furthest one.
+pub fn ship_framing(views: &[ShipSectionView]) -> (Vec3, f32) {
+    let centroid = if views.is_empty() {
+        Vec3::ZERO
+    } else {
+        views.iter().map(|v| v.local.translation).sum::<Vec3>() / views.len() as f32
+    };
+    let extent = views
+        .iter()
+        .map(|v| (v.local.translation - centroid).length() + v.half_extents.max_element())
+        .fold(2.0_f32, f32::max);
+    (
+        centroid,
+        (extent * 2.6).clamp(SHIP_RADIUS_MIN, SHIP_RADIUS_MAX),
+    )
+}
+
 /// Keep the offscreen image sized 1:1 to the viewport node and patch the image
 /// handle onto the viewport.
 pub(crate) fn reconcile_ship_target(
@@ -345,13 +352,20 @@ pub(crate) fn drive_ship_camera(
     let Ok((mut transform, mut orbit)) = q_camera.single_mut() else {
         return;
     };
-    // Frame-rate-independent exponential ease of the center toward its target, so
-    // Keyed orbit + drag around the section being inspected.
-    let dt = time.delta_secs().max(1.0 / 240.0);
-    let alpha = 1.0 - (-SHIP_CENTER_EASE * dt).exp();
-    orbit.center = orbit.center.lerp(orbit.center_target, alpha);
+    orbit.center = ease_orbit_center(orbit.center, orbit.center_target, time.delta_secs());
     let eye = orbit.center + orbit_eye(orbit.radius, orbit.theta, orbit.phi);
     *transform = Transform::from_translation(eye).looking_at(orbit.center, Vec3::Y);
+}
+
+/// One frame of the orbit center chasing `target` over `dt` seconds.
+///
+/// A frame-rate independent exponential ease (`1 - exp(-k * dt)`), so a
+/// selection glides the view onto the section instead of jumping to it. `dt`
+/// is floored at 1/240 s: NOVA OS runs over paused virtual time, whose delta is
+/// zero, and the view must still move there.
+pub fn ease_orbit_center(center: Vec3, target: Vec3, dt: f32) -> Vec3 {
+    let alpha = 1.0 - (-SHIP_CENTER_EASE * dt.max(1.0 / 240.0)).exp();
+    center.lerp(target, alpha)
 }
 
 /// Read the keyboard/mouse while the ship app owns the screen: orbit, cycle the
@@ -630,9 +644,9 @@ pub(crate) const SHIP_BLIP_BORDER_PX: f32 = 2.0;
 /// on the dot's outer right edge, so dot and label are one unbroken hit target
 /// (NOTE: `left: 14` leaves a 4 px dead band here).
 pub(crate) const SHIP_LABEL_LEFT_PX: f32 = SHIP_BLIP_PX - SHIP_BLIP_BORDER_PX;
-/// Fraction of the collider a block's green body fills; the remainder is the gap
-/// to its neighbours that the bright outline frames.
-pub(crate) const SHIP_BLOCK_FILL_SCALE: f32 = 0.86;
+/// Fraction of the collider a block's body fills; the remainder is the gap to
+/// its neighbours that the bright outline frames.
+pub const SHIP_BLOCK_FILL_SCALE: f32 = 0.86;
 
 pub(crate) fn spawn_ship_blip(
     commands: &mut Commands,
@@ -915,7 +929,7 @@ pub(crate) fn mate_edges_mesh(views: &[ShipSectionView]) -> Option<Mesh> {
 /// its neighbours. NORMAL and UV attributes are filled with placeholders: the
 /// outline material is `unlit` and ignores them, but the mesh pipeline still
 /// binds those vertex attributes.
-pub(crate) fn cuboid_edges() -> Mesh {
+pub fn cuboid_edges() -> Mesh {
     let c = 0.5;
     let corners = [
         Vec3::new(-c, -c, -c),
