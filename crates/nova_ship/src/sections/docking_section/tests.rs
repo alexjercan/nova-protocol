@@ -331,7 +331,7 @@ fn a_dock_between_a_pitched_and_a_yawed_hull_holds_the_capture_pose() {
         })
         .expect("the capture pose reads");
 
-    // One step, so avian has already resolved a global frame by now.
+    // Advance the app once so the new joint is processed before inspection.
     app.world_mut().trigger(DockingConnectionRequest {
         entity: first,
         target: second,

@@ -96,9 +96,12 @@ replayed. The replay is close, not byte-identical, with no weapons in play.
 
 ## Verdict and remaining gaps
 
-No violent capture was reproduced: 6 accepted captures at the gap, speed,
-facing and spin edges, and at hull contact, with zero damage. This does NOT
-show that the bug is absent. Untested:
+The initial upright bounded search did not reproduce a violent capture: 6
+accepted captures at the gap, speed, facing and spin edges, and at hull
+contact, with zero damage. The later pitched-over R2 capture below DID
+reproduce it and the local-frame fix below prevents that failure. This
+initial negative search did not establish the absence of the bug. Still
+untested in these upright runs:
 
 - Flying the docked pair (`flight.dock_helm`), undocking (second DOCK), and
   release by damage. All runs kept the helm neutral.

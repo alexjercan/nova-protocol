@@ -16,7 +16,7 @@
 
 ### Earlier notes
 
-- `crates/nova_ship/src/sections/docking_section/connection.rs` selects port pairs and spawns a `FixedJoint` from the current face midpoint and ship basis; `port.rs` owns the capture gates. A joint and the collision solver may interact at capture, but the reported blast has not been reproduced or attributed.
+- Before the pitched-over runs, `connection.rs` was known to select port pairs and build a `FixedJoint` from the face midpoint and ship basis, while `port.rs` owned the gates; the joint/contact interaction was then unproven. The reproduced failure and approved fix are recorded above.
 - `examples/systems/system_docking_ports.rs` proves controlled joint capture and helm handoff, not edge-case geometry, real multi-section colliders, or an intermittent high-energy event.
 - `crates/nova_bench/scenarios/docking.content.ron` is a loose, hand-built tender/spar fixture and `crates/nova_bench/src/pages/docking.md` explains the shipped face-gap, facing and relative-motion gates. Open-world catalog ships include `block_line_warship` and a damaged frame tender with a docking collar; identify the actual IDs and intact collar before authoring any focused fixture.
 
