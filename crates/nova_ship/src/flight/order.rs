@@ -451,6 +451,7 @@ pub(super) fn drive_ship_orders(
             Has<ShipOrderEngaged>,
             Has<ScriptedAlignSettled>,
             Has<ShipOrderReported>,
+            Option<&DominantWell>,
             (Option<&DockedShip>, Option<&DockedAssembly>),
         ),
         (With<SpaceshipRootMarker>, With<ShipOrderHelmAuthority>),
@@ -484,6 +485,7 @@ pub(super) fn drive_ship_orders(
         engaged,
         settled,
         reported,
+        dominant,
         (docked, assembly),
     ) in &mut q_ships
     {
@@ -495,7 +497,8 @@ pub(super) fn drive_ship_orders(
         // measured again: its root alone is not where the pair is.
         //
         // A docked driver ranks a nearest well from the pair's centre of
-        // mass, the point the ORBIT autopilot flies it from.
+        // mass, the point the ORBIT autopilot flies it from. Its dominant
+        // well is the root's own: gravity measures dominance per root.
         let ship_position = match (docked, assembly) {
             (Some(docked), _) if !docked.drives => continue,
             (Some(_), None) => {
@@ -522,6 +525,7 @@ pub(super) fn drive_ship_orders(
                 &mut commands,
                 &wells,
                 ship_position,
+                dominant.map(|dominant| **dominant),
                 &mut q_thruster_input,
                 &q_standoff,
             ) {
@@ -647,6 +651,7 @@ pub(super) fn drive_ship_orders(
                     &mut commands,
                     &wells,
                     ship_position,
+                    dominant.map(|dominant| **dominant),
                     &mut q_thruster_input,
                     &q_standoff,
                 ) {
@@ -672,6 +677,7 @@ fn engage_leg(
     commands: &mut Commands,
     wells: &LiveWells,
     ship_position: Vec3,
+    dominant: Option<Entity>,
     q_thruster_input: &mut Query<
         (&mut ThrusterSectionInput, &ChildOf),
         With<ThrusterSectionMarker>,
@@ -743,7 +749,7 @@ fn engage_leg(
         }
         ShipOrderDirective::Orbit { well } => {
             let entity = wells
-                .resolve(well, ship_position)
+                .resolve(well, ship_position, dominant)
                 .map_err(|fault| fault.to_string())?;
             commands
                 .entity(ship)

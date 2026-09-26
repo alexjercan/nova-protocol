@@ -1031,7 +1031,7 @@ OrbitShip((order: "park", ship: "surveyor", well: NearestToShip)),
 |---|---|---|---|
 | `order` | string | required | the key this order's completion is reported under |
 | `ship` | string | required | scoped `None`- or AI-controller ship root |
-| `well` | `Authored(id)` or `NearestToShip` | required | `Authored` names one gravity-well object this scenario spawned; a dangling id is a lint Error. `NearestToShip` takes the loaded well with a stable ring whose surface is nearest the ship when the order engages, streamed wells included. An order resumed after an interruption picks again and can take another well |
+| `well` | `Authored(id)` or `NearestToShip` | required | `Authored` names one gravity-well object this scenario spawned; a dangling id is a lint Error. `NearestToShip` takes, among loaded wells with a stable ring, the one whose gravity owns the ship when the order engages, else the one whose surface is nearest, streamed wells included. The ring can still cross a neighbouring world. An order resumed after an interruption picks again and can take another well |
 
 Completes with `kind: Orbit` the moment the ring is ESTABLISHED - the ship is
 in the band and holding - and then keeps holding it, the same way

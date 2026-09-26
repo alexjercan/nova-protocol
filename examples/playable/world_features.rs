@@ -5,13 +5,14 @@
 //! streaming lifetime with every cell filled the same way, so a missing sector
 //! is obvious. This one flies the base game's own world: clusters decided on a
 //! global 50 km lattice from three environment fields - asteroid-rich,
-//! rock-only, planet-heavy and derelict-only places, each within 8 km of its
+//! rock-only, planet-heavy and derelict-field places, each within 8 km of its
 //! anchor - and, in a few cells that own no cluster body, a small background
-//! scatter of rocks.
+//! scatter of rocks. A wreck is streamed only beside a rock or world of its
+//! own cluster in its own cell.
 //!
 //! What a human is here to judge is the part a headless assert cannot: whether
 //! the world reads as PLACES - an empty run of cells, then a rock field, then
-//! a pair of worlds with rocks around them, then a wreck field - or as noise
+//! two to four worlds with rocks around them, then a wreck field - or as noise
 //! scattered evenly over a grid. `system_world_sectors` owns the counts and the
 //! identities.
 //!
@@ -29,7 +30,7 @@
 //! | amber | an asteroid-rich cluster |
 //! | orange | a rock-only cluster |
 //! | cyan | a planet-heavy cluster |
-//! | magenta | a derelict-only cluster |
+//! | magenta | a derelict field |
 //!
 //! A ring is drawn at the cluster's anchor with its true extent. The cell the
 //! anchor stands in draws it bright and every other cell that owns one of its
@@ -246,7 +247,7 @@ fn cluster_colour(cluster_type: ClusterType) -> Srgba {
         ClusterType::AsteroidRich => tailwind::AMBER_400,
         ClusterType::RockOnly => tailwind::ORANGE_600,
         ClusterType::PlanetHeavy => tailwind::CYAN_400,
-        ClusterType::DerelictOnly => tailwind::FUCHSIA_400,
+        ClusterType::DerelictField => tailwind::FUCHSIA_400,
     }
 }
 
@@ -341,7 +342,7 @@ fn update_readout(
                 .collect::<Vec<_>>()
                 .join(", ");
             let owned = format!(
-                "owns {}{}; placed {}, skipped {} face / {} clearance",
+                "owns {}{}; placed {} ({} escorts), skipped {} face / {} clearance / {} companion",
                 if clusters.is_empty() {
                     "no cluster body".to_string()
                 } else {
@@ -353,8 +354,10 @@ fn update_readout(
                     String::new()
                 },
                 plan.placed,
+                plan.escorts,
                 plan.skipped_face,
                 plan.skipped_clearance,
+                plan.skipped_companion,
             );
             (fields, owned)
         },
@@ -408,7 +411,7 @@ fn report_census(
 
     let mut clusters = std::collections::BTreeMap::new();
     let (mut empty, mut owning, mut scattered) = (0usize, 0usize, 0usize);
-    let (mut face, mut clearance) = (0usize, 0usize);
+    let (mut face, mut clearance, mut companion, mut escorts) = (0usize, 0usize, 0usize, 0usize);
     for (_, plan) in &roots {
         let plan = &plan.0;
         for cluster in &plan.clusters {
@@ -423,6 +426,8 @@ fn report_census(
         }
         face += plan.skipped_face;
         clearance += plan.skipped_clearance;
+        companion += plan.skipped_companion;
+        escorts += plan.escorts;
     }
 
     let census = ClusterType::ALL
@@ -434,7 +439,8 @@ fn report_census(
     info!(
         "world features: window at {} ({} of {} cells live): clusters {census}; \
          {owning} cells own cluster bodies, {scattered} hold a scatter, {empty} empty; \
-         skipped {face} at a face, {clearance} for clearance",
+         placed {escorts} escorts; skipped {face} at a face, {clearance} for clearance, \
+         {companion} hulls for want of a companion",
         current.0,
         live,
         desired_cells(config.active_radius),

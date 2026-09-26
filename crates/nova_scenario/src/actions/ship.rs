@@ -436,8 +436,8 @@ pub struct OrbitShipActionConfig {
     #[reflect(@Names::Object)]
     pub ship: String,
     /// Which gravity well to orbit: `Authored` names one well the scenario
-    /// spawned by id, `NearestToShip` takes the loaded well nearest the ship
-    /// when the order engages.
+    /// spawned by id, `NearestToShip` takes the well whose gravity owns the
+    /// ship when the order engages, else the loaded well nearest the ship.
     #[reflect(@Names::Object)]
     pub well: WellTargetType,
 }
