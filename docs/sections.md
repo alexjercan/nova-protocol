@@ -275,18 +275,24 @@ way on every machine and in every replay.
 **Making the joint.** `DockingConnectionRequest` re-runs the search - the
 envelope is re-read at execution, never trusted from the frame the offer was
 drawn in - and spawns ONE connection entity carrying both the
-`DockingConnection` record and the `FixedJoint`. The joint is built with an
-explicit frame:
+`DockingConnection` record and the `FixedJoint`. The joint is built with
+explicit LOCAL frames, taken from the two body poses `(p1, r1)`, `(p2, r2)`
+and the midpoint `m` of the two faces:
 
 ```rust
 FixedJoint::new(first_ship, second_ship)
-    .with_anchor(world_point)
-    .with_basis(Rotation(relative))
+    .with_local_anchor1(r1.inverse() * (m - p1))
+    .with_local_anchor2(r2.inverse() * (m - p2))
+    .with_local_basis2(r2.inverse() * r1)
 ```
 
-`with_anchor` / `with_basis` set one GLOBAL frame that avian resolves into
-per-body local frames on its next step, which is what preserves the pose the
-two hulls met in, roll included. A bare `FixedJoint::new(a, b)` carries
+Both anchors land on `m`, and the second body's basis holds the relative
+rotation the two hulls met at, roll included. Do not use the global
+`with_anchor` / `with_basis`: avian3d 0.7 converts a global basis as
+`basis * rot.inverse()` where its solver needs `rot.inverse() * basis`, so the
+joint holds the capture pose only when the two hull rotations commute. A
+belly-up hull against a yawed partner does not, and the joint swings the
+partner into the hull. A bare `FixedJoint::new(a, b)` carries
 `JointFrame::IDENTITY` and would yank the two hulls into the same origin.
 
 Nothing writes a velocity anywhere on this path. The constraint is the physics'

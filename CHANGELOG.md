@@ -72,6 +72,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A second editor ship no longer drifts off along the row and crashes the game
   when frames outrun physics steps; the row measures hull shapes, not the last
   step's bounds.
+- DOCK between hulls at different attitudes, such as belly-up against a yawed
+  partner, no longer swings the partner into the hull; the joint holds the pose
+  they met in.
 
 ### Internals & Tooling
 

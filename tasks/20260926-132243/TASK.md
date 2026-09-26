@@ -10,7 +10,11 @@
 - Investigate by running a small set of agent-driven `nova-bench` docking approaches, including the open-world Line Warship and a dockable derelict; try near the capture envelope's edge. Preserve failures and their replay artifacts.
 - Do not assume this is a `FixedJoint` defect or implement a speculative physics fix.
 
-## Agent findings (unverified cause)
+## Agent findings
+
+- REPRODUCED (BENCH-PLAN.md, pitched-over captures): `connection.rs` builds the `FixedJoint` with a global basis; avian 0.7 converts it as `basis * rot^-1` instead of `rot^-1 * basis`, so any capture whose two hull rotations do not commute (belly up against a yawed tender: 24 deg) is snapped to a wrong relative pose while the hulls still collide. Upright yaw-only captures are exact. The owner-approved local-frame fix is submitted for PR review; before/after evidence is in BENCH-PLAN.md, "Local-frame fix".
+
+### Earlier notes
 
 - `crates/nova_ship/src/sections/docking_section/connection.rs` selects port pairs and spawns a `FixedJoint` from the current face midpoint and ship basis; `port.rs` owns the capture gates. A joint and the collision solver may interact at capture, but the reported blast has not been reproduced or attributed.
 - `examples/systems/system_docking_ports.rs` proves controlled joint capture and helm handoff, not edge-case geometry, real multi-section colliders, or an intermittent high-energy event.

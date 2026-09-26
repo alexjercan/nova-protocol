@@ -1,4 +1,7 @@
-# Docking bench runs: no violent capture reproduced
+# Docking bench runs
+
+The upright runs below did not reproduce the blast. The pitched-over runs
+in [Pitched-over captures](#pitched-over-captures-reproduced) did.
 
 Run 2026-09-26 at master 51b0c8799, Sprout `docking-blast-bench`, own
 `target/`, one game at a time, headless (`--norender --channel step`, no
@@ -107,3 +110,150 @@ show that the bug is absent. Untested:
   Frame hitches and multiple fixed steps per frame were not exercised.
   Unverified: the owner's failure may depend on them.
 - Pilot-driven edge captures: both pi pilots failed before the envelope.
+
+## Pitched-over captures (reproduced)
+
+Run 2026-09-26 at e9df06335 (docs-only after 51b0c8799), same Sprout,
+same build, one game at a time, headless step mode. Flags as above plus
+`RUST_LOG=info,nova_ship=debug,nova_gameplay::integrity=trace`, so every
+contact impulse and every impact tally is in game.log. Artifacts:
+`/tmp/nova-docking-roll-tXmroo/<run>/` (not durable).
+
+Owner live run (from the owner's message; the full paste was not available
+to this worker): `cargo run --features dev -- --scenario-file
+crates/nova_bench/scenarios/docking_warship_tender.content.ron`, warship
+turned about 180 deg about its X axis (belly up), DOCK at 11:43:51.823,
+`sever_disconnected_structures: 1494v0 split into 2 bodies` at .861,
+`impacts: 260 contacts for 348226.97 damage` at .886, 18 sections destroyed.
+
+A spawn rotation cannot give this pose: the attitude command follows the
+camera rig, which starts at identity
+(`crates/nova_gameplay/src/transform/point_rotation.rs:27`, `:74`), so a
+rolled spawn slews back. A mouse pitch turns the rig about its own right
+axis (`point_rotation.rs:119-123`), so `PITCH_OVER=180` in
+`bench/dock_pilot.py` flies the owner's pose from the unchanged B2 fixture.
+
+| Run | Fixture | Pilot | Pose at DOCK | Gap / facing / rel | Joint target error | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| R1 | spawn rolled 180 (deleted) | script, beam | slewed off by the rig | never eligible | - | fixture failure |
+| R0 | B2 | script, beam, pitch 0 | upright | 10.0 m / 0.1 / 4.50 | 0.00 deg | clean, 0 contacts |
+| R2 | B2 | script, beam, `PITCH_OVER=180` | belly up, nose aft | 9.9 m / 1.1 / 4.50 | 23.96 deg | 258 contacts, 117975 dmg, 17 nodes |
+| R3 | `bench/docking_warship_tender.tender-yaw0.ron` | as R2 | belly up (hull up -Y) | 9.9 m / 0.1 / 4.50 | 0.00 deg | clean, 0 contacts |
+| R4 | B2 | script, `PITCH_OVER=45` | - | never eligible (elevation not squared) | - | pilot failure, untested |
+
+R2 in detail (`bench/window.py`, `bench/section_diff.py`,
+`bench/joint_basis_check.py`):
+
+- t3542, last tick before DOCK: player 4.50 m/s, tender at rest, no spin,
+  full health on both. No `contact impact` line precedes the connection line
+  in game.log: no pre-joint contact.
+- The connection line is followed by 258 `contact impact` lines and ONE
+  tally: `integrity: destroyed 17 nodes (reinforced_hull_section x16,
+  torpedo_section x1)`, `impacts: 258 contacts for 117974.59 damage`.
+- t3544: the tender moved 13 m and turned at 320 dps (94 m/s); the player
+  took 1366.7 hull damage. The player lost plates at cells x 1..2, z -6..-2
+  and `torpedo_starboard`, forward of the collar; the tender lost 10 plates
+  aft of its collar. That is the tender swung about the anchor into the
+  warship's starboard bow.
+- From t3545 the pair holds a relative rotation 0.01 deg from avian's joint
+  target and 23.97 deg from the capture pose. All six upright captures
+  (C2 to C8, R0) have 0.00 deg between the two.
+
+Cause (code, confirmed by an independent review):
+
+- `crates/nova_ship/src/sections/docking_section/connection.rs:197-216`
+  builds `FixedJoint::new(first, second).with_anchor(midpoint)
+  .with_basis(Rotation(first_rotation))`: global frames.
+- avian3d 0.7.0 `src/dynamics/joints/mod.rs:1131` converts a global basis
+  with `basis * rot.inverse()`. The solver uses `rot * local_basis`
+  (`src/dynamics/solver/xpbd/joints/shared/fixed_angle_constraint.rs:49,54`),
+  so the correct value is `rot.inverse() * basis`. The two agree only when
+  the two hull rotations commute.
+- Frame 1 is correct (identity). Frame 2 becomes `rot1 * rot2^-1` for
+  `rot2^-1 * rot1`. Warship pitched 180 about X against a tender yawed 12 deg
+  about Y: 24 deg. The joint drives the tender through it in one step.
+- Jointed bodies still collide (no `JointCollisionDisabled` in any Nova
+  crate), so the swept hulls meet under the joint impulse.
+- The anchor conversion (`mod.rs:957-961`) is correct.
+- Every docking unit test and the docking example capture with hull 1 at
+  identity (`crates/nova_ship/src/sections/docking_section/tests.rs:78-83`),
+  which commutes with anything. They cannot see this.
+
+Log order: contact damage lands in `FixedPostUpdate`
+(`crates/nova_gameplay/src/integrity/core.rs:110`), the sever runs in
+`Update` after `IntegritySystems`
+(`crates/nova_ship/src/sections/integrity.rs:198-203`), and the tally prints
+in `Last` (`core.rs:113`). The owner's sever line before the impacts line is
+one frame's result of the same contacts, not a cause.
+
+Replay: `bench replay R2/audit.jsonl` is `replay_mismatch`. It drifted
+0.2 m and the DOCK tap met a 10.1 m gap (refused). The closed-loop script
+is the reproducer, not the replay.
+
+Not settled: the entity 1494v0 in the owner's sever line, and the owner's
+exact pair and relative pose. Real-time play was not run, because the
+headless step reproduced the failure.
+
+## Local-frame fix
+
+Fix based on e9df06335, same Sprout, build and flags as the pitched-over
+runs. Artifacts: `/tmp/nova-docking-localframe-fix/`
+(`<run>/`, `<run>.stdout`, `unit-*.log`; not durable).
+
+Change (the cause lines above describe the pre-fix code):
+
+- `docking_section/port.rs`: `DockingPorts::body_rotation(root) -> Option<Quat>`
+  is now `body_pose(root) -> Option<(Vec3, Quat)>` (avian `Position`,
+  `Rotation`).
+- `docking_section/connection.rs` `on_docking_connection_request`: read both
+  root poses after the candidate poses, refuse on a missing pose, and build
+  `FixedJoint::new(first, second)
+  .with_local_anchor1(r1^-1 (m - p1)).with_local_anchor2(r2^-1 (m - p2))
+  .with_local_basis2(r2^-1 r1)`, with `m` the face midpoint and basis 1 left
+  at identity. Avian skips its global-to-local conversion for all-local
+  frames (`avian3d-0.7.0/src/dynamics/joints/fixed.rs:259-265`). The helm
+  seed uses the rotations already read. No gate or collision change.
+- Proof: `a_dock_between_a_pitched_and_a_yawed_hull_holds_the_capture_pose`
+  (`docking_section/tests.rs`). Hull 1 pitched 180 deg about X, hull 2 yawed
+  12 deg about Y, one step after DOCK: world anchors from both joint frames
+  on the face midpoint, world bases equal. Before the fix it failed with
+  `23.999985 deg off` (`unit-before.log`, anchors passed). After: ok, and
+  all 33 `sections::docking_section` tests pass
+  (`unit-docking-module-final.log`).
+
+Scripted bench, same commands and env as R0, R2 and R3 above. "Joint error"
+is the settled relative rotation against the capture pose
+(`bench/joint_basis_check.py`, 10 ticks after the tap). Peak tender motion
+covers the 6 ticks after the tap.
+
+| Run | DOCK tap | Gap / facing / rel | Joint error | Peak tender | Contacts after DOCK | Damage | Sections at end |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R2 before | t3542 | 9.9 m / 1.1 / 4.50 | 23.97 deg | 94.1 m/s, 320.4 dps | 262 `contact impact` lines (258 in the capture tally), 17 nodes destroyed | player 1366.7 hull, tender hp 9990 -> 7906.7 | player 155 -> 148 |
+| R2 after | t3537 | 10.0 m / 1.1 / 4.50 | 0.01 deg | 3.54 m/s, 1.87 dps | 0 | 0.0 | 155 / 51, unchanged |
+| R0 before | t3322 | 10.0 m / 0.1 / 4.50 | 0.00 deg | 3.50 m/s, 2.05 dps | 0 | 0.0 | unchanged |
+| R0 after | t3316 | 10.0 m / 0.1 / 4.50 | 0.00 deg | 3.55 m/s, 1.80 dps | 0 | 0.0 | unchanged |
+| R3 before | t3794 | 9.9 m / 0.1 / 4.50 | 0.00 deg | 3.54 m/s, 1.92 dps | 0 | 0.0 | unchanged |
+| R3 after | t3799 | 10.0 m / 0.1 / 4.50 | 0.00 deg | 3.54 m/s, 1.97 dps | 0 | 0.0 | unchanged |
+
+- R2 after: both roots hold the rotations of R2 before at the tap
+  (identical quaternions). The pair's relative rotation stays 0.00 deg from
+  the capture pose and 23.96 deg from the old avian target through t3637.
+  Both roots end connected at 3.41 m/s, 0.01 dps, full health, no
+  `sever_disconnected_structures` line, no `integrity: destroyed` line, and
+  no release line.
+- R0 and R3 after match their before runs: the fix leaves commuting
+  captures unchanged.
+- The R2 tap is 5 ticks earlier than before (t3537 vs t3542, gap 10.0 vs
+  9.9 m). The closed-loop script and the build differ, so the pilot met the
+  gate on a different tick. Same pose, same gate values within 0.1 m.
+
+Remaining uncertainty:
+
+- One seed and one scripted pair per case. The owner's live run (real-time
+  frames, the exact pair behind entity 1494v0) was not repeated after the
+  fix.
+- Jointed bodies still collide. A capture at the edge of the facing cone
+  can still bring hull plating into contact under a correct joint; this
+  fix removes only the wrong joint target.
+- No replay parity: the R2 audit replay drifted and missed DOCK before the
+  fix, and it was not rerun.

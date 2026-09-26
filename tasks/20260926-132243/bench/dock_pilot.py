@@ -5,6 +5,8 @@ Env knobs:
   FACE_BIAS   extra yaw in degrees held after squaring up (default 0)
   SPIN_DPS    yaw turn started a few ticks before DOCK (0 = none)
   PORT_AXIS   'nose' (port on the bow) or 'starboard' (port faces +X)
+  PITCH_OVER  degrees of camera pitch flown before the lock (180 = belly up,
+              nose aft: the hull turns about its own X axis, as a mouse does)
 """
 import json, math, os, socket, sys
 
@@ -16,6 +18,7 @@ ALIGN_AZ = 90.0 if BEAM else 0.0
 DOCK_AT_GAP = float(os.environ.get("DOCK_AT_GAP", "10"))
 DOCK_MAX_REL = float(os.environ.get("DOCK_MAX_REL", "99"))
 SETTLE = int(os.environ.get("SETTLE", "150"))
+PITCH_OVER = float(os.environ.get("PITCH_OVER", "0"))
 PX_PER_DEG = 27.0
 FULL = 33.0
 MPS_PER_FULL_TICK = 0.83
@@ -94,6 +97,13 @@ def main():
     contact = v["contacts"][0]
     target = contact["id"]
     log("start", json.dumps(contact))
+
+    # 0. Optional pitch-over: the attitude command follows the camera rig,
+    # which pitches about its own right axis, so this flips the hull.
+    if PITCH_OVER:
+        v = turn(0.0, PITCH_OVER, 600)
+        c = next(c for c in v["contacts"] if c["id"] == target)
+        log("pitched", PITCH_OVER, "tender bearing", c["bearing_deg"], "turn", v["me"]["turn_rate_dps"])
 
     # 1. Nose on the target, hold the radar until the travel lock names it.
     for _ in range(6):

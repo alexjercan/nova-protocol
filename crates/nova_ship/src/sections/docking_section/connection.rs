@@ -160,14 +160,19 @@ pub struct DockingReleaseRequest {
 /// Execute `DOCK`: pick the pair, reserve both ports, and lock the two hulls
 /// together with one fixed joint.
 ///
-/// The joint is created BEFORE the sleeves move, and its frames are taken
-/// from the pose the two ships are in right now:
-/// [`FixedJoint::with_anchor`] and [`with_basis`](FixedJoint::with_basis)
-/// place one GLOBAL frame that avian resolves into each body's local frame on
-/// the next step, which is what makes the joint hold the capture pose -
-/// including whatever relative roll the two hulls met at. A joint left on
-/// `JointFrame::IDENTITY` would instead drive both origins and both bases
-/// together and yank the ships into each other.
+/// The joint is created BEFORE the sleeves move, and its frames hold the
+/// pose the two ships are in right now: both anchors on the midpoint of the
+/// two faces, and the second body's basis equal to the relative rotation the
+/// hulls met at, roll included. A joint left on `JointFrame::IDENTITY` would
+/// instead drive both origins and both bases together and yank the ships into
+/// each other.
+///
+/// The frames are LOCAL, computed here. avian3d 0.7 converts a global basis
+/// (`FixedJoint::with_basis`) as `basis * rot.inverse()` where its solver
+/// needs `rot.inverse() * basis`, so a global frame holds the capture pose
+/// only when the two hull rotations commute. A belly-up hull against a yawed
+/// one does not, and the joint then swings the partner through the error in
+/// one step.
 pub(super) fn on_docking_connection_request(
     request: On<DockingConnectionRequest>,
     mut commands: Commands,
@@ -194,9 +199,12 @@ pub(super) fn on_docking_connection_request(
     ) else {
         return;
     };
-    let Some(basis) = ports.body_rotation(first_ship) else {
+    let (Some((first_position, first_rotation)), Some((second_position, second_rotation))) =
+        (ports.body_pose(first_ship), ports.body_pose(second_ship))
+    else {
         return;
     };
+    let anchor = first_pose.face.midpoint(second_pose.face);
 
     let record = DockingConnection {
         first_ship,
@@ -211,8 +219,9 @@ pub(super) fn on_docking_connection_request(
             Name::new("Docking Connection"),
             record,
             FixedJoint::new(first_ship, second_ship)
-                .with_anchor(first_pose.face.midpoint(second_pose.face))
-                .with_basis(Rotation(basis)),
+                .with_local_anchor1(first_rotation.inverse() * (anchor - first_position))
+                .with_local_anchor2(second_rotation.inverse() * (anchor - second_position))
+                .with_local_basis2(second_rotation.inverse() * first_rotation),
         ))
         .id();
     debug!("on_docking_connection_request: connection {connection:?} {record:?}");
@@ -223,10 +232,8 @@ pub(super) fn on_docking_connection_request(
             *state = DockingSectionState::Extending;
         }
     }
-    for ship in [first_ship, second_ship] {
-        let helm = helm_command(ship, &q_controllers)
-            .or_else(|| ports.body_rotation(ship))
-            .unwrap_or(Quat::IDENTITY);
+    for (ship, rotation) in [(first_ship, first_rotation), (second_ship, second_rotation)] {
+        let helm = helm_command(ship, &q_controllers).unwrap_or(rotation);
         // Neither root drives until the assembly pass has measured the pair.
         commands.entity(ship).try_insert(DockedShip {
             connection,

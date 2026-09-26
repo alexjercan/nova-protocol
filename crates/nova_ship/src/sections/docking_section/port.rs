@@ -166,12 +166,12 @@ impl DockingPorts<'_, '_> {
         })
     }
 
-    /// The world rotation of a ship root, as avian holds it.
-    pub(crate) fn body_rotation(&self, root: Entity) -> Option<Quat> {
+    /// The world position and rotation of a ship root, as avian holds them.
+    pub(crate) fn body_pose(&self, root: Entity) -> Option<(Vec3, Quat)> {
         self.bodies
             .get(root)
             .ok()
-            .map(|(_, rotation, ..)| rotation.0)
+            .map(|(position, rotation, ..)| (position.0, rotation.0))
     }
 
     /// The best pair of free ports between `first_ship` and `second_ship`

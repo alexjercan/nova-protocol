@@ -302,6 +302,69 @@ fn one_command_builds_one_connection_and_one_joint() {
 }
 
 #[test]
+fn a_dock_between_a_pitched_and_a_yawed_hull_holds_the_capture_pose() {
+    let mut app = docking_app();
+    // Belly up against a hull yawed 12 deg: two rotations that do not
+    // commute, so a joint frame composed in the wrong order is off by 24 deg.
+    let first = spawn_hull(
+        &mut app,
+        Vec3::ZERO,
+        Quat::from_rotation_x(std::f32::consts::PI),
+    );
+    let second = spawn_hull(
+        &mut app,
+        Vec3::Z * (1.0 + NOMINAL_GAP),
+        Quat::from_rotation_y(12.0_f32.to_radians()),
+    );
+    let first_port = spawn_port(&mut app, first, "fore", Vec3::ZERO, Quat::IDENTITY);
+    let second_port = spawn_port(&mut app, second, "fore", Vec3::ZERO, Quat::IDENTITY);
+    settle(&mut app);
+
+    let (p1, r1, p2, r2, anchor) = app
+        .world_mut()
+        .run_system_once(move |ports: DockingPorts| {
+            let (p1, r1) = ports.body_pose(first).expect("the first hull is a body");
+            let (p2, r2) = ports.body_pose(second).expect("the second hull is a body");
+            let face1 = ports.pose(first_port, first).expect("a posed port").face;
+            let face2 = ports.pose(second_port, second).expect("a posed port").face;
+            (p1, r1, p2, r2, face1.midpoint(face2))
+        })
+        .expect("the capture pose reads");
+
+    // One step, so avian has already resolved a global frame by now.
+    app.world_mut().trigger(DockingConnectionRequest {
+        entity: first,
+        target: second,
+    });
+    app.update();
+
+    let world = app.world_mut();
+    let joint = world
+        .query::<&FixedJoint>()
+        .single(world)
+        .expect("one joint");
+    let (frame1, frame2) = (
+        joint.local_frame1().expect("frame 1 is local"),
+        joint.local_frame2().expect("frame 2 is local"),
+    );
+    let anchor1 = p1 + r1 * Vec3::from(frame1.translation);
+    let anchor2 = p2 + r2 * Vec3::from(frame2.translation);
+    assert!(
+        anchor1.distance(anchor) < 1e-4 && anchor2.distance(anchor) < 1e-4,
+        "both anchors sit on the capture midpoint {anchor}: {anchor1} {anchor2}"
+    );
+    let basis1 = r1 * frame1.rotation;
+    let basis2 = r2 * frame2.rotation;
+    let error = basis1.angle_between(basis2).to_degrees();
+    // f32 `angle_between` resolves about 0.04 deg next to identity.
+    assert!(
+        error < 0.1,
+        "the joint holds the relative rotation the hulls met at, not one \
+         {error} deg off it"
+    );
+}
+
+#[test]
 fn both_sleeves_reach_out_once_the_joint_holds() {
     let mut app = docking_app();
     let (first, first_port, second, second_port) = facing_pair(&mut app, NOMINAL_GAP);
