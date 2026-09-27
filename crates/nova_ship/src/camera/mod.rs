@@ -58,6 +58,7 @@ use self::{
         PlayerInputMarker,
     },
 };
+pub(crate) use self::{mode::action_held, rig::CombatInput};
 
 /// Glob-import surface: `use nova_gameplay::camera::prelude::*` re-exports the
 /// public API of this module and of the six rigs it is built on.

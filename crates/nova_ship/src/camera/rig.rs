@@ -309,7 +309,7 @@ pub(super) struct FreeLookInput;
 
 #[derive(InputAction)]
 #[action_output(bool)]
-pub(super) struct CombatInput;
+pub(crate) struct CombatInput;
 
 #[cfg(test)]
 mod tests {

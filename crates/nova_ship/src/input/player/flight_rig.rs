@@ -228,6 +228,23 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                     bindings.bundle("component_prev"),
                 ),
                 (
+                    // The RCS fine-adjust modifier (SHIFT). Plain Down: Start on
+                    // press, Complete on release; the observers read those into
+                    // RcsActive. SHIFT is otherwise free (only CTRL is taken, by
+                    // the radar). Pad: LeftThumb, the one free button.
+                    // Spawned before the wheel actions: enhanced input triggers
+                    // a context's events in action order, so a SHIFT edge in the
+                    // same frame as a wheel line moves RcsActive before
+                    // `super::wheel` reads it.
+                    Name::new("Input: RCS Modifier"),
+                    Action::<RcsModifierInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings.bundle("rcs_modifier"),
+                ),
+                (
                     // The wheel is an axis (y = vertical): swizzle y into the
                     // action value and clamp away the opposite direction, so
                     // only up-scrolls actuate. `super::wheel` picks the owner.
@@ -255,19 +272,6 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         "camera_zoom_out",
                         Spawn((Binding::mouse_wheel(), SwizzleAxis::YXZ, Clamp::neg())),
                     ),
-                ),
-                (
-                    // The RCS fine-adjust modifier (SHIFT). Plain Down: Start on
-                    // press, Complete on release; the observers read those into
-                    // RcsActive. SHIFT is otherwise free (only CTRL is taken, by
-                    // the radar). Pad: LeftTrigger2 (a free analog-as-button).
-                    Name::new("Input: RCS Modifier"),
-                    Action::<RcsModifierInput>::new(),
-                    ActionSettings {
-                        consume_input: false,
-                        ..default()
-                    },
-                    bindings.bundle("rcs_modifier"),
                 ),
                 (
                     // The RCS aim: raw mouse motion or the left stick, read

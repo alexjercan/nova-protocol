@@ -5,6 +5,14 @@
 //! The wheel actions run with `consume_input: false` beside every other flight
 //! action, so input consumption cannot pick the owner. Both observers read
 //! [`wheel_role`] instead.
+//!
+//! Both observers run in `PreUpdate` and must route by THIS frame's stance, so
+//! that an RMB or SHIFT edge in the same frame as a wheel line counts. They read
+//! the combat action's `TriggerState`, not [`WeaponsRaised`]: enhanced input
+//! writes every action's state before it triggers any event, but the flag is
+//! derived later, in `Update`. [`RcsActive`] is current because the flight rig
+//! spawns the RCS modifier before the wheel actions, so its observers insert or
+//! remove the marker before the wheel events trigger.
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
@@ -12,6 +20,7 @@ use nova_gameplay::prelude::*;
 
 use super::control::player_control_is_suspended;
 use crate::{
+    camera::{action_held, CombatInput},
     input::targeting::{step_component_lock, RCS_SCROLL_STEP},
     prelude::*,
 };
@@ -65,10 +74,10 @@ pub(super) fn on_wheel_step<A: InputAction<Output = f32>>(
             &mut ComponentLock,
             Has<RcsActive>,
             Option<&mut RcsIntent>,
-            Option<&WeaponsRaised>,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
+    q_combat: Query<&TriggerState, With<Action<CombatInput>>>,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -76,8 +85,9 @@ pub(super) fn on_wheel_step<A: InputAction<Output = f32>>(
         return;
     }
     let direction: isize = if start.value > 0.0 { 1 } else { -1 };
-    for (lock, focus, mut component, rcs_active, rcs_intent, raised) in &mut q_ship {
-        match wheel_role(rcs_active, raised.is_some_and(|raised| raised.0)) {
+    let raised = action_held(&q_combat);
+    for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
+        match wheel_role(rcs_active, raised) {
             WheelRoleType::Rcs => {
                 if let Some(mut intent) = rcs_intent {
                     intent.y = crate::flight::accumulate_rcs_axis(
@@ -99,10 +109,8 @@ pub(super) fn on_wheel_step<A: InputAction<Output = f32>>(
 /// scroll counts every line instead of one per stream.
 pub(super) fn on_wheel_zoom<A: InputAction<Output = f32>>(
     fire: On<Fire<A>>,
-    q_ship: Query<
-        (Has<RcsActive>, Option<&WeaponsRaised>),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-    >,
+    q_ship: Query<Has<RcsActive>, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    q_combat: Query<&TriggerState, With<Action<CombatInput>>>,
     mut zoom: ResMut<ChaseZoom>,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
@@ -110,10 +118,10 @@ pub(super) fn on_wheel_zoom<A: InputAction<Output = f32>>(
     if pause.get().is_frozen() || player_control_is_suspended(control) {
         return;
     }
-    let Ok((rcs_active, raised)) = q_ship.single() else {
+    let Ok(rcs_active) = q_ship.single() else {
         return;
     };
-    if wheel_role(rcs_active, raised.is_some_and(|raised| raised.0)) == WheelRoleType::CameraZoom {
+    if wheel_role(rcs_active, action_held(&q_combat)) == WheelRoleType::CameraZoom {
         zoom.pending_lines += fire.value;
     }
 }
@@ -130,6 +138,7 @@ mod tests {
     use super::*;
     use crate::input::{
         player::{
+            flight_rig::{on_rcs_modifier_released, on_rcs_modifier_start},
             test_support::{spawn_flight_rig, spawn_flyable_ship},
             FlightInputMarker,
         },
@@ -144,7 +153,13 @@ mod tests {
         assert_eq!(wheel_role(true, true), WheelRoleType::Rcs);
     }
 
-    /// The real flight rig with the wheel and cycle-key observers, and a
+    /// The camera rig's stand-in: in the game the combat stance is an action on
+    /// its own context entity, beside the flight rig.
+    #[derive(Component)]
+    struct CombatContextMarker;
+
+    /// The real flight rig with the wheel, RCS modifier and cycle-key
+    /// observers, RMB bound to the combat stance on a second context, and a
     /// player locked and focused on a two-section target. Returns the app and
     /// the player ship.
     fn wheel_app() -> (App, Entity) {
@@ -154,12 +169,15 @@ mod tests {
         app.init_state::<PauseStates>();
         app.init_resource::<ChaseZoom>();
         app.add_input_context::<FlightInputMarker>();
+        app.add_input_context::<CombatContextMarker>();
         app.add_observer(on_wheel_step::<WheelUpInput>);
         app.add_observer(on_wheel_step::<WheelDownInput>);
         app.add_observer(on_wheel_zoom::<WheelUpInput>);
         app.add_observer(on_wheel_zoom::<WheelDownInput>);
         app.add_observer(on_component_cycle_next);
         app.add_observer(on_component_cycle_prev);
+        app.add_observer(on_rcs_modifier_start);
+        app.add_observer(on_rcs_modifier_released);
 
         let (ship, _controller) = spawn_flyable_ship(app.world_mut());
         let target = app.world_mut().spawn(SpaceshipRootMarker).id();
@@ -183,6 +201,12 @@ mod tests {
         app.cleanup();
         app.update();
         spawn_flight_rig(&mut app);
+        app.world_mut().spawn((
+            CombatContextMarker,
+            actions!(
+                CombatContextMarker[(Action::<CombatInput>::new(), bindings![MouseButton::Right])]
+            ),
+        ));
         app.update();
         (app, ship)
     }
@@ -205,6 +229,58 @@ mod tests {
         app.world().resource::<ChaseZoom>().pending_lines
     }
 
+    fn set_rmb(app: &mut App, held: bool) {
+        let mut buttons = app.world_mut().resource_mut::<ButtonInput<MouseButton>>();
+        if held {
+            buttons.press(MouseButton::Right);
+        } else {
+            buttons.release(MouseButton::Right);
+        }
+    }
+
+    fn set_shift(app: &mut App, held: bool) {
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        if held {
+            keys.press(KeyCode::ShiftLeft);
+        } else {
+            keys.release(KeyCode::ShiftLeft);
+        }
+    }
+
+    /// Zero the zoom, the lock and RCS vertical, so the next scroll shows only
+    /// its own owner.
+    fn clear_wheel_owners(app: &mut App, ship: Entity) {
+        app.world_mut().resource_mut::<ChaseZoom>().pending_lines = 0.0;
+        app.world_mut()
+            .entity_mut(ship)
+            .insert((RcsIntent::default(), ComponentLock::default()));
+    }
+
+    /// Exactly `owner` moved, by a scroll of `sign` lines.
+    fn assert_sole_owner(app: &App, ship: Entity, owner: WheelRoleType, sign: f32, case: &str) {
+        let zoom = pending_lines(app);
+        let vertical = app.world().get::<RcsIntent>(ship).unwrap().0.y;
+        let lock = app.world().get::<ComponentLock>(ship).unwrap().section;
+        match owner {
+            WheelRoleType::CameraZoom => {
+                assert!((zoom - sign).abs() < 1e-5, "{case}: zoom {zoom}");
+            }
+            WheelRoleType::ComponentLock => assert!(lock.is_some(), "{case}"),
+            WheelRoleType::Rcs => {
+                assert!(vertical * sign > 0.0, "{case}: vertical {vertical}");
+            }
+        }
+        if owner != WheelRoleType::CameraZoom {
+            assert_eq!(zoom, 0.0, "{case}: the zoom moved too");
+        }
+        if owner != WheelRoleType::ComponentLock {
+            assert_eq!(lock, None, "{case}: the lock stepped too");
+        }
+        if owner != WheelRoleType::Rcs {
+            assert_eq!(vertical, 0.0, "{case}: RCS moved too");
+        }
+    }
+
     /// One wheel gesture has exactly one owner in every stance, for mouse
     /// lines and trackpad pixels in both directions: the zoom in Normal and
     /// FreeLook flight, the component lock with the weapons raised, and RCS
@@ -224,45 +300,67 @@ mod tests {
                 (MouseScrollUnit::Pixel, 100.0),
             ] {
                 for sign in [1.0f32, -1.0] {
-                    app.world_mut().resource_mut::<ChaseZoom>().pending_lines = 0.0;
-                    let mut entity = app.world_mut().entity_mut(ship);
-                    entity.insert((
-                        RcsIntent::default(),
-                        ComponentLock::default(),
-                        WeaponsRaised(raised),
-                    ));
+                    clear_wheel_owners(&mut app, ship);
+                    set_rmb(&mut app, raised);
                     if rcs {
-                        entity.insert(RcsActive);
+                        app.world_mut().entity_mut(ship).insert(RcsActive);
                     } else {
-                        entity.remove::<RcsActive>();
+                        app.world_mut().entity_mut(ship).remove::<RcsActive>();
                     }
 
                     scroll(&mut app, unit, sign * one_line);
 
                     let case = format!("rcs {rcs}, raised {raised}, {unit:?} {sign}");
-                    let zoom = pending_lines(&app);
-                    let vertical = app.world().get::<RcsIntent>(ship).unwrap().0.y;
-                    let lock = app.world().get::<ComponentLock>(ship).unwrap().section;
-                    match owner {
-                        WheelRoleType::CameraZoom => {
-                            assert!((zoom - sign).abs() < 1e-5, "{case}: zoom {zoom}");
-                        }
-                        WheelRoleType::ComponentLock => assert!(lock.is_some(), "{case}"),
-                        WheelRoleType::Rcs => {
-                            assert!(vertical * sign > 0.0, "{case}: vertical {vertical}");
-                        }
-                    }
-                    if owner != WheelRoleType::CameraZoom {
-                        assert_eq!(zoom, 0.0, "{case}: the zoom moved too");
-                    }
-                    if owner != WheelRoleType::ComponentLock {
-                        assert_eq!(lock, None, "{case}: the lock stepped too");
-                    }
-                    if owner != WheelRoleType::Rcs {
-                        assert_eq!(vertical, 0.0, "{case}: RCS moved too");
-                    }
+                    assert_sole_owner(&app, ship, owner, sign, &case);
                 }
             }
+        }
+    }
+
+    /// An RMB or SHIFT edge in the same frame as a wheel line routes that line
+    /// by the new stance. The stance is read at the input edge, not from the
+    /// flag `Update` derives a step later, so RMB down cycles the lock, RMB up
+    /// zooms, and SHIFT down or up hands the wheel to or from RCS.
+    #[test]
+    fn a_stance_edge_in_the_wheel_frame_routes_that_line_by_the_new_stance() {
+        let (mut app, ship) = wheel_app();
+        let edges: [(&str, fn(&mut App), WheelRoleType); 5] = [
+            (
+                "RMB down",
+                |app| set_rmb(app, true),
+                WheelRoleType::ComponentLock,
+            ),
+            (
+                "RMB up",
+                |app| set_rmb(app, false),
+                WheelRoleType::CameraZoom,
+            ),
+            ("SHIFT down", |app| set_shift(app, true), WheelRoleType::Rcs),
+            (
+                "RMB down under SHIFT",
+                |app| set_rmb(app, true),
+                WheelRoleType::Rcs,
+            ),
+            (
+                "SHIFT up under RMB",
+                |app| set_shift(app, false),
+                WheelRoleType::ComponentLock,
+            ),
+        ];
+        for (case, edge, owner) in edges {
+            clear_wheel_owners(&mut app, ship);
+            edge(&mut app);
+            app.world_mut().write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y: 1.0,
+                window: Entity::PLACEHOLDER,
+                phase: TouchPhase::Moved,
+            });
+            app.update();
+            assert_sole_owner(&app, ship, owner, 1.0, case);
+            // End the scroll stream so the next edge starts a new one.
+            app.update();
         }
     }
 
