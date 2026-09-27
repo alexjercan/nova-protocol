@@ -218,6 +218,24 @@ fn undocked_the_partner_slot_is_blank_and_both_columns_keep_equal_width() {
     assert!(own_w > 0.0 && own_w == partner_w, "{own_w} != {partner_w}");
     assert!(column_texts(rig.app.world_mut(), InventorySideType::Partner).is_empty());
 
+    // The inspector takes 20% of the row beside the stores.
+    let world = rig.app.world_mut();
+    let (inspector_w, row) = world
+        .query::<(&Name, &ComputedNode, &ChildOf)>()
+        .iter(world)
+        .find(|(name, ..)| name.as_str() == "InventoryInspector")
+        .map(|(_, node, child_of)| (node.size().x, child_of.parent()))
+        .expect("the pane has an inspector");
+    let row_w = world
+        .get::<ComputedNode>(row)
+        .expect("a laid-out row")
+        .size()
+        .x;
+    assert!(
+        (inspector_w - row_w * 0.2).abs() <= 1.0,
+        "inspector {inspector_w} is not 20% of row {row_w}"
+    );
+
     // Idle: nothing is spawned, despawned or rewritten.
     take_churn(&mut rig.app);
     settle(&mut rig.app);

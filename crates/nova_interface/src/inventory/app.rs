@@ -22,8 +22,6 @@ use crate::{
     pane::{play_menu_select, themed_label},
 };
 
-/// Fixed width of the inspector beside the columns, in logical px.
-const INSPECTOR_PX: f32 = 300.0;
 /// Height of one inventory row, in logical px.
 const ROW_PX: f32 = 28.0;
 /// Width of the quantity column, in logical px.
@@ -328,13 +326,14 @@ fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType)
 }
 
 /// The inspector: a hint with nothing selected, else the item's icon, name,
-/// category, description and stock.
+/// category, description and stock. It takes 20% of the row beside the
+/// stores, so the stock line wraps at words.
 fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     split
         .spawn((
             Name::new("InventoryInspector"),
             Node {
-                width: px(INSPECTOR_PX),
+                width: percent(20),
                 flex_shrink: 0.0,
                 flex_direction: FlexDirection::Column,
                 row_gap: px(10),
@@ -419,7 +418,7 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                             fact.spawn((
                                 InventoryInspectorField::Stock,
                                 themed_label("", 13.0, UiColor::Body),
-                                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                                TextLayout::new(Justify::Right, LineBreak::WordBoundary),
                             ));
                         });
                 });
