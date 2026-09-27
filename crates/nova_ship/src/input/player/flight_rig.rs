@@ -7,6 +7,7 @@ use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 
+use super::wheel::{WheelDownInput, WheelUpInput};
 use crate::{
     flight::{ship_capabilities, ShipCapabilityQuery},
     input::targeting::{
@@ -106,13 +107,11 @@ pub(super) fn on_player_added_spawn_flight_input(
 /// carry modifiers only the rig understands, no rebind row can capture one,
 /// and nothing collides on them.
 ///
-/// The CTRL layer (cycle the SHIP lock instead of components) is NOT
-/// expressed as input conditions: a binding-level Chord ignores the binding's
-/// own value and fired on the bare modifier, and pairing it with an explicit
-/// Down still yields Ongoing on the unmodified gesture, which triggers Start.
-/// Instead the modifier is a plain action whose state the cycle observers
-/// READ (input/targeting/component_lock.rs dispatch): plain wheel/brackets step components,
-/// the same gesture with the modifier held steps the ship lock.
+/// Modifiers (RCS, raised weapons) are NOT expressed as input conditions: a
+/// binding-level Chord ignores the binding's own value and fired on the bare
+/// modifier, and pairing it with an explicit Down still yields Ongoing on the
+/// unmodified gesture, which triggers Start. Instead the observers READ the
+/// modifier state (`super::wheel::wheel_role` for the wheel).
 pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
     (
         Name::new("Input: Flight"),
@@ -217,13 +216,7 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    // Scroll up = next: the wheel is an axis (y = vertical),
-                    // so swizzle y into the action value and clamp away the
-                    // opposite direction so only up-scrolls actuate.
-                    bindings.bundle_with(
-                        "component_next",
-                        Spawn((Binding::mouse_wheel(), SwizzleAxis::YXZ, Clamp::pos())),
-                    ),
+                    bindings.bundle("component_next"),
                 ),
                 (
                     Name::new("Input: Component Cycle Prev"),
@@ -232,23 +225,17 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    // Scroll down = prev: negate the (swizzled) wheel axis so
-                    // down-scrolls become positive, then clamp like above.
-                    bindings.bundle_with(
-                        "component_prev",
-                        Spawn((
-                            Binding::mouse_wheel(),
-                            SwizzleAxis::YXZ,
-                            Negate::all(),
-                            Clamp::pos(),
-                        )),
-                    ),
+                    bindings.bundle("component_prev"),
                 ),
                 (
                     // The RCS fine-adjust modifier (SHIFT). Plain Down: Start on
                     // press, Complete on release; the observers read those into
                     // RcsActive. SHIFT is otherwise free (only CTRL is taken, by
-                    // the radar). Pad: LeftTrigger2 (a free analog-as-button).
+                    // the radar). Pad: LeftThumb, the one free button.
+                    // Spawned before the wheel actions: enhanced input triggers
+                    // a context's events in action order, so a SHIFT edge in the
+                    // same frame as a wheel line moves RcsActive before
+                    // `super::wheel` reads it.
                     Name::new("Input: RCS Modifier"),
                     Action::<RcsModifierInput>::new(),
                     ActionSettings {
@@ -256,6 +243,35 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         ..default()
                     },
                     bindings.bundle("rcs_modifier"),
+                ),
+                (
+                    // The wheel is an axis (y = vertical): swizzle y into the
+                    // action value and clamp away the opposite direction, so
+                    // only up-scrolls actuate. `super::wheel` picks the owner.
+                    Name::new("Input: Wheel Up"),
+                    Action::<WheelUpInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings.bundle_with(
+                        "camera_zoom_in",
+                        Spawn((Binding::mouse_wheel(), SwizzleAxis::YXZ, Clamp::pos())),
+                    ),
+                ),
+                (
+                    // Down-scrolls only, kept negative so the value's sign is
+                    // the direction.
+                    Name::new("Input: Wheel Down"),
+                    Action::<WheelDownInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings.bundle_with(
+                        "camera_zoom_out",
+                        Spawn((Binding::mouse_wheel(), SwizzleAxis::YXZ, Clamp::neg())),
+                    ),
                 ),
                 (
                     // The RCS aim: raw mouse motion or the left stick, read
@@ -1369,68 +1385,6 @@ mod tests {
             (intent.x - 1.0).abs() < 1e-4,
             "full deflection is full intent, not {}",
             intent.x
-        );
-    }
-
-    /// While RCS is active a scroll notch nudges the ship-local Y (up/down) axis
-    /// of `RcsIntent` instead of stepping the component lock; the same scroll
-    /// outside RCS leaves `RcsIntent` untouched (it cycles a component as
-    /// before). Reverting the `RcsActive` branch in `on_component_cycle_next`
-    /// leaves Y at zero in RCS and fails this.
-    #[test]
-    fn rcs_scroll_drives_the_vertical_axis_only_while_active() {
-        use bevy::input::{
-            mouse::{MouseScrollUnit, MouseWheel},
-            InputPlugin,
-        };
-
-        use crate::input::targeting::on_component_cycle_next;
-
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
-        app.add_plugins(bevy::state::app::StatesPlugin);
-        app.init_state::<nova_gameplay::PauseStates>();
-        app.add_input_context::<FlightInputMarker>();
-        app.add_observer(on_component_cycle_next);
-
-        let (ship, _controller) = spawn_flyable_ship(app.world_mut());
-        app.world_mut()
-            .entity_mut(ship)
-            .insert(RcsIntent::default());
-
-        app.finish();
-        app.cleanup();
-        app.update();
-        spawn_flight_rig(&mut app);
-        app.update();
-
-        let scroll_up = |app: &mut App| {
-            app.world_mut().write_message(MouseWheel {
-                unit: MouseScrollUnit::Line,
-                x: 0.0,
-                y: 1.0,
-                window: Entity::PLACEHOLDER,
-                phase: bevy::input::touch::TouchPhase::Moved,
-            });
-            app.update();
-            app.update();
-        };
-
-        // Scroll outside RCS: the vertical axis stays zero (it cycles instead).
-        scroll_up(&mut app);
-        assert_eq!(
-            app.world().get::<RcsIntent>(ship).unwrap().0.y,
-            0.0,
-            "scroll outside RCS must not touch the vertical axis"
-        );
-
-        // Enter RCS, scroll up: the vertical axis rises.
-        app.world_mut().entity_mut(ship).insert(RcsActive);
-        scroll_up(&mut app);
-        assert!(
-            app.world().get::<RcsIntent>(ship).unwrap().0.y > 0.0,
-            "scroll up in RCS raises the vertical axis (got {})",
-            app.world().get::<RcsIntent>(ship).unwrap().0.y
         );
     }
 

@@ -61,7 +61,7 @@ Your stance picks the slot the lock lands in:
 
 ## Per-section fine-lock
 
-Hold a combat lock focused for about a second and a half and you can drill into a specific [section](../sections/) of the enemy hull. The fine-lock either **snaps** to whatever your crosshair is on (with hysteresis so it does not flicker) or is **pinned** by manually cycling sections nose-to-tail with the brackets, scroll wheel or D-Pad; a manual pin holds for a couple of seconds. Turrets and the viewfinder both follow the fine-locked section.
+Hold a combat lock focused for about a second and a half and you can drill into a specific [section](../sections/) of the enemy hull. The fine-lock either **snaps** to whatever your crosshair is on (with hysteresis so it does not flicker) or is **pinned** by manually cycling sections nose-to-tail with the brackets (<kbd>]</kbd> next, <kbd>[</kbd> previous) or D-Pad Right and Left, in any stance, or with the scroll wheel while weapons are raised; a manual pin holds for a couple of seconds. Turrets and the viewfinder both follow the fine-locked section.
 
 ## Clearing locks
 

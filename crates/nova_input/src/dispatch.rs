@@ -291,8 +291,8 @@ pub fn primary_source(world: &World, name: &str) -> Result<InputSource, Dispatch
 ///
 /// Mouse motion takes the delta as it comes. The wheel takes its MAGNITUDE and
 /// spends it in the direction the action declares, so a caller says how far to
-/// cycle and the registry says which way that is - `component_next` and
-/// `component_prev` share the wheel and differ only in sign.
+/// scroll and the registry says which way that is - `camera_zoom_in` and
+/// `camera_zoom_out` share the wheel and differ only in sign.
 ///
 /// Additive, because both resources are accumulators: two calls in one frame
 /// are one longer sweep, which is what two real notches would be.

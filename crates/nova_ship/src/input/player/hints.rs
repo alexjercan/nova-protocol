@@ -55,10 +55,10 @@ pub struct FlightVerbHints {
     pub orbit: VerbHint,
     /// The CANCEL verb hint (disengage the autopilot, resume manual).
     pub cancel: VerbHint,
-    /// Component fine-lock cycle. The label stays the fixed string "SCROLL":
-    /// the wheel half of `component_next` is part of the action rather than
-    /// its spec, so no rebind can move it and no table read would tell the
-    /// player anything the wheel does not already do.
+    /// Component fine-lock cycle. While the weapons are raised the wheel
+    /// cycles, and the label is the fixed string "SCROLL": the wheel is not
+    /// rebindable, so no table read would tell the player anything more.
+    /// Otherwise the wheel zooms, and the label is the `component_next` key.
     pub component_cycle: VerbHint,
     /// The radar gesture (hold = radar, tap = clear), labelled off
     /// `radar_hold`; available while the computer grants Lock.
@@ -120,6 +120,7 @@ pub(super) fn update_flight_verb_hints(
             Option<&CombatLock>,
             Option<&LockFocus>,
             Option<&DockedShip>,
+            Option<&WeaponsRaised>,
         ),
         With<PlayerSpaceshipMarker>,
     >,
@@ -152,8 +153,8 @@ pub(super) fn update_flight_verb_hints(
     };
 
     // Exactly one player ship, same rule as the Single-based observers.
-    let (ship, autopilot, dominant, travel, combat, focus, docked) = match q_ship.single() {
-        Ok((entity, autopilot, dominant, travel, combat, focus, docked)) => (
+    let (ship, autopilot, dominant, travel, combat, focus, docked, raised) = match q_ship.single() {
+        Ok((entity, autopilot, dominant, travel, combat, focus, docked, raised)) => (
             Some(entity),
             autopilot,
             dominant,
@@ -161,9 +162,11 @@ pub(super) fn update_flight_verb_hints(
             combat,
             focus,
             docked,
+            raised,
         ),
-        Err(_) => (None, None, None, None, None, None, None),
+        Err(_) => (None, None, None, None, None, None, None, None),
     };
+    let raised = raised.is_some_and(|raised| raised.0);
     let connection = docked.and_then(|docked| q_connections.get(docked.connection).ok());
     let helm_held = ship.is_some_and(|ship| {
         connection.is_some_and(|connection| connection.helm == DockedHelmType::Held(ship))
@@ -233,13 +236,17 @@ pub(super) fn update_flight_verb_hints(
             available: engaged,
             ..default()
         },
-        // The one row that stays a literal: the wheel belongs to the ACTION,
-        // not its spec, so no rebind can move it. Gated on the rig existing to
-        // keep the "no rig, no keys, no hints" invariant. Component cycling
-        // needs the COMBAT focus dwell complete and at least two attached
-        // sections to step between.
+        // A literal while the weapons are raised: the wheel cycles then, and
+        // no rebind can move it. Gated on the rig existing to keep the "no
+        // rig, no keys, no hints" invariant. Component cycling needs the
+        // COMBAT focus dwell complete and at least two attached sections to
+        // step between.
         component_cycle: VerbHint {
-            key: cycle_label("SCROLL", rig_exists),
+            key: if raised {
+                cycle_label("SCROLL", rig_exists)
+            } else {
+                label("component_next")
+            },
             available: combat.is_some_and(|target| {
                 focus.is_some_and(|focus| focus.focused_on(target))
                     && q_sections
@@ -385,11 +392,20 @@ mod tests {
         let mut world = hint_world();
         let (ship, _) = spawn_flyable_ship(&mut world);
 
-        // No lock: the cycle row is present (fixed label) but dim.
+        // No lock: the cycle row is present but dim. With the weapons lowered
+        // the wheel zooms, so the row names the cycle key's glyph.
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
-        assert_eq!(hints.component_cycle.key, "SCROLL");
+        assert_eq!(hints.component_cycle.key, "BracketRight");
         assert!(!hints.component_cycle.available);
+
+        // Raised weapons give the wheel back to the lock.
+        world.entity_mut(ship).insert(WeaponsRaised(true));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert_eq!(
+            world.resource::<FlightVerbHints>().component_cycle.key,
+            "SCROLL"
+        );
 
         // COMPONENT lights once the dwell completes on a combat lock with at
         // least two attached sections.

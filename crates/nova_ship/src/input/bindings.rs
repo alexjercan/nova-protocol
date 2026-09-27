@@ -12,7 +12,7 @@
 use bevy::prelude::*;
 use nova_input::prelude::*;
 
-/// The always-on flight and targeting actions, in reading order.
+/// The always-on flight rig's actions, in reading order.
 ///
 /// `FLIGHT`, `TARGETING` and `CAMERA` are three headers a player reads apart
 /// and ONE firing context: they go live together when a player ship is on the
@@ -76,12 +76,10 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
             .gamepad([Gamepad(GamepadButton::DPadUp)]),
         ActionBinding::new("component_next", "TARGETING", "Lock Next Component")
             .keyboard([Keyboard(KeyCode::BracketRight)])
-            .gamepad([Gamepad(GamepadButton::DPadRight)])
-            .wheel(WheelDirection::Up),
+            .gamepad([Gamepad(GamepadButton::DPadRight)]),
         ActionBinding::new("component_prev", "TARGETING", "Lock Previous Component")
             .keyboard([Keyboard(KeyCode::BracketLeft)])
-            .gamepad([Gamepad(GamepadButton::DPadLeft)])
-            .wheel(WheelDirection::Down),
+            .gamepad([Gamepad(GamepadButton::DPadLeft)]),
         // Left Thumb, not Left Trigger 2: LT2 is the aim button, and
         // `combat_stance` holds it. Both rigs run with `consume_input: false`,
         // so while they shared it one trigger raised the weapons AND engaged
@@ -99,6 +97,22 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         ActionBinding::new("rcs_aim", "FLIGHT", "RCS Aim")
             .mouse_motion()
             .stick(GamepadStick::Left),
+        // The wheel, split by direction. It zooms the chase camera, steps the
+        // component lock while the weapons are raised, and drives RCS vertical
+        // while RCS is held (`input::player::wheel`). Wheel only, so the rows
+        // are not rebindable and nothing collides on them.
+        ActionBinding::new(
+            "camera_zoom_in",
+            "CAMERA",
+            "Zoom In (combat: next component)",
+        )
+        .wheel(WheelDirection::Up),
+        ActionBinding::new(
+            "camera_zoom_out",
+            "CAMERA",
+            "Zoom Out (combat: prev component)",
+        )
+        .wheel(WheelDirection::Down),
     ]
     .into_iter()
     .map(|action| action.context(ActionContext::Flight))
@@ -163,10 +177,10 @@ mod tests {
         assert_eq!(before, names.len(), "duplicate action name in {names:?}");
     }
 
-    /// The fixed rigs: 13 flight and targeting, 3 camera.
+    /// The fixed rigs: 15 on the flight rig, 3 camera.
     #[test]
-    fn the_fixed_rigs_name_sixteen_actions() {
-        assert_eq!(flight_bindings().len(), 13);
+    fn the_fixed_rigs_name_eighteen_actions() {
+        assert_eq!(flight_bindings().len(), 15);
         assert_eq!(camera_bindings().len(), 3);
     }
 
@@ -195,6 +209,8 @@ mod tests {
                 "component_prev",
                 "rcs_modifier",
                 "rcs_aim",
+                "camera_zoom_in",
+                "camera_zoom_out",
                 "camera_rotate",
                 "free_look",
                 "combat_stance",
@@ -266,10 +282,16 @@ mod tests {
                 ("Helm", "H", "Unbound"),
                 ("Radar (hold / tap)", "Ctrl", "D-Pad Up"),
                 ("Radar (tap clear)", "Ctrl", "D-Pad Up"),
-                ("Lock Next Component", "] / Scroll Up", "D-Pad Right"),
-                ("Lock Previous Component", "[ / Scroll Down", "D-Pad Left"),
+                ("Lock Next Component", "]", "D-Pad Right"),
+                ("Lock Previous Component", "[", "D-Pad Left"),
                 ("RCS Fine Adjust", "Shift", "Left Thumb"),
                 ("RCS Aim", "Mouse", "Left Stick"),
+                ("Zoom In (combat: next component)", "Scroll Up", "Unbound"),
+                (
+                    "Zoom Out (combat: prev component)",
+                    "Scroll Down",
+                    "Unbound"
+                ),
                 ("Camera Aim", "Mouse", "Right Stick"),
                 ("Free Look", "Left Alt", "Left Trigger"),
                 ("Raise Weapons", "Right Mouse", "Left Trigger 2"),

@@ -1,6 +1,6 @@
 # Reproduce and diagnose violent docking capture
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.15.0, gameplay, docking, bug
 
@@ -12,7 +12,7 @@
 
 ## Agent findings
 
-- REPRODUCED (BENCH-PLAN.md, pitched-over captures): `connection.rs` builds the `FixedJoint` with a global basis; avian 0.7 converts it as `basis * rot^-1` instead of `rot^-1 * basis`, so any capture whose two hull rotations do not commute (belly up against a yawed tender: 24 deg) is snapped to a wrong relative pose while the hulls still collide. Upright yaw-only captures are exact. The owner-approved local-frame fix is submitted for PR review; before/after evidence is in BENCH-PLAN.md, "Local-frame fix".
+- REPRODUCED (BENCH-PLAN.md, pitched-over captures): `connection.rs` builds the `FixedJoint` with a global basis; avian 0.7 converts it as `basis * rot^-1` instead of `rot^-1 * basis`, so any capture whose two hull rotations do not commute (belly up against a yawed tender: 24 deg) is snapped to a wrong relative pose while the hulls still collide. Upright yaw-only captures are exact. The owner-approved local-frame fix and permanent regression proof merged in PR #80 (6eaf99673). Before/after evidence is in BENCH-PLAN.md, "Local-frame fix".
 
 ### Earlier notes
 
@@ -33,6 +33,11 @@
 - For a failure, replay the first audit with a stable seed and compare the same failure on master. If a fix is later approved, prove the original failure is absent without weakening capture eligibility and controlled-docking invariants.
 - Run one game/GPU recording at a time and do not compete with the currently active heavy verification lane. No broad workspace checks.
 
+## Closure
+
+- PR #80 merged into master on 2026-09-26. The pitched-over capture that destroyed 17 sections before the fix caused no contact damage after it; both ships remained connected. All 33 docking module tests passed, including the regression for noncommuting hull rotations (`BENCH-PLAN.md`, "Local-frame fix").
+- The owner's exact live run was not replayed after the fix. Other collisions near capture are not ruled out. The owner reports no further occurrence; this is feedback, not proof that all docking hazards are gone.
+
 ## Done when
 
-- The violent-capture failure is reproduced and the approved fix plus permanent regression proof pass, OR the documented bounded bench search records no reproduction with explicit remaining risk and a user-accepted follow-up. Keep the task OPEN until then.
+- The violent-capture failure is reproduced and the approved fix plus permanent regression proof pass, OR the documented bounded bench search records no reproduction with explicit remaining risk and a user-accepted follow-up.
