@@ -4831,7 +4831,7 @@ const DESKTOP: Vec2 = Vec2::new(1600.0, 900.0);
 #[cfg(feature = "debug")]
 const MID: Vec2 = Vec2::new(1352.0, 820.0);
 #[cfg(feature = "debug")]
-const NARROW: Vec2 = Vec2::new(1024.0, 768.0);
+const NARROW: Vec2 = Vec2::new(1024.0, 900.0);
 #[cfg(feature = "debug")]
 const SHORT: Vec2 = Vec2::new(1024.0, 600.0);
 
