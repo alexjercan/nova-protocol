@@ -54,6 +54,133 @@ fn nova_os_sound_cues_fire_on_terminal_events() {
     );
 }
 
+/// The interface opens and closes with the pause overlay's blip, once per
+/// accepted gesture. TAB and Escape pressed together close it in one
+/// transition, so they play one blip, not two.
+#[test]
+fn interface_open_and_close_play_one_toggle_blip() {
+    let mut app = nova_os_sound_app();
+    let toggles = |app: &App| {
+        app.world()
+            .resource::<SoundCapture>()
+            .0
+            .iter()
+            .filter(|cue| **cue == UiSfx::UiToggle)
+            .count()
+    };
+    // Press then release, like `press_tab`: the rig has no `InputPlugin` to
+    // clear the edge, and the state applies on the second update.
+    let press = |app: &mut App, keys: &[KeyCode]| {
+        let mut input = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        for key in keys {
+            input.press(*key);
+        }
+        app.update();
+        let mut input = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        input.release_all();
+        input.clear();
+        app.update();
+    };
+
+    let gestures: [(&str, PauseStates, &[KeyCode], PauseStates); 4] = [
+        (
+            "Tab open",
+            PauseStates::Unpaused,
+            &[KeyCode::Tab],
+            PauseStates::Interface,
+        ),
+        (
+            "Tab close",
+            PauseStates::Interface,
+            &[KeyCode::Tab],
+            PauseStates::Unpaused,
+        ),
+        (
+            "Escape close",
+            PauseStates::Interface,
+            &[KeyCode::Escape],
+            PauseStates::Unpaused,
+        ),
+        (
+            "Tab and Escape close",
+            PauseStates::Interface,
+            &[KeyCode::Tab, KeyCode::Escape],
+            PauseStates::Unpaused,
+        ),
+    ];
+    for (gesture, from, keys, to) in gestures {
+        if pause_state(&app) != from {
+            press(&mut app, &[KeyCode::Tab]);
+        }
+        assert_eq!(pause_state(&app), from, "{gesture} starts in {from:?}");
+        clear_capture(&mut app);
+        press(&mut app, keys);
+        assert_eq!(pause_state(&app), to, "{gesture} reaches {to:?}");
+        assert_eq!(toggles(&app), 1, "{gesture} plays one blip");
+    }
+
+    // The command modal over flight and over the interface keeps its own power
+    // sweep and never blips.
+    clear_capture(&mut app);
+    open_commands(&mut app);
+    assert!(
+        fired(&app, UiSfx::NovaOsPowerUp),
+        "the modal powers up over flight"
+    );
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::Unpaused);
+    app.update();
+    press(&mut app, &[KeyCode::Tab]);
+    assert_eq!(pause_state(&app), PauseStates::Interface);
+    clear_capture(&mut app);
+    open_commands(&mut app);
+    assert!(
+        fired(&app, UiSfx::NovaOsPowerUp),
+        "the modal powers up over the interface"
+    );
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::Interface);
+    app.update();
+    assert_eq!(pause_state(&app), PauseStates::Interface);
+    assert_eq!(toggles(&app), 0, "the command modal never blips");
+    press(&mut app, &[KeyCode::Escape]);
+    assert_eq!(pause_state(&app), PauseStates::Unpaused);
+
+    // A refused Tab plays nothing: paused, then with no ship on the field.
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::Paused);
+    app.update();
+    clear_capture(&mut app);
+    press(&mut app, &[KeyCode::Tab]);
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Paused,
+        "Tab is inert while paused"
+    );
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::Unpaused);
+    app.update();
+    for ship in app
+        .world_mut()
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .iter(app.world())
+        .collect::<Vec<_>>()
+    {
+        app.world_mut().despawn(ship);
+    }
+    press(&mut app, &[KeyCode::Tab]);
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "Tab is inert with no ship"
+    );
+    assert_eq!(toggles(&app), 0, "a refused Tab never blips");
+}
+
 #[test]
 fn nova_os_ambient_bed_tracks_the_modal_state() {
     let mut app = nova_os_sound_app();

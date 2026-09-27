@@ -19,6 +19,7 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::{
     prelude::{
         AudioRoute, PlayerSpaceshipMarker, SfxCommandsExt, SoundBank, UiSfx, MENU_SELECT_VOLUME,
+        UI_TOGGLE_VOLUME,
     },
     PauseStates,
 };
@@ -128,6 +129,24 @@ pub(crate) fn toggle_interface(
         PauseStates::Interface => next.set(PauseStates::Unpaused),
         PauseStates::Unpaused | PauseStates::Paused | PauseStates::Commands => {}
     }
+}
+
+/// Play the pause overlay's toggle blip as the interface opens from flight or
+/// closes back to it.
+///
+/// Registered on those two transitions, not fired by the toggles: TAB and the
+/// Escape back-out can both close the interface in one frame, and one
+/// transition plays one cue. The command modal's transitions keep its own
+/// power sweeps. The bank is absent on headless rigs, where the cue is a no-op.
+pub(crate) fn play_interface_toggle(mut commands: Commands, bank: Option<Res<SoundBank<UiSfx>>>) {
+    let Some(bank) = bank else {
+        return;
+    };
+    commands.play_sfx(
+        bank.get(UiSfx::UiToggle),
+        AudioRoute::Interface,
+        UI_TOGGLE_VOLUME,
+    );
 }
 
 /// `interface_next_tab` steps to the next pane while the interface owns the

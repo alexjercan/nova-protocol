@@ -158,7 +158,8 @@ pub enum UiSfx {
     /// A comms line just SHOWED on the panel - a soft radio blip so a story
     /// beat registers mid-fight.
     CommsLine,
-    /// A pause overlay open/close toggle via ESC - a soft two-state UI blip.
+    /// The pause overlay or TAB interface opening or closing - a soft
+    /// two-state UI blip.
     UiToggle,
     // NOVA OS terminal cues: the offline-rendered `nova_*.wav` family
     // (`scripts/gen-nova-os-sfx.py`), mirroring the PoC's WebAudio recipes.
@@ -226,7 +227,8 @@ pub const SALVAGE_PICKUP_VOLUME: f32 = 0.22;
 /// in the informational-tick band, like the ship's own cue volumes over in
 /// `nova_ship`'s `ship_audio`.
 pub const MENU_SELECT_VOLUME: f32 = 0.28;
-/// Volume for the HUD-toggle click cue, fired from `nova_menu`.
+/// Volume for the [`UiSfx::UiToggle`] blip, fired from `nova_menu` and
+/// `nova_interface`.
 pub const UI_TOGGLE_VOLUME: f32 = 0.24;
 /// Volume for the panel-pop cue. Set to land on `MENU_SELECT_VOLUME`'s
 /// A-weighted level (about -39.6 dBA at unity master), not to match its linear

@@ -68,7 +68,7 @@ pub mod prelude {
 }
 
 use bevy::prelude::*;
-use nova_gameplay::GameStates;
+use nova_gameplay::{GameStates, PauseStates};
 use nova_hud::NovaHudSystems;
 use nova_input::prelude::RegisterInputActions;
 use nova_ui::{theme::UiThemeSystems, widget::button_on_setting};
@@ -77,8 +77,9 @@ use crate::{
     inventory::InventoryPaneSystems,
     map::MapPaneSystems,
     pane::{
-        next_interface_pane, rebuild_interface_body, refresh_pane_input_hints,
-        spawn_interface_root, sync_nova_os_contexts, toggle_interface, InterfacePaneType,
+        next_interface_pane, play_interface_toggle, rebuild_interface_body,
+        refresh_pane_input_hints, spawn_interface_root, sync_nova_os_contexts, toggle_interface,
+        InterfacePaneType,
     },
     ship::ShipPaneSystems,
     terminal::CommandsSystems,
@@ -152,6 +153,20 @@ impl Plugin for InterfacePlugin {
             )
                 .chain()
                 .in_set(InterfaceSystems),
+        );
+        app.add_systems(
+            OnTransition {
+                exited: PauseStates::Unpaused,
+                entered: PauseStates::Interface,
+            },
+            play_interface_toggle,
+        );
+        app.add_systems(
+            OnTransition {
+                exited: PauseStates::Interface,
+                entered: PauseStates::Unpaused,
+            },
+            play_interface_toggle,
         );
 
         app.add_plugins(terminal::CommandsPlugin);

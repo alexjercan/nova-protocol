@@ -42,7 +42,7 @@ use super::{
     components::*, content::*, crt::*, flight_log::*, input::*, shell::*, sound::*, spawn::*,
     style::*,
 };
-use crate::pane::toggle_interface;
+use crate::pane::{play_interface_toggle, toggle_interface};
 
 /// A headless app with just the states and the TAB interface toggle, enough to
 /// drive the open and close state machine.
@@ -182,6 +182,26 @@ fn nova_os_sound_app() -> App {
     );
     app.add_systems(OnEnter(PauseStates::Commands), start_nova_os_sound);
     app.add_systems(OnExit(PauseStates::Commands), stop_nova_os_bed);
+    // The interface's back-out and toggle blip, wired as `InterfacePlugin` and
+    // `CommandsPlugin` wire them.
+    app.add_systems(
+        Update,
+        close_surface_from_menu_keys.before(toggle_interface),
+    );
+    app.add_systems(
+        OnTransition {
+            exited: PauseStates::Unpaused,
+            entered: PauseStates::Interface,
+        },
+        play_interface_toggle,
+    );
+    app.add_systems(
+        OnTransition {
+            exited: PauseStates::Interface,
+            entered: PauseStates::Unpaused,
+        },
+        play_interface_toggle,
+    );
     app
 }
 
