@@ -615,6 +615,50 @@ fn map_orbit_drag_is_rmb_only() {
     );
 }
 
+/// A held pan moves the map focus by real time, not by frame count. The
+/// interface pauses `Time<Virtual>`, and a per-frame floor on that zero delta
+/// made one second of W cover four times the ground at 120 Hz that it covered
+/// at 30 Hz.
+#[test]
+fn a_held_pan_covers_the_same_ground_at_30_and_120_hz() {
+    let pan_for_one_second = |hz: u32| {
+        let mut app = map_input_app();
+        app.world_mut().resource_mut::<Time<Virtual>>().pause();
+        // The first real update only starts the clock, with a zero delta.
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .update_with_duration(std::time::Duration::ZERO);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.world_mut().run_system_once(drive_map_camera).unwrap();
+        let focus = |app: &mut App| {
+            app.world_mut()
+                .query_filtered::<&MapOrbit, With<MapCameraMarker>>()
+                .single(app.world())
+                .map(|orbit| orbit.center)
+                .unwrap()
+        };
+        let start = focus(&mut app);
+        for _ in 0..hz {
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .update_with_duration(std::time::Duration::from_secs_f64(1.0 / f64::from(hz)));
+            app.world_mut().run_system_once(map_input).unwrap();
+            app.world_mut().run_system_once(drive_map_camera).unwrap();
+        }
+        focus(&mut app).distance(start)
+    };
+
+    let at_30 = pan_for_one_second(30);
+    let at_120 = pan_for_one_second(120);
+    assert!(at_30 > 0.0, "a held pan moves the focus");
+    assert!(
+        (at_120 - at_30).abs() <= at_30 * 1e-3,
+        "one second of pan covers {at_30} at 30 Hz and {at_120} at 120 Hz"
+    );
+}
+
 /// Stand a map viewport up inside the rig's content root, clipped exactly as
 /// the pane body's is, and return it.
 fn rig_map_viewport(rig: &mut PanePointerRig) -> Entity {

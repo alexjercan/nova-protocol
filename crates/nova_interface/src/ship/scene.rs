@@ -414,7 +414,7 @@ pub(crate) fn reconcile_ship_target(
 
 /// Drive the ship camera transform from its orbit state.
 pub(crate) fn drive_ship_camera(
-    time: Res<Time>,
+    time: Res<Time<Real>>,
     mut q_camera: Query<(&mut Transform, &mut ShipOrbit), With<ShipCameraMarker>>,
 ) {
     let Ok((mut transform, mut orbit)) = q_camera.single_mut() else {
@@ -428,11 +428,9 @@ pub(crate) fn drive_ship_camera(
 /// One frame of the orbit center chasing `target` over `dt` seconds.
 ///
 /// A frame-rate independent exponential ease (`1 - exp(-k * dt)`), so a
-/// selection glides the view onto the section instead of jumping to it. `dt`
-/// is floored at 1/240 s: the interface runs over paused virtual time, whose delta is
-/// zero, and the view must still move there.
+/// selection glides the view onto the section instead of jumping to it.
 pub fn ease_orbit_center(center: Vec3, target: Vec3, dt: f32) -> Vec3 {
-    let alpha = 1.0 - (-SHIP_CENTER_EASE * dt.max(1.0 / 240.0)).exp();
+    let alpha = 1.0 - (-SHIP_CENTER_EASE * dt).exp();
     center.lerp(target, alpha)
 }
 

@@ -53,14 +53,14 @@
 //! ## Why the interface is closed and reopened between the two sheets
 //!
 //! The panel's note line is a transient (`ShipRuntime.note`), and it counts
-//! down on the pane's own clock - which the interface has stopped. `dt()`
-//! floors at 1/240 s, so a 2.5 s note outlives any twenty-cell sheet several
-//! times over, and the rebind sheet would have opened with `reloaded PDC-1:
-//! ammo 8/8` still sitting under the buttons. Leaving the pane clears the note,
-//! the selection and any armed rebind (`manage_ship_scene`'s teardown), so the
-//! walk closes the interface with TAB, reopens it - TAB reopens the last pane,
-//! which is Ship - and re-cycles. The second sheet then opens on a panel that
-//! says only what it is about.
+//! down on real time. An armed capture pins that clock at one cell per frame,
+//! so a 2.5 s note outlives a twenty-cell sheet, and the rebind sheet would
+//! have opened with `reloaded PDC-1: ammo 8/8` still sitting under the
+//! buttons. Leaving the pane clears the note, the selection and any armed
+//! rebind (`manage_ship_scene`'s teardown), so the walk closes the interface
+//! with TAB, reopens it - TAB reopens the last pane, which is Ship - and
+//! re-cycles. The second sheet then opens on a panel that says only what it
+//! is about.
 //!
 //! ## What did not work
 //!

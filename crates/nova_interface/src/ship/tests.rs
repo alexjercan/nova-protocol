@@ -513,13 +513,17 @@ fn ship_orbit(app: &mut App) -> ShipOrbit {
         .unwrap()
 }
 
-/// Advance the generic clock and drive the camera `frames` times, so the
-/// exponential center ease actually integrates over simulated time.
+/// Advance the real clock and drive the camera `frames` times, so the
+/// exponential center ease actually integrates over real time.
 fn drive_frames(app: &mut App, frames: usize, dt: f32) {
+    // The first real update only starts the clock, with a zero delta.
+    app.world_mut()
+        .resource_mut::<Time<Real>>()
+        .update_with_duration(std::time::Duration::ZERO);
     for _ in 0..frames {
         app.world_mut()
-            .resource_mut::<Time>()
-            .advance_by(std::time::Duration::from_secs_f32(dt));
+            .resource_mut::<Time<Real>>()
+            .update_with_duration(std::time::Duration::from_secs_f32(dt));
         app.world_mut().run_system_once(drive_ship_camera).unwrap();
     }
 }

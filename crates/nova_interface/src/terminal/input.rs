@@ -287,7 +287,7 @@ pub(crate) fn scroll_nova_os_panels(
 }
 
 /// The input surface a TAB pane's viewer reads: the activity gate, pointer and
-/// action state, and the frame clock.
+/// action state, and the real frame clock.
 ///
 /// The panes name ACTIONS, not keys, so a player can rebind the viewer like
 /// flight.
@@ -300,7 +300,7 @@ pub(crate) struct NovaOsAppInput<'w, 's> {
     sources: InputSources<'w, 's>,
     motion: MessageReader<'w, 's, bevy::input::mouse::MouseMotion>,
     wheel: MessageReader<'w, 's, bevy::input::mouse::MouseWheel>,
-    time: Res<'w, Time>,
+    time: Res<'w, Time<Real>>,
 }
 
 impl NovaOsAppInput<'_, '_> {
@@ -320,9 +320,13 @@ impl NovaOsAppInput<'_, '_> {
         self.wheel.read().map(|w| w.y).sum()
     }
 
-    /// Frame delta, floored so one stalled frame cannot swing an orbit wildly.
+    /// Real frame delta, capped at 0.25 s so one stalled frame cannot swing an
+    /// orbit wildly.
+    ///
+    /// Real, not virtual: the interface pauses `Time<Virtual>`, so its delta is
+    /// zero under every pane.
     pub(crate) fn dt(&self) -> f32 {
-        self.time.delta_secs().max(1.0 / 240.0)
+        self.time.delta_secs().min(0.25)
     }
 
     /// Whether a mouse button is held.

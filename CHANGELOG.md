@@ -92,6 +92,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Fixes
 
+- The Map and Ship panes turn, pan and ease at one speed at any frame rate, and
+  their notes last 2.5 s. They stepped per frame, so 60 Hz moved at a quarter
+  of 240 Hz.
 - The Map codes planets `PLN-n` and side-less ships `NEU-n`, with their own
   readouts. Both used to read as asteroids (`AST-n`, `Asteroid mass.`).
 - A ship holding a completed `OrbitShip` ring no longer keeps its helm forever

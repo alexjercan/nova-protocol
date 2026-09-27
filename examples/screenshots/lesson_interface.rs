@@ -123,10 +123,15 @@ const OPEN_LEAD_CELLS: u32 = 3;
 #[cfg(feature = "debug")]
 const OPEN_HOLD_CELLS: u32 = 6;
 
-/// Cells of the map sheet before the pane starts turning, and cells it turns
-/// for.
+/// Cells of the map sheet before the pane starts turning.
 #[cfg(feature = "debug")]
 const MAP_LEAD_CELLS: u32 = 1;
+/// Cells the turn key is held for.
+///
+/// The viewer turns on `Time<Real>`, and an armed capture pins that clock at
+/// one cell per frame, so this is a fixed stretch of real time and a fixed
+/// angle on every capture. The angle itself lives in the crate-private map
+/// orbit, so the walk holds for the time rather than reading the angle.
 #[cfg(feature = "debug")]
 const MAP_TURN_CELLS: u32 = 3;
 /// Cells the picked hostile's panel holds before GOTO is pressed. The map
