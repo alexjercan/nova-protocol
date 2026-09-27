@@ -8,10 +8,12 @@
 //! W/A/S/D move the camera across the plane, Space moves it up and Shift
 //! down, and Reframe brings it back to its opening framing. Each contact
 //! wears the icon of what it is (ship, asteroid, planet, objective) in its
-//! stance colour, and a legend names the kinds the map plots. On the ship, a
-//! side panel details the selected section, Prev/Next step through the
-//! sections, Fit frames the whole hull and Reset also restores the opening
-//! angles, and a legend under the view names the section kinds. The data,
+//! stance colour. On the ship, a side panel details the selected section,
+//! Prev/Next step through the sections, Fit frames the whole hull and Reset
+//! also restores the opening angles. Under each view and its panel, a
+//! full-width footer shows the legend of the kinds the view plots on the
+//! left, the view's buttons and the inputs it handles in the centre, and the
+//! selected contact or section on the right. The data,
 //! geometry and orbit feel come from the TAB interface: the `MapContacts` and
 //! `ShipSections` models, the map ring, framing and zoom helpers, the ship
 //! block and framing helpers, and the shared orbit gesture, zoom and center
@@ -65,7 +67,8 @@
 //!   legend, the section icons and bow arrow, every transaction's exact
 //!   effect and every refusal's, the deal a row opens per context, that a
 //!   double click trades once, the interface cue of each control, the equal
-//!   store columns, the rows, filters and weight bars, that a selection, a
+//!   store columns, the rows, filters and weight bars, the map and ship
+//!   footer's zones, input hints and live summary, that a selection, a
 //!   quantity change or a refused Confirm respawns no inventory or rail
 //!   node, that a closed deal gives the keyboard back, the rail's width,
 //!   place and status, the 3D repaint, that the simulation never advances and
@@ -139,6 +142,12 @@ const SHIP_SCENE: &str = "Sketch Ship Scene";
 const MAP_READOUT: &str = "Sketch Map Readout";
 const MAP_REFRAME: &str = "Sketch Map Reframe";
 const MAP_LEGEND: &str = "Sketch Map Legend";
+const VIEW_FOOTER: &str = "Sketch View Footer";
+const FOOTER_LEGEND: &str = "Sketch Footer Legend";
+const FOOTER_CONTROLS: &str = "Sketch Footer Controls";
+const FOOTER_SUMMARY: &str = "Sketch Footer Summary";
+const FOOTER_HINTS: &str = "Sketch Footer Hints";
+const HINT_PREFIX: &str = "Sketch Hint ";
 const SHIP_PREV: &str = "Sketch Ship Prev";
 const SHIP_NEXT: &str = "Sketch Ship Next";
 const SHIP_FIT: &str = "Sketch Ship Fit";
@@ -147,6 +156,7 @@ const SHIP_PANEL: &str = "Sketch Ship Panel";
 const SHIP_PREVIEW: &str = "Sketch Ship Preview";
 const SHIP_DETAIL: &str = "Sketch Ship Detail";
 const SHIP_STATUS: &str = "Sketch Ship Status";
+const SHIP_SUMMARY: &str = "Sketch Ship Summary";
 const SHIP_CONDITION: &str = "Sketch Ship Condition";
 const SHIP_SERVICE: &str = "Sketch Ship Service";
 const SHIP_REPAIR: &str = "Sketch Ship Repair";
@@ -984,7 +994,7 @@ fn rebuild_body(
         .with_children(|body| {
             let min_height = card_min_px(view, narrow);
             match view {
-                SketchView::Map => map_view(body, narrow, min_height),
+                SketchView::Map => map_view(body, min_height),
                 SketchView::Ship => ship_view(body, &icons, narrow, min_height),
                 SketchView::Inventory => inventory_view(body, &icons, narrow, min_height),
             }
@@ -1123,12 +1133,14 @@ fn compact_button<'a>(
     entity
 }
 
-/// The node a 3D scene draws into: it takes all the room its column leaves.
-/// `Hovered` tells [`scroll_body`] the wheel belongs to the scene.
+/// The node a 3D scene draws into: it takes all the room its row or column
+/// leaves. `Hovered` tells [`scroll_body`] the wheel belongs to the scene.
 fn scene_node() -> impl Bundle {
     (
         Node {
             flex_grow: 1.0,
+            flex_basis: px(0),
+            min_width: px(0),
             min_height: px(0),
             position_type: PositionType::Relative,
             overflow: Overflow::clip(),
@@ -1152,67 +1164,132 @@ fn control_row(justify: JustifyContent) -> Node {
     }
 }
 
-/// The map: the scene, then a fixed-height line with the readout, the legend
-/// and Reframe. Narrow, the legend takes its own row. Nothing on the map
-/// trades, repairs or docks.
-fn map_view(body: &mut ChildSpawnerCommands, narrow: bool, min_height: f32) {
+/// The map: the scene over the full-width footer. Nothing on the map trades,
+/// repairs or docks.
+fn map_view(body: &mut ChildSpawnerCommands, min_height: f32) {
     card(body, PANE_MAP, "Map", min_height, |c| {
         c.spawn((MapPane, Name::new(MAP_SCENE), scene_node()))
             .observe(orbit_drag::<MapCamera>)
             .observe(zoom_map);
-        c.spawn(Node {
-            height: px(if narrow { 84.0 } else { 40.0 }),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            justify_content: JustifyContent::Center,
-            row_gap: px(8),
-            ..default()
-        })
-        .with_children(|foot| {
-            foot.spawn(control_row(JustifyContent::FlexStart))
-                .with_children(|line| {
-                    line.spawn((
-                        Name::new(MAP_READOUT),
-                        themed_text("", 14.0, UiColor::Body),
-                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                        Node {
-                            flex_grow: 1.0,
-                            min_width: px(0),
-                            overflow: Overflow::clip(),
-                            ..default()
-                        },
-                    ));
-                    if !narrow {
-                        map_legend(line);
-                    }
-                    line.spawn((
-                        button(ButtonSpec::new("Reframe").fit()),
-                        Name::new(MAP_REFRAME),
-                        SketchClick,
-                    ))
+        view_footer(
+            c,
+            SketchView::Map,
+            map_legend,
+            |row| {
+                compact_button(row, ButtonSpec::new("Reframe").fit(), MAP_REFRAME)
+                    .insert(SketchClick)
                     .observe(reframe_map);
-                });
-            if narrow {
-                foot.spawn(control_row(JustifyContent::FlexStart))
-                    .with_children(map_legend);
-            }
-        });
+            },
+            MAP_READOUT,
+        );
     });
 }
 
-/// The slot [`refresh_map_legend`] fills with the plotted marks.
-fn map_legend(line: &mut ChildSpawnerCommands) {
-    line.spawn((
+/// The slot [`refresh_map_legend`] fills with the plotted marks, wrapping
+/// when its zone is short.
+fn map_legend(zone: &mut ChildSpawnerCommands) {
+    zone.spawn((
         MapLegend,
         Name::new(MAP_LEGEND),
         Node {
             flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
             align_items: AlignItems::Center,
             column_gap: px(12),
+            row_gap: px(6),
             flex_shrink: 0.0,
             ..default()
         },
     ));
+}
+
+/// The full-width line under a view and its panel, in three equal zones: the
+/// legend left; in the centre, the view's buttons and key hints on one line
+/// over the pointer hints on another; and the selection summary right, which
+/// `summary` names for the view's update system.
+fn view_footer(
+    parent: &mut ChildSpawnerCommands,
+    view: SketchView,
+    legend: impl FnOnce(&mut ChildSpawnerCommands),
+    buttons: impl FnOnce(&mut ChildSpawnerCommands),
+    summary: &str,
+) {
+    parent
+        .spawn((
+            Name::new(VIEW_FOOTER),
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: px(12),
+                flex_shrink: 0.0,
+                ..default()
+            },
+        ))
+        .with_children(|foot| {
+            foot.spawn(footer_zone(FOOTER_LEGEND)).with_children(legend);
+            foot.spawn(footer_zone(FOOTER_CONTROLS))
+                .with_children(|zone| {
+                    zone.spawn(control_row(JustifyContent::Center))
+                        .with_children(|row| {
+                            buttons(row);
+                            for hint in input_hints(view) {
+                                input_hint(row, hint);
+                            }
+                        });
+                    zone.spawn((Name::new(FOOTER_HINTS), control_row(JustifyContent::Center)))
+                        .with_children(|row| {
+                            for hint in &POINTER_HINTS {
+                                input_hint(row, hint);
+                            }
+                        });
+                });
+            foot.spawn(footer_zone(FOOTER_SUMMARY))
+                .with_children(|zone| {
+                    zone.spawn((
+                        Name::new(summary.to_string()),
+                        themed_text("", 14.0, UiColor::Body),
+                        TextLayout::new(Justify::Right, LineBreak::WordBoundary),
+                    ));
+                });
+        });
+}
+
+/// One of the three equal zones of a view footer.
+fn footer_zone(name: &str) -> impl Bundle {
+    (
+        Name::new(name.to_string()),
+        Node {
+            flex_grow: 1.0,
+            flex_basis: px(0),
+            min_width: px(0),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(6),
+            ..default()
+        },
+    )
+}
+
+/// The pointer inputs both scene views handle, as input and action.
+const POINTER_HINTS: [(&str, &str); 3] =
+    [("Drag", "orbit"), ("Wheel", "zoom"), ("Click", "select")];
+
+/// The keys a view handles, as input and action. Tab and Escape belong to
+/// the interface, not to the view.
+fn input_hints(view: SketchView) -> &'static [(&'static str, &'static str)] {
+    match view {
+        SketchView::Map => &[("WASD/Space/Shift", "fly")],
+        SketchView::Ship => &[],
+        SketchView::Inventory => unreachable!("the hold has no footer"),
+    }
+}
+
+/// An input in the primary colour and its action, on one line.
+fn input_hint(row: &mut ChildSpawnerCommands, (input, action): &(&str, &str)) {
+    row.spawn((Name::new(format!("{HINT_PREFIX}{input}")), legend_entry()))
+        .with_children(|hint| {
+            text(hint, input, 12.0, UiColor::Primary);
+            text(hint, action, 12.0, UiColor::Body);
+        });
 }
 
 /// Width of the ship panel and the inventory inspector beside their views, in
@@ -1225,87 +1302,40 @@ const SHIP_PANEL_NARROW_PX: f32 = 200.0;
 /// above it keeps its size in every context and repair state.
 const REPAIR_PX: f32 = 92.0;
 
-/// The ship: the scene with the section legend and the centred step, fit and
-/// reset controls under it, and the section panel beside it, or under both
-/// when narrow. Wide, the legend sits left of the controls and an equal empty
-/// side keeps them centred; narrow, the legend takes its own row.
+/// The ship: the scene with the section panel beside it, or under it when
+/// narrow, over the full-width footer.
 fn ship_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool, min_height: f32) {
     card(body, PANE_SHIP, "Ship", min_height, |c| {
         c.spawn(split(narrow)).with_children(|split| {
             split
-                .spawn(Node {
-                    flex_grow: 1.0,
-                    flex_basis: px(0),
-                    min_width: px(0),
-                    min_height: px(0),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(10),
-                    ..default()
-                })
-                .with_children(|viewer| {
-                    viewer
-                        .spawn((ShipPane, Name::new(SHIP_SCENE), scene_node()))
-                        .observe(orbit_drag::<ShipCamera>)
-                        .observe(zoom_ship);
-                    if narrow {
-                        ship_controls(viewer);
-                        section_legend(viewer, icons);
-                    } else {
-                        viewer
-                            .spawn(control_row(JustifyContent::Center))
-                            .with_children(|foot| {
-                                foot.spawn(footer_side())
-                                    .with_children(|side| section_legend(side, icons));
-                                ship_controls(foot);
-                                foot.spawn(footer_side());
-                            });
-                    }
-                });
+                .spawn((ShipPane, Name::new(SHIP_SCENE), scene_node()))
+                .observe(orbit_drag::<ShipCamera>)
+                .observe(zoom_ship);
             ship_panel(split, icons, narrow);
         });
+        view_footer(
+            c,
+            SketchView::Ship,
+            |zone| section_legend(zone, icons),
+            ship_controls,
+            SHIP_SUMMARY,
+        );
     });
 }
 
-/// Prev, Next, Fit and Reset, centred in their row.
-fn ship_controls(parent: &mut ChildSpawnerCommands) {
-    parent
-        .spawn(control_row(JustifyContent::Center))
-        .with_children(|controls| {
-            for (label, name, step) in [("Prev", SHIP_PREV, -1), ("Next", SHIP_NEXT, 1)] {
-                controls
-                    .spawn((
-                        button(ButtonSpec::new(label).fit()),
-                        Name::new(name),
-                        SketchClick,
-                    ))
-                    .observe(step_section(step));
-            }
-            controls
-                .spawn((
-                    button(ButtonSpec::new("Fit").fit()),
-                    Name::new(SHIP_FIT),
-                    SketchClick,
-                ))
-                .observe(fit_ship);
-            controls
-                .spawn((
-                    button(ButtonSpec::new("Reset").fit()),
-                    Name::new(SHIP_RESET),
-                    SketchClick,
-                ))
-                .observe(reset_ship);
-        });
-}
-
-/// One of the two equal sides of the wide ship footer.
-fn footer_side() -> Node {
-    Node {
-        flex_grow: 1.0,
-        flex_basis: px(0),
-        min_width: px(0),
-        flex_direction: FlexDirection::Column,
-        ..default()
+/// Prev, Next, Fit and Reset, in the footer's button row.
+fn ship_controls(row: &mut ChildSpawnerCommands) {
+    for (label, name, step) in [("Prev", SHIP_PREV, -1), ("Next", SHIP_NEXT, 1)] {
+        compact_button(row, ButtonSpec::new(label).fit(), name)
+            .insert(SketchClick)
+            .observe(step_section(step));
     }
+    compact_button(row, ButtonSpec::new("Fit").fit(), SHIP_FIT)
+        .insert(SketchClick)
+        .observe(fit_ship);
+    compact_button(row, ButtonSpec::new("Reset").fit(), SHIP_RESET)
+        .insert(SketchClick)
+        .observe(reset_ship);
 }
 
 /// The section kinds: each icon in its tint and its word, wrapping when the
@@ -2994,6 +3024,8 @@ fn outline_selected_section(
     }
 }
 
+/// The selected contact's code, name, kind and range in the map footer
+/// summary.
 fn update_map_readout(
     selection: Res<MapSelection>,
     contacts: MapContacts,
@@ -3021,7 +3053,8 @@ fn update_map_readout(
 }
 
 /// The selected section's code, name, family and fixture condition in the
-/// ship panel, with its family icon and a condition bar.
+/// ship panel, with its family icon and a condition bar, and its code and
+/// condition in the footer summary.
 fn update_ship_detail(
     selection: Res<ShipSelection>,
     sections: ShipSections,
@@ -3045,6 +3078,11 @@ fn update_ship_detail(
         &mut texts,
         SHIP_DETAIL,
         &format!("{}  {}", view.code, view.name),
+    );
+    set_named_text(
+        &mut texts,
+        SHIP_SUMMARY,
+        &format!("{}  {pct}%  {}", view.code, condition_status(pct)),
     );
     set_named_text(
         &mut texts,
@@ -5297,6 +5335,7 @@ fn sketch_script() -> Script {
         script = open(script, view);
         script = verdict(script, view, Station, "mid");
     }
+    script = shot(script, "mid-hardware-map-station");
 
     script = resize(script, NARROW, "narrow");
     for view in [Map, Ship, Inventory] {
@@ -7443,6 +7482,7 @@ fn assert_view(world: &mut World, view: SketchView, context: SketchContext, when
     }
     assert_scenes(world, view, when);
     assert_dock(world, context, when);
+    assert_footer(world, view, when);
     match view {
         SketchView::Map => {
             assert_map_controls(world, when);
@@ -7647,6 +7687,172 @@ fn assert_map_legend(world: &mut World, when: &str) {
             "{key} must be on screen ({when})"
         );
     }
+}
+
+/// Map and Ship end in one footer across the scene and the ship panel,
+/// under both, in three equal zones: the legend left; in the centre, the
+/// view's buttons and exactly its key hints on one line over exactly the
+/// pointer hints on another; and the live selection's summary right. The
+/// inventory has no footer.
+#[cfg(feature = "debug")]
+fn assert_footer(world: &mut World, view: SketchView, when: &str) {
+    if view == SketchView::Inventory {
+        assert_eq!(
+            count_named(world, VIEW_FOOTER),
+            0,
+            "the inventory must have no view footer ({when})"
+        );
+        return;
+    }
+    let rect = |world: &mut World, name: &str| {
+        ui_node_rect(world, name).unwrap_or_else(|| panic!("{name} is not laid out ({when})"))
+    };
+    let footer = rect(world, VIEW_FOOTER);
+    let pane = rect(world, view.pane());
+    let (above, legend, buttons, summary): (Rect, Vec<String>, &[&str], &str) = match view {
+        SketchView::Map => (
+            rect(world, MAP_SCENE),
+            vec![MAP_LEGEND.to_string()],
+            &[MAP_REFRAME],
+            MAP_READOUT,
+        ),
+        SketchView::Ship => (
+            rect(world, SHIP_SCENE).union(rect(world, SHIP_PANEL)),
+            SectionIcon::ALL
+                .iter()
+                .map(|icon| format!("Sketch Legend {}", icon.label()))
+                .collect(),
+            &[SHIP_PREV, SHIP_NEXT, SHIP_FIT, SHIP_RESET],
+            SHIP_SUMMARY,
+        ),
+        SketchView::Inventory => unreachable!("returned above"),
+    };
+    assert!(
+        inside(footer, pane)
+            && (footer.min.x - above.min.x).abs() < 1.0
+            && (footer.max.x - above.max.x).abs() < 1.0
+            && footer.min.y >= above.max.y - 1.0,
+        "the footer {footer:?} must span the width under {above:?} inside the pane {pane:?} \
+         ({when})"
+    );
+    let zones = [FOOTER_LEGEND, FOOTER_CONTROLS, FOOTER_SUMMARY].map(|zone| rect(world, zone));
+    // Layout rounds each zone to whole pixels, so equal widths differ by one.
+    assert!(
+        zones.iter().all(|zone| inside(*zone, footer))
+            && zones.windows(2).all(|pair| {
+                pair[0].max.x <= pair[1].min.x + 1.0
+                    && (pair[0].width() - pair[1].width()).abs() < 1.5
+            }),
+        "the footer {footer:?} must hold three equal zones left to right, not {zones:?} ({when})"
+    );
+    let [left, centre, right] = zones;
+    for name in &legend {
+        let at = rect(world, name);
+        assert!(
+            inside(at, left),
+            "{name} {at:?} must sit in the left zone {left:?} ({when})"
+        );
+    }
+    for name in buttons.iter().copied().chain([FOOTER_HINTS]) {
+        let at = rect(world, name);
+        assert!(
+            inside(at, centre),
+            "{name} {at:?} must sit in the centre zone {centre:?} ({when})"
+        );
+    }
+    // Tree order: the key hints in the button row, then the pointer hints.
+    let mut hints: Vec<(String, Vec<String>, Rect)> = Vec::new();
+    let mut stack = vec![named(world, FOOTER_CONTROLS)];
+    while let Some(entity) = stack.pop() {
+        let name = world.get::<Name>(entity).map(|name| name.to_string());
+        if let Some(name) = name.filter(|name| name.starts_with(HINT_PREFIX)) {
+            let texts = world
+                .get::<Children>(entity)
+                .map(|children| {
+                    children
+                        .iter()
+                        .filter_map(|part| world.get::<Text>(part).map(|text| text.0.clone()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let at = rect(world, &name);
+            hints.push((name, texts, at));
+        }
+        if let Some(children) = world.get::<Children>(entity) {
+            stack.extend(children.iter().rev());
+        }
+    }
+    let wanted: Vec<(String, Vec<String>)> = input_hints(view)
+        .iter()
+        .chain(&POINTER_HINTS)
+        .map(|(input, action)| {
+            (
+                format!("{HINT_PREFIX}{input}"),
+                vec![input.to_string(), action.to_string()],
+            )
+        })
+        .collect();
+    assert_eq!(
+        hints
+            .iter()
+            .map(|(name, texts, _)| (name.clone(), texts.clone()))
+            .collect::<Vec<_>>(),
+        wanted,
+        "the footer must hint exactly the inputs the {view:?} view handles ({when})"
+    );
+    // One line each: a wrapped hint is taller than the rest, and a wrapped
+    // row puts its hints on different lines.
+    let line = hints
+        .iter()
+        .map(|(_, _, at)| at.height())
+        .fold(f32::INFINITY, f32::min);
+    let button_y = rect(world, buttons[0]).center().y;
+    let pointer_y = rect(world, FOOTER_HINTS).center().y;
+    let keys = input_hints(view).len();
+    for (index, (name, _, at)) in hints.iter().enumerate() {
+        let row_y = if index < keys { button_y } else { pointer_y };
+        assert!(
+            inside(*at, centre)
+                && (at.height() - line).abs() < 1.0
+                && (at.center().y - row_y).abs() < 1.0,
+            "{name} {at:?} must sit on one line in its row at y {row_y} inside the centre zone \
+             {centre:?} ({when})"
+        );
+    }
+    let at = rect(world, summary);
+    assert!(
+        inside(at, right),
+        "{summary} {at:?} must sit in the right zone {right:?} ({when})"
+    );
+    let selected = match view {
+        SketchView::Map => {
+            let selected = world.resource::<MapSelection>().0;
+            world
+                .run_system_once(move |contacts: MapContacts| {
+                    selected.and_then(|selected| {
+                        contacts
+                            .collect()
+                            .into_iter()
+                            .find(|contact| contact.entity == selected)
+                            .map(|contact| contact.code)
+                    })
+                })
+                .expect("the contact model runs")
+        }
+        SketchView::Ship => section_order(world).0,
+        SketchView::Inventory => unreachable!("returned above"),
+    };
+    let line = named_text(world, summary);
+    // The ship view always selects a section; only the map may have none.
+    let live = match (&selected, view) {
+        (Some(code), _) => line.starts_with(&format!("{code}  ")),
+        (None, SketchView::Map) => line == "Select a contact.",
+        (None, _) => false,
+    };
+    assert!(
+        live,
+        "the footer summary `{line}` must name the live selection {selected:?} ({when})"
+    );
 }
 
 /// The ship panel shows the selected section's icon, fixture condition and
