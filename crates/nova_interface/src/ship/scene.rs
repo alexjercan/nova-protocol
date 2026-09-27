@@ -1002,7 +1002,7 @@ pub(crate) fn update_ship_panel(
         None => (
             "No section".to_string(),
             String::new(),
-            "Select a section:\nclick a badge or press [ / ].".to_string(),
+            "Select a section:\nclick a badge or use Prev / Next.".to_string(),
             UiColor::Label,
             PanelActions::none(),
         ),
