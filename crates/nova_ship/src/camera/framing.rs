@@ -1,7 +1,7 @@
 //! Camera framing: where the chase rig anchors (the live centre of mass,
 //! eased across a handback) and how far back it sits - the per-mode rig, the
-//! burn push, the orbit survey dolly, and the velocity lead that keeps the
-//! framing speed-invariant.
+//! wheel zoom, the burn push, the orbit survey dolly, and the velocity lead
+//! that keeps the framing speed-invariant.
 //!
 //! Engine units throughout: a rig offset is a Bevy transform and a lead is
 //! measured against an avian velocity, so every distance below is a world
@@ -19,6 +19,7 @@ use super::{
     rig::{
         SpaceshipCameraController, SpaceshipCameraInputMarker, SpaceshipRotationInputActiveMarker,
     },
+    zoom::ChaseZoom,
 };
 use crate::{prelude::*, sections::thruster_section::engine_direction_local};
 
@@ -187,28 +188,32 @@ fn hull_clearance_scale(base_offset: Vec3, envelope: f32) -> f32 {
     ((envelope + CAMERA_HULL_CLEARANCE.to_engine()) / base).max(1.0)
 }
 
-/// The hull-cleared rig for `mode` on a hull of `envelope` world units: the
-/// authored composition grown to clear the hull, with the gameplay smoothing.
+/// The hull-cleared rig for `mode` on a hull of `envelope` world units, dollied
+/// out to `zoom` times its distance: the authored composition grown to clear
+/// the hull, with the gameplay smoothing. The zoom moves only the camera; the
+/// focus stays where the composition puts it.
 ///
 /// [`update_camera_rig`] composes the survey dolly, the burn push and the
 /// velocity lead onto this every frame; the controller observer stamps it
-/// unchanged, so a camera inserted into a big hull opens OUTSIDE it instead of
-/// wearing a cutter-sized rig for its first frame.
+/// with the session zoom, so a camera inserted into a big hull opens OUTSIDE it
+/// instead of wearing a cutter-sized rig for its first frame.
 pub(super) fn spaceship_camera_rig(
     mode: &SpaceshipCameraControlMode,
     envelope: f32,
+    zoom: f32,
 ) -> ChaseCamera {
     let (offset, focus_offset) = mode_camera_rig(mode);
     let scale = hull_clearance_scale(offset, envelope);
     ChaseCamera {
-        offset: offset * scale,
+        offset: offset * scale * zoom,
         focus_offset: focus_offset * scale,
         smoothing: CAMERA_SMOOTHING,
     }
 }
 
 /// Where the chase camera stands the moment it opens on a hull of `envelope`
-/// world units, anchored at `anchor` and facing `facing`.
+/// world units at the session `zoom` level, anchored at `anchor` and facing
+/// `facing`.
 ///
 /// The SAME composition [`spaceship_camera_rig`] gives, resolved to a pose:
 /// this is the rig's own settled answer, not an approximation of it, so the
@@ -219,8 +224,13 @@ pub(super) fn spaceship_camera_rig(
 ///
 /// Engine units, like everything else in this module: `envelope` is a world
 /// unit reach and the returned transform is a Bevy transform.
-pub fn chase_camera_opening_pose(anchor: Vec3, facing: Quat, envelope: f32) -> Transform {
-    let rig = spaceship_camera_rig(&SpaceshipCameraControlMode::Normal, envelope);
+pub fn chase_camera_opening_pose(
+    anchor: Vec3,
+    facing: Quat,
+    envelope: f32,
+    zoom: f32,
+) -> Transform {
+    let rig = spaceship_camera_rig(&SpaceshipCameraControlMode::Normal, envelope, zoom);
     // `chase_camera_update_state_system`'s frame, written out: the rig's own Z
     // counts FORWARD, so a rig standing behind the hull has a negative one.
     let behind = |offset: Vec3| facing * Vec3::new(offset.x, offset.y, -offset.z);
@@ -272,8 +282,8 @@ fn survey_scale(action: Option<&AutopilotAction>, base_len: f32, envelope: f32) 
 }
 
 /// Applies the whole camera rig, every frame: `offset = mode rig * hull
-/// clearance * survey dolly + burn push`, the mode's focus offset, and the
-/// gameplay smoothing. Per-frame ownership (not on mode change) is
+/// clearance * (wheel zoom or survey dolly) + burn push`, the mode's focus
+/// offset, and the gameplay smoothing. Per-frame ownership (not on mode change) is
 /// load-bearing: player death removes `ChaseCamera` and respawn re-inserts one,
 /// so anything applied only on `mode.is_changed()` is silently lost after the
 /// first life. The hull clearance grows the composition until the camera stands
@@ -286,13 +296,16 @@ fn survey_scale(action: Option<&AutopilotAction>, base_len: f32, envelope: f32) 
 /// survey dolly (engaged ORBIT) applies in Normal and FreeLook but NOT Turret -
 /// a fight while orbiting should not be fought from survey range - and rides
 /// the same per-frame smoothing as everything else, so engage and breakout ease
-/// exactly like a mode switch instead of snapping.
+/// exactly like a mode switch instead of snapping. The wheel zoom rides that
+/// smoothing as well; inside a planned orbit the wheel overrides the survey
+/// distance ([`ChaseZoom`]).
 pub(super) fn update_camera_rig(
     time: Res<Time>,
     // The tick a `ThrusterSectionMagnitude` impulse is authored against; the
     // only way to read an authored magnitude as an acceleration.
     fixed_time: Res<Time<Fixed>>,
     mode: Res<SpaceshipCameraControlMode>,
+    mut zoom: ResMut<ChaseZoom>,
     camera: Single<(&mut ChaseCamera, &ChaseCameraInput), With<SpaceshipCameraController>>,
     spaceship: Single<
         (
@@ -352,15 +365,12 @@ pub(super) fn update_camera_rig(
     let hull_scale = hull_clearance_scale(base_offset, envelope);
     let base_offset = base_offset * hull_scale;
     let focus_offset = focus_offset * hull_scale;
-    let scale = if matches!(*mode, SpaceshipCameraControlMode::Turret) {
-        1.0
-    } else {
-        survey_scale(
-            q_autopilot.get(ship).ok().map(|a| &a.action),
-            base_offset.length(),
-            envelope,
-        )
-    };
+    let action = q_autopilot.get(ship).ok().map(|a| &a.action);
+    let planned_orbit = matches!(action, Some(AutopilotAction::Orbit { plan: Some(_), .. }));
+    let scale = zoom.drain_scale(
+        matches!(*mode, SpaceshipCameraControlMode::Turret),
+        planned_orbit.then(|| survey_scale(action, base_offset.length(), envelope)),
+    );
     // Velocity lead: cancel the chase lerp's steady-state lag (see
     // chase_lag_tau) so the camera holds the rig distance at any cruise speed.
     // Expressed in the anchor rotation frame because the chase rig re-rotates
@@ -437,6 +447,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.add_plugins(ChaseCameraPlugin);
         app.init_resource::<SpaceshipCameraControlMode>();
+        app.init_resource::<ChaseZoom>();
         app.add_systems(Update, update_camera_rig);
 
         let ship = app
@@ -509,14 +520,14 @@ mod tests {
             let (authored, authored_focus) = mode_camera_rig(&mode);
 
             // A hull that fits keeps the shipped framing exactly.
-            let skiff = spaceship_camera_rig(&mode, SKIFF_ENVELOPE);
+            let skiff = spaceship_camera_rig(&mode, SKIFF_ENVELOPE, 1.0);
             assert_eq!(skiff.offset, authored, "{mode:?} reframed a small hull");
             assert_eq!(skiff.focus_offset, authored_focus);
             assert_eq!(skiff.smoothing, CAMERA_SMOOTHING);
 
             // A hull that does not fit grows the rig past its envelope plus
             // the visual clearance, without turning the camera.
-            let carrier = spaceship_camera_rig(&mode, CARRIER_ENVELOPE);
+            let carrier = spaceship_camera_rig(&mode, CARRIER_ENVELOPE, 1.0);
             assert!(
                 carrier.offset.length()
                     >= CARRIER_ENVELOPE + CAMERA_HULL_CLEARANCE.to_engine() - 1e-4,
@@ -625,6 +636,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.add_plugins(ChaseCameraPlugin);
         app.init_resource::<SpaceshipCameraControlMode>();
+        app.init_resource::<ChaseZoom>();
         app.add_systems(Update, update_camera_rig);
 
         let ship = app
@@ -679,6 +691,51 @@ mod tests {
         assert_eq!(app.world().get::<ChaseCamera>(camera).unwrap().offset, base);
     }
 
+    /// Normal and FreeLook share the wheel level, FreeLook stays farther out,
+    /// and the zoom moves only the camera, never the focus. Turret keeps its
+    /// authored combat rig at any level.
+    #[test]
+    fn the_wheel_zoom_dollies_normal_and_free_look_but_not_turret() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(ChaseCameraPlugin);
+        app.init_resource::<SpaceshipCameraControlMode>();
+        app.insert_resource(ChaseZoom {
+            manual: 4.0,
+            ..default()
+        });
+        app.add_systems(Update, update_camera_rig);
+        app.world_mut().spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::default(),
+        ));
+        let camera = app.world_mut().spawn(SpaceshipCameraController).id();
+
+        let mut rig_in = |mode: SpaceshipCameraControlMode| {
+            *app.world_mut().resource_mut::<SpaceshipCameraControlMode>() = mode;
+            app.update();
+            let chase = app.world().get::<ChaseCamera>(camera).unwrap();
+            (chase.offset, chase.focus_offset)
+        };
+
+        let (normal_base, normal_focus) = mode_camera_rig(&SpaceshipCameraControlMode::Normal);
+        let (normal, focus) = rig_in(SpaceshipCameraControlMode::Normal);
+        assert_eq!(normal, normal_base * 4.0);
+        assert_eq!(focus, normal_focus);
+
+        let (free_base, _) = mode_camera_rig(&SpaceshipCameraControlMode::FreeLook);
+        let (free, _) = rig_in(SpaceshipCameraControlMode::FreeLook);
+        assert_eq!(free, free_base * 4.0);
+        assert!(
+            free.length() > normal.length(),
+            "FreeLook stays farther out"
+        );
+
+        let (turret_base, _) = mode_camera_rig(&SpaceshipCameraControlMode::Turret);
+        assert_eq!(rig_in(SpaceshipCameraControlMode::Turret).0, turret_base);
+    }
+
     /// The camera must hold its RIG framing at any cruise speed. The chase lerp
     /// settles v * tau behind a moving anchor (22 u at 300 u/s - the playtest's
     /// "camera zooms out too much, pivot too far behind"); the rig's velocity
@@ -710,6 +767,7 @@ mod tests {
             let mut app = unfinished_integrity_physics_app();
             app.add_plugins((ChaseCameraPlugin, CameraAuthorityPlugin));
             app.init_resource::<SpaceshipCameraControlMode>();
+            app.init_resource::<ChaseZoom>();
             app.add_systems(Update, (drive_camera_input, update_camera_rig).chain());
             app.finish();
 

@@ -38,7 +38,8 @@ pub enum SpaceshipCameraControlMode {
 /// latch, the weapons safety, manual turret aim) read THIS component, never the
 /// camera enum: the enum is a camera concern, and routing gameplay off it is a
 /// known bug class. Living on the ship root means a respawn starts lowered for
-/// free.
+/// free. The wheel's `PreUpdate` observers read the combat action itself: this
+/// flag is derived in `Update`, so it lags a same-frame RMB edge for them.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Component)]
 pub struct WeaponsRaised(pub bool);
@@ -182,7 +183,7 @@ pub(super) fn on_rotation_input_completed(
 /// Whether a held bool action currently fires, read from its action entity's
 /// state (the `cycle_modifier_held` pattern - a plain Down-conditioned action
 /// reports `Fired` while its key is held).
-fn action_held<A: InputAction>(q: &Query<&TriggerState, With<Action<A>>>) -> bool {
+pub(crate) fn action_held<A: InputAction>(q: &Query<&TriggerState, With<Action<A>>>) -> bool {
     q.iter().any(|&state| state == TriggerState::Fired)
 }
 
@@ -240,6 +241,7 @@ mod tests {
     use crate::camera::{
         framing::{update_camera_rig, CAMERA_SMOOTHING},
         rig::PlayerInputMarker,
+        zoom::ChaseZoom,
         SpaceshipCameraController,
     };
 
@@ -253,6 +255,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.add_plugins(ChaseCameraPlugin);
         app.init_resource::<SpaceshipCameraControlMode>();
+        app.init_resource::<ChaseZoom>();
         app.add_systems(
             Update,
             (sync_spaceship_control_mode, update_camera_rig).chain(),
