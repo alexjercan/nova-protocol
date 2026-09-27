@@ -498,7 +498,7 @@ fn sync_bore_sight(
             commands.spawn((
                 Name::new("Bore Sight"),
                 // HUD-managed like every other world-space instrument, so a
-                // cinematic and the NOVA OS monitor take it away with the rest
+                // cinematic, the interface and the NOVA OS monitor take it away with the rest
                 // of them instead of leaving a line drawn across the frame.
                 crate::HudTier::Instrument,
                 BoreSightSegment { lance: d.lance },

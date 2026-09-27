@@ -22,10 +22,10 @@ use bevy::{
     state::state::{StateTransition, StateTransitionSystems},
 };
 use nova_assets::prelude::{GameAssets, ModQuarantine, ReloadContent};
+use nova_command::prelude::CommandTerminal;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
-use nova_os::prelude::NovaOsTerminal;
-use nova_os_ui::prelude::NovaOsCloseTransition;
+use nova_interface::prelude::NovaOsCloseTransition;
 use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure, UnloadScenario};
 use nova_ui::{
     input_mode::prelude::{in_input_mode, InputMode},
@@ -90,9 +90,9 @@ use outcome::{
     sync_start_failure_overlay,
 };
 use pause::{
-    force_unpause, hold_clocks_for_pause_menu, hold_clocks_for_terminal,
+    force_unpause, hold_clocks_for_interface, hold_clocks_for_pause_menu,
     keep_frozen_cursor_released, open_command_shell, pause_on_focus_loss, reconcile_pause_overlay,
-    release_clocks_for_pause_menu, release_clocks_for_terminal, release_cursor, restore_cursor,
+    release_clocks_for_interface, release_clocks_for_pause_menu, release_cursor, restore_cursor,
     toggle_pause, FocusPause,
 };
 use portal::{drive_update_choreography, UpdateRequested};
@@ -318,7 +318,7 @@ impl Plugin for NovaMenuPlugin {
         app.add_systems(
             Update,
             open_command_shell.run_if(
-                resource_exists::<NovaOsTerminal>
+                resource_exists::<CommandTerminal>
                     .and_then(resource_exists::<NovaOsCloseTransition>)
                     .and_then(in_input_mode(InputMode::Normal)),
             ),
@@ -331,19 +331,21 @@ impl Plugin for NovaMenuPlugin {
             OnExit(PauseStates::Paused),
             (release_clocks_for_pause_menu, restore_cursor),
         );
-        // The NOVA OS is a third variant on the same clock-freeze axis, but
-        // WITHOUT `setup_pause_ui` - it draws its own surface in nova_gameplay's
-        // HUD. `:` opens it over the pause menu too, so `Paused <-> NovaOs` is a
-        // live transition: the `Paused` hooks run on the way in and again on the
+        // The interface and the command modal freeze the same clocks, but
+        // WITHOUT `setup_pause_ui` - each draws its own surface. `:` opens the
+        // modal over the pause menu too, so `Paused <-> Commands` is a live
+        // transition: the `Paused` hooks run on the way in and again on the
         // way back, rebuilding the overlay the CRT covered.
-        app.add_systems(
-            OnEnter(PauseStates::NovaOs),
-            (hold_clocks_for_terminal, release_cursor),
-        );
-        app.add_systems(
-            OnExit(PauseStates::NovaOs),
-            (release_clocks_for_terminal, restore_cursor),
-        );
+        for surface in [PauseStates::Interface, PauseStates::Commands] {
+            app.add_systems(
+                OnEnter(surface),
+                (hold_clocks_for_interface, release_cursor),
+            );
+            app.add_systems(
+                OnExit(surface),
+                (release_clocks_for_interface, restore_cursor),
+            );
+        }
         // Leaving gameplay ENDS the scenario, whatever the exit path and
         // whichever screen comes next. The teardown used to ride the menu's own
         // backdrop load, which made it a property of where the player landed

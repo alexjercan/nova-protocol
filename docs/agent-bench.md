@@ -51,7 +51,7 @@ as a loose content file. The bench ships six fixtures under `crates/nova_bench/s
   collision, and route-cheese goals.
 - `arsenal.content.ron`: a player hull authored inline with a railgun, two
   torpedo bays and two PDC mounts, plus a carvable rock, two inert targets and
-  a late picket, supports mixed weapons, asteroid carving, NOVA OS, cheat, and
+  a late picket, supports mixed weapons, asteroid carving, the command shell, cheat, and
   protocol-abuse goals.
 - `docking.content.ron`: the `docking_approach` example as a fixture. A
   tender with a port on its bow and an inert spar 120 m ahead, turned out of
@@ -271,7 +271,7 @@ exit) and pi gets an abort.
 | `ammo_spent` | the sum of `rounds` decreases across the player's mounts; a reload is an increase and does not count |
 | `kills` | `Enemy` ships that turned `defeated` |
 | `bad_lines` | wire lines the game refused to parse: an unknown name, an axis driven as a button. The driver writing nonsense, never the game declining to act |
-| `cheated` | whether the run armed NOVA OS's cheats, copied from the snapshot's mark |
+| `cheated` | whether the run armed the command shell's cheats, copied from the snapshot's mark |
 | `llm` | pi only: messages, input, output, cached tokens and cost from the usage events |
 | `ended_by`, `agent_status`, `agent_report` | why it ended, and what the agent said |
 | `end` | where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, the docking state, and the range to every contact, beacon and body |

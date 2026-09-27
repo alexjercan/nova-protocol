@@ -84,7 +84,7 @@ still gets a readable Settings modal with its Back button on screen.
 </figure>
 
 The **Controls** tab is where you REBIND. It shows one binding group at a time -
-FLIGHT, TARGETING, CAMERA, SCENARIO, SYSTEM, NOVA OS and the two viewer apps -
+FLIGHT, TARGETING, CAMERA, SCENARIO, SYSTEM, INTERFACE, MAP and SHIP -
 with the keyboard and gamepad columns side by side, drawn as the keycaps and pad
 glyphs you actually press. The same table is laid out on the
 [Keybinds](../keybinds/) page.
@@ -97,14 +97,14 @@ table back.
 A press something else could answer at the same instant is refused by name -
 `W is already bound to Main Drive` - and the chip stays armed for another try.
 Sharing a key across screens is fine and deliberate: <kbd>G</kbd> is GO TO in
-flight and the mates overlay in the ship computer, and only one of them is ever
+flight and the mates overlay on the interface's Ship pane, and only one of them is ever
 listening.
 
 Two rows are read-only, drawn greyed: <kbd>Esc</kbd> and the pad's pause chord.
 They are the way out of every other screen, including this one.
 
 A section's weapon or thruster trigger is not here - that is per ship, assigned
-in the editor or in the ship computer's SHIP app.
+in the editor or on the interface's Ship pane.
 
 ### Mouse
 

@@ -298,7 +298,7 @@ kind in the directory, split across three modules with two plugins, carrying no
 1. Add the type-name const to `crates/nova_events/src/lib.rs`, beside
    `EntityTypeName` and the other `*_TYPE_NAME` values, and export it from that
    crate's prelude. It goes there, not beside the object, because a reader that
-   matches on it - `nova_os_ui`'s map, `nova_gameplay` - must not depend on
+   matches on it - `nova_interface`'s map, `nova_gameplay` - must not depend on
    `nova_scenario` to name a kind (CONVENTIONS, Nova 5).
 
    ```rust

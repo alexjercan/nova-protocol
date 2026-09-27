@@ -31,8 +31,8 @@ nova_ship = { path = "../nova_ship", features = ["serde"] }
 nova_hud = { path = "../nova_hud" }
 # The settings screen drives the NOVA OS monitor hardware (BRIGHT/SCAN/SND) and
 # the settings store persists it.
-nova_os = { path = "../nova_os" }
-nova_os_ui = { path = "../nova_os_ui" }
+nova_command = { path = "../nova_command" }
+nova_interface = { path = "../nova_interface" }
 nova_scenario = { path = "../nova_scenario" }
 # The handbook's material: lessons, the progress record, the field notes.
 nova_training = { path = "../nova_training" }
@@ -51,4 +51,4 @@ bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
 workspace = true
 
 [features]
-debug = ["bevy/track_location", "nova_gameplay/debug", "nova_hud/debug", "nova_os_ui/debug"]
+debug = ["bevy/track_location", "nova_gameplay/debug", "nova_hud/debug", "nova_interface/debug"]

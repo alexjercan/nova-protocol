@@ -35,8 +35,8 @@ for responsibilities and the dependency graph.
 | `nova_ship` | The ship and how it is flown: sections, input (player/ai/radar), flight and its autopilot verbs, the camera rigs, the PD controller, the ship's soundtrack. |
 | `nova_wfc` | Generated hulls: a catalog plus a code-owned `WfcPlan` in, a `ShipDesign` out. Owns the plan types; every caller builds its own plan. No `App`, no systems - the editor's Generate verb and the `wfc_*` examples call it. |
 | `nova_hud` | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it. |
-| `nova_os` | NOVA OS logic: the terminal model, shell grammar and app runtime. No bevy UI. |
-| `nova_os_ui` | The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the `map`/`ship` apps. A peer of the HUD, added by `nova_core`. |
+| `nova_command` | The command language and the `NOVA COMMANDS` terminal model: catalog, parser, prompt state. No bevy UI. |
+| `nova_interface` | The TAB interface (Map and Ship panes) and the `:` CRT command modal: pointer forwarding, casing, the back-out owner. A peer of the HUD, added by `nova_core`. |
 | `nova_console` | The command shell's dispatcher: the executor behind the `cmd>` prompt and the channel's `command` lane. Sits above `nova_menu` because a setting command writes the resources the settings screen owns. |
 | `nova_scenario` | Scenario engine: events, filters, actions, variables, world, loader, objects. |
 | `nova_world` | The streamed open world: a cell generated from its coordinate alone by a `SectorGenerator` type, checked, and a 5x5x5 active window streamed around one live scenario. Names no content; the game gets it through `nova_world_base`. Examples with their own game plugins install their own generator. |
@@ -50,7 +50,7 @@ for responsibilities and the dependency graph.
 | `nova_menu` | Main menu + the ESC pause overlay; hands off to `Playing`. New Game opens the world seed modal first. |
 | `nova_training` | The training handbook's data: the `Lesson` content type, catalog ordering, field notes, progress, and the pure lesson validation both `content lint` and the runtime merge run. A leaf under `nova_modding`, `nova_assets` and `nova_menu`. |
 | `nova_input` | The bindings registry: the one table of named actions and the sources each holds, the shared rebind capture, and the by-name dispatch. A leaf under every rig and every rebind surface. |
-| `nova_ui` | Shared theme, skin, themed widgets, screen composition, unit formatting. A leaf: every UI-drawing crate (`nova_gameplay`, `nova_hud`, `nova_os_ui`, `nova_menu`, `nova_editor`, `nova_assets`) draws from it. |
+| `nova_ui` | Shared theme, skin, themed widgets, screen composition, unit formatting. A leaf: every UI-drawing crate (`nova_gameplay`, `nova_hud`, `nova_interface`, `nova_menu`, `nova_editor`, `nova_assets`) draws from it. |
 | `nova_debug` | Debug-only plugin (inspector, overlays); compiled under the `debug` feature. |
 | `nova_info` | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_autopilot` | Scripted automation drivers + the run-completion protocol. Bevy-only, game-agnostic. |
@@ -79,7 +79,8 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | Gravity wells | `crates/nova_gameplay/src/gravity.rs` | -- |
 | A unit, or what a field is measured in | `crates/nova_events/src/units.rs` + `crates/nova_events/src/scale.rs` | [Architecture](architecture.md#units-and-scale) |
 | The HUD (widgets) | `crates/nova_hud/src/` | -- |
-| The NOVA OS monitor / its apps | `crates/nova_os_ui/src/` | -- |
+| The TAB interface, its panes, and the `:` command modal | `crates/nova_interface/src/` | -- |
+| The command catalog and parser | `crates/nova_command/src/commands.rs` | [Architecture](architecture.md) |
 | A scenario event/filter/action | `crates/nova_scenario/src/{events.rs,filters.rs,actions/}` | [Scenario engine](scenario-system.md), [Extend the scenario engine](guide-extend-scenarios.md) |
 | Scenario objects / loading | `crates/nova_scenario/src/{objects/,loader/}` | [Scenario engine](scenario-system.md) |
 | What a streamed world cell holds, or when one comes and goes | `crates/nova_world/src/{generation.rs,streaming.rs}`, base generator, clusters and environment fields in `crates/nova_world_base/src/{layered.rs,clusters.rs,environment.rs}` | [Architecture](architecture.md) |
@@ -94,7 +95,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 
 `AppBuilder` (in `crates/nova_core/src/lib.rs`) is the single place the app is
 wired -- `DefaultPlugins` + window/log/asset/render setup, then the plugin stack
-(assets, gameplay, ship, scenario, HUD + NOVA OS monitor, editor, menu, debug).
+(assets, gameplay, ship, scenario, HUD + interface, editor, menu, debug).
 The state machines:
 
 - `GameStates { Loading, MainMenu, Playing }` -- top-level lifecycle. Leaving

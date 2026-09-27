@@ -94,14 +94,13 @@ PRODUCERS=(
     "lesson_build_generate|build_generate:loop,build_skin:loop"
     "lesson_dock_envelope|build_dock_envelope:loop,flight_dock:loop"
     "lesson_build_flight_test|build_flight_test:loop"
-    "lesson_novaos|novaos_open:loop,novaos_view:loop"
-    "lesson_novaos_contacts|novaos_contacts:still"
-    "lesson_novaos_prompt|novaos_terminal:loop,novaos_commands:loop"
-    "lesson_novaos_ship|novaos_service:loop,novaos_rebind_section:loop"
+    "lesson_interface|interface_open:loop,interface_map:loop"
+    "lesson_interface_ship|interface_ship_service:loop,interface_rebind_section:loop"
+    "lesson_command|command_open:loop,command_prompt:loop"
     "lesson_menu_advanced|advanced_scenarios:still,advanced_mods:still,advanced_bindings:still"
     "lesson_menu_mouse|advanced_mouse:loop"
     "lesson_advanced_ai_flight|advanced_ai_flight:loop"
-    "lesson_menu_quality|novaos_shell:still,advanced_audio:still,advanced_graphics:still"
+    "lesson_menu_quality|advanced_audio:still,advanced_graphics:still"
 )
 
 # What the authored lessons cut a sheet on

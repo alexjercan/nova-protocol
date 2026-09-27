@@ -5,7 +5,7 @@
 //! It is a LEAF on purpose - bevy, `bevy_enhanced_input` and, behind the
 //! `serde` feature the save file needs, serde. The
 //! rigs (`nova_ship`, `nova_scenario`) are BUILT FROM it, and every rebind
-//! surface (`nova_menu`, `nova_editor`, `nova_os_ui`) reads it, so it has to
+//! surface (`nova_menu`, `nova_editor`, `nova_interface`) reads it, so it has to
 //! sit below all of them. A crate that also held the process channel would
 //! have to sit above `nova_scenario` too, and `nova_scenario` already depends
 //! on `nova_ship`: that is a cycle, which is why the channel is its own crate.

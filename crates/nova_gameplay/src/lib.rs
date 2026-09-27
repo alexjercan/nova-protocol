@@ -140,18 +140,19 @@ pub enum GameStates {
 }
 
 /// Whether gameplay is frozen behind a modal overlay. Owned UI-wise by
-/// `nova_menu` (ESC toggle + overlay) and `nova_gameplay`'s Tab ship-computer
-/// NOVA OS; `nova_gameplay` gates the spaceship input/section system sets on
-/// `Unpaused`, and the clocks (`Time<Virtual>` + `Time<Physics>`) pause on
-/// entering any frozen variant. Init'd by `AppBuilder` next to [`GameStates`].
-/// Only meaningful inside `GameStates::Playing`; leaving Playing must reset it.
+/// `nova_menu` (ESC toggle + overlay and the `:` gesture) and
+/// `nova_interface` (the TAB interface); `nova_gameplay` gates the spaceship
+/// input/section system sets on `Unpaused`, and the clocks (`Time<Virtual>` +
+/// `Time<Physics>`) pause on entering any frozen variant. Init'd by
+/// `AppBuilder` next to [`GameStates`]. Only meaningful inside
+/// `GameStates::Playing`; leaving Playing must reset it.
 ///
-/// The CRT opens over the pause menu as well as over flight, so
-/// [`PauseStates::Paused`] -> [`PauseStates::NovaOs`] and back is a real
-/// transition: `Paused`'s hooks release on the way in and re-take on the way
-/// out, which is what rebuilds the overlay the CRT covered. The freeze holds
-/// are named ([`ClockFreeze`]) precisely so the handover cannot leave a paused
-/// player in a running world.
+/// The command modal opens over the pause menu and the interface as well as
+/// over flight, so [`PauseStates::Paused`] -> [`PauseStates::Commands`] and
+/// back is a real transition: `Paused`'s hooks release on the way in and
+/// re-take on the way out, which is what rebuilds the overlay the CRT covered.
+/// The freeze holds are named ([`ClockFreeze`]) precisely so the handover
+/// cannot leave a paused player in a running world.
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum PauseStates {
     #[default]
@@ -159,10 +160,13 @@ pub enum PauseStates {
     Unpaused,
     /// Gameplay is frozen behind the pause overlay; the clocks are stopped.
     Paused,
-    /// Gameplay is frozen behind the Tab ship-computer NOVA OS; the clocks are
-    /// stopped and the cursor is freed, exactly like [`PauseStates::Paused`]
-    /// but without the pause menu.
-    NovaOs,
+    /// Gameplay is frozen behind the TAB interface; the clocks are stopped and
+    /// the cursor is freed, exactly like [`PauseStates::Paused`] but without
+    /// the pause menu.
+    Interface,
+    /// Gameplay is frozen behind the `NOVA COMMANDS` CRT modal. Closing it
+    /// returns to the state it was opened over.
+    Commands,
 }
 
 /// Whether a scene-local surface owns Escape right now, so the pause menu must

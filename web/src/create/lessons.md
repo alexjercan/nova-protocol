@@ -66,7 +66,7 @@ Six, fixed. A mod adds lessons to them; it does not add a seventh.
 | `Flight` | Flying the hull, by hand and by flight computer. |
 | `Combat` | Finding, locking and shooting things. |
 | `Shipbuilding` | The editor, and what a hull's parts cost. |
-| `NovaOs` | The cockpit computer. |
+| `Interface` | The TAB interface panes and the `:` command shell. It draws as `INTERFACE`. |
 | `Advanced` | Scenarios, mods, bindings - the game around the game. |
 
 An empty category draws no header, so a mod that only writes Flight lessons does

@@ -167,7 +167,7 @@ pub enum RebindSurface {
     /// The settings screen's keybind rows, in the menu and behind the pause
     /// overlay (`nova_menu`). Binds a registry action.
     Settings,
-    /// The NOVA OS SHIP app's section rebind (`nova_os_ui`). Binds the trigger
+    /// The Ship pane's section rebind (`nova_interface`). Binds the trigger
     /// of a LIVE ship section, which is not a registry action.
     ShipPanel,
     /// The editor's Rebind action on the selected section (`nova_editor`).
@@ -196,7 +196,7 @@ impl RebindSurface {
     /// `consume_input: false`, so a shared source fires both things, and
     /// whether that is what you meant is a BUILDER's decision. A player
     /// rebinding a section of the ship they are flying is not making that
-    /// choice knowingly, so the SHIP app still refuses.
+    /// choice knowingly, so the Ship pane still refuses.
     ///
     /// The POINTER is reserved on the two surfaces driven by clicks: an armed
     /// capture there would eat the next click a player made anywhere, and a
@@ -713,8 +713,8 @@ impl InputBindings {
     }
 
     /// The distinct contexts the table declares, in first-appearance order.
-    /// A sync system reads this instead of naming the apps itself, so adding a
-    /// NOVA OS app does not need a second edit somewhere else.
+    /// A sync system reads this instead of naming the panes itself, so adding an
+    /// interface pane does not need a second edit somewhere else.
     pub fn contexts(&self) -> Vec<ActionContext> {
         let mut contexts: Vec<ActionContext> = Vec::new();
         for action in &self.actions {
@@ -729,7 +729,7 @@ impl InputBindings {
     /// the same instant, with the source they collide on.
     ///
     /// Sharing a key ACROSS contexts is the normal case and not a conflict:
-    /// `G` is go-to in flight and the map's GOTO in the map viewer, and one of
+    /// `G` is go-to in flight and the map's GOTO in the Map pane, and one of
     /// them is always the only one listening. Sharing one WITHIN a live set is
     /// the bug - both rigs run with `consume_input: false`, so one press
     /// drives both actions.
@@ -873,7 +873,7 @@ mod tests {
                 .context(ActionContext::Flight)
                 .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
             ActionBinding::new("map_goto", "MAP", "Set GOTO")
-                .context(ActionContext::ViewerApp("map"))
+                .context(ActionContext::InterfacePane("map"))
                 .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
         ]);
 
@@ -892,27 +892,27 @@ mod tests {
         assert_eq!(names(&active), vec!["main_drive", "autopilot_goto"]);
 
         active.set(ActionContext::Flight, false);
-        active.set(ActionContext::ViewerApp("map"), true);
+        active.set(ActionContext::InterfacePane("map"), true);
         assert_eq!(names(&active), vec!["main_drive", "map_goto"]);
     }
 
     #[test]
     fn the_declared_contexts_come_back_in_first_appearance_order() {
         let table = InputBindings::from_actions([
-            ActionBinding::new("novaos_toggle", "SYSTEM", "NOVA OS"),
+            ActionBinding::new("interface_toggle", "SYSTEM", "NOVA OS"),
             ActionBinding::new("map_goto", "MAP", "Set GOTO")
-                .context(ActionContext::ViewerApp("map")),
-            ActionBinding::new("novaos_next", "NOVA OS", "Next").context(ActionContext::Viewer),
+                .context(ActionContext::InterfacePane("map")),
+            ActionBinding::new("viewer_next", "NOVA OS", "Next").context(ActionContext::Viewer),
             ActionBinding::new("ship_mates", "SHIP", "Mates")
-                .context(ActionContext::ViewerApp("ship")),
+                .context(ActionContext::InterfacePane("ship")),
         ]);
         assert_eq!(
             table.contexts(),
             vec![
                 ActionContext::Always,
-                ActionContext::ViewerApp("map"),
+                ActionContext::InterfacePane("map"),
                 ActionContext::Viewer,
-                ActionContext::ViewerApp("ship"),
+                ActionContext::InterfacePane("ship"),
             ]
         );
     }
@@ -925,20 +925,20 @@ mod tests {
                 .context(ActionContext::Flight)
                 .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
             ActionBinding::new("map_goto", "MAP", "Set GOTO")
-                .context(ActionContext::ViewerApp("map"))
+                .context(ActionContext::InterfacePane("map"))
                 .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
         ]);
         assert!(
             across.conflicts().is_empty(),
-            "flight and the map viewer never listen at the same instant"
+            "flight and the Map pane never listen at the same instant"
         );
 
         let within = InputBindings::from_actions([
-            ActionBinding::new("novaos_next", "NOVA OS", "Next")
+            ActionBinding::new("viewer_next", "NOVA OS", "Next")
                 .context(ActionContext::Viewer)
                 .keyboard([InputSource::Keyboard(KeyCode::BracketRight)]),
             ActionBinding::new("map_next", "MAP", "Next")
-                .context(ActionContext::ViewerApp("map"))
+                .context(ActionContext::InterfacePane("map"))
                 .keyboard([InputSource::Keyboard(KeyCode::BracketRight)]),
         ]);
         let found: Vec<_> = within
@@ -949,7 +949,7 @@ mod tests {
         assert_eq!(
             found,
             vec![(
-                "novaos_next",
+                "viewer_next",
                 "map_next",
                 InputSource::Keyboard(KeyCode::BracketRight)
             )],
@@ -1151,7 +1151,7 @@ mod tests {
                 .context(ActionContext::Flight)
                 .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
             ActionBinding::new("map_goto", "MAP", "Set GOTO")
-                .context(ActionContext::ViewerApp("map"))
+                .context(ActionContext::InterfacePane("map"))
                 .keyboard([InputSource::Keyboard(KeyCode::KeyM)]),
         ]);
         assert_eq!(
@@ -1165,7 +1165,7 @@ mod tests {
             table
                 .conflict_for("main_drive", InputSource::Keyboard(KeyCode::KeyM))
                 .is_none(),
-            "the map viewer is never up beside flight"
+            "the Map pane is never up beside flight"
         );
         assert!(
             table

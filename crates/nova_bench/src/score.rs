@@ -66,7 +66,7 @@ pub struct Score {
     /// game deciding not to do something, which an input ack cannot see and
     /// no longer claims to (see `nova_channel::apply::AppliedEntry`).
     pub bad_lines: u64,
-    /// Whether the run carries NOVA OS's cheat mark. A benchmark that cannot
+    /// Whether the run carries the cheat mark. A benchmark that cannot
     /// see a cheat is not a benchmark: arming cheats marks the attempt for
     /// good, and the mark is copied here from the snapshot.
     pub cheated: bool,
@@ -217,7 +217,7 @@ impl Scorer {
 
         // The live list is SAMPLED, one reading per act, so a card posted and
         // completed inside one act is invisible to it. The flight log is the
-        // record NOVA OS prints and it keeps both halves, so it counts a card
+        // record the `log` command prints and it keeps both halves, so it counts a card
         // the sampling missed - and a logged completion is an event, not the
         // disappearance the defeat guard above exists to distrust.
         for entry in mission["log"].as_array().into_iter().flatten() {

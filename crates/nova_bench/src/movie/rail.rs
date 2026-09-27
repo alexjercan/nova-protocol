@@ -50,7 +50,7 @@ pub enum Lane {
     Look,
     /// A gesture the agent asked for, or the wait between them.
     Act,
-    /// One NOVA OS command shell line.
+    /// One command shell line.
     Nova,
     /// A command shell line that touches cheats.
     Cheat,
@@ -160,7 +160,7 @@ pub struct Film {
     pub head: Head,
     /// Every row, by ascending frame.
     pub cues: Vec<Cue>,
-    /// The frame from which the run carries NOVA OS's cheat mark, when it
+    /// The frame from which the run carries the cheat mark, when it
     /// ever does. The header says so from there on, so no clip of a marked
     /// run can be lifted out looking clean.
     pub cheated_from: Option<u64>,

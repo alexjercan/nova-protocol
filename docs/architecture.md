@@ -19,9 +19,9 @@ real code lives under `crates/`.
 | `nova_ship`     | The ship and how it is flown: `sections/` (the modular hull, its ammo, and the authored damage looks in `damage_effects`/`damage_cracks`/`damage_sparks`/`damage_plume`), `input/` (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, and the flight and camera action DEFAULTS it registers into `nova_input`), `flight/` (the diegetic controller and its autopilot verbs), `camera/` (the chase-camera controller and the chase/skybox/post/WASD rigs under it), `physics/` (the PD attitude controller) and `ship_audio/` (the soundtrack those five produce). Depends on `nova_gameplay` and never the reverse; `NovaShipPlugin` owns the `SpaceshipSystems` brackets and `nova_core` adds it after `NovaGameplayPlugin`. |
 | `nova_wfc`      | Generated hulls: a function from a section catalog and a code-owned `WfcPlan` to a `ShipDesign`, with no `App` and no systems in it. Owns the plan types too (`WfcGrid`, `WfcVacuum`, `WfcKeel`, `WfcPart`), because which sections one generator may reach for is generator policy and not mod content. `TileSet::build` reads the plan against the catalog, `hull()` collapses one seed, and every hull is put through the game's own content lint before it is handed back. Each caller builds its own plan from `WfcPlan::standard_hull` and its own UI rows: `nova_editor`'s Generate verb, and the `wfc_*` examples. |
 | `nova_hud`      | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs `nova_hud -> nova_gameplay`. `nova_core` adds `NovaHudPlugin` unconditionally, headless runs included - the widgets register their keybindings in `build`, so a gate took those bindings out of the registry. The crate places `NovaHudSystems` between the section and camera sets itself. |
-| `nova_os`       | NOVA OS logic with no UI in it: the terminal model (`terminal`), the shell command language and typo suggestions (`shell`), and the app runtime seam (`app`). |
-| `nova_os_ui`    | The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (`terminal`), and the two apps that run on it - `map` (schematic local space) and `ship` (schematic player ship). A PEER of the flight HUD, not one of its widgets: `nova_core` adds it, and nothing in `nova_hud` reaches into it (it reads `NovaHudAssets` and `NovaHudSystems`, so it sits ABOVE `nova_hud`). |
-| `nova_console`  | The Command shell's dispatcher: the executor behind the CRT's `cmd>` prompt and the channel's `command` lane. `nova_os` owns the LANGUAGE (catalog metadata, parser, `CommandChannel`) and stays a leaf; this crate owns the half that touches the world - inspection, the persisted settings, and the armed cheats. It sits ABOVE `nova_menu` on purpose: a `graphics` or `volume` command writes the very resources the settings screen owns, and one of them has to be downstream. |
+| `nova_command`  | The game command language and the `NOVA COMMANDS` terminal model, with no UI in it: the terminal (`terminal`: prompt, scrollback, completion), the matcher and typo suggestions (`shell`), and the curated catalog, parser and `CommandChannel` (`commands`). |
+| `nova_interface` | The TAB interface and the `:` modal. `pane` opens the full-screen interface over the frozen world with a `map` pane (schematic local space, contacts, GOTO) and a `ship` pane (schematic player ship, repair, reload, rebind, mates); `viewer` is the orbit camera both run on. `terminal` is the retained CRT modal: the casing and shader, the terminal nodes, the keyboard and pointer systems, the one back-out owner for both surfaces, and the flight-log model. A PEER of the flight HUD, not one of its widgets: `nova_core` adds it, and nothing in `nova_hud` reaches into it (it reads `NovaHudAssets` and `NovaHudSystems`, so it sits ABOVE `nova_hud`). |
+| `nova_console`  | The command shell's dispatcher: the executor behind the CRT's `cmd>` prompt and the channel's `command` lane. `nova_command` owns the LANGUAGE (catalog metadata, parser, `CommandChannel`) and stays a leaf; this crate owns the half that touches the world - inspection, the flight log, the persisted settings, and the armed cheats. It sits ABOVE `nova_menu` on purpose: a `graphics` or `volume` command writes the very resources the settings screen owns, and one of them has to be downstream. |
 | `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, `objects/`, `lint/` (the scenario half of the `content -- lint` checks), `render_scale` (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See [Scenario engine](scenario-system.md). |
 | `nova_world`    | The streamed open world's mechanism. It names no content, and `AppBuilder` does not add it directly: the game gets `NovaWorldPlugin<NovaLayeredWorld>` through `nova_world_base`. Examples that bring their own game plugins install their own generator - the playable `world_sectors`, `world_features` and `world_clusters`, and the `system_world_sectors` correctness range; the two field pictures (`world_field_slices`, `world_field_clouds`) sample `nova_world_base`'s environment fields directly and stream nothing. An explicit `WorldConfig<G>` (there is no `Default` - a seed, a cell edge and a generator are named or nothing streams) names the `SectorGenerator` TYPE the plugin is generic over; one app installs exactly one. The generator fills a cell from its coordinate alone and returns a BODY-ONLY `SectorManifest` - rocks, planetoids and ships - and `validate_manifest` turns it into the private-field `SectorDescription` that preparation and materialization accept. The core enforces materialization contracts only: the requested cell, finite geometry, unique ids prefixed with the cell's slug, shipped asteroid kinds, `PlanetConfig::validate`, a nonblank ship design (resolved against the catalog on the main thread), every body wholly inside its cell, and no two bodies overlapping. It sets no body count limit; density belongs to the generator. Its shared primitives are stateless: `WorldGeometry::require_owning_edge` takes the generator's own placement inset, and `bodies_clear` takes the generator's own margin (the core check passes zero). Where each object stands, its inset, spacing, retries and ids belong to the generator. The uniform baseline lives in the examples' world fixture with its own inset, margin and body count, beside the clustered generator, whose asteroid-rich, rock-only, planet-heavy, derelict-only and low-rock groups are decided on a global lattice from three environment fields and owned body by body by the cell each centre falls in, so a group crosses cell faces. `streaming` runs the lifetime in six ordered `NovaWorldSystems` stages (`Cleanup`, `Observe`, `Request`, `Collect`, `Materialize`, `Retire`) around ONE live scenario, clearing every cell when the scenario or the config changes, preparing cells off the frame and spawning them through `nova_scenario`'s own object factories. Every root is scenario-SCOPED, so unloading the session takes the world with it, and no streamed entity is scenario-ADDRESSABLE. Invalid content refuses with a `SectorFault` instead of materializing a partial cell. |
 | `nova_world_base` | The base game's open world over `nova_world`: the complete concrete `NovaLayeredWorld` generator, the `OpenWorldSession` seed New Game writes, and the stable ids the world and its `open_world` bootstrap share. The generator reads three independent global environment fields (material density, volatiles, human activity) and decides, at each node of a 50 km lattice jittered by up to 10 km, one asteroid-rich, rock-only, planet-heavy or derelict-field cluster or none, each reaching at most 8 km from its anchor. A planet-heavy cluster stands two to four worlds at the corners of a pair, a triangle or a tetrahedron, their bodies kept `CLEARANCE_MARGIN` apart while their wells may overlap; a derelict field holds rocks around its hulls. A cell replays every node whose cluster can reach it and owns each body whose centre it holds, so a cluster crosses faces and every cell agrees about it. A cell resolves every cluster's planetoids, then its rocks, then its hulls. A body whose clearance sphere crosses its cell's face, or that comes within the 500 m `CLEARANCE_MARGIN` of a body placed before it in that cell, is skipped and counted; a planetoid that cannot be placed refuses the cell with `SectorFault::Generation`. A hull is placed only in a cell where its own cluster placed a rock or planetoid; otherwise the cell tries the escort rocks the cluster drew on the anchor side of that hull, places the first that fits and counts each one it tried, or skips the hull as having no companion. Escorts count toward each type's derived extent, the halo and the gap between clusters, and a cell never looks past its faces for one. Every planetoid authors the mass that gives it a sphere of influence of 3.5 outer body radii under the default `GravitySettings`, so it is a well a ship can ORBIT. A cell that owns no cluster body may draw a background scatter of one to five rocks. The generator refuses an edge wider than 128 km or too narrow for its widest core of planetoids or a scatter, a world spacing or escort distance too short to clear the bodies it separates, bands that derive a cluster past its extent limit, and a planetoid reach whose surface pull passes the default surface gravity cap. `sector_clusters` and `EnvironmentFields` are public so debug examples read the same plan and fields; no streamed entity carries them. `NovaWorldBasePlugin`, added by `AppBuilder` on the default game path after the scenario plugin, installs `NovaWorldPlugin<NovaLayeredWorld>` and one exclusive `Update` system ordered before `NovaWorldSystems::Cleanup`: it arms `WorldConfig` and puts `WorldObserver` on the player ship only while an `OpenWorld` scenario is live with exactly one player ship, and removes the config everywhere else. A missing session or a second player ship panics. The same build and platform give the same pristine sectors from one seed in any visit order; nothing a player changes is kept, so a retired sector comes back as generated. |
@@ -32,12 +32,12 @@ real code lives under `crates/`.
 | `nova_mod_format` | Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`, not a crate. See [Publish a mod](https://alexjercan.github.io/nova-protocol/create/publish-a-mod/). |
 | `nova_training` | The training handbook's DATA, a leaf under everything that teaches: the `Lesson` content type and its catalog ordering, the field notes the menu and both loading screens draw, the progress record, and the pure `validate` both `content lint` and the runtime merge run. It knows nothing about drawing a lesson or loading one - `nova_modding` routes `Content::Lesson`, `nova_assets` merges the catalog, `nova_menu` draws it, and `nova_authoring` builds the base set. Its only game dependency is `nova_gameplay`, for the `AssetRef<Image>` a lesson's media resolves through. |
 | `nova_input`    | The bindings registry, a leaf crate under every rig and every rebind surface: the one table (`InputBindings`) that says which named actions exist, what each is called on screen, and which physical sources it holds, plus the shared capture (`poll::InputSources`) every rebind row reads and the by-name `dispatch`. Owners register their own defaults into it; nothing here knows what an action DOES. |
-| `nova_ui`       | Shared UI, a leaf crate everything that renders UI draws from: the UI THEME (`theme::*`: the authored `UiThemeConfig` format, the inheritance resolver, the two base themes the base mod ships as content, and the `GameUiThemes`/`SelectedUiTheme`/`ActiveUiTheme` registry every widget paints from), the themed widgets (`widget`: button, slider, segmented control, list rows, panel chrome), screen-level composition (`screen`: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (`hud`), player-facing unit formatting (`units`), the shared typeface (`font`), the generic `status_bar` and the keyboard-ownership arbiter (`input_mode`: one app-global `InputMode` resolved from per-frame claims, with `InputModeSystems` as the ordering handle every keyboard consumer gates behind). Consumed by `nova_gameplay`, `nova_hud`, `nova_os_ui`, `nova_menu`, `nova_editor` and `nova_assets`. |
+| `nova_ui`       | Shared UI, a leaf crate everything that renders UI draws from: the UI THEME (`theme::*`: the authored `UiThemeConfig` format, the inheritance resolver, the two base themes the base mod ships as content, and the `GameUiThemes`/`SelectedUiTheme`/`ActiveUiTheme` registry every widget paints from), the themed widgets (`widget`: button, slider, segmented control, list rows, panel chrome), screen-level composition (`screen`: scrollable viewports and the list-beside-details layout the menu screens and the interface share), the flight-HUD chip language (`hud`), player-facing unit formatting (`units`), the shared typeface (`font`), the generic `status_bar` and the keyboard-ownership arbiter (`input_mode`: one app-global `InputMode` resolved from per-frame claims, with `InputModeSystems` as the ordering handle every keyboard consumer gates behind). Consumed by `nova_gameplay`, `nova_hud`, `nova_interface`, `nova_menu`, `nova_editor` and `nova_assets`. |
 | `nova_debug`    | Debug-only plugin (inspector, overlays). Compiled only under the `debug` feature. |
 | `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_autopilot` | Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; `nova_debug`, `nova_probe` and `nova_probe_cli` all build on it. See [Automation harness](automation-harness.md). |
 | `nova_probe`    | Dev tooling (not in the shipped game): the IN-GAME half of the run-harness - the capability plugins an example wires to collect evidence about its own run (`capabilities::` `frametime`, `timeline`, `invariants`, `snapshot`, `census`, `framecost`, all bundled by `NovaProbePlugin`), the `contract` an example declares, and the wire format the host reads. See [Measuring performance](performance.md) and [Building and running](development.md). |
-| `nova_channel`  | Dev tooling (not in the shipped game): the process channel a harness drives the running game through - named input holds, aim deltas, text, raw keys, pointer moves and `command` lines read as JSON lines on stdin, with world snapshots and per-line acknowledgements written back on stdout. It depends on `nova_os` for the command LANGUAGE, never on `nova_console`, so the wire cannot pull gameplay into a tool that only wanted to type. See [Automation harness](automation-harness.md). |
+| `nova_channel`  | Dev tooling (not in the shipped game): the process channel a harness drives the running game through - named input holds, aim deltas, text, raw keys, pointer moves and `command` lines read as JSON lines on stdin, with world snapshots and per-line acknowledgements written back on stdout. It depends on `nova_command` for the command LANGUAGE, never on `nova_console`, so the wire cannot pull gameplay into a tool that only wanted to type. See [Automation harness](automation-harness.md). |
 | `nova_probe_cli` | Dev tooling: the HOST half of the run-harness - spawns autopilot runs as child processes, grades their artifacts (`evaluation`) and renders the reports (`report`). Owns the `cargo run --features debug probe run/report` CLI. The two halves meet at the filesystem: nothing in `nova_probe` reads a run's output back. |
 | `nova_perf_web` | The wasm app `probe run --platform web` boots and measures: the real game started into a scenario with the frame-time capture armed. Dev tooling, never shipped. |
 | `nova_authoring` | The OFFLINE half of the content pipeline (never shipped): the Rust builders that define every built-in scenario and section, the `content -- gen` serializer that writes them to the committed `assets/base/**/*.content.ron`, and the `content -- lint` walk that validates a content tree. |
@@ -53,7 +53,7 @@ graph TD
     core --> gameplay["nova_gameplay"]
     core --> ship["nova_ship"]
     core --> hud["nova_hud"]
-    core --> osui["nova_os_ui"]
+    core --> iface["nova_interface"]
     core --> console["nova_console"]
     core --> scenario["nova_scenario"]
     core --> assets["nova_assets"]
@@ -62,14 +62,14 @@ graph TD
     hud --> ship
     hud --> gameplay
     hud --> ui["nova_ui"]
-    osui --> hud
-    osui --> ship
-    osui --> gameplay
-    osui --> os["nova_os"]
-    osui --> ui
-    menu --> osui
+    iface --> hud
+    iface --> ship
+    iface --> gameplay
+    iface --> cmd["nova_command"]
+    iface --> ui
+    menu --> iface
     console --> menu
-    console --> os
+    console --> cmd
     console --> scenario
     menu --> ui
     editor --> ship
@@ -81,7 +81,7 @@ graph TD
     gameplay --> ui
     ship --> input["nova_input"]
     hud --> input
-    osui --> input
+    iface --> input
     menu --> input
     editor --> input
     scenario --> input
@@ -115,7 +115,7 @@ for any crate is its `Cargo.toml`. Two edges people guess wrong:
 
 - **`nova_ui` is not menu-only.** Every crate that renders UI draws on it -
   `nova_gameplay` (which adds `NovaUiPlugin` render-gated), `nova_hud` (the
-  chip language and screen-indicator styling), `nova_os_ui`, `nova_menu`,
+  chip language and screen-indicator styling), `nova_interface`, `nova_menu`,
   `nova_editor` and `nova_assets`.
 - **`nova_scenario` reaches up into `nova_ship` and `nova_hud`.** It spawns
   ships and drives HUD-facing surfaces (comms dwell limits, target-inset render
@@ -169,8 +169,8 @@ Boundary policy, from most game-agnostic to most game-specific:
    happen to live in a nova crate; keep them free of game-specific types.
 2. `nova_gameplay` - the shared gameplay layer, ship-agnostic.
 3. `nova_ship` - the ship above that layer.
-4. `nova_hud` and `nova_os_ui` - consumers of the ship and of gameplay, above
-   both. `nova_os_ui` is above `nova_hud` in turn: it orders itself against
+4. `nova_hud` and `nova_interface` - consumers of the ship and of gameplay, above
+   both. `nova_interface` is above `nova_hud` in turn: it orders itself against
    `NovaHudSystems`.
 5. `nova_core` - wiring only.
 
@@ -239,13 +239,13 @@ holds the table every rig is built from, so it lands before any plugin that
 registers an action), `GameAssetsPlugin`, `LoadingScreenPlugin`,
 `NovaGameplayPlugin`, `NovaShipPlugin` (the ship orders its sets inside
 gameplay's `SpaceshipSystems` brackets, so it comes after), `NovaScenarioPlugin`,
-then `NovaHudPlugin` and `NovaOsUiPlugin` (HUD first: the monitor orders itself
+then `NovaHudPlugin` and `InterfacePlugin` (HUD first: the interface orders itself
 against `NovaHudSystems`). Those two are NOT render-gated - a headless run
 assembles both. Each registers its bindings inside `build`, and under a gate a
 headless run kept only 15 of the 33 registry actions; everything GPU-side in
 them is already guarded by bevy (`UiMaterialPlugin` and friends no-op without a
 render sub-app). The price is that a headless measurement run carries HUD and
-monitor CPU systems. Then `NovaEditorPlugin`, then `SettingsStorePlugin` (EVERY
+interface CPU systems. Then `NovaEditorPlugin`, then `SettingsStorePlugin` (EVERY
 app, menu or not, and READING only: a settings panel is where a value is edited,
 not what makes it apply, so an example that never builds a menu still flies on
 the player's own sensitivities, keybinds, volumes and quality preset - while an
@@ -314,19 +314,24 @@ plugin test pins the count at one.
   through - puts its bare camera over an empty world instead of over whatever
   was last running. An app with no content pipeline (no `GameAssets`) is
   exempt: it has no restart to come back from.
-- `PauseStates { Unpaused, Paused, NovaOs }` - the freeze axis. `Paused` is the
-  ESC pause overlay; `NovaOs` is the CRT terminal takeover, whichever shell it
-  is showing - Tab opens the ship computer, `:` opens the command shell (cursor
-  freed, no pause menu). The live transitions are
-  `Unpaused <-> Paused`, `Unpaused <-> NovaOs` and `Paused <-> NovaOs`: the CRT
-  is a surface OVER what was there, so `NovaOsCloseTransition::return_to`
-  records the state it covered and closing restores it. `nova_gameplay` owns the
-  enum and gates the spaceship sets; `nova_menu` owns the toggles and the
-  overlay UI. The two keys are gated differently: Tab needs a player ship and
-  so runs `in_state(Playing)`, while `:` is a GLOBAL gesture over the main
-  menu, the editor and flight alike - gated only on a live terminal, Normal
-  input mode, no armed rebind, and not mid-load, where there is nothing yet to
-  inspect. On the main menu the open shell is still the active modal, because
+- `PauseStates { Unpaused, Paused, Interface, Commands }` - the freeze axis.
+  `Paused` is the ESC pause overlay; `Interface` is the TAB pane (Map or Ship,
+  `InterfacePaneType`, a resource that outlives the state); `Commands` is the
+  `NOVA COMMANDS` CRT modal (cursor freed, no pause menu). The live transitions
+  are `Unpaused <-> Paused`, `Unpaused <-> Interface`, and `Commands` to and
+  from each of `Unpaused`, `Paused` and `Interface`: the modal is a surface
+  OVER what was there, so `NovaOsCloseTransition::return_to` records the state
+  it covered and closing restores it. `nova_gameplay` owns the enum and gates
+  the spaceship sets; `nova_menu` owns the toggles and the pause overlay UI.
+  The two keys are gated differently. Tab needs a player ship and so runs
+  `in_state(Playing)`; Tab and M both refuse while a ship section rebind waits
+  for its key, so the capture is not dropped. `:` is a GLOBAL gesture over the
+  main menu, the editor and flight alike - gated only on no armed rebind (a
+  settings chip or a ship section waiting for its key) and not mid-load, where
+  there is nothing yet to inspect. `Escape` has ONE owner for both surfaces
+  (`close_surface_from_menu_keys`): an armed rebind keeps the key, then the
+  modal closes, then the interface closes, then the pause menu may act, so one
+  press never closes two layers. On the main menu the open shell is still the active modal, because
   its full-screen backdrop takes every pick and the menu buttons under it are
   unreachable until it closes.
 - The pause PANEL is reconciled, not spawned on the way in
@@ -339,7 +344,7 @@ plugin test pins the count at one.
 - Losing the window pauses interactive play (`pause_on_focus_loss`): an unpaused
   run over a live scenario takes the ordinary pause the moment the window is not
   focused, and regaining focus never resumes - Resume is the player's. A run
-  already paused stays as it is, so an open NOVA OS or a shown outcome remains
+  already paused stays as it is, so an open interface, an open command modal or a shown outcome remains
   the active modal, and the editor's build mode (no live scenario) never pauses
   at all. `FocusPause` carries the policy and boots OFF under a harness
   (`harness_env_active`): a probe drives an X display nobody is looking at, and
@@ -348,29 +353,32 @@ plugin test pins the count at one.
   into gets no unpaused frame - the outcome's pause is TRANSFERRED to the pause
   menu rather than released (`examples/systems/bug_outcome_pause.rs`).
 - The freeze itself is a NAMED hold, not a boolean: `ClockFreeze` counts
-  `FreezeOwner::{PauseMenu, Terminal}` and stops `Time<Virtual>` +
-  `Time<Physics>` while any owner holds. It has to be named because the two
-  surfaces stack - `:` opens the terminal over an already-paused game - and the
+  `FreezeOwner::{PauseMenu, Interface, ScenarioLoad}` and stops `Time<Virtual>` +
+  `Time<Physics>` while any owner holds. It has to be named because the
+  surfaces stack - `:` opens the modal over an already-paused game - and the
   handover is a state transition: `OnExit(Paused)` releases the `PauseMenu` hold
-  before `OnEnter(NovaOs)` takes the `Terminal` one, and the way back re-takes
+  before `OnEnter(Commands)` takes the `Interface` one, and the way back re-takes
   it. Naming the owners is what stops one surface's release from unfreezing the
-  other's world. Switching CRT shells never passes through the hold at all, so
-  the world does not tick between a release and the re-hold it would need.
-  The terminal's hold is SCOPED to `Playing` (`hold_clocks_for_terminal`): what
-  runs behind the main menu is the ambience backdrop, a cinematic the shell is
+  other's world. `Interface` and `Commands` share the one `Interface` owner, and
+  `release_clocks_for_interface` skips the release when the transition enters
+  the other of the two, so opening the modal over a pane and closing it again
+  never ticks the world between a release and the re-hold it would need.
+  The hold is SCOPED to `Playing` (`hold_clocks_for_interface`): what
+  runs behind the main menu is the ambience backdrop, a cinematic the modal is
   drawn over rather than a game the player is being kept out of, and stopping
-  it would leave the front door on a still frame for as long as the shell is up
+  it would leave the front door on a still frame for as long as the modal is up
   (`examples/systems/system_command_shell.rs`).
 - Every full-screen surface takes its `GlobalZIndex` from one table,
   `nova_ui::layer`: HUD, the menu's own panels, the editor's ceiling, the report
   frames (outcome, FAILED TO START, MODS DISABLED), the pause menu, its Settings
-  panel, the NOVA OS backdrop and monitor, the diagnostics exempt from the NOVA
-  OS dim, the scenario loading screen, the fatal asset report. Two modals
-  sharing a number are ordered by whatever the UI stack's traversal produces
-  that frame, which is not a decision - the pause Settings panel and the open
-  NOVA OS shared 11 until the table was written, and only survived it because
-  the pause overlay is `DespawnOnExit(Paused)` and is gone before the computer
-  draws. The editor keeps its own ladder (`nova_editor::ui::layer`) for chrome
+  panel, the command modal's backdrop and monitor, the diagnostics exempt from its
+  dim, the scenario loading screen, the fatal asset report. The TAB interface
+  root sits on the menu-panel layer: above the flight HUD, below the modal. Two
+  modals sharing a number are ordered by whatever the UI stack's traversal
+  produces that frame, which is not a decision - the pause Settings panel and
+  the open command modal shared 11 until the table was written, and only
+  survived it because the pause overlay is `DespawnOnExit(Paused)` and is gone
+  before the modal draws. The editor keeps its own ladder (`nova_editor::ui::layer`) for chrome
   the two tables cannot see across; that ladder lives entirely under
   `EDITOR_CEILING_Z`, pinned by a test, so a pause or an outcome covers editor
   chrome instead of losing to its foot bar.
@@ -417,10 +425,14 @@ stateDiagram-v2
             [*] --> Unpaused
             Unpaused --> Paused: ESC / focus lost / outcome
             Paused --> Unpaused: ESC
-            Unpaused --> NovaOs: Tab / :
-            NovaOs --> Unpaused: Tab / ESC
-            Paused --> NovaOs: :
-            NovaOs --> Paused: ESC
+            Unpaused --> Interface: Tab
+            Interface --> Unpaused: Tab / ESC
+            Unpaused --> Commands: :
+            Commands --> Unpaused: ESC
+            Paused --> Commands: :
+            Commands --> Paused: ESC
+            Interface --> Commands: :
+            Commands --> Interface: ESC
         }
     }
 
@@ -594,11 +606,13 @@ Never hand-edit the generated files; edit the builders and re-run `gen`.
 - States: `GameStates`, `PauseStates`, `GameMode` -
   `crates/nova_gameplay/src/lib.rs`; ESC overlay and clock freeze -
   `crates/nova_menu/src/pause.rs`.
-- The CRT's two shells: the terminal model and `ShellKind` -
-  `crates/nova_os/src/terminal/state.rs`; the command catalog, parser and
-  `CommandChannel` - `crates/nova_os/src/commands.rs`; the dispatcher that runs
-  them against the world - `crates/nova_console/src/dispatch.rs`; the `:`
-  gesture - `open_command_shell` in `crates/nova_menu/src/pause.rs`.
+- The command modal and the TAB interface: the terminal model -
+  `crates/nova_command/src/terminal/state.rs`; the command catalog, parser and
+  `CommandChannel` - `crates/nova_command/src/commands.rs`; the dispatcher that
+  runs them against the world - `crates/nova_console/src/dispatch.rs`; the `:`
+  gesture - `open_command_shell` in `crates/nova_menu/src/pause.rs`; the
+  interface's open, close and pane switch - `crates/nova_interface/src/pane.rs`;
+  the shared back-out owner - `crates/nova_interface/src/terminal/input.rs`.
 - Frame-flow sets: `SpaceshipSystems` - `crates/nova_gameplay/src/plugin.rs`;
   chained in `Update` + `FixedUpdate` by `NovaShipPlugin` -
   `crates/nova_ship/src/lib.rs`.

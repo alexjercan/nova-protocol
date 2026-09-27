@@ -254,11 +254,9 @@ What is on disk today, in reading order:
   selection ring, a focus turntable, pedestal and cell-frame toggles),
   `parts_viewer` (a paged grid, a focus turntable and a reassembled recipe ship
   with an explode toggle), `widget_zoo` (every `nova_ui` widget factory, live
-  and clickable in both skins), `ui_app_variants` (themed map, ship and
-  inventory screens over a paused fixture scenario, with orbitable 3D panes),
-  `compare_asteroids` / `compare_planets` (the number keys re-dress the focus
-  subject) and `asteroid_kinds` / `planet_types`
-  (the whole authored range of each, side by side). Last, the mission-scale
+  and clickable in both skins), `compare_asteroids` / `compare_planets` (the
+  number keys re-dress the focus subject) and `asteroid_kinds` /
+  `planet_types` (the whole authored range of each, side by side). Last, the mission-scale
   pair: `first_shift_map` is a fixed belt layout with a route over it - the most
   populated authored scene there is - and `first_shift_ships` poses eight
   shipped hulls in a row. All of them still walk and capture under
@@ -330,11 +328,15 @@ What is on disk today, in reading order:
   alone, holding one physics step to its own timestep), `bug_carve_apply` (one
   cut that severs a rock, and what the main thread pays to SWAP the result in -
   the range counts grids rather than milliseconds, so it reads the same on
-  every box) and
-  `system_nova_os` (the Tab ship computer, opened with a keystroke and
-  clicked THROUGH the CRT glass, so the whole forwarded-pointer chain - window
-  rect, screen-to-image mapping, offscreen UI stack, `Activate` - is asserted
-  live rather than one link at a time). Finally the STRESS ranges, one file
+  every box),
+  `system_interface` (the Tab interface and the `:` modal over it, driven with
+  keys only: TAB, M and `:` must return through Escape to the same pane with the
+  clocks frozen and no pane or flight action firing on the transition frames),
+  `system_command_shell` (the modal over flight, the pause menu, the main menu
+  and the interface, including the rebind gate that keeps `:` shut while a ship
+  section waits for its key) and `system_headless_map_goto` (a click on a Map
+  blip in window space, then GOTO, asserted on the ship's autopilot with no GPU).
+  Finally the STRESS ranges, one file
   each: `stress_bullets`,
   `stress_torpedoes`, `stress_point_defense`, `stress_one_structure` and
   `stress_many_structures` hold a thousand rounds, a thousand guided torpedoes,
@@ -374,8 +376,9 @@ What is on disk today, in reading order:
   The stills, by set: the Drydock drift beauty shot (`screenshot_hero_ship`),
   the menu and editor walks (`screenshot_menu`,
   `screenshot_scenario_picker`, `screenshot_editor`), the section closeups
-  (`screenshot_section_frame`, `screenshot_section_weapons`), the Tab ship
-  computer (`screenshot_nova_os_terminal`, `screenshot_nova_os_apps`), the Rock
+  (`screenshot_section_frame`, `screenshot_section_weapons`), the Tab
+  interface and the command shell (`screenshot_interface`,
+  `screenshot_command_shell`), the Rock
   hollow combat beats (`screenshot_radar_lock`, `screenshot_contextual_hud`,
   `screenshot_combat_lock`, `screenshot_combat_hud`, `screenshot_combat_wide`,
   `screenshot_hull_juice`, `screenshot_torpedo_run`, `screenshot_comms`), the
@@ -772,7 +775,7 @@ you the resize, not the change.
 ### The theme is shared with the game
 
 `web/src/style.css` and `crates/nova_ui/src/theme.rs` both mirror the `:root`
-block of `web/design/nova_ui_rework_poc.html` - the NOVA OS palette and its
+block of `web/design/nova_ui_rework_poc.html` - the interface palette and its
 control vocabulary. That PoC is the single source: change it first, then both
 consumers.
 

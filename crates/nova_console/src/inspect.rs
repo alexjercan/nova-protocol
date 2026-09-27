@@ -4,9 +4,10 @@
 //! channel see the same text. Nothing here writes.
 
 use bevy::prelude::*;
+use nova_command::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
-use nova_os::prelude::*;
+use nova_interface::prelude::{NovaOsFlightLog, NovaOsFlightLogEntryKind};
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
@@ -175,6 +176,45 @@ pub fn objectives(world: &mut World) -> CommandResult {
         })
         .collect();
     CommandResult::ok("objectives", CLASS, format!("{} open", objectives.len())).with_rows(rows)
+}
+
+/// `log`: the flight log, oldest first - comms, objective cards going up and
+/// coming down, and what the ship's own systems report, such as a dropped
+/// combat lock. Each row carries its index and a label naming its kind.
+pub(crate) fn log(world: &World) -> CommandResult {
+    let entries = world
+        .get_resource::<NovaOsFlightLog>()
+        .map(|log| log.entries.as_slice())
+        .unwrap_or_default();
+    if entries.is_empty() {
+        return CommandResult::ok("log", CLASS, "empty")
+            .with_rows(vec![TerminalRow::warn("The flight log is empty.")]);
+    }
+    let rows = entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| {
+            let text = match entry.kind {
+                NovaOsFlightLogEntryKind::Comms => format!(
+                    "COMMS {} > {}",
+                    entry.speaker.as_deref().unwrap_or("UNKNOWN").to_uppercase(),
+                    entry.message
+                ),
+                NovaOsFlightLogEntryKind::ObjectivePosted => format!("OBJ + {}", entry.message),
+                NovaOsFlightLogEntryKind::ObjectiveCompleted => format!("OBJ x {}", entry.message),
+                NovaOsFlightLogEntryKind::System => format!("SYS ! {}", entry.message),
+            };
+            let text = format!("{:04} {text}", index + 1);
+            match entry.kind {
+                NovaOsFlightLogEntryKind::ObjectivePosted => TerminalRow::warn(text),
+                NovaOsFlightLogEntryKind::Comms => TerminalRow::output(text),
+                NovaOsFlightLogEntryKind::ObjectiveCompleted | NovaOsFlightLogEntryKind::System => {
+                    TerminalRow::info(text)
+                }
+            }
+        })
+        .collect();
+    CommandResult::ok("log", CLASS, format!("{} entries", entries.len())).with_rows(rows)
 }
 
 /// `variables`: every scenario variable and its value.

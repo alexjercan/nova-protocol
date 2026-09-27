@@ -115,7 +115,7 @@ impl ProjectileDamage {
 ///
 /// A discriminant-only mirror of `nova_ship`'s `SectionKind` (which carries
 /// per-kind config), inserted alongside each section's kind marker (see the
-/// `*_section` bundles) so one query resolves what a section IS. `nova_os_ui`
+/// `*_section` bundles) so one query resolves what a section IS. `nova_interface`
 /// reads it for section codes, glyphs and descriptions. Colliders without it
 /// (asteroids, debris) are simply not sections; nothing in the
 /// damage path branches on it.

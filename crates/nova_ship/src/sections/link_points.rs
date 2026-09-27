@@ -1,4 +1,4 @@
-//! Authoritative structural sockets shared by ship runtime, lint, NOVA OS, and editor placement.
+//! Authoritative structural sockets shared by ship runtime, lint, the interface, and editor placement.
 //!
 //! Socket mates are derived in ship-root space; collider geometry never creates structural edges.
 

@@ -865,7 +865,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.insert_resource(State::new(crate::PauseStates::NovaOs));
+        app.insert_resource(State::new(crate::PauseStates::Interface));
         app.add_systems(Update, (start_sfx_voices, drive_sfx_voices).chain());
         let hull = app
             .world_mut()

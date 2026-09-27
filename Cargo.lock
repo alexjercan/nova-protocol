@@ -4625,13 +4625,22 @@ dependencies = [
  "bevy",
  "bevy_enhanced_input",
  "nova_autopilot",
+ "nova_command",
  "nova_events",
  "nova_gameplay",
  "nova_input",
- "nova_os",
  "nova_probe",
  "nova_ship",
  "serde_json",
+]
+
+[[package]]
+name = "nova_command"
+version = "0.14.0"
+dependencies = [
+ "bevy",
+ "nova_info",
+ "nova_input",
 ]
 
 [[package]]
@@ -4639,12 +4648,12 @@ name = "nova_console"
 version = "0.14.0"
 dependencies = [
  "bevy",
+ "nova_command",
  "nova_events",
  "nova_gameplay",
  "nova_input",
+ "nova_interface",
  "nova_menu",
- "nova_os",
- "nova_os_ui",
  "nova_scenario",
  "nova_ship",
 ]
@@ -4664,8 +4673,8 @@ dependencies = [
  "nova_hud",
  "nova_info",
  "nova_input",
+ "nova_interface",
  "nova_menu",
- "nova_os_ui",
  "nova_scenario",
  "nova_ship",
  "nova_training",
@@ -4689,7 +4698,7 @@ dependencies = [
  "nova_gameplay",
  "nova_hud",
  "nova_input",
- "nova_os_ui",
+ "nova_interface",
  "nova_scenario",
  "nova_ship",
 ]
@@ -4778,6 +4787,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nova_interface"
+version = "0.14.0"
+dependencies = [
+ "avian3d",
+ "bevy",
+ "bevy_enhanced_input",
+ "nova_command",
+ "nova_events",
+ "nova_gameplay",
+ "nova_hud",
+ "nova_input",
+ "nova_ship",
+ "nova_ui",
+]
+
+[[package]]
 name = "nova_menu"
 version = "0.14.0"
 dependencies = [
@@ -4785,14 +4810,14 @@ dependencies = [
  "bevy",
  "bevy_rand",
  "nova_assets",
+ "nova_command",
  "nova_events",
  "nova_gameplay",
  "nova_hud",
  "nova_info",
  "nova_input",
+ "nova_interface",
  "nova_mod_format",
- "nova_os",
- "nova_os_ui",
  "nova_scenario",
  "nova_ship",
  "nova_training",
@@ -4837,31 +4862,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nova_os"
-version = "0.14.0"
-dependencies = [
- "bevy",
- "nova_info",
- "nova_input",
-]
-
-[[package]]
-name = "nova_os_ui"
-version = "0.14.0"
-dependencies = [
- "avian3d",
- "bevy",
- "bevy_enhanced_input",
- "nova_events",
- "nova_gameplay",
- "nova_hud",
- "nova_input",
- "nova_os",
- "nova_ship",
- "nova_ui",
-]
-
-[[package]]
 name = "nova_perf_web"
 version = "0.14.0"
 dependencies = [
@@ -4881,7 +4881,7 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_hud",
- "nova_os_ui",
+ "nova_interface",
  "nova_scenario",
  "nova_ship",
  "serde_json",

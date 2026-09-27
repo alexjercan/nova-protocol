@@ -3,7 +3,7 @@
 //!
 //! Most actions reach the game through `bevy_enhanced_input`: a rig entity
 //! carries them, the rig spawns with the player ship, and conditions and
-//! modifiers run. The MODE toggles cannot work that way. Opening NOVA OS or
+//! modifiers run. The MODE toggles cannot work that way. Opening the interface or
 //! dropping the HUD to cinematic must answer with no flight rig in the world at
 //! all, and they carry no condition worth a rig - one press, one flip.
 //!
@@ -49,9 +49,9 @@ impl InputSources<'_, '_> {
     /// Whether any KEYBOARD OR MOUSE source went down this frame, ignoring the
     /// pad.
     ///
-    /// The NOVA OS toggle needs the two apart: Tab opens the computer and
-    /// Escape closes it, while the pad button does both, because a pad has no
-    /// Escape to reach for.
+    /// A toggle needs the two apart when Escape is the keyboard back-out and
+    /// the pad button both opens and closes, because a pad has no Escape to
+    /// reach for.
     pub fn just_pressed_desk(&self, action: &ActionBinding) -> bool {
         action
             .sources()
@@ -167,7 +167,7 @@ mod tests {
     }
 
     fn watch(bindings: Res<InputBindings>, sources: InputSources, mut seen: ResMut<Seen>) {
-        let action = bindings.get("novaos_toggle").expect("registered");
+        let action = bindings.get("interface_toggle").expect("registered");
         seen.any |= sources.just_pressed(action);
         seen.desk |= sources.just_pressed_desk(action);
         seen.pad |= sources.just_pressed_pad(action);
@@ -184,7 +184,7 @@ mod tests {
         app.init_resource::<ButtonInput<MouseButton>>();
         app.init_resource::<Seen>();
         app.insert_resource(InputBindings::from_actions([ActionBinding::new(
-            "novaos_toggle",
+            "interface_toggle",
             "SYSTEM",
             "NOVA OS",
         )
@@ -251,8 +251,8 @@ mod tests {
         assert!(app.world().resource::<Seen>().any, "the pad answers anyway");
     }
 
-    /// The pad half has to be separable: the NOVA OS toggle closes on the pad
-    /// button and not on Tab, because a pad has no Escape.
+    /// The pad half has to be separable: a toggle can close on the pad button
+    /// and not on the keyboard half, because a pad has no Escape.
     #[test]
     fn the_pad_half_is_separable_from_the_desk_half() {
         let mut app = app();

@@ -3,7 +3,7 @@
 //!
 //! This exists because an action resolves to a KEY, and keys are reused across
 //! surfaces on purpose. `G` is `autopilot_goto` in flight, `map_goto` in the
-//! map viewer and `ship_mates` in the ship viewer. So pressing an action that
+//! Map pane and `ship_mates` in the Ship pane. So pressing an action that
 //! is not live does not fail quietly - it presses the key, and whatever IS
 //! live reads it as its own action. A driver has to be told which actions can
 //! fire THIS tick, not which ones exist.
@@ -27,24 +27,24 @@ pub enum ActionContext {
     Always,
     /// Live while the player flies: a player ship on the field, not paused.
     Flight,
-    /// Live while any NOVA OS app owns the screen. NOT the prompt: there the
-    /// keyboard is typing, which is a raw lane and not a vocabulary.
+    /// Live while the TAB interface owns the screen. NOT the command modal:
+    /// there the keyboard is typing, which is a raw lane and not a vocabulary.
     Viewer,
-    /// Live while ONE named NOVA OS app owns the screen. Carries the app's
-    /// launch word - `map`, `ship`.
-    ViewerApp(&'static str),
+    /// Live while ONE named interface pane is showing. Carries the pane's
+    /// context id - `map`, `ship`.
+    InterfacePane(&'static str),
 }
 
 impl ActionContext {
     /// Can these two contexts be live at the same instant?
     ///
-    /// The only nesting is the viewer one: a named app is live only while some
-    /// app is, so [`Self::Viewer`] overlaps every [`Self::ViewerApp`]. Two
-    /// DIFFERENT named apps never are - one app owns the screen.
+    /// The only nesting is the viewer one: a named pane is live only while the
+    /// interface is, so [`Self::Viewer`] overlaps every [`Self::InterfacePane`].
+    /// Two DIFFERENT named panes never are - one pane is on screen.
     pub fn overlaps(self, other: Self) -> bool {
         match (self, other) {
             (Self::Always, _) | (_, Self::Always) => true,
-            (Self::Viewer, Self::ViewerApp(_)) | (Self::ViewerApp(_), Self::Viewer) => true,
+            (Self::Viewer, Self::InterfacePane(_)) | (Self::InterfacePane(_), Self::Viewer) => true,
             _ => self == other,
         }
     }
@@ -118,11 +118,11 @@ mod tests {
     /// together, so they share a conflict set.
     #[test]
     fn any_viewer_overlaps_a_named_one_but_two_named_ones_never_do() {
-        use ActionContext::{Always, Flight, Viewer, ViewerApp};
-        assert!(Viewer.overlaps(ViewerApp("map")));
-        assert!(ViewerApp("map").overlaps(Viewer));
-        assert!(!ViewerApp("map").overlaps(ViewerApp("ship")));
-        assert!(ViewerApp("map").overlaps(ViewerApp("map")));
+        use ActionContext::{Always, Flight, InterfacePane, Viewer};
+        assert!(Viewer.overlaps(InterfacePane("map")));
+        assert!(InterfacePane("map").overlaps(Viewer));
+        assert!(!InterfacePane("map").overlaps(InterfacePane("ship")));
+        assert!(InterfacePane("map").overlaps(InterfacePane("map")));
         assert!(!Flight.overlaps(Viewer));
         assert!(Always.overlaps(Flight), "the mode keys reach every rung");
         assert!(Flight.overlaps(Always));

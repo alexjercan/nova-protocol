@@ -431,12 +431,12 @@ fn the_wiki_line_names_the_page_without_its_heading_anchor() {
 #[test]
 fn a_binding_chip_says_what_the_action_is_bound_to_now() {
     let mut app = training_app();
-    click(&mut app, "Lesson Row: novaos_open");
+    click(&mut app, "Lesson Row: interface_open");
 
     let label = app
         .world()
         .resource::<InputBindings>()
-        .get("novaos_toggle")
+        .get("interface_toggle")
         .expect("the action is registered")
         .label
         .to_string();
@@ -446,7 +446,7 @@ fn a_binding_chip_says_what_the_action_is_bound_to_now() {
     );
 
     let rebound = app.world_mut().resource_mut::<InputBindings>().rebind(
-        "novaos_toggle",
+        "interface_toggle",
         BindingSpec {
             keyboard: vec![InputSource::Keyboard(KeyCode::F9)],
             gamepad: vec![],

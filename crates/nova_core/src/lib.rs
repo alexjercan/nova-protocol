@@ -32,9 +32,9 @@ use nova_gameplay::prelude::*;
 pub use nova_hud;
 use nova_hud::prelude::*;
 pub use nova_info;
+pub use nova_interface;
 pub use nova_menu;
 use nova_menu::prelude::*;
-pub use nova_os_ui;
 pub use nova_scenario;
 use nova_scenario::prelude::*;
 pub use nova_ship;
@@ -429,20 +429,20 @@ impl AppBuilder {
             self.app.add_plugins(NovaWorldBasePlugin);
         }
 
-        // The flight HUD and the NOVA OS cockpit monitor are peers, each its own
-        // crate above gameplay - so the crate that orders them adds them. The
-        // HUD goes first, because the monitor orders its own sets against
+        // The flight HUD and the TAB interface are peers, each its own crate
+        // above gameplay - so the crate that orders them adds them. The HUD goes
+        // first, because the interface orders its own sets against
         // `NovaHudSystems`.
         //
         // Added unconditionally, not render-gated: under the gate a headless
         // run kept only 15 of the 33 registry actions, because both plugins
-        // register their bindings inside `build` and NOVA OS did not exist
-        // off-screen. Everything GPU-side in them is already guarded by bevy
+        // register their bindings inside `build` and the interface did not
+        // exist off-screen. Everything GPU-side in them is already guarded by bevy
         // (`UiMaterialPlugin` and friends no-op without a render sub-app).
         // The cost is that headless measurement runs carry HUD/monitor CPU
         // systems.
         self.app.add_plugins(nova_hud::NovaHudPlugin);
-        self.app.add_plugins(nova_os_ui::NovaOsUiPlugin);
+        self.app.add_plugins(nova_interface::InterfacePlugin);
 
         if self.use_default_plugins {
             self.app.add_plugins(NovaEditorPlugin);
@@ -1030,13 +1030,13 @@ fn single_thread_the_fixed_loop(app: &mut App) {
 /// item exist at a time, and both are rebuilt from the collection the restart
 /// just re-read.
 fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
-    // The bar is deliberately NOT `HudNovaOsExempt`. While the NOVA OS
-    // computer is open the whole flight status bar hides, and the one item that
-    // matters there - FPS - is rehomed onto the NOVA OS terminal topbar (see
-    // `drive_nova_os_topbar_fps` in nova_os_ui/src/terminal/shell.rs).
+    // The bar is deliberately NOT `HudInterfaceExempt`. While the TAB interface
+    // or the command modal is open the whole flight status bar hides, and the
+    // one item that matters there - FPS - is rehomed onto the modal's topbar
+    // (see `drive_nova_os_topbar_fps` in nova_interface/src/terminal/shell.rs).
     // Without the exemption `apply_hud_visibility` hides the bar in
-    // `PauseStates::NovaOs` and its pause-change restore branch un-hides it on
-    // close. The base GlobalZIndex keeps a stable z at the HUD layer.
+    // `PauseStates::{Interface, Commands}` and its pause-change restore branch
+    // un-hides it on close. The base GlobalZIndex keeps a stable z at the HUD layer.
     commands.spawn((
         HudTier::Status,
         GlobalZIndex::default(),

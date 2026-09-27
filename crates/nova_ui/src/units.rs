@@ -1,5 +1,5 @@
 //! Player-facing distance/speed formatting: the single policy for turning the
-//! meters the domain already carries into the strings the HUD and NOVA OS show.
+//! meters the domain already carries into the strings the HUD and the interface show.
 //! Distance below 1000 m in integer meters (`840 m`), at/above in kilometers to
 //! two decimals (`1.24 km`); speed and closing speed in m/s to one decimal
 //! (`50.0 m/s`, `+200.0 m/s`).

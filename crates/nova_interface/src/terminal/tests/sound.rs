@@ -1,0 +1,111 @@
+//! Command modal cues, the ambient bed and the SND mute.
+
+use super::*;
+
+#[test]
+fn nova_os_sound_cues_fire_on_terminal_events() {
+    let mut app = nova_os_sound_app();
+
+    // Open: the power-up sweep plays and the ambient bed spawns.
+    open_commands(&mut app);
+    assert!(
+        fired(&app, UiSfx::NovaOsPowerUp),
+        "opening the modal plays the power-up sweep"
+    );
+    assert_eq!(bed_count(&mut app), 1, "the ambient bed spawns on open");
+
+    // A keystroke plays the (throttled) typing click.
+    clear_capture(&mut app);
+    set_prompt(&mut app, "");
+    press_text(&mut app, "h");
+    assert!(fired(&app, UiSfx::NovaOsKey), "typing plays the key click");
+
+    // A valid command: the enter thunk plus the confirmation beep.
+    clear_capture(&mut app);
+    set_prompt(&mut app, "help");
+    press_enter(&mut app);
+    assert!(
+        fired(&app, UiSfx::NovaOsEnter),
+        "submitting plays the enter thunk"
+    );
+    assert!(
+        fired(&app, UiSfx::NovaOsOk),
+        "a valid command plays the ok beep"
+    );
+
+    // An unknown command: the error buzz.
+    clear_capture(&mut app);
+    set_prompt(&mut app, "zzz");
+    press_enter(&mut app);
+    assert!(
+        fired(&app, UiSfx::NovaOsError),
+        "an unknown command plays the error buzz"
+    );
+
+    // Requesting a close plays the power-down sweep.
+    clear_capture(&mut app);
+    app.world_mut()
+        .resource_mut::<NovaOsCloseTransition>()
+        .closing = true;
+    app.update();
+    assert!(
+        fired(&app, UiSfx::NovaOsPowerDown),
+        "requesting a close plays the power-down sweep"
+    );
+}
+
+#[test]
+fn nova_os_ambient_bed_tracks_the_modal_state() {
+    let mut app = nova_os_sound_app();
+    assert_eq!(bed_count(&mut app), 0, "no bed before the modal opens");
+
+    open_commands(&mut app);
+    assert_eq!(bed_count(&mut app), 1, "one bed while the modal is open");
+
+    // Leaving the modal despawns the bed. (The freeze loop-pause exemption
+    // is structural, not exercised here: the engine's `pause_world_voices`
+    // skips every Interface voice, and the bed is one. Asserting the sink stays
+    // playing would need an audio device.)
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::Unpaused);
+    app.update();
+    assert_eq!(
+        bed_count(&mut app),
+        0,
+        "the bed despawns when the modal closes"
+    );
+}
+
+#[test]
+fn nova_os_snd_off_silences_cues() {
+    let mut app = nova_os_sound_app();
+    app.world_mut()
+        .resource_mut::<NovaOsMonitorSettings>()
+        .sound_enabled = false;
+
+    // Open with SND off: no power-up cue (the bed still spawns, but silent -
+    // apply_nova_os_bed_volume drives it to 0).
+    open_commands(&mut app);
+    assert!(
+        !fired(&app, UiSfx::NovaOsPowerUp),
+        "SND off silences the power-up sweep"
+    );
+
+    // Typing and submitting are silent too.
+    set_prompt(&mut app, "help");
+    press_enter(&mut app);
+    assert!(
+        app.world().resource::<SoundCapture>().0.is_empty(),
+        "SND off silences every terminal cue, got {:?}",
+        app.world().resource::<SoundCapture>().0
+    );
+}
+
+#[test]
+fn nova_os_bed_gain_follows_the_snd_toggle() {
+    // The bed's own level. The interface bus, the master and the harness mute
+    // are the engine's, applied on top of this.
+    assert_eq!(nova_os_bed_gain(true), NOVA_OS_BED_VOLUME);
+    assert_eq!(nova_os_bed_gain(false), 0.0, "SND off is dead silent");
+}

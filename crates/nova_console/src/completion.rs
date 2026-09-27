@@ -1,25 +1,25 @@
 //! What the live world can complete.
 //!
 //! The catalog says an argument is a ship or a section
-//! ([`CommandArg::Live`](nova_os::prelude::CommandArg::Live)); only the world
+//! ([`CommandArg::Live`](nova_command::prelude::CommandArg::Live)); only the world
 //! knows which ones exist. This publishes the values under the tokens the
 //! catalog names, and the terminal's Tab does the rest - so a new arg-bearing
 //! command completes the moment it declares what its argument is.
 
 use bevy::prelude::*;
+use nova_command::prelude::*;
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
-use nova_os::prelude::*;
 use nova_scenario::prelude::*;
 
 /// Publish every live set the command catalog can complete against.
 ///
-/// Runs only while the CRT is up, and [`NovaOsTerminal::merge_live_values`]
+/// Runs only while the command modal is up, and [`CommandTerminal::merge_live_values`]
 /// writes only on a real change, so a world that did not move does not flag the
 /// terminal as changed.
 pub(crate) fn publish_live_values(
-    mut terminal: ResMut<NovaOsTerminal>,
+    mut terminal: ResMut<CommandTerminal>,
     mut published_ships: Local<Vec<String>>,
     q_ships: Query<(Entity, &EntityId), With<SpaceshipRootMarker>>,
     q_sections: Query<(&ChildOf, &EntityId), With<SectionMarker>>,

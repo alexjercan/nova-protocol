@@ -13,8 +13,8 @@ loop-section-torpedo-bay.webm	system_torpedo_launch	2.7	98538	fresh
 news-0110-torpedo-types.webm	system_torpedo_launch	4.1	111627	frozen
 loop-section-turret.webm	stress_point_defense	4.1	557543	fresh
 loop-section-turret-stow.webm	loop_turret_stow	6.4	93182	fresh
-landing-cockpit.webm	loop_cockpit	11.1	956945	fresh
-command-shell-open.webm	loop_command_shell	5.2	208354	fresh
+landing-cockpit.webm	loop_cockpit	10.9	1155077	fresh
+command-shell-open.webm	loop_command_shell	5.2	328215	fresh
 loop-section-controller.webm	screenshot_flip_burn	2.9	92608	fresh
 lock-dwell.webm	screenshot_radar_lock	2.2	55642	fresh
 landing-editor-build.webm	screenshot_editor	3.2	139603	fresh
@@ -26,7 +26,6 @@ vfx-cold-launch.webm	loop_vfx_range	2.1	72490	fresh
 landing-damage-sequence.webm	loop_damage_sequence	5.5	137927	fresh
 loop-section-railgun.webm	screenshot_railgun	10.7	472756	fresh
 loop-section-railgun-live.webm	screenshot_railgun	2.3	671543	fresh
-nova-os-open.webm	loop_cockpit	11.1	956945	fresh
 loop-section-thruster.webm	loop_player_flight	4.8	489728	fresh
 news-0110-release-lead.webm	loop_spine_cut	5.3	169087	frozen
 news-0110-spine-cut.webm	loop_spine_cut	5.3	169087	frozen

@@ -46,7 +46,7 @@ use bevy_enhanced_input::prelude::Scale;
 #[cfg(feature = "debug")]
 use nova_input::prelude::{MousePath, MouseSensitivity};
 #[cfg(feature = "debug")]
-use nova_protocol::nova_os_ui::nova_os::prelude::NovaOsTerminal;
+use nova_protocol::nova_interface::nova_command::prelude::CommandTerminal;
 #[cfg(feature = "debug")]
 use nova_protocol::prelude::*;
 
@@ -447,10 +447,9 @@ fn ui_census(world: &mut World) -> serde_json::Value {
         ));
     }
     screen.sort_by(|a, b| a.0.cmp(&b.0));
-    let terminal = world.get_resource::<NovaOsTerminal>().map(|terminal| {
+    let terminal = world.get_resource::<CommandTerminal>().map(|terminal| {
         serde_json::json!({
             "prompt": terminal.prompt(),
-            "mode": format!("{:?}", terminal.active_mode()),
         })
     });
     serde_json::json!({

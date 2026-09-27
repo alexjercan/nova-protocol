@@ -308,8 +308,8 @@ None of this is fixed: in the editor, click a section to bind it to any key or m
         </tr>
         <tr>
             <td>
-                <a href="../nova-os/">NOVA OS</a> ship-computer terminal
-                (commands; pauses, frees the cursor)
+                <a href="../interface/">Interface</a> (Map and Ship panes;
+                pauses, frees the cursor; <kbd>Esc</kbd> also closes it)
             </td>
             <td><kbd>Tab</kbd></td>
             <td>
@@ -321,9 +321,21 @@ None of this is fixed: in the editor, click a section to bind it to any key or m
             </td>
         </tr>
         <tr>
+            <td>Switch interface pane (Map / Ship)</td>
+            <td><kbd>M</kbd></td>
+            <td>
+                <span
+                    class="pf pf-face-north"
+                    role="img"
+                    aria-label="North face button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
             <td>
                 <a href="../commands/">Command shell</a> (inspect, settings,
-                armed cheats; works with no ship, and over the menus)
+                the flight log, armed cheats; works with no ship, and over the
+                menus and the interface)
             </td>
             <td><kbd>:</kbd></td>
             <td>-</td>

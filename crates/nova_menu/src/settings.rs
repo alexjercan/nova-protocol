@@ -1196,16 +1196,16 @@ type SectionBindings<'w, 's> = Query<
 ///
 /// A section's trigger is not a registry action - it lives on the section
 /// entity, authored per ship - so [`InputBindings::conflict_for`] cannot see
-/// it and the guard was one-directional: the ship viewer refuses a section
+/// it and the guard was one-directional: the Ship pane refuses a section
 /// binding a flight verb holds, and nothing refused a flight verb landing on
 /// a section's trigger. Every base scenario arms its turrets on the right
 /// trigger, so Main Drive could be bound to it and one pull would burn AND
 /// fire.
 ///
 /// Only actions that can be live WITH the ship are checked, for the same
-/// reason `conflict_for` checks contexts: a NOVA OS verb on the turret
+/// reason `conflict_for` checks contexts: an interface verb on the turret
 /// trigger is not a collision, because the flight rig is down while the
-/// computer holds the screen.
+/// interface holds the screen.
 fn section_conflict(
     action: Option<&ActionBinding>,
     source: InputSource,

@@ -28,9 +28,10 @@ pub enum FreezeOwner {
     /// The pause overlay (`PauseStates::Paused`), and the outcome banner that
     /// forces it.
     PauseMenu,
-    /// The CRT terminal, in either shell. It owns the freeze for as long as it
-    /// is open, so switching shells never unpauses and re-pauses the world.
-    Terminal,
+    /// The TAB interface and the command modal. One owner for both states,
+    /// so opening the modal over the interface and closing it back never
+    /// unpauses and re-pauses the world.
+    Interface,
     /// A scenario being built. Held from the moment a scenario loads until its
     /// queued spawns and required art have all settled, so the first frame the
     /// player is given is a complete one at scenario time zero - and held
@@ -43,14 +44,14 @@ impl FreezeOwner {
     /// Every owner, for the fixed-size hold table.
     const ALL: [FreezeOwner; 3] = [
         FreezeOwner::PauseMenu,
-        FreezeOwner::Terminal,
+        FreezeOwner::Interface,
         FreezeOwner::ScenarioLoad,
     ];
 
     fn index(self) -> usize {
         match self {
             FreezeOwner::PauseMenu => 0,
-            FreezeOwner::Terminal => 1,
+            FreezeOwner::Interface => 1,
             FreezeOwner::ScenarioLoad => 2,
         }
     }
@@ -183,10 +184,10 @@ mod tests {
         assert!(is_paused(&world));
 
         world
-            .run_system_once(|mut clocks: Clocks| clocks.hold(FreezeOwner::Terminal))
+            .run_system_once(|mut clocks: Clocks| clocks.hold(FreezeOwner::Interface))
             .unwrap();
         world
-            .run_system_once(|mut clocks: Clocks| clocks.release(FreezeOwner::Terminal))
+            .run_system_once(|mut clocks: Clocks| clocks.release(FreezeOwner::Interface))
             .unwrap();
         assert!(is_paused(&world), "the pause menu still holds the world");
 
@@ -204,9 +205,9 @@ mod tests {
         let mut world = frozen_world();
         world
             .run_system_once(|mut clocks: Clocks| {
-                clocks.hold(FreezeOwner::Terminal);
-                clocks.hold(FreezeOwner::Terminal);
-                clocks.release(FreezeOwner::Terminal);
+                clocks.hold(FreezeOwner::Interface);
+                clocks.hold(FreezeOwner::Interface);
+                clocks.release(FreezeOwner::Interface);
             })
             .unwrap();
         assert!(!is_paused(&world));
@@ -220,7 +221,7 @@ mod tests {
         world
             .run_system_once(|mut clocks: Clocks| {
                 clocks.hold(FreezeOwner::PauseMenu);
-                clocks.hold(FreezeOwner::Terminal);
+                clocks.hold(FreezeOwner::Interface);
                 clocks.release_all();
             })
             .unwrap();

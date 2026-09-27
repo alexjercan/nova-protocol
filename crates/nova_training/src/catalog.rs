@@ -37,8 +37,8 @@ pub enum LessonCategory {
     Combat,
     /// The editor: sections, mass, and what a hull is made of.
     Shipbuilding,
-    /// The cockpit computer and its apps.
-    NovaOs,
+    /// The TAB interface panes and the `:` command modal.
+    Interface,
     /// Everything that needs the rest first.
     Advanced,
 }
@@ -50,7 +50,7 @@ impl LessonCategory {
         LessonCategory::Flight,
         LessonCategory::Combat,
         LessonCategory::Shipbuilding,
-        LessonCategory::NovaOs,
+        LessonCategory::Interface,
         LessonCategory::Advanced,
     ];
 
@@ -61,7 +61,7 @@ impl LessonCategory {
             LessonCategory::Flight => "Flight",
             LessonCategory::Combat => "Combat",
             LessonCategory::Shipbuilding => "Shipbuilding",
-            LessonCategory::NovaOs => "NOVA OS",
+            LessonCategory::Interface => "INTERFACE",
             LessonCategory::Advanced => "Advanced",
         }
     }

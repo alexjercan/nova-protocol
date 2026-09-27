@@ -5,8 +5,8 @@
 //! fresh attempt.
 
 use bevy::prelude::*;
+use nova_command::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_os::prelude::*;
 use nova_scenario::prelude::*;
 
 use crate::lookup::{self, Resolved};

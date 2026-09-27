@@ -769,10 +769,10 @@ mod tests {
     }
 
     #[test]
-    fn nova_os_owns_the_cursor_and_match_clocks() {
+    fn interface_owns_the_cursor_and_match_clocks() {
         let mut world = World::new();
         world.init_resource::<MatchFlow>();
-        world.insert_resource(State::new(PauseStates::NovaOs));
+        world.insert_resource(State::new(PauseStates::Interface));
         world.init_resource::<Time<Virtual>>();
         world.init_resource::<Time<Physics>>();
         let window = world
@@ -798,7 +798,7 @@ mod tests {
     }
 
     #[test]
-    fn leaving_nova_os_resumes_match_clocks() {
+    fn leaving_the_interface_resumes_match_clocks() {
         let mut world = World::new();
         world.insert_resource(MatchFlow {
             active: true,

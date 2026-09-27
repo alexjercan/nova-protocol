@@ -3,7 +3,7 @@
 //! bottom-left corner.
 //!
 //! The screen is the menu's own list-beside-details language ([`nova_ui::screen`]),
-//! NOT the NOVA OS terminal: there is no CRT casing, no prompt and no text
+//! NOT the command CRT: there is no CRT casing, no prompt and no text
 //! input anywhere in here. The lesson list is on the left under its category
 //! headers; on the right one tip fills the pane - a 16:9 demonstration across
 //! the top and a text box holding everything else under it.

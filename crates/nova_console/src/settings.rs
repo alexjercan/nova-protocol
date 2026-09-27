@@ -8,10 +8,10 @@
 //! own.
 
 use bevy::prelude::*;
+use nova_command::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 use nova_menu::prelude::WindowModeSetting;
-use nova_os::prelude::*;
 
 const CLASS: CommandClass = CommandClass::Setting;
 

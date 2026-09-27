@@ -547,7 +547,7 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         SectionLinkPoints(config.link_points),
         ConnectedTo::default(),
         collider.to_collider(),
-        // Keep the authored collider shape ON the section so the NOVA OS ship app
+        // Keep the authored collider shape ON the section so the Ship pane
         // can build its schematic blocks from exact authored extents
         // (`aabb_half_extents`) without decoding the avian collider.
         collider,

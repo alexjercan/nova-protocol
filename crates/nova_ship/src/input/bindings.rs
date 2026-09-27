@@ -16,7 +16,7 @@ use nova_input::prelude::*;
 ///
 /// `FLIGHT`, `TARGETING` and `CAMERA` are three headers a player reads apart
 /// and ONE firing context: they go live together when a player ship is on the
-/// field, and they go quiet together when the NOVA OS takes the screen. So the
+/// field, and they go quiet together when the interface takes the screen. So the
 /// context is applied to the whole list rather than typed on each row - a new
 /// action cannot be added without one.
 ///
@@ -46,7 +46,7 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
             .gamepad([Gamepad(GamepadButton::West)]),
         // `D` because DOCK is its own undo: the same key clamps and
         // lets go, the way `O` does for ORBIT. Free on the flight rig - the
-        // ship has no strafe keys, and NOVA OS's WASD pan lives in the Viewer
+        // ship has no strafe keys, and the interface's WASD pan lives in the Viewer
         // context. Keyboard only: every pad button the flight, camera and
         // targeting rigs can reach is already spoken for, and the four face
         // buttons are the autopilot verbs, so DOCK waits for the keybind

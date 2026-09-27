@@ -161,12 +161,6 @@ path = "examples/playable/parts_viewer.rs"
 name = "widget_zoo"
 path = "examples/playable/widget_zoo.rs"
 
-# Themed map, ship and inventory screens over a paused fixture scenario. Mock
-# station trade, loot and repair only: nothing docks, boards or changes play.
-[[example]]
-name = "ui_app_variants"
-path = "examples/playable/ui_app_variants.rs"
-
 # The asteroid KIND lineup: five kinds across three silhouette seeds, every
 # rock spawned through the real scenario path, with the `plain` control column
 # standing in as the before picture.
@@ -460,8 +454,8 @@ name = "bug_refused_scenario"
 path = "examples/systems/bug_refused_scenario.rs"
 
 [[example]]
-name = "system_nova_os"
-path = "examples/systems/system_nova_os.rs"
+name = "system_interface"
+path = "examples/systems/system_interface.rs"
 
 [[example]]
 name = "system_command_shell"
@@ -470,10 +464,6 @@ path = "examples/systems/system_command_shell.rs"
 [[example]]
 name = "system_headless_pointer"
 path = "examples/systems/system_headless_pointer.rs"
-
-[[example]]
-name = "system_headless_novaos"
-path = "examples/systems/system_headless_novaos.rs"
 
 [[example]]
 name = "system_headless_replay"
@@ -488,8 +478,8 @@ name = "system_headless_drag"
 path = "examples/systems/system_headless_drag.rs"
 
 [[example]]
-name = "system_headless_crt"
-path = "examples/systems/system_headless_crt.rs"
+name = "system_headless_map_goto"
+path = "examples/systems/system_headless_map_goto.rs"
 
 # The streamed world's asserted half: sector roots stream in and out of ONE
 # live scenario, so the range walks one world lifetime - bootstrap, arm, cross
@@ -629,14 +619,14 @@ path = "examples/screenshots/screenshot_section_drives.rs"
 name = "screenshot_railgun"
 path = "examples/screenshots/screenshot_railgun.rs"
 
-# The Tab ship computer: the terminal, then an app filling the same tube.
+# The `:` command modal on the CRT, then the TAB interface's Map and Ship panes.
 [[example]]
-name = "screenshot_nova_os_terminal"
-path = "examples/screenshots/screenshot_nova_os_terminal.rs"
+name = "screenshot_command_shell"
+path = "examples/screenshots/screenshot_command_shell.rs"
 
 [[example]]
-name = "screenshot_nova_os_apps"
-path = "examples/screenshots/screenshot_nova_os_apps.rs"
+name = "screenshot_interface"
+path = "examples/screenshots/screenshot_interface.rs"
 
 # The Rock hollow combat set. The nav radar is shot on its own approach; the
 # rest share the hollow, which now spawns the ambush at OnStart rather than
@@ -834,20 +824,16 @@ name = "lesson_build_flight_test"
 path = "examples/screenshots/lesson_build_flight_test.rs"
 
 [[example]]
-name = "lesson_novaos"
-path = "examples/screenshots/lesson_novaos.rs"
+name = "lesson_interface"
+path = "examples/screenshots/lesson_interface.rs"
 
 [[example]]
-name = "lesson_novaos_contacts"
-path = "examples/screenshots/lesson_novaos_contacts.rs"
+name = "lesson_interface_ship"
+path = "examples/screenshots/lesson_interface_ship.rs"
 
 [[example]]
-name = "lesson_novaos_prompt"
-path = "examples/screenshots/lesson_novaos_prompt.rs"
-
-[[example]]
-name = "lesson_novaos_ship"
-path = "examples/screenshots/lesson_novaos_ship.rs"
+name = "lesson_command"
+path = "examples/screenshots/lesson_command.rs"
 
 [[example]]
 name = "lesson_menu_advanced"
@@ -1179,7 +1165,7 @@ members = [
   # The process channel: named inputs on stdin, snapshots on stdout.
   "crates/nova_channel",
   # The Command shell's dispatcher. Sits ABOVE gameplay, scenario, settings and
-  # menu on purpose: `nova_os` owns the command language and stays a leaf, this
+  # menu on purpose: `nova_command` owns the command language and stays a leaf, this
   # crate owns running one against the live world.
   "crates/nova_console",
   "crates/nova_core",
@@ -1198,8 +1184,8 @@ members = [
   "crates/nova_menu",
   "crates/nova_mod_format",
   "crates/nova_modding",
-  "crates/nova_os",
-  "crates/nova_os_ui",
+  "crates/nova_command",
+  "crates/nova_interface",
   # The wasm frame-time app perf.html builds. Its own crate because it is an
   # APP that links the whole game - `nova_probe` links INTO the game.
   "crates/nova_perf_web",

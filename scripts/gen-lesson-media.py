@@ -5,7 +5,7 @@ The Lessons screen draws one demonstration per lesson: a still frame, or a
 looping sprite sheet cut into cells by the grid the lesson authors. Real
 recorded footage is OWNER work, so until it exists this writes a GOOD
 PLACEHOLDER per lesson the same way `scripts/gen-scenario-thumbnails.py` fills
-the picker's art gap - a deterministic PNG per lesson in the NOVA OS phosphor
+the picker's art gap - a deterministic PNG per lesson in the CRT phosphor
 look, rendered from the lesson's own title and id so every lesson looks
 DIFFERENT and the screen stops looking broken.
 
@@ -138,14 +138,12 @@ LESSONS = [
     ("build_dock_envelope", "Making a dock", "loop"),
     ("build_skin", "Ship skin", "loop"),
     ("build_generate", "Generate a hull", "loop"),
-    ("novaos_open", "Opening NOVA OS", "loop"),
-    ("novaos_terminal", "The prompt", "loop"),
-    ("novaos_view", "Turning the model", "loop"),
-    ("novaos_commands", "What you can type", "loop"),
-    ("novaos_contacts", "Reading contacts", "still"),
-    ("novaos_service", "Repair and reload a section", "loop"),
-    ("novaos_rebind_section", "Rebinding a section", "loop"),
-    ("novaos_shell", "The command shell", "still"),
+    ("interface_open", "Opening the interface", "loop"),
+    ("interface_map", "The Map pane", "loop"),
+    ("interface_ship_service", "Repair and reload a section", "loop"),
+    ("interface_rebind_section", "Rebinding a section", "loop"),
+    ("command_open", "Opening NOVA COMMANDS", "loop"),
+    ("command_prompt", "The prompt", "loop"),
     ("advanced_scenarios", "Scenarios and campaigns", "still"),
     ("advanced_mods", "Mods", "still"),
     ("advanced_ai_flight", "How an enemy flies", "loop"),

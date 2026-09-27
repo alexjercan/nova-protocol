@@ -120,7 +120,6 @@ LOOPS=(
 # was retired.
 #   destination|source|producer
 ALIASES=(
-    "nova-os-open|landing-cockpit|loop_cockpit"
     "loop-section-thruster|landing-player-flight|loop_player_flight"
     "news-0110-release-lead|spine-cut|loop_spine_cut"
     "news-0110-spine-cut|spine-cut|loop_spine_cut"

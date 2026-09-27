@@ -5,9 +5,9 @@
 //! ambiguous one are different failures and read differently.
 
 use bevy::prelude::*;
+use nova_command::prelude::{CommandClass, CommandResult};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
-use nova_os::prelude::{CommandClass, CommandResult};
 use nova_scenario::prelude::live_ship_sections;
 
 /// A command body that resolves an id before it can answer.

@@ -35,7 +35,7 @@ The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of
 - **Combat lock** - the red reticle, its DST/CLS readout and the target viewfinder come up, and the RADAR chip inverts because the lock is the thing you would change.
 - **Weapons hot** - the ammo gauges appear on your weapons and the lock readout grows. With the trigger down the reticle pulses. A hull carrying a railgun draws its [bore sight](#bore-sight).
 - **Low ammo or reloading** - a nearly-dry group (a quarter magazine or less) pulses amber and forces the gauges up on its own, even with the safety on: a dry magazine is news before you pull the trigger. An active reload holds them up the same way, with its own pulse.
-- **A posted objective** - a chip carrying the objective itself pops into the stack at the top of the screen the moment it posts, like a chat notification, and then keeps a slow breath. The chip is a notification: it leaves once you have read it - after a dwell, or the moment you open NOVA OS.
+- **A posted objective** - a chip carrying the objective itself pops into the stack at the top of the screen the moment it posts, like a chat notification, and then keeps a slow breath. The chip is a notification: it leaves once you have read it - after a dwell, or the moment you open the interface.
 - **An incoming transmission** - the comms card fades in with a soft blip while the earlier transcript stays still.
 
 </details>
@@ -155,15 +155,15 @@ Almost everything you hear is the traffic your shift is paid to answer, and that
 
 Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a large speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise - Basic Training gives Range Control its own green CRT portrait, and a mod ships as many faces as it has voices. A card fades in with a soft blip and leaves by timeout or explicit dismiss. A burst larger than the visible stack waits its turn in order; a backlog longer than the panel could ever show (two dozen lines) drops its oldest waiting cue rather than queueing a line that would come up after the scene it belongs to.
 
-An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open [NOVA OS](../nova-os/). For the standing list, type `objectives` in NOVA OS (or `log` for the combined comms/objective event history); in flight, the larger gold **objective markers**, diamonds and edge chevrons on the targets themselves are the lasting "go here" cue. A **completed** objective chimes and its chip goes with it. Everything clears with the scenario rather than lingering over the menu.
+An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open the [interface](../interface/). For the standing list, type `objectives` in the [command shell](../commands/) (or `log` for the combined comms and objective history); in flight, the larger gold **objective markers**, diamonds and edge chevrons on the targets themselves are the lasting "go here" cue. A **completed** objective chimes and its chip goes with it. Everything clears with the scenario rather than lingering over the menu.
 
 </details>
 
-## The ship computer
+## The interface
 
-Press <kbd>Tab</kbd> (or click the right stick on a gamepad) to open the **NOVA OS** ship-computer monitor: a real CRT terminal that pauses the game, frees the cursor, and answers `help`, `log`, `objectives`, `ship`, `map`, `clear` and `exit`. <kbd>Esc</kbd> (or `exit`) closes it and resumes flight. A posted objective's chip carries a `TAB` cue while it is up - the in-flight reminder that the computer is there.
+Press <kbd>Tab</kbd> (or click the right stick on a gamepad) to open the **interface**: a full-screen panel with a Map pane and a Ship pane that pauses the game and frees the cursor. <kbd>M</kbd> (or <kbd>Y</kbd> on a gamepad) switches panes; <kbd>Tab</kbd> or <kbd>Esc</kbd> closes it and resumes flight. A posted objective's chip carries a `TAB` cue while it is up - the in-flight reminder that the interface is there.
 
-The computer has [its own page](../nova-os/): the full command reference, the MAP and SHIP apps, rebinding a section's controls, and the monitor's own knobs and sounds.
+The interface has [its own page](../interface/): the map and GOTO, the ship's sections and their repair, reload and rebind actions. Press <kbd>:</kbd> for the [command shell](../commands/), which prints the flight log and answers `objectives`.
 
 ## The screen substrate
 

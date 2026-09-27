@@ -244,7 +244,7 @@ jobs:
   #
   # The twelve are picked to touch every subsystem a compile gate cannot see at
   # least once - boot and session lifecycle, the scenario grammar, flight,
-  # turrets, torpedoes, hull damage, the HUD shell, NOVA OS, the training
+  # turrets, torpedoes, hull damage, the HUD shell, the interface, the training
   # journey, the headless replay path, and one refusal - so a change that
   # breaks the game at runtime is very likely to be red here rather than at
   # release time. It is a SMOKE set, not a partition: the guarantee that every
@@ -272,7 +272,7 @@ jobs:
       SMOKE_EXAMPLES: >-
         system_menu_boot system_session_loop system_scenario_grammar
         system_attitude_hold system_turret_gunnery system_torpedo_launch
-        system_hull_damage system_hud_shell system_nova_os
+        system_hull_damage system_hud_shell system_interface
         system_training_journey system_headless_replay bug_refused_scenario
     steps:
       - uses: actions/checkout@v4
