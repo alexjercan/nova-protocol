@@ -414,13 +414,13 @@ mod tests {
         assert_eq!(pending_lines(&app), 1.0, "and the wheel still zooms");
     }
 
-    /// Flight behind the pause overlay, behind the NOVA OS, or under a
+    /// Flight behind the pause overlay, behind the interface, or under a
     /// cinematic hears no wheel, so nothing zooms.
     #[test]
     fn a_frozen_or_suspended_flight_takes_no_zoom() {
         let (mut app, _ship) = wheel_app();
 
-        for state in [PauseStates::Paused, PauseStates::NovaOs] {
+        for state in [PauseStates::Paused, PauseStates::Interface] {
             app.world_mut()
                 .resource_mut::<NextState<PauseStates>>()
                 .set(state);
