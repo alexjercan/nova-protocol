@@ -57,7 +57,7 @@ beside `widget_zoo`.
   example-local icons by body and stance: a ship arrow tinted own, ally or
   hostile, an asteroid and a planet. The legend lists only the kinds that are
   plotted, so this scenario shows own, ally and hostile ship and asteroid.
-  The readout shows the selected contact: code, name, stance and range.
+  The readout shows the selected contact: code, name, kind and range.
   Click another contact to ease the view onto it. Drag to orbit, turn the
   wheel to zoom. W/A/S/D move the camera across the plane relative to its
   heading, Space moves it up and Shift down. Reframe returns to the opening

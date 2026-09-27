@@ -3163,14 +3163,17 @@ fn update_map_detail(
     set_themed_text(&mut texts, MAP_DETAIL_NAME, &contact.name, UiColor::Body);
     set_themed_text(&mut texts, MAP_DETAIL_KIND, mark.label(), tone);
     set_themed_text(&mut texts, MAP_DETAIL_RANGE, &range, UiColor::Body);
+    // A no-break space keeps the range's number and unit on one line when
+    // the narrow footer wraps the summary.
     set_themed_text(
         &mut texts,
         MAP_READOUT,
         &format!(
-            "{}  {}  {}  {range}",
+            "{}  {}  {}  {}",
             contact.code,
             contact.name,
-            contact.kind.label(),
+            mark.label(),
+            range.replace(' ', "\u{a0}"),
         ),
         UiColor::Body,
     );
@@ -4614,7 +4617,7 @@ fn deal_form(form: &mut ChildSpawnerCommands) {
     ))
     .observe(slide_draft);
     form.spawn((Name::new(DEAL_TOTAL), themed_text("", 13.0, UiColor::Body)));
-    form.spawn((Name::new(DEAL_HOLD), themed_text("", 12.0, UiColor::Label)));
+    fact(form, "Hold after", DEAL_HOLD);
     form.spawn(control_row(JustifyContent::FlexStart))
         .with_children(|row| {
             compact_button(
@@ -4740,16 +4743,11 @@ fn update_inspector(
     set_themed_text(
         &mut texts,
         DEAL_HOLD,
-        &format!(
-            "{} after: {} / {}",
-            Store::Own.title(),
-            tonnes(after),
-            tonnes(fixture.own.capacity_kg)
-        ),
+        &format!("{} / {}", tonnes(after), tonnes(fixture.own.capacity_kg)),
         if after > fixture.own.capacity_kg {
             UiColor::Danger
         } else {
-            UiColor::Label
+            UiColor::Body
         },
     );
 }
@@ -5307,7 +5305,7 @@ fn sketch_script() -> Script {
         .on_enter(|world: &mut World| {
             let line = named_text(world, MAP_READOUT);
             assert!(
-                line.starts_with(RAIDER_CODE) && line.contains("HOSTILE"),
+                line.starts_with(RAIDER_CODE) && line.contains("Hostile ship"),
                 "clicking the raider must show it in the readout, not `{line}`"
             );
             info!("sketch: map readout is `{line}`");
@@ -6262,10 +6260,7 @@ fn station_deals(mut script: Script) -> Script {
         .add()
         .step("sketch: the confirmation shows the hold overfilled")
         .on_enter(|world: &mut World| {
-            assert_eq!(
-                named_text(world, DEAL_HOLD),
-                "Picket hold after: 12.5 t / 12.0 t"
-            );
+            assert_eq!(named_text(world, DEAL_HOLD), "12.5 t / 12.0 t");
         })
         .add();
     script = transact(
@@ -8784,10 +8779,13 @@ fn assert_nothing_overflows(world: &mut World, window: Rect, when: &str) {
                 }
                 if let Some(layout) = world.get::<bevy::text::TextLayoutInfo>(entity) {
                     // Judge the drawn glyphs: `layout.size` also counts the
-                    // space a wrap leaves at the end of a line.
+                    // space a wrap leaves at the end of a line, and
+                    // right-justified text hangs that space, a glyph with no
+                    // atlas width, past the box.
                     let width = layout
                         .glyphs
                         .iter()
+                        .filter(|glyph| glyph.atlas_info.rect.width() > 0.0)
                         .map(|glyph| glyph.position.x + glyph.atlas_info.rect.width() / 2.0)
                         .fold(0.0, f32::max)
                         * scale;
