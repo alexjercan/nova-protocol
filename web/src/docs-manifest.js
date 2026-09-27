@@ -351,7 +351,12 @@ const WIKI_PAGES = [
         tags: ["ui"],
         summary:
             "What the heads-up display shows: visibility tiers, the diegetic flight readouts, lock brackets and reticles, a railgun's bore sight, the target viewfinder, and the story comms panel.",
-        related: ["targeting-radar", "flight-autopilot", "keybinds", "interface"],
+        related: [
+            "targeting-radar",
+            "flight-autopilot",
+            "keybinds",
+            "interface",
+        ],
         headings: [
             "What is on screen, and when",
             "Flight readouts",

@@ -84,7 +84,8 @@ use crate::{
 ///
 /// Added by the assembly crate (`nova_core`), not by the HUD - the interface
 /// and the flight HUD are peers, and the plugin that orders them belongs above
-/// both. Render-gated: a headless run has no interface.
+/// both. Added in every assembly: a headless run keeps the bindings, pane
+/// lifecycle and commands, and skips only the render targets and CRT material.
 pub struct InterfacePlugin;
 
 impl Plugin for InterfacePlugin {
