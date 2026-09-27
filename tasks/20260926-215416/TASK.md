@@ -1,6 +1,6 @@
 # Add scroll-wheel zoom to the player chase camera
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.15.0,input,camera,flight
 

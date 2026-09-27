@@ -1,6 +1,6 @@
 # Replace TAB NOVA OS with the themed interface and a command-only CRT
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.15.0,ui,novaos,migration
 
