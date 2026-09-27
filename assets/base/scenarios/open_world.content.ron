@@ -67,6 +67,9 @@
                                     ],
                                 },
                             )),
+                            inventory: {
+                                HullPlate: 12,
+                            },
                         )),
                     )),
                     SpawnScenarioObject((

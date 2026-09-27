@@ -90,7 +90,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Lead pip** - the marker a turret draws on the point it is actually shooting at, ahead of a moving target. Red while the weapons are hot. See [Locks and reticles](../hud/#locks-and-reticles).
 - **Allegiance markers** - the always-on ship markers, tinted by how each ship stands to you. See [Allegiance markers](../hud/#allegiance-markers).
 - **Keybind dock** - the strip of chips listing the verbs your ship has right now. A chip appears only when the ship has the verb, RCS included. See [Keybinds](../keybinds/).
-- **Interface** - the Tab panel with a Map pane and a Ship pane over the frozen world. See [Interface](../interface/).
+- **Interface** - the Tab panel with Map, Ship and Inventory panes over the frozen world. See [Interface](../interface/).
 - **NOVA COMMANDS** - the `:` prompt on the ship's CRT monitor: inspection, settings, the flight log and armed cheats, over any screen. See [Commands](../commands/).
 - **Comms** - the story panel where a scenario talks to you and lists its objectives. See [Comms and objectives](../hud/#comms-and-objectives).
 

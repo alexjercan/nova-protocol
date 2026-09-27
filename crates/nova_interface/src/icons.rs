@@ -1,5 +1,5 @@
-//! The icon masks the Map and Ship panes draw: one silhouette per section
-//! family and per kind of map body.
+//! The icon masks the interface panes draw: one silhouette per section
+//! family, per kind of map body and per item category.
 //!
 //! Each mask is a white shape whose alpha is its coverage, drawn once at
 //! startup and tinted by the theme where it is shown, so a theme change never
@@ -13,7 +13,7 @@ use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use nova_gameplay::prelude::SectionClass;
+use nova_gameplay::prelude::{ItemCategoryType, SectionClass};
 use nova_ui::{theme::UiColor, widget::ThemedImageTint};
 
 /// How the panes draw a section kind: one icon, tint and legend word per
@@ -42,6 +42,7 @@ pub(crate) enum BodyIconType {
 pub(crate) struct InterfaceIcons {
     pub(crate) sections: [Handle<Image>; SectionIconType::ALL.len()],
     pub(crate) bodies: [Handle<Image>; BodyIconType::ALL.len()],
+    pub(crate) categories: [Handle<Image>; ITEM_CATEGORIES.len()],
 }
 
 impl InterfaceIcons {
@@ -55,6 +56,11 @@ impl InterfaceIcons {
         self.bodies[icon as usize].clone()
     }
 
+    /// The mask of an item category.
+    pub(crate) fn category(&self, category: ItemCategoryType) -> Handle<Image> {
+        self.categories[category as usize].clone()
+    }
+
     /// Default handles for every mask, for tests that build pane markup
     /// without drawing images.
     #[cfg(test)]
@@ -62,6 +68,7 @@ impl InterfaceIcons {
         Self {
             sections: std::array::from_fn(|_| Handle::default()),
             bodies: std::array::from_fn(|_| Handle::default()),
+            categories: std::array::from_fn(|_| Handle::default()),
         }
     }
 }
@@ -282,6 +289,100 @@ impl BodyIconType {
     }
 }
 
+/// Every item category, in declaration order, which is the order its mask is
+/// stored in: [`InterfaceIcons::category`] indexes by `category as usize`.
+pub(crate) const ITEM_CATEGORIES: [ItemCategoryType; 5] = [
+    ItemCategoryType::Raw,
+    ItemCategoryType::Repair,
+    ItemCategoryType::Ammo,
+    ItemCategoryType::Food,
+    ItemCategoryType::Parts,
+];
+
+// A category listed out of declaration order would draw another category's
+// mask, so the build fails instead.
+const _: () = {
+    let mut index = 0;
+    while index < ITEM_CATEGORIES.len() {
+        assert!(
+            ITEM_CATEGORIES[index] as usize == index,
+            "ITEM_CATEGORIES must list ItemCategoryType in declaration order"
+        );
+        index += 1;
+    }
+};
+
+/// A pile of lumps for raw goods, a wrench for repair stock, three rounds for
+/// ammo, a tin for food and a gear for parts.
+fn category_coverage(category: ItemCategoryType, p: Vec2, px: f32) -> f32 {
+    match category {
+        ItemCategoryType::Raw => {
+            let lumps = circle(p, Vec2::new(-0.4, 0.4), 0.36)
+                .min(circle(p, Vec2::new(0.4, 0.42), 0.34))
+                .min(circle(p, Vec2::new(0.0, -0.2), 0.4));
+            solid(lumps, px)
+        }
+        ItemCategoryType::Repair => {
+            let head = ring(p, Vec2::new(-0.35, -0.35), 0.3, 0.2);
+            // The jaw: the head's ring opens toward the top left.
+            let jaw = circle(p, Vec2::new(-0.62, -0.62), 0.22);
+            let handle = segment(p, Vec2::new(-0.15, -0.15), Vec2::new(0.7, 0.7), 0.24);
+            solid(head.max(-jaw).min(handle), px)
+        }
+        ItemCategoryType::Ammo => [-0.5f32, 0.0, 0.5]
+            .into_iter()
+            .map(|x| {
+                let case = polygon(
+                    p,
+                    &[
+                        Vec2::new(x - 0.16, -0.2),
+                        Vec2::new(x + 0.16, -0.2),
+                        Vec2::new(x + 0.16, 0.85),
+                        Vec2::new(x - 0.16, 0.85),
+                    ],
+                );
+                let tip = circle(p, Vec2::new(x, -0.3), 0.16).max(p.y - (-0.2));
+                let nose = polygon(
+                    p,
+                    &[
+                        Vec2::new(x, -0.85),
+                        Vec2::new(x + 0.16, -0.3),
+                        Vec2::new(x - 0.16, -0.3),
+                    ],
+                );
+                solid(case.min(tip).min(nose), px)
+            })
+            .fold(0.0, f32::max),
+        ItemCategoryType::Food => {
+            let tin = polygon(
+                p,
+                &[
+                    Vec2::new(-0.6, -0.55),
+                    Vec2::new(0.6, -0.55),
+                    Vec2::new(0.6, 0.75),
+                    Vec2::new(-0.6, 0.75),
+                ],
+            );
+            let lid = segment(p, Vec2::new(-0.72, -0.72), Vec2::new(0.72, -0.72), 0.14);
+            let band = segment(p, Vec2::new(-0.6, 0.1), Vec2::new(0.6, 0.1), 0.1);
+            (solid(tin, px) * 0.55)
+                .max(solid(tin.abs() - 0.06, px))
+                .max(solid(lid, px))
+                .max(solid(band, px))
+        }
+        ItemCategoryType::Parts => {
+            let teeth = (0..8)
+                .map(|tooth| {
+                    let axis = Vec2::from_angle(std::f32::consts::FRAC_PI_4 * tooth as f32);
+                    segment(p, axis * 0.5, axis * 0.88, 0.22)
+                })
+                .fold(f32::INFINITY, f32::min);
+            let wheel = ring(p, Vec2::ZERO, 0.42, 0.26);
+            solid(wheel.min(teeth), px)
+        }
+    }
+}
+
 /// Icon mask edge, in texels.
 const ICON_TEXELS: u32 = 64;
 
@@ -315,6 +416,8 @@ pub(crate) fn init_interface_icons(mut commands: Commands, mut images: ResMut<As
         sections: SectionIconType::ALL
             .map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
         bodies: BodyIconType::ALL.map(|body| icon_mask(&mut images, |p, px| body.coverage(p, px))),
+        categories: ITEM_CATEGORIES
+            .map(|category| icon_mask(&mut images, |p, px| category_coverage(category, p, px))),
     });
 }
 

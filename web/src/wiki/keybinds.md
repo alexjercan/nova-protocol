@@ -308,7 +308,7 @@ None of this is fixed: in the editor, click a section to bind it to any key or m
         </tr>
         <tr>
             <td>
-                <a href="../interface/">Interface</a> (Map and Ship panes;
+                <a href="../interface/">Interface</a> (Map, Ship and Inventory panes;
                 pauses, frees the cursor; <kbd>Esc</kbd> also closes it)
             </td>
             <td><kbd>Tab</kbd></td>

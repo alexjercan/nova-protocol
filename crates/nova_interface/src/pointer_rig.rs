@@ -1,6 +1,7 @@
 //! Test-only support: the live-tree pointer rig for the TAB interface panes,
-//! and an independent transcription of the command CRT shader's sample-UV
-//! chain for the CRT mapping tests.
+//! the UI cue and node churn recorders the pane tests read, and an independent
+//! transcription of the command CRT shader's sample-UV chain for the CRT
+//! mapping tests.
 //!
 //! [`pane_pointer_rig`] stands up the real UI, picking and widget stack over a
 //! window camera and drives bevy's own mouse pointer from window pixels, so
@@ -26,6 +27,10 @@ use bevy::{
     ui::UiPlugin,
     ui_widgets::ButtonPlugin,
     window::{CursorMoved, PrimaryWindow, Window, WindowEvent, WindowResolution},
+};
+use nova_gameplay::{
+    audio::UI_SFX_FILES,
+    prelude::{PlaySfx, SoundBank, UiSfx},
 };
 
 /// Agreement budget between the pointer's mapping and the shader's, in image
@@ -268,4 +273,70 @@ pub(super) fn click_at(rig: &mut PanePointerRig, window_px: Vec2) {
             }));
         settle(&mut rig.app);
     }
+}
+
+/// Every UI cue played since the last clear, in order.
+#[derive(Resource, Default)]
+pub(super) struct HeardCues(pub Vec<UiSfx>);
+
+/// Load the UI sound bank and record each cue it plays into [`HeardCues`], by
+/// handle identity, with no audio device.
+pub(super) fn hear_ui_cues(app: &mut App) {
+    app.init_asset::<AudioSource>();
+    let bank = SoundBank::load(app.world().resource::<AssetServer>(), UI_SFX_FILES);
+    app.insert_resource(bank);
+    app.init_resource::<HeardCues>();
+    app.add_observer(
+        |sfx: On<PlaySfx>, bank: Res<SoundBank<UiSfx>>, mut heard: ResMut<HeardCues>| {
+            let cue = UI_SFX_FILES
+                .iter()
+                .map(|(cue, _)| *cue)
+                .find(|cue| bank.get(*cue) == sfx.handle)
+                .expect("every played cue comes from the UI bank");
+            heard.0.push(cue);
+        },
+    );
+}
+
+/// Take the cues heard since the last take.
+pub(super) fn take_cues(app: &mut App) -> Vec<UiSfx> {
+    std::mem::take(&mut app.world_mut().resource_mut::<HeardCues>().0)
+}
+
+/// UI nodes spawned, despawned and rewritten since the last take.
+#[derive(Resource, Default, Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) struct NodeChurn {
+    /// Nodes added.
+    pub spawned: usize,
+    /// Nodes removed.
+    pub despawned: usize,
+    /// Nodes whose `Node`, `Text` or `Visibility` was written, spawns included.
+    pub rewritten: usize,
+}
+
+/// Count node churn into [`NodeChurn`] every frame, in `Last`, so it sees
+/// every write the frame made.
+pub(super) fn track_node_churn(app: &mut App) {
+    app.init_resource::<NodeChurn>();
+    app.add_systems(Last, count_node_churn);
+}
+
+#[expect(
+    clippy::type_complexity,
+    reason = "one detector over the three written components"
+)]
+fn count_node_churn(
+    q_added: Query<(), Added<Node>>,
+    mut removed: RemovedComponents<Node>,
+    q_written: Query<(), (With<Node>, Or<(Changed<Node>, Changed<Text>, Changed<Visibility>)>)>,
+    mut churn: ResMut<NodeChurn>,
+) {
+    churn.spawned += q_added.iter().count();
+    churn.despawned += removed.read().count();
+    churn.rewritten += q_written.iter().count();
+}
+
+/// Take the node churn counted since the last take.
+pub(super) fn take_churn(app: &mut App) -> NodeChurn {
+    std::mem::take(&mut *app.world_mut().resource_mut::<NodeChurn>())
 }

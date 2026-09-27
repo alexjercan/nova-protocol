@@ -315,13 +315,14 @@ plugin test pins the count at one.
   was last running. An app with no content pipeline (no `GameAssets`) is
   exempt: it has no restart to come back from.
 - `PauseStates { Unpaused, Paused, Interface, Commands }` - the freeze axis.
-  `Paused` is the ESC pause overlay; `Interface` is the TAB pane (Map or Ship,
-  `InterfacePaneType`, a resource that outlives the state); `Commands` is the
-  `NOVA COMMANDS` CRT modal (cursor freed, no pause menu). The live transitions
-  are `Unpaused <-> Paused`, `Unpaused <-> Interface`, and `Commands` to and
-  from each of `Unpaused`, `Paused` and `Interface`: the modal is a surface
-  OVER what was there, so `NovaOsCloseTransition::return_to` records the state
-  it covered and closing restores it. `nova_gameplay` owns the enum and gates
+  `Paused` is the ESC pause overlay; `Interface` is the TAB pane (Map, Ship
+  or Inventory, `InterfacePaneType`, a resource that outlives the state);
+  `Commands` is the `NOVA COMMANDS` CRT modal (cursor freed, no pause menu).
+  The live transitions are `Unpaused <-> Paused`, `Unpaused <-> Interface`,
+  and `Commands` to and from each of `Unpaused`, `Paused` and `Interface`:
+  the modal is a surface OVER what was there, so
+  `NovaOsCloseTransition::return_to` records the state it covered and closing
+  restores it. `nova_gameplay` owns the enum and gates
   the spaceship sets; `nova_menu` owns the toggles and the pause overlay UI.
   The two keys are gated differently. Tab needs a player ship and so runs
   `in_state(Playing)`; Tab and M both refuse while a ship section rebind waits

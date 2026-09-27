@@ -28,7 +28,7 @@ use nova_ui::{
 use super::{sections::*, *};
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::{interface_shown, themed_label, InterfacePaneType},
+    pane::{interface_shown, play_menu_select, themed_label, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     viewer::{cycle_index, orbit_eye, unlit, zoom_radius, OrbitGesture},
 };
@@ -791,22 +791,41 @@ pub(crate) fn label_the_selected_section(
     }
 }
 
+/// Select a section when its blip is activated, with one click if the
+/// selection changes.
 pub(crate) fn on_ship_blip_click(
     activate: On<Activate>,
     q_blip: Query<&ShipBlip>,
     mut runtime: ResMut<ShipRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     if let Ok(blip) = q_blip.get(activate.entity) {
-        runtime.selected = Some(blip.section);
+        if runtime.selected != Some(blip.section) {
+            runtime.selected = Some(blip.section);
+            play_menu_select(&mut commands, bank.as_deref());
+        }
     }
 }
 
 /// Step the selection `step` sections along the list when Prev or Next is
-/// clicked, the same cycle as the `[` and `]` keys.
+/// clicked, the same cycle as the `[` and `]` keys. Clicks if the selection
+/// moves.
+#[expect(
+    clippy::type_complexity,
+    reason = "the observer's system parameters, spelled out for the closure"
+)]
 pub(crate) fn on_ship_step_button(
     step: isize,
-) -> impl FnMut(On<Activate>, Res<State<PauseStates>>, ResMut<ShipRuntime>, ShipSections) {
-    move |_activate, pause, mut runtime, sections| {
+) -> impl FnMut(
+    On<Activate>,
+    Res<State<PauseStates>>,
+    ResMut<ShipRuntime>,
+    ShipSections,
+    Option<Res<SoundBank<UiSfx>>>,
+    Commands,
+) {
+    move |_activate, pause, mut runtime, sections, bank, mut commands| {
         if *pause.get() != PauseStates::Interface || runtime.rebinding.is_some() {
             return;
         }
@@ -815,19 +834,24 @@ pub(crate) fn on_ship_step_button(
             .selected
             .and_then(|sel| list.iter().position(|v| v.entity == sel));
         if let Some(next) = cycle_index(current, list.len(), step > 0) {
-            runtime.selected = Some(list[next].entity);
+            if runtime.selected != Some(list[next].entity) {
+                runtime.selected = Some(list[next].entity);
+                play_menu_select(&mut commands, bank.as_deref());
+            }
         }
     }
 }
 
 /// Frame the whole ship when Fit is clicked: ease the centre home and set the
-/// radius that fits every section, keeping the current angles.
+/// radius that fits every section, keeping the current angles. Clicks once.
 pub(crate) fn on_ship_fit_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     runtime: Res<ShipRuntime>,
     sections: ShipSections,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     if *pause.get() != PauseStates::Interface {
         return;
@@ -839,16 +863,19 @@ pub(crate) fn on_ship_fit_button(
     orbit.radius = radius;
     orbit.center_target = orbit.center_home;
     orbit.centered_on = runtime.selected;
+    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Restore the default view when Reset is clicked, the same reframe as the
-/// `viewer_reframe` key.
+/// `viewer_reframe` key. Clicks once.
 pub(crate) fn on_ship_reset_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     runtime: Res<ShipRuntime>,
     sections: ShipSections,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     if *pause.get() != PauseStates::Interface {
         return;
@@ -856,6 +883,7 @@ pub(crate) fn on_ship_reset_button(
     if let Ok(mut orbit) = q_camera.single_mut() {
         let (_, radius) = ship_framing(&sections.collect());
         reset_ship_orbit(&mut orbit, radius, runtime.selected);
+        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 

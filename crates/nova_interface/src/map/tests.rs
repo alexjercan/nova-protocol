@@ -16,7 +16,9 @@ use super::{app::*, contacts::*, scene::*, *};
 use crate::{
     icons::{BodyIconType, InterfaceIcons},
     pane::InterfacePaneType,
-    pointer_rig::{click_at, pane_pointer_rig, settle, PanePointerRig, RIG_PANEL_MIN},
+    pointer_rig::{
+        click_at, hear_ui_cues, pane_pointer_rig, settle, take_cues, PanePointerRig, RIG_PANEL_MIN,
+    },
     terminal::NovaOsCloseTransition,
 };
 
@@ -903,6 +905,7 @@ fn map_contacts_straddling_the_viewport_edge_are_pickable_over_their_visible_hal
 fn overlapping_map_contacts_select_the_topmost() {
     let mut rig = pane_pointer_rig();
     rig.app.init_resource::<MapRuntime>();
+    hear_ui_cues(&mut rig.app);
     let viewport = rig_map_viewport(&mut rig);
 
     let under_id = rig.app.world_mut().spawn_empty().id();
@@ -919,6 +922,10 @@ fn overlapping_map_contacts_select_the_topmost() {
         "two contacts stacked on the same pixel resolve to the topmost, not to \
          whichever the hit test happened to visit first",
     );
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    // The selected contact again changes nothing and stays silent.
+    click_at(&mut rig, RIG_PANEL_MIN + at);
+    assert!(take_cues(&mut rig.app).is_empty());
 }
 
 /// A scenario spread over 20 km has to be reachable. The old fixed 520 unit

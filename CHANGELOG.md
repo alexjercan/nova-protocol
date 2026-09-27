@@ -51,12 +51,20 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid without `mass` has no gravity well and stays
   dynamic at any size. `mass: Some(..)` makes a static well and must be finite
   and 0 or more.
+- Spaceships take an `inventory` map of item to count, such as
+  `{HullPlate: 12}`; omitted is empty. A zero count or a repeated item fails
+  lint and load.
 
 ### Interface & HUD
 
-- **(breaking)** TAB opens a themed interface with Map and Ship panes; M,
-  pad Y or the Map and Ship buttons switch. GOTO, Repair, Reload,
-  Rebind and mates are pane keys and buttons.
+- **(breaking)** TAB opens a themed interface with Map, Ship and Inventory
+  panes; M or pad Y steps through them. GOTO, Repair, Reload, Rebind and mates
+  are pane keys and buttons.
+- The Inventory pane lists what your ship and a docked ship carry, with Food,
+  Ammo, Repair, Raw and Parts filters. The open-world ship starts with 12 hull
+  plates; nothing adds or spends items yet.
+- The TAB interface clicks when a tab, filter, item, contact or section pick
+  changes, and on Reframe, Fit and Reset.
 - **(breaking)** `:` opens NOVA COMMANDS on the CRT over any screen; Escape
   returns there. The `nova>` prompt and app verbs are gone. New `log` prints
   comms, objectives and lock drops.

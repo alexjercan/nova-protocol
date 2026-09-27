@@ -1,6 +1,6 @@
 # Interface
 
-Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with two panes, **Map** and **Ship**. Flight resumes the moment you close it.
+Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with three panes: **Map**, **Ship** and **Inventory**. Flight resumes the moment you close it.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-interface-map.png -->
@@ -34,7 +34,8 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
 | --- | --- |
 | <kbd>Tab</kbd> (or click the right stick) | The interface opens on the Map pane, or on the pane you last used. It needs a live ship, and it does not open over the pause menu. |
 | <kbd>Tab</kbd> again, <kbd>Esc</kbd>, or gamepad Start | Close it and return to flight. |
-| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>), or click **Map** / **Ship** | Switch to the other pane. |
+| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, then Map again. |
+| Click **Map**, **Ship** or **Inventory** | Switch to that pane. |
 | <kbd>:</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
 
 <details class="explain">
@@ -169,6 +170,45 @@ Your weapon and thruster sections fire on rebindable inputs, and the Ship pane i
 3. The next key or mouse button you press takes over that section's keyboard-and-mouse trigger: `Bound engine_port to K`. A controller trigger on the same section is left alone, so rebinding at the desk never costs you the pad.
 
 A reserved flight control is refused on the spot - `Space is already bound to flight control: Main Drive` - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with `Left Mouse stays the pointer`: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with `Rebind cancelled` and leaves you on the pane. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane.
+
+## The inventory
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-interface-inventory.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-interface-inventory.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The Inventory pane while docked: the category
+            filters, your ship's column, the docked ship's column
+            and the inspector on a selected item.</span
+        >
+    </div>
+</figure>
+
+<!-- Items and categories: crates/nova_gameplay/src/inventory.rs (`ItemType`,
+     `ItemCategoryType`, `ShipInventory`, required by `SpaceshipRootMarker`).
+     Pane: crates/nova_interface/src/inventory/app.rs `update_inventory_panel`
+     (partner through `DockedShip` -> `DockingConnection`); filter order
+     `FILTER_ORDER`. Open-world stock: crates/nova_authoring/src/base_content/
+     scenarios/open_world.rs `player`. Nothing adds or spends items yet. -->
+
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` In the open world your ship starts with 12 hull plates; every other ship starts empty, and nothing adds or spends items yet.
+
+| Filter | Shows |
+| --- | --- |
+| **All** | Every item. |
+| **Food** | Provisions carried for trade. |
+| **Ammo** | Weapon magazine supply. |
+| **Repair** | Material a repair consumes, such as hull plates. |
+| **Raw** | Mined or salvaged bulk material. |
+| **Parts** | Scavenged objects for a story, an objective or trade. |
+
+Click an item to inspect it: the inspector shows its category, what it is and how many the selected ship carries. The pane shows stock only; it does not move, buy or sell items.
 
 ## The command shell
 

@@ -1,12 +1,12 @@
 //! The TAB interface: one themed full-screen surface over the frozen world,
-//! with a Map pane and a Ship pane.
+//! with a Map pane, a Ship pane and an Inventory pane.
 //!
 //! TAB opens it from flight (`Unpaused -> Interface`) and closes it again.
-//! Keyboard M, gamepad Y and the Map and Ship buttons in the card's title row
-//! switch the pane. The first open shows Map; after that TAB reopens the last
-//! pane. The `:` command modal opens over the pane without tearing it down, so
-//! closing the modal returns to the same pane with its scene, camera and
-//! selection.
+//! Keyboard M and gamepad Y step Map -> Ship -> Inventory -> Map, and the
+//! Map, Ship and Inventory buttons in the card's title row pick a pane. The
+//! first open shows Map; after that TAB reopens the last pane. The `:` command
+//! modal opens over the pane without tearing it down, so closing the modal
+//! returns to the same pane with its scene, camera and selection.
 //!
 //! Escape is not read here: the one back-out owner is
 //! [`close_surface_from_menu_keys`](crate::terminal), so a single press never
@@ -15,8 +15,13 @@
 //! Touch this module when changing how the interface opens, which pane shows,
 //! or the layout around the panes.
 
-use bevy::prelude::*;
-use nova_gameplay::{prelude::PlayerSpaceshipMarker, PauseStates};
+use bevy::{prelude::*, ui_widgets::Activate};
+use nova_gameplay::{
+    prelude::{
+        AudioRoute, PlayerSpaceshipMarker, SfxCommandsExt, SoundBank, UiSfx, MENU_SELECT_VOLUME,
+    },
+    PauseStates,
+};
 use nova_input::prelude::{ActionContext, ActiveContexts, InputBindings, InputSources};
 use nova_ui::{
     prelude::*,
@@ -26,6 +31,7 @@ use nova_ui::{
 
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
+    inventory::inventory_body,
     map::{on_map_reframe_button, MapLegendMarker, MapReadoutMarker, MapViewportMarker},
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_step_button, spawn_ship_panel,
@@ -45,23 +51,49 @@ pub enum InterfacePaneType {
     Map,
     /// The player ship: sections, repair, reload, rebind and mates.
     Ship,
+    /// What the player ship carries, and what a docked ship carries.
+    Inventory,
 }
 
 impl InterfacePaneType {
     /// Every pane, in title-row order, with its button label.
-    const ALL: [(Self, &'static str); 2] = [(Self::Map, "Map"), (Self::Ship, "Ship")];
+    const ALL: [(Self, &'static str); 3] = [
+        (Self::Map, "Map"),
+        (Self::Ship, "Ship"),
+        (Self::Inventory, "Inventory"),
+    ];
 
     /// The per-pane action context id its verbs are bound under.
     pub(crate) fn context_id(self) -> &'static str {
         match self {
             Self::Map => "map",
             Self::Ship => "ship",
+            Self::Inventory => "inventory",
         }
+    }
+
+    /// The pane `interface_next_tab` steps to: Map -> Ship -> Inventory ->
+    /// Map.
+    fn next(self) -> Self {
+        match self {
+            Self::Map => Self::Ship,
+            Self::Ship => Self::Inventory,
+            Self::Inventory => Self::Map,
+        }
+    }
+
+    /// The pane's title and button label.
+    fn label(self) -> &'static str {
+        Self::ALL
+            .iter()
+            .find(|(pane, _)| *pane == self)
+            .map(|(_, label)| *label)
+            .expect("InterfacePaneType::ALL lists every pane")
     }
 }
 
-/// The full-screen interface root. The card and its body under it are rebuilt
-/// by [`rebuild_interface_body`] when the pane changes.
+/// The full-screen interface root. [`rebuild_interface_body`] builds the card
+/// under it once and replaces only the pane body on a switch.
 #[derive(Component)]
 pub(crate) struct InterfaceRootMarker;
 
@@ -96,7 +128,7 @@ pub(crate) fn toggle_interface(
     }
 }
 
-/// `interface_next_tab` steps to the other pane while the interface owns the
+/// `interface_next_tab` steps to the next pane while the interface owns the
 /// screen. An armed section rebind takes the key instead: leaving the Ship pane
 /// would drop the capture.
 pub(crate) fn next_interface_pane(
@@ -118,10 +150,7 @@ pub(crate) fn next_interface_pane(
     if !sources.just_pressed(action) {
         return;
     }
-    *pane = match *pane {
-        InterfacePaneType::Map => InterfacePaneType::Ship,
-        InterfacePaneType::Ship => InterfacePaneType::Map,
-    };
+    *pane = pane.next();
 }
 
 /// Whether the interface is on screen: open, or covered by the command modal
@@ -175,28 +204,93 @@ pub(crate) fn spawn_interface_root(
     }
 }
 
+#[cfg(test)]
+mod tests;
+
 /// Widest the interface grows, in logical px.
 const INTERFACE_MAX_PX: f32 = 1520.0;
 
-/// Rebuild the card on a fresh root or a pane change.
+/// The card's title row, which holds the pane title and the pane tabs.
+#[derive(Component)]
+pub(crate) struct InterfacePaneHead;
+
+/// The node the shown pane's body is built in. Only its children are replaced
+/// on a pane switch.
+#[derive(Component)]
+pub(crate) struct InterfacePaneBody;
+
+/// Build the card on a fresh root, and on a pane change replace only the
+/// body's children.
 ///
-/// The Map and Ship buttons sit in the card's title row and are rebuilt with
-/// the body, so the selected one follows a keyboard or pad switch as well as a
-/// click.
+/// The card, its title row and the pane tabs are spawned once per root. A
+/// switch rewrites the title text and moves [`Selected`] to the shown pane's
+/// tab in place, writing only a difference: a tab click has already moved it
+/// through `button_on_setting`, a keyboard or pad switch has not.
+#[expect(
+    clippy::type_complexity,
+    reason = "the title and tab queries each need their own filters"
+)]
 pub(crate) fn rebuild_interface_body(
     mut commands: Commands,
     pane: Res<InterfacePaneType>,
     icons: Res<InterfaceIcons>,
     q_root: Query<(Entity, Ref<InterfaceRootMarker>)>,
+    q_body: Query<Entity, With<InterfacePaneBody>>,
+    q_head: Query<&Children, With<InterfacePaneHead>>,
+    mut q_title: Query<&mut Text, With<PanelHeadTitle>>,
+    q_tab: Query<(Entity, &ButtonValue<InterfacePaneType>, Has<Selected>)>,
 ) {
     let Ok((root, marker)) = q_root.single() else {
         return;
     };
-    if !marker.is_added() && !pane.is_changed() {
+    if marker.is_added() {
+        spawn_interface_card(&mut commands, root, *pane, &icons);
+        return;
+    }
+    if !pane.is_changed() {
         return;
     }
     let pane = *pane;
-    commands.entity(root).despawn_children();
+    let body = q_body
+        .single()
+        .expect("an interface root that is not new has its card and pane body");
+    commands.entity(body).despawn_children();
+    commands
+        .entity(body)
+        .with_children(|body| pane_body(body, pane, &icons));
+
+    let title = pane.label().to_uppercase();
+    for child in q_head
+        .single()
+        .expect("an interface root that is not new has its title row")
+    {
+        if let Ok(mut text) = q_title.get_mut(*child) {
+            if text.0 != title {
+                text.0.clone_from(&title);
+            }
+        }
+    }
+    for (tab, value, selected) in &q_tab {
+        match (value.0 == pane, selected) {
+            (true, false) => {
+                commands.entity(tab).insert(Selected);
+            }
+            (false, true) => {
+                commands.entity(tab).remove::<Selected>();
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The card under `root`: the title row with the pane tabs, and the body of
+/// `pane`.
+fn spawn_interface_card(
+    commands: &mut Commands,
+    root: Entity,
+    pane: InterfacePaneType,
+    icons: &InterfaceIcons,
+) {
     commands.entity(root).with_children(|root| {
         root.spawn((
             Node {
@@ -209,38 +303,70 @@ pub(crate) fn rebuild_interface_body(
             panel(),
         ))
         .with_children(|card| {
-            let title = match pane {
-                InterfacePaneType::Map => "Map",
-                InterfacePaneType::Ship => "Ship",
-            };
-            card.spawn(panel_head(title, None)).with_children(|head| {
-                head.spawn(segmented_container()).with_children(|seg| {
-                    for (value, label) in InterfacePaneType::ALL {
-                        let mut option = seg.spawn((
-                            segmented_option(label),
-                            ButtonValue(value),
-                            Name::new(format!("InterfaceTab{label}")),
-                        ));
-                        if value == pane {
-                            option.insert(Selected);
+            card.spawn((InterfacePaneHead, panel_head(pane.label(), None)))
+                .with_children(|head| {
+                    head.spawn(segmented_container()).with_children(|seg| {
+                        for (value, label) in InterfacePaneType::ALL {
+                            let mut option = seg.spawn((
+                                segmented_option(label),
+                                ButtonValue(value),
+                                Name::new(format!("InterfaceTab{label}")),
+                            ));
+                            option.observe(on_interface_tab_click);
+                            if value == pane {
+                                option.insert(Selected);
+                            }
                         }
-                    }
+                    });
                 });
-            });
-            card.spawn(Node {
-                flex_grow: 1.0,
-                min_height: px(0),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(10),
-                padding: UiRect::all(px(12)),
-                ..default()
-            })
-            .with_children(|body| match pane {
-                InterfacePaneType::Map => map_body(body),
-                InterfacePaneType::Ship => ship_body(body, &icons),
-            });
+            card.spawn((
+                InterfacePaneBody,
+                Node {
+                    flex_grow: 1.0,
+                    min_height: px(0),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(10),
+                    padding: UiRect::all(px(12)),
+                    ..default()
+                },
+            ))
+            .with_children(|body| pane_body(body, pane, icons));
         });
     });
+}
+
+/// The body of `pane`.
+fn pane_body(body: &mut ChildSpawnerCommands, pane: InterfacePaneType, icons: &InterfaceIcons) {
+    match pane {
+        InterfacePaneType::Map => map_body(body),
+        InterfacePaneType::Ship => ship_body(body, icons),
+        InterfacePaneType::Inventory => inventory_body(body, icons),
+    }
+}
+
+/// Click once when a tab that is not the shown pane is activated. The
+/// shown pane's tab carries [`Selected`] until the switch's commands apply, so
+/// a click on it changes nothing and stays silent.
+fn on_interface_tab_click(
+    activate: On<Activate>,
+    q_tab: Query<Has<Selected>, With<ButtonValue<InterfacePaneType>>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+) {
+    if q_tab.get(activate.entity) == Ok(false) {
+        play_menu_select(&mut commands, bank.as_deref());
+    }
+}
+
+/// Play the interface's click, if the sound bank has loaded.
+pub(crate) fn play_menu_select(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) {
+    if let Some(bank) = bank {
+        commands.play_sfx(
+            bank.get(UiSfx::MenuSelect),
+            AudioRoute::Interface,
+            MENU_SELECT_VOLUME,
+        );
+    }
 }
 
 /// A pane's 3D view: the node its scene image fills and its blips ride on.

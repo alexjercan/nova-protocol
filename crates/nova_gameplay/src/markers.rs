@@ -6,8 +6,8 @@
 //! (is this a ship root? a live section? a torpedo?) without depending on the
 //! sections that define one. They are plain unit components with no systems and
 //! minimal requirements, which lets them sit below the seam instead of
-//! straddling it. A ship root declares the generic integrity role every ship
-//! requires.
+//! straddling it. A ship root declares the generic integrity role and the
+//! inventory every ship requires.
 //!
 //! The AI counterparts are deliberately NOT here: `AISpaceshipMarker` requires
 //! the AI behavior state, and `AINonCombatant` is an AI directive, so both live
@@ -18,6 +18,7 @@ use bevy::prelude::*;
 
 use crate::{
     integrity::prelude::{DamageMarks, IntegrityRoot},
+    inventory::prelude::ShipInventory,
     relations::prelude::Allegiance,
 };
 
@@ -40,8 +41,10 @@ pub mod prelude {
 /// that reads the list, whether or not it is wearing cladding. The skin builder
 /// used to insert this, which meant an unclad ship recorded nothing and its
 /// hull sections could not carve.
+///
+/// Every ship carries a [`ShipInventory`], empty until something fills it.
 #[derive(Component, Clone, Debug, Default, Reflect)]
-#[require(IntegrityRoot, DamageMarks)]
+#[require(IntegrityRoot, DamageMarks, ShipInventory)]
 pub struct SpaceshipRootMarker;
 
 /// Marks the player's spaceship root.

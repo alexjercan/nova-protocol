@@ -22,7 +22,7 @@ use super::{app::*, scene::*, sections::*, *};
 use crate::{
     icons::InterfaceIcons,
     pane::InterfacePaneType,
-    pointer_rig::{click_at, pane_pointer_rig, settle, PanePointerRig},
+    pointer_rig::{click_at, hear_ui_cues, pane_pointer_rig, settle, take_cues, PanePointerRig},
     terminal::NovaOsCloseTransition,
 };
 
@@ -1202,6 +1202,7 @@ fn rig_rect(rig: &PanePointerRig, entity: Entity) -> Rect {
 fn ship_section_label_and_dot_are_one_unbroken_target() {
     let mut rig = pane_pointer_rig();
     rig.app.init_resource::<ShipRuntime>();
+    hear_ui_cues(&mut rig.app);
     let viewport = rig_ship_viewport(&mut rig);
 
     let section = rig.app.world_mut().spawn_empty().id();
@@ -1291,6 +1292,11 @@ fn ship_section_label_and_dot_are_one_unbroken_target() {
         probed >= 12,
         "the sweep only probed {probed} points - it is not crossing the seam"
     );
+    // Each probe selected the section afresh, so each clicked once.
+    assert_eq!(take_cues(&mut rig.app), vec![UiSfx::MenuSelect; probed]);
+    // The selected section again changes nothing and stays silent.
+    click_at(&mut rig, Vec2::new(first, y));
+    assert!(take_cues(&mut rig.app).is_empty());
 }
 
 /// The carrier's inspector used to draw 2081 code pills at once. Every

@@ -1,11 +1,12 @@
 //! The TAB interface and the `:` command modal.
 //!
-//! TAB opens a themed full-screen interface with a Map pane and a Ship pane
-//! over the frozen world. `:` opens `NOVA COMMANDS`, a command-only modal on
-//! the retained CRT monitor, over any surface - including the interface, which
-//! it returns to on close. The flight HUD (`nova_hud`) hides while either is
-//! open; the two share only the `PauseStates` axis and the `HudInterfaceExempt`
-//! tag, so they sit in separate crates.
+//! TAB opens a themed full-screen interface with a Map pane, a Ship pane and
+//! an Inventory pane over the frozen world. `:` opens `NOVA COMMANDS`, a
+//! command-only modal on the retained CRT monitor, over any surface -
+//! including the interface, which it returns to on close. The flight HUD
+//! (`nova_hud`) hides while either is open; the two share only the
+//! `PauseStates` axis and the `HudInterfaceExempt` tag, so they sit in separate
+//! crates.
 //!
 //! The command language the modal speaks - the catalog, the parser and the
 //! terminal model - lives in `nova_command` and has no Bevy UI in it.
@@ -15,17 +16,19 @@
 //! | Module | Concern |
 //! | --- | --- |
 //! | `bindings` | The named actions the interface and its panes answer to. |
-//! | `icons` | The section and map-body icon masks both panes draw. |
+//! | `icons` | The section, map-body and item-category icon masks the panes draw. |
 //! | `pane` | The TAB interface: open, close, pane switch and layout. |
 //! | `terminal` | The command modal: casing, CRT, prompt, input, sound. |
 //! | `map` | The Map pane: a schematic 3D view of local space. |
 //! | `ship` | The Ship pane: a schematic 3D viewer of the player ship. |
+//! | `inventory` | The Inventory pane: the player and docked-ship inventories. |
 //! | `viewer` | The orbit camera and selection cycle both panes run on. |
 
 #![warn(missing_docs)]
 
 pub mod bindings;
 mod icons;
+pub mod inventory;
 pub mod map;
 pub mod pane;
 pub mod ship;
@@ -46,8 +49,8 @@ mod viewer;
 /// have to name the model crate a second time.
 pub use nova_command;
 
-/// Live-tree rig for the forwarded CRT pointer, shared by the CRT mapping and
-/// the map/ship blip click tests.
+/// Live-tree rig for the pane pointer and the forwarded CRT pointer, shared by
+/// the CRT mapping, card, blip, filter and row tests.
 #[cfg(test)]
 mod pointer_rig;
 
@@ -71,6 +74,7 @@ use nova_input::prelude::RegisterInputActions;
 use nova_ui::widget::button_on_setting;
 
 use crate::{
+    inventory::InventoryPaneSystems,
     map::MapPaneSystems,
     pane::{
         next_interface_pane, rebuild_interface_body, spawn_interface_root, sync_nova_os_contexts,
@@ -80,7 +84,7 @@ use crate::{
     terminal::CommandsSystems,
 };
 
-/// Wires the TAB interface, its two panes, and the `:` command modal.
+/// Wires the TAB interface, its three panes, and the `:` command modal.
 ///
 /// Added by the assembly crate (`nova_core`), not by the HUD - the interface
 /// and the flight HUD are peers, and the plugin that orders them belongs above
@@ -121,7 +125,8 @@ impl Plugin for InterfacePlugin {
             InterfaceSystems
                 .after(CommandsSystems::Toggle)
                 .before(MapPaneSystems)
-                .before(ShipPaneSystems),
+                .before(ShipPaneSystems)
+                .before(InventoryPaneSystems),
         );
         app.add_systems(
             Update,
@@ -138,6 +143,7 @@ impl Plugin for InterfacePlugin {
         app.add_plugins(terminal::CommandsPlugin);
         app.add_plugins(map::MapPanePlugin);
         app.add_plugins(ship::ShipPanePlugin);
+        app.add_plugins(inventory::InventoryPanePlugin);
     }
 }
 

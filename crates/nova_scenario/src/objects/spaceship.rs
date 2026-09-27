@@ -458,6 +458,14 @@ pub struct SpaceshipConfig {
         serde(default, skip_serializing_if = "ShipCapabilities::is_all_enabled")
     )]
     pub capabilities: ShipCapabilities,
+    /// What the ship carries at spawn. Omitted in RON means an empty
+    /// inventory; a zero quantity or a repeated item fails the parse (see
+    /// [`ShipInventory`]'s `Deserialize` impl).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "ShipInventory::is_empty")
+    )]
+    pub inventory: ShipInventory,
 }
 
 /// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type
@@ -478,6 +486,7 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
         config.controller,
         SpaceshipDesign(config.design),
         config.capabilities,
+        config.inventory,
         RigidBody::Dynamic,
         // Physics advances Transform only on fixed ticks (64 Hz by default);
         // everything watched by the render-rate camera must interpolate between

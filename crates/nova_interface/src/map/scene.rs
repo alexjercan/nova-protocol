@@ -23,7 +23,7 @@ use nova_ui::{
 use super::{app::*, contacts::*, *};
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
-    pane::{interface_shown, legend_entry, themed_label, InterfacePaneType},
+    pane::{interface_shown, legend_entry, play_menu_select, themed_label, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     // The viewer the Map and Ship panes are two framings of.
     viewer::{cycle_index, orbit_eye, unlit, zoom_radius, OrbitGesture},
@@ -597,14 +597,19 @@ pub(crate) fn spawn_blip(
 }
 
 /// Select a contact when its blip button is activated (click or keyboard
-/// activation).
+/// activation), with one click if the selection changes.
 pub(crate) fn on_map_blip_click(
     activate: On<Activate>,
     q_blip: Query<&MapBlip>,
     mut runtime: ResMut<MapRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     if let Ok(blip) = q_blip.get(activate.entity) {
-        runtime.selected = Some(blip.contact);
+        if runtime.selected != Some(blip.contact) {
+            runtime.selected = Some(blip.contact);
+            play_menu_select(&mut commands, bank.as_deref());
+        }
     }
 }
 
@@ -706,14 +711,17 @@ fn reframe_map(orbit: &mut MapOrbit, contacts: &MapContacts, runtime: &mut MapRu
     runtime.focused_on = runtime.selected;
 }
 
-/// Reframe the map when its Reframe button is activated.
+/// Reframe the map when its Reframe button is activated, with one click.
 pub(crate) fn on_map_reframe_button(
     _activate: On<Activate>,
     contacts: MapContacts,
     mut runtime: ResMut<MapRuntime>,
     mut q_camera: Query<&mut MapOrbit, With<MapCameraMarker>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     if let Ok(mut orbit) = q_camera.single_mut() {
         reframe_map(&mut orbit, &contacts, &mut runtime);
+        play_menu_select(&mut commands, bank.as_deref());
     }
 }

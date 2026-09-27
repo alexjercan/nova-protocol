@@ -218,6 +218,7 @@ id or authored inline.
 | `controller` | controller | required | who flies it (below) |
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
 | `capabilities` | capability set | all on | what this spawn is PERMITTED to do (below). Omit it for a ship that can do everything |
+| `inventory` | item map | empty | what the ship carries at spawn (below). Omit it for a ship that carries nothing |
 
 `design: Inline((..))` carries the same fields a [ship design](../ships/) does
 - `sections`, `integrity`, `presentation`. Author one for a genuine one-off (a
@@ -258,6 +259,23 @@ Runtime mirror: the
 [`SetShipCapability*`](../actions/#ship-capabilities) actions, which is how a
 tutorial hands them over one lesson at a time. `dock_enabled` is authored at
 spawn only; it has no runtime action yet.
+
+### Inventory
+
+The items the ship carries at spawn, as a map from item to stack count. Omit
+the field for an empty hold. A count of `0` or the same item listed twice
+fails lint and load. The only item is `HullPlate`, filed under Repair. Stock
+shows in the TAB interface's Inventory pane; nothing adds or spends it yet.
+
+```ron
+// The open-world player ship's starting stock.
+inventory: {
+    HullPlate: 12,
+},
+```
+
+<!-- Field: crates/nova_scenario/src/objects/spaceship.rs (`SpaceshipConfig::inventory`).
+     Parse: crates/nova_gameplay/src/inventory.rs (`ShipInventory` Deserialize). -->
 
 ### Section patches
 

@@ -376,7 +376,7 @@ const WIKI_PAGES = [
         category: "Interface",
         tags: ["ui"],
         summary:
-            "The Tab interface: a Map pane and a Ship pane over the frozen game - contacts, range and bearing, GOTO, section repair, reload and rebinding.",
+            "The Tab interface: Map, Ship and Inventory panes over the frozen game - contacts, range and bearing, GOTO, section repair, reload, rebinding and what your ship carries.",
         related: ["commands", "hud", "keybinds"],
         headings: [
             "Opening and closing",
