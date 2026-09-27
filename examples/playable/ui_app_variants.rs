@@ -8,7 +8,9 @@
 //! W/A/S/D move the camera across the plane, Space moves it up and Shift
 //! down, and Reframe brings it back to its opening framing. Each contact
 //! wears the icon of what it is (ship, asteroid, planet, objective) in its
-//! stance colour. On the ship, a side panel details the selected section,
+//! stance colour. A detail panel on the map's right fifth shows the selected
+//! contact's icon, code, name, kind and range, or a hint with none selected.
+//! On the ship, a side panel details the selected section,
 //! Prev/Next step through the sections, Fit frames the whole hull and Reset
 //! also restores the opening angles. Under each view and its panel, a
 //! full-width footer shows the legend of the kinds the view plots on the
@@ -67,13 +69,14 @@
 //!   legend, the section icons and bow arrow, every transaction's exact
 //!   effect and every refusal's, the deal a row opens per context, that a
 //!   double click trades once, the interface cue of each control, the equal
-//!   store columns, the rows, filters and weight bars, the map and ship
-//!   footer's zones, input hints and live summary, that a selection, a
-//!   quantity change or a refused Confirm respawns no inventory or rail
-//!   node, that a closed deal gives the keyboard back, the rail's width,
-//!   place and status, the 3D repaint, that the simulation never advances and
-//!   that no input reaches the ship. Repeat at a mid and a narrow window
-//!   size, scroll a short window, then exit.
+//!   store columns, the rows, filters and weight bars, the map detail
+//!   panel's share and contents, the map and ship footer's zones, input
+//!   hints and live summary, that a map selection respawns no map node, that
+//!   a selection, a quantity change or a refused Confirm respawns no
+//!   inventory or rail node, that a closed deal gives the keyboard back, the
+//!   rail's width, place and status, the 3D repaint, that the simulation
+//!   never advances and that no input reaches the ship. Repeat at a mid and
+//!   a narrow window size, scroll a short window, then exit.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>`: the same walk,
 //!   plus a frame of every view.
 
@@ -140,6 +143,13 @@ const PANE_HOLD: &str = "Sketch Pane Hold";
 const MAP_SCENE: &str = "Sketch Map Scene";
 const SHIP_SCENE: &str = "Sketch Ship Scene";
 const MAP_READOUT: &str = "Sketch Map Readout";
+const MAP_DETAIL: &str = "Sketch Map Detail";
+const MAP_DETAIL_HINT: &str = "Sketch Map Detail Hint";
+const MAP_DETAIL_ICON: &str = "Sketch Map Detail Icon";
+const MAP_DETAIL_CODE: &str = "Sketch Map Detail Code";
+const MAP_DETAIL_NAME: &str = "Sketch Map Detail Name";
+const MAP_DETAIL_KIND: &str = "Sketch Map Detail Kind";
+const MAP_DETAIL_RANGE: &str = "Sketch Map Detail Range";
 const MAP_REFRAME: &str = "Sketch Map Reframe";
 const MAP_LEGEND: &str = "Sketch Map Legend";
 const VIEW_FOOTER: &str = "Sketch View Footer";
@@ -366,6 +376,16 @@ struct MapSelection(Option<Entity>);
 #[derive(Resource, Default)]
 struct ShipSelection(Option<Entity>);
 
+/// A part of the map's detail panel that shows or hides with the selection.
+/// Built once; [`update_map_detail`] sets its display.
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+enum MapDetailPart {
+    /// The hint with no contact selected.
+    Hint,
+    /// The selected contact's icon, code, name, kind and range.
+    Contact,
+}
+
 /// Theme-coloured 3D materials, repainted on a theme change.
 #[derive(Resource)]
 struct SceneMaterials {
@@ -573,7 +593,7 @@ fn sketch_plugin(app: &mut App) {
             refresh_map_legend,
             project_ship_blips,
             outline_selected_section,
-            update_map_readout,
+            update_map_detail,
             update_ship_detail,
             repaint_scenes,
         )
@@ -994,7 +1014,7 @@ fn rebuild_body(
         .with_children(|body| {
             let min_height = card_min_px(view, narrow);
             match view {
-                SketchView::Map => map_view(body, min_height),
+                SketchView::Map => map_view(body, &icons, min_height),
                 SketchView::Ship => ship_view(body, &icons, narrow, min_height),
                 SketchView::Inventory => inventory_view(body, &icons, narrow, min_height),
             }
@@ -1164,13 +1184,22 @@ fn control_row(justify: JustifyContent) -> Node {
     }
 }
 
-/// The map: the scene over the full-width footer. Nothing on the map trades,
-/// repairs or docks.
-fn map_view(body: &mut ChildSpawnerCommands, min_height: f32) {
+/// Share of the map's split row the detail panel takes; the scene takes the
+/// rest.
+const MAP_DETAIL_SHARE: f32 = 20.0;
+
+/// The map: the scene with the contact detail panel beside it at every
+/// width, over the full-width footer. Nothing on the map trades, repairs or
+/// docks.
+fn map_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, min_height: f32) {
     card(body, PANE_MAP, "Map", min_height, |c| {
-        c.spawn((MapPane, Name::new(MAP_SCENE), scene_node()))
-            .observe(orbit_drag::<MapCamera>)
-            .observe(zoom_map);
+        c.spawn(split(false)).with_children(|split| {
+            split
+                .spawn((MapPane, Name::new(MAP_SCENE), scene_node()))
+                .observe(orbit_drag::<MapCamera>)
+                .observe(zoom_map);
+            map_detail(split, icons);
+        });
         view_footer(
             c,
             SketchView::Map,
@@ -1389,10 +1418,20 @@ fn split(narrow: bool) -> Node {
 /// A themed side panel: [`SIDE_PX`] wide beside its view, or full width and
 /// `narrow_px` high under it.
 fn side_panel(narrow: bool, narrow_px: f32) -> impl Bundle {
+    if narrow {
+        panel_box(percent(100), px(narrow_px))
+    } else {
+        panel_box(px(SIDE_PX), auto())
+    }
+}
+
+/// A themed panel box `width` wide and `height` high that never shrinks and
+/// clips what it cannot fit.
+fn panel_box(width: Val, height: Val) -> impl Bundle {
     (
         Node {
-            width: if narrow { percent(100) } else { px(SIDE_PX) },
-            height: if narrow { px(narrow_px) } else { auto() },
+            width,
+            height,
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(10),
@@ -1500,6 +1539,48 @@ fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: boo
                     ..default()
                 },
             ));
+        });
+}
+
+/// The contact detail panel, built once: a hint with no contact selected, or
+/// the contact's icon over its code, name, kind and range.
+/// [`update_map_detail`] fills it.
+fn map_detail(split: &mut ChildSpawnerCommands, icons: &SketchIcons) {
+    split
+        .spawn((
+            Name::new(MAP_DETAIL),
+            panel_box(percent(MAP_DETAIL_SHARE), auto()),
+        ))
+        .with_children(|panel| {
+            panel
+                .spawn((
+                    MapDetailPart::Hint,
+                    Name::new(MAP_DETAIL_HINT),
+                    column_node(10.0),
+                ))
+                .with_children(|hint| text(hint, "Select a contact.", 13.0, UiColor::Body));
+            panel
+                .spawn((MapDetailPart::Contact, column_node(6.0)))
+                .with_children(|contact| {
+                    contact.spawn(icon_frame(56.0)).with_children(|frame| {
+                        frame.spawn((
+                            Name::new(MAP_DETAIL_ICON),
+                            icon_node(
+                                icons.bodies[BodyIcon::Ship.index()].clone(),
+                                UiColor::Secondary,
+                                40.0,
+                            ),
+                        ));
+                    });
+                    for (name, size, color) in [
+                        (MAP_DETAIL_CODE, 16.0, UiColor::Primary),
+                        (MAP_DETAIL_NAME, 13.0, UiColor::Body),
+                        (MAP_DETAIL_KIND, 12.0, UiColor::Secondary),
+                        (MAP_DETAIL_RANGE, 12.0, UiColor::Body),
+                    ] {
+                        contact.spawn((Name::new(name), themed_text("", size, color)));
+                    }
+                });
         });
 }
 
@@ -3024,32 +3105,66 @@ fn outline_selected_section(
     }
 }
 
-/// The selected contact's code, name, kind and range in the map footer
-/// summary.
-fn update_map_readout(
+/// Fill the map's detail panel in place: the hint with no contact selected,
+/// or the contact's icon in its stance colour, code, name, kind and range;
+/// and the contact's code, name, kind and range in the footer summary.
+/// Writes only what differs, so a selection respawns nothing.
+fn update_map_detail(
     selection: Res<MapSelection>,
     contacts: MapContacts,
-    mut texts: Query<(&Name, &mut Text)>,
+    markers: BodyMarkers,
+    icons: Res<SketchIcons>,
+    mut parts: Query<(&MapDetailPart, &mut Node)>,
+    mut texts: Query<(&Name, &mut Text, &mut ThemedText)>,
+    mut images: Query<(&Name, &mut ImageNode, &mut ThemedImageTint)>,
 ) {
-    let line = selection
-        .0
-        .and_then(|selected| {
-            contacts
-                .collect()
-                .into_iter()
-                .find(|c| c.entity == selected)
-        })
-        .map(|contact| {
-            format!(
-                "{}  {}  {}  {}",
-                contact.code,
-                contact.name,
-                contact.kind.label(),
-                nova_ui::units::distance(Meters::from_engine(contact.range)),
-            )
-        })
-        .unwrap_or_else(|| "Select a contact.".to_string());
-    set_named_text(&mut texts, MAP_READOUT, &line);
+    let contact = selection.0.and_then(|selected| {
+        contacts
+            .collect()
+            .into_iter()
+            .find(|c| c.entity == selected)
+    });
+    for (part, mut node) in &mut parts {
+        let shown = match part {
+            MapDetailPart::Hint => contact.is_none(),
+            MapDetailPart::Contact => contact.is_some(),
+        };
+        show(&mut node, shown);
+    }
+    let Some(contact) = contact else {
+        set_themed_text(&mut texts, MAP_READOUT, "Select a contact.", UiColor::Body);
+        return;
+    };
+    let mark = map_mark(contact.entity, contact.kind, &markers);
+    let tone = kind_color(mark.kind);
+    let range = nova_ui::units::distance(Meters::from_engine(contact.range));
+    for (name, mut image, mut tint) in &mut images {
+        if name.as_str() != MAP_DETAIL_ICON {
+            continue;
+        }
+        let wanted = &icons.bodies[mark.body.index()];
+        if image.image != *wanted {
+            image.image = wanted.clone();
+        }
+        if tint.color != tone {
+            tint.color = tone;
+        }
+    }
+    set_themed_text(&mut texts, MAP_DETAIL_CODE, &contact.code, UiColor::Primary);
+    set_themed_text(&mut texts, MAP_DETAIL_NAME, &contact.name, UiColor::Body);
+    set_themed_text(&mut texts, MAP_DETAIL_KIND, mark.label(), tone);
+    set_themed_text(&mut texts, MAP_DETAIL_RANGE, &range, UiColor::Body);
+    set_themed_text(
+        &mut texts,
+        MAP_READOUT,
+        &format!(
+            "{}  {}  {}  {range}",
+            contact.code,
+            contact.name,
+            contact.kind.label(),
+        ),
+        UiColor::Body,
+    );
 }
 
 /// The selected section's code, name, family and fixture condition in the
@@ -5132,9 +5247,20 @@ fn sketch_script() -> Script {
         .add();
     script = verdict(script, Map, Undocked, "desktop");
     let raider = format!("Map Blip {RAIDER_CODE}");
+    // The map card's nodes: its scene, blips, detail panel and footer.
+    let map_nodes = |world: &mut World| {
+        let pane = named(world, PANE_MAP);
+        let mut nodes = descendants_with::<Node>(world, pane);
+        nodes.sort();
+        nodes
+    };
     script = watch_ease(script, Map)
         .step("sketch: forget the cues before the map")
-        .on_enter(|world: &mut World| world.resource_mut::<HeardCues>().0.clear())
+        .on_enter(move |world: &mut World| {
+            world.resource_mut::<HeardCues>().0.clear();
+            let nodes = map_nodes(world);
+            world.insert_resource(NodesBefore(nodes));
+        })
         .add();
     script = script
         .click_named(
@@ -5154,6 +5280,21 @@ fn sketch_script() -> Script {
                 "clicking the raider must show it in the readout, not `{line}`"
             );
             info!("sketch: map readout is `{line}`");
+        })
+        .add()
+        .step("sketch: the selection kept every map node")
+        .on_enter(move |world: &mut World| {
+            let before = world
+                .remove_resource::<NodesBefore>()
+                .expect("the map nodes were noted")
+                .0;
+            let after = map_nodes(world);
+            assert_eq!(
+                before, after,
+                "a selection must update the map card in place, not respawn a card, blip or \
+                 panel node"
+            );
+            info!("sketch: the selection kept all {} map nodes", after.len());
         })
         .add();
     script = expect_cues(script, "a map contact", &[UiSfx::MenuSelect]);
@@ -5697,7 +5838,8 @@ fn select_row(
     .add()
 }
 
-/// Every UI node under the inventory card and the rail, as a step noted it.
+/// Every UI node under a card, and the rail for the inventory, as a step
+/// noted it.
 #[cfg(feature = "debug")]
 #[derive(Resource)]
 struct NodesBefore(Vec<Entity>);
@@ -7689,11 +7831,13 @@ fn assert_map_legend(world: &mut World, when: &str) {
     }
 }
 
-/// Map and Ship end in one footer across the scene and the ship panel,
-/// under both, in three equal zones: the legend left; in the centre, the
-/// view's buttons and exactly its key hints on one line over exactly the
-/// pointer hints on another; and the live selection's summary right. The
-/// inventory has no footer.
+/// Map and Ship end in one footer across the scene and its panel, under
+/// both, in three equal zones: the legend left; in the centre, the view's
+/// buttons and exactly its key hints on one line over exactly the pointer
+/// hints on another; and the live selection's summary right. The map's
+/// detail panel takes [`MAP_DETAIL_SHARE`] of its row beside the scene and
+/// shows the hint with no contact selected, or the contact's icon in its
+/// stance colour, code, name, kind and range. The inventory has no footer.
 #[cfg(feature = "debug")]
 fn assert_footer(world: &mut World, view: SketchView, when: &str) {
     if view == SketchView::Inventory {
@@ -7711,7 +7855,7 @@ fn assert_footer(world: &mut World, view: SketchView, when: &str) {
     let pane = rect(world, view.pane());
     let (above, legend, buttons, summary): (Rect, Vec<String>, &[&str], &str) = match view {
         SketchView::Map => (
-            rect(world, MAP_SCENE),
+            rect(world, MAP_SCENE).union(rect(world, MAP_DETAIL)),
             vec![MAP_LEGEND.to_string()],
             &[MAP_REFRAME],
             MAP_READOUT,
@@ -7825,19 +7969,76 @@ fn assert_footer(world: &mut World, view: SketchView, when: &str) {
         "{summary} {at:?} must sit in the right zone {right:?} ({when})"
     );
     let selected = match view {
-        SketchView::Map => {
+        SketchView::Map => 'map: {
+            let (scene, panel) = (rect(world, MAP_SCENE), rect(world, MAP_DETAIL));
+            let row = scene.union(panel);
+            assert!(
+                scene.max.x <= panel.min.x
+                    && (scene.min.y - panel.min.y).abs() < 1.0
+                    && (scene.max.y - panel.max.y).abs() < 1.0
+                    && (panel.width() - row.width() * MAP_DETAIL_SHARE / 100.0).abs() < 1.0,
+                "the detail panel {panel:?} must take {MAP_DETAIL_SHARE}% of the row beside \
+                 the scene {scene:?} ({when})"
+            );
             let selected = world.resource::<MapSelection>().0;
-            world
-                .run_system_once(move |contacts: MapContacts| {
+            let contact = world
+                .run_system_once(move |contacts: MapContacts, markers: BodyMarkers| {
                     selected.and_then(|selected| {
-                        contacts
+                        let contact = contacts
                             .collect()
                             .into_iter()
-                            .find(|contact| contact.entity == selected)
-                            .map(|contact| contact.code)
+                            .find(|contact| contact.entity == selected)?;
+                        let mark = map_mark(contact.entity, contact.kind, &markers);
+                        Some((contact, mark))
                     })
                 })
-                .expect("the contact model runs")
+                .expect("the contact model runs");
+            let hint = ui_node_rect(world, MAP_DETAIL_HINT);
+            let icon = ui_node_rect(world, MAP_DETAIL_ICON);
+            let Some((contact, mark)) = contact else {
+                assert!(
+                    hint.is_some_and(|hint| inside(hint, panel)) && icon.is_none(),
+                    "with no contact selected the detail panel must show only the hint ({when})"
+                );
+                break 'map None;
+            };
+            assert!(
+                hint.is_none() && icon.is_some_and(|icon| inside(icon, panel)),
+                "with {} selected the detail panel must show the contact, not the hint ({when})",
+                contact.code
+            );
+            let icons = world.resource::<SketchIcons>().bodies.clone();
+            let drawn = world
+                .query::<(&Name, &ImageNode, &ThemedImageTint)>()
+                .iter(world)
+                .find(|(name, _, _)| name.as_str() == MAP_DETAIL_ICON)
+                .map(|(_, image, tint)| (image.image.clone(), tint.color));
+            assert_eq!(
+                drawn,
+                Some((icons[mark.body.index()].clone(), kind_color(mark.kind))),
+                "the detail panel must show {}'s {} icon in its stance colour ({when})",
+                contact.code,
+                mark.label()
+            );
+            let range = nova_ui::units::distance(Meters::from_engine(contact.range));
+            let shown = [
+                MAP_DETAIL_CODE,
+                MAP_DETAIL_NAME,
+                MAP_DETAIL_KIND,
+                MAP_DETAIL_RANGE,
+            ]
+            .map(|name| named_text(world, name));
+            assert_eq!(
+                shown,
+                [
+                    contact.code.clone(),
+                    contact.name.clone(),
+                    mark.label().to_string(),
+                    range
+                ],
+                "the detail panel must name the selected contact ({when})"
+            );
+            Some(contact.code)
         }
         SketchView::Ship => section_order(world).0,
         SketchView::Inventory => unreachable!("returned above"),
