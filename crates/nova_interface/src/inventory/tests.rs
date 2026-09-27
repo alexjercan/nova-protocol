@@ -13,8 +13,8 @@ use super::*;
 use crate::{
     icons::InterfaceIcons,
     pointer_rig::{
-        click_at, hear_ui_cues, pane_pointer_rig, settle, take_churn, take_cues,
-        track_node_churn, PanePointerRig,
+        click_at, hear_ui_cues, pane_pointer_rig, settle, take_churn, take_cues, track_node_churn,
+        PanePointerRig,
     },
 };
 
@@ -175,7 +175,12 @@ fn row_entities(world: &mut World) -> Vec<Entity> {
 /// The window-space x and width of one side's panel, and whether it is drawn.
 fn panel_of(world: &mut World, side: InventorySideType) -> (f32, f32, bool) {
     world
-        .query::<(&InventoryColumnPanel, &ComputedNode, &UiGlobalTransform, &InheritedVisibility)>()
+        .query::<(
+            &InventoryColumnPanel,
+            &ComputedNode,
+            &UiGlobalTransform,
+            &InheritedVisibility,
+        )>()
         .iter(world)
         .find(|(panel, ..)| panel.0 == side)
         .map(|(_, node, xf, visible)| (xf.translation.x, node.size().x, visible.get()))
@@ -205,7 +210,10 @@ fn undocked_the_partner_slot_is_blank_and_both_columns_keep_equal_width() {
     let (own_x, own_w, own_drawn) = panel_of(rig.app.world_mut(), InventorySideType::Own);
     let (partner_x, partner_w, partner_drawn) =
         panel_of(rig.app.world_mut(), InventorySideType::Partner);
-    assert!(own_drawn && !partner_drawn, "undocked, only the player panel draws");
+    assert!(
+        own_drawn && !partner_drawn,
+        "undocked, only the player panel draws"
+    );
     assert!(partner_x > own_x, "the blank slot stays on the right");
     assert!(own_w > 0.0 && own_w == partner_w, "{own_w} != {partner_w}");
     assert!(column_texts(rig.app.world_mut(), InventorySideType::Partner).is_empty());

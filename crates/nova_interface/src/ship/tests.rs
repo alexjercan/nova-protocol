@@ -975,14 +975,18 @@ fn panel_detail_text_covers_live_fields() {
 #[test]
 fn panel_buttons_raise_ship_section_command() {
     // Each button's `Activate` observer routes a ShipSectionCommand for the
-    // selected section - but only when the panel marked that action enabled.
-    // Pins BOTH button entry points at their own boundary
+    // selected section, or arms a rebind, and clicks once - but only when the
+    // panel marked that action enabled. A disabled or modal-blocked press stays
+    // silent. Pins every button entry point at its own boundary
     // (`pin-each-caller-not-just-shared-core`).
+    // A world trigger leaves the observers' commands queued, so each cue check
+    // flushes first; a silent check without the flush would pass vacuously.
     let mut app = App::new();
-    app.add_plugins((MinimalPlugins, StatesPlugin));
+    app.add_plugins((MinimalPlugins, StatesPlugin, AssetPlugin::default()));
     app.insert_state(PauseStates::Interface);
     app.init_resource::<ShipRuntime>();
     app.add_message::<ShipSectionCommand>();
+    hear_ui_cues(&mut app);
     let (_ship, hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .run_system_once(assign_section_codes)
@@ -1009,6 +1013,11 @@ fn panel_buttons_raise_ship_section_command() {
         2,
         "a disabled reload button writes no command",
     );
+    app.world_mut().flush();
+    assert!(
+        take_cues(&mut app).is_empty(),
+        "a disabled reload stays silent"
+    );
 
     // Enabled, but under the command modal over the pane: still a no-op.
     app.world_mut()
@@ -1027,6 +1036,11 @@ fn panel_buttons_raise_ship_section_command() {
         2,
         "the modal over the pane takes no panel action",
     );
+    app.world_mut().flush();
+    assert!(
+        take_cues(&mut app).is_empty(),
+        "a blocked reload stays silent"
+    );
     app.world_mut()
         .resource_mut::<NextState<PauseStates>>()
         .set(PauseStates::Interface);
@@ -1042,6 +1056,8 @@ fn panel_buttons_raise_ship_section_command() {
         6,
         "an enabled reload button routes through the ShipSectionCommand seam",
     );
+    app.world_mut().flush();
+    assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
 
     // --- Repair button on the hull (starts at 80/100), the other caller. ---
     let repair = app
@@ -1063,6 +1079,11 @@ fn panel_buttons_raise_ship_section_command() {
         80.0,
         "a disabled repair button writes no command",
     );
+    app.world_mut().flush();
+    assert!(
+        take_cues(&mut app).is_empty(),
+        "a disabled repair stays silent"
+    );
 
     app.world_mut()
         .resource_mut::<ShipRuntime>()
@@ -1076,6 +1097,40 @@ fn panel_buttons_raise_ship_section_command() {
         100.0,
         "an enabled repair button routes through the ShipSectionCommand seam",
     );
+    app.world_mut().flush();
+    assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
+
+    // --- Rebind button on the turret, the caller that arms a capture. ---
+    let rebind = app
+        .world_mut()
+        .spawn(ShipPanelButton::Rebind)
+        .observe(on_ship_rebind_button)
+        .id();
+    app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
+
+    app.world_mut().trigger(Activate { entity: rebind });
+    assert_eq!(
+        app.world().resource::<ShipRuntime>().rebinding,
+        None,
+        "a disabled rebind button arms nothing",
+    );
+    app.world_mut().flush();
+    assert!(
+        take_cues(&mut app).is_empty(),
+        "a disabled rebind stays silent"
+    );
+
+    app.world_mut()
+        .resource_mut::<ShipRuntime>()
+        .panel_rebind_enabled = true;
+    app.world_mut().trigger(Activate { entity: rebind });
+    assert_eq!(
+        app.world().resource::<ShipRuntime>().rebinding,
+        Some(turret),
+        "an enabled rebind button arms a capture on the selection",
+    );
+    app.world_mut().flush();
+    assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
 }
 
 #[test]

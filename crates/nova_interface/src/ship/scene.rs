@@ -901,30 +901,37 @@ fn reset_ship_orbit(orbit: &mut ShipOrbit, radius: f32, selected: Option<Entity>
 }
 
 /// Raise a Repair on the selected section when the panel button is clicked, unless
-/// the panel marked repair disabled for it. Same seam as the `P` key.
+/// the panel marked repair disabled for it. Same seam as the `P` key. Clicks
+/// once when it raises the command.
 pub(crate) fn on_ship_repair_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     runtime: Res<ShipRuntime>,
-    mut commands: MessageWriter<ShipSectionCommand>,
+    mut section_commands: MessageWriter<ShipSectionCommand>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     if *pause.get() != PauseStates::Interface || !runtime.panel_repair_enabled {
         return;
     }
     if let Some(target) = runtime.selected {
-        commands.write(ShipSectionCommand {
+        section_commands.write(ShipSectionCommand {
             target,
             action: ShipAction::Repair,
         });
+        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 
 /// Arm a rebind capture on the selected section when the panel button is
-/// clicked, unless the panel marked rebind disabled for it.
+/// clicked, unless the panel marked rebind disabled for it. Clicks once when
+/// it arms.
 pub(crate) fn on_ship_rebind_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     mut runtime: ResMut<ShipRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     if *pause.get() != PauseStates::Interface || !runtime.panel_rebind_enabled {
         return;
@@ -932,22 +939,28 @@ pub(crate) fn on_ship_rebind_button(
     runtime.rebinding = runtime.selected;
     runtime.rebind_awaiting_release = runtime.rebinding.is_some();
     runtime.note = None;
+    if runtime.rebinding.is_some() {
+        play_menu_select(&mut commands, bank.as_deref());
+    }
 }
 
 pub(crate) fn on_ship_reload_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     runtime: Res<ShipRuntime>,
-    mut commands: MessageWriter<ShipSectionCommand>,
+    mut section_commands: MessageWriter<ShipSectionCommand>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     if *pause.get() != PauseStates::Interface || !runtime.panel_reload_enabled {
         return;
     }
     if let Some(target) = runtime.selected {
-        commands.write(ShipSectionCommand {
+        section_commands.write(ShipSectionCommand {
             target,
             action: ShipAction::Reload,
         });
+        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 

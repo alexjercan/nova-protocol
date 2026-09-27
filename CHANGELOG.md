@@ -67,7 +67,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   Ammo, Repair, Raw and Parts filters. The open-world ship starts with 12 hull
   plates; nothing adds or spends items yet.
 - The TAB interface clicks when a tab, filter, item, contact or section pick
-  changes, and on Reframe, Fit and Reset.
+  changes, and on Reframe, Fit, Reset, Repair, Reload and Rebind.
 - **(breaking)** `:` opens NOVA COMMANDS on the CRT over any screen; Escape
   returns there. The `nova>` prompt and app verbs are gone. New `log` prints
   comms, objectives and lock drops.

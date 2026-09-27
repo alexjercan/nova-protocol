@@ -328,7 +328,13 @@ pub(super) fn track_node_churn(app: &mut App) {
 fn count_node_churn(
     q_added: Query<(), Added<Node>>,
     mut removed: RemovedComponents<Node>,
-    q_written: Query<(), (With<Node>, Or<(Changed<Node>, Changed<Text>, Changed<Visibility>)>)>,
+    q_written: Query<
+        (),
+        (
+            With<Node>,
+            Or<(Changed<Node>, Changed<Text>, Changed<Visibility>)>,
+        ),
+    >,
     mut churn: ResMut<NodeChurn>,
 ) {
     churn.spawned += q_added.iter().count();

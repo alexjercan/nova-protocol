@@ -226,10 +226,6 @@ pub(crate) struct InterfacePaneBody;
 /// switch rewrites the title text and moves [`Selected`] to the shown pane's
 /// tab in place, writing only a difference: a tab click has already moved it
 /// through `button_on_setting`, a keyboard or pad switch has not.
-#[expect(
-    clippy::type_complexity,
-    reason = "the title and tab queries each need their own filters"
-)]
 pub(crate) fn rebuild_interface_body(
     mut commands: Commands,
     pane: Res<InterfacePaneType>,

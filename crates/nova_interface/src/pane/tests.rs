@@ -30,7 +30,10 @@ fn card_ids(world: &mut World) -> CardIds {
         .query_filtered::<Entity, With<InterfacePaneBody>>()
         .single(world)
         .expect("the card has one pane body");
-    let card = world.get::<ChildOf>(head).expect("the title row is in the card").parent();
+    let card = world
+        .get::<ChildOf>(head)
+        .expect("the title row is in the card")
+        .parent();
     let title = world
         .query_filtered::<(Entity, &ChildOf), With<PanelHeadTitle>>()
         .iter(world)
@@ -42,7 +45,11 @@ fn card_ids(world: &mut World) -> CardIds {
         .iter(world)
         .map(|(entity, value)| (entity, value.0))
         .collect();
-    tabs.sort_by_key(|(_, value)| InterfacePaneType::ALL.iter().position(|(each, _)| each == value));
+    tabs.sort_by_key(|(_, value)| {
+        InterfacePaneType::ALL
+            .iter()
+            .position(|(each, _)| each == value)
+    });
     CardIds {
         card,
         head,
@@ -55,7 +62,11 @@ fn card_ids(world: &mut World) -> CardIds {
 /// The title text and the one pane whose tab is selected.
 fn shown(world: &mut World) -> (String, Vec<InterfacePaneType>) {
     let ids = card_ids(world);
-    let title = world.get::<Text>(ids.title).expect("the title is text").0.clone();
+    let title = world
+        .get::<Text>(ids.title)
+        .expect("the title is text")
+        .0
+        .clone();
     let selected = world
         .query_filtered::<&ButtonValue<InterfacePaneType>, With<Selected>>()
         .iter(world)
@@ -76,7 +87,11 @@ fn body_children(world: &mut World) -> Vec<Entity> {
 /// The window-space centre of the tab for `pane`.
 fn tab_centre(world: &mut World, pane: InterfacePaneType) -> Vec2 {
     world
-        .query::<(&ButtonValue<InterfacePaneType>, &ComputedNode, &UiGlobalTransform)>()
+        .query::<(
+            &ButtonValue<InterfacePaneType>,
+            &ComputedNode,
+            &UiGlobalTransform,
+        )>()
         .iter(world)
         .find(|(value, node, _)| value.0 == pane && node.size().x > 0.0)
         .map(|(_, _, xf)| xf.translation)
@@ -116,7 +131,10 @@ fn a_pane_switch_keeps_the_card_title_row_and_tabs_and_replaces_only_the_body() 
     let mut rig = card_rig();
     let world = rig.app.world_mut();
     let before = card_ids(world);
-    assert_eq!(shown(world), ("MAP".to_string(), vec![InterfacePaneType::Map]));
+    assert_eq!(
+        shown(world),
+        ("MAP".to_string(), vec![InterfacePaneType::Map])
+    );
     let map_body = body_children(world);
 
     // Idle: nothing is spawned, despawned or rewritten.
@@ -126,11 +144,17 @@ fn a_pane_switch_keeps_the_card_title_row_and_tabs_and_replaces_only_the_body() 
     // A click on the Ship tab: one click cue, the same card, a new body.
     let ship = tab_centre(rig.app.world_mut(), InterfacePaneType::Ship);
     click_at(&mut rig, ship);
-    assert_eq!(*rig.app.world().resource::<InterfacePaneType>(), InterfacePaneType::Ship);
+    assert_eq!(
+        *rig.app.world().resource::<InterfacePaneType>(),
+        InterfacePaneType::Ship
+    );
     assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
     let world = rig.app.world_mut();
     assert_eq!(card_ids(world), before);
-    assert_eq!(shown(world), ("SHIP".to_string(), vec![InterfacePaneType::Ship]));
+    assert_eq!(
+        shown(world),
+        ("SHIP".to_string(), vec![InterfacePaneType::Ship])
+    );
     let ship_body = body_children(world);
     assert!(
         ship_body.iter().all(|child| !map_body.contains(child)),

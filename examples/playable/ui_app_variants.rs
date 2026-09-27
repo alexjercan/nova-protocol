@@ -23,12 +23,14 @@
 //! are up, which in this example is always, and player control stays
 //! suspended, so no key flies the ship. The flight HUD is hidden.
 //!
-//! The Undocked/Station/Boarded control is a local mock context: nothing
-//! docks or boards. Station names a mock station that is not in the scenario;
-//! Boarded names the raider. A context line above every view shows the
-//! context, the fixture credits and the last transaction's result, and holds
-//! no controls. At the station, the ship panel prices a repair of the
-//! selected section while the fixture repair bay is on. The inventory shows
+//! A fixed debug rail left of every view holds the mock controls. The
+//! Undocked/Station/Boarded control is a local mock context: nothing docks
+//! or boards. Station names a mock station that is not in the scenario;
+//! Boarded names the raider. The Phosphor/Hardware control picks the theme.
+//! Under them the rail shows the context, what the ship is at, the fixture
+//! credits and the last transaction's result. At the station, the ship
+//! panel prices a repair of the selected section while the fixture repair
+//! bay is on. The inventory shows
 //! the picket's hold under a weight bar in the left half and the station
 //! market or the raider's hold in the right half, which stays empty
 //! undocked. Category buttons filter the rows. Click a row to select it: the
@@ -64,9 +66,9 @@
 //!   effect and every refusal's, the deal a row opens per context, that a
 //!   double click trades once, the interface cue of each control, the equal
 //!   store columns, the rows, filters and weight bars, that a selection, a
-//!   quantity change or a refused Confirm respawns no inventory or
-//!   context-line node, that a closed deal gives the keyboard back, the
-//!   context line, the 3D repaint, that the simulation never advances and
+//!   quantity change or a refused Confirm respawns no inventory or rail
+//!   node, that a closed deal gives the keyboard back, the rail's width,
+//!   place and status, the 3D repaint, that the simulation never advances and
 //!   that no input reaches the ship. Repeat at a mid and a narrow window
 //!   size, scroll a short window, then exit.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>`: the same walk,
@@ -150,7 +152,7 @@ const SHIP_SERVICE: &str = "Sketch Ship Service";
 const SHIP_REPAIR: &str = "Sketch Ship Repair";
 const SHIP_NO_REPAIR: &str = "Sketch Ship No Repair";
 const SHIP_BAY: &str = "Sketch Ship Bay";
-const DOCK_BANNER: &str = "Sketch Dock Banner";
+const LEFT_DEBUG_RAIL: &str = "Sketch Left Debug Rail";
 const DOCK_HEAD: &str = "Sketch Dock Head";
 const DOCK_PARTNER: &str = "Sketch Dock Partner";
 const DOCK_CREDITS: &str = "Sketch Dock Credits";
@@ -299,9 +301,20 @@ impl SketchContext {
     }
 }
 
-/// The full-screen root; the top bar under it is never rebuilt.
+/// The full-screen root: the [`LeftDebugRail`] beside the [`SketchMain`]
+/// column.
 #[derive(Component)]
 struct SketchRoot;
+
+/// The fixed left rail of mock context and theme controls and the context
+/// status. Built once, so it stays one entity across views and contexts.
+#[derive(Component)]
+struct LeftDebugRail;
+
+/// The column right of the rail: the title row, built once, over the
+/// [`SketchBody`].
+#[derive(Component)]
+struct SketchMain;
 
 /// The view body, rebuilt whenever the view or the width class changes. A
 /// context change keeps it, and with it the live 3D scene. It scrolls when a
@@ -766,10 +779,9 @@ fn spawn_root(
                 position_type: PositionType::Absolute,
                 width: percent(100),
                 height: percent(100),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Row,
                 padding: UiRect::all(px(16)),
-                row_gap: px(12),
+                column_gap: px(12),
                 ..default()
             },
             // Above the flight HUD, below every interface layer.
@@ -778,19 +790,109 @@ fn spawn_root(
             ThemedFill::new(UiColor::Void),
         ))
         .with_children(|root| {
-            top_bar(root, view, context, &theme);
+            left_debug_rail(root, context, &theme);
+            root.spawn((
+                SketchMain,
+                Name::new("Sketch Main"),
+                Node {
+                    flex_grow: 1.0,
+                    min_width: px(0),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    row_gap: px(12),
+                    ..default()
+                },
+            ))
+            .with_children(|main| top_bar(main, view));
         });
 }
 
-/// Title, view tabs, mock context and theme. Built once; `button_on_setting`
-/// moves each group's mark.
-fn top_bar(root: &mut ChildSpawnerCommands, view: SketchView, context: SketchContext, theme: &str) {
-    root.spawn(Node {
+/// Width of the [`LeftDebugRail`], in logical px, at every window size.
+const RAIL_PX: f32 = 220.0;
+
+/// Mock context and theme controls, stacked, over the context status. Built
+/// once; `button_on_setting` moves each group's mark and
+/// [`update_dock_line`] fills the texts.
+fn left_debug_rail(root: &mut ChildSpawnerCommands, context: SketchContext, theme: &str) {
+    // The shared segmented control is a row; the rail stacks its options.
+    let stack = |mut node: Mut<Node>| {
+        node.flex_direction = FlexDirection::Column;
+        node.align_self = AlignSelf::Stretch;
+        node.row_gap = px(3);
+    };
+    root.spawn((
+        LeftDebugRail,
+        Name::new(LEFT_DEBUG_RAIL),
+        Node {
+            width: px(RAIL_PX),
+            flex_shrink: 0.0,
+            row_gap: px(12),
+            padding: UiRect::all(px(12)),
+            overflow: Overflow::clip(),
+            ..panel_node()
+        },
+        panel(),
+    ))
+    .with_children(|rail| {
+        rail.spawn(segmented_container())
+            .entry::<Node>()
+            .and_modify(stack)
+            .entity()
+            .with_children(|seg| {
+                for (value, label, name) in SketchContext::ALL {
+                    let mut option = seg.spawn((
+                        segmented_option(label),
+                        ButtonValue(value),
+                        Name::new(name),
+                        SketchClick,
+                    ));
+                    if value == context {
+                        option.insert(Selected);
+                    }
+                }
+            });
+        rail.spawn(segmented_container())
+            .entry::<Node>()
+            .and_modify(stack)
+            .entity()
+            .with_children(|seg| {
+                for (id, label, name) in [
+                    (PHOSPHOR_THEME_ID, "Phosphor", THEME_PHOSPHOR),
+                    (HARDWARE_THEME_ID, "Hardware", THEME_HARDWARE),
+                ] {
+                    let mut option = seg.spawn((
+                        segmented_option(label),
+                        ButtonValue(SelectedUiTheme(id.to_string())),
+                        Name::new(name),
+                        SketchClick,
+                    ));
+                    if id == theme {
+                        option.insert(Selected);
+                    }
+                }
+            });
+        rail.spawn((
+            Name::new(DOCK_HEAD),
+            themed_text("", 20.0, UiColor::Secondary),
+        ));
+        rail.spawn((
+            Name::new(DOCK_PARTNER),
+            themed_text("", 16.0, UiColor::Primary),
+        ));
+        rail.spawn((
+            Name::new(DOCK_CREDITS),
+            themed_text("", 16.0, UiColor::Primary),
+        ));
+        rail.spawn((Name::new(DOCK_NOTICE), themed_text("", 12.0, UiColor::Body)));
+    });
+}
+
+/// Title and view tabs. Built once; `button_on_setting` moves the tab mark.
+fn top_bar(main: &mut ChildSpawnerCommands, view: SketchView) {
+    main.spawn(Node {
         flex_direction: FlexDirection::Row,
-        flex_wrap: FlexWrap::Wrap,
         align_items: AlignItems::Center,
         column_gap: px(16),
-        row_gap: px(10),
         width: percent(100),
         max_width: px(BODY_MAX_PX),
         flex_shrink: 0.0,
@@ -811,61 +913,16 @@ fn top_bar(root: &mut ChildSpawnerCommands, view: SketchView, context: SketchCon
                 }
             }
         });
-        bar.spawn(Node {
-            flex_grow: 1.0,
-            ..default()
-        });
-        bar.spawn(segmented_container()).with_children(|seg| {
-            for (value, label, name) in SketchContext::ALL {
-                let mut option = seg.spawn((
-                    segmented_option(label),
-                    ButtonValue(value),
-                    Name::new(name),
-                    SketchClick,
-                ));
-                if value == context {
-                    option.insert(Selected);
-                }
-            }
-        });
-        bar.spawn(segmented_container()).with_children(|seg| {
-            for (id, label, name) in [
-                (PHOSPHOR_THEME_ID, "Phosphor", THEME_PHOSPHOR),
-                (HARDWARE_THEME_ID, "Hardware", THEME_HARDWARE),
-            ] {
-                let mut option = seg.spawn((
-                    segmented_option(label),
-                    ButtonValue(SelectedUiTheme(id.to_string())),
-                    Name::new(name),
-                    SketchClick,
-                ));
-                if id == theme {
-                    option.insert(Selected);
-                }
-            }
-        });
     });
 }
 
 /// Widest the body grows, in logical px.
 const BODY_MAX_PX: f32 = 1520.0;
 
-/// Narrower than this, the context line takes two rows and the ship panel and
-/// the inspector stack under their views.
-const NARROW_BELOW_PX: f32 = 1100.0;
-/// Height of the context line, in logical px, one row wide and two rows
-/// narrow. Fixed per width class, so the pane under it keeps its size across
-/// views and contexts.
-const BANNER_PX: f32 = 52.0;
-const BANNER_NARROW_PX: f32 = 72.0;
-
-fn banner_px(narrow: bool) -> f32 {
-    if narrow {
-        BANNER_NARROW_PX
-    } else {
-        BANNER_PX
-    }
-}
+/// Narrower than this window width, the ship panel and the inspector stack
+/// under their views. It is the 1100 px main column the wide views need,
+/// plus the rail and its gap.
+const NARROW_BELOW_PX: f32 = 1332.0;
 
 /// Shortest a view's card may be, in logical px. A window too short for it
 /// scrolls the body instead of squeezing the scene or clipping the panels.
@@ -881,7 +938,7 @@ fn card_min_px(view: SketchView, narrow: bool) -> f32 {
 /// Respawn the body for the current view and width class. A theme change
 /// never comes through here: every widget and material repaints itself. A
 /// context, fixture, selection or confirmation change never comes through
-/// here either: the context line and the inspector update their nodes in
+/// here either: the rail and the inspector update their nodes in
 /// place, and [`refresh_repair_slot`] and [`refresh_store_columns`] rebuild
 /// only the slot or store column that changed, so the live 3D scene and its
 /// camera survive all of them.
@@ -890,11 +947,11 @@ fn rebuild_body(
     view: Res<SketchView>,
     icons: Res<SketchIcons>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    roots: Query<Entity, With<SketchRoot>>,
+    mains: Query<Entity, With<SketchMain>>,
     bodies: Query<Entity, With<SketchBody>>,
     mut built_narrow: Local<Option<bool>>,
 ) {
-    let Ok(root) = roots.single() else {
+    let Ok(main) = mains.single() else {
         return;
     };
     let narrow = windows
@@ -908,8 +965,8 @@ fn rebuild_body(
         commands.entity(body).despawn();
     }
     let view = *view;
-    commands.entity(root).with_children(|root| {
-        root.spawn((
+    commands.entity(main).with_children(|main| {
+        main.spawn((
             SketchBody,
             Name::new("Sketch Body"),
             Node {
@@ -925,7 +982,6 @@ fn rebuild_body(
             ScrollPosition::default(),
         ))
         .with_children(|body| {
-            dock_banner(body, narrow);
             let min_height = card_min_px(view, narrow);
             match view {
                 SketchView::Map => map_view(body, narrow, min_height),
@@ -986,83 +1042,8 @@ fn card(
     });
 }
 
-/// The context line: one fixed height in every view and context, and no
-/// controls. Its texts are built once and filled by [`update_dock_line`].
-/// Narrow, the result takes its own row.
-fn dock_banner(body: &mut ChildSpawnerCommands, narrow: bool) {
-    let row = || Node {
-        flex_direction: FlexDirection::Row,
-        align_items: AlignItems::Center,
-        column_gap: px(12),
-        ..default()
-    };
-    body.spawn((
-        Name::new(DOCK_BANNER),
-        Node {
-            height: px(banner_px(narrow)),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            justify_content: JustifyContent::Center,
-            overflow: Overflow::clip(),
-            row_gap: px(6),
-            padding: UiRect::axes(px(16), px(6)),
-            border: UiRect::all(px(2)),
-            border_radius: BorderRadius::all(px(4)),
-            ..default()
-        },
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.12),
-        BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Secondary),
-    ))
-    .with_children(|banner| {
-        if narrow {
-            banner.spawn(row()).with_children(|row| {
-                dock_head(row);
-                spacer(row);
-                dock_credits(row);
-            });
-            banner.spawn(row()).with_children(dock_notice);
-        } else {
-            banner.spawn(row()).with_children(|row| {
-                dock_head(row);
-                spacer(row);
-                dock_notice(row);
-                dock_credits(row);
-            });
-        }
-    });
-}
-
-fn dock_head(row: &mut ChildSpawnerCommands) {
-    row.spawn((
-        Name::new(DOCK_HEAD),
-        themed_text("", 20.0, UiColor::Secondary),
-    ));
-    row.spawn((
-        Name::new(DOCK_PARTNER),
-        themed_text("", 16.0, UiColor::Primary),
-    ));
-}
-
-fn dock_notice(row: &mut ChildSpawnerCommands) {
-    row.spawn((
-        Name::new(DOCK_NOTICE),
-        themed_text("", 12.0, UiColor::Body),
-        TextLayout::new(Justify::Left, LineBreak::NoWrap),
-    ));
-}
-
-fn dock_credits(row: &mut ChildSpawnerCommands) {
-    row.spawn((
-        Name::new(DOCK_CREDITS),
-        themed_text("", 16.0, UiColor::Primary),
-        TextLayout::new(Justify::Right, LineBreak::NoWrap),
-    ));
-}
-
-/// Fill the context line in place: the context and what the ship is at, the
-/// last transaction's result and the credits.
+/// Fill the rail status in place: the context and what the ship is at, the
+/// credits and the last transaction's result.
 fn update_dock_line(
     fixture: Res<SketchFixture>,
     context: Res<SketchContext>,
@@ -1118,13 +1099,6 @@ fn set_themed_text(
             themed.color = color;
         }
     }
-}
-
-fn spacer(row: &mut ChildSpawnerCommands) {
-    row.spawn(Node {
-        flex_grow: 1.0,
-        ..default()
-    });
 }
 
 /// A themed button small enough for the repair slot, a filter or the deal
@@ -4855,11 +4829,11 @@ fn toggle_repair_bay(_: On<Activate>, mut fixture: ResMut<SketchFixture>) {
 #[cfg(feature = "debug")]
 const DESKTOP: Vec2 = Vec2::new(1600.0, 900.0);
 #[cfg(feature = "debug")]
-const MID: Vec2 = Vec2::new(1120.0, 820.0);
+const MID: Vec2 = Vec2::new(1352.0, 820.0);
 #[cfg(feature = "debug")]
-const NARROW: Vec2 = Vec2::new(720.0, 1000.0);
+const NARROW: Vec2 = Vec2::new(1024.0, 768.0);
 #[cfg(feature = "debug")]
-const SHORT: Vec2 = Vec2::new(720.0, 760.0);
+const SHORT: Vec2 = Vec2::new(1024.0, 600.0);
 
 /// Seconds the harness gives the assets and the scenario to come up.
 #[cfg(feature = "debug")]
@@ -5362,10 +5336,10 @@ fn sketch_script() -> Script {
     script = shot(script, "narrow-hardware-inventory-deal");
     script = resize(script, SHORT, "short deal");
     script = script
-        .step("sketch: aim the wheel at the context line (short deal)")
+        .step("sketch: aim the wheel at the rail (short deal)")
         .on_enter(|world: &mut World| {
-            let banner = ui_node_centre(world, DOCK_BANNER).expect("the context line is laid out");
-            move_cursor(banner)(world);
+            let status = ui_node_centre(world, DOCK_HEAD).expect("the rail status is laid out");
+            move_cursor(status)(world);
         })
         .until(frames(2))
         .add()
@@ -5684,16 +5658,15 @@ fn select_row(
     .add()
 }
 
-/// Every UI node under the inventory card and the context line, as a step
-/// noted it.
+/// Every UI node under the inventory card and the rail, as a step noted it.
 #[cfg(feature = "debug")]
 #[derive(Resource)]
 struct NodesBefore(Vec<Entity>);
 
-/// Every UI node under the inventory card and the context line, sorted.
+/// Every UI node under the inventory card and the rail, sorted.
 #[cfg(feature = "debug")]
 fn inventory_nodes(world: &mut World) -> Vec<Entity> {
-    let roots = [named(world, PANE_HOLD), named(world, DOCK_BANNER)];
+    let roots = [named(world, PANE_HOLD), named(world, LEFT_DEBUG_RAIL)];
     let mut nodes: Vec<Entity> = roots
         .into_iter()
         .flat_map(|root| descendants_with::<Node>(world, root))
@@ -5702,7 +5675,7 @@ fn inventory_nodes(world: &mut World) -> Vec<Entity> {
     nodes
 }
 
-/// Note the inventory and context-line nodes for [`assert_nodes_kept`].
+/// Note the inventory and rail nodes for [`assert_nodes_kept`].
 #[cfg(feature = "debug")]
 fn note_nodes(script: Script) -> Script {
     script
@@ -5714,8 +5687,8 @@ fn note_nodes(script: Script) -> Script {
         .add()
 }
 
-/// The inventory and context-line nodes are the ones [`note_nodes`] saw:
-/// `what` respawned no row, inspector part or context-line text.
+/// The inventory and rail nodes are the ones [`note_nodes`] saw: `what`
+/// respawned no row, inspector part or rail text.
 #[cfg(feature = "debug")]
 fn assert_nodes_kept(script: Script, what: &'static str) -> Script {
     script
@@ -5730,7 +5703,7 @@ fn assert_nodes_kept(script: Script, what: &'static str) -> Script {
             let new = after.iter().filter(|node| !before.contains(node)).count();
             assert!(
                 gone == 0 && new == 0,
-                "{what} must update the inventory and context line in place, \
+                "{what} must update the inventory and rail in place, \
                  not despawn {gone} and spawn {new} node(s)"
             );
             info!("sketch: {what} kept all {} inventory nodes", after.len());
@@ -6551,8 +6524,8 @@ fn ship_repairs(mut script: Script) -> Script {
     expect_cues(script, "the bay switch", &[UiSfx::MenuSelect])
 }
 
-/// In a window too short for the narrow ship view, the wheel over the
-/// context line scrolls the body until the ship panel is on screen.
+/// In a window too short for the narrow ship view, the wheel over the rail
+/// scrolls the body until the ship panel is on screen.
 #[cfg(feature = "debug")]
 fn scroll_short(script: Script) -> Script {
     let script = resize(script, SHORT, "short");
@@ -6567,12 +6540,12 @@ fn scroll_short(script: Script) -> Script {
                 window.max.x,
                 window.max.y
             );
-            let banner = ui_node_centre(world, DOCK_BANNER).expect("the context line is laid out");
-            move_cursor(banner)(world);
+            let status = ui_node_centre(world, DOCK_HEAD).expect("the rail status is laid out");
+            move_cursor(status)(world);
         })
         .until(frames(2))
         .add()
-        .step("sketch: wheel down over the context line")
+        .step("sketch: wheel down over the rail")
         .on_enter(scroll_lines(-10.0))
         .until(frames(4))
         .add()
@@ -7393,7 +7366,7 @@ fn window_rect(world: &mut World) -> Rect {
 
 /// One pane is up and inside the window, the other views' panes are gone,
 /// exactly the view's own 3D scene is live and drawing at the pane's size,
-/// the pane and scene keep their rects, the context line and the view's
+/// the pane and scene keep their rects, the rail and the view's
 /// controls match the fixture and context, the HUD is hidden, the cursor is
 /// free, the simulation is still, and no node or text runs off screen.
 #[cfg(feature = "debug")]
@@ -7448,7 +7421,7 @@ fn assert_view(world: &mut World, view: SketchView, context: SketchContext, when
         window.max.y
     );
     // The pane is the largest thing on screen, not a strip in a corner. The
-    // context line takes its fixed share in every context.
+    // rail takes its fixed share in every view and context.
     let share = rect.width() * rect.height() / (window.width() * window.height());
     assert!(
         share > 0.4,
@@ -7534,24 +7507,22 @@ fn named(world: &mut World, name: &str) -> Entity {
     }
 }
 
-/// The context line keeps its fixed height, holds no control, shows the
-/// fixture credits and the last result, and names what the context is at.
+/// The one rail keeps its width and place, shows the fixture credits and the
+/// last result, and names what the context is at. The rail entity is logged
+/// so a walk shows it survive every view and context.
 #[cfg(feature = "debug")]
 fn assert_dock(world: &mut World, context: SketchContext, when: &str) {
-    let narrow = window_rect(world).width() < NARROW_BELOW_PX;
-    let banner = ui_node_rect(world, DOCK_BANNER)
-        .unwrap_or_else(|| panic!("the context line is not shown ({when})"));
+    let rail = named(world, LEFT_DEBUG_RAIL);
+    let rect = ui_node_rect(world, LEFT_DEBUG_RAIL)
+        .unwrap_or_else(|| panic!("the rail is not shown ({when})"));
     assert!(
-        (banner.height() - banner_px(narrow)).abs() < 0.5,
-        "the context line must keep its {} px height, not {} ({when})",
-        banner_px(narrow),
-        banner.height()
+        (rect.width() - RAIL_PX).abs() < 0.5,
+        "the rail must keep its {RAIL_PX} px width, not {} ({when})",
+        rect.width()
     );
-    let banner_node = named(world, DOCK_BANNER);
-    assert!(
-        descendants_with::<Button>(world, banner_node).is_empty(),
-        "the context line must hold no control ({when})"
-    );
+    let size = window_rect(world).size();
+    assert_steady(world, format!("{size} rail"), rect, when);
+    info!("sketch: rail {rail} ({when})");
     let fixture = world.resource::<SketchFixture>().clone();
     assert_eq!(
         (
@@ -7559,7 +7530,7 @@ fn assert_dock(world: &mut World, context: SketchContext, when: &str) {
             named_text(world, DOCK_NOTICE)
         ),
         (fixture.credits_text(), fixture.notice.clone()),
-        "the context line must show the fixture credits and last result ({when})"
+        "the rail must show the fixture credits and last result ({when})"
     );
     let (head, partner) = match context {
         SketchContext::Undocked => ("UNDOCKED", "No station or boarded ship"),
@@ -7572,7 +7543,7 @@ fn assert_dock(world: &mut World, context: SketchContext, when: &str) {
             named_text(world, DOCK_PARTNER)
         ),
         (head.to_string(), partner.to_string()),
-        "the context line must name the context and what the ship is at ({when})"
+        "the rail must name the context and what the ship is at ({when})"
     );
 }
 
@@ -8182,7 +8153,7 @@ fn assert_scenes(world: &mut World, view: SketchView, when: &str) {
 }
 
 /// No laid-out node under the root leaves the window or its parent's box, and
-/// no text is wider than its own box. Blips are skipped: a contact at the
+/// no text draws wider than its own box. Blips are skipped: a contact at the
 /// image edge is allowed to straddle it, as on the interface map.
 #[cfg(feature = "debug")]
 fn assert_nothing_overflows(world: &mut World, window: Rect, when: &str) {
@@ -8220,7 +8191,14 @@ fn assert_nothing_overflows(world: &mut World, window: Rect, when: &str) {
                     offenders.push(format!("{label} leaves its parent: {rect:?} in {parent:?}"));
                 }
                 if let Some(layout) = world.get::<bevy::text::TextLayoutInfo>(entity) {
-                    let width = layout.size.x * scale;
+                    // Judge the drawn glyphs: `layout.size` also counts the
+                    // space a wrap leaves at the end of a line.
+                    let width = layout
+                        .glyphs
+                        .iter()
+                        .map(|glyph| glyph.position.x + glyph.atlas_info.rect.width() / 2.0)
+                        .fold(0.0, f32::max)
+                        * scale;
                     if width > rect.width() + 1.0 {
                         offenders.push(format!(
                             "{label} text {width} wider than its box {}",
