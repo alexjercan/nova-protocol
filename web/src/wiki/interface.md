@@ -13,8 +13,8 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
         >
         <span class="figure__placeholder-note"
             >The Map pane over a frozen skirmish: range rings,
-            contact icons, the readout under a selected hostile,
-            and the legend beside it.</span
+            contact icons, the contact panel on a selected
+            hostile, and the footer legend.</span
         >
     </div>
 </figure>
@@ -57,13 +57,15 @@ The interface and the command shell share one freeze. Opening `:` over a pane, a
 ## The map
 
 <!-- Contact kinds + codes: crates/nova_interface/src/map/contacts.rs
-     (`MapContactKind`, `code_prefix`). Readout: `MapContact::readout`.
-     Blips, legend, selection, GOTO and its refusals:
+     (`MapContactKind`, `code_prefix`). Contact panel: map/app.rs
+     `spawn_map_panel`. Blips, legend, selection, GOTO and its refusals:
      crates/nova_interface/src/map/scene.rs (`spawn_blip`, `refresh_map_legend`,
-     `map_input`, `update_map_readout`). Icons: crates/nova_interface/src/icons.rs.
+     `map_input`, `update_map_panel`). Footer and its live key hints:
+     crates/nova_interface/src/pane.rs (`pane_footer`,
+     `refresh_pane_input_hints`). Icons: crates/nova_interface/src/icons.rs.
      Keys: crates/nova_interface/src/bindings.rs. -->
 
-The Map pane is a schematic 3D chart of local space: distance rings, a hub, and every contact as an icon - a chevron for a ship, a lump for an asteroid, a ringed disc for a planet, a diamond for an objective - tinted by what it is to you. Click one, or step through them with <kbd>[</kbd> / <kbd>]</kbd>, and the readout under the chart gives its kind, range and bearing. The legend beside the readout names the icons on the chart now.
+The Map pane is a schematic 3D chart of local space: distance rings, a hub, and every contact as an icon - a chevron for a ship, a lump for an asteroid, a ringed disc for a planet, a diamond for an objective - tinted by what it is to you. Click one, or step through them with <kbd>[</kbd> / <kbd>]</kbd>, and the contact panel beside the chart gives its code, name, kind, range and bearing. The footer under the chart holds the legend of the icons on the chart now, **Reframe** with the keys the pane answers to, and a summary of the selection. The key hints follow your bindings.
 
 | Label | Contact |
 | --- | --- |
@@ -86,7 +88,7 @@ The Map pane is a schematic 3D chart of local space: distance rings, a hub, and 
 <details class="explain">
 <summary>Show explanation</summary>
 
-`HOSTILE HOST-1 / Raider - range 412 m, bearing 214 mark +12. Hostile contact.` is a typical readout. Selecting a contact re-centres the map once; <kbd>T</kbd> re-frames it. <kbd>G</kbd> engages the flight autopilot toward the selection and flashes `GOTO SET: Raider` - the burn keeps flying after you close the interface, so the map is a real navigation console, not a picture of one. Your own ship refuses GOTO.
+A typical panel reads `HOST-1`, `Raider`, `HOSTILE`, `Range 412 m`, `Bearing 214 mark +12` and `Hostile contact.` Selecting a contact re-centres the map once; <kbd>T</kbd> re-frames it. <kbd>G</kbd> engages the flight autopilot toward the selection and flashes `GOTO SET: Raider` on the panel note - the burn keeps flying after you close the interface, so the map is a real navigation console, not a picture of one. Your own ship refuses GOTO.
 
 Docked, GOTO refuses while the game cannot measure the pair (`GOTO REFUSED: HELM FAULT`), refuses until you hold the [helm](../sections/docking/#what-the-clamp-holds) (`GOTO REFUSED: TAKE THE HELM`), and never flies to the ship you are docked to (`GOTO REFUSED: DOCKED PARTNER`).
 
@@ -118,7 +120,7 @@ Docked, GOTO refuses while the game cannot measure the pair (`GOTO REFUSED: HELM
      `ShipSectionView::status`. Panel: ship/app.rs, sections.rs. Actions:
      `apply_action_to_section` (instant and free today). -->
 
-The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. Sections carry short codes, stable for the whole session, and a family icon:
+The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. The footer under the view holds the section legend, **Fit** and **Reset** with the pane's live key hints, and a summary of the selected section. Sections carry short codes, stable for the whole session, and a family icon:
 
 | Code | Section | Family |
 | --- | --- | --- |

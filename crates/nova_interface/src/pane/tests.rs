@@ -2,6 +2,7 @@
 //! its title row and its tabs and replaces only the pane body.
 
 use bevy::ui::{ComputedNode, UiGlobalTransform};
+use nova_input::prelude::{BindingSpec, InputSource, RegisterInputActions};
 use nova_ui::widget::button_on_setting;
 
 use super::*;
@@ -107,7 +108,11 @@ fn card_rig() -> PanePointerRig {
     app.init_resource::<InterfacePaneType>();
     app.init_resource::<crate::inventory::InventoryRuntime>();
     app.add_observer(button_on_setting::<InterfacePaneType>);
-    app.add_systems(Update, rebuild_interface_body);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.add_systems(
+        Update,
+        (rebuild_interface_body, refresh_pane_input_hints).chain(),
+    );
     hear_ui_cues(app);
     track_node_churn(app);
     app.world_mut().spawn((
@@ -183,4 +188,96 @@ fn a_pane_switch_keeps_the_card_title_row_and_tabs_and_replaces_only_the_body() 
     take_churn(&mut rig.app);
     settle(&mut rig.app);
     assert_eq!(take_churn(&mut rig.app), NodeChurn::default());
+}
+
+/// The window-space rect of a laid-out node.
+fn rect_of(world: &World, entity: Entity) -> Rect {
+    let node = world.get::<ComputedNode>(entity).expect("a laid-out node");
+    let centre = world
+        .get::<UiGlobalTransform>(entity)
+        .expect("a laid-out node")
+        .translation;
+    Rect::from_center_size(centre, node.size())
+}
+
+/// The one footer, if the shown pane has one.
+fn footer(world: &mut World) -> Option<Entity> {
+    let footers: Vec<Entity> = world
+        .query_filtered::<Entity, With<InterfacePaneFooter>>()
+        .iter(world)
+        .collect();
+    assert!(footers.len() <= 1, "one footer at most: {footers:?}");
+    footers.first().copied()
+}
+
+/// The footer's key hints, in spawn order.
+fn key_hints(world: &mut World) -> Vec<String> {
+    world
+        .query_filtered::<&Text, With<PaneInputHint>>()
+        .iter(world)
+        .map(|text| text.0.clone())
+        .collect()
+}
+
+#[test]
+fn map_and_ship_share_a_fixed_footer_under_the_view_and_inventory_has_none() {
+    let mut rig = card_rig();
+    for pane in [InterfacePaneType::Map, InterfacePaneType::Ship] {
+        *rig.app.world_mut().resource_mut::<InterfacePaneType>() = pane;
+        settle(&mut rig.app);
+        let world = rig.app.world_mut();
+        let body_id = card_ids(world).body;
+        let body = rect_of(world, body_id);
+        let footer = footer(world).unwrap_or_else(|| panic!("{pane:?} has a footer"));
+        let foot = rect_of(world, footer);
+        assert_eq!(foot.height(), PANE_FOOTER_PX, "{pane:?} footer height");
+        assert!(
+            foot.max.y <= body.max.y && foot.width() >= body.width() - 24.0 - 0.5,
+            "{pane:?} footer {foot:?} spans the bottom of the body {body:?}"
+        );
+        let zones = world.get::<Children>(footer).map_or(0, |c| c.len());
+        assert_eq!(zones, 3, "{pane:?} footer has legend, controls and summary");
+        let split = world.get::<Children>(body_id).unwrap()[0];
+        let [view, panel] = world.get::<Children>(split).unwrap()[..] else {
+            panic!("{pane:?} splits into a view and a panel");
+        };
+        let (view, panel) = (rect_of(world, view), rect_of(world, panel));
+        assert!(
+            view.max.y <= foot.min.y && panel.max.y <= foot.min.y,
+            "{pane:?} view {view:?} and panel {panel:?} sit above the footer {foot:?}"
+        );
+        assert!(
+            panel.width() >= SIDE_PANEL_MIN_PX,
+            "{pane:?} panel is {} wide",
+            panel.width()
+        );
+        let hints = key_hints(world);
+        assert!(
+            !hints.is_empty() && hints.iter().all(|hint| !hint.is_empty()),
+            "{pane:?} names its keys: {hints:?}"
+        );
+    }
+    *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Inventory;
+    settle(&mut rig.app);
+    assert_eq!(footer(rig.app.world_mut()), None, "Inventory has no footer");
+}
+
+#[test]
+fn a_rebound_key_moves_its_footer_hint() {
+    let mut rig = card_rig();
+    let hints = key_hints(rig.app.world_mut());
+    assert!(hints.iter().any(|hint| hint == "G GOTO"), "{hints:?}");
+    rig.app.world_mut().resource_mut::<InputBindings>().rebind(
+        "map_goto",
+        BindingSpec {
+            keyboard: vec![InputSource::Keyboard(KeyCode::KeyJ)],
+            gamepad: Vec::new(),
+        },
+    );
+    settle(&mut rig.app);
+    let hints = key_hints(rig.app.world_mut());
+    assert!(
+        hints.iter().any(|hint| hint == "J GOTO") && !hints.iter().any(|hint| hint == "G GOTO"),
+        "{hints:?}"
+    );
 }

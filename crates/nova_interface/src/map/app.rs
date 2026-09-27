@@ -1,19 +1,74 @@
-//! The map pane's components and runtime state.
+//! The map pane's components, contact panel layout and runtime state.
 //!
-//! Touch this module when changing what the map pane remembers between frames.
+//! Touch this module when changing what the map pane remembers between frames
+//! or how its contact panel is laid out.
 
 use bevy::prelude::*;
+use nova_ui::theme::UiColor;
 
 use super::MapContactKind;
-use crate::icons::BodyIconType;
+use crate::{
+    icons::{icon_node, BodyIconType, InterfaceIcons},
+    pane::{panel_preview_frame, side_panel, themed_label, PANEL_PREVIEW_PX},
+};
 
 /// The map pane's viewport node (holds the RTT image + blip children).
 #[derive(Component)]
 pub(crate) struct MapViewportMarker;
 
-/// The contact readout line under the viewport.
+/// Which live text line of the contact panel or the footer a node is, so
+/// [`update_map_panel`](super::update_map_panel) refreshes them all in place.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum MapPanelField {
+    /// The selected contact's code, or `No contact`.
+    Code,
+    /// Its display name.
+    Name,
+    /// Its kind word, in its stance colour.
+    Kind,
+    /// Its range from the player ship.
+    Range,
+    /// Its bearing and mark from the player ship.
+    Bearing,
+    /// A GOTO result while it shows, else what the contact is.
+    Note,
+    /// The selection summary on the right of the pane footer.
+    Summary,
+}
+
+/// The selected contact's body icon in the panel head, hidden with nothing
+/// selected.
 #[derive(Component)]
-pub(crate) struct MapReadoutMarker;
+pub(crate) struct MapPanelIcon;
+
+/// Build the contact panel beside the map view: the selection's icon over its
+/// code, name and kind, then its range, bearing and note.
+/// [`update_map_panel`](super::update_map_panel) fills it.
+pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
+    parent.spawn(side_panel()).with_children(|panel| {
+        panel.spawn(panel_preview_frame()).with_children(|frame| {
+            frame.spawn((
+                MapPanelIcon,
+                icon_node(
+                    icons.body(BodyIconType::Ship),
+                    MapContactKind::OwnShip.color(),
+                    PANEL_PREVIEW_PX * 0.75,
+                ),
+                Visibility::Hidden,
+            ));
+        });
+        for (field, size, color) in [
+            (MapPanelField::Code, 16.0, UiColor::Primary),
+            (MapPanelField::Name, 12.0, UiColor::Body),
+            (MapPanelField::Kind, 12.0, UiColor::Body),
+            (MapPanelField::Range, 12.0, UiColor::Body),
+            (MapPanelField::Bearing, 12.0, UiColor::Body),
+            (MapPanelField::Note, 12.0, UiColor::Label),
+        ] {
+            panel.spawn((field, themed_label("", size, color)));
+        }
+    });
+}
 
 /// The slot [`refresh_map_legend`](super::refresh_map_legend) fills with the
 /// bodies and stances the map plots.
@@ -79,6 +134,6 @@ pub(crate) struct MapRuntime {
     /// The selection the focus last recentered on, so selecting a NEW contact
     /// snaps the map onto it once (without fighting WASD panning after).
     pub(crate) focused_on: Option<Entity>,
-    /// A transient "GOTO SET" note shown in the readout for a short time.
+    /// A transient GOTO result shown on the panel note for a short time.
     pub(crate) goto_note: Option<(String, f32)>,
 }

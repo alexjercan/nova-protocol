@@ -1024,7 +1024,7 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             looping(
                 "interface_map",
                 "the Map pane turning over local space, one hostile picked with its range and \
-                 bearing under it, then GOTO set on it",
+                 bearing in the panel beside it, then GOTO set on it",
             ),
             "The Map pane plots nearby contacts. Select a contact to see its name, type, range, \
              and bearing. GOTO engages the autopilot without creating a radar lock. Switch panes \

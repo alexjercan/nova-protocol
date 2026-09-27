@@ -589,7 +589,7 @@ pub(crate) fn spawn_blip(
         ThemedFill::alpha(UiColor::Void, 0.8),
         ChildOf(blip),
         // The blip carries its unique CODE, not the freeform name, so the
-        // label you read is the label the readout shows.
+        // label you read is the label the contact panel shows.
         children![themed_label(&contact.code, 12.0, UiColor::Body)],
     ));
     commands.entity(viewport).add_child(blip);
@@ -613,40 +613,85 @@ pub(crate) fn on_map_blip_click(
     }
 }
 
-/// Fill the readout from the current selection (or a GOTO flash).
-pub(crate) fn update_map_readout(
+/// Fill the contact panel and the footer summary from the selection, with a
+/// GOTO result on the note while it shows. Rewrites text, colour and the icon
+/// in place and only on a difference, so a held selection writes nothing.
+#[expect(
+    clippy::type_complexity,
+    reason = "the panel's text lines and its icon"
+)]
+pub(crate) fn update_map_panel(
     runtime: Res<MapRuntime>,
+    icons: Res<InterfaceIcons>,
     contacts: MapContacts,
-    mut q_readout: Query<(&mut Text, &mut ThemedText), With<MapReadoutMarker>>,
+    mut q_field: Query<(&MapPanelField, &mut Text, &mut ThemedText)>,
+    mut q_icon: Query<(&mut ImageNode, &mut ThemedImageTint, &mut Visibility), With<MapPanelIcon>>,
 ) {
     if !runtime.active {
         return;
     }
-    let Ok((mut text, mut themed)) = q_readout.single_mut() else {
-        return;
+    let selected = runtime
+        .selected
+        .and_then(|sel| contacts.collect().into_iter().find(|c| c.entity == sel));
+    let note = match (&runtime.goto_note, &selected) {
+        (Some((goto, _)), _) => (goto.clone(), UiColor::Accent),
+        (None, Some(contact)) => (contact.kind.note().to_string(), UiColor::Label),
+        (None, None) => ("Click a contact to select it.".to_string(), UiColor::Label),
     };
-    let (value, color) = if let Some((note, _)) = &runtime.goto_note {
-        (note.clone(), UiColor::Accent)
-    } else {
-        match runtime
-            .selected
-            .and_then(|sel| contacts.collect().into_iter().find(|c| c.entity == sel))
-        {
-            Some(contact) if contact.kind == MapContactKind::Hostile => {
-                (contact.readout(), UiColor::Danger)
+
+    for (field, mut text, mut themed) in &mut q_field {
+        let (value, color) = match (&selected, field) {
+            (_, MapPanelField::Note) => note.clone(),
+            (Some(contact), MapPanelField::Code) => (contact.code.clone(), UiColor::Primary),
+            (Some(contact), MapPanelField::Name) => (contact.name.clone(), UiColor::Body),
+            (Some(contact), MapPanelField::Kind) => {
+                (contact.kind.label().to_string(), contact.kind.color())
             }
-            Some(contact) => (contact.readout(), UiColor::Body),
-            None => (
-                "Select a contact for range and bearing.".to_string(),
-                UiColor::Label,
+            (Some(contact), MapPanelField::Range) => {
+                (format!("Range {}", contact.range_text()), UiColor::Body)
+            }
+            (Some(contact), MapPanelField::Bearing) => (contact.bearing_text(), UiColor::Body),
+            (Some(contact), MapPanelField::Summary) => (
+                format!(
+                    "{}  {}  {}",
+                    contact.code,
+                    contact.name,
+                    contact.range_text()
+                ),
+                contact.kind.color(),
             ),
+            (None, MapPanelField::Code | MapPanelField::Summary) => {
+                ("No contact".to_string(), UiColor::Label)
+            }
+            (
+                None,
+                MapPanelField::Name
+                | MapPanelField::Kind
+                | MapPanelField::Range
+                | MapPanelField::Bearing,
+            ) => (String::new(), UiColor::Body),
+        };
+        if text.0 != value {
+            text.0 = value;
         }
-    };
-    if text.0 != value {
-        text.0 = value;
+        if themed.color != color {
+            themed.color = color;
+        }
     }
-    if themed.color != color {
-        themed.color = color;
+
+    for (mut image, mut tint, mut visibility) in &mut q_icon {
+        let Some(contact) = &selected else {
+            visibility.set_if_neq(Visibility::Hidden);
+            continue;
+        };
+        let wanted = icons.body(contact.body);
+        if image.image != wanted {
+            image.image = wanted;
+        }
+        if tint.color != contact.kind.color() {
+            tint.color = contact.kind.color();
+        }
+        visibility.set_if_neq(Visibility::Inherited);
     }
 }
 

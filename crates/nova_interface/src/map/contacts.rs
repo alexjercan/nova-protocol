@@ -17,7 +17,7 @@ use nova_ui::theme::UiColor;
 
 use crate::icons::BodyIconType;
 
-/// What a map contact is, driving its color language and readout label.
+/// What a map contact is, driving its color language and panel label.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MapContactKind {
     /// The player ship.
@@ -37,7 +37,7 @@ pub enum MapContactKind {
 }
 
 impl MapContactKind {
-    /// The upper-case kind word the readout prints.
+    /// The upper-case kind word the contact panel prints.
     pub fn label(self) -> &'static str {
         match self {
             MapContactKind::OwnShip => "OWN SHIP",
@@ -51,7 +51,7 @@ impl MapContactKind {
     }
 
     /// The theme colour a contact of this kind reads in: its blip icon, its
-    /// legend entry and its readout.
+    /// legend entry and its contact panel.
     pub(crate) fn color(self) -> UiColor {
         match self {
             MapContactKind::OwnShip => UiColor::Primary,
@@ -64,6 +64,7 @@ impl MapContactKind {
         }
     }
 
+    /// What the contact panel says a contact of this kind is.
     pub(crate) fn note(self) -> &'static str {
         match self {
             MapContactKind::OwnShip => "That is you.",
@@ -117,7 +118,7 @@ pub(crate) fn ship_contact_kind(allegiance: Option<&Allegiance>) -> MapContactKi
 }
 
 /// A short, stable, human-readable handle for a map contact (`SELF`, `HOST-1`,
-/// `AST-2`), the LABEL shown on its blip and in the readout.
+/// `AST-2`), the LABEL shown on its blip and in the contact panel.
 /// Minted once per entity per session by `assign_map_contact_codes` from the
 /// contact kind + a stable index; never reassigned. The own ship is always
 /// `SELF` (there is exactly one); every other kind gets a `PREFIX-n` code.
@@ -152,29 +153,21 @@ pub struct MapContact {
 }
 
 impl MapContact {
-    /// The PoC readout line: `KIND CODE / NAME - range X, bearing Y. note`.
-    /// Range uses the shared player-facing distance policy (1 world unit =
-    /// 10 m; meters below 1 km, kilometers above).
-    pub(crate) fn readout(&self) -> String {
+    /// The range from the player ship through the shared player-facing
+    /// distance policy: 1 world unit is 10 m, meters below 1 km and
+    /// kilometers above.
+    pub(crate) fn range_text(&self) -> String {
+        nova_ui::units::distance(Meters::from_engine(self.range))
+    }
+
+    /// The bearing and mark from the player ship. The own ship has neither.
+    pub(crate) fn bearing_text(&self) -> String {
         if self.kind == MapContactKind::OwnShip {
-            return format!(
-                "{} {} / {} - range {}, bearing ---. {}",
-                self.kind.label(),
-                self.code,
-                self.name,
-                nova_ui::units::distance(Meters::ZERO),
-                self.kind.note()
-            );
+            return "Bearing ---".to_string();
         }
         format!(
-            "{} {} / {} - range {}, bearing {:03.0} mark {:+03.0}. {}",
-            self.kind.label(),
-            self.code,
-            self.name,
-            nova_ui::units::distance(Meters::from_engine(self.range)),
-            self.bearing_deg,
-            self.mark_deg,
-            self.kind.note(),
+            "Bearing {:03.0} mark {:+03.0}",
+            self.bearing_deg, self.mark_deg
         )
     }
 }

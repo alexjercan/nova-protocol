@@ -8,9 +8,10 @@
 //! clickable UI blips.
 //!
 //! The camera is a `MapOrbit` you drive with the `viewer_orbit_*` and
-//! `viewer_pan_*` actions plus the wheel (zoom). Selecting a contact fills a
-//! readout with kind / name / range / bearing; `G` sets a flight [`Autopilot`](nova_ship::prelude::Autopilot)
-//! GOTO on the player ship that persists after the interface closes.
+//! `viewer_pan_*` actions plus the wheel (zoom). Selecting a contact fills the
+//! contact panel beside the view with its code, name, kind, range and bearing;
+//! `map_goto` sets a flight [`Autopilot`](nova_ship::prelude::Autopilot) GOTO
+//! on the player ship that persists after the interface closes.
 //!
 //! # Module layout
 //!
@@ -146,7 +147,7 @@ impl Plugin for MapPanePlugin {
                 drive_map_camera,
                 project_map_blips,
                 refresh_map_legend,
-                update_map_readout,
+                update_map_panel,
             )
                 .chain()
                 .in_set(MapPaneSystems),

@@ -2,7 +2,7 @@
 //! interface as a whole and its Map pane - `interface_open` (the interface
 //! coming up over the cockpit on its Map pane, then closing back to flight) and
 //! `interface_map` (the Map pane turning over local space, one hostile picked
-//! with its range and bearing under it, then GOTO set on it).
+//! with its range and bearing in the panel beside it, then GOTO set on it).
 //!
 //! One producer, two sheets, because they are one session at one keyboard: the
 //! first sheet opens the interface and closes it again, and the second opens it
@@ -36,12 +36,12 @@
 //!
 //! ## Why the map walk presses `viewer_next` twice
 //!
-//! The first press from no selection lands on the own ship, whose readout reads
+//! The first press from no selection lands on the own ship, whose panel reads
 //! "That is you"; the second steps onto the next contact. The contact list has
 //! no sort (`MapContacts::collect` is query order), and the two hostiles have
 //! come up in either order between runs, so the sheet is about "a hostile", not
 //! about one named ship. The walk does not read the selection (`MapRuntime` is
-//! crate-private): it asserts on what the pane DRAWS, a `HOSTILE` readout with
+//! crate-private): it asserts on what the pane DRAWS, a `HOSTILE` panel with
 //! range and bearing and then the `GOTO SET:` note, so a walk that landed on the
 //! friendly tender stalls on a named beat instead of shipping the wrong
 //! footage. The note, not the ship's `Autopilot`: on the smoke run the range's
@@ -129,7 +129,7 @@ const OPEN_HOLD_CELLS: u32 = 6;
 const MAP_LEAD_CELLS: u32 = 1;
 #[cfg(feature = "debug")]
 const MAP_TURN_CELLS: u32 = 3;
-/// Cells the picked hostile's readout holds before GOTO is pressed. The map
+/// Cells the picked hostile's panel holds before GOTO is pressed. The map
 /// EASES its framing onto a new selection, so the plot is still sliding for
 /// the first of them.
 #[cfg(feature = "debug")]
@@ -203,7 +203,7 @@ fn the_flight_is_back() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pr
 
 /// Advance once any line of on-screen text satisfies `test`.
 ///
-/// The pane's own readout, read the way a player reads it: the selection and
+/// The pane's own panel, read the way a player reads it: the selection and
 /// the GOTO note live in crate-private state, and the text they draw is the
 /// one place both are observable.
 #[cfg(feature = "debug")]
@@ -217,11 +217,17 @@ fn the_screen_reads(
     })
 }
 
-/// The readout the pane draws for a picked hostile: its kind, range and
-/// bearing.
+/// The kind line the contact panel draws for a picked hostile.
 #[cfg(feature = "debug")]
-fn is_a_hostiles_readout(line: &str) -> bool {
-    line.starts_with("HOSTILE") && line.contains("range") && line.contains("bearing")
+fn is_the_hostile_kind(line: &str) -> bool {
+    line == "HOSTILE"
+}
+
+/// The bearing line the contact panel draws for a picked contact that is not
+/// the own ship. The range line fills with it.
+#[cfg(feature = "debug")]
+fn is_a_bearing(line: &str) -> bool {
+    line.starts_with("Bearing ") && line != "Bearing ---"
 }
 
 /// The note the pane flashes once GOTO is set on a contact.
@@ -327,10 +333,13 @@ fn interface_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .on_enter(press_action("viewer_next"))
         .until(frames(1))
         .add()
-        .step("let the select key up and hold the hostile's readout")
+        .step("let the select key up and hold the hostile's panel")
         .on_enter(release_action("viewer_next"))
         .until(and(
-            the_screen_reads(is_a_hostiles_readout),
+            and(
+                the_screen_reads(is_the_hostile_kind),
+                the_screen_reads(is_a_bearing),
+            ),
             frames(MAP_PICK_CELLS),
         ))
         .deadline(STEP_DEADLINE_SECS)

@@ -77,8 +77,8 @@ use crate::{
     inventory::InventoryPaneSystems,
     map::MapPaneSystems,
     pane::{
-        next_interface_pane, rebuild_interface_body, spawn_interface_root, sync_nova_os_contexts,
-        toggle_interface, InterfacePaneType,
+        next_interface_pane, rebuild_interface_body, refresh_pane_input_hints,
+        spawn_interface_root, sync_nova_os_contexts, toggle_interface, InterfacePaneType,
     },
     ship::ShipPaneSystems,
     terminal::CommandsSystems,
@@ -135,6 +135,7 @@ impl Plugin for InterfacePlugin {
                 next_interface_pane,
                 spawn_interface_root,
                 rebuild_interface_body,
+                refresh_pane_input_hints,
             )
                 .chain()
                 .in_set(InterfaceSystems),

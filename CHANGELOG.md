@@ -61,8 +61,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Interface & HUD
 
 - **(breaking)** TAB opens a themed interface with Map, Ship and Inventory
-  panes; M or pad Y steps through them. GOTO, Repair, Reload, Rebind and mates
-  are pane keys and buttons.
+  panes; M or pad Y steps through them. GOTO and mates are pane keys; Repair,
+  Reload and Rebind are keys and buttons.
 - The Inventory pane lists what your ship and a docked ship carry, with Food,
   Ammo, Repair, Raw and Parts filters. The open-world ship starts with 12 hull
   plates; nothing adds or spends items yet.

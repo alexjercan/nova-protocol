@@ -17,13 +17,14 @@ use crate::{
     icons::{BodyIconType, InterfaceIcons},
     pane::InterfacePaneType,
     pointer_rig::{
-        click_at, hear_ui_cues, pane_pointer_rig, settle, take_cues, PanePointerRig, RIG_PANEL_MIN,
+        click_at, hear_ui_cues, pane_pointer_rig, settle, take_churn, take_cues, track_node_churn,
+        NodeChurn, PanePointerRig, RIG_PANEL_MIN,
     },
     terminal::NovaOsCloseTransition,
 };
 
-/// The map readout crosses the stored world-unit range to meters and renders it
-/// through the shared distance policy, not raw `u`.
+/// The contact panel crosses the stored world-unit range to meters and
+/// renders it through the shared distance policy, not raw `u`.
 #[test]
 fn map_range_renders_in_meters_and_kilometers() {
     let entity = Entity::PLACEHOLDER;
@@ -39,30 +40,23 @@ fn map_range_renders_in_meters_and_kilometers() {
         mark_deg: 0.0,
         body: BodyIconType::Ship,
     };
-    assert!(
-        near.readout().contains("range 500 m,"),
-        "near readout: {}",
-        near.readout()
-    );
+    assert_eq!(near.range_text(), "500 m");
 
     // 150 world units = 1500 m -> 1.50 km.
     let far = MapContact {
         range: 150.0,
         ..near.clone()
     };
-    assert!(
-        far.readout().contains("range 1.50 km,"),
-        "far readout: {}",
-        far.readout()
-    );
+    assert_eq!(far.range_text(), "1.50 km");
 
-    // The own ship's zero-range placeholder also uses the new unit.
+    // The own ship's zero range also uses the new unit, and has no bearing.
     let own = MapContact {
         kind: MapContactKind::OwnShip,
         range: 0.0,
         ..near
     };
-    assert!(own.readout().contains("range 0 m,"), "{}", own.readout());
+    assert_eq!(own.range_text(), "0 m");
+    assert_eq!(own.bearing_text(), "Bearing ---");
 }
 
 /// Spawn a scripted local-space scene: own ship at origin (facing -Z), a
@@ -1027,4 +1021,75 @@ fn the_focus_hub_is_the_size_of_what_it_marks() {
     let framed = app.world().get::<Transform>(hub).unwrap().scale.x;
     assert!((framed - 19.53).abs() < 1e-4, "hub scale {framed}");
     assert!(framed > empty);
+}
+
+/// The contact panel's text lines, by field.
+fn panel_text(world: &mut World, field: MapPanelField) -> String {
+    world
+        .query::<(&MapPanelField, &Text)>()
+        .iter(world)
+        .find(|(each, _)| **each == field)
+        .map(|(_, text)| text.0.clone())
+        .unwrap_or_else(|| panic!("the panel has a {field:?} line"))
+}
+
+#[test]
+fn a_selected_contact_fills_the_panel_in_place() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.add_systems(Update, (assign_map_contact_codes, update_map_panel).chain());
+    track_node_churn(app);
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    app.world_mut().spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::default(),
+        Name::new("NOVA"),
+    ));
+    let raider = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Enemy,
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)),
+            Name::new("RAIDER"),
+        ))
+        .id();
+    app.world_mut().resource_mut::<MapRuntime>().active = true;
+    settle(app);
+    let world = app.world_mut();
+    assert_eq!(panel_text(world, MapPanelField::Code), "No contact");
+    assert_eq!(panel_text(world, MapPanelField::Range), "");
+    take_churn(app);
+
+    app.world_mut().resource_mut::<MapRuntime>().selected = Some(raider);
+    settle(app);
+    let churn = take_churn(app);
+    assert_eq!((churn.spawned, churn.despawned), (0, 0), "{churn:?}");
+    let world = app.world_mut();
+    for (field, want) in [
+        (MapPanelField::Code, "HOST-1"),
+        (MapPanelField::Name, "RAIDER"),
+        (MapPanelField::Kind, "HOSTILE"),
+        (MapPanelField::Range, "Range 500 m"),
+        (MapPanelField::Bearing, "Bearing 000 mark +00"),
+        (MapPanelField::Note, "Hostile contact."),
+    ] {
+        assert_eq!(panel_text(world, field), want, "{field:?}");
+    }
+    let icon = world
+        .query_filtered::<&Visibility, With<MapPanelIcon>>()
+        .single(world)
+        .unwrap();
+    assert_eq!(*icon, Visibility::Inherited);
+
+    // A held selection writes nothing.
+    settle(app);
+    assert_eq!(take_churn(app), NodeChurn::default());
 }

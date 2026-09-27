@@ -38,14 +38,16 @@ pub(crate) struct ShipViewportMarker;
 /// The section-panel container.
 #[derive(Component)]
 pub(crate) struct ShipPanelMarker;
-/// Which live text line of the panel a node is, so one system refreshes all
-/// four.
+/// Which live text line of the panel or the footer a node is, so one system
+/// refreshes them all.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ShipPanelField {
     Title,
     Status,
     Detail,
     Note,
+    /// The selection summary on the right of the pane footer.
+    Summary,
 }
 /// The selected section's family icon in the panel head.
 #[derive(Component)]
@@ -1005,6 +1007,13 @@ pub(crate) fn update_ship_panel(
             PanelActions::none(),
         ),
     };
+    let (summary, summary_color) = match &selected {
+        Some(view) => (
+            format!("{title}  {}  {}", view.integrity_pct(), view.status()),
+            view.status_color(),
+        ),
+        None => (title.clone(), UiColor::Label),
+    };
 
     runtime.panel_repair_enabled = actions.repair_enabled;
     runtime.panel_reload_enabled = actions.reload_enabled;
@@ -1032,6 +1041,7 @@ pub(crate) fn update_ship_panel(
             ShipPanelField::Status => (&status, UiColor::Body),
             ShipPanelField::Detail => (&detail, detail_color),
             ShipPanelField::Note => (&note, note_color),
+            ShipPanelField::Summary => (&summary, summary_color),
         };
         if text.0 != *value {
             text.0 = value.clone();

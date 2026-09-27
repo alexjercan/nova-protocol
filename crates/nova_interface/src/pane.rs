@@ -26,15 +26,18 @@ use nova_input::prelude::{ActionContext, ActiveContexts, InputBindings, InputSou
 use nova_ui::{
     prelude::*,
     theme::UiColor,
-    widget::{ThemedText, UiText},
+    widget::{ThemedBorder, ThemedFill, ThemedText, UiText},
 };
 
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     inventory::inventory_body,
-    map::{on_map_reframe_button, MapLegendMarker, MapReadoutMarker, MapViewportMarker},
+    map::{
+        on_map_reframe_button, spawn_map_panel, MapLegendMarker, MapPanelField, MapViewportMarker,
+    },
     ship::{
-        on_ship_fit_button, on_ship_reset_button, spawn_ship_panel, ShipRuntime, ShipViewportMarker,
+        on_ship_fit_button, on_ship_reset_button, spawn_ship_panel, ShipPanelField, ShipRuntime,
+        ShipViewportMarker,
     },
     terminal::NovaOsCloseTransition,
 };
@@ -333,7 +336,7 @@ fn spawn_interface_card(
 /// The body of `pane`.
 fn pane_body(body: &mut ChildSpawnerCommands, pane: InterfacePaneType, icons: &InterfaceIcons) {
     match pane {
-        InterfacePaneType::Map => map_body(body),
+        InterfacePaneType::Map => map_body(body, icons),
         InterfacePaneType::Ship => ship_body(body, icons),
         InterfacePaneType::Inventory => inventory_body(body, icons),
     }
@@ -365,9 +368,12 @@ pub(crate) fn play_menu_select(commands: &mut Commands, bank: Option<&SoundBank<
 }
 
 /// A pane's 3D view: the node its scene image fills and its blips ride on.
+/// It takes what the side panel leaves of the row.
 fn viewport_node() -> Node {
     Node {
         flex_grow: 1.0,
+        flex_basis: px(0),
+        min_width: px(0),
         min_height: px(0),
         position_type: PositionType::Relative,
         overflow: Overflow::clip(),
@@ -375,7 +381,18 @@ fn viewport_node() -> Node {
     }
 }
 
-/// A row of controls under a view.
+/// The row a viewer pane splits into its view and its side panel.
+fn view_split() -> Node {
+    Node {
+        flex_grow: 1.0,
+        min_height: px(0),
+        flex_direction: FlexDirection::Row,
+        column_gap: px(12),
+        ..default()
+    }
+}
+
+/// A row of controls.
 fn control_row(justify: JustifyContent) -> Node {
     Node {
         flex_direction: FlexDirection::Row,
@@ -387,128 +404,306 @@ fn control_row(justify: JustifyContent) -> Node {
     }
 }
 
-/// The map: the scene, and under it the readout, the legend of what it plots
-/// and Reframe.
-fn map_body(body: &mut ChildSpawnerCommands) {
-    body.spawn((MapViewportMarker, viewport_node(), ImageNode::default()));
-    body.spawn(Node {
-        height: px(40),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|line| {
-        line.spawn((
-            MapReadoutMarker,
-            themed_label(
-                "Select a contact for range and bearing.",
-                14.0,
-                UiColor::Body,
-            ),
-            TextLayout::new(Justify::Left, LineBreak::NoWrap),
-            Node {
-                flex_grow: 1.0,
-                min_width: px(0),
-                overflow: Overflow::clip(),
-                ..default()
-            },
-        ));
-        line.spawn((
-            MapLegendMarker,
-            Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: px(12),
-                flex_shrink: 0.0,
-                ..default()
-            },
-        ));
-        line.spawn((
-            button(ButtonSpec::new("Reframe").fit()),
-            Name::new("MapReframe"),
-        ))
-        .observe(on_map_reframe_button);
-    });
+/// Least width of a viewer pane's side panel, in logical px: the widest note,
+/// the section rebind prompt, fits on one line at this width. A small window
+/// keeps this width rather than the panel's 20% share.
+const SIDE_PANEL_MIN_PX: f32 = 300.0;
+
+/// Side of the preview frame at the head of a side panel, in logical px.
+pub(crate) const PANEL_PREVIEW_PX: f32 = 96.0;
+
+/// A viewer pane's side panel: 20% of the row beside the view, never
+/// narrower than [`SIDE_PANEL_MIN_PX`].
+pub(crate) fn side_panel() -> impl Bundle {
+    (
+        Node {
+            width: percent(20),
+            min_width: px(SIDE_PANEL_MIN_PX),
+            flex_shrink: 0.0,
+            flex_direction: FlexDirection::Column,
+            row_gap: px(10),
+            padding: UiRect::all(px(12)),
+            border: UiRect::all(px(1)),
+            border_radius: BorderRadius::all(px(4)),
+            overflow: Overflow::clip(),
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        ThemedFill::alpha(UiColor::Secondary, 0.08),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(UiColor::Secondary),
+    )
 }
 
-/// The ship: the scene with the section legend and the fit and reset
-/// controls centred under it, and the section panel beside it. An empty side
-/// as wide as the legend's keeps the controls centred.
-fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
+/// The framed square at the head of a side panel that holds the selection's
+/// icon.
+pub(crate) fn panel_preview_frame() -> impl Bundle {
+    (
+        Node {
+            width: px(PANEL_PREVIEW_PX),
+            height: px(PANEL_PREVIEW_PX),
+            flex_shrink: 0.0,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border: UiRect::all(px(1)),
+            border_radius: BorderRadius::all(px(4)),
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        ThemedFill::alpha(UiColor::Surface, 0.6),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(UiColor::Secondary),
+    )
+}
+
+/// Height of the Map and Ship footer, in logical px. Fixed, so a legend or a
+/// hint that wraps cannot push the view up.
+const PANE_FOOTER_PX: f32 = 96.0;
+
+/// The footer under the Map and Ship panes: the legend on the left, the view
+/// controls and the input hints in the centre, and the selection summary on
+/// the right.
+#[derive(Component)]
+pub(crate) struct InterfacePaneFooter;
+
+/// One footer hint of a key a pane answers to, read from the live
+/// [`InputBindings`] by [`refresh_pane_input_hints`]: a verb and the actions
+/// whose keyboard binds it names. One node per hint, so a wrapping row breaks
+/// between hints and never between a key and its verb.
+#[derive(Component)]
+pub(crate) struct PaneInputHint {
+    verb: &'static str,
+    actions: &'static [&'static str],
+}
+
+/// The keys the Map pane answers to. Every name must be registered.
+const MAP_KEY_HINTS: &[(&str, &[&str])] = &[
+    ("Turn", &["viewer_orbit_left", "viewer_orbit_right"]),
+    ("Tilt", &["viewer_orbit_up", "viewer_orbit_down"]),
+    (
+        "Pan",
+        &[
+            "viewer_pan_forward",
+            "viewer_pan_left",
+            "viewer_pan_back",
+            "viewer_pan_right",
+        ],
+    ),
+    ("Reframe", &["viewer_reframe"]),
+    ("Select", &["viewer_prev", "viewer_next"]),
+    ("GOTO", &["map_goto"]),
+];
+
+/// The keys the Ship pane answers to. Every name must be registered.
+const SHIP_KEY_HINTS: &[(&str, &[&str])] = &[
+    ("Turn", &["viewer_orbit_left", "viewer_orbit_right"]),
+    ("Tilt", &["viewer_orbit_up", "viewer_orbit_down"]),
+    ("Reset", &["viewer_reframe"]),
+    ("Select", &["viewer_prev", "viewer_next"]),
+    ("Mates", &["ship_mates"]),
+    ("Repair", &["ship_repair"]),
+    ("Reload", &["ship_reload"]),
+    ("Rebind", &["ship_rebind"]),
+];
+
+/// The pointer gestures both viewers read raw, outside [`InputBindings`]:
+/// a left click picks, the right button drags the orbit and the wheel zooms.
+const POINTER_HINTS: [&str; 3] = ["Click select", "Right-drag look", "Wheel zoom"];
+
+/// The footer under a viewer pane. `legend` fills the left zone, `controls`
+/// the button row in the centre, and `summary` is the right zone's text.
+fn pane_footer(
+    body: &mut ChildSpawnerCommands,
+    legend: impl FnOnce(&mut ChildSpawnerCommands),
+    controls: impl FnOnce(&mut ChildSpawnerCommands),
+    keys: &'static [(&'static str, &'static [&'static str])],
+    summary: impl Bundle,
+) {
     let side = || Node {
         flex_grow: 1.0,
         flex_basis: px(0),
         min_width: px(0),
-        flex_direction: FlexDirection::Column,
+        height: percent(100),
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        align_items: AlignItems::Center,
+        align_content: AlignContent::Center,
+        column_gap: px(12),
+        row_gap: px(6),
+        overflow: Overflow::clip(),
         ..default()
     };
-    body.spawn(Node {
-        flex_grow: 1.0,
-        min_height: px(0),
-        flex_direction: FlexDirection::Row,
-        column_gap: px(12),
-        ..default()
-    })
-    .with_children(|split| {
-        split
+    body.spawn((
+        InterfacePaneFooter,
+        Node {
+            height: px(PANE_FOOTER_PX),
+            flex_shrink: 0.0,
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(16),
+            padding: UiRect::axes(px(12), px(8)),
+            border: UiRect::top(px(1)),
+            ..default()
+        },
+        BorderColor::all(Color::NONE),
+        ThemedBorder::alpha(UiColor::Secondary, 0.5),
+    ))
+    .with_children(|footer| {
+        footer.spawn(side()).with_children(legend);
+        footer
             .spawn(Node {
-                flex_grow: 1.0,
-                flex_basis: px(0),
+                flex_shrink: 1.0,
                 min_width: px(0),
-                min_height: px(0),
+                max_width: percent(50),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(10),
+                align_items: AlignItems::Center,
+                row_gap: px(4),
                 ..default()
             })
-            .with_children(|viewer| {
-                viewer.spawn((ShipViewportMarker, viewport_node(), ImageNode::default()));
-                viewer
+            .with_children(|centre| {
+                centre
                     .spawn(control_row(JustifyContent::Center))
-                    .with_children(|foot| {
-                        foot.spawn(side()).with_children(|side| {
-                            side.spawn(Node {
-                                flex_direction: FlexDirection::Row,
-                                flex_wrap: FlexWrap::Wrap,
-                                align_items: AlignItems::Center,
-                                column_gap: px(12),
-                                row_gap: px(6),
-                                ..default()
-                            })
-                            .with_children(|legend| {
-                                for icon in SectionIconType::ALL {
-                                    legend.spawn(legend_entry()).with_children(|entry| {
-                                        entry.spawn(icon_node(
-                                            icons.section(icon),
-                                            icon.color(),
-                                            18.0,
-                                        ));
-                                        entry.spawn(themed_label(
-                                            icon.label(),
-                                            12.0,
-                                            UiColor::Body,
-                                        ));
-                                    });
-                                }
-                            });
-                        });
-                        foot.spawn(control_row(JustifyContent::Center))
-                            .with_children(|controls| {
-                                controls
-                                    .spawn((
-                                        button(ButtonSpec::new("Fit").fit()),
-                                        Name::new("ShipFit"),
-                                    ))
-                                    .observe(on_ship_fit_button);
-                                controls
-                                    .spawn((
-                                        button(ButtonSpec::new("Reset").fit()),
-                                        Name::new("ShipReset"),
-                                    ))
-                                    .observe(on_ship_reset_button);
-                            });
-                        foot.spawn(side());
+                    .with_children(controls);
+                centre
+                    .spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        flex_wrap: FlexWrap::Wrap,
+                        justify_content: JustifyContent::Center,
+                        column_gap: px(12),
+                        row_gap: px(2),
+                        ..default()
+                    })
+                    .with_children(|hints| {
+                        for &(verb, actions) in keys {
+                            hints.spawn((
+                                PaneInputHint { verb, actions },
+                                themed_label("", 12.0, UiColor::Body),
+                            ));
+                        }
+                        for pointer in POINTER_HINTS {
+                            hints.spawn(themed_label(pointer, 12.0, UiColor::Label));
+                        }
                     });
             });
+        footer
+            .spawn(Node {
+                justify_content: JustifyContent::FlexEnd,
+                ..side()
+            })
+            .with_children(|right| {
+                right.spawn((summary, TextLayout::justify(Justify::Right)));
+            });
+    });
+}
+
+/// Write each footer hint from the live bindings when the hint is new or the
+/// bindings change, so a rebind moves the hint with the key.
+///
+/// # Panics
+///
+/// When a hint names an action [`InputBindings`] does not register: the hint
+/// tables and [`interface_bindings`](crate::bindings::interface_bindings) are
+/// one vocabulary, and a hint for a missing action would name no key.
+pub(crate) fn refresh_pane_input_hints(
+    bindings: Res<InputBindings>,
+    mut q_hint: Query<(Ref<PaneInputHint>, &mut Text)>,
+) {
+    for (hint, mut text) in &mut q_hint {
+        if !hint.is_added() && !bindings.is_changed() {
+            continue;
+        }
+        let keys = hint
+            .actions
+            .iter()
+            .map(|name| {
+                bindings
+                    .get(name)
+                    .unwrap_or_else(|| {
+                        panic!("footer hint names `{name}`, which is not registered")
+                    })
+                    .keyboard_display()
+            })
+            .collect::<Vec<_>>()
+            .join("/");
+        let value = format!("{keys} {}", hint.verb);
+        if text.0 != value {
+            text.0 = value;
+        }
+    }
+}
+
+/// The map: the scene and the contact panel beside it, and the footer with
+/// the legend of what the map plots, Reframe and the selection summary.
+fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
+    body.spawn(view_split()).with_children(|split| {
+        split.spawn((MapViewportMarker, viewport_node(), ImageNode::default()));
+        spawn_map_panel(split, icons);
+    });
+    pane_footer(
+        body,
+        |legend| {
+            legend.spawn((
+                MapLegendMarker,
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
+                    align_items: AlignItems::Center,
+                    column_gap: px(12),
+                    row_gap: px(6),
+                    ..default()
+                },
+            ));
+        },
+        |controls| {
+            controls
+                .spawn((
+                    button(ButtonSpec::new("Reframe").fit()),
+                    Name::new("MapReframe"),
+                ))
+                .observe(on_map_reframe_button);
+        },
+        MAP_KEY_HINTS,
+        (
+            MapPanelField::Summary,
+            themed_label("", 14.0, UiColor::Label),
+        ),
+    );
+}
+
+/// The ship: the scene and the section panel beside it, and the footer with
+/// the section legend, Fit and Reset and the selection summary.
+fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
+    body.spawn(view_split()).with_children(|split| {
+        split.spawn((ShipViewportMarker, viewport_node(), ImageNode::default()));
         spawn_ship_panel(split, icons);
     });
+    pane_footer(
+        body,
+        |legend| {
+            for icon in SectionIconType::ALL {
+                legend.spawn(legend_entry()).with_children(|entry| {
+                    entry.spawn(icon_node(icons.section(icon), icon.color(), 18.0));
+                    entry.spawn(themed_label(icon.label(), 12.0, UiColor::Body));
+                });
+            }
+        },
+        |controls| {
+            controls
+                .spawn((button(ButtonSpec::new("Fit").fit()), Name::new("ShipFit")))
+                .observe(on_ship_fit_button);
+            controls
+                .spawn((
+                    button(ButtonSpec::new("Reset").fit()),
+                    Name::new("ShipReset"),
+                ))
+                .observe(on_ship_reset_button);
+        },
+        SHIP_KEY_HINTS,
+        (
+            ShipPanelField::Summary,
+            themed_label("", 14.0, UiColor::Label),
+        ),
+    );
 }
 
 /// One icon and its word in a legend.

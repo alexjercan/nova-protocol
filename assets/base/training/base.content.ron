@@ -959,7 +959,7 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "the Map pane turning over local space, one hostile picked with its range and bearing under it, then GOTO set on it",
+            alt: "the Map pane turning over local space, one hostile picked with its range and bearing in the panel beside it, then GOTO set on it",
         ),
         body: "The Map pane plots nearby contacts. Select a contact to see its name, type, range, and bearing. GOTO engages the autopilot without creating a radar lock. Switch panes with the top buttons or the next-pane key.",
         actions: [

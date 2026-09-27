@@ -10,51 +10,26 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::*,
     theme::UiColor,
-    widget::{ButtonSpec, ThemedBorder, ThemedFill},
+    widget::{ButtonSpec, ThemedFill},
 };
 
 use super::{scene::*, sections::*};
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::themed_label,
+    pane::{panel_preview_frame, side_panel, themed_label, PANEL_PREVIEW_PX},
     terminal::section_kind_from_markers,
 };
 
-/// Least width of the section panel, in logical px: the widest note, the
-/// rebind prompt, fits on one line at this width. A small window keeps this
-/// width rather than the panel's 20% share.
-const SHIP_PANEL_MIN_PX: f32 = 300.0;
-/// Side of the section preview frame, in logical px.
-const SHIP_PREVIEW_PX: f32 = 96.0;
-
 /// Build the section panel: the selected section's icon over its code, name,
 /// status and condition bar, its detail, Prev and Next, the Repair, Reload
-/// and Rebind buttons, and the note line. The panel takes 20% of the row
-/// beside the view. [`update_ship_panel`] fills it. The texts carry a
+/// and Rebind buttons, and the note line, beside the view.
+/// [`update_ship_panel`] fills it. The texts carry a
 /// [`ShipPanelField`] so one system refreshes them; the buttons carry a
 /// [`ShipPanelButton`] and route through the [`ShipSectionCommand`] seam via
 /// `Activate` observers.
 pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
-        .spawn((
-            ShipPanelMarker,
-            Node {
-                width: Val::Percent(20.0),
-                min_width: Val::Px(SHIP_PANEL_MIN_PX),
-                flex_shrink: 0.0,
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(10.0),
-                padding: UiRect::all(Val::Px(12.0)),
-                border: UiRect::all(Val::Px(1.0)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
-                overflow: Overflow::clip(),
-                ..default()
-            },
-            BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Secondary, 0.08),
-            BorderColor::all(Color::NONE),
-            ThemedBorder::new(UiColor::Secondary),
-        ))
+        .spawn((ShipPanelMarker, side_panel()))
         .with_children(|panel| {
             panel
                 .spawn(Node {
@@ -64,29 +39,13 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     ..default()
                 })
                 .with_children(|head| {
-                    head.spawn((
-                        Node {
-                            width: Val::Px(SHIP_PREVIEW_PX),
-                            height: Val::Px(SHIP_PREVIEW_PX),
-                            flex_shrink: 0.0,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border: UiRect::all(Val::Px(1.0)),
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                            ..default()
-                        },
-                        BackgroundColor(Color::NONE),
-                        ThemedFill::alpha(UiColor::Surface, 0.6),
-                        BorderColor::all(Color::NONE),
-                        ThemedBorder::new(UiColor::Secondary),
-                    ))
-                    .with_children(|frame| {
+                    head.spawn(panel_preview_frame()).with_children(|frame| {
                         frame.spawn((
                             ShipPreviewIcon,
                             icon_node(
                                 icons.section(SectionIconType::Hull),
                                 SectionIconType::Hull.color(),
-                                SHIP_PREVIEW_PX * 0.75,
+                                PANEL_PREVIEW_PX * 0.75,
                             ),
                         ));
                     });
