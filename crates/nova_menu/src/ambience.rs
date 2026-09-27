@@ -22,7 +22,7 @@ pub const MENU_BACKDROP_ENV: &str = "NOVA_MENU_BACKDROP";
 pub(crate) struct MenuUiCameraMarker;
 
 /// The menu UI camera's render layer: deliberately EMPTY of world entities
-/// (nova_os_ui owns 20-22), so the overlay's 2D world pass draws nothing.
+/// (nova_interface owns 20-22), so the overlay's 2D world pass draws nothing.
 /// Without it the overlay re-rendered every world-space effect the 2D
 /// pipeline knows (the hanabi particle bursts) a second time - untonemapped,
 /// alpha-blended over the finished frame (observed live: blast VFX ghosting

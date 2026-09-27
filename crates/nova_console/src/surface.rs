@@ -67,7 +67,7 @@ mod tests {
         world.init_resource::<CurrentScenario>();
         if held {
             world
-                .run_system_once(|mut clocks: Clocks| clocks.hold(FreezeOwner::Terminal))
+                .run_system_once(|mut clocks: Clocks| clocks.hold(FreezeOwner::Interface))
                 .unwrap();
         }
         world
@@ -81,7 +81,7 @@ mod tests {
         world.resource_mut::<CurrentScenario>().0 = Some(scenario("shakedown_run"));
         assert_eq!(world_line(&world), "shakedown_run / running");
 
-        world.insert_resource(NextState::Pending(PauseStates::NovaOs));
+        world.insert_resource(NextState::Pending(PauseStates::Commands));
         assert_eq!(world_line(&world), "shakedown_run / paused");
     }
 

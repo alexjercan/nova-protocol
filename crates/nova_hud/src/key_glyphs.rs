@@ -1,7 +1,7 @@
 //! Key-glyph lookup: which keycap picture stands for which binding.
 //!
 //! The game shows keys as PICTURES, not `[BRACKETED]` text - the HUD icon dock,
-//! the anchored verb cues, the objective stack's NOVA OS affordance and the
+//! the anchored verb cues, the objective stack's interface affordance and the
 //! settings Controls rows all draw a keycap from
 //! `assets/input-prompts/keyboard/Alt/` (the dark keycaps with white glyphs).
 //!
@@ -484,8 +484,8 @@ mod tests {
             .collect();
         // Plus the labels that are NOT a registry binding: the three gesture
         // pseudo-labels, which stand for a modifier or a wheel rather than a
-        // key, and the NOVA OS affordance's fallback (the toggle lives in
-        // `nova_os_ui`, which depends on this crate and so cannot be named
+        // key, and the interface affordance's fallback (the toggle lives in
+        // `nova_interface`, which depends on this crate and so cannot be named
         // from here - `novaos_key_label` falls back to Tab without it).
         let extra = ["CTRL", "SHIFT", "SCROLL", "Tab"];
         for key in bound

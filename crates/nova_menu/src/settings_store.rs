@@ -17,7 +17,7 @@ use nova_gameplay::prelude::{
     harness_env_active, GraphicsQuality, InterfaceVolume, MasterVolume, MusicVolume, WorldVolume,
 };
 use nova_input::prelude::{BindingSpec, InputBindings, MousePath, MouseSensitivity};
-use nova_os_ui::prelude::NovaOsMonitorSettings;
+use nova_interface::prelude::NovaOsMonitorSettings;
 use nova_ui::theme::{SelectedUiTheme, PHOSPHOR_THEME_ID};
 use serde::{Deserialize, Serialize};
 
@@ -382,7 +382,7 @@ impl Plugin for SettingsStorePlugin {
         // Every one of these is owned by some other plugin in the assembled
         // app - the mixer buses and the quality preset by `NovaGameplayPlugin`,
         // the sensitivities by `NovaInputPlugin`, the theme selection by `NovaUiPlugin`,
-        // the monitor knobs by `NovaOsUiPlugin`. `init_resource` is idempotent,
+        // the monitor knobs by `InterfacePlugin`. `init_resource` is idempotent,
         // so initing them here as well is what lets this plugin be added first,
         // last, or alone.
         app.init_resource::<MasterVolume>();
@@ -421,6 +421,24 @@ impl Plugin for SettingsStorePlugin {
     }
 }
 
+/// Action IDs that v0.14.0 saved and this build renamed, old to new. A saved
+/// row under an old ID moves to its new ID on load, so the next save writes
+/// only the new ID. `apply_overrides` warns and skips every other unknown ID.
+const RENAMED_ACTIONS: [(&str, &str); 12] = [
+    ("novaos_toggle", "interface_toggle"),
+    ("novaos_orbit_left", "viewer_orbit_left"),
+    ("novaos_orbit_right", "viewer_orbit_right"),
+    ("novaos_orbit_up", "viewer_orbit_up"),
+    ("novaos_orbit_down", "viewer_orbit_down"),
+    ("novaos_pan_forward", "viewer_pan_forward"),
+    ("novaos_pan_back", "viewer_pan_back"),
+    ("novaos_pan_left", "viewer_pan_left"),
+    ("novaos_pan_right", "viewer_pan_right"),
+    ("novaos_reframe", "viewer_reframe"),
+    ("novaos_next", "viewer_next"),
+    ("novaos_prev", "viewer_prev"),
+];
+
 /// Load the persisted settings once at startup and write them into the live
 /// resources. A missing/corrupt store is a no-op (the resources keep their
 /// defaults). Runs before the first `Update`, so nova_gameplay's apply systems
@@ -458,7 +476,14 @@ pub(crate) fn load_persisted_settings(
     // Before the first rig is built: the flight rig spawns with the player
     // ship, which is a scenario away, so a saved keybind is on the table by
     // the time anything reads it.
-    bindings.apply_overrides(&saved.keybinds);
+    let mut keybinds = saved.keybinds;
+    for (old, new) in RENAMED_ACTIONS {
+        if let Some(spec) = keybinds.remove(old) {
+            // A row already saved under the new ID is newer than the old one.
+            keybinds.entry(new.to_string()).or_insert(spec);
+        }
+    }
+    bindings.apply_overrides(&keybinds);
 }
 
 /// Put the chosen window mode on the primary window. Native only - see
@@ -631,7 +656,7 @@ mod tests {
     };
     use nova_gameplay::prelude::{GraphicsQuality, InterfaceVolume, MusicVolume, WorldVolume};
     use nova_input::prelude::{MousePath, MouseSensitivity};
-    use nova_os_ui::prelude::NovaOsMonitorSettings;
+    use nova_interface::prelude::NovaOsMonitorSettings;
     use nova_ui::theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID};
 
     use super::{PersistedSettings, KEY};
@@ -696,7 +721,7 @@ mod tests {
                 scan_detent: 0,
                 sound_enabled: false,
             },
-            "the persisted NOVA OS fields rebuild the live monitor resource"
+            "the persisted monitor fields rebuild the live monitor resource"
         );
 
         clear(&store);
@@ -1002,5 +1027,54 @@ mod tests {
             "a store written before keybinds reads as no overrides"
         );
         clear(&store);
+    }
+
+    /// v0.14.0 saved the monitor keys under `novaos_*` IDs. A store with a
+    /// moved row under an old ID loads onto the renamed action, and the next
+    /// save holds only the new ID, so the player keeps the rebind.
+    #[test]
+    fn a_keybind_saved_under_a_shipped_novaos_id_loads_onto_its_renamed_action() {
+        use bevy::{ecs::system::RunSystemOnce, prelude::*};
+        use nova_input::prelude::{BindingSpec, InputBindings, InputSource};
+
+        let dir = std::env::temp_dir().join("nova_settings_renamed_action");
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = super::SettingsStoreRoot(Some(dir.clone()));
+        let moved = BindingSpec {
+            keyboard: vec![InputSource::Keyboard(KeyCode::F1)],
+            gamepad: vec![],
+        };
+        super::save_settings(
+            &root,
+            &PersistedSettings {
+                keybinds: BTreeMap::from([("novaos_toggle".to_string(), moved.clone())]),
+                ..PersistedSettings::default()
+            },
+        );
+
+        let mut app = App::new();
+        app.insert_resource(InputBindings::from_actions(
+            nova_interface::bindings::interface_bindings(),
+        ));
+        app.add_plugins(super::SettingsStorePlugin {
+            access: super::SettingsStoreAccess::Read,
+            root: Some(dir.clone()),
+        });
+        app.world_mut()
+            .run_system_once(super::load_persisted_settings)
+            .expect("the load runs");
+
+        let bindings = app.world().resource::<InputBindings>();
+        assert_eq!(
+            bindings.get("interface_toggle").map(|action| action.spec()),
+            Some(moved.clone()),
+            "the saved row lands on the renamed action"
+        );
+        assert_eq!(
+            bindings.overrides(),
+            BTreeMap::from([("interface_toggle".to_string(), moved)]),
+            "the next save writes the new ID only"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

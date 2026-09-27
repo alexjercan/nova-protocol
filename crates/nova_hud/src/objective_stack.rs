@@ -11,15 +11,14 @@
 //!   of chips, newest on top, not a single element;
 //! - it is READ like a notification, not a permanent readout: a chip shows on
 //!   posting and leaves when it has been read - EITHER its dwell elapses OR the
-//!   player opens the NOVA OS computer (which is where the standing objective
-//!   list lives). Once read it does not come back; re-wording an objective
+//!   player opens the TAB interface. Once read it does not come back; re-wording an objective
 //!   posts it again, unread.
 //!
 //! That read model is the owner's call: idle cruise has NO objective cue at
 //! all, on purpose. The
 //! standing answers to "what am I doing" are the world-anchored objective
 //! marker chips ([`super::objective_markers`], which own the "go HERE" job and
-//! the live range) and the NOVA OS `objectives` command.
+//! the live range) and the `objectives` command.
 //!
 //! This REPLACES the top-right status-bar hint: the count-plus-TAB block is
 //! gone from the bcs status bar,
@@ -149,7 +148,7 @@ impl ObjectiveNotification {
             .is_some_and(|read| read >= OBJECTIVE_FADE_SECS)
     }
 
-    /// Mark read (no-op if it already is, so the NOVA OS sweep cannot restart
+    /// Mark read (no-op if it already is, so the interface sweep cannot restart
     /// a fade that is already running).
     fn mark_read(&mut self) {
         if self.read_secs.is_none() {
@@ -351,14 +350,14 @@ fn age_objective_notifications(time: Res<Time>, mut notifications: ResMut<Object
     notifications.shown.retain(|shown| !shown.gone());
 }
 
-/// Opening the NOVA OS computer reads EVERY notification at once: the standing
-/// objective list is in there, so once you have opened it they have served
+/// Opening the TAB interface reads EVERY notification at once: the chips
+/// advertise the TAB key, so once the player has opened it they have served
 /// their purpose.
 fn read_on_nova_os(
     pause: Res<State<nova_gameplay::PauseStates>>,
     mut notifications: ResMut<ObjectiveNotifications>,
 ) {
-    if !pause.is_changed() || *pause.get() != nova_gameplay::PauseStates::NovaOs {
+    if !pause.is_changed() || *pause.get() != nova_gameplay::PauseStates::Interface {
         return;
     }
     for shown in &mut notifications.shown {
@@ -429,7 +428,7 @@ fn rebuild_objective_stack_children(
                     stack.spawn(objective_chip(shown, &theme));
                 }
                 // One TAB affordance for the whole stack, riding it: it says
-                // "the full list is in the computer", and it leaves when the
+                // "the full list is in the interface", and it leaves when the
                 // last chip does.
                 stack.spawn(tab_footer(&key, tab_cap));
             },
@@ -437,12 +436,12 @@ fn rebuild_objective_stack_children(
     }
 }
 
-/// The keycap the affordance draws: whatever `novaos_toggle` holds NOW, not the
+/// The keycap the affordance draws: whatever `interface_toggle` holds NOW, not the
 /// Tab the game ships with. A bare HUD rig carries no registry, and falls back
 /// to the shipped key rather than dropping the picture.
 fn novaos_key_label(bindings: Option<&InputBindings>) -> String {
     bindings
-        .and_then(|table| table.get("novaos_toggle"))
+        .and_then(|table| table.get("interface_toggle"))
         .map(|action| source_label(&action.keyboard))
         .filter(|label| !label.is_empty())
         .unwrap_or_else(|| "Tab".to_string())
@@ -526,7 +525,7 @@ fn chip_alpha(factor: f32, theme: &ActiveUiTheme) -> Color {
 }
 
 /// The stack's TAB footer: the keycap plus a muted hint that the full list
-/// lives in the computer.
+/// lives in the interface.
 ///
 /// A key the pack does not draw falls back to its NAME, the invariant
 /// `key_glyphs` states for every consumer. The capture accepts `Comma`,
@@ -903,10 +902,10 @@ mod tests {
         );
     }
 
-    /// Opening the NOVA OS computer reads every chip at once - the other half
+    /// Opening the TAB interface reads every chip at once - the other half
     /// of the read model.
     #[test]
-    fn opening_nova_os_reads_every_chip() {
+    fn opening_the_interface_reads_every_chip() {
         let mut app = stack_app();
         post(&mut app, "first", "Scan the relay");
         post(&mut app, "second", "Salvage the wreck");
@@ -915,12 +914,12 @@ mod tests {
 
         app.world_mut()
             .resource_mut::<NextState<nova_gameplay::PauseStates>>()
-            .set(nova_gameplay::PauseStates::NovaOs);
+            .set(nova_gameplay::PauseStates::Interface);
         app.update();
         let notifications = app.world().resource::<ObjectiveNotifications>();
         assert!(
             !notifications.is_unread("first") && !notifications.is_unread("second"),
-            "opening the computer reads them all"
+            "opening the interface reads them all"
         );
 
         advance(&mut app, OBJECTIVE_FADE_SECS);
@@ -1092,7 +1091,7 @@ mod tests {
         // REMOVED.
         app.world_mut()
             .resource_mut::<NextState<nova_gameplay::PauseStates>>()
-            .set(nova_gameplay::PauseStates::NovaOs);
+            .set(nova_gameplay::PauseStates::Interface);
         app.update();
         let alpha = chip_text_alpha(&mut app).expect("still fading");
         let expected = app
@@ -1215,7 +1214,7 @@ mod tab_footer_sizing_tests {
         let mut app = chip_layout_app();
         app.init_resource::<GameObjectives>();
         app.init_resource::<ObjectiveNotifications>();
-        // A pack that draws Tab and nothing else, with NOVA OS moved onto a
+        // A pack that draws Tab and nothing else, with the interface moved onto a
         // key it has no art for.
         let tab = load_png(&mut app, &format!("{KEY_GLYPH_DIR}/T_Tab_Key_Alt.png"));
         let mut key_glyphs =
@@ -1225,13 +1224,13 @@ mod tab_footer_sizing_tests {
             key_glyphs,
             ..default()
         });
-        // `novaos_toggle` is owned one crate up, so the table is built here
-        // the way `nova_os_ui` registers it - moved onto a key the pack has no
+        // `interface_toggle` is owned one crate up, so the table is built here
+        // the way `nova_interface` registers it - moved onto a key the pack has no
         // art for, which is what the capture lets a player do.
         app.insert_resource(InputBindings::from_actions([ActionBinding::new(
-            "novaos_toggle",
+            "interface_toggle",
             "SYSTEM",
-            "NOVA OS",
+            "Open Interface",
         )
         .keyboard([InputSource::Keyboard(KeyCode::Period)])]));
 

@@ -558,7 +558,7 @@ ordering is documented, not enforced: the run-level value comes from the harness
 that launches the process, which the crate cannot see.
 
 Real seconds, not the app's: Nova pauses `Time<Virtual>` behind the pause
-overlay and the ship computer, so a deadline measured on the game clock stops
+overlay and the TAB interface, so a deadline measured on the game clock stops
 counting the moment a walk opens either - and a beat that stalls there holds the
 run open with nothing naming the step. Both clocks that time a run read
 `Time<Real>` for that reason: the step deadline, and the run-level watcher's own

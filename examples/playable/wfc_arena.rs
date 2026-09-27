@@ -65,7 +65,7 @@
 //! A hand-run opens the match configurator: per-side style, seed edit and
 //! reroll, up to four ships a side, at most one player slot. Escape freezes a
 //! live match for Resume, exact Restart, Return to Lobby and Quit. A player can
-//! rebind a bindable section from NOVA OS `ship` with `B`; conflicts are
+//! rebind a bindable section from the interface Ship pane with `B`; conflicts are
 //! refused and accepted overrides survive restart.
 //!
 //! The lines spawn ~3.05 km apart and fly in COLD: an arrival grace holds both
@@ -1017,7 +1017,7 @@ fn spawn_position(team: usize, index: usize, strength: usize) -> Vec3 {
 /// The lance gets a key of its OWN rather than joining the turrets on the
 /// mouse: it is one committed shot on a twelve-second reload, and a pilot
 /// holding fire on a swarm would burn it on the first frame of every reload.
-/// `R` is free in the flight context - NOVA OS spends it, but that is the
+/// `R` is free in the flight context - the interface spends it, but that is the
 /// viewer context, exactly as it already spends the tubes' `F`.
 fn player_bindings(
     hull: &ShipDesign,

@@ -5,7 +5,7 @@ them: `SectionKind` (`crates/nova_ship/src/sections/base_section.rs`) is a
 Rust enum, every match on it is exhaustive, and the compiler will not let you
 land a new variant until every site handles it. Adding a kind is a fixed
 sequence of ~10 edits across `nova_ship`, `nova_gameplay`, `nova_scenario`,
-`nova_editor`, `nova_os_ui`, and `nova_authoring`,
+`nova_editor`, `nova_interface`, and `nova_authoring`,
 ending at a runnable example.
 
 ## Why it is closed
@@ -96,10 +96,11 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    `Health.max` and never the class. What the section LOOKS like as it is
    damaged is a separate, authored decision - step 8.
 
-   The NOVA OS ship app labels sections by this enum: add an arm to the
-   exhaustive matches `code_prefix`, `kind_glyph`, `kind_description` and
-   `kind_index` in `crates/nova_os_ui/src/ship/sections.rs`, and to
-   `section_kind_label` in `crates/nova_os_ui/src/terminal/content.rs`.
+   The interface's Ship pane labels sections by this enum: add an arm to the
+   exhaustive matches `code_prefix`, `kind_description` and `kind_index` in
+   `crates/nova_interface/src/ship/sections.rs`, to `SectionIconType::of` in
+   `crates/nova_interface/src/icons.rs`, and to `section_kind_label` in
+   `crates/nova_interface/src/terminal/content.rs`.
 
 4. **Wire the section plugin.**
    In `crates/nova_ship/src/sections/mod.rs`, add your plugin to the
@@ -232,8 +233,8 @@ runnable proof -- so double-check those by hand.
 - The enum and base config: `SectionKind`, `BaseSectionConfig` -
   `crates/nova_ship/src/sections/base_section.rs`; model modules
   `hull_section.rs` (minimal) and `turret_section/` beside it.
-- Class label: `SectionClass` - `crates/nova_gameplay/src/damage.rs`; NOVA OS
-  label matches - `crates/nova_os_ui/src/ship/sections.rs`.
+- Class label: `SectionClass` - `crates/nova_gameplay/src/damage.rs`; the
+  interface's label matches - `crates/nova_interface/src/ship/sections.rs`.
 - Spawn arm: `insert_spaceship_sections` -
   `crates/nova_scenario/src/objects/spaceship.rs`.
 - Editor arms: `default_binds_for` - `crates/nova_editor/src/placement.rs`;

@@ -135,10 +135,7 @@ use nova_gameplay::{
 };
 use nova_hud::prelude::{HudTier, HudVisibility};
 use nova_input::prelude::{dispatch, InputPhase};
-use nova_os_ui::{
-    nova_os::prelude::{NovaOsTerminal, TerminalMode},
-    prelude::nova_os_openness,
-};
+use nova_interface::{nova_command::prelude::CommandTerminal, prelude::nova_os_openness};
 use nova_scenario::prelude::{
     NovaEventWorld, ScenarioCameraMarker, ScenarioId, ScenarioLoadGate, ScenarioLoaded,
     ScriptedCameraPose, VariableLiteral,
@@ -404,23 +401,13 @@ pub fn nova_os_raster_open() -> Arc<Predicate> {
     Arc::new(|world: &World| nova_os_openness(world).is_some_and(|open| open >= 1.0 - f32::EPSILON))
 }
 
-/// Advance once the shell says the app called `id` owns the screen.
-///
-/// The terminal model's own answer, not a node count that a half-built app
-/// surface would satisfy.
-pub fn nova_os_app_owns_the_screen(id: &'static str) -> Arc<Predicate> {
-    resource_where::<NovaOsTerminal>(move |terminal| {
-        terminal.active_mode() == TerminalMode::App { id }
-    })
-}
-
 /// Advance once the terminal's command line holds exactly `text`.
 ///
 /// The shell's own record of what it took. Typing writes every character in
 /// ONE frame, so a frame count after it was never a typing rate - it was a
 /// guess at how long the shell takes to answer.
 pub fn nova_os_command_line_reads(text: &'static str) -> Arc<Predicate> {
-    resource_where::<NovaOsTerminal>(move |terminal| terminal.prompt() == text)
+    resource_where::<CommandTerminal>(move |terminal| terminal.prompt() == text)
 }
 
 /// The PNG a [`nova_screenshot`] beat writes. Relative, so it stages under

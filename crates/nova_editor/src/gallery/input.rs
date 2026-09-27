@@ -18,8 +18,8 @@ use crate::{
 /// Opens and closes the gallery from the editor.
 ///
 /// Tab, because that is already the game's "open the panel" key. It is free
-/// here: the NOVA OS it opens in flight needs a ship to be the computer of, and
-/// the editor's build mode has none (see `toggle_nova_os`).
+/// here: the interface it opens in flight needs a ship to show, and the
+/// editor's build mode has none (see `toggle_interface`).
 pub(crate) const GALLERY_TOGGLE_KEY: KeyCode = KeyCode::Tab;
 
 /// Arms whatever part is under the pointer - the same pipette the build view
@@ -351,7 +351,7 @@ mod tests {
 
     /// Tab opens the gallery from the build view and closes it again. It is the
     /// game's "open the panel" key, and it is free in the editor because the
-    /// NOVA OS it opens in flight needs a ship to be the computer of.
+    /// interface it opens in flight needs a ship to show.
     #[test]
     fn tab_opens_and_closes_the_gallery() {
         let mut app = gallery_app(GalleryState::default());

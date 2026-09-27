@@ -1063,13 +1063,13 @@ mod tests {
         );
     }
 
-    /// The Tab NOVA OS freezes flight input exactly like the pause menu: the
+    /// The TAB interface freezes flight input exactly like the pause menu: the
     /// burn observer self-guards on `PauseStates::is_frozen`, so a throttle
-    /// press in `NovaOs` must NOT move `FlightIntent`. This pins the guard-
+    /// press in `Interface` must NOT move `FlightIntent`. This pins the guard-
     /// widen from `== Paused` to `!= Unpaused`; narrowing it back to `==
     /// Paused` fails this test.
     #[test]
-    fn flight_input_inert_while_nova_os_open() {
+    fn flight_input_inert_while_the_interface_is_open() {
         use bevy::input::InputPlugin;
 
         let mut app = App::new();
@@ -1090,10 +1090,10 @@ mod tests {
         spawn_flight_rig(&mut app);
         app.update();
 
-        // Open the NOVA OS, then press the throttle: intent stays put.
+        // Open the interface, then press the throttle: intent stays put.
         app.world_mut()
             .resource_mut::<NextState<nova_gameplay::PauseStates>>()
-            .set(nova_gameplay::PauseStates::NovaOs);
+            .set(nova_gameplay::PauseStates::Interface);
         app.update();
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -1103,10 +1103,10 @@ mod tests {
         assert_eq!(
             app.world().get::<FlightIntent>(ship).map(|i| i.burn),
             Some(0.0),
-            "a throttle press while the NOVA OS is open must not move FlightIntent"
+            "a throttle press while the interface is open must not move FlightIntent"
         );
 
-        // Close the NOVA OS (back to Unpaused) and press again: now it burns,
+        // Close the interface (back to Unpaused) and press again: now it burns,
         // proving the press itself is live and the freeze is what suppressed it.
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -1125,7 +1125,7 @@ mod tests {
             app.world()
                 .get::<FlightIntent>(ship)
                 .is_some_and(|i| i.burn > 0.0),
-            "the same press burns once the NOVA OS is closed"
+            "the same press burns once the interface is closed"
         );
     }
 

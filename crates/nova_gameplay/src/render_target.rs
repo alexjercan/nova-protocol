@@ -4,7 +4,7 @@
 //!
 //! Not gameplay logic - this crate owns the recipe because it is the lowest
 //! crate every consumer already shares: the HUD target inset (`nova_hud`), the
-//! NOVA OS terminal/map/ship viewers (`nova_os_ui`), the render-scale lever
+//! NOVA OS terminal and the map/ship viewers (`nova_interface`), the render-scale lever
 //! (`nova_scenario`) and the channel's frame recorder (`nova_channel`). Both
 //! rules below are constraints that were each discovered once and are easy to
 //! "clean up" back out of a single call site, so every offscreen target is born

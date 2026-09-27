@@ -697,14 +697,14 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "system_nova_os",
+        "system_interface",
         &[
-            "tab opens the computer",
-            "the ship app owns the screen",
-            "the pointer reaches the offscreen subtree",
-            "the press lands on the widget behind the glass",
-            "the click through the glass closes the app",
-            "the app switch leaves one screen",
+            "tab opens the interface",
+            "m switches the pane",
+            "the modal covers a kept pane",
+            "escape returns to the same pane",
+            "nothing fires on the transition frames",
+            "escape closes the interface",
         ],
     ),
     (
@@ -780,27 +780,21 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     (
         "system_command_shell",
         &[
-            "`:` opens the command shell",
-            "the shell over flight keeps the game frozen",
             "a typed command answers from the live world",
             "Tab completes an id only the live world knows",
             "Escape gives back the surface the shell covered",
-            "Tab opens NOVA OS after the command shell has been used",
+            "`:` opens the command shell over the Ship pane once the rebind is spent",
             "`:` opens the command shell from the pause menu",
+            "the shell over the menu leaves the ambience running",
+            "an armed Ship rebind takes `:` as its key and opens no shell",
+            "an armed Ship rebind keeps the interface open under TAB",
+            "an armed Ship rebind takes M as its key and keeps the pane",
+            "the shell over flight keeps the game frozen",
             "the open computer sits above the modals it covers",
             "the shell gives back the pause menu it covered",
             "`:` opens the command shell on the main menu",
-            "the shell over the menu leaves the ambience running",
             "the open computer blocks the menu behind it",
             "the menu takes the click again once the computer closes",
-        ],
-    ),
-    (
-        "system_headless_novaos",
-        &[
-            "the NOVA OS verb registers headless",
-            "the whole action table registers headless",
-            "the terminal takes typing with no renderer",
         ],
     ),
     (
@@ -859,11 +853,10 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "system_headless_crt",
+        "system_headless_map_goto",
         &[
-            "the forwarded pointer reaches the blip",
-            "the window mouse cannot reach behind the glass",
-            "the press lands through the glass",
+            "the press lands on the blip",
+            "the window pointer reaches the blip",
             "the clicked blip engages GOTO on its contact",
         ],
     ),
@@ -917,7 +910,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 448;
+const SYSTEMS_INVARIANTS: usize = 446;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

@@ -119,9 +119,9 @@ impl Plugin for SpaceshipCameraControllerPlugin {
             // is expressed in this frame's anchor rotation frame.
             (
                 // Only derive the combat/free-look mode while gameplay is live:
-                // frozen behind the NOVA OS (or pause menu), RMB must NOT flip
+                // frozen behind the interface (or pause menu), RMB must NOT flip
                 // the ship into Turret/combat stance - it belongs to whatever
-                // app owns the screen (e.g. the map's orbit drag). Freezing the
+                // owns the screen (e.g. the map's orbit drag). Freezing the
                 // derivation holds the last mode; it re-reads held inputs on
                 // unpause.
                 derive_control_mode_and_raised

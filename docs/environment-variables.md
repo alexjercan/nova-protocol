@@ -206,8 +206,8 @@ names its own root on `SettingsStorePlugin` instead.
   beside what the hull does, five times a second of world time - and changes
   nothing the producer records.
 - **`NOVA_OS_*`.** Around 180 of these exist and NONE is an environment
-  variable: they are `const Color`, layout and volume values in `nova_os_ui`,
-  `nova_os` and `nova_gameplay::audio`. A grep for `NOVA_[A-Z_]*` is dominated
+  variable: they are `const Color`, layout and volume values in `nova_interface`,
+  `nova_command` and `nova_gameplay::audio`. A grep for `NOVA_[A-Z_]*` is dominated
   by them, so count `env::var` call sites instead of identifiers.
 - **Shell-only.** `NOVA_UI_PORT`, `NOVA_GAME_PORT`, `NOVA_MODS_PORT`,
   `NOVA_MODS_DIR`, `NOVA_PORT_LO`/`_HI` are read by `scripts/` and

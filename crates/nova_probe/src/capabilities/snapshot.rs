@@ -13,8 +13,8 @@
 //! A header (`schema`, `scenario`, `frame`, `elapsed`, `t_real`, `t_game`,
 //! `game_state`, `reason`), then:
 //!
-//! - `ui` - the screen a GUI player sees, as data: the pause rung, the NOVA OS
-//!   terminal model while it owns the screen, every named visible UI rect with
+//! - `ui` - the screen a GUI player sees, as data: the pause rung, the command
+//!   terminal model while the modal owns the screen, every named visible UI rect with
 //!   a button flag, and the CRT glass slice (map contact code -> window px).
 //!   What the process channel's pointer lane resolves against.
 //! - `ships` - every [`SpaceshipRootMarker`]: identity, transform, velocity,
@@ -52,7 +52,7 @@
 //!   HUD, the declared `outcome` (`null` in play, else the Victory or Defeat
 //!   banner with its message), the `comms` lines the story feed has delivered
 //!   so far, the objective `log` behind them (every card posted and completed,
-//!   in order - what NOVA OS's `log` command prints), the `cinematic` playing
+//!   in order - what the `log` command prints), the `cinematic` playing
 //!   over the top and whether it may be skipped, and the run's `cheats` mark.
 //!   What an external pilot reads its goal from, and what a referee scores a
 //!   driven run against.
@@ -131,9 +131,9 @@ use nova_gameplay::{
     GameStates, PauseStates,
 };
 use nova_hud::prelude::StoryFeed;
-use nova_os_ui::{
+use nova_interface::{
     map::MapContactCode,
-    nova_os::prelude::{NovaOsTerminal, TerminalMode},
+    nova_command::prelude::CommandTerminal,
     terminal::{nova_os_window_px_showing, NovaOsFlightLog, NovaOsFlightLogEntryKind},
 };
 use nova_scenario::{
@@ -521,8 +521,8 @@ fn mission_block(world: &World) -> serde_json::Value {
                 .collect()
         })
         .unwrap_or_default();
-    // Every objective card posted and completed, in order - NOVA OS's own
-    // flight log, which is what the `log` command prints. A card that goes up
+    // Every objective card posted and completed, in order - the flight log,
+    // which is what the `log` command prints. A card that goes up
     // and comes down between two reads leaves no trace in `objectives`; it
     // leaves one here, so a reader that samples the world can still see it
     // happened.
@@ -774,25 +774,21 @@ fn docking_record(world: &World, entity: Entity, pair: Option<&DockingPair>) -> 
 }
 
 /// The screen a GUI player sees, as data: the pause rung, the terminal model
-/// while NOVA OS owns the screen, every named clickable rect, and the CRT
-/// glass slice. This is what makes a driven `pointer to "Resume"` honest -
+/// while the command modal owns the screen, every named clickable rect, and the
+/// CRT glass slice. This is what makes a driven `pointer to "Resume"` honest -
 /// the driver clicks what it was told exists.
 fn ui_block(world: &mut World) -> serde_json::Value {
     let pause = world
         .get_resource::<State<PauseStates>>()
         .map(|state| format!("{:?}", state.get()));
-    let nova_os_up = world
+    let modal_up = world
         .get_resource::<State<PauseStates>>()
-        .is_some_and(|state| *state.get() == PauseStates::NovaOs);
+        .is_some_and(|state| *state.get() == PauseStates::Commands);
     let computer = world
-        .get_resource::<NovaOsTerminal>()
-        .filter(|_| nova_os_up)
+        .get_resource::<CommandTerminal>()
+        .filter(|_| modal_up)
         .map(|terminal| {
             serde_json::json!({
-                "mode": match terminal.active_mode() {
-                    TerminalMode::Prompt => "prompt".to_string(),
-                    TerminalMode::App { id } => format!("app:{id}"),
-                },
                 "prompt": terminal.prompt(),
                 "cursor": terminal.cursor(),
                 "parse": format!("{:?}", terminal.parse_status()),

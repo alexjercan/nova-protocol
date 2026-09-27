@@ -131,7 +131,7 @@ impl EntityTypeName {
 
 // The well-known type names live HERE, beside the component that carries them,
 // rather than beside the `nova_scenario` object that spawns each one. They are
-// a contract between the spawner and every reader, and a reader (`nova_os_ui`'s
+// a contract between the spawner and every reader, and a reader (`nova_interface`'s
 // map, `nova_gameplay`'s integrity tests) must not depend on `nova_scenario` to
 // name one. This crate is the floor both sides already stand on.
 /// [`EntityTypeName`] value for an authored anchor.

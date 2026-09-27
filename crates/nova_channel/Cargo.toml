@@ -29,7 +29,7 @@ nova_events = { path = "../nova_events" }
 # parser the CRT prompt uses, and hands the invocation to the dispatcher
 # through `CommandChannel` - so the wire depends on the LANGUAGE, not on
 # the crate that runs it.
-nova_os = { path = "../nova_os" }
+nova_command = { path = "../nova_command" }
 # The snapshot serializer the runner calls after every stepped frame.
 nova_probe = { path = "../nova_probe" }
 

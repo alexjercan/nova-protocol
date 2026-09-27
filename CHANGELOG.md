@@ -19,7 +19,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - A docked pair flies as one body. A dock starts NEUTRAL, with the partner
   flying; HELM (H) takes and hands back the pair's drive, RCS, helm, G/O/X and
-  NOVA OS GOTO.
+  Map GOTO.
 - The ship off the helm pauses its orders until the helm comes back. A
   maneuver flies the pair and no longer ends the dock; only DOCK or damage do.
 - The mouse wheel zooms the chase camera in normal flight and free look. With
@@ -42,6 +42,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Modding & Mod Portal
 
+- **(breaking)** Lesson category `NovaOs` is now `Interface`; content that still
+  uses `NovaOs` fails lint and load. Six interface and command lessons replace
+  the NOVA OS lessons.
 - **(breaking)** Asteroids and planets drop `invulnerable`: every asteroid can
   be destroyed, no planet can. Both reject unknown keys: a stale or
   misspelled field fails to load, not ignored.
@@ -51,11 +54,29 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid without `mass` has no gravity well and stays
   dynamic at any size. `mass: Some(..)` makes a static well and must be finite
   and 0 or more.
+- Spaceships take an `inventory` map of item to count, such as
+  `{HullPlate: 12}`; omitted is empty. A zero count or a repeated item fails
+  lint and load.
 
 ### Interface & HUD
 
-- Objective notification rebuilding now survives same-frame ship teardown, and
-  buffered keys after launching a NOVA OS app no longer edit the hidden prompt.
+- **(breaking)** TAB opens a themed interface with Map, Ship and Inventory
+  panes; M or pad Y steps through them. GOTO and mates are pane keys; Repair,
+  Reload and Rebind are keys and buttons.
+- The Inventory pane lists what your ship and a docked ship carry, with Food,
+  Ammo, Repair, Raw and Parts filters. The open-world ship starts with 12 hull
+  plates; nothing adds or spends items yet.
+- The TAB interface blips on open and close like the pause menu, and clicks
+  when a tab, filter, item, contact or section pick changes, and on Reframe,
+  Fit, Reset, Repair, Reload and Rebind.
+- **(breaking)** `:` opens NOVA COMMANDS on the CRT over any screen; Escape
+  returns there. The `nova>` prompt and app verbs are gone. New `log` prints
+  comms, objectives and lock drops.
+- Keybinds saved under `novaos_*` IDs load onto `interface_toggle` and
+  `viewer_*`. Pad Y now switches panes, so Reload Section keeps only L.
+- The Map labels an asteroid only while it is selected, so a belt of rocks no
+  longer buries ship and planet labels. Every blip stays clickable.
+- Objective notification rebuilding now survives same-frame ship teardown.
 - A HELM chip reads TAKE HELM, RELEASE HELM or HELM FAULT while docked. Off a
   measured helm, blocked verbs stay on the dock dark. The mode chip reads
   NEUTRAL or HELM FAULT.
@@ -72,6 +93,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Fixes
 
+- The Map and Ship panes turn, pan and ease at one speed at any frame rate, and
+  their notes last 2.5 s. They stepped per frame, so 60 Hz moved at a quarter
+  of 240 Hz.
+- The Map codes planets `PLN-n` and side-less ships `NEU-n`, with their own
+  readouts. Both used to read as asteroids (`AST-n`, `Asteroid mass.`).
 - A ship holding a completed `OrbitShip` ring no longer keeps its helm forever
   after the well is despawned or destroyed. The order retires and its AI flies
   again.
@@ -84,6 +110,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
+- **(breaking)** Crates `nova_os` and `nova_os_ui` are now `nova_command` and
+  `nova_interface`.
 - Asteroid kind and ship design ids are typed `AsteroidKindId` and
   `ShipDesignId` in every owning lookup. Authored RON is unchanged.
 - Agent Bench enforces post-run grace on persistent clients and rejects
@@ -106,9 +134,6 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `world_clusters` example streams five kinds of asteroid, planetoid and
   derelict groups that cross sector faces, drawn from three noise fields, with
   a field heatmap and seam markers.
-- New `ui_app_variants` example: themed map, ship and inventory screens over a
-  paused fixture scenario, with orbitable 3D panes, a map legend, and mock
-  station trade, loot and repair.
 - Capture loops write `<loop>.webm` with a stereo Opus track from the engine's
   per-voice mix and pan, PCM peak cut to -1 dBFS before Opus, plus a v1
   `<loop>.jsonl` SFX sidecar and its samples.

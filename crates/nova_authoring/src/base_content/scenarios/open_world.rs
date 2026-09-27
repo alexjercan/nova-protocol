@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::ItemType;
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::ShipCapabilities;
@@ -66,6 +67,7 @@ fn player() -> ScenarioObjectConfig {
             }),
             capabilities: ShipCapabilities::default(),
             design: ships::design(BLOCK_LINE_WARSHIP_SHIP_ID),
+            inventory: [(ItemType::HullPlate, 12)].into_iter().collect(),
         }),
     }
 }

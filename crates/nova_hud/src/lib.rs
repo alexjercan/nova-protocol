@@ -90,7 +90,7 @@ pub mod prelude {
         objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
         readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
         target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
-        velocity::prelude::*, HudContextGate, HudNovaOsExempt, HudSelfDrivenVisibility,
+        velocity::prelude::*, HudContextGate, HudInterfaceExempt, HudSelfDrivenVisibility,
         HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
         NovaHudSystems,
     };
@@ -174,7 +174,7 @@ impl HudVisibility {
 /// Since the level cycle collapsed to On/Cinematic the three variants no
 /// longer differ in what the LEVEL does to them - all show at
 /// `On`, all clear at `Cinematic`. They stay because they are the vocabulary
-/// the HUD is documented and reasoned in (the wiki's tier table, the NOVA OS
+/// the HUD is documented and reasoned in (the wiki's tier table, the interface
 /// exemption rules below), and because deciding a widget's kind at its spawn
 /// site is what keeps the marker honest. Whether an element is on screen RIGHT
 /// NOW is the contextual question, answered per widget by [`HudContextGate`].
@@ -193,8 +193,8 @@ pub enum HudTier {
     /// rides the whole session rather than the moment-to-moment flight HUD,
     /// and the cinematic level still clears it so screenshots stay clean.
     /// Meant to persist
-    /// through the Tab NOVA OS too - tag such a widget `HudNovaOsExempt` as
-    /// well, which keeps it visible while the NOVA OS is open and z-lifts it
+    /// through the command modal too - tag such a widget `HudInterfaceExempt` as
+    /// well, which keeps it visible while the modal is open and z-lifts it
     /// above the backdrop.
     Status,
 }
@@ -229,14 +229,14 @@ impl Default for HudContextGate {
 #[reflect(Component)]
 pub struct HudSelfDrivenVisibility;
 
-/// Diagnostic/status chrome that stays visible while the Tab NOVA OS is open.
-/// NOVA OS hides ordinary flight HUD and key hints so the cockpit monitor owns
-/// the screen; widgets tagged with this marker are exempt from that
-/// NOVA OS-scoped hide and z-lift above the backdrop. They are still subject to
+/// Diagnostic/status chrome that stays visible while the TAB interface or the
+/// command modal is open. Both hide ordinary flight HUD and key hints so they
+/// own the screen; widgets tagged with this marker are exempt from that hide
+/// and z-lift above the modal's backdrop. They are still subject to
 /// the grave/tilde [`HudVisibility`] cycle. Tag the widget's tiered root.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
-pub struct HudNovaOsExempt;
+pub struct HudInterfaceExempt;
 
 /// Nav cyan, the family color of every flight-computer projection (the
 /// destination marker tint, the orbit cue, the maneuver chips, the holo
@@ -287,7 +287,7 @@ impl Plugin for NovaHudPlugin {
         app.register_type::<HudVisibility>();
         app.register_type::<HudTier>();
         app.register_type::<HudContextGate>();
-        app.register_type::<HudNovaOsExempt>();
+        app.register_type::<HudInterfaceExempt>();
 
         // The contextual layer is bounded on both sides of the widget
         // drivers: the situations are sensed BEFORE
@@ -359,7 +359,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(item_highlights::ItemHighlightsHudPlugin);
         app.add_plugins(objective_feedback::ObjectiveFeedbackPlugin);
         // The top-centre objective NOTIFICATION stack: demo 2's objective chip,
-        // one per posting, read by its dwell or by opening NOVA OS. The chip IS
+        // one per posting, read by its dwell or by opening the interface. The chip IS
         // the posting - it spawns and pops the frame the objective arrives,
         // replacing both the top-right status-bar hint and the diegetic
         // cockpit reveal card.
@@ -434,7 +434,7 @@ pub fn hud_bindings() -> Vec<ActionBinding> {
 }
 
 /// Whether the cycle key is the PLAYER's to press: in flight, and not while
-/// the NOVA OS has the keyboard.
+/// the TAB interface or the command modal has the keyboard.
 ///
 /// The binding stays `Always` - it answers at every rung the HUD is drawn at -
 /// but the terminal takes a printable backquote as a character, so an ungated
@@ -443,7 +443,8 @@ pub fn hud_bindings() -> Vec<ActionBinding> {
 /// was lost before was a HUD that came back cinematic with no visible cause.
 fn hud_key_is_the_players() -> impl bevy::ecs::schedule::SystemCondition<()> {
     in_state(nova_gameplay::GameStates::Playing)
-        .and_then(not(in_state(nova_gameplay::PauseStates::NovaOs)))
+        .and_then(not(in_state(nova_gameplay::PauseStates::Interface)))
+        .and_then(not(in_state(nova_gameplay::PauseStates::Commands)))
 }
 
 /// Cycle the HUD level on whatever `hud_cinematic` is bound to.
@@ -487,24 +488,27 @@ fn apply_hud_visibility(
             Option<Ref<HudContextGate>>,
             &mut Visibility,
             Has<HudSelfDrivenVisibility>,
-            Has<HudNovaOsExempt>,
+            Has<HudInterfaceExempt>,
         ),
         (With<HudTier>, Without<ScreenIndicatorMarker>),
     >,
     mut q_indicators: Query<
-        (Entity, &mut Visibility, Has<HudNovaOsExempt>),
+        (Entity, &mut Visibility, Has<HudInterfaceExempt>),
         With<ScreenIndicatorMarker>,
     >,
     q_parents: Query<&ChildOf>,
     q_tiers: Query<&HudTier>,
     q_gates: Query<&HudContextGate>,
 ) {
-    // While the Tab NOVA OS is open the flight HUD hides so it does not fight the
-    // NOVA OS monitor; only diagnostic/status widgets carrying `HudNovaOsExempt`
-    // stay. The restore branch fires on a pause change too, so CLOSING the
-    // NOVA OS un-hides in the same frame - not just on a grave/tilde level
-    // change.
-    let nova_os_open = *pause.get() == nova_gameplay::PauseStates::NovaOs;
+    // While the TAB interface or the command modal is open the flight HUD
+    // hides so it does not fight them; only diagnostic/status widgets carrying
+    // `HudInterfaceExempt` stay. The restore branch fires on a pause change too,
+    // so CLOSING either surface un-hides in the same frame - not just on a
+    // grave/tilde level change.
+    let nova_os_open = matches!(
+        pause.get(),
+        nova_gameplay::PauseStates::Interface | nova_gameplay::PauseStates::Commands
+    );
     let level_restore = level.is_changed() || pause.is_changed();
     for (gate, mut visibility, self_driven, exempt) in &mut q_roots {
         let open = gate.as_ref().is_none_or(|gate| gate.0);
@@ -750,9 +754,9 @@ fn setup_hud_flight_status(
     // The dock and cues are global singletons, not ship-targeted widgets: one
     // player, one set (same guard as the flight input rig).
     if q_existing_dock.is_empty() {
-        // Keybind hints are ordinary flight chrome. NOVA OS owns the monitor
-        // surface while the NOVA OS is open, so only diagnostic/status chrome
-        // carries `HudNovaOsExempt`.
+        // Keybind hints are ordinary flight chrome. The interface and the
+        // command monitor own the screen while open, so only diagnostic/status
+        // chrome carries `HudInterfaceExempt`.
         commands.spawn((HudTier::Chrome, keybind_dock_hud()));
         commands.spawn((HudTier::Chrome, verb_cues_hud()));
     }
@@ -909,7 +913,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
         app.init_state::<nova_gameplay::GameStates>();
-        // apply_hud_visibility reads the NOVA OS axis.
+        // apply_hud_visibility reads the pause axis.
         app.init_state::<nova_gameplay::PauseStates>();
         app.init_resource::<HudVisibility>();
         app.init_resource::<ButtonInput<KeyCode>>();
@@ -985,7 +989,7 @@ mod tests {
         assert_eq!(level(&app), HudVisibility::On);
     }
 
-    /// A backquote typed at the NOVA OS prompt is a CHARACTER, not the HUD
+    /// A backquote typed at the command prompt is a CHARACTER, not the HUD
     /// key. The binding stays `Always`; the action refuses while the monitor
     /// has the keyboard, so a builder typing one does not come back out to a
     /// HUD that quietly went cinematic.
@@ -994,7 +998,7 @@ mod tests {
         let mut app = app();
         app.world_mut()
             .resource_mut::<NextState<nova_gameplay::PauseStates>>()
-            .set(nova_gameplay::PauseStates::NovaOs);
+            .set(nova_gameplay::PauseStates::Commands);
         app.update();
 
         press_backquote(&mut app);
@@ -1151,23 +1155,23 @@ mod tests {
         );
     }
 
-    /// A `Status` widget tagged `HudNovaOsExempt` (the real status bar's config)
-    /// stays visible while the Tab NOVA OS is open, but the cinematic `None`
-    /// level still clears it even mid-NOVA OS.
+    /// A `Status` widget tagged `HudInterfaceExempt` (the real status bar's config)
+    /// stays visible while the interface or command modal is open, but the
+    /// cinematic `None` level still clears it even then.
     #[test]
     fn status_bar_persists_through_the_nova_os_but_cinematic_still_clears_it() {
         let mut app = app();
         let status = app
             .world_mut()
-            .spawn((HudTier::Status, HudNovaOsExempt, Visibility::Inherited))
+            .spawn((HudTier::Status, HudInterfaceExempt, Visibility::Inherited))
             .id();
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
-        set_pause(&mut app, nova_gameplay::PauseStates::NovaOs);
+        set_pause(&mut app, nova_gameplay::PauseStates::Commands);
         assert_eq!(
             vis(&app, status),
             Visibility::Inherited,
-            "the status bar stays while the NOVA OS is open"
+            "the status bar stays while the interface is open"
         );
 
         app.insert_resource(HudVisibility::Cinematic);
@@ -1175,14 +1179,14 @@ mod tests {
         assert_eq!(
             vis(&app, status),
             Visibility::Hidden,
-            "Cinematic clears the status bar even during the NOVA OS"
+            "Cinematic clears the status bar even during the interface"
         );
     }
 
     /// The real flight status bar is `HudTier::Status` WITHOUT
-    /// `HudNovaOsExempt`: opening the NOVA OS computer hides the whole flight
+    /// `HudInterfaceExempt`: opening the command modal hides the whole flight
     /// status bar (its FPS item is rehomed onto the terminal topbar), and
-    /// closing the NOVA OS restores it in the same frame via the pause-change
+    /// closing the modal restores it in the same frame via the pause-change
     /// restore branch.
     #[test]
     fn flight_status_bar_hides_while_the_nova_os_is_open_and_returns_on_close() {
@@ -1201,20 +1205,20 @@ mod tests {
             "the flight status bar is visible in normal flight"
         );
 
-        // Opening the NOVA OS hides it - it is no longer NOVA OS-exempt.
-        set_pause(&mut app, nova_gameplay::PauseStates::NovaOs);
+        // Opening the modal hides it - it is not interface-exempt.
+        set_pause(&mut app, nova_gameplay::PauseStates::Commands);
         assert_eq!(
             vis(&app, status),
             Visibility::Hidden,
-            "the flight status bar hides while the NOVA OS computer is open"
+            "the flight status bar hides while the interface is open"
         );
 
-        // Closing the NOVA OS restores it (pause change fires the restore branch).
+        // Closing the modal restores it (pause change fires the restore branch).
         set_pause(&mut app, nova_gameplay::PauseStates::Unpaused);
         assert_eq!(
             vis(&app, status),
             Visibility::Inherited,
-            "closing the NOVA OS brings the flight status bar back"
+            "closing the interface brings the flight status bar back"
         );
     }
 
@@ -1222,14 +1226,14 @@ mod tests {
     /// `HudTier` of its own, so it must INHERIT the bar's visibility:
     /// `apply_hud_visibility` manages only the tiered PARENT and must leave the
     /// child's `Visibility::Inherited` untouched, so Bevy propagation carries the
-    /// bar's state (persist through the NOVA OS, clear at None) to the count. This
+    /// bar's state (persist through the interface, clear at None) to the count. This
     /// pins that we do NOT give the child its own tier/visibility management.
     #[test]
     fn childless_node_is_left_to_inherit_the_status_bar() {
         let mut app = app();
         let bar = app
             .world_mut()
-            .spawn((HudTier::Status, HudNovaOsExempt, Visibility::Inherited))
+            .spawn((HudTier::Status, HudInterfaceExempt, Visibility::Inherited))
             .id();
         let child = app
             .world_mut()
@@ -1237,9 +1241,9 @@ mod tests {
             .id();
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
-        // NovaOs open: the bar persists; the child is never touched, so it is
+        // Command modal open: the bar persists; the child is never touched, so it is
         // left Inherited to follow the (visible) bar.
-        set_pause(&mut app, nova_gameplay::PauseStates::NovaOs);
+        set_pause(&mut app, nova_gameplay::PauseStates::Commands);
         assert_eq!(vis(&app, bar), Visibility::Inherited);
         assert_eq!(
             vis(&app, child),
@@ -1270,9 +1274,9 @@ mod tests {
         app.update();
     }
 
-    /// Opening NOVA OS hides ordinary flight HUD and key hints so they do not
-    /// float over the cockpit monitor. Diagnostic/status chrome tagged
-    /// `HudNovaOsExempt` remains visible above the computer.
+    /// Opening the interface hides ordinary flight HUD and key hints so they do
+    /// not float over it. Diagnostic/status chrome tagged
+    /// `HudInterfaceExempt` remains visible above it.
     #[test]
     fn nova_os_hides_flight_hud_but_keeps_diagnostics() {
         let mut app = app();
@@ -1286,7 +1290,7 @@ mod tests {
             .id();
         let diagnostics = app
             .world_mut()
-            .spawn((HudTier::Status, HudNovaOsExempt, Visibility::Inherited))
+            .spawn((HudTier::Status, HudInterfaceExempt, Visibility::Inherited))
             .id();
         let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
 
@@ -1295,11 +1299,11 @@ mod tests {
         assert_eq!(vis(&app, key_hints), Visibility::Inherited);
         assert_eq!(vis(&app, diagnostics), Visibility::Inherited);
 
-        set_pause(&mut app, nova_gameplay::PauseStates::NovaOs);
+        set_pause(&mut app, nova_gameplay::PauseStates::Interface);
         assert_eq!(
             vis(&app, instrument),
             Visibility::Hidden,
-            "the flight HUD hides while the NOVA OS is open"
+            "the flight HUD hides while the interface is open"
         );
         assert_eq!(
             vis(&app, key_hints),
@@ -1309,14 +1313,14 @@ mod tests {
         assert_eq!(
             vis(&app, diagnostics),
             Visibility::Inherited,
-            "diagnostic/status chrome remains visible while the NOVA OS is open"
+            "diagnostic/status chrome remains visible while the interface is open"
         );
 
         set_pause(&mut app, nova_gameplay::PauseStates::Unpaused);
         assert_eq!(
             vis(&app, instrument),
             Visibility::Inherited,
-            "closing the NOVA OS restores the flight HUD"
+            "closing the interface restores the flight HUD"
         );
         assert_eq!(vis(&app, key_hints), Visibility::Inherited);
         assert_eq!(vis(&app, diagnostics), Visibility::Inherited);

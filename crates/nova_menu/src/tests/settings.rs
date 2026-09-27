@@ -216,7 +216,7 @@ fn settings_panel_builds_one_tab_at_a_time() {
     );
     open_group(&mut app, "SYSTEM");
     let texts = all_texts(&mut app);
-    for row in ["Pause / Menu", "Open NOVA OS", "HUD (On / Cinematic)"] {
+    for row in ["Pause / Menu", "Open Interface", "HUD (On / Cinematic)"] {
         assert!(
             texts.iter().any(|t| t == row),
             "the {row} row is missing from the SYSTEM group"
@@ -496,7 +496,7 @@ fn pressing_a_controls_group_swaps_the_rows() {
     assert_eq!(app.world().resource::<SettingsControlsGroup>().0, "SYSTEM");
     let texts = all_texts(&mut app);
     assert!(
-        texts.iter().any(|t| t == "Open NOVA OS"),
+        texts.iter().any(|t| t == "Open Interface"),
         "the SYSTEM rows are up"
     );
     assert!(
@@ -811,7 +811,7 @@ fn closing_the_panel_drops_an_armed_rebind() {
     hide_settings_panel(&mut app);
     app.update();
 
-    // `A` is free in FLIGHT: only `novaos_pan_left` holds it, and Viewer does
+    // `A` is free in FLIGHT: only `viewer_pan_left` holds it, and Viewer does
     // not overlap Flight, so the capture would have ACCEPTED it.
     tap_key(&mut app, KeyCode::KeyA);
     app.update();
@@ -1008,7 +1008,7 @@ fn the_pause_overlay_settings_body_tabs_too() {
 /// flight action, and its owner sat one crate away from the check.
 ///
 /// A key held by two actions is normal and deliberate - `G` is go-to in
-/// flight, GOTO in the map viewer and the mates overlay in the ship viewer,
+/// flight, GOTO in the Map pane and the mates overlay in the Ship pane,
 /// and only one of the three is ever listening. What must not happen is two
 /// actions holding one source INSIDE a live set, because nothing consumes an
 /// input: the key would drive both.
@@ -1069,7 +1069,7 @@ fn every_owners_actions() -> impl Iterator<Item = ActionBinding> {
         .into_iter()
         .chain(nova_ship::input::bindings::camera_bindings())
         .chain(nova_hud::hud_bindings())
-        .chain(nova_os_ui::bindings::novaos_bindings())
+        .chain(nova_interface::bindings::interface_bindings())
         .chain(nova_scenario::prelude::scenario_bindings())
 }
 
@@ -1081,7 +1081,7 @@ fn only_one_of_the_three_actions_bound_to_g_is_ever_live() {
     use nova_input::prelude::{ActionContext, ActiveContexts};
 
     let mut table = InputBindings::from_actions(nova_ship::input::bindings::flight_bindings());
-    for action in nova_os_ui::bindings::novaos_bindings() {
+    for action in nova_interface::bindings::interface_bindings() {
         table.register(action);
     }
     let on_g = |active: &ActiveContexts| -> Vec<&'static str> {
@@ -1107,11 +1107,11 @@ fn only_one_of_the_three_actions_bound_to_g_is_ever_live() {
 
     active.set(ActionContext::Flight, false);
     active.set(ActionContext::Viewer, true);
-    active.set(ActionContext::ViewerApp("map"), true);
+    active.set(ActionContext::InterfacePane("map"), true);
     assert_eq!(on_g(&active), vec!["map_goto"]);
 
-    active.set(ActionContext::ViewerApp("map"), false);
-    active.set(ActionContext::ViewerApp("ship"), true);
+    active.set(ActionContext::InterfacePane("map"), false);
+    active.set(ActionContext::InterfacePane("ship"), true);
     assert_eq!(on_g(&active), vec!["ship_mates"]);
 }
 

@@ -566,7 +566,7 @@ impl Phase {
 /// Whether the SIMULATION advanced this frame, given the app's virtual clock.
 ///
 /// A capture measures wall-clock deltas, so a scene whose clock is stopped -
-/// a result screen, a pause menu, NOVA OS - still produces frames, and they
+/// a result screen, a pause menu, the interface - still produces frames, and they
 /// still cost real milliseconds to draw. Averaged in they read as an ordinary
 /// (even a plausible) window while measuring a still picture, which is the one
 /// failure this whole capture cannot survive silently.

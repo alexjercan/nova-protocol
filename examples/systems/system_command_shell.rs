@@ -1,19 +1,17 @@
-//! system_command_shell: the `cmd>` shell driven end to end, off-screen.
+//! system_command_shell: the `cmd>` NOVA COMMANDS modal driven end to end,
+//! off-screen.
 //!
-//! The NOVA OS range beside this one proves the terminal takes typing with no
-//! renderer. This one proves the other half: that what is typed REACHES the
-//! live world and comes back, that the two ways into the computer land in the
-//! shell they name, and that `:` is a GLOBAL gesture - flight, the pause menu
-//! and the main menu - which gives back the exact surface it covered.
+//! This range proves that what is typed at the `:` modal REACHES the live world
+//! and comes back, and that `:` is a GLOBAL gesture - flight, the pause menu,
+//! the main menu and the TAB interface - which gives back the exact surface it
+//! covered.
 //!
-//! Three of those were live bugs. `:` opened the command shell and left it the
-//! active shell for good, so Tab afterwards opened `cmd>` instead of NOVA OS;
-//! Escape out of a shell opened over flight unpaused a player who had been
-//! paused; and the shell opened on the main menu stopped the ambience behind
-//! it, leaving the front door on a still frame. A shell that answers correctly
-//! but strands the player who opened it is not working, so the range drives the
-//! whole gesture on all three surfaces: open, run, complete, close, and open
-//! the OTHER shell.
+//! Two of those were live bugs. Escape out of a shell opened over flight
+//! unpaused a player who had been paused; and the shell opened on the main menu
+//! stopped the ambience behind it, leaving the front door on a still frame. A
+//! shell that answers correctly but strands the player who opened it is not
+//! working, so the range drives the whole gesture on all three surfaces: open,
+//! run, complete, close.
 //!
 //! The freeze is the part that is surface-dependent, and the range states both
 //! halves: over flight the shell holds the simulation still, and over the main
@@ -23,16 +21,35 @@
 //! under it are unreachable until it closes, and reachable again the moment it
 //! does.
 //!
+//! One surface refuses `:` on purpose: over the Ship pane, a section rebind
+//! that is waiting for its key owns the next key, so a typed `:` goes to the
+//! capture (which binds `;`) and the modal stays shut. TAB and M are held
+//! back the same way: TAB is refused as the interface toggle and the capture
+//! waits on, and M binds without switching the pane. Once the capture is
+//! spent, `:` opens over the pane again.
+//!
 //! Run (no display needed):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_command_shell --features debug
-//! # look for: `command shell: PASS the shell answers and gives the surface back`.
+//! # look for: `command shell: PASS the menu took New Game once the computer closed`.
 //! ```
 
 #[cfg(feature = "debug")]
-use bevy::{input::keyboard::Key, prelude::*, window::PrimaryWindow};
+use bevy::{
+    input::{
+        keyboard::{Key, KeyboardInput},
+        ButtonState,
+    },
+    prelude::*,
+    window::PrimaryWindow,
+};
 #[cfg(feature = "debug")]
-use nova_protocol::nova_os_ui::nova_os::prelude::{NovaOsTerminal, ShellKind};
+use nova_input::prelude::InputSource;
+#[cfg(feature = "debug")]
+use nova_protocol::nova_interface::{
+    nova_command::prelude::CommandTerminal,
+    prelude::{InterfacePaneType, ShipRuntime},
+};
 #[cfg(feature = "debug")]
 use nova_protocol::prelude::*;
 
@@ -54,7 +71,7 @@ const PLAYER_ID: &str = "trainer";
 #[cfg(feature = "debug")]
 const PLAYER_ID_PREFIX: &str = "tr";
 
-/// The main menu's first button, and the one the open computer must cover.
+/// The main menu's first button, and the one the open modal must cover.
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";
 
@@ -81,10 +98,10 @@ const PAUSE_OVERLAY: &str = "Pause Overlay";
 /// The pause Settings panel's full-screen blocker.
 #[cfg(feature = "debug")]
 const PAUSE_SETTINGS_ROOT: &str = "Pause Settings Panel Root";
-/// The dim field the open computer puts over whatever it covers.
+/// The dim field the open modal puts over whatever it covers.
 #[cfg(feature = "debug")]
 const NOVA_OS_BACKDROP: &str = "NovaOsBackdrop";
-/// The computer itself.
+/// The modal itself.
 #[cfg(feature = "debug")]
 const NOVA_OS_MONITOR: &str = "NovaOsMonitor";
 
@@ -120,11 +137,11 @@ struct PauseLayers {
 fn main() -> bevy::app::AppExit {
     let mut app = editor_app(false, Some(StartupScenario::Id("tutorial".to_string())));
 
-    // The virtual window, exactly as in `system_headless_novaos`: typing is
-    // read off `KeyboardInput`, which carries the window it was typed into.
-    // It is also what `bevy_ui` lays out against and what `bevy_picking` aims
-    // into, which is how the blocked-click beats below are possible with no
-    // renderer at all (`system_headless_pointer` is the worked proof).
+    // The virtual window: typing is read off `KeyboardInput`, which carries the
+    // window it was typed into. It is also what `bevy_ui` lays out against and
+    // what `bevy_picking` aims into, which is how the blocked-click beats below
+    // are possible with no renderer at all (`system_headless_pointer` is the
+    // worked proof).
     app.world_mut().spawn((
         Window {
             resolution: (1280, 720).into(),
@@ -154,7 +171,7 @@ fn main() -> bevy::app::AppExit {
             .step("command shell: `:` opens the computer")
             .on_enter(type_text(":"))
             .until(resource_where::<State<PauseStates>>(|pause| {
-                *pause.get() == PauseStates::NovaOs
+                *pause.get() == PauseStates::Commands
             }))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
@@ -162,21 +179,16 @@ fn main() -> bevy::app::AppExit {
             // the world: the player is reading a computer, not flying.
             .step("command shell: the shell over flight holds the world still")
             .until(resource_where::<ClockFreeze>(|freeze| {
-                freeze.is_held_by(FreezeOwner::Terminal)
+                freeze.is_held_by(FreezeOwner::Interface)
             }))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
             .step("command shell: report the flight freeze")
             .on_enter(assert_flight_is_frozen)
             .add()
-            .step("command shell: the shell it opened is `cmd>`")
-            .on_enter(assert_command_shell_is_active)
-            .add()
             .step("command shell: the intro drained")
-            .until(resource_where::<NovaOsTerminal>(|terminal| {
-                terminal.is_booted()
-                    && !terminal.has_pending_boot_rows()
-                    && terminal.is_revealed(ShellKind::Commands)
+            .until(resource_where::<CommandTerminal>(|terminal| {
+                terminal.is_revealed() && !terminal.has_pending_boot_rows()
             }))
             .deadline(STEP_DEADLINE_SECS)
             .add()
@@ -184,14 +196,14 @@ fn main() -> bevy::app::AppExit {
             // world by `nova_console`, and printed back into this transcript.
             .step("command shell: `ships` reaches the live world")
             .on_enter(type_text("ships"))
-            .until(resource_where::<NovaOsTerminal>(|terminal| {
+            .until(resource_where::<CommandTerminal>(|terminal| {
                 terminal.prompt() == "ships"
             }))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
             .step("command shell: the answer names the player's hull")
             .on_enter(press_edit_key(Key::Enter))
-            .until(resource_where::<NovaOsTerminal>(|terminal| {
+            .until(resource_where::<CommandTerminal>(|terminal| {
                 terminal
                     .scrollback()
                     .iter()
@@ -212,14 +224,14 @@ fn main() -> bevy::app::AppExit {
             // ship id, and the ids come from the ships that are actually there.
             .step("command shell: half an id at the prompt")
             .on_enter(type_text(format!("ship {PLAYER_ID_PREFIX}")))
-            .until(resource_where::<NovaOsTerminal>(|terminal| {
+            .until(resource_where::<CommandTerminal>(|terminal| {
                 terminal.prompt() == format!("ship {PLAYER_ID_PREFIX}")
             }))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
             .step("command shell: Tab finishes it from the live world")
             .on_enter(press_edit_key(Key::Tab))
-            .until(resource_where::<NovaOsTerminal>(|terminal| {
+            .until(resource_where::<CommandTerminal>(|terminal| {
                 terminal.prompt() == format!("ship {PLAYER_ID}")
             }))
             .deadline(BEAT_DEADLINE_SECS)
@@ -250,27 +262,122 @@ fn main() -> bevy::app::AppExit {
                 );
             })
             .add()
-            // The second bug: `:` used to leave `cmd>` the active shell for the
-            // rest of the run, so Tab reopened the shell the player had just
-            // closed instead of the one it names.
-            .step("command shell: Tab opens the computer again")
+            // The rebind gate. A section waiting for its key owns the next
+            // key, so `:` typed then goes to the capture and must not open the
+            // shell over the pane.
+            .step("command shell: TAB opens the interface over flight")
             .on_enter(press_key(KeyCode::Tab))
-            .until(the_pause_axis_is(PauseStates::NovaOs))
+            .until(the_pause_axis_is(PauseStates::Interface))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
-            .step("command shell: release Tab")
+            .step("command shell: release TAB")
             .on_enter(release_key(KeyCode::Tab))
             .add()
-            .step("command shell: and Tab opened NOVA OS")
-            .on_enter(assert_nova_os_shell_is_active)
+            .step("command shell: M switches to the Ship pane")
+            .on_enter(press_key(KeyCode::KeyM))
+            .until(resource_where::<InterfacePaneType>(|pane| {
+                *pane == InterfacePaneType::Ship
+            }))
+            .deadline(BEAT_DEADLINE_SECS)
             .add()
-            .step("command shell: Escape closes NOVA OS")
+            .step("command shell: release M")
+            .on_enter(release_key(KeyCode::KeyM))
+            .add()
+            // The pane selects its first section, which may carry no trigger
+            // to rebind. B does nothing there, so the walk steps the selection
+            // and presses B until one takes it.
+            .step("command shell: B arms the rebind on a bindable section")
+            .each(|world: &mut World, _, frame| match frame % 8 {
+                1 => press_key(KeyCode::BracketRight)(world),
+                2 => release_key(KeyCode::BracketRight)(world),
+                3 => press_key(KeyCode::KeyB)(world),
+                4 => release_key(KeyCode::KeyB)(world),
+                _ => {}
+            })
+            .until(a_ship_rebind_is_armed())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            // The capture holds until every key is up, so the press that armed
+            // it is not the one it takes.
+            .step("command shell: let the arming keys go")
+            .on_enter(release_key(KeyCode::BracketRight))
+            .on_enter(release_key(KeyCode::KeyB))
+            .until(frames(SETTLE_FRAMES))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            // TAB and M are interface keys, but the armed capture owns the
+            // next key too: TAB is refused as the interface toggle, so the
+            // pane stays open and the capture stays armed.
+            .step("command shell: TAB while the rebind is armed")
+            .on_enter(press_key(KeyCode::Tab))
+            .until(frames(SETTLE_FRAMES))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("command shell: TAB left the pane and the capture alone")
+            .on_enter(release_key(KeyCode::Tab))
+            .on_enter(assert_tab_kept_the_armed_rebind)
+            .add()
+            .step("command shell: Shift+; while the rebind is armed")
+            .on_enter(record_section_bindings)
+            .on_enter(shift_semicolon(ButtonState::Pressed))
+            .until(frames(SETTLE_FRAMES))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("command shell: the armed rebind took the key, not the shell")
+            .on_enter(shift_semicolon(ButtonState::Released))
+            .on_enter(assert_the_armed_rebind_took_the_key)
+            .add()
+            .step("command shell: B arms the rebind again")
+            .on_enter(press_key(KeyCode::KeyB))
+            .until(a_ship_rebind_is_armed())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("command shell: let B go")
+            .on_enter(release_key(KeyCode::KeyB))
+            .until(frames(SETTLE_FRAMES))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("command shell: M while the rebind is armed")
+            .on_enter(record_section_bindings)
+            .on_enter(press_key(KeyCode::KeyM))
+            .until(frames(SETTLE_FRAMES))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("command shell: the armed rebind took M, not the pane switch")
+            .on_enter(release_key(KeyCode::KeyM))
+            .on_enter(assert_the_armed_rebind_took_m)
+            .add()
+            .step("command shell: `:` opens the shell over the Ship pane")
+            .on_enter(type_text(":"))
+            .until(the_pause_axis_is(PauseStates::Commands))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("command shell: report the pane shell")
+            .on_enter(|world: &mut World| {
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: `:` opens the command shell over the Ship pane once the rebind is spent",
+                    serde_json::json!({}),
+                );
+            })
+            .add()
+            .step("command shell: Escape gives the Ship pane back")
             .on_enter(press_key(KeyCode::Escape))
+            .until(the_pause_axis_is(PauseStates::Interface))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("command shell: release Escape over the pane")
+            .on_enter(release_key(KeyCode::Escape))
+            .add()
+            // Back to flight, so the pause-menu surface below starts from the
+            // state the last one left.
+            .step("command shell: TAB closes the interface")
+            .on_enter(press_key(KeyCode::Tab))
             .until(the_pause_axis_is(PauseStates::Unpaused))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
-            .step("command shell: release Escape after NOVA OS")
-            .on_enter(release_key(KeyCode::Escape))
+            .step("command shell: release TAB again")
+            .on_enter(release_key(KeyCode::Tab))
             .add()
             // SURFACE TWO: the pause menu. ESC first, then `:` over it.
             .step("command shell: ESC opens the pause menu")
@@ -300,7 +407,7 @@ fn main() -> bevy::app::AppExit {
             .add()
             .step("command shell: `:` opens the computer over the pause menu")
             .on_enter(type_text(":"))
-            .until(the_pause_axis_is(PauseStates::NovaOs))
+            .until(the_pause_axis_is(PauseStates::Commands))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
             .step("command shell: report the pause-menu shell")
@@ -355,7 +462,7 @@ fn main() -> bevy::app::AppExit {
             .add()
             .step("command shell: `:` opens the computer on the main menu")
             .on_enter(type_text(":"))
-            .until(the_pause_axis_is(PauseStates::NovaOs))
+            .until(the_pause_axis_is(PauseStates::Commands))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
             .step("command shell: report the main-menu shell")
@@ -433,6 +540,88 @@ fn the_pause_axis_is(
     resource_where::<State<PauseStates>>(move |pause| *pause.get() == wanted)
 }
 
+/// Advance once the Ship pane has a section rebind waiting for its key.
+#[cfg(feature = "debug")]
+fn a_ship_rebind_is_armed() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    resource_where::<ShipRuntime>(|ship| ship.rebind_armed())
+}
+
+/// Every bindable section's desk and pad sources, by section.
+#[cfg(feature = "debug")]
+#[derive(Resource, Debug, PartialEq)]
+struct SectionBindings(Vec<(Entity, Vec<InputSource>)>);
+
+/// Read every section trigger binding off the live ship.
+#[cfg(feature = "debug")]
+fn section_bindings(world: &mut World) -> SectionBindings {
+    let mut bound = Vec::new();
+    bound.extend(
+        world
+            .query::<(Entity, &SpaceshipThrusterInputBinding)>()
+            .iter(world)
+            .map(|(section, binding)| (section, binding.0.clone())),
+    );
+    bound.extend(
+        world
+            .query::<(Entity, &SpaceshipTurretInputBinding)>()
+            .iter(world)
+            .map(|(section, binding)| (section, binding.0.clone())),
+    );
+    bound.extend(
+        world
+            .query::<(Entity, &SpaceshipTorpedoInputBinding)>()
+            .iter(world)
+            .map(|(section, binding)| (section, binding.0.clone())),
+    );
+    bound.extend(
+        world
+            .query::<(Entity, &SpaceshipRailgunInputBinding)>()
+            .iter(world)
+            .map(|(section, binding)| (section, binding.0.clone())),
+    );
+    bound.sort_by_key(|(section, _)| *section);
+    SectionBindings(bound)
+}
+
+/// Remember the section bindings the armed capture must leave alone.
+#[cfg(feature = "debug")]
+fn record_section_bindings(world: &mut World) {
+    let bound = section_bindings(world);
+    world.insert_resource(bound);
+}
+
+/// Shift and `;` as one chord: a `KeyboardInput` per key, the `;` carrying the
+/// `:` the layout prints for it.
+///
+/// [`type_text`] reports an unidentified key code, which is right for a
+/// character and wrong here: a capture reads the PHYSICAL keys, so the chord
+/// has to name them.
+#[cfg(feature = "debug")]
+fn shift_semicolon(state: ButtonState) -> impl Fn(&mut World) + Send + Sync + 'static {
+    move |world: &mut World| {
+        let window = world
+            .query_filtered::<Entity, With<PrimaryWindow>>()
+            .single(world)
+            .expect("the range spawns one primary window");
+        world.write_message(KeyboardInput {
+            key_code: KeyCode::ShiftLeft,
+            logical_key: Key::Shift,
+            state,
+            text: None,
+            repeat: false,
+            window,
+        });
+        world.write_message(KeyboardInput {
+            key_code: KeyCode::Semicolon,
+            logical_key: Key::Character(":".into()),
+            state,
+            text: (state == ButtonState::Pressed).then(|| ":".into()),
+            repeat: false,
+            window,
+        });
+    }
+}
+
 /// The `GlobalZIndex` of the one node called `wanted`, if it has one.
 #[cfg(feature = "debug")]
 fn named_z(world: &mut World, wanted: &str) -> Option<i32> {
@@ -453,6 +642,96 @@ fn count_named(world: &mut World, wanted: &str) -> usize {
         .count()
 }
 
+/// TAB over an armed Ship rebind neither closes the interface nor drops the
+/// capture: the capture refuses it as the interface toggle and waits on.
+#[cfg(feature = "debug")]
+fn assert_tab_kept_the_armed_rebind(world: &mut World) {
+    assert_eq!(
+        *world.resource::<State<PauseStates>>().get(),
+        PauseStates::Interface,
+        "TAB over an armed section rebind must not close the interface"
+    );
+    assert_eq!(
+        *world.resource::<InterfacePaneType>(),
+        InterfacePaneType::Ship,
+        "TAB over an armed section rebind must leave the Ship pane up"
+    );
+    assert!(
+        world.resource::<ShipRuntime>().rebind_armed(),
+        "TAB is refused, so the capture stays armed for the next key"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: an armed Ship rebind keeps the interface open under TAB",
+        serde_json::json!({}),
+    );
+}
+
+/// Shift+; over an armed Ship rebind goes to the capture: the shell stays shut
+/// and exactly one section takes the `;` key.
+#[cfg(feature = "debug")]
+fn assert_the_armed_rebind_took_the_key(world: &mut World) {
+    assert_eq!(
+        *world.resource::<State<PauseStates>>().get(),
+        PauseStates::Interface,
+        "`:` typed over an armed section rebind must not open the command shell"
+    );
+    assert_the_armed_section_took(world, KeyCode::Semicolon);
+    nova_probe::probe_marker(
+        world,
+        "outcome: an armed Ship rebind takes `:` as its key and opens no shell",
+        serde_json::json!({}),
+    );
+}
+
+/// M over an armed Ship rebind goes to the capture: the pane stays on Ship and
+/// exactly one section takes the M key.
+#[cfg(feature = "debug")]
+fn assert_the_armed_rebind_took_m(world: &mut World) {
+    assert_eq!(
+        *world.resource::<InterfacePaneType>(),
+        InterfacePaneType::Ship,
+        "M over an armed section rebind must not switch the pane"
+    );
+    assert_the_armed_section_took(world, KeyCode::KeyM);
+    nova_probe::probe_marker(
+        world,
+        "outcome: an armed Ship rebind takes M as its key and keeps the pane",
+        serde_json::json!({}),
+    );
+}
+
+/// The capture disarmed, and exactly the armed section changed its bindings,
+/// to `key`.
+#[cfg(feature = "debug")]
+fn assert_the_armed_section_took(world: &mut World, key: KeyCode) {
+    assert!(
+        !world.resource::<ShipRuntime>().rebind_armed(),
+        "the capture must have taken the key and disarmed"
+    );
+    let before = world
+        .remove_resource::<SectionBindings>()
+        .expect("recorded");
+    let after = section_bindings(world);
+    let changed: Vec<_> = before
+        .0
+        .iter()
+        .zip(&after.0)
+        .filter(|(was, now)| was != now)
+        .map(|(_, now)| now)
+        .collect();
+    assert_eq!(
+        changed.len(),
+        1,
+        "exactly the armed section rebinds (before {before:?}, after {after:?})"
+    );
+    assert!(
+        changed[0].1.contains(&InputSource::Keyboard(key)),
+        "the captured key is the physical {key:?} (got {:?})",
+        changed[0].1
+    );
+}
+
 /// A shell over flight stops the simulation, and says who is holding it.
 #[cfg(feature = "debug")]
 fn assert_flight_is_frozen(world: &mut World) {
@@ -470,40 +749,6 @@ fn assert_flight_is_frozen(world: &mut World) {
         world,
         "outcome: the shell over flight keeps the game frozen",
         serde_json::json!({ "holds": holds }),
-    );
-}
-
-/// `:` names the Command shell, and lands on its prompt.
-#[cfg(feature = "debug")]
-fn assert_command_shell_is_active(world: &mut World) {
-    let shell = world.resource::<NovaOsTerminal>().active_shell();
-    assert_eq!(
-        shell,
-        ShellKind::Commands,
-        "`:` must open the command shell, not whichever shell was last active"
-    );
-    info!("command shell: `:` opened {}", shell.prompt_prefix().trim());
-    nova_probe::probe_marker(
-        world,
-        "outcome: `:` opens the command shell",
-        serde_json::json!({ "shell": shell.prompt_prefix() }),
-    );
-}
-
-/// Tab names NOVA OS, whatever shell the player was in last.
-#[cfg(feature = "debug")]
-fn assert_nova_os_shell_is_active(world: &mut World) {
-    let shell = world.resource::<NovaOsTerminal>().active_shell();
-    assert_eq!(
-        shell,
-        ShellKind::NovaOs,
-        "Tab must open NOVA OS even after `:` has opened the command shell"
-    );
-    info!("command shell: PASS the shell answers and gives the surface back");
-    nova_probe::probe_marker(
-        world,
-        "outcome: Tab opens NOVA OS after the command shell has been used",
-        serde_json::json!({ "shell": shell.prompt_prefix() }),
     );
 }
 
@@ -539,8 +784,9 @@ fn assert_the_computer_is_on_top(world: &mut World) {
     let settings = layers
         .settings
         .expect("the pause Settings root's z was recorded");
-    let backdrop = named_z(world, NOVA_OS_BACKDROP).expect("the NOVA OS backdrop carries a z");
-    let monitor = named_z(world, NOVA_OS_MONITOR).expect("the NOVA OS monitor carries a z");
+    let backdrop =
+        named_z(world, NOVA_OS_BACKDROP).expect("the command modal backdrop carries a z");
+    let monitor = named_z(world, NOVA_OS_MONITOR).expect("the command modal monitor carries a z");
     assert!(
         backdrop > settings,
         "the open computer's dim field must sit strictly above the pause Settings panel \
@@ -597,20 +843,11 @@ fn assert_the_menu_shell_opened(world: &mut World) {
         GameStates::MainMenu,
         "the main-menu shell must open while the main menu owns the screen"
     );
-    let shell = world.resource::<NovaOsTerminal>().active_shell();
-    assert_eq!(
-        shell,
-        ShellKind::Commands,
-        "`:` must open the command shell on the menu too"
-    );
-    info!(
-        "command shell: `:` opened {} on the main menu",
-        shell.prompt_prefix().trim()
-    );
+    info!("command shell: `:` opened the shell on the main menu");
     nova_probe::probe_marker(
         world,
         "outcome: `:` opens the command shell on the main menu",
-        serde_json::json!({ "shell": shell.prompt_prefix() }),
+        serde_json::json!({}),
     );
 }
 
@@ -619,7 +856,7 @@ fn assert_the_menu_shell_opened(world: &mut World) {
 fn assert_nothing_holds_the_menu(world: &mut World) {
     assert_eq!(
         *world.resource::<State<PauseStates>>().get(),
-        PauseStates::NovaOs,
+        PauseStates::Commands,
         "the beat is only meaningful while the computer is open"
     );
     let freeze = *world.resource::<ClockFreeze>();
@@ -650,7 +887,7 @@ fn assert_the_menu_was_blocked(world: &mut World) {
     );
     assert_eq!(
         *world.resource::<State<PauseStates>>().get(),
-        PauseStates::NovaOs,
+        PauseStates::Commands,
         "the computer must still be the active modal after the blocked click"
     );
     info!("command shell: the open computer blocked a click on New Game");

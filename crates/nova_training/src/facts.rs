@@ -250,13 +250,13 @@ pub fn boot_field_notes() -> Vec<FieldNote> {
         )
         .from_lesson("build_mass"),
         FieldNote::new(
-            "note_novaos",
+            "note_interface",
             [
-                "NOVA OS runs while you fly.",
-                "Open it to read contacts and give orders.",
+                "TAB opens the interface and freezes the game.",
+                "Read contacts, set GOTO, and service your ship there.",
             ],
         )
-        .from_lesson("novaos_open"),
+        .from_lesson("interface_open"),
     ]
 }
 

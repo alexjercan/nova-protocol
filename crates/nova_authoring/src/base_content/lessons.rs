@@ -125,7 +125,7 @@ fn lesson(
 /// sorts by category, then `order`, then id, so this order is for reading the
 /// file and nothing else.
 pub(crate) fn lesson_catalog() -> Vec<Lesson> {
-    use LessonCategory::{Advanced, Combat, Flight, NovaOs, Shipbuilding, StartHere};
+    use LessonCategory::{Advanced, Combat, Flight, Interface, Shipbuilding, StartHere};
     vec![
         lesson(
             "start_welcome",
@@ -999,159 +999,118 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             ],
         ),
         lesson(
-            "novaos_open",
-            NovaOs,
+            "interface_open",
+            Interface,
             10,
-            "Opening NOVA OS",
+            "Opening the interface",
             looping(
-                "novaos_open",
-                "the NOVA OS screen coming up over the cockpit",
+                "interface_open",
+                "the interface coming up over the cockpit on its Map pane, then closing back to \
+                 flight",
             ),
-            "Opening NOVA OS freezes the game. Combat, physics, and projectiles stop while you read \
-             information or give commands. The game resumes when you close it.",
-            &["novaos_toggle"],
-            "wiki/nova-os#opening-and-closing",
+            "TAB opens the interface and freezes the game. Combat, physics, and projectiles stop \
+             while it is open. Press TAB or Escape to return to flight.",
+            &["interface_toggle"],
+            "wiki/interface#opening-and-closing",
             None,
             &[],
-            &["Opening NOVA OS freezes the game until you close it."],
+            &["Opening the interface freezes the game until you close it."],
         ),
         lesson(
-            "novaos_terminal",
-            NovaOs,
+            "interface_map",
+            Interface,
             15,
-            "The prompt",
+            "The Map pane",
             looping(
-                "novaos_terminal",
-                "the prompt completing a subcommand: `ship re` carries a dim `load` suffix, Tab \
-                 prints the `ship reload` / `ship repair` row and takes the first, Tab again steps \
-                 onto `ship repair`, and a space then Tab lists the hull's live section codes",
+                "interface_map",
+                "the Map pane turning over local space, one hostile picked with its range and \
+                 bearing in the panel beside it, then GOTO set on it",
             ),
-            "Type commands at the `nova>` prompt. Completion suggests commands, subcommands, section \
-             codes, and contact codes. An unknown command turns red so you can correct it before \
-             running it.",
-            &[],
-            "wiki/nova-os#the-terminal",
+            "The Map pane plots nearby contacts. Select a contact to see its name, type, range, \
+             and bearing. GOTO engages the autopilot without creating a radar lock. Switch panes \
+             with the top buttons or the next-pane key.",
+            &["interface_next_tab", "viewer_next", "viewer_prev", "map_goto"],
+            "wiki/interface#the-map",
             None,
             &[],
-            &["Prompt completion suggests commands and codes from the current game."],
+            &["The Map pane can send your ship toward a contact without a radar lock."],
         ),
         lesson(
-            "novaos_view",
-            NovaOs,
+            "interface_ship_service",
+            Interface,
             20,
-            "Turning the model",
-            looping(
-                "novaos_view",
-                "the ship schematic turning on the NOVA OS screen, then snapping back to \
-                 its framing",
-            ),
-            "Drag to rotate or pan the ship model. Use reframe to return it to its starting \
-             position. Moving the model does not move your ship.",
-            &["novaos_reframe"],
-            "wiki/nova-os#the-ship",
-            None,
-            &[],
-            &["Moving the NOVA OS model does not move your ship."],
-        ),
-        lesson(
-            "novaos_commands",
-            NovaOs,
-            25,
-            "What you can type",
-            looping(
-                "novaos_commands",
-                "`help` typed at a wiped prompt and run: the registered command list prints under \
-                 it, `help` through `exit` and then `map`, `ship` and their subcommands, each with \
-                 the line that says what it does",
-            ),
-            "`help` lists every command. `log` shows the flight log, `objectives` shows current \
-             objectives, and `clear` resets the prompt. `map` and `ship` open apps, while `exit` \
-             returns to flight.",
-            &[],
-            "wiki/nova-os#command-reference",
-            None,
-            &[],
-            &["Type `help` to list every available command."],
-        ),
-        lesson(
-            "novaos_contacts",
-            NovaOs,
-            30,
-            "Reading contacts",
-            still(
-                "novaos_contacts",
-                "the local-space plot with one hostile picked and its range and \
-                 bearing under it",
-            ),
-            "The MAP app plots nearby contacts and gives each one a short code. Select a contact to \
-             see its name, type, range, and bearing. GOTO engages the autopilot without creating a \
-             radar lock.",
-            &["novaos_next", "novaos_prev", "map_goto"],
-            "wiki/nova-os#the-map",
-            None,
-            &[],
-            &[
-                "MAP can send your ship toward a contact without creating a radar lock.",
-            ],
-        ),
-        lesson(
-            "novaos_service",
-            NovaOs,
-            35,
             "Repair and reload a section",
             looping(
-                "novaos_service",
-                "the SHIP app's inspector on a damaged PDC-1: repair fills the integrity meter to \
-                 `100% [##########]` and prints `repaired PDC-1`, then reload takes the magazine \
-                 from `1/500` back to `500/500`",
+                "interface_ship_service",
+                "the Ship pane's inspector on a damaged PDC-1: Repair fills the integrity meter, \
+                 then Reload refills the magazine",
             ),
-            "Ship sections use short codes such as `THR-1` and `PDC-1`. Select a section to repair \
-             its integrity or reload its magazine. Both actions happen immediately.",
-            &["novaos_next", "novaos_prev", "ship_repair", "ship_reload"],
-            "wiki/nova-os#the-ship",
+            "The Ship pane shows your hull. Sections use short codes such as `THR-1` and `PDC-1`. \
+             Select a section to repair its integrity or reload its magazine. Both actions happen \
+             immediately.",
+            &["viewer_next", "viewer_prev", "ship_repair", "ship_reload"],
+            "wiki/interface#the-ship",
             None,
             &[],
-            &["Select a section in the SHIP app to repair or reload it."],
+            &["Select a section in the Ship pane to repair or reload it."],
         ),
         lesson(
-            "novaos_rebind_section",
-            NovaOs,
-            45,
+            "interface_rebind_section",
+            Interface,
+            25,
             "Rebinding a section",
             looping(
-                "novaos_rebind_section",
-                "the SHIP app's inspector on PDC-1: arming the rebind puts `PRESS A KEY OR MOUSE \
-                 BUTTON - ESC CANCELS` across the panel in amber, and the next key takes the \
-                 trigger - the binding line turns from `LMB / Right Trigger 2` to `K / Right \
-                 Trigger 2`",
+                "interface_rebind_section",
+                "the Ship pane's inspector on PDC-1: arming the rebind asks for a key, and the \
+                 next key takes the trigger",
             ),
             "Thrusters, turrets, and torpedo bays have per-ship controls that do not appear in \
              Settings. Select a section and start rebind, then press the new key or mouse button. \
              Reserved flight controls cannot be used.",
-            &["ship_rebind", "novaos_next", "novaos_prev"],
-            "wiki/nova-os#rebinding-a-section",
+            &["ship_rebind", "viewer_next", "viewer_prev"],
+            "wiki/interface#rebinding-a-section",
             None,
             &[],
-            &["Section controls are set per ship in the SHIP app."],
+            &["Section controls are set per ship in the Ship pane."],
         ),
         lesson(
-            "novaos_shell",
-            NovaOs,
-            55,
-            "The command shell",
-            still(
-                "novaos_shell",
-                "the same monitor on its cmd> prompt over the main menu, with a run of `status` \
-                 answered under it",
+            "command_open",
+            Interface,
+            30,
+            "Opening NOVA COMMANDS",
+            looping(
+                "command_open",
+                "`:` bringing the NOVA COMMANDS monitor up over flight, then Escape returning to \
+                 the same flight",
             ),
-            "The command shell opens over the menu or editor without requiring a ship. It provides \
-             commands for the current run, ships, bindings, and settings. Cheat commands must be \
-             armed first, which permanently marks the run.",
+            "Type `:` to open NOVA COMMANDS over flight, the interface, the pause menu, the main \
+             menu, or the editor. In a run the game stays frozen while it is open. Escape returns \
+             you to where you were.",
+            &[],
+            "wiki/commands#getting-in-and-out",
+            None,
+            &[],
+            &["Escape closes NOVA COMMANDS and returns you to where you were."],
+        ),
+        lesson(
+            "command_prompt",
+            Interface,
+            35,
+            "The prompt",
+            looping(
+                "command_prompt",
+                "half a ship id typed at the `cmd>` prompt, Tab completing it from the live world, \
+                 and the answer printing under it",
+            ),
+            "Type commands at the `cmd>` prompt. Tab completes commands, ship IDs, and section IDs \
+             from the current game. `help` lists every command, and `log` shows comms, objective \
+             updates, and dropped locks. Cheat commands must be armed first, which permanently \
+             marks the run.",
             &[],
             "wiki/commands#the-commands",
             None,
             &[],
-            &["Arming cheat commands permanently marks the current run."],
+            &["Type `help` at the `cmd>` prompt to list every command."],
         ),
         lesson(
             "advanced_scenarios",

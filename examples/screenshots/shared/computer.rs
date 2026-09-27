@@ -1,11 +1,12 @@
-//! The NOVA OS range and the keyboard path the ship-computer walks type on.
+//! The interface range and the keyboard path the interface and command walks
+//! type on.
 //!
 //! Every keystroke goes through the real input path - a `ButtonInput<KeyCode>`
 //! edge or a `KeyboardInput` message - never a direct call into the terminal, so
-//! a computer that stopped listening fails the run instead of quietly producing
+//! a surface that stopped listening fails the run instead of quietly producing
 //! the previous shot again.
 //!
-//! Included by each ship-computer producer with
+//! Included by each interface and command producer with
 //! `#[path = "shared/computer.rs"] mod computer;`. It lives one level down on
 //! purpose - `catalog_matches_disk`
 //! (`crates/nova_probe_cli/tests/catalog_drift.rs`) treats every `.rs` DIRECTLY
@@ -29,16 +30,17 @@ use bevy::input::{
 use bevy::prelude::*;
 use nova_input::prelude::InputSource;
 #[cfg(feature = "debug")]
-use nova_protocol::nova_os_ui::nova_os::prelude::{NovaOsTerminal, TerminalMode};
+use nova_protocol::nova_interface::nova_command::prelude::CommandTerminal;
 use nova_protocol::prelude::*;
 
-/// A single named player ship at the origin - enough for the NOVA OS computer to
-/// spawn (it keys off the player ship root) and for `ship` to have real sections.
+/// A single named player ship at the origin - enough for the TAB interface to
+/// open (it needs a player ship) and for the Ship pane and `ship` to have real
+/// sections.
 ///
 /// It carries a turret and a torpedo bay on its flanks as well as the spine, so
-/// the schematic app has something to be a schematic OF and both shots show the
-/// weapon cockpit codes the page talks about, not three blocks in a line.
-pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+/// the Ship pane has something to be a schematic OF and both shots show the
+/// weapon section codes the page talks about, not three blocks in a line.
+pub fn interface_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let section = |id: &str| {
         sections
             .get_section(id)
@@ -57,7 +59,7 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
         controller: SpaceshipController::Player(PlayerControllerConfig {
             // The turret carries the trigger a player ship's turret carries -
             // the same pair `shared/hollow.rs` writes for every gun it places.
-            // A section with NO binding cannot be rebound: the SHIP app reads
+            // A section with NO binding cannot be rebound: the Ship pane reads
             // the binding component to decide whether its rebind button is
             // live, so a range with an empty mapping is a range where the
             // rebind lesson has nothing to photograph.
@@ -134,11 +136,11 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
     }];
 
     ScenarioConfig {
-        description: "A range for the NOVA OS computer screenshots.".to_string(),
+        description: "A range for the interface and command screenshots.".to_string(),
         events,
         ..ScenarioConfig::new(
-            "nova_os_range".to_string(),
-            "NOVA OS Range".to_string(),
+            "interface_range".to_string(),
+            "Interface Range".to_string(),
             game_assets.cubemap.clone().into(),
         )
     }
@@ -171,15 +173,15 @@ const PLOT_CONTACTS: [(&str, &str, Allegiance, f32, f32); 3] = [
 /// height do not read as a drawn line. Indexed alongside [`PLOT_CONTACTS`].
 const PLOT_CONTACT_HEIGHTS: [f32; 3] = [30.0, -60.0, 90.0];
 
-/// [`nova_os_range`] with traffic around it: the same one ship, plus a hostile
+/// [`interface_range`] with traffic around it: the same one ship, plus a hostile
 /// close in, a friendly tender to port and a second hostile further out.
 ///
-/// The map app plots what is in the scenario, and the rock hollow the flight
+/// The Map pane plots what is in the scenario, and the rock hollow the flight
 /// lessons are shot in has forty-eight asteroids in it - every one of them a
 /// contact, each drawn at its own projected size, which buries the two ships
 /// the lesson is about under a field of white discs. A plot is READ, so the
 /// range it is read on carries the traffic and nothing else.
-pub fn nova_os_plot_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
+pub fn interface_plot_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let section = |id: &str| {
         sections
             .get_section(id)
@@ -227,19 +229,19 @@ pub fn nova_os_plot_range(game_assets: &GameAssets, sections: &GameSections) -> 
         })
     };
 
-    let mut config = nova_os_range(game_assets, sections);
+    let mut config = interface_range(game_assets, sections);
     let event = config
         .events
         .first_mut()
-        .expect("the NOVA OS range authors one OnStart event");
+        .expect("the interface range authors one OnStart event");
     event.actions.extend((0..PLOT_CONTACTS.len()).map(contact));
-    config.id = "nova_os_plot_range".to_string();
-    config.name = "NOVA OS Plot Range".to_string();
-    config.description = "A range with traffic on it, for the NOVA OS map.".to_string();
+    config.id = "interface_plot_range".to_string();
+    config.name = "Interface Plot Range".to_string();
+    config.description = "A range with traffic on it, for the Map pane.".to_string();
     config
 }
 
-/// Press Tab to toggle the computer via the real `ButtonInput<KeyCode>` edge.
+/// Press Tab to toggle the interface via the real `ButtonInput<KeyCode>` edge.
 #[cfg(feature = "debug")]
 pub fn press_tab(world: &mut World) {
     if let Some(mut keys) = world.get_resource_mut::<ButtonInput<KeyCode>>() {
@@ -247,15 +249,16 @@ pub fn press_tab(world: &mut World) {
     }
 }
 
-/// Send one printable character to the terminal through the real keyboard path.
+/// Send one printable character to the command terminal through the real
+/// keyboard path.
 ///
 /// A PRESS AND A RELEASE, because this goes through the real path and the real
 /// path has a latch at the end of it: bevy's own keyboard system folds these
 /// messages into `ButtonInput<KeyCode>`, so a press with no release leaves the
 /// carrier key held down for the rest of the walk. The carrier is `KeyA` for
 /// every character (the terminal reads `logical_key`, not the code), and `A` is
-/// `novaos_pan_left` - so typing `map` used to open the map app with the pan
-/// key stuck, and the plot slid off its own contacts while the still was taken.
+/// `viewer_pan_left` - so a press with no release left the pan key stuck, and
+/// the plot slid off its own contacts while the still was taken.
 #[cfg(feature = "debug")]
 pub fn type_char(world: &mut World, ch: &str) {
     for state in [ButtonState::Pressed, ButtonState::Released] {
@@ -278,9 +281,9 @@ pub fn type_word(world: &mut World, word: &str) {
     }
 }
 
-/// Press Escape via the real `ButtonInput<KeyCode>` edge - in an app this returns
-/// to the prompt (the context-keyed Escape owner), so the script can move from one
-/// app to the next.
+/// Press Escape via the real `ButtonInput<KeyCode>` edge - the one back-out
+/// owner closes the command modal to the surface it covered, or the interface
+/// to flight.
 #[cfg(feature = "debug")]
 pub fn press_escape(world: &mut World) {
     if let Some(mut keys) = world.get_resource_mut::<ButtonInput<KeyCode>>() {
@@ -307,7 +310,8 @@ pub fn press_enter(world: &mut World) {
 #[derive(Resource)]
 struct ShellBaseline(u64);
 
-/// Advance once the shell has PRINTED something new and is back at the prompt -
+/// Advance once the shell has PRINTED something new and has no command left to
+/// run -
 /// the honest end of "run a command", where a frame count only said that some
 /// frames had gone by.
 ///
@@ -320,10 +324,9 @@ pub fn the_shell_answered() -> std::sync::Arc<nova_protocol::nova_debug::harness
             .get_resource::<ShellBaseline>()
             .map_or(0, |mark| mark.0);
         world
-            .get_resource::<NovaOsTerminal>()
+            .get_resource::<CommandTerminal>()
             .is_some_and(|terminal| {
-                terminal.scrollback_revision() > before
-                    && terminal.active_mode() == TerminalMode::Prompt
+                terminal.scrollback_revision() > before && !terminal.has_pending_command()
             })
     })
 }
@@ -337,7 +340,7 @@ pub fn the_shell_answered() -> std::sync::Arc<nova_protocol::nova_debug::harness
 #[cfg(feature = "debug")]
 pub fn the_shell_is_closed() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {
-        nova_protocol::nova_os_ui::prelude::nova_os_openness(world)
+        nova_protocol::nova_interface::prelude::nova_os_openness(world)
             .is_none_or(|open| open <= f32::EPSILON)
     })
 }
@@ -347,7 +350,7 @@ pub fn the_shell_is_closed() -> std::sync::Arc<nova_protocol::nova_debug::harnes
 #[cfg(feature = "debug")]
 pub fn run_command(world: &mut World, command: &str) {
     let before = world
-        .get_resource::<NovaOsTerminal>()
+        .get_resource::<CommandTerminal>()
         .map_or(0, |terminal| terminal.scrollback_revision());
     world.insert_resource(ShellBaseline(before));
     type_word(world, command);

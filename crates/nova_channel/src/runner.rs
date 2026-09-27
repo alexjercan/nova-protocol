@@ -305,7 +305,7 @@ fn input_block(world: &World) -> serde_json::Value {
             ActionContext::Always => "always".to_string(),
             ActionContext::Flight => "flight".to_string(),
             ActionContext::Viewer => "viewer".to_string(),
-            ActionContext::ViewerApp(app) => format!("viewer:{app}"),
+            ActionContext::InterfacePane(app) => format!("viewer:{app}"),
         })
         .collect();
     contexts.sort();

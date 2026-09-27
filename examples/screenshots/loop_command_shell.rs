@@ -218,7 +218,7 @@ fn shell_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("drop the computer over it")
         .on_enter(type_text(":"))
         .until(resource_where::<State<PauseStates>>(|pause| {
-            *pause.get() == PauseStates::NovaOs
+            *pause.get() == PauseStates::Commands
         }))
         .deadline(10.0)
         .add()
@@ -264,19 +264,14 @@ fn shell_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add()
 }
 
-/// Advance once the shell has booted and the COMMANDS introduction has
-/// finished revealing itself.
+/// Advance once the COMMANDS introduction has finished revealing itself.
 #[cfg(feature = "debug")]
 fn the_introduction_has_landed() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    use nova_protocol::nova_os_ui::nova_os::prelude::{NovaOsTerminal, ShellKind};
+    use nova_protocol::nova_interface::nova_command::prelude::CommandTerminal;
     std::sync::Arc::new(|world: &World| {
         world
-            .get_resource::<NovaOsTerminal>()
-            .is_some_and(|terminal| {
-                terminal.is_booted()
-                    && !terminal.has_pending_boot_rows()
-                    && terminal.is_revealed(ShellKind::Commands)
-            })
+            .get_resource::<CommandTerminal>()
+            .is_some_and(|terminal| terminal.is_revealed() && !terminal.has_pending_boot_rows())
     })
 }
 
@@ -285,10 +280,10 @@ fn the_introduction_has_landed() -> std::sync::Arc<nova_protocol::nova_debug::ha
 fn the_prompt_reads(
     text: &'static str,
 ) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    use nova_protocol::nova_os_ui::nova_os::prelude::NovaOsTerminal;
+    use nova_protocol::nova_interface::nova_command::prelude::CommandTerminal;
     std::sync::Arc::new(move |world: &World| {
         world
-            .get_resource::<NovaOsTerminal>()
+            .get_resource::<CommandTerminal>()
             .is_some_and(|terminal| terminal.prompt() == text)
     })
 }
@@ -296,10 +291,10 @@ fn the_prompt_reads(
 /// Advance once the transcript carries an answer naming the set's own ship.
 #[cfg(feature = "debug")]
 fn the_answer_names_the_ship() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    use nova_protocol::nova_os_ui::nova_os::prelude::NovaOsTerminal;
+    use nova_protocol::nova_interface::nova_command::prelude::CommandTerminal;
     std::sync::Arc::new(|world: &World| {
         world
-            .get_resource::<NovaOsTerminal>()
+            .get_resource::<CommandTerminal>()
             .is_some_and(|terminal| {
                 terminal
                     .scrollback()

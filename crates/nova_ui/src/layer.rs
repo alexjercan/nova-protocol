@@ -4,7 +4,7 @@
 //! `GlobalZIndex` are ordered by whatever the UI stack's traversal happens to
 //! produce that frame - spawn order, hierarchy shape, which despawn landed
 //! first. That is not a decision, so the layers are numbered ONCE, here, where
-//! `nova_menu`, `nova_os_ui`, `nova_hud` and `nova_core` all read the same
+//! `nova_menu`, `nova_interface`, `nova_hud` and `nova_core` all read the same
 //! table instead of each carrying a number that agrees with the others by
 //! habit.
 //!
@@ -53,7 +53,7 @@ pub const PAUSE_SETTINGS_Z: i32 = 70;
 /// The dim field behind an open NOVA OS. Above the pause Settings panel
 /// because `:` opens the shell OVER the pause menu, and the covering surface
 /// is the one on top. The pause overlay is `DespawnOnExit(Paused)`, so today
-/// it is gone before the computer is visible and the old shared number never
+/// it is gone before the monitor is visible and the old shared number never
 /// showed - a traversal order nobody chose is not the same as a decision, and
 /// the next surface to outlive its transition would have inherited it.
 pub const NOVA_OS_BACKDROP_Z: i32 = 80;
@@ -62,8 +62,8 @@ pub const NOVA_OS_BACKDROP_Z: i32 = 80;
 pub const NOVA_OS_Z: i32 = 90;
 
 /// Diagnostic and status chrome that stays readable while the NOVA OS is open
-/// (`nova_hud`'s `HudNovaOsExempt`): above the dim field, or the gray would
-/// take the one readout the player opened the computer to check.
+/// (`nova_hud`'s `HudInterfaceExempt`): above the dim field, or the gray would
+/// take the one readout the player opened the monitor to check.
 pub const NOVA_OS_EXEMPT_Z: i32 = 95;
 
 /// The scenario loading screen: over every modal a run can raise, because a

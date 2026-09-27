@@ -84,7 +84,7 @@ mod voice;
 /// them.
 ///
 /// The `NOVA_OS_*` cue volumes are on the boundary because every cue volume is
-/// defined here while the cues themselves fire from `nova_os_ui`.
+/// defined here while the cues themselves fire from `nova_interface`.
 pub mod prelude {
     pub use super::{
         sounds_loaded, AudioBus, AudioRoute, InterfaceVolume, MusicVolume, NovaAudioPlugin,
@@ -158,7 +158,8 @@ pub enum UiSfx {
     /// A comms line just SHOWED on the panel - a soft radio blip so a story
     /// beat registers mid-fight.
     CommsLine,
-    /// A pause overlay open/close toggle via ESC - a soft two-state UI blip.
+    /// The pause overlay or TAB interface opening or closing - a soft
+    /// two-state UI blip.
     UiToggle,
     // NOVA OS terminal cues: the offline-rendered `nova_*.wav` family
     // (`scripts/gen-nova-os-sfx.py`), mirroring the PoC's WebAudio recipes.
@@ -175,13 +176,13 @@ pub enum UiSfx {
     NovaOsError,
     /// A NOVA OS Tab completion advanced the prompt - a short tick.
     NovaOsTick,
-    /// The degauss coil thump on a NOVA OS app launch/exit.
+    /// The degauss coil thump.
     NovaOsCoil,
-    /// The power-up sweep when the NOVA OS computer opens.
+    /// The power-up sweep when the NOVA OS monitor opens.
     NovaOsPowerUp,
-    /// The power-down sweep when the NOVA OS computer closes.
+    /// The power-down sweep when the NOVA OS monitor closes.
     NovaOsPowerDown,
-    /// The live-tube ambient bed loop while the NOVA OS computer is open.
+    /// The live-tube ambient bed loop while the NOVA OS monitor is open.
     NovaOsBed,
 }
 
@@ -226,7 +227,8 @@ pub const SALVAGE_PICKUP_VOLUME: f32 = 0.22;
 /// in the informational-tick band, like the ship's own cue volumes over in
 /// `nova_ship`'s `ship_audio`.
 pub const MENU_SELECT_VOLUME: f32 = 0.28;
-/// Volume for the HUD-toggle click cue, fired from `nova_menu`.
+/// Volume for the [`UiSfx::UiToggle`] blip, fired from `nova_menu` and
+/// `nova_interface`.
 pub const UI_TOGGLE_VOLUME: f32 = 0.24;
 /// Volume for the panel-pop cue. Set to land on `MENU_SELECT_VOLUME`'s
 /// A-weighted level (about -39.6 dBA at unity master), not to match its linear
@@ -263,7 +265,7 @@ pub const EDITOR_DENY_VOLUME: f32 = 0.32;
 /// informational-tick band. Typing is the quietest and is throttled
 /// ([`NOVA_OS_KEY_MIN_INTERVAL`]) so a held key cannot machine-gun; the coil
 /// and power sweeps are the loudest "moment" cues. `pub` because the cues are
-/// fired from `nova_os_ui`, keeping every cue volume defined in this module.
+/// fired from `nova_interface`, keeping every cue volume defined in this module.
 /// One keystroke.
 pub const NOVA_OS_KEY_VOLUME: f32 = 0.10;
 /// Backspace / delete.
@@ -293,7 +295,7 @@ pub const NOVA_OS_KEY_MIN_INTERVAL: f32 = 0.03;
 /// sound in the game goes through.
 ///
 /// The cues themselves are added by their own subsystems - the ship's by
-/// `nova_ship`'s `ShipAudioPlugin`, the terminal's by `nova_os_ui`.
+/// `nova_ship`'s `ShipAudioPlugin`, the terminal's by `nova_interface`.
 #[derive(Default)]
 pub struct NovaAudioPlugin;
 
@@ -344,12 +346,16 @@ impl Plugin for NovaAudioPlugin {
         );
 
         // Audio sinks do not follow `Time<Virtual>`: without this a loop keeps
-        // roaring at its last volume behind a frozen sim. BOTH frozen overlays
-        // need it - the pause overlay and the Tab ship-computer NOVA OS.
-        app.add_systems(OnEnter(crate::PauseStates::Paused), pause_world_voices);
-        app.add_systems(OnExit(crate::PauseStates::Paused), resume_world_voices);
-        app.add_systems(OnEnter(crate::PauseStates::NovaOs), pause_world_voices);
-        app.add_systems(OnExit(crate::PauseStates::NovaOs), resume_world_voices);
+        // roaring at its last volume behind a frozen sim. Every frozen overlay
+        // needs it - the pause overlay, the TAB interface and the command modal.
+        for frozen in [
+            crate::PauseStates::Paused,
+            crate::PauseStates::Interface,
+            crate::PauseStates::Commands,
+        ] {
+            app.add_systems(OnEnter(frozen), pause_world_voices);
+            app.add_systems(OnExit(frozen), resume_world_voices);
+        }
         app.add_systems(OnExit(crate::GameStates::Playing), stop_world_voices);
 
         // Pure map cleanup; harmless to run always and keeps memory bounded.

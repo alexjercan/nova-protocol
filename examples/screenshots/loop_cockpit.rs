@@ -1,5 +1,5 @@
 //! loop_cockpit: a quiet flight view gains live GOTO instruments, then opens
-//! NOVA OS and its map on the same ship and target.
+//! the TAB interface and its Map pane on the same ship and target.
 //!
 //! Every transition uses the production input path. The script only presses
 //! the controls, records the result, and exits.
@@ -12,13 +12,13 @@ mod ring;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use computer::{press_enter, press_tab, type_word};
+use computer::press_tab;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
 #[command(name = "loop_cockpit")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the contextual cockpit opening NOVA OS on its live GOTO target")]
+#[command(about = "Capture the contextual cockpit opening the interface on its live GOTO target")]
 struct Cli;
 
 #[cfg(feature = "debug")]
@@ -134,16 +134,11 @@ fn cockpit_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .step("read the live maneuver")
         .until(elapsed(1.0))
         .add()
-        .step("open NOVA OS")
+        .step("open the interface")
         .on_enter(press_tab)
         .until(elapsed(0.8))
         .add()
-        .step("type the map command")
-        .on_enter(|world| type_word(world, "map"))
-        .until(frames(6))
-        .add()
-        .step("launch the map")
-        .on_enter(press_enter)
+        .step("hold the map pane")
         .until(elapsed(1.5))
         .add()
         .step("close the cockpit loop")

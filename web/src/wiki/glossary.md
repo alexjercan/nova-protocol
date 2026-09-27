@@ -4,7 +4,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 
 ## Units
 
-- **m / km** - the distance units. Ranges and radii read in meters below a kilometer (e.g. a standoff of about 500 m) and in kilometers above it (e.g. `1.24 km`). Every distance readout on the HUD and in the NOVA OS map uses them.
+- **m / km** - the distance units. Ranges and radii read in meters below a kilometer (e.g. a standoff of about 500 m) and in kilometers above it (e.g. `1.24 km`). Every distance readout on the HUD and in the interface uses them.
 - **m/s** - the speed unit, meters per second. The speed chip beside the velocity sphere reads in `m/s`, and a target's closing speed reads as a signed `m/s`.
 - **World unit** - the engine's own length, and the [build grid](#ships) is the only place you meet it: one world unit is 10 m, so a cell is one on a side. Nothing you read or write is in it - every distance on these pages, on the HUD and in a content file is meters, so a `blast_radius` of 300 is a 300 m blast. See [Sections](../../create/sections/) in the creator guide.
 - **hp** - hit points, the health a section or a torpedo carries. Every hit subtracts from it and the part dies at zero; each section page lists its variants' figures under [Variants](../sections/).
@@ -90,7 +90,8 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Lead pip** - the marker a turret draws on the point it is actually shooting at, ahead of a moving target. Red while the weapons are hot. See [Locks and reticles](../hud/#locks-and-reticles).
 - **Allegiance markers** - the always-on ship markers, tinted by how each ship stands to you. See [Allegiance markers](../hud/#allegiance-markers).
 - **Keybind dock** - the strip of chips listing the verbs your ship has right now. A chip appears only when the ship has the verb, RCS included. See [Keybinds](../keybinds/).
-- **NOVA OS** - the ship computer. <kbd>Tab</kbd> in flight brings up a CRT terminal that freezes the world while you read, type and click, with the MAP and SHIP apps and section rebinding. See [NOVA OS](../nova-os/).
+- **Interface** - the Tab panel with Map, Ship and Inventory panes over the frozen world. See [Interface](../interface/).
+- **NOVA COMMANDS** - the `:` prompt on the ship's CRT monitor: inspection, settings, the flight log and armed cheats, over any screen. See [Commands](../commands/).
 - **Comms** - the story panel where a scenario talks to you and lists its objectives. See [Comms and objectives](../hud/#comms-and-objectives).
 
 ## World

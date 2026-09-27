@@ -121,12 +121,12 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     app.init_resource::<ClockFreeze>();
     // The rig defaults the settings readout renders. In production the owning
     // plugins register these - `SpaceshipPlayerInputPlugin`,
-    // `SpaceshipCameraControllerPlugin`, `NovaHudPlugin`, `NovaOsPlugin`,
+    // `SpaceshipCameraControllerPlugin`, `NovaHudPlugin`, `InterfacePlugin`,
     // `ScenarioLoaderPlugin` - and a menu-only harness adds none of them.
     app.register_input_actions(flight_bindings());
     app.register_input_actions(camera_bindings());
     app.register_input_actions(nova_hud::hud_bindings());
-    app.register_input_actions(nova_os_ui::bindings::novaos_bindings());
+    app.register_input_actions(nova_interface::bindings::interface_bindings());
     app.register_input_actions(nova_scenario::prelude::scenario_bindings());
     app.add_plugins(NovaMenuPlugin);
     app
@@ -309,12 +309,12 @@ pub(crate) fn dummy_lessons() -> TrainingCatalog {
             None,
         ),
         lesson(
-            "novaos_open",
-            NovaOs,
+            "interface_open",
+            Interface,
             10,
-            "The computer",
-            looping("novaos"),
-            &["novaos_toggle"],
+            "The interface",
+            looping("interface"),
+            &["interface_toggle"],
             None,
         ),
         lesson(

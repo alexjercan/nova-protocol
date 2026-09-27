@@ -135,6 +135,7 @@ pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConf
                     ships::on_section(TRAINER_GUN, ships::section_health(TRAINER_GUN_HEALTH)),
                 ],
             ),
+            inventory: ShipInventory::default(),
         }),
     }
 }

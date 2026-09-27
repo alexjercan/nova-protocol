@@ -78,12 +78,13 @@ jobs:
               system_field_controls bug_sandbox_soak parts_viewer widget_zoo
               ui_app_variants
           # The front end a player boots into: main menu, scenario picker,
-          # NOVA OS, settings, and the refusals that keep it standing. 694 s.
+          # the interface, the command modal, settings, and the refusals that
+          # keep it standing. 694 s.
           - shard: menu
             examples: >-
               screenshot_menu screenshot_scenario_picker screenshot_comms
-              screenshot_nova_os_apps screenshot_nova_os_terminal
-              loop_command_shell system_menu_boot system_nova_os
+              screenshot_interface screenshot_command_shell
+              loop_command_shell system_menu_boot system_interface
               system_command_shell system_scenario_picker system_session_loop
               system_settings_persist system_pause_settings bug_failed_assets
               bug_menu_fallback bug_outcome_pause bug_refused_scenario
@@ -93,8 +94,8 @@ jobs:
             examples: >-
               screenshot_hud_shell screenshot_contextual_hud system_hud_shell
               system_hud_scales system_hud_indicators system_mission_hud
-              system_ui_scale system_input_modes system_headless_crt
-              system_headless_drag system_headless_novaos
+              system_ui_scale system_input_modes system_headless_map_goto
+              system_headless_drag
               system_headless_pointer system_headless_rebind
               system_headless_replay
           # Aiming and holding a target: turrets, the railgun, the lock chain
@@ -163,13 +164,13 @@ jobs:
           # count until a green sweep gives them real times.
           #
           # Everything the reader meets before leaving the menu: the opening
-          # lessons, the NOVA OS screens, the settings tabs and the HUD
+          # lessons, the interface and command screens, the settings tabs and the HUD
           # readouts. Not yet measured.
           - shard: lessons-start
             examples: >-
               lesson_start_welcome lesson_start_scene lesson_start_dock
-              lesson_start_pause lesson_readouts lesson_novaos
-              lesson_novaos_contacts lesson_novaos_prompt lesson_novaos_ship
+              lesson_start_pause lesson_readouts lesson_interface
+              lesson_interface_ship lesson_command
               lesson_menu_advanced lesson_menu_mouse lesson_menu_quality
           # Moving the ship: the flight chapter, the docking envelope, and the
           # one advanced lesson that is a flight demonstration. Not yet

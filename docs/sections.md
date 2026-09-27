@@ -327,7 +327,7 @@ too, so a pair that is not driven never shows a live maneuver. The mode chip
 reads `measurement_fault` first and shows `HELM FAULT`, because `drives` alone
 cannot tell a fault from a hull off the helm. The HELM chip reads it through
 `FlightVerbHints::helm_fault`, and no verb is `helm_blocked` while it is set,
-because HELM cannot take the helm. The NOVA OS map GOTO refuses on it before it
+because HELM cannot take the helm. The interface's Map GOTO refuses on it before it
 asks for the helm. On the driver, the autopilot, the
 flight authority, the manual balancer, the RCS budget and the AI patrol and
 combat planning read the assembly, never the root alone. A driver with no
@@ -1132,8 +1132,8 @@ trigger - nothing between the weapon and `on_damage` reinterprets the number.
 
 A type is a way of TRAVELLING, not a multiplier. That was the point of dropping
 the table: a round visibly crossing three sections is legible from the cockpit,
-a 1.5x is not. `SectionClass` survives the table as the ship computer's section
-LABEL (`nova_os_ui` reads it for codes, glyphs and descriptions); nothing in the
+a 1.5x is not. `SectionClass` survives the table as the interface's section
+LABEL (`nova_interface` reads it for codes, icons and descriptions); nothing in the
 damage path branches on it.
 
 Turret bullets are given a near-zero physical mass (`NEUTRALIZED_BULLET_MASS`)

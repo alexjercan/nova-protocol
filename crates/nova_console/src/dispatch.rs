@@ -1,13 +1,13 @@
 //! Routing one parsed command to the thing that runs it.
 //!
-//! [`resolve_command_line`](nova_os::prelude::resolve_command_line) has already
+//! [`resolve_command_line`](nova_command::prelude::resolve_command_line) has already
 //! matched the name, checked the arity and answered everything the catalog
 //! alone could answer. What arrives here is a [`CommandInvocation`]: a catalog
 //! name, its class, and the argument words. One `match` on the name is the
 //! whole routing table, and it is exhaustive against the catalog by test.
 
 use bevy::prelude::*;
-use nova_os::prelude::*;
+use nova_command::prelude::*;
 
 use crate::{cheats, inspect, lookup::answered, settings};
 
@@ -39,6 +39,7 @@ pub fn execute(world: &mut World, invocation: &CommandInvocation) -> CommandResu
         "sections" => answered(inspect::sections(world, arg(0))),
         "section" => answered(inspect::section(world, arg(0), arg(1))),
         "objectives" => inspect::objectives(world),
+        "log" => inspect::log(world),
         "variables" => inspect::variables(world),
         "variable" => inspect::variable(world, arg(0)),
         "bindings" => inspect::bindings(world, invocation.args.first().map(String::as_str)),
@@ -138,6 +139,64 @@ mod tests {
                 .resource::<nova_gameplay::prelude::RunCheats>()
                 .is_marked(),
             "a refused cheat must not mark the run"
+        );
+    }
+
+    /// `log` prints every flight-log kind with its label: a comms line with
+    /// its speaker, an objective update, and a ship report such as a dropped
+    /// combat lock.
+    #[test]
+    fn the_log_prints_comms_objective_and_lock_drop_rows_with_their_labels() {
+        use nova_interface::prelude::{
+            NovaOsFlightLog, NovaOsFlightLogEntry, NovaOsFlightLogEntryKind,
+        };
+
+        let mut world = bare_world();
+        let entry = |kind, speaker: Option<&str>, message: &str| NovaOsFlightLogEntry {
+            kind,
+            objective_id: None,
+            speaker: speaker.map(str::to_string),
+            message: message.to_string(),
+            icon: None,
+        };
+        let mut log = NovaOsFlightLog::default();
+        log.entries = vec![
+            entry(
+                NovaOsFlightLogEntryKind::Comms,
+                Some("Dispatch"),
+                "Raider inbound.",
+            ),
+            entry(
+                NovaOsFlightLogEntryKind::ObjectivePosted,
+                None,
+                "Destroy the raider",
+            ),
+            entry(
+                NovaOsFlightLogEntryKind::System,
+                None,
+                "Combat lock lost: target behind cover.",
+            ),
+        ];
+        world.insert_resource(log);
+
+        let result = execute(
+            &mut world,
+            &CommandInvocation {
+                name: "log",
+                class: CommandClass::ReadOnly,
+                args: Vec::new(),
+            },
+        );
+
+        assert_eq!(result.status, CommandStatus::Ok);
+        let texts: Vec<&str> = result.rows.iter().map(|row| row.text.as_str()).collect();
+        assert_eq!(
+            texts,
+            [
+                "0001 COMMS DISPATCH > Raider inbound.",
+                "0002 OBJ + Destroy the raider",
+                "0003 SYS ! Combat lock lost: target behind cover.",
+            ]
         );
     }
 

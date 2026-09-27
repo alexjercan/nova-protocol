@@ -2,7 +2,10 @@
 
 A playable Bevy sketch of themed, click-based map, ship and inventory screens
 from the owner UI review in `TASK.md`. It is the design artifact for that
-direction. It is not runtime UI and settles no open decision.
+direction. It is not runtime UI and settles no open decision. The TAB
+interface (`nova_interface`) ships its Map and Ship panes from this sketch;
+the sketch stays runnable as the design reference for the inventory and
+station screens.
 
 Run it:
 
@@ -28,7 +31,8 @@ beside `widget_zoo`.
   is off and no key or mouse input reaches the ship.
 - Map and Ship are 3D views. Each pane is its own camera drawing into an
   image. The contact and section models, map rings, framing, zoom limits,
-  orbit gesture and center ease come from NOVA OS (`nova_os_ui` prelude).
+  orbit gesture and center ease come from the TAB interface
+  (`nova_interface` prelude).
   The palette, icons, blips, legends, selection and pane lifecycle belong to
   the example.
 - Three mock contexts, picked in the top bar: Undocked, Station and Boarded.
@@ -39,8 +43,8 @@ beside `widget_zoo`.
   example-local fixture state (`SketchFixture`), from 1200 cr. Transactions
   change only that state: gameplay health and cargo are never written, and
   nothing persists.
-- NOVA OS behavior and its TAB binding are unchanged. The sketch only adds
-  public exports of the NOVA OS viewport helpers and zoom limits it uses.
+- The sketch leaves the interface and its TAB binding unchanged. It uses
+  the viewport helpers and zoom limits that the interface prelude exports.
 
 ## What each screen shows
 
@@ -53,18 +57,19 @@ beside `widget_zoo`.
   example-local icons by body and stance: a ship arrow tinted own, ally or
   hostile, an asteroid and a planet. The legend lists only the kinds that are
   plotted, so this scenario shows own, ally and hostile ship and asteroid.
-  The readout shows the selected contact: code, name, stance and range.
+  The readout shows the selected contact: code, name, kind and range.
   Click another contact to ease the view onto it. Drag to orbit, turn the
   wheel to zoom. W/A/S/D move the camera across the plane relative to its
   heading, Space moves it up and Shift down. Reframe returns to the opening
   framing on the player. The map has no dock, trade or repair control.
 - **Ship**: the picket's blocks, tinted by section kind, with a themed icon
   badge per section (weapon, thruster, controller, hull, docking) and a 3D
-  bow arrow ahead of the foremost block. Prev, Next, Fit and Reset sit
-  centered under the view, and the kind legend sits left of them, or on its
-  own row under them when narrow. A themed detail panel sits to the right,
-  and under the view when narrow: the selected section's icon, code, name,
-  family, status, a condition bar and the repair slot. Click a badge
+  bow arrow ahead of the foremost block. Fit and Reset sit in the centre of
+  the footer under the view, with the kind legend left of them. A themed
+  detail panel takes the right fifth of the row, and sits under the view
+  when narrow: the selected section's icon, code, name, family, status, a
+  condition bar, a short description of its kind, Prev and Next, and the
+  repair slot. Click a badge
   to select it; the view eases onto it. Prev/Next step through the sections
   in order and wrap. Fit frames the whole hull and keeps the angles; Reset
   also restores the opening angles. The fixture seeds wear on `PDC-1` (45%)
@@ -80,13 +85,15 @@ beside `widget_zoo`.
   with fixture prices and no weight bar. Boarded, the raider's hold shows
   with its own weight bar. The picket's hold takes the left half and the
   other store the right half in every context; undocked the right half
-  stays empty, so a context switch does not resize the hold.
+  stays empty, so a context switch does not resize the hold. The stores
+  take the left four fifths of the row and the inspector the right fifth,
+  and the inspector sits 350 px high under them when narrow.
   Every line is one fixed-height row with a kind icon, name, quantity and
   mass.
 - **Inspector**: click a row to select it. It shows the kind icon, name,
   category, unit mass, stock in that store, and the fixture price, or
-  `No price` where no deal is allowed. The facts stay while a deal is open,
-  and the deal's controls show below them.
+  `No price` where no deal is allowed. A long fact wraps at words. The
+  facts stay while a deal is open, and the deal's controls show below them.
 - **Deals**: a row click opens the one deal the context allows on it at one
   unit: Buy on a market item and Sell on an own item at the station (paid),
   Loot on a raider item when boarded (free). Own cargo has no deal when
@@ -119,14 +126,14 @@ beside `widget_zoo`.
 ## Frames
 
 Captured under Xvfb with lavapipe by the harnessed walk. Desktop is
-1600x900, mid is 1120x820, narrow is 720x1000. Frames are in
+1600x900, mid is 1352x820, narrow is 1024x900. Frames are in
 `ui-app-variants/`, with the prefix `ui_app_variants-`.
 
 | View | Phosphor, desktop | Hardware, desktop | Narrow |
 | --- | --- | --- | --- |
-| Map | `phosphor-map` (on `HOST-1`), `phosphor-map-recentered` (on `AST-2`) | `hardware-map-station` | `narrow-hardware-map-station`, `narrow-phosphor-map-undocked` |
+| Map | `phosphor-map` (on `HOST-1`), `phosphor-map-recentered` (on `AST-2`) | `hardware-map-station`, `mid-hardware-map-station` | `narrow-hardware-map-station`, `narrow-phosphor-map-undocked` |
 | Ship | `phosphor-ship` (on `PDC-1`), `phosphor-ship-station` (after repair) | `hardware-ship-station`, `hardware-ship-boarded`, `mid-hardware-ship-station` | `narrow-hardware-ship-station`, `narrow-phosphor-ship-boarded`, `narrow-phosphor-ship-undocked` |
-| Inventory | `phosphor-inventory` (inspector), `phosphor-inventory-station` (refused buy), `phosphor-inventory-boarded` (after loot) | `hardware-inventory-station`, `hardware-inventory-boarded` | `narrow-hardware-inventory-station`, `narrow-hardware-inventory-deal` (water deal), `short-hardware-inventory-deal` (720x760, scrolled to Confirm), `narrow-hardware-inventory-boarded`, `narrow-phosphor-inventory-boarded` |
+| Inventory | `phosphor-inventory` (inspector), `phosphor-inventory-station` (refused buy), `phosphor-inventory-boarded` (after loot) | `hardware-inventory-station`, `hardware-inventory-boarded`, `mid-hardware-inventory-station`, `mid-hardware-inventory-deal` (water deal), `mid-hardware-inventory-undocked`, `mid-hardware-inventory-boarded` | `narrow-hardware-inventory-station`, `narrow-hardware-inventory-deal` (water deal), `short-hardware-inventory-deal` (1024x600, scrolled to Confirm), `narrow-hardware-inventory-boarded`, `narrow-phosphor-inventory-boarded` |
 
 ## What the harnessed walk proves
 
@@ -140,8 +147,9 @@ Captured under Xvfb with lavapipe by the harnessed walk. Desktop is
   or transfer control;
 - a clicked contact or section sets the readout or detail, and the orbit
   center eases onto it by real-time ease steps;
-- a drag turns the orbit by the NOVA OS gesture amount and moves the blips;
-  the wheel zooms by the NOVA OS amount and stops at the NOVA OS ceiling;
+- a drag turns the orbit by the interface gesture amount and moves the
+  blips; the wheel zooms by the interface amount and stops at the interface
+  ceiling;
   Reframe restores the opening angles, radius and center;
 - W, D and Space move the map camera forward, right and up, and Shift moves it
   down, with its angles and zoom unchanged;
@@ -194,19 +202,22 @@ Captured under Xvfb with lavapipe by the harnessed walk. Desktop is
   contexts (`not at a station`, `not boarded`, `repair needs a station`);
 - every refusal leaves cargo, credits, condition and the bay unchanged;
 - the theme flip repaints the 3D materials in place;
-- at 1120 px the ship panel and inspector stay beside their views, and at
-  720 px they stack; no node leaves the window or its parent's box;
-- in a 720x760 window the ship panel starts below the window, and the wheel
+- at 1352 px the ship panel and inspector take a fifth of their rows beside
+  their views, and at 1024 px they stack; no node leaves the window or its
+  parent's box;
+- at 1352 px a water deal opens in the inspector with every inventory node
+  kept, and its facts and Confirm fit the panel;
+- in a 1024x600 window the ship panel starts below the window, and the wheel
   over the context line scrolls the page until the panel is in view;
-- at 720 px a water deal shows Confirm under the facts inside the 350 px
-  inspector, and in a 720x760 window the wheel over the context line
+- at 1024 px a water deal shows Confirm under the facts inside the 350 px
+  inspector, and in a 1024x600 window the wheel over the context line
   scrolls the page until Confirm is in view;
 - after the scenario loads, `Time<Virtual>` and `Time<Physics>` stay paused,
-  no fixed step runs, and no contact moves, through every step, a NOVA OS
+  no fixed step runs, and no contact moves, through every step, an interface
   open and close, and a lone Escape. The cursor stays free.
 - player control stays suspended, and on no frame is the flight context live
   or a burn, RCS, thruster or turret input set, including while the map
-  camera flies. W held under NOVA OS does not move the sketch camera.
+  camera flies. W held under the interface does not move the sketch camera.
 
 Before the pause guard, the walk failed as soon as the scenario released
 its load hold (`ui-app-variants/before-pause-guard.txt`).
@@ -218,19 +229,19 @@ its load hold (`ui-app-variants/before-pause-guard.txt`).
   menu or screen plugin to own one, so while the sketch is idle no named
   owner holds the freeze. A production screen must take a named hold
   instead.
-- TAB opens NOVA OS over the sketch, and Escape closes it. The example has no
-  pause menu, so a lone Escape does nothing. The station UI entry key stays
-  an open decision.
+- TAB opens the interface over the sketch, and Escape closes it. The example
+  has no pause menu, so a lone Escape does nothing. The station UI entry key
+  stays an open decision.
 - Input ownership is example-only: while the sketch root exists, a `Last`
   system calls `suspend_player_control` when control is not already
   suspended, which covers the resume the scenario loader queues. The map
   camera reads keys directly. A production screen needs a named input owner.
 - No GOTO, route, trajectory or time control exists; the map only looks.
-- Contact codes are minted by NOVA OS, so which rock is `AST-1` and which is
-  `AST-2` can differ between runs.
+- Contact codes are minted by the interface, so which rock is `AST-1` and
+  which is `AST-2` can differ between runs.
 - Section, category and map icons are example-local procedural masks, not
   meshes or shipped art. The map legend and blips come from example-local
-  body markers, not from a NOVA OS contact kind.
+  body markers, not from an interface contact kind.
 - A rebuilt map scene opens framed on the player, as Reframe does. Only a
   pick of a different contact recenters, so a second click on the selected
   contact after Reframe does nothing.

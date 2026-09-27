@@ -1,6 +1,6 @@
 //! The pause axis: the ESC toggle and both clocks, overlay spawn/despawn,
-//! retry and back-to-menu, and the NOVA OS as a third variant of the same
-//! freeze rather than a separate one.
+//! retry and back-to-menu, and the TAB interface and command modal as more
+//! variants of the same freeze rather than separate ones.
 
 use bevy::{
     prelude::*,
@@ -145,12 +145,10 @@ fn pause_overlay_spawns_and_despawns() {
     assert!(app.world().get_entity(back).is_err());
 }
 
-/// Opening the Tab NOVA OS reuses the pause freeze: entering `PauseStates::NovaOs`
-/// freezes both clocks and frees the cursor, exactly like `Paused` - but WITHOUT
-/// spawning the pause menu. Deleting the `OnEnter(NovaOs)` wiring leaves the clocks
-/// running, so this fails without the mechanism (`would-it-fail-without-it`).
+/// Opening the TAB interface freezes both clocks and frees the cursor without
+/// spawning the pause menu.
 #[test]
-fn entering_nova_os_freezes_clocks_frees_cursor_and_shows_no_pause_menu() {
+fn entering_interface_freezes_clocks_frees_cursor_and_shows_no_pause_menu() {
     let mut app = app();
     app.insert_resource(dummy_scenarios());
     // A window whose cursor starts grabbed (flight state), so freeing it is
@@ -170,25 +168,24 @@ fn entering_nova_os_freezes_clocks_frees_cursor_and_shows_no_pause_menu() {
     enter_playing(&mut app);
     assert_eq!(clocks_paused(&app), (false, false));
 
-    // The NOVA OS opens by driving the shared freeze axis to NovaOs (what
-    // nova_gameplay's `toggle_nova_os` does).
+    // The TAB pane drives the shared freeze axis to Interface.
     app.world_mut()
         .resource_mut::<NextState<PauseStates>>()
-        .set(PauseStates::NovaOs);
+        .set(PauseStates::Interface);
     app.update();
 
     assert_eq!(
         clocks_paused(&app),
         (true, true),
-        "opening the NOVA OS freezes both clocks"
+        "opening the interface freezes both clocks"
     );
     let cursor = app.world().get::<CursorOptions>(window).unwrap();
     assert_eq!(
         cursor.grab_mode,
         CursorGrabMode::None,
-        "the NOVA OS frees the cursor"
+        "the interface frees the cursor"
     );
-    assert!(cursor.visible, "the NOVA OS shows the cursor");
+    assert!(cursor.visible, "the interface shows the cursor");
 
     let mut cursor = app.world_mut().get_mut::<CursorOptions>(window).unwrap();
     cursor.grab_mode = CursorGrabMode::Locked;
@@ -198,44 +195,43 @@ fn entering_nova_os_freezes_clocks_frees_cursor_and_shows_no_pause_menu() {
     assert_eq!(cursor.grab_mode, CursorGrabMode::None);
     assert!(
         cursor.visible,
-        "the NOVA OS keeps the cursor after reclamation"
+        "the interface keeps the cursor after reclamation"
     );
 
-    // The NOVA OS is NOT the pause menu: no pause overlay spawns.
+    // The interface is NOT the pause menu: no pause overlay spawns.
     let mut q = app.world_mut().query::<(&Name,)>();
     let has_pause_overlay = q
         .iter(app.world())
         .any(|(n,)| n.as_str() == "Pause Overlay");
     assert!(
         !has_pause_overlay,
-        "opening the NOVA OS must not spawn the pause menu overlay"
+        "opening the interface must not spawn the pause menu overlay"
     );
 }
 
-/// ESC while the Tab NOVA OS is open belongs to the NOVA OS, not the pause menu, so the
-/// menu toggle does not unpause or stack its own overlay.
+/// ESC over the TAB interface belongs to the interface, not the pause menu.
 #[test]
-fn escape_does_not_menu_toggle_the_nova_os() {
+fn escape_does_not_menu_toggle_the_interface() {
     let mut app = app();
     app.insert_resource(dummy_scenarios());
     enter_playing(&mut app);
     app.world_mut()
         .resource_mut::<NextState<PauseStates>>()
-        .set(PauseStates::NovaOs);
+        .set(PauseStates::Interface);
     app.update();
-    assert_eq!(pause_state(&app), PauseStates::NovaOs);
+    assert_eq!(pause_state(&app), PauseStates::Interface);
     assert_eq!(clocks_paused(&app), (true, true));
 
     press_escape(&mut app);
     assert_eq!(
         pause_state(&app),
-        PauseStates::NovaOs,
-        "the NOVA OS owns ESC so it can animate closed before gameplay resumes"
+        PauseStates::Interface,
+        "the interface owns ESC before gameplay resumes"
     );
     assert_eq!(
         clocks_paused(&app),
         (true, true),
-        "the NOVA OS remains frozen until its close animation completes"
+        "the pause menu toggle does not release the interface freeze"
     );
     let has_pause_overlay = app
         .world_mut()
@@ -244,7 +240,7 @@ fn escape_does_not_menu_toggle_the_nova_os() {
         .any(|(n,)| n.as_str() == "Pause Overlay");
     assert!(
         !has_pause_overlay,
-        "ESC over the NOVA OS must not spawn the pause menu overlay"
+        "ESC over the interface must not spawn the pause menu overlay"
     );
 }
 
@@ -530,29 +526,27 @@ fn a_windowless_run_never_pauses_on_focus() {
     assert_eq!(pause_state(&app), PauseStates::Unpaused);
 }
 
-/// An open NOVA OS is the active modal, and focus loss does not take that away
-/// from it: the freeze is already held, and a pause panel underneath would be
-/// waiting when the terminal slid shut.
+/// Focus loss does not replace the open command modal with a pause panel.
 #[test]
-fn focus_loss_leaves_the_nova_os_the_active_modal() {
+fn focus_loss_leaves_commands_the_active_modal() {
     let (mut app, window) = windowed_scenario_app();
     app.world_mut()
         .resource_mut::<NextState<PauseStates>>()
-        .set(PauseStates::NovaOs);
+        .set(PauseStates::Commands);
     app.update();
 
     set_focus(&mut app, window, false);
 
-    assert_eq!(pause_state(&app), PauseStates::NovaOs);
+    assert_eq!(pause_state(&app), PauseStates::Commands);
     assert!(
         find_named(&mut app, "Pause Overlay").is_none(),
-        "the terminal keeps the screen"
+        "the command modal keeps the screen"
     );
 }
 
 /// The command shell opens over the MAIN MENU too, and there it is a surface
 /// over a cinematic backdrop rather than over a game: the menu's ambience
-/// scenario keeps flying beneath it. The terminal's freeze is for GAMEPLAY, so
+/// scenario keeps flying beneath it. The modal's freeze is for GAMEPLAY, so
 /// it is taken in `Playing` and nowhere else.
 #[test]
 fn the_command_shell_over_the_menu_leaves_the_backdrop_flying() {
@@ -566,10 +560,10 @@ fn the_command_shell_over_the_menu_leaves_the_backdrop_flying() {
 
     app.world_mut()
         .resource_mut::<NextState<PauseStates>>()
-        .set(PauseStates::NovaOs);
+        .set(PauseStates::Commands);
     app.update();
 
-    assert_eq!(pause_state(&app), PauseStates::NovaOs);
+    assert_eq!(pause_state(&app), PauseStates::Commands);
     assert_eq!(
         clocks_paused(&app),
         (false, false),

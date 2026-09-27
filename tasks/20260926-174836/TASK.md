@@ -4,10 +4,9 @@
 - PRIORITY: 80
 - TAGS: v0.15.0,ui,novaos,migration
 
-Approved plan, implementation PAUSED by owner. The owner approved the corrected
-plan on 2026-09-26 and asked to record it here before any code change. Do not
-start implementation until the owner resumes it. Base: `master` at `6eaf99673`.
-All line numbers below are from that commit.
+Approved plan, implementation ACTIVE. The owner approved the corrected plan on
+2026-09-26 and resumed implementation on `master` at `ab614a686`. Line numbers
+below are from `6eaf99673`.
 
 ## User facts
 - The owner approves the visual direction of the example-only
@@ -17,9 +16,21 @@ All line numbers below are from that commit.
   legacy default, adapter, alias, or fallback survives.
 - Station, cargo, credit, repair-economy, and persistence mechanics belong to
   `20260926-174806`. The sketch's stock and transactions are not game state.
+- Owner feedback 2026-09-26 (supersedes the first visual pass): the TAB
+  interface does not resemble the PR #77 example. The dark gray-blue
+  full-screen background must go. The top-level tab strip must go; the Map and
+  Ship buttons go inside the panels. Match the example structure and geometry
+  closely (`git show 6eaf99673:examples/playable/ui_app_variants.rs`,
+  `top_bar` 785-845, `rebuild_body` 886-935). Build from the sketch, not from
+  the old NOVA OS app or CRT host. Do not only change colors.
+- Owner feedback 2026-09-26: the TAB interface is extremely laggy. Reproduce
+  and profile it, keep baseline artifacts, inspect frames before and after, and
+  compare matched repeat sets. No timing assertions.
+- The `:` CRT stays separate unless the owner changes that decision.
 
 ## Decisions (owner-approved)
-- TAB opens a themed interface with two panes, Map and Ship. Top buttons,
+- TAB opens a themed interface with two panes, Map and Ship. The Map and Ship
+  buttons (in the card's title row since the 2026-09-26 feedback below),
   keyboard M, and gamepad Y switch between them. Inventory and station panes
   are deferred.
 - `:` keeps the existing CRT: CRT material, casing, pointer rig, monitor
@@ -47,9 +58,7 @@ All line numbers below are from that commit.
 - Rewrite the eight NOVA OS lessons as six smaller new lessons with new media.
   Old viewed lesson IDs in saved progress stay inert.
 
-## Open names (agent proposals, confirm at the implementation gate)
-The approved decisions above do not fix these names. Each needs owner approval
-before code uses it.
+## Approved names (owner-approved 2026-09-26)
 - `PauseStates::NovaOs` -> `PauseStates::Interface` (TAB pane) plus
   `PauseStates::Commands` (CRT modal).
 - `FreezeOwner::Terminal` -> `FreezeOwner::Interface`, held for both states.
@@ -60,10 +69,74 @@ before code uses it.
   `CommandsPlugin` / `CommandsSystems` (replacing `NovaOsUiPlugin`,
   `NovaOsPlugin`, `NovaOsSystems`, `MonitorFrame`).
 - Lesson category `LessonCategory::Interface` (label `INTERFACE`) and the six
-  lesson IDs.
+  lesson IDs `interface_open`, `interface_map`, `interface_ship_service`,
+  `interface_rebind_section`, `command_open`, `command_prompt`.
+- Pane state (owner-approved 2026-09-26): `nova_interface::pane::InterfacePaneType`
+  `{ Map, Ship }`, a `Resource`, not `SubStates`. The first open shows Map; TAB
+  reopens the last pane, and closing the `:` modal over the pane returns to
+  it with its scene, camera, and selection. Systems: `toggle_interface`,
+  `next_interface_pane`, `spawn_interface_root`, `rebuild_interface_body`.
+- Pane helpers (owner-approved 2026-09-26): private `InterfaceRootMarker`,
+  `interface_shown(pause, close)`, `themed_label`, and
+  `InterfacePaneType::context_id`. `interface_shown` (Interface, or Commands
+  returning to Interface) governs only root and scene lifetime and visuals.
+  Pane input, GOTO, repair, reload, and rebind stay gated on
+  `pause == Interface && pane == <pane>`, so nothing fires under the modal. A
+  duplicate interface root fails loudly.
+- Rebind gate (owner-approved 2026-09-26): `nova_interface::ship::ShipRuntime`
+  is public with crate-private fields and a documented
+  `pub fn rebind_armed(&self) -> bool`, exported from the prelude.
+  `nova_menu::open_command_shell` refuses `:` while it or `PendingRebind` is
+  armed. Proof: Shift+; during a ship rebind neither opens `Commands` nor binds
+  the colon unexpectedly, and `:` over Ship still opens afterward.
+- Pane picking proof (owner-approved 2026-09-26): one test-only
+  `pointer_rig::pane_pointer_rig()` drives real window-space `ui_picking` with
+  no CRT forwarding. The map label/dot, straddle, and topmost tests and the
+  ship label/dot test run on it. `map_contacts_select_where_the_crt_shows_them`
+  is deleted. The CRT rig stays for the command CRT mapping tests.
+- Defaults (owner-approved 2026-09-26): pad Y is `interface_next_tab`, so
+  `ship_reload` loses pad North and keeps keyboard L. Keybind labels read
+  `Open Interface` and category `INTERFACE`.
 - Persisted monitor fields `nova_os_bright_detent`, `nova_os_scan_detent`,
-  `nova_os_sound_enabled`: recommend keeping the shipped keys unchanged, so no
-  migration is needed.
+  `nova_os_sound_enabled`: keep the shipped keys unchanged, so no migration is
+  needed.
+- Examples, media, and wiki (owner-approved 2026-09-26):
+  - `system_nova_os` -> `system_interface`: TAB opens the pane, M switches,
+    `:` over the pane, Escape returns to the same pane, clocks frozen, and no
+    pane or flight action fires on transition frames. This is the modal-return
+    proof.
+  - `system_headless_novaos` is deleted; `system_command_shell` covers the
+    headless modal.
+  - `system_headless_crt` -> `system_headless_map_goto`: TAB, click a blip in
+    window space, G, assert `Autopilot` GOTO on that contact.
+  - The rebind-gate proof is one beat group in `system_command_shell`: over
+    Ship, arm a section rebind; Shift+; opens no `Commands`, and the armed
+    section takes the physical `;` key, which spends the capture; then `:`
+    opens `Commands` over Ship.
+  - `screenshot_nova_os_terminal` -> `screenshot_command_shell`
+    (`wiki-command-shell.png`); `screenshot_nova_os_apps` ->
+    `screenshot_interface` (`wiki-interface-map.png`,
+    `wiki-interface-ship.png`). Old PNGs are deleted.
+  - `lesson_novaos*` producers are deleted. New producers: `lesson_interface`
+    (`interface_open`, `interface_map`), `lesson_interface_ship`
+    (`interface_ship_service`, `interface_rebind_section`), `lesson_command`
+    (`command_open`, `command_prompt`); all loops. Media files use lesson IDs;
+    old `novaos_*.webp` are deleted.
+  - `web/src/wiki/nova-os.md` -> `web/src/wiki/interface.md` (opening, map,
+    ship, rebinding). Lessons link `wiki/interface#...`.
+  - `ui_app_variants` stays runnable as the PR #77 design reference and
+    imports `nova_interface`. Its inventory, station, credit and repair
+    mocks stay example-local for `20260926-174806`; none reach production.
+- Internal names (owner-approved 2026-09-26, option A):
+  `ActionContext::ViewerApp` -> `ActionContext::InterfacePane`;
+  `novaos_bindings` -> `interface_bindings`; `HudNovaOsExempt` ->
+  `HudInterfaceExempt`; `NovaOsMapSystems`, `NovaOsShipSystems`,
+  `NovaOsMapPlugin`, `NovaOsShipPlugin` -> `MapPaneSystems`,
+  `ShipPaneSystems`, `MapPanePlugin`, `ShipPanePlugin`;
+  `close_nova_os_from_menu_keys` -> `close_surface_from_menu_keys`; field note
+  `note_novaos` -> `note_interface`. Doc comments that describe deleted
+  behavior are fixed. The retained CRT monitor keeps its `NovaOs*` and
+  `NOVA_OS_*` names as the monitor brand.
 
 ## Agent findings (code evidence at 6eaf99673)
 
@@ -163,7 +236,8 @@ before code uses it.
 
 ### End state
 - TAB (pad RightThumb) opens and closes the themed interface in flight.
-  Keyboard M, gamepad Y, and the top buttons switch Map and Ship. The world is
+  Keyboard M, gamepad Y, and the Map and Ship buttons in the card's title row
+  switch Map and Ship. The world is
   frozen while it is open.
 - `:` opens `NOVA COMMANDS` on the retained CRT over any surface except
   Loading and an armed rebind capture. Escape or `close` returns to the stored
@@ -233,8 +307,8 @@ Escape in modal -> return_to (Interface | Paused | Unpaused | menu/editor)
 - Docs for removed unshipped behavior.
 
 ### Affected examples, docs, content, and CI
-- Examples (`Cargo.toml` entries): `ui_app_variants` (167, becomes redundant
-  or trimmed), `system_nova_os` (463), `system_command_shell` (467),
+- Examples (`Cargo.toml` entries): `ui_app_variants` (167, kept as the PR #77
+  reference), `system_nova_os` (463), `system_command_shell` (467),
   `system_headless_novaos` (475), `system_headless_drag` (487),
   `system_headless_crt` (491), `screenshot_nova_os_terminal` (634),
   `screenshot_nova_os_apps` (638), `lesson_novaos` (837),
@@ -264,7 +338,7 @@ Escape in modal -> return_to (Interface | Paused | Unpaused | menu/editor)
 - Old viewed lesson IDs load without error and count toward nothing.
 
 ### Work sequence
-1. Get owner approval for the open names.
+1. Get owner approval for the open names. Done 2026-09-26.
 2. Rename crates; then change `PauseStates` and the terminal model; fix every
    caller through compiler errors.
 3. Delete the NOVA OS shell and app host; add `log`.
@@ -274,8 +348,9 @@ Escape in modal -> return_to (Interface | Paused | Unpaused | menu/editor)
 
 ## Verification
 - Rendered player flow (lavapipe or hardware, frames inspected): TAB opens the
-  interface; keyboard M, gamepad Y, and the top buttons switch panes; `:` over the pane shows
-  the retained CRT with `NOVA COMMANDS`; Escape returns to the same pane.
+  interface; keyboard M, gamepad Y, and the title-row Map and Ship buttons
+  switch panes; `:` over the pane shows the retained CRT with `NOVA COMMANDS`;
+  Escape returns to the same pane.
 - Clocks and input: across pane -> modal -> pane and flight -> modal -> flight,
   `Time<Virtual>` does not advance while either surface is open, and no flight
   or pane action fires on the frames of each transition. Same from main menu,
@@ -294,9 +369,106 @@ Escape in modal -> return_to (Interface | Paused | Unpaused | menu/editor)
   `novaos_toggle`, or `nova_os_ui` outside history.
 - Permanent tests only for the named stable behaviors above (keybind migration,
   modal return with no gap, `log` rows). Each new test needs owner approval.
+- Perf result (2026-09-27): the owner's lag does not reproduce. Real game
+  through New Game (seed 7), hardware GPU on Xvfb, 1920x1080, debug+trace
+  build, three matched repeat sets of flight, Map and Ship, each with a 10 s
+  pointer sweep and a 5 s drag (`target/perf-baseline/drive-ng-sweep.sh`,
+  `phase.py`, 2 s settle skipped). Median wall ms per phase (main-thread
+  median in brackets):
+
+  | Run | Flight | Map | Ship |
+  | --- | --- | --- | --- |
+  | `ng-h2`, before the sketch rewrite | 40.8-42.2 (8.8-8.9) | 40.8-41.5 (5.0-5.1) | 41.5-41.7 (5.0-5.2) |
+  | `ng-a1`, after the sketch rewrite | 41.0-42.4 (8.6-8.9) | 41.1-42.1 (4.8-4.9) | 41.1-42.1 (5.0-5.1) |
+  | `ng-a2`, after the Map label fix | 40.8-41.4 (9.8-10.2) | 41.2-43.2 (5.3-5.5) | 38.9-42.3 (5.8-6.0) |
+
+  Every phase sits at the same ~41 ms wall, flight included, so the frame is
+  bound outside the interface systems, and the open interface costs less main
+  thread than flight. The `ng-a2` main-thread rise is in flight too, which the
+  label change cannot touch, so it is host noise. Not measured: a native
+  display, a release build, or the owner's own hardware. Frames and traces
+  are in the sprout at `target/perf-baseline/ng-*`.
+
+## Worker defaults (2026-09-27, owner said no questions; pending review)
+- Map label legibility: the open-world Map plotted about 200 `AST-n` labels
+  in piles (`target/perf-baseline/ng-a1/map1.png`). An asteroid's code label
+  now shows only while it is selected, the rule the Ship pane already uses
+  for sections. Ship, planet and objective labels stay. `MapBlipLabel` marks
+  the pill; `project_map_blips` sets its visibility and a `ZIndex` of 0
+  (unlabelled rock), 1 (labelled) or 2 (selected), so a quiet rock never
+  covers a label you read. Every blip stays a clickable `Button`. Frames:
+  `ng-a2/map1.png`, `ng-l1/map-open.png`, `ng-l1/map-rock.png` (a clicked
+  rock shows `AST-154`, its ring and readout).
+- `MapContactKind` gains `Neutral` (`NEU-n`, `NEUTRAL`, `Ship on no side.`)
+  and `Planet` (`PLN-n`, `PLANET`, `Planetary body.`). `Terrain` is only an
+  asteroid. v0.14.0 coded both as `AST-n` with `Asteroid mass.`; changelog
+  Fixes entry added. Colours are unchanged (secondary).
+- Wiki rebind example reads `Bound engine_port to K`; LMB is refused.
+- `system_headless_map_goto` read the selection ring as an `Outline`, but
+  the pane draws it as a `ThemedBorder`. Reproduced: the old read stalls 30 s
+  at `viewer_next cycles the ring onto a contact`
+  (`target/probe-map-goto-outline`). The read is now `ThemedBorder.alpha`;
+  `probe run system_headless_map_goto --correctness-only` passes and clicks
+  `PLN-1` (`target/probe-map-goto`).
+
+- Rebind gate for TAB and M (review finding 1): an armed section capture now
+  also holds back `interface_toggle` and `interface_next_tab`
+  (`toggle_interface`, `next_interface_pane`). Reproduced first: TAB closed
+  the interface and M flipped to Map, each dropping the capture
+  (`target/probe-rebind-gate-before`, `target/probe-rebind-gate-m-before`).
+  TAB is now refused by the capture and M binds like any key. Proof: three
+  beats in the approved `system_command_shell` rebind group
+  (`target/probe-rebind-gate-after`, OK).
+- Ship Reset (review finding 6): Reset and `T` now restore the opening zoom
+  as well as the angles and centre, as the sketch's `reset_ship` does. The
+  existing reset test now nudges the radius; it failed before the fix
+  (`target/ship-reset-before.log`, 8.45 vs 16.9) and passes after.
+- Ship open zoom: the sketch opened, fit and reset the Ship view at
+  `SHIP_PANE_ZOOM` 0.72 of the framing radius. Tried at 0.72 for open and
+  Reset, with Fit at 1.0, then reverted. On lavapipe at 1920x1080 the
+  2081-section carrier clipped on the left and bottom viewport edges, and the
+  3-section range hull clipped its outline at the bottom. At 1.0 both fit
+  with margin (`target/zoom-proof/{small,large}-{open,fit,reset}.png`,
+  `REPORT.md`). Open, Fit and Reset stay at the full framing radius.
+- Escape during an armed section rebind: a disposable beat in
+  `system_command_shell` showed Escape cancels the capture with
+  `Rebind cancelled` and keeps the Ship pane (`target/zoom-proof/run-escape.log`).
+  Not kept: no failure reproduced, and `close_surface_from_menu_keys` runs in
+  `CommandsSystems::Toggle`, before `ShipPaneSystems`, and yields to an armed capture.
+- The six lesson loops were missing from `assets/base/training/`; captured
+  with `scripts/capture-lesson-media.sh` on lavapipe and inspected. The wiki
+  shots still showed the rejected first pass; recaptured. The orphan
+  `nova-os-open.webm` loop (only consumer was the deleted page) is removed.
+
+## Finishing verification (2026-09-27)
+- Rendered: `wiki-interface-map.png`, `wiki-interface-ship.png`,
+  `wiki-command-shell.png` and the six lesson sheets, lavapipe on Xvfb,
+  frames inspected. Pad Y and the title-row buttons: disposable test, both
+  pass, not kept (`target/finish-artifacts/pane-switch-proof`).
+- Probes `--correctness-only`: `system_interface` OK, `system_command_shell`
+  OK, `system_headless_map_goto` PASS line (UNPROBEABLE verdict, headless).
+- Unit tests `--lib`: `nova_interface`, `nova_command`, `nova_console`,
+  `nova_menu`, `nova_training` pass, including keybind migration and `log`
+  rows. `catalog_drift` passes. `content gen` leaves the training RON
+  unchanged; `content lint` 0 errors.
+- `content lint --target` on a disposable mod with `category: NovaOs` fails:
+  "Unexpected variant named `NovaOs` in enum `LessonCategory`"; the same mod
+  with `Interface` lints clean (`target/finish-artifacts/novaos-category`).
+- Not run: the `NovaOs` category at game load (same `Lesson` type, not run),
+  the editor `:` path in a live app, and a native-display run.
+
+## PR audit (2026-09-27)
+- Two living loops still showed NOVA OS: `landing-cockpit.webm` typed
+  `nova> map`, and `command-shell-open.webm` had the old header. Both were
+  recaptured on lavapipe and frames inspected (`target/pr-audit/`).
+- After the last Ship pane and `system_command_shell` edits: `nova_interface`
+  `--lib` passes 94 tests, and the `system_command_shell` probe is OK with
+  the rebind beats (`target/pr-audit/probe-command-shell`).
+- Kept as approved: the `NovaOs*` names in `nova_interface::terminal`, which
+  are the retained CRT monitor brand.
 
 ## Done when
-- The open names are approved, the end state above works in the real app, the
+- The names are approved, the end state above works in the real app, the
   deletion list is gone, docs and changelog are current, and the affected
   checks plus the rendered flow pass. PR #77 alone does not complete this task.
 

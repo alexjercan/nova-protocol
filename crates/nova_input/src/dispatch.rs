@@ -498,7 +498,7 @@ mod tests {
     /// developer with no controller cannot press: upstream reads the pad's
     /// ANALOG value through `Gamepad::get`, not the digital set, so writing
     /// only the digital half would leave every rig-driven pad action dead
-    /// while the polled ones (the NOVA OS toggle) looked fine.
+    /// while the polled ones (the interface toggle) looked fine.
     #[test]
     fn a_driven_pad_press_reaches_a_real_rig_and_its_hold() {
         use core::time::Duration;

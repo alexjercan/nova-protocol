@@ -935,15 +935,15 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.equal(park.oldGap, -550, "the old rule parked inside the planetoid");
 }
 
-// Commands: 26 rows, four classes, and one gate.
+// Commands: 27 rows, four classes, and one gate.
 {
     assert.equal(COMMAND_CLASSES.length, 4);
-    assert.equal(COMMAND_ROWS.length, 26);
+    assert.equal(COMMAND_ROWS.length, 27);
     const count = (cls: string): number =>
         COMMAND_ROWS.filter((row) => row.cls === cls).length;
     assert.deepEqual(
         [count("Utility"), count("ReadOnly"), count("Setting"), count("Cheat")],
-        [5, 12, 5, 4]
+        [5, 13, 5, 4]
     );
     assert.ok(commandAllowed("status", "ReadOnly", false));
     assert.ok(commandAllowed("graphics", "Setting", false));

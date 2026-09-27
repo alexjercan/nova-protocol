@@ -23,7 +23,7 @@ nova_info = { path = "../nova_info" }
 nova_menu = { path = "../nova_menu" }
 # The NOVA OS cockpit monitor. Added HERE, not by the HUD: the monitor and the
 # flight HUD are peers, so the plugin that orders them sits above both.
-nova_os_ui = { path = "../nova_os_ui" }
+nova_interface = { path = "../nova_interface" }
 nova_scenario = { path = "../nova_scenario" }
 # The loading screens draw a field note from the handbook's own notes,
 # compiled rather than loaded: the boot panel is up before the asset
@@ -55,4 +55,4 @@ workspace = true
 # is a dev-dependency, and a `cargo build --bin` never resolves those. Routing
 # the feature here is what puts the per-system spans in the binary probe runs.
 trace = ["bevy/trace", "bevy/trace_chrome"]
-debug = ["nova_debug", "bevy/track_location", "nova_console/debug", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_info/debug", "nova_os_ui/debug", "nova_menu/debug", "nova_scenario/debug", "nova_world_base/debug"]
+debug = ["nova_debug", "bevy/track_location", "nova_console/debug", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_info/debug", "nova_interface/debug", "nova_menu/debug", "nova_scenario/debug", "nova_world_base/debug"]

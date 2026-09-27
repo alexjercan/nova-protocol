@@ -200,7 +200,7 @@ fn no_source_file_names_a_variable_the_roster_does_not() {
 /// Deliberately a plain string scan rather than a parse: a name reaches the
 /// environment as a literal however it is spelled, and the point is to see all
 /// of them. `NOVA_OS_*` is filtered out - those are `const Color` and layout
-/// values in `nova_os_ui`, not variables, and they outnumber the real set.
+/// values in `nova_interface`, not variables, and they outnumber the real set.
 fn collect_nova_names(dir: &std::path::Path, found: &mut Vec<(String, String)>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;

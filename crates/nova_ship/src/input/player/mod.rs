@@ -73,7 +73,7 @@ pub mod prelude {
 /// Two halves, because flight goes quiet two ways. The rig entity is spawned
 /// and despawned with `PlayerSpaceshipMarker`, so with no player ship there is
 /// nothing listening at all; and every frozen variant gates the input sets, so
-/// while the NOVA OS or the pause overlay holds the screen a flight key is
+/// while the interface or the pause overlay holds the screen a flight key is
 /// read by whatever is up instead - `W` pans the viewer rather than burning.
 ///
 /// `PauseStates` belongs to `AppBuilder`, and a test rig that adds this plugin
@@ -214,10 +214,10 @@ mod context_tests {
         app.update();
         assert!(flight_is_live(&app));
 
-        freeze(&mut app, PauseStates::NovaOs);
+        freeze(&mut app, PauseStates::Interface);
         assert!(
             !flight_is_live(&app),
-            "the monitor has the screen, so `W` pans the viewer rather than burning"
+            "the interface has the screen, so `W` pans the viewer rather than burning"
         );
 
         freeze(&mut app, PauseStates::Unpaused);

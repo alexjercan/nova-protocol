@@ -29,14 +29,14 @@ use bevy::{
 use nova_autopilot::prelude::{
     hover_named, move_cursor, press_mouse, release_mouse, scroll_lines, ui_node_rect,
 };
+use nova_command::prelude::{
+    command_shell_specs, resolve_command_line, CommandChannel, CommandClass, CommandOutcome,
+    CommandResult, CommandSource,
+};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker};
 use nova_input::prelude::{
     dispatch, ActiveContexts, DispatchError, InputBindings, InputPhase, InputSource,
-};
-use nova_os::prelude::{
-    command_shell_specs, resolve_command_line, CommandChannel, CommandClass, CommandOutcome,
-    CommandResult, CommandSource,
 };
 use nova_ship::prelude::{
     SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
@@ -145,7 +145,7 @@ fn refuse(world: &mut World, line: usize, message: String) {
 
 /// The wire name an action answers to: its settings group, lowercased with
 /// spaces as underscores, then its registry name - `flight.main_drive`,
-/// `nova_os.novaos_orbit_left`.
+/// `nova_os.viewer_orbit_left`.
 pub fn wire_name(group: &str, name: &str) -> String {
     format!("{}.{name}", group.to_lowercase().replace(' ', "_"))
 }
@@ -234,7 +234,7 @@ fn apply_input(world: &mut World, line: usize, wire: &str, phase: InputPhase) {
     //
     // A RELEASE is never swallowed. bevy clears only the `just_*` edges, so a
     // key this channel pressed stays down across frames: dropping its release
-    // because NOVA OS happened to be open leaves the drive nailed on the
+    // because the interface happened to be open leaves the drive nailed on the
     // moment Flight comes back up, and no field on the wire says so. Releasing
     // unconditionally is also idempotent - `held_source` resolves the source
     // the press pushed, falling back to the action's own binding, and releasing
@@ -628,7 +628,7 @@ mod tests {
     }
 
     /// The invariant this module opens with, over the seam that used to break
-    /// it: a driver presses the drive in Flight, opens NOVA OS, and releases.
+    /// it: a driver presses the drive in Flight, opens the interface, and releases.
     /// The release must land even though the context that took the press is
     /// down, or the drive is nailed on the moment Flight comes back up.
     #[test]
@@ -673,7 +673,7 @@ mod tests {
 
     /// The same invariant on the SECTION lane, whose press-only gate is a copy
     /// of the one above: a driver holds a mount's trigger in Flight, opens
-    /// NOVA OS, and stops. The stop must reach the bound source, or the mount
+    /// the interface, and stops. The stop must reach the bound source, or the mount
     /// is left firing the moment Flight comes back up.
     #[test]
     fn a_section_stop_under_a_lowered_context_still_lifts_the_trigger() {

@@ -15,8 +15,7 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_gameplay::prelude::*;
-use nova_os::prelude::{NovaOsTerminal, ShellKind};
-use nova_os_ui::prelude::NovaOsCloseTransition;
+use nova_interface::prelude::{NovaOsCloseTransition, ShipRuntime};
 use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::{PAUSE_SETTINGS_Z, PAUSE_Z},
@@ -93,10 +92,10 @@ pub(crate) fn toggle_pause(
         let destination = match current.get() {
             PauseStates::Unpaused => PauseStates::Paused,
             PauseStates::Paused => PauseStates::Unpaused,
-            // The Tab NOVA OS owns its close animation. ESC/Start while NovaOs
-            // is active is handled by nova_gameplay so clocks stay paused until
-            // the NOVA OS has slid fully off screen.
-            PauseStates::NovaOs => PauseStates::NovaOs,
+            // The interface and the command modal own their own back-out
+            // (`nova_interface`), so the clocks stay held until the surface
+            // has closed.
+            state @ (PauseStates::Interface | PauseStates::Commands) => *state,
         };
         if destination == *current.get() {
             return;
@@ -129,9 +128,9 @@ pub(crate) fn open_command_shell(
     game_state: Option<Res<State<GameStates>>>,
     current: Res<State<PauseStates>>,
     rebind: Option<Res<crate::settings::PendingRebind>>,
+    ship_rebind: Option<Res<ShipRuntime>>,
     mut next: ResMut<NextState<PauseStates>>,
     mut close: ResMut<NovaOsCloseTransition>,
-    mut terminal: ResMut<NovaOsTerminal>,
 ) {
     let typed_colon = keyboard
         .read()
@@ -140,11 +139,14 @@ pub(crate) fn open_command_shell(
         return;
     }
     // Inside the CRT the key is text: the shell is already open and the player
-    // is typing into it. Same for a chip waiting to capture a key.
-    if *current.get() == PauseStates::NovaOs {
+    // is typing into it. Same for a settings chip or a ship section waiting to
+    // capture a key: the colon is the key being bound.
+    if *current.get() == PauseStates::Commands {
         return;
     }
-    if rebind.is_some_and(|rebind| rebind.is_armed()) {
+    if rebind.is_some_and(|rebind| rebind.is_armed())
+        || ship_rebind.is_some_and(|ship| ship.rebind_armed())
+    {
         return;
     }
     // A half-loaded world has nothing to inspect and no settings surface to
@@ -152,15 +154,12 @@ pub(crate) fn open_command_shell(
     if game_state.is_some_and(|state| *state.get() == GameStates::Loading) {
         return;
     }
-    // The ground floor: Escape closes the computer rather than climbing into a
-    // NOVA OS session the player never opened.
-    terminal.open_shell(ShellKind::Commands);
     close.closing = false;
-    // The shell is a surface OVER what is already there, so closing it puts
-    // that back: `:` from the pause menu returns to the pause menu, not to a
-    // running world the player never asked to be in.
+    // The modal is a surface OVER what is already there, so closing it puts
+    // that back: `:` from the pause menu returns to the pause menu, and `:`
+    // over the TAB interface returns to the same pane.
     close.return_to = *current.get();
-    next.set(PauseStates::NovaOs);
+    next.set(PauseStates::Commands);
 }
 
 /// Whether losing the window pauses interactive play in this process.
@@ -198,7 +197,7 @@ pub(crate) fn focus_lost(policy: Option<&FocusPause>, window: Option<&Window>) -
 /// the moment they click the taskbar.
 ///
 /// Only an unpaused run acquires it. A pause already held stays held whatever
-/// owns it, so an open NOVA OS remains the active modal and an outcome frame
+/// owns it, so an open interface or command modal remains the active modal and an outcome frame
 /// remains the one modal over its own pause.
 pub(crate) fn pause_on_focus_loss(
     policy: Option<Res<FocusPause>>,
@@ -240,26 +239,41 @@ pub(crate) fn release_clocks_for_pause_menu(mut clocks: Clocks) {
     clocks.release(FreezeOwner::PauseMenu);
 }
 
-/// Freeze the simulation for the CRT terminal, in either shell. Switching
-/// shells never passes through this, so the world does not tick between the
-/// release and the re-hold it would otherwise need.
+/// Freeze the simulation for the TAB interface or the command modal. Both
+/// states share [`FreezeOwner::Interface`], so a hop between them re-takes a
+/// hold that was never dropped.
 ///
-/// GAMEPLAY only. `:` opens the command shell over the main menu as well, and
+/// GAMEPLAY only. `:` opens the command modal over the main menu as well, and
 /// what runs behind it there is the menu's own ambience backdrop - a cinematic
-/// the shell is drawn over, not a game the player is being kept out of.
+/// the modal is drawn over, not a game the player is being kept out of.
 /// Stopping it would leave the front door on a still frame for as long as the
-/// shell is up. `Playing` is the whole of what the terminal freezes, the
-/// editor's build mode included.
-pub(crate) fn hold_clocks_for_terminal(game: Option<Res<State<GameStates>>>, mut clocks: Clocks) {
+/// modal is up. `Playing` is the whole of what the modal freezes, the editor's
+/// build mode included.
+pub(crate) fn hold_clocks_for_interface(game: Option<Res<State<GameStates>>>, mut clocks: Clocks) {
     if game.is_some_and(|game| *game.get() != GameStates::Playing) {
         return;
     }
-    clocks.hold(FreezeOwner::Terminal);
+    clocks.hold(FreezeOwner::Interface);
 }
 
-/// Drop the terminal's hold.
-pub(crate) fn release_clocks_for_terminal(mut clocks: Clocks) {
-    clocks.release(FreezeOwner::Terminal);
+/// Drop the interface hold, unless the transition moves straight into the
+/// other interface state: `Interface -> Commands` and back keep the world
+/// frozen with no frame in between.
+pub(crate) fn release_clocks_for_interface(
+    mut transitions: MessageReader<StateTransitionEvent<PauseStates>>,
+    mut clocks: Clocks,
+) {
+    let entered = transitions
+        .read()
+        .last()
+        .and_then(|transition| transition.entered);
+    if matches!(
+        entered,
+        Some(PauseStates::Interface | PauseStates::Commands)
+    ) {
+        return;
+    }
+    clocks.release(FreezeOwner::Interface);
 }
 
 /// The scenario locks and hides the cursor (nova_editor's grab systems); the

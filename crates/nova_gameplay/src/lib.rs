@@ -3,9 +3,9 @@
 //! `NovaGameplayPlugin` composes it and owns the top-level [`GameStates`] state
 //! machine and the physics, entropy and particle registrations its peers build
 //! on. The modules are `integrity` and `damage` (health, disable, destroy),
-//! `gravity` (gravity wells), `audio` (the SFX engine), `juice` (combat
-//! feedback) over the reusable trauma rig in `shake` and the burst in
-//! `impact_spark`, `objectives` (the mission
+//! `gravity` (gravity wells), `inventory` (the items a ship carries), `audio`
+//! (the SFX engine), `juice` (combat feedback) over the reusable trauma rig in
+//! `shake` and the burst in `impact_spark`, `objectives` (the mission
 //! objective list and its conveyance tags), `mesh` and `transform` (the mesh
 //! toolkit and the rotation/orbit rigs), `markers` and `projectile_hooks` (the
 //! entity vocabulary the layers above tag with), `lifetime` and `cooldown`
@@ -41,6 +41,7 @@ pub mod hash;
 pub mod impact_sound;
 pub mod impact_spark;
 pub mod integrity;
+pub mod inventory;
 pub mod juice;
 pub mod lifetime;
 pub mod markers;
@@ -111,12 +112,12 @@ pub mod prelude {
         asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, bounds::prelude::*,
         cheats::prelude::*, cooldown::prelude::*, damage::prelude::*, freeze::prelude::*,
         gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*, impact_spark::prelude::*,
-        integrity::prelude::*, juice::prelude::*, lifetime::prelude::*, markers::prelude::*,
-        math::prelude::*, mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*,
-        plugin::prelude::*, projectile_hooks::prelude::*, relations::prelude::*,
-        render_target::prelude::*, rounds::prelude::*, settings::prelude::*, shake::prelude::*,
-        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
-        GameMode, GameStates, PauseStates,
+        integrity::prelude::*, inventory::prelude::*, juice::prelude::*, lifetime::prelude::*,
+        markers::prelude::*, math::prelude::*, mesh::prelude::*, narrative_accent::prelude::*,
+        objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
+        relations::prelude::*, render_target::prelude::*, rounds::prelude::*, settings::prelude::*,
+        shake::prelude::*, soft_dot::prelude::*, transform::prelude::*,
+        transient_light::prelude::*, EscapeOwner, GameMode, GameStates, PauseStates,
     };
 }
 
@@ -140,18 +141,19 @@ pub enum GameStates {
 }
 
 /// Whether gameplay is frozen behind a modal overlay. Owned UI-wise by
-/// `nova_menu` (ESC toggle + overlay) and `nova_gameplay`'s Tab ship-computer
-/// NOVA OS; `nova_gameplay` gates the spaceship input/section system sets on
-/// `Unpaused`, and the clocks (`Time<Virtual>` + `Time<Physics>`) pause on
-/// entering any frozen variant. Init'd by `AppBuilder` next to [`GameStates`].
-/// Only meaningful inside `GameStates::Playing`; leaving Playing must reset it.
+/// `nova_menu` (ESC toggle + overlay and the `:` gesture) and
+/// `nova_interface` (the TAB interface); `nova_gameplay` gates the spaceship
+/// input/section system sets on `Unpaused`, and the clocks (`Time<Virtual>` +
+/// `Time<Physics>`) pause on entering any frozen variant. Init'd by
+/// `AppBuilder` next to [`GameStates`]. Only meaningful inside
+/// `GameStates::Playing`; leaving Playing must reset it.
 ///
-/// The CRT opens over the pause menu as well as over flight, so
-/// [`PauseStates::Paused`] -> [`PauseStates::NovaOs`] and back is a real
-/// transition: `Paused`'s hooks release on the way in and re-take on the way
-/// out, which is what rebuilds the overlay the CRT covered. The freeze holds
-/// are named ([`ClockFreeze`]) precisely so the handover cannot leave a paused
-/// player in a running world.
+/// The command modal opens over the pause menu and the interface as well as
+/// over flight, so [`PauseStates::Paused`] -> [`PauseStates::Commands`] and
+/// back is a real transition: `Paused`'s hooks release on the way in and
+/// re-take on the way out, which is what rebuilds the overlay the CRT covered.
+/// The freeze holds are named ([`ClockFreeze`]) precisely so the handover
+/// cannot leave a paused player in a running world.
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum PauseStates {
     #[default]
@@ -159,10 +161,13 @@ pub enum PauseStates {
     Unpaused,
     /// Gameplay is frozen behind the pause overlay; the clocks are stopped.
     Paused,
-    /// Gameplay is frozen behind the Tab ship-computer NOVA OS; the clocks are
-    /// stopped and the cursor is freed, exactly like [`PauseStates::Paused`]
-    /// but without the pause menu.
-    NovaOs,
+    /// Gameplay is frozen behind the TAB interface; the clocks are stopped and
+    /// the cursor is freed, exactly like [`PauseStates::Paused`] but without
+    /// the pause menu.
+    Interface,
+    /// Gameplay is frozen behind the `NOVA COMMANDS` CRT modal. Closing it
+    /// returns to the state it was opened over.
+    Commands,
 }
 
 /// Whether a scene-local surface owns Escape right now, so the pause menu must

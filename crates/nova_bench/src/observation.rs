@@ -151,7 +151,6 @@ pub fn condense(snapshot: &Value, held: &BTreeSet<String>, expand: &[String]) ->
         "game_state": snapshot["game_state"],
         "ui": {
             "pause": snapshot["ui"]["pause"],
-            "computer": snapshot["ui"]["computer"]["mode"],
         },
         "objectives": mission["objectives"].as_array().cloned().unwrap_or_default(),
         "objective_log": mission["log"].as_array().cloned().unwrap_or_default(),

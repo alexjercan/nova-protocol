@@ -40,9 +40,9 @@ nova_events = { path = "../nova_events" }
 # ... and snapshot-diffs NovaEventWorld's variables.
 nova_scenario = { path = "../nova_scenario" }
 # The snapshot's `ui` block reads the terminal model (NovaOsTerminal, via
-# nova_os_ui's re-export) and the CRT glass slice (map contact codes pushed
+# nova_interface's re-export) and the CRT glass slice (map contact codes pushed
 # through the shipped warp inverse) - the screen a GUI player sees, as data.
-nova_os_ui = { path = "../nova_os_ui" }
+nova_interface = { path = "../nova_interface" }
 # The snapshot's `mission.comms` reads the story feed the comms panel draws -
 # the lines a pilot has been told, as the HUD holds them.
 nova_hud = { path = "../nova_hud" }

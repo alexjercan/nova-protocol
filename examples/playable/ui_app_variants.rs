@@ -1,5 +1,6 @@
-//! ui_app_variants: map, ship and inventory screens in themed normal UI
-//! instead of the NOVA OS CRT.
+//! ui_app_variants: the PR #77 design reference for themed map, ship and
+//! inventory screens. The TAB interface (`nova_interface`) ships its Map and
+//! Ship panes from this sketch; the inventory and station screens stay here.
 //!
 //! Map and Ship are real 3D views. Each is its own camera drawing into an
 //! image that fills its pane. Drag a pane to orbit it and turn the wheel to
@@ -7,27 +8,35 @@
 //! W/A/S/D move the camera across the plane, Space moves it up and Shift
 //! down, and Reframe brings it back to its opening framing. Each contact
 //! wears the icon of what it is (ship, asteroid, planet, objective) in its
-//! stance colour, and a legend names the kinds the map plots. On the ship, a
-//! side panel details the selected section, Prev/Next step through the
-//! sections, Fit frames the whole hull and Reset also restores the opening
-//! angles, and a legend under the view names the section kinds. The data,
-//! geometry and orbit feel come from NOVA OS: the `MapContacts` and
+//! stance colour. A detail panel on the map's right fifth shows the selected
+//! contact's icon, code, name, kind and range, or a hint with none selected.
+//! On the ship, a panel on the right fifth, or under the scene in a narrow
+//! window, shows the selected section's icon, code, kind, fixture condition
+//! and a short description of its kind, with Prev/Next to step through the
+//! sections. In the footer, Fit frames the whole hull and Reset also
+//! restores the opening angles. Under each view and its panel, a
+//! full-width footer shows the legend of the kinds the view plots on the
+//! left, the view's buttons and the inputs it handles in the centre, and the
+//! selected contact or section on the right. The data,
+//! geometry and orbit feel come from the TAB interface: the `MapContacts` and
 //! `ShipSections` models, the map ring, framing and zoom helpers, the ship
 //! block and framing helpers, and the shared orbit gesture, zoom and center
 //! ease. The palette, icons, blips, selection and pane lifecycle belong to
-//! this example. NOVA OS and its TAB binding are unchanged.
+//! this example, which leaves the interface and its TAB binding unchanged.
 //!
 //! The scenario puts a catalog picket under the player, with a raider, a
 //! hauler and two rocks in range. The simulation is paused while the screens
 //! are up, which in this example is always, and player control stays
 //! suspended, so no key flies the ship. The flight HUD is hidden.
 //!
-//! The Undocked/Station/Boarded control is a local mock context: nothing
-//! docks or boards. Station names a mock station that is not in the scenario;
-//! Boarded names the raider. A context line above every view shows the
-//! context, the fixture credits and the last transaction's result, and holds
-//! no controls. At the station, the ship panel prices a repair of the
-//! selected section while the fixture repair bay is on. The inventory shows
+//! A fixed debug rail left of every view holds the mock controls. The
+//! Undocked/Station/Boarded control is a local mock context: nothing docks
+//! or boards. Station names a mock station that is not in the scenario;
+//! Boarded names the raider. The Phosphor/Hardware control picks the theme.
+//! Under them the rail shows the context, what the ship is at, the fixture
+//! credits and the last transaction's result. At the station, the ship
+//! panel prices a repair of the selected section while the fixture repair
+//! bay is on. The inventory shows
 //! the picket's hold under a weight bar in the left half and the station
 //! market or the raider's hold in the right half, which stays empty
 //! undocked. Category buttons filter the rows. Click a row to select it: the
@@ -56,18 +65,23 @@
 //!   filter cargo, click rows to buy, sell and loot, set the quantity by
 //!   wheel, slider, typing and All, type and slide quantities Confirm refuses,
 //!   double-click a row and Confirm, repair sections, switch the repair bay,
-//!   open and close NOVA OS, and press Escape. Assert the panes and scenes and
-//!   their constant size, the one live 3D scene that a context change keeps,
-//!   the selection details and ease, the camera moves, the map legend, the
-//!   section icons and bow arrow, every transaction's exact effect and every
-//!   refusal's, the deal a row opens per context, that a double click trades
-//!   once, the interface cue of each control, the equal store columns, the
-//!   rows, filters and weight bars, that a selection, a quantity change or a
-//!   refused Confirm respawns no inventory or context-line node, that a
-//!   closed deal gives the keyboard back, the context line, the 3D repaint,
-//!   that the simulation never advances and that no input reaches the ship.
-//!   Repeat at a mid and a narrow window size, scroll a short window, then
-//!   exit.
+//!   open and close the interface, and press Escape. Assert the panes and
+//!   scenes and their constant size, the one live 3D scene that a context
+//!   change keeps, the selection details and ease, the camera moves, the map
+//!   legend, the section icons and bow arrow, every transaction's exact
+//!   effect and every refusal's, the deal a row opens per context, that a
+//!   double click trades once, the interface cue of each control, the equal
+//!   store columns, the rows, filters and weight bars, the map detail
+//!   panel's share and contents, the ship panel's share or narrow height,
+//!   description and Prev/Next, the inspector's share or narrow height, the
+//!   map and ship footer's zones, input hints and live summary, that a map
+//!   selection respawns no map node, that a ship step respawns no ship node
+//!   outside the repair slot, that a selection, a quantity change or a
+//!   refused Confirm respawns no inventory or rail node, that a closed deal
+//!   gives the keyboard back, the rail's width, place and status, the 3D
+//!   repaint, that the simulation never advances and that no input reaches
+//!   the ship. Repeat at a mid and a narrow window size, scroll a short
+//!   window, then exit.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>`: the same walk,
 //!   plus a frame of every view.
 
@@ -93,7 +107,7 @@ use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_input::prelude::{ActionContext, ActiveContexts};
 use nova_protocol::{
-    nova_os_ui::prelude::{
+    nova_interface::prelude::{
         cuboid_edges, ease_orbit_center, map_radius_default, map_radius_max, map_ring_radii,
         map_spread, orbit_eye, ship_framing, zoom_radius, MapContactCode, MapContactKind,
         MapContacts, OrbitGesture, ShipSections, MAP_RADIUS_MIN, SHIP_BLOCK_FILL_SCALE,
@@ -134,8 +148,21 @@ const PANE_HOLD: &str = "Sketch Pane Hold";
 const MAP_SCENE: &str = "Sketch Map Scene";
 const SHIP_SCENE: &str = "Sketch Ship Scene";
 const MAP_READOUT: &str = "Sketch Map Readout";
+const MAP_DETAIL: &str = "Sketch Map Detail";
+const MAP_DETAIL_HINT: &str = "Sketch Map Detail Hint";
+const MAP_DETAIL_ICON: &str = "Sketch Map Detail Icon";
+const MAP_DETAIL_CODE: &str = "Sketch Map Detail Code";
+const MAP_DETAIL_NAME: &str = "Sketch Map Detail Name";
+const MAP_DETAIL_KIND: &str = "Sketch Map Detail Kind";
+const MAP_DETAIL_RANGE: &str = "Sketch Map Detail Range";
 const MAP_REFRAME: &str = "Sketch Map Reframe";
 const MAP_LEGEND: &str = "Sketch Map Legend";
+const VIEW_FOOTER: &str = "Sketch View Footer";
+const FOOTER_LEGEND: &str = "Sketch Footer Legend";
+const FOOTER_CONTROLS: &str = "Sketch Footer Controls";
+const FOOTER_SUMMARY: &str = "Sketch Footer Summary";
+const FOOTER_HINTS: &str = "Sketch Footer Hints";
+const HINT_PREFIX: &str = "Sketch Hint ";
 const SHIP_PREV: &str = "Sketch Ship Prev";
 const SHIP_NEXT: &str = "Sketch Ship Next";
 const SHIP_FIT: &str = "Sketch Ship Fit";
@@ -144,12 +171,14 @@ const SHIP_PANEL: &str = "Sketch Ship Panel";
 const SHIP_PREVIEW: &str = "Sketch Ship Preview";
 const SHIP_DETAIL: &str = "Sketch Ship Detail";
 const SHIP_STATUS: &str = "Sketch Ship Status";
+const SHIP_ABOUT: &str = "Sketch Ship About";
+const SHIP_SUMMARY: &str = "Sketch Ship Summary";
 const SHIP_CONDITION: &str = "Sketch Ship Condition";
 const SHIP_SERVICE: &str = "Sketch Ship Service";
 const SHIP_REPAIR: &str = "Sketch Ship Repair";
 const SHIP_NO_REPAIR: &str = "Sketch Ship No Repair";
 const SHIP_BAY: &str = "Sketch Ship Bay";
-const DOCK_BANNER: &str = "Sketch Dock Banner";
+const LEFT_DEBUG_RAIL: &str = "Sketch Left Debug Rail";
 const DOCK_HEAD: &str = "Sketch Dock Head";
 const DOCK_PARTNER: &str = "Sketch Dock Partner";
 const DOCK_CREDITS: &str = "Sketch Dock Credits";
@@ -215,22 +244,23 @@ const REPAIR_CR_PER_POINT: u32 = 12;
 static WEAR: [(&str, u32); 2] = [("PDC-1", 45), ("THR-1", 20)];
 
 /// Render layers and camera orders of the two example scenes. Clear of the
-/// world (0), the NOVA OS RTT (20), its map (21) and ship (22), and the menu
-/// (23), so NOVA OS can open over this example and draw its own.
+/// world (0), the command CRT RTT (20), the interface map (21) and ship (22),
+/// and the menu (23), so the interface can open over this example and draw
+/// its own.
 const MAP_LAYER: usize = 24;
 const SHIP_LAYER: usize = 25;
 const MAP_CAMERA_ORDER: isize = -40;
 const SHIP_CAMERA_ORDER: isize = -41;
 
-/// The NOVA OS map's opening angles, so both viewers open on one framing.
+/// The interface map's opening angles, so both viewers open on one framing.
 const MAP_THETA: f32 = 0.8;
 const MAP_PHI: f32 = 0.62;
 /// Smallest the hub is drawn, whatever the player hull measures.
 const MAP_HUB_MIN: Meters = Meters(16.0);
 const SHIP_THETA: f32 = 0.7;
 const SHIP_PHI: f32 = 0.5;
-/// Share of the NOVA OS ship framing distance this pane uses. The pane is far
-/// larger than the CRT panel, so the hull can sit closer and fill it.
+/// Share of the interface ship framing distance this pane uses. The pane is
+/// larger than the interface panel, so the hull can sit closer and fill it.
 const SHIP_PANE_ZOOM: f32 = 0.72;
 
 /// Which screen is up.
@@ -297,9 +327,20 @@ impl SketchContext {
     }
 }
 
-/// The full-screen root; the top bar under it is never rebuilt.
+/// The full-screen root: the [`LeftDebugRail`] beside the [`SketchMain`]
+/// column.
 #[derive(Component)]
 struct SketchRoot;
+
+/// The fixed left rail of mock context and theme controls and the context
+/// status. Built once, so it stays one entity across views and contexts.
+#[derive(Component)]
+struct LeftDebugRail;
+
+/// The column right of the rail: the title row, built once, over the
+/// [`SketchBody`].
+#[derive(Component)]
+struct SketchMain;
 
 /// The view body, rebuilt whenever the view or the width class changes. A
 /// context change keeps it, and with it the live 3D scene. It scrolls when a
@@ -341,6 +382,16 @@ struct MapSelection(Option<Entity>);
 #[derive(Resource, Default)]
 struct ShipSelection(Option<Entity>);
 
+/// A part of the map's detail panel that shows or hides with the selection.
+/// Built once; [`update_map_detail`] sets its display.
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+enum MapDetailPart {
+    /// The hint with no contact selected.
+    Hint,
+    /// The selected contact's icon, code, name, kind and range.
+    Contact,
+}
+
 /// Theme-coloured 3D materials, repainted on a theme change.
 #[derive(Resource)]
 struct SceneMaterials {
@@ -358,7 +409,7 @@ struct MapCamera;
 #[derive(Component)]
 struct ShipCamera;
 
-/// A pane camera's orbit, in the NOVA OS viewer's terms.
+/// A pane camera's orbit, in the interface viewer's terms.
 #[derive(Component)]
 struct SketchOrbit {
     theta: f32,
@@ -548,7 +599,7 @@ fn sketch_plugin(app: &mut App) {
             refresh_map_legend,
             project_ship_blips,
             outline_selected_section,
-            update_map_readout,
+            update_map_detail,
             update_ship_detail,
             repaint_scenes,
         )
@@ -578,10 +629,10 @@ fn sketch_plugin(app: &mut App) {
 /// screens are an example-only sketch with no pause menu over them. The cost
 /// is that `ClockFreeze` names no owner while the sketch is idle, and
 /// `Clocks::apply` resumes both clocks whenever the last named owner lets go:
-/// the scenario load, or NOVA OS closing. So this runs in `Last`, after every
-/// release a frame can make, and stops the clocks again before the next
-/// frame's `First` advances them. A production screen takes a named hold
-/// instead.
+/// the scenario load, or the interface closing. So this runs in `Last`,
+/// after every release a frame can make, and stops the clocks again before
+/// the next frame's `First` advances them. A production screen takes a named
+/// hold instead.
 fn hold_sketch_clocks(
     mut virtual_time: ResMut<Time<Virtual>>,
     mut physics_time: ResMut<Time<Physics>>,
@@ -764,31 +815,120 @@ fn spawn_root(
                 position_type: PositionType::Absolute,
                 width: percent(100),
                 height: percent(100),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Row,
                 padding: UiRect::all(px(16)),
-                row_gap: px(12),
+                column_gap: px(12),
                 ..default()
             },
-            // Above the flight HUD, below every NOVA OS layer.
+            // Above the flight HUD, below every interface layer.
             GlobalZIndex(MENU_PANEL_Z),
             BackgroundColor(Color::NONE),
             ThemedFill::new(UiColor::Void),
         ))
         .with_children(|root| {
-            top_bar(root, view, context, &theme);
+            left_debug_rail(root, context, &theme);
+            root.spawn((
+                SketchMain,
+                Name::new("Sketch Main"),
+                Node {
+                    flex_grow: 1.0,
+                    min_width: px(0),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    row_gap: px(12),
+                    ..default()
+                },
+            ))
+            .with_children(|main| top_bar(main, view));
         });
 }
 
-/// Title, view tabs, mock context and theme. Built once; `button_on_setting`
-/// moves each group's mark.
-fn top_bar(root: &mut ChildSpawnerCommands, view: SketchView, context: SketchContext, theme: &str) {
-    root.spawn(Node {
+/// Width of the [`LeftDebugRail`], in logical px, at every window size.
+const RAIL_PX: f32 = 220.0;
+
+/// Mock context and theme controls, stacked, over the context status. Built
+/// once; `button_on_setting` moves each group's mark and
+/// [`update_dock_line`] fills the texts.
+fn left_debug_rail(root: &mut ChildSpawnerCommands, context: SketchContext, theme: &str) {
+    // The shared segmented control is a row; the rail stacks its options.
+    let stack = |mut node: Mut<Node>| {
+        node.flex_direction = FlexDirection::Column;
+        node.align_self = AlignSelf::Stretch;
+        node.row_gap = px(3);
+    };
+    root.spawn((
+        LeftDebugRail,
+        Name::new(LEFT_DEBUG_RAIL),
+        Node {
+            width: px(RAIL_PX),
+            flex_shrink: 0.0,
+            row_gap: px(12),
+            padding: UiRect::all(px(12)),
+            overflow: Overflow::clip(),
+            ..panel_node()
+        },
+        panel(),
+    ))
+    .with_children(|rail| {
+        rail.spawn(segmented_container())
+            .entry::<Node>()
+            .and_modify(stack)
+            .entity()
+            .with_children(|seg| {
+                for (value, label, name) in SketchContext::ALL {
+                    let mut option = seg.spawn((
+                        segmented_option(label),
+                        ButtonValue(value),
+                        Name::new(name),
+                        SketchClick,
+                    ));
+                    if value == context {
+                        option.insert(Selected);
+                    }
+                }
+            });
+        rail.spawn(segmented_container())
+            .entry::<Node>()
+            .and_modify(stack)
+            .entity()
+            .with_children(|seg| {
+                for (id, label, name) in [
+                    (PHOSPHOR_THEME_ID, "Phosphor", THEME_PHOSPHOR),
+                    (HARDWARE_THEME_ID, "Hardware", THEME_HARDWARE),
+                ] {
+                    let mut option = seg.spawn((
+                        segmented_option(label),
+                        ButtonValue(SelectedUiTheme(id.to_string())),
+                        Name::new(name),
+                        SketchClick,
+                    ));
+                    if id == theme {
+                        option.insert(Selected);
+                    }
+                }
+            });
+        rail.spawn((
+            Name::new(DOCK_HEAD),
+            themed_text("", 20.0, UiColor::Secondary),
+        ));
+        rail.spawn((
+            Name::new(DOCK_PARTNER),
+            themed_text("", 16.0, UiColor::Primary),
+        ));
+        rail.spawn((
+            Name::new(DOCK_CREDITS),
+            themed_text("", 16.0, UiColor::Primary),
+        ));
+        rail.spawn((Name::new(DOCK_NOTICE), themed_text("", 12.0, UiColor::Body)));
+    });
+}
+
+/// Title and view tabs. Built once; `button_on_setting` moves the tab mark.
+fn top_bar(main: &mut ChildSpawnerCommands, view: SketchView) {
+    main.spawn(Node {
         flex_direction: FlexDirection::Row,
-        flex_wrap: FlexWrap::Wrap,
         align_items: AlignItems::Center,
         column_gap: px(16),
-        row_gap: px(10),
         width: percent(100),
         max_width: px(BODY_MAX_PX),
         flex_shrink: 0.0,
@@ -809,61 +949,16 @@ fn top_bar(root: &mut ChildSpawnerCommands, view: SketchView, context: SketchCon
                 }
             }
         });
-        bar.spawn(Node {
-            flex_grow: 1.0,
-            ..default()
-        });
-        bar.spawn(segmented_container()).with_children(|seg| {
-            for (value, label, name) in SketchContext::ALL {
-                let mut option = seg.spawn((
-                    segmented_option(label),
-                    ButtonValue(value),
-                    Name::new(name),
-                    SketchClick,
-                ));
-                if value == context {
-                    option.insert(Selected);
-                }
-            }
-        });
-        bar.spawn(segmented_container()).with_children(|seg| {
-            for (id, label, name) in [
-                (PHOSPHOR_THEME_ID, "Phosphor", THEME_PHOSPHOR),
-                (HARDWARE_THEME_ID, "Hardware", THEME_HARDWARE),
-            ] {
-                let mut option = seg.spawn((
-                    segmented_option(label),
-                    ButtonValue(SelectedUiTheme(id.to_string())),
-                    Name::new(name),
-                    SketchClick,
-                ));
-                if id == theme {
-                    option.insert(Selected);
-                }
-            }
-        });
     });
 }
 
 /// Widest the body grows, in logical px.
 const BODY_MAX_PX: f32 = 1520.0;
 
-/// Narrower than this, the context line takes two rows and the ship panel and
-/// the inspector stack under their views.
-const NARROW_BELOW_PX: f32 = 1100.0;
-/// Height of the context line, in logical px, one row wide and two rows
-/// narrow. Fixed per width class, so the pane under it keeps its size across
-/// views and contexts.
-const BANNER_PX: f32 = 52.0;
-const BANNER_NARROW_PX: f32 = 72.0;
-
-fn banner_px(narrow: bool) -> f32 {
-    if narrow {
-        BANNER_NARROW_PX
-    } else {
-        BANNER_PX
-    }
-}
+/// Narrower than this window width, the ship panel and the inspector stack
+/// under their views. It is the 1100 px main column the wide views need,
+/// plus the rail and its gap.
+const NARROW_BELOW_PX: f32 = 1332.0;
 
 /// Shortest a view's card may be, in logical px. A window too short for it
 /// scrolls the body instead of squeezing the scene or clipping the panels.
@@ -879,7 +974,7 @@ fn card_min_px(view: SketchView, narrow: bool) -> f32 {
 /// Respawn the body for the current view and width class. A theme change
 /// never comes through here: every widget and material repaints itself. A
 /// context, fixture, selection or confirmation change never comes through
-/// here either: the context line and the inspector update their nodes in
+/// here either: the rail and the inspector update their nodes in
 /// place, and [`refresh_repair_slot`] and [`refresh_store_columns`] rebuild
 /// only the slot or store column that changed, so the live 3D scene and its
 /// camera survive all of them.
@@ -888,11 +983,11 @@ fn rebuild_body(
     view: Res<SketchView>,
     icons: Res<SketchIcons>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    roots: Query<Entity, With<SketchRoot>>,
+    mains: Query<Entity, With<SketchMain>>,
     bodies: Query<Entity, With<SketchBody>>,
     mut built_narrow: Local<Option<bool>>,
 ) {
-    let Ok(root) = roots.single() else {
+    let Ok(main) = mains.single() else {
         return;
     };
     let narrow = windows
@@ -906,8 +1001,8 @@ fn rebuild_body(
         commands.entity(body).despawn();
     }
     let view = *view;
-    commands.entity(root).with_children(|root| {
-        root.spawn((
+    commands.entity(main).with_children(|main| {
+        main.spawn((
             SketchBody,
             Name::new("Sketch Body"),
             Node {
@@ -923,10 +1018,9 @@ fn rebuild_body(
             ScrollPosition::default(),
         ))
         .with_children(|body| {
-            dock_banner(body, narrow);
             let min_height = card_min_px(view, narrow);
             match view {
-                SketchView::Map => map_view(body, narrow, min_height),
+                SketchView::Map => map_view(body, &icons, min_height),
                 SketchView::Ship => ship_view(body, &icons, narrow, min_height),
                 SketchView::Inventory => inventory_view(body, &icons, narrow, min_height),
             }
@@ -984,83 +1078,8 @@ fn card(
     });
 }
 
-/// The context line: one fixed height in every view and context, and no
-/// controls. Its texts are built once and filled by [`update_dock_line`].
-/// Narrow, the result takes its own row.
-fn dock_banner(body: &mut ChildSpawnerCommands, narrow: bool) {
-    let row = || Node {
-        flex_direction: FlexDirection::Row,
-        align_items: AlignItems::Center,
-        column_gap: px(12),
-        ..default()
-    };
-    body.spawn((
-        Name::new(DOCK_BANNER),
-        Node {
-            height: px(banner_px(narrow)),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            justify_content: JustifyContent::Center,
-            overflow: Overflow::clip(),
-            row_gap: px(6),
-            padding: UiRect::axes(px(16), px(6)),
-            border: UiRect::all(px(2)),
-            border_radius: BorderRadius::all(px(4)),
-            ..default()
-        },
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.12),
-        BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Secondary),
-    ))
-    .with_children(|banner| {
-        if narrow {
-            banner.spawn(row()).with_children(|row| {
-                dock_head(row);
-                spacer(row);
-                dock_credits(row);
-            });
-            banner.spawn(row()).with_children(dock_notice);
-        } else {
-            banner.spawn(row()).with_children(|row| {
-                dock_head(row);
-                spacer(row);
-                dock_notice(row);
-                dock_credits(row);
-            });
-        }
-    });
-}
-
-fn dock_head(row: &mut ChildSpawnerCommands) {
-    row.spawn((
-        Name::new(DOCK_HEAD),
-        themed_text("", 20.0, UiColor::Secondary),
-    ));
-    row.spawn((
-        Name::new(DOCK_PARTNER),
-        themed_text("", 16.0, UiColor::Primary),
-    ));
-}
-
-fn dock_notice(row: &mut ChildSpawnerCommands) {
-    row.spawn((
-        Name::new(DOCK_NOTICE),
-        themed_text("", 12.0, UiColor::Body),
-        TextLayout::new(Justify::Left, LineBreak::NoWrap),
-    ));
-}
-
-fn dock_credits(row: &mut ChildSpawnerCommands) {
-    row.spawn((
-        Name::new(DOCK_CREDITS),
-        themed_text("", 16.0, UiColor::Primary),
-        TextLayout::new(Justify::Right, LineBreak::NoWrap),
-    ));
-}
-
-/// Fill the context line in place: the context and what the ship is at, the
-/// last transaction's result and the credits.
+/// Fill the rail status in place: the context and what the ship is at, the
+/// credits and the last transaction's result.
 fn update_dock_line(
     fixture: Res<SketchFixture>,
     context: Res<SketchContext>,
@@ -1118,13 +1137,6 @@ fn set_themed_text(
     }
 }
 
-fn spacer(row: &mut ChildSpawnerCommands) {
-    row.spawn(Node {
-        flex_grow: 1.0,
-        ..default()
-    });
-}
-
 /// A themed button small enough for the repair slot, a filter or the deal
 /// form.
 fn compact_button<'a>(
@@ -1147,12 +1159,14 @@ fn compact_button<'a>(
     entity
 }
 
-/// The node a 3D scene draws into: it takes all the room its column leaves.
-/// `Hovered` tells [`scroll_body`] the wheel belongs to the scene.
+/// The node a 3D scene draws into: it takes all the room its row or column
+/// leaves. `Hovered` tells [`scroll_body`] the wheel belongs to the scene.
 fn scene_node() -> impl Bundle {
     (
         Node {
             flex_grow: 1.0,
+            flex_basis: px(0),
+            min_width: px(0),
             min_height: px(0),
             position_type: PositionType::Relative,
             overflow: Overflow::clip(),
@@ -1176,160 +1190,182 @@ fn control_row(justify: JustifyContent) -> Node {
     }
 }
 
-/// The map: the scene, then a fixed-height line with the readout, the legend
-/// and Reframe. Narrow, the legend takes its own row. Nothing on the map
-/// trades, repairs or docks.
-fn map_view(body: &mut ChildSpawnerCommands, narrow: bool, min_height: f32) {
+/// Share of a split row the map's detail panel, the wide ship panel and the
+/// wide inventory inspector take; the scene or the stores take the rest.
+const DETAIL_SHARE: f32 = 20.0;
+
+/// The map: the scene with the contact detail panel beside it at every
+/// width, over the full-width footer. Nothing on the map trades, repairs or
+/// docks.
+fn map_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, min_height: f32) {
     card(body, PANE_MAP, "Map", min_height, |c| {
-        c.spawn((MapPane, Name::new(MAP_SCENE), scene_node()))
-            .observe(orbit_drag::<MapCamera>)
-            .observe(zoom_map);
-        c.spawn(Node {
-            height: px(if narrow { 84.0 } else { 40.0 }),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            justify_content: JustifyContent::Center,
-            row_gap: px(8),
-            ..default()
-        })
-        .with_children(|foot| {
-            foot.spawn(control_row(JustifyContent::FlexStart))
-                .with_children(|line| {
-                    line.spawn((
-                        Name::new(MAP_READOUT),
-                        themed_text("", 14.0, UiColor::Body),
-                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                        Node {
-                            flex_grow: 1.0,
-                            min_width: px(0),
-                            overflow: Overflow::clip(),
-                            ..default()
-                        },
-                    ));
-                    if !narrow {
-                        map_legend(line);
-                    }
-                    line.spawn((
-                        button(ButtonSpec::new("Reframe").fit()),
-                        Name::new(MAP_REFRAME),
-                        SketchClick,
-                    ))
-                    .observe(reframe_map);
-                });
-            if narrow {
-                foot.spawn(control_row(JustifyContent::FlexStart))
-                    .with_children(map_legend);
-            }
+        c.spawn(split(false)).with_children(|split| {
+            split
+                .spawn((MapPane, Name::new(MAP_SCENE), scene_node()))
+                .observe(orbit_drag::<MapCamera>)
+                .observe(zoom_map);
+            map_detail(split, icons);
         });
+        view_footer(
+            c,
+            SketchView::Map,
+            map_legend,
+            |row| {
+                compact_button(row, ButtonSpec::new("Reframe").fit(), MAP_REFRAME)
+                    .insert(SketchClick)
+                    .observe(reframe_map);
+            },
+            MAP_READOUT,
+        );
     });
 }
 
-/// The slot [`refresh_map_legend`] fills with the plotted marks.
-fn map_legend(line: &mut ChildSpawnerCommands) {
-    line.spawn((
+/// The slot [`refresh_map_legend`] fills with the plotted marks, wrapping
+/// when its zone is short.
+fn map_legend(zone: &mut ChildSpawnerCommands) {
+    zone.spawn((
         MapLegend,
         Name::new(MAP_LEGEND),
         Node {
             flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
             align_items: AlignItems::Center,
             column_gap: px(12),
+            row_gap: px(6),
             flex_shrink: 0.0,
             ..default()
         },
     ));
 }
 
-/// Width of the ship panel and the inventory inspector beside their views, in
-/// logical px.
-const SIDE_PX: f32 = 300.0;
+/// The full-width line under a view and its panel, in three equal zones: the
+/// legend left; in the centre, the view's buttons and key hints on one line
+/// over the pointer hints on another; and the selection summary right, which
+/// `summary` names for the view's update system.
+fn view_footer(
+    parent: &mut ChildSpawnerCommands,
+    view: SketchView,
+    legend: impl FnOnce(&mut ChildSpawnerCommands),
+    buttons: impl FnOnce(&mut ChildSpawnerCommands),
+    summary: &str,
+) {
+    parent
+        .spawn((
+            Name::new(VIEW_FOOTER),
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: px(12),
+                flex_shrink: 0.0,
+                ..default()
+            },
+        ))
+        .with_children(|foot| {
+            foot.spawn(footer_zone(FOOTER_LEGEND)).with_children(legend);
+            foot.spawn(footer_zone(FOOTER_CONTROLS))
+                .with_children(|zone| {
+                    zone.spawn(control_row(JustifyContent::Center))
+                        .with_children(|row| {
+                            buttons(row);
+                            for hint in input_hints(view) {
+                                input_hint(row, hint);
+                            }
+                        });
+                    zone.spawn((Name::new(FOOTER_HINTS), control_row(JustifyContent::Center)))
+                        .with_children(|row| {
+                            for hint in &POINTER_HINTS {
+                                input_hint(row, hint);
+                            }
+                        });
+                });
+            foot.spawn(footer_zone(FOOTER_SUMMARY))
+                .with_children(|zone| {
+                    zone.spawn((
+                        Name::new(summary.to_string()),
+                        themed_text("", 14.0, UiColor::Body),
+                        TextLayout::new(Justify::Right, LineBreak::WordBoundary),
+                    ));
+                });
+        });
+}
+
+/// One of the three equal zones of a view footer.
+fn footer_zone(name: &str) -> impl Bundle {
+    (
+        Name::new(name.to_string()),
+        Node {
+            flex_grow: 1.0,
+            flex_basis: px(0),
+            min_width: px(0),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(6),
+            ..default()
+        },
+    )
+}
+
+/// The pointer inputs both scene views handle, as input and action.
+const POINTER_HINTS: [(&str, &str); 3] =
+    [("Drag", "orbit"), ("Wheel", "zoom"), ("Click", "select")];
+
+/// The keys a view handles, as input and action. Tab and Escape belong to
+/// the interface, not to the view.
+fn input_hints(view: SketchView) -> &'static [(&'static str, &'static str)] {
+    match view {
+        SketchView::Map => &[("WASD/Space/Shift", "fly")],
+        SketchView::Ship => &[],
+        SketchView::Inventory => unreachable!("the hold has no footer"),
+    }
+}
+
+/// An input in the primary colour and its action, on one line.
+fn input_hint(row: &mut ChildSpawnerCommands, (input, action): &(&str, &str)) {
+    row.spawn((Name::new(format!("{HINT_PREFIX}{input}")), legend_entry()))
+        .with_children(|hint| {
+            text(hint, input, 12.0, UiColor::Primary);
+            text(hint, action, 12.0, UiColor::Body);
+        });
+}
+
 /// Height of the ship panel stacked under the ship view, in logical px: the
-/// preview head and the repair slot.
-const SHIP_PANEL_NARROW_PX: f32 = 200.0;
+/// preview head with the section texts and Prev/Next, and the repair slot.
+const SHIP_PANEL_NARROW_PX: f32 = 240.0;
+/// Side of the ship panel's section preview frame, in logical px.
+const SHIP_PREVIEW_PX: f32 = 96.0;
 /// Height of the repair slot, in logical px. Fixed, so the scene beside or
 /// above it keeps its size in every context and repair state.
 const REPAIR_PX: f32 = 92.0;
 
-/// The ship: the scene with the section legend and the centred step, fit and
-/// reset controls under it, and the section panel beside it, or under both
-/// when narrow. Wide, the legend sits left of the controls and an equal empty
-/// side keeps them centred; narrow, the legend takes its own row.
+/// The ship: the scene with the section panel beside it in [`DETAIL_SHARE`]
+/// of the row, or under it when narrow, over the full-width footer.
 fn ship_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool, min_height: f32) {
     card(body, PANE_SHIP, "Ship", min_height, |c| {
         c.spawn(split(narrow)).with_children(|split| {
             split
-                .spawn(Node {
-                    flex_grow: 1.0,
-                    flex_basis: px(0),
-                    min_width: px(0),
-                    min_height: px(0),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(10),
-                    ..default()
-                })
-                .with_children(|viewer| {
-                    viewer
-                        .spawn((ShipPane, Name::new(SHIP_SCENE), scene_node()))
-                        .observe(orbit_drag::<ShipCamera>)
-                        .observe(zoom_ship);
-                    if narrow {
-                        ship_controls(viewer);
-                        section_legend(viewer, icons);
-                    } else {
-                        viewer
-                            .spawn(control_row(JustifyContent::Center))
-                            .with_children(|foot| {
-                                foot.spawn(footer_side())
-                                    .with_children(|side| section_legend(side, icons));
-                                ship_controls(foot);
-                                foot.spawn(footer_side());
-                            });
-                    }
-                });
+                .spawn((ShipPane, Name::new(SHIP_SCENE), scene_node()))
+                .observe(orbit_drag::<ShipCamera>)
+                .observe(zoom_ship);
             ship_panel(split, icons, narrow);
         });
+        view_footer(
+            c,
+            SketchView::Ship,
+            |zone| section_legend(zone, icons),
+            ship_controls,
+            SHIP_SUMMARY,
+        );
     });
 }
 
-/// Prev, Next, Fit and Reset, centred in their row.
-fn ship_controls(parent: &mut ChildSpawnerCommands) {
-    parent
-        .spawn(control_row(JustifyContent::Center))
-        .with_children(|controls| {
-            for (label, name, step) in [("Prev", SHIP_PREV, -1), ("Next", SHIP_NEXT, 1)] {
-                controls
-                    .spawn((
-                        button(ButtonSpec::new(label).fit()),
-                        Name::new(name),
-                        SketchClick,
-                    ))
-                    .observe(step_section(step));
-            }
-            controls
-                .spawn((
-                    button(ButtonSpec::new("Fit").fit()),
-                    Name::new(SHIP_FIT),
-                    SketchClick,
-                ))
-                .observe(fit_ship);
-            controls
-                .spawn((
-                    button(ButtonSpec::new("Reset").fit()),
-                    Name::new(SHIP_RESET),
-                    SketchClick,
-                ))
-                .observe(reset_ship);
-        });
-}
-
-/// One of the two equal sides of the wide ship footer.
-fn footer_side() -> Node {
-    Node {
-        flex_grow: 1.0,
-        flex_basis: px(0),
-        min_width: px(0),
-        flex_direction: FlexDirection::Column,
-        ..default()
-    }
+/// Fit and Reset, the camera controls in the footer's button row. Prev and
+/// Next step the selection from the ship panel.
+fn ship_controls(row: &mut ChildSpawnerCommands) {
+    compact_button(row, ButtonSpec::new("Fit").fit(), SHIP_FIT)
+        .insert(SketchClick)
+        .observe(fit_ship);
+    compact_button(row, ButtonSpec::new("Reset").fit(), SHIP_RESET)
+        .insert(SketchClick)
+        .observe(reset_ship);
 }
 
 /// The section kinds: each icon in its tint and its word, wrapping when the
@@ -1380,13 +1416,13 @@ fn split(narrow: bool) -> Node {
     }
 }
 
-/// A themed side panel: [`SIDE_PX`] wide beside its view, or full width and
-/// `narrow_px` high under it.
-fn side_panel(narrow: bool, narrow_px: f32) -> impl Bundle {
+/// A themed panel box `width` wide and `height` high that never shrinks and
+/// clips what it cannot fit.
+fn panel_box(width: Val, height: Val) -> impl Bundle {
     (
         Node {
-            width: if narrow { percent(100) } else { px(SIDE_PX) },
-            height: if narrow { px(narrow_px) } else { auto() },
+            width,
+            height,
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(10),
@@ -1423,36 +1459,42 @@ fn icon_frame(size: f32) -> impl Bundle {
     )
 }
 
-/// The selected section: its icon, code, kind and condition, and the repair
-/// slot. [`update_ship_detail`] fills the texts, the icon and the bar;
-/// [`refresh_repair_slot`] fills the repair slot.
+/// The selected section: its icon, code, kind, condition and description,
+/// Prev/Next to step the selection, and the repair slot. Wide, the panel
+/// takes [`DETAIL_SHARE`] of the row and stacks the preview over the texts;
+/// narrow, it is [`SHIP_PANEL_NARROW_PX`] high under the scene with the
+/// preview beside the texts. [`update_ship_detail`] fills the texts, the icon
+/// and the bar; [`refresh_repair_slot`] fills the repair slot.
 fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool) {
+    let ((width, height), head) = if narrow {
+        ((percent(100), px(SHIP_PANEL_NARROW_PX)), FlexDirection::Row)
+    } else {
+        ((percent(DETAIL_SHARE), auto()), FlexDirection::Column)
+    };
     split
-        .spawn((
-            Name::new(SHIP_PANEL),
-            side_panel(narrow, SHIP_PANEL_NARROW_PX),
-        ))
+        .spawn((Name::new(SHIP_PANEL), panel_box(width, height)))
         .with_children(|panel| {
             panel
                 .spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
+                    flex_direction: head,
                     column_gap: px(12),
+                    row_gap: px(10),
                     flex_shrink: 0.0,
                     ..default()
                 })
                 .with_children(|head| {
-                    head.spawn(icon_frame(64.0)).with_children(|frame| {
-                        frame.spawn((
-                            ShipPreview,
-                            Name::new(SHIP_PREVIEW),
-                            icon_node(
-                                icons.sections[SectionIcon::Hull.index()].clone(),
-                                SectionIcon::Hull.color(),
-                                48.0,
-                            ),
-                        ));
-                    });
+                    head.spawn(icon_frame(SHIP_PREVIEW_PX))
+                        .with_children(|frame| {
+                            frame.spawn((
+                                ShipPreview,
+                                Name::new(SHIP_PREVIEW),
+                                icon_node(
+                                    icons.sections[SectionIcon::Hull.index()].clone(),
+                                    SectionIcon::Hull.color(),
+                                    SHIP_PREVIEW_PX * 0.75,
+                                ),
+                            ));
+                        });
                     head.spawn(Node {
                         flex_grow: 1.0,
                         min_width: px(0),
@@ -1480,6 +1522,18 @@ fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: boo
                                 ThemedFill::new(UiColor::Nominal),
                             ));
                         });
+                        detail.spawn((Name::new(SHIP_ABOUT), themed_text("", 13.0, UiColor::Body)));
+                        detail
+                            .spawn(control_row(JustifyContent::FlexStart))
+                            .with_children(|row| {
+                                for (label, name, step) in
+                                    [("Prev", SHIP_PREV, -1), ("Next", SHIP_NEXT, 1)]
+                                {
+                                    compact_button(row, ButtonSpec::new(label).fit(), name)
+                                        .insert(SketchClick)
+                                        .observe(step_section(step));
+                                }
+                            });
                     });
                 });
             panel.spawn((
@@ -1494,6 +1548,48 @@ fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: boo
                     ..default()
                 },
             ));
+        });
+}
+
+/// The contact detail panel, built once: a hint with no contact selected, or
+/// the contact's icon over its code, name, kind and range.
+/// [`update_map_detail`] fills it.
+fn map_detail(split: &mut ChildSpawnerCommands, icons: &SketchIcons) {
+    split
+        .spawn((
+            Name::new(MAP_DETAIL),
+            panel_box(percent(DETAIL_SHARE), auto()),
+        ))
+        .with_children(|panel| {
+            panel
+                .spawn((
+                    MapDetailPart::Hint,
+                    Name::new(MAP_DETAIL_HINT),
+                    column_node(10.0),
+                ))
+                .with_children(|hint| text(hint, "Select a contact.", 13.0, UiColor::Body));
+            panel
+                .spawn((MapDetailPart::Contact, column_node(6.0)))
+                .with_children(|contact| {
+                    contact.spawn(icon_frame(56.0)).with_children(|frame| {
+                        frame.spawn((
+                            Name::new(MAP_DETAIL_ICON),
+                            icon_node(
+                                icons.bodies[BodyIcon::Ship.index()].clone(),
+                                UiColor::Secondary,
+                                40.0,
+                            ),
+                        ));
+                    });
+                    for (name, size, color) in [
+                        (MAP_DETAIL_CODE, 16.0, UiColor::Primary),
+                        (MAP_DETAIL_NAME, 13.0, UiColor::Body),
+                        (MAP_DETAIL_KIND, 12.0, UiColor::Secondary),
+                        (MAP_DETAIL_RANGE, 12.0, UiColor::Body),
+                    ] {
+                        contact.spawn((Name::new(name), themed_text("", size, color)));
+                    }
+                });
         });
 }
 
@@ -2008,7 +2104,7 @@ fn drop_stale_scene(commands: &mut Commands, scene: &mut Option<PaneScene>, host
 }
 
 /// Build the map scene when a [`MapPane`] mounts and drop it when it goes:
-/// the NOVA OS map's rings and hub, framed by its helpers, on this example's
+/// the interface map's rings and hub, framed by its helpers, on this example's
 /// camera and palette.
 #[expect(
     clippy::too_many_arguments,
@@ -2020,7 +2116,7 @@ fn manage_map_scene(
     selection: Res<MapSelection>,
     hosts: Query<Entity, With<MapPane>>,
     joined: Query<(), Added<MapContactCode>>,
-    player: Query<&GlobalTransform, With<PlayerSpaceshipMarker>>,
+    player: Query<(&GlobalTransform, Option<&HullEnvelopeRadius>), With<PlayerSpaceshipMarker>>,
     contacts: MapContacts,
     theme: Res<ActiveUiTheme>,
     palette: Res<SceneMaterials>,
@@ -2041,10 +2137,10 @@ fn manage_map_scene(
     if scene.0.is_some() {
         return;
     }
-    let focus = player
+    let (player, envelope) = player
         .single()
-        .expect("the map pane mounted without exactly one player ship")
-        .translation();
+        .expect("the map pane mounted without exactly one player ship");
+    let focus = player.translation();
     let framing = map_radius_default(map_spread(&contacts, focus));
 
     let (image, camera) = scene_camera(&mut images, MAP_CAMERA_ORDER, MAP_LAYER, &theme);
@@ -2073,7 +2169,7 @@ fn manage_map_scene(
         ChildOf(root),
     ));
     // The rings stand on the orbit center and follow it to a selected
-    // contact, as on the NOVA OS map.
+    // contact, as on the interface map.
     let rings = commands
         .spawn((
             MapRings,
@@ -2093,13 +2189,9 @@ fn manage_map_scene(
             ChildOf(rings),
         ));
     }
-    // The hub is the player ship and stays on it.
-    let hub = contacts
-        .collect()
-        .into_iter()
-        .find(|contact| contact.kind == MapContactKind::OwnShip)
-        .and_then(|contact| contact.radius)
-        .unwrap_or(0.0)
+    // The hub is the player ship, sized by its hull envelope, and stays on it.
+    let hub = envelope
+        .map_or(0.0, |envelope| envelope.0)
         .max(MAP_HUB_MIN.to_engine());
     commands.spawn((
         Mesh3d(meshes.add(Sphere::new(hub))),
@@ -2118,7 +2210,7 @@ fn manage_map_scene(
 }
 
 /// Build the ship scene when a [`ShipPane`] mounts and drop it when it goes:
-/// one kind-tinted block and outline per live section, as the NOVA OS ship
+/// one kind-tinted block and outline per live section, as the interface ship
 /// draws them, and a bow arrow along ship-local -Z.
 #[expect(
     clippy::too_many_arguments,
@@ -2149,7 +2241,7 @@ fn manage_ship_scene(
         1,
         "the ship pane mounted without exactly one player ship"
     );
-    // Sections join the model once NOVA OS has coded them, a frame after
+    // Sections join the model once the interface has coded them, a frame after
     // the ship spawns. Nothing is drawn until then.
     let views = sections.collect();
     if views.is_empty() {
@@ -2369,8 +2461,8 @@ fn drive_sketch_cameras(
 const MAP_PAN_RATE: f32 = 0.5;
 
 /// Fly the map's orbit center freely: W/A/S/D along and across the camera's
-/// heading, Space up and Shift down, on real time. Not while NOVA OS is open:
-/// its own viewer reads the same keys then.
+/// heading, Space up and Shift down, on real time. Not while the interface
+/// is open: its own viewer reads the same keys then.
 fn pan_map(
     time: Res<Time<Real>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -2402,11 +2494,11 @@ fn pan_map(
     orbit.center_target += travel;
 }
 
-/// Orbit a pane's camera by a drag on its background, at the NOVA OS rate per
-/// pixel. Any button drags: NOVA OS keeps the left button for selection, but
-/// here selection is a click on a blip, and a drag that starts on a blip
-/// belongs to the blip. Picking reports logical pixels, NOVA OS physical
-/// ones, so the rates match at a scale factor of 1.
+/// Orbit a pane's camera by a drag on its background, at the interface rate
+/// per pixel. Any button drags: the interface keeps the left button for
+/// selection, but here selection is a click on a blip, and a drag that starts
+/// on a blip belongs to the blip. Picking reports logical pixels, the
+/// interface physical ones, so the rates match at a scale factor of 1.
 fn orbit_drag<C: Component>(drag: On<Pointer<Drag>>, mut orbit: Query<&mut SketchOrbit, With<C>>) {
     if drag.original_event_target() != drag.entity {
         return;
@@ -2423,8 +2515,8 @@ fn orbit_drag<C: Component>(drag: On<Pointer<Drag>>, mut orbit: Query<&mut Sketc
     orbit.phi = phi;
 }
 
-/// Zoom the map by the wheel, out to what the live scene needs, as NOVA OS
-/// does.
+/// Zoom the map by the wheel, out to what the live scene needs, as the
+/// interface does.
 fn zoom_map(
     scroll: On<Pointer<Scroll>>,
     contacts: MapContacts,
@@ -2437,7 +2529,7 @@ fn zoom_map(
     orbit.radius = zoom_radius(orbit.radius, scroll.y, MAP_RADIUS_MIN, reach);
 }
 
-/// Zoom the ship by the wheel, within the NOVA OS reach of a hull.
+/// Zoom the ship by the wheel, within the interface reach of a hull.
 fn zoom_ship(scroll: On<Pointer<Scroll>>, mut orbit: Query<&mut SketchOrbit, With<ShipCamera>>) {
     let Ok(mut orbit) = orbit.single_mut() else {
         return;
@@ -2470,13 +2562,14 @@ fn kind_color(kind: MapContactKind) -> UiColor {
         MapContactKind::Ally => UiColor::Info,
         MapContactKind::Hostile => UiColor::Danger,
         MapContactKind::Objective => UiColor::Accent,
-        MapContactKind::Terrain => UiColor::Secondary,
+        MapContactKind::Terrain | MapContactKind::Neutral | MapContactKind::Planet => {
+            UiColor::Secondary
+        }
     }
 }
 
 impl MapMark {
-    /// The legend word. A ship with no side is terrain to the contact model,
-    /// and a neutral ship to the legend.
+    /// The legend word. A ship with no side is a neutral ship.
     fn label(self) -> &'static str {
         match (self.body, self.kind) {
             (BodyIcon::Ship, MapContactKind::OwnShip) => "Own ship",
@@ -2495,7 +2588,7 @@ impl MapMark {
             MapContactKind::OwnShip => 0,
             MapContactKind::Ally => 1,
             MapContactKind::Hostile => 2,
-            MapContactKind::Terrain => 3,
+            MapContactKind::Terrain | MapContactKind::Neutral | MapContactKind::Planet => 3,
             MapContactKind::Objective => 4,
         };
         (self.body.index(), stance)
@@ -2855,7 +2948,7 @@ fn project_ship_blips(
         let Ok((mut node, mut visibility, children)) = blips.get_mut(blip) else {
             continue;
         };
-        // The scene sits at the origin in ship-local space, like the NOVA OS
+        // The scene sits at the origin in ship-local space, like the interface
         // ship, so the local offset is the point to project.
         place_blip(
             &mut node,
@@ -3021,34 +3114,89 @@ fn outline_selected_section(
     }
 }
 
-fn update_map_readout(
+/// Fill the map's detail panel in place: the hint with no contact selected,
+/// or the contact's icon in its stance colour, code, name, kind and range;
+/// and the contact's code, name, kind and range in the footer summary.
+/// Writes only what differs, so a selection respawns nothing.
+fn update_map_detail(
     selection: Res<MapSelection>,
     contacts: MapContacts,
-    mut texts: Query<(&Name, &mut Text)>,
+    markers: BodyMarkers,
+    icons: Res<SketchIcons>,
+    mut parts: Query<(&MapDetailPart, &mut Node)>,
+    mut texts: Query<(&Name, &mut Text, &mut ThemedText)>,
+    mut images: Query<(&Name, &mut ImageNode, &mut ThemedImageTint)>,
 ) {
-    let line = selection
-        .0
-        .and_then(|selected| {
-            contacts
-                .collect()
-                .into_iter()
-                .find(|c| c.entity == selected)
-        })
-        .map(|contact| {
-            format!(
-                "{}  {}  {}  {}",
-                contact.code,
-                contact.name,
-                contact.kind.label(),
-                nova_ui::units::distance(Meters::from_engine(contact.range)),
-            )
-        })
-        .unwrap_or_else(|| "Select a contact.".to_string());
-    set_named_text(&mut texts, MAP_READOUT, &line);
+    let contact = selection.0.and_then(|selected| {
+        contacts
+            .collect()
+            .into_iter()
+            .find(|c| c.entity == selected)
+    });
+    for (part, mut node) in &mut parts {
+        let shown = match part {
+            MapDetailPart::Hint => contact.is_none(),
+            MapDetailPart::Contact => contact.is_some(),
+        };
+        show(&mut node, shown);
+    }
+    let Some(contact) = contact else {
+        set_themed_text(&mut texts, MAP_READOUT, "Select a contact.", UiColor::Body);
+        return;
+    };
+    let mark = map_mark(contact.entity, contact.kind, &markers);
+    let tone = kind_color(mark.kind);
+    let range = nova_ui::units::distance(Meters::from_engine(contact.range));
+    for (name, mut image, mut tint) in &mut images {
+        if name.as_str() != MAP_DETAIL_ICON {
+            continue;
+        }
+        let wanted = &icons.bodies[mark.body.index()];
+        if image.image != *wanted {
+            image.image = wanted.clone();
+        }
+        if tint.color != tone {
+            tint.color = tone;
+        }
+    }
+    set_themed_text(&mut texts, MAP_DETAIL_CODE, &contact.code, UiColor::Primary);
+    set_themed_text(&mut texts, MAP_DETAIL_NAME, &contact.name, UiColor::Body);
+    set_themed_text(&mut texts, MAP_DETAIL_KIND, mark.label(), tone);
+    set_themed_text(&mut texts, MAP_DETAIL_RANGE, &range, UiColor::Body);
+    // A no-break space keeps the range's number and unit on one line when
+    // the narrow footer wraps the summary.
+    set_themed_text(
+        &mut texts,
+        MAP_READOUT,
+        &format!(
+            "{}  {}  {}  {}",
+            contact.code,
+            contact.name,
+            mark.label(),
+            range.replace(' ', "\u{a0}"),
+        ),
+        UiColor::Body,
+    );
 }
 
-/// The selected section's code, name, family and fixture condition in the
-/// ship panel, with its family icon and a condition bar.
+/// The fixture description of a section kind in the ship panel. The TAB
+/// interface keeps its own copy crate-private; this example leaves the
+/// interface unchanged.
+fn section_about(kind: SectionClass) -> &'static str {
+    match kind {
+        SectionClass::Hull => "Structural armour plating.",
+        SectionClass::Thruster => "Main drive; provides thrust.",
+        SectionClass::Controller => "Command core; runs the ship.",
+        SectionClass::Turret => "Point-defence gun.",
+        SectionClass::Torpedo => "Torpedo launch tube.",
+        SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
+        SectionClass::Docking => "Docking port; locks onto another hull.",
+    }
+}
+
+/// The selected section's code, name, family, fixture condition and
+/// description in the ship panel, with its family icon and a condition bar,
+/// and its code and condition in the footer summary.
 fn update_ship_detail(
     selection: Res<ShipSelection>,
     sections: ShipSections,
@@ -3075,6 +3223,11 @@ fn update_ship_detail(
     );
     set_named_text(
         &mut texts,
+        SHIP_SUMMARY,
+        &format!("{}  {pct}%  {}", view.code, condition_status(pct)),
+    );
+    set_named_text(
+        &mut texts,
         SHIP_STATUS,
         &format!(
             "{}  Condition {}%  {}",
@@ -3083,6 +3236,7 @@ fn update_ship_detail(
             condition_status(pct)
         ),
     );
+    set_named_text(&mut texts, SHIP_ABOUT, section_about(view.kind));
     for (mut image, mut tint) in &mut previews {
         let wanted = &icons.sections[icon.index()];
         if image.image != *wanted {
@@ -3675,7 +3829,7 @@ impl SketchFixture {
     }
 }
 
-/// A condition in percent read as a status, on the NOVA OS thresholds.
+/// A condition in percent read as a status, on the interface thresholds.
 fn condition_status(pct: u32) -> &'static str {
     match pct {
         0..=25 => "critical",
@@ -4324,13 +4478,17 @@ fn column_node(row_gap: f32) -> Node {
 
 /// The inspector, built once: a hint with nothing selected; the item's icon,
 /// name and category; its facts; and the confirmation in their place while
-/// one is open. [`update_inspector`] fills it.
+/// one is open. Wide, it takes [`DETAIL_SHARE`] of the row beside the stores;
+/// narrow, it is [`INSPECTOR_NARROW_PX`] high under them.
+/// [`update_inspector`] fills it.
 fn inspector(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool) {
+    let (width, height) = if narrow {
+        (percent(100), px(INSPECTOR_NARROW_PX))
+    } else {
+        (percent(DETAIL_SHARE), auto())
+    };
     split
-        .spawn((
-            Name::new(INSPECTOR),
-            side_panel(narrow, INSPECTOR_NARROW_PX),
-        ))
+        .spawn((Name::new(INSPECTOR), panel_box(width, height)))
         .with_children(|panel| {
             panel
                 .spawn((InspectorPart::Hint, column_node(10.0)))
@@ -4387,7 +4545,9 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool
         });
 }
 
-/// A label on the left and a named value on the right.
+/// A label on the left and a named value on the right. The value wraps at
+/// words: a long stock line such as `4 t in Mock station market` does not fit
+/// one line of the inspector at the mid width.
 fn fact(panel: &mut ChildSpawnerCommands, label: &str, name: &str) {
     panel
         .spawn(control_row(JustifyContent::SpaceBetween))
@@ -4396,7 +4556,7 @@ fn fact(panel: &mut ChildSpawnerCommands, label: &str, name: &str) {
             row.spawn((
                 Name::new(name.to_string()),
                 themed_text("", 13.0, UiColor::Body),
-                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                TextLayout::new(Justify::Right, LineBreak::WordBoundary),
             ));
         });
 }
@@ -4457,7 +4617,7 @@ fn deal_form(form: &mut ChildSpawnerCommands) {
     ))
     .observe(slide_draft);
     form.spawn((Name::new(DEAL_TOTAL), themed_text("", 13.0, UiColor::Body)));
-    form.spawn((Name::new(DEAL_HOLD), themed_text("", 12.0, UiColor::Label)));
+    fact(form, "Hold after", DEAL_HOLD);
     form.spawn(control_row(JustifyContent::FlexStart))
         .with_children(|row| {
             compact_button(
@@ -4583,16 +4743,11 @@ fn update_inspector(
     set_themed_text(
         &mut texts,
         DEAL_HOLD,
-        &format!(
-            "{} after: {} / {}",
-            Store::Own.title(),
-            tonnes(after),
-            tonnes(fixture.own.capacity_kg)
-        ),
+        &format!("{} / {}", tonnes(after), tonnes(fixture.own.capacity_kg)),
         if after > fixture.own.capacity_kg {
             UiColor::Danger
         } else {
-            UiColor::Label
+            UiColor::Body
         },
     );
 }
@@ -4856,11 +5011,11 @@ fn toggle_repair_bay(_: On<Activate>, mut fixture: ResMut<SketchFixture>) {
 #[cfg(feature = "debug")]
 const DESKTOP: Vec2 = Vec2::new(1600.0, 900.0);
 #[cfg(feature = "debug")]
-const MID: Vec2 = Vec2::new(1120.0, 820.0);
+const MID: Vec2 = Vec2::new(1352.0, 820.0);
 #[cfg(feature = "debug")]
-const NARROW: Vec2 = Vec2::new(720.0, 1000.0);
+const NARROW: Vec2 = Vec2::new(1024.0, 900.0);
 #[cfg(feature = "debug")]
-const SHORT: Vec2 = Vec2::new(720.0, 760.0);
+const SHORT: Vec2 = Vec2::new(1024.0, 600.0);
 
 /// Seconds the harness gives the assets and the scenario to come up.
 #[cfg(feature = "debug")]
@@ -5121,9 +5276,20 @@ fn sketch_script() -> Script {
         .add();
     script = verdict(script, Map, Undocked, "desktop");
     let raider = format!("Map Blip {RAIDER_CODE}");
+    // The map card's nodes: its scene, blips, detail panel and footer.
+    let map_nodes = |world: &mut World| {
+        let pane = named(world, PANE_MAP);
+        let mut nodes = descendants_with::<Node>(world, pane);
+        nodes.sort();
+        nodes
+    };
     script = watch_ease(script, Map)
         .step("sketch: forget the cues before the map")
-        .on_enter(|world: &mut World| world.resource_mut::<HeardCues>().0.clear())
+        .on_enter(move |world: &mut World| {
+            world.resource_mut::<HeardCues>().0.clear();
+            let nodes = map_nodes(world);
+            world.insert_resource(NodesBefore(nodes));
+        })
         .add();
     script = script
         .click_named(
@@ -5139,10 +5305,25 @@ fn sketch_script() -> Script {
         .on_enter(|world: &mut World| {
             let line = named_text(world, MAP_READOUT);
             assert!(
-                line.starts_with(RAIDER_CODE) && line.contains("HOSTILE"),
+                line.starts_with(RAIDER_CODE) && line.contains("Hostile ship"),
                 "clicking the raider must show it in the readout, not `{line}`"
             );
             info!("sketch: map readout is `{line}`");
+        })
+        .add()
+        .step("sketch: the selection kept every map node")
+        .on_enter(move |world: &mut World| {
+            let before = world
+                .remove_resource::<NodesBefore>()
+                .expect("the map nodes were noted")
+                .0;
+            let after = map_nodes(world);
+            assert_eq!(
+                before, after,
+                "a selection must update the map card in place, not respawn a card, blip or \
+                 panel node"
+            );
+            info!("sketch: the selection kept all {} map nodes", after.len());
         })
         .add();
     script = expect_cues(script, "a map contact", &[UiSfx::MenuSelect]);
@@ -5191,8 +5372,8 @@ fn sketch_script() -> Script {
     script = verdict(script, Map, Undocked, "recentered");
     script = fly_map(script);
     script = verdict(script, Map, Undocked, "flown");
-    script = nova_os_round_trip(script);
-    script = verdict(script, Map, Undocked, "after NOVA OS and Escape");
+    script = interface_round_trip(script);
+    script = verdict(script, Map, Undocked, "after the interface and Escape");
     // Every context over the live map: the scene and its camera stay, and
     // the map gains no dock, trade or repair control.
     for context in [Station, Boarded, Undocked] {
@@ -5313,17 +5494,42 @@ fn sketch_script() -> Script {
     script = verdict(script, Ship, Boarded, "hardware");
     script = shot(script, "hardware-ship-boarded");
 
-    // Just over the narrow break: the side panels still sit beside their
-    // views.
+    // Just over the narrow break: the detail panels and the inspector still
+    // sit beside their views, in their share of the row.
     script = resize(script, MID, "mid");
     script = verdict(script, Ship, Boarded, "mid");
     script = switch_context(script, Station);
     script = verdict(script, Ship, Station, "mid");
     script = shot(script, "mid-hardware-ship-station");
-    for view in [Inventory, Map] {
-        script = open(script, view);
-        script = verdict(script, view, Station, "mid");
+    script = open(script, Inventory);
+    script = verdict(script, Inventory, Station, "mid");
+    script = shot(script, "mid-hardware-inventory-station");
+    // The narrowest wide inspector holds the water's facts and its deal.
+    script = note_nodes(script);
+    script = select_row(
+        script,
+        "open the water mid",
+        Store::Market,
+        "Water",
+        Some(Deal::Buy),
+    );
+    script = assert_nodes_kept(script, "opening the water mid");
+    script = verdict(script, Inventory, Station, "mid deal");
+    script = shot(script, "mid-hardware-inventory-deal");
+    // Undocked drops the market selection and the deal, so the other
+    // contexts and the narrow walk start from the empty inspector.
+    for (context, slug) in [
+        (Undocked, "mid-hardware-inventory-undocked"),
+        (Boarded, "mid-hardware-inventory-boarded"),
+    ] {
+        script = switch_context(script, context);
+        script = verdict(script, Inventory, context, "mid");
+        script = shot(script, slug);
     }
+    script = switch_context(script, Station);
+    script = open(script, Map);
+    script = verdict(script, Map, Station, "mid");
+    script = shot(script, "mid-hardware-map-station");
 
     script = resize(script, NARROW, "narrow");
     for view in [Map, Ship, Inventory] {
@@ -5363,10 +5569,10 @@ fn sketch_script() -> Script {
     script = shot(script, "narrow-hardware-inventory-deal");
     script = resize(script, SHORT, "short deal");
     script = script
-        .step("sketch: aim the wheel at the context line (short deal)")
+        .step("sketch: aim the wheel at the rail (short deal)")
         .on_enter(|world: &mut World| {
-            let banner = ui_node_centre(world, DOCK_BANNER).expect("the context line is laid out");
-            move_cursor(banner)(world);
+            let status = ui_node_centre(world, DOCK_HEAD).expect("the rail status is laid out");
+            move_cursor(status)(world);
         })
         .until(frames(2))
         .add()
@@ -5685,16 +5891,16 @@ fn select_row(
     .add()
 }
 
-/// Every UI node under the inventory card and the context line, as a step
-/// noted it.
+/// The UI nodes a step noted: under the map card, under the ship card outside
+/// the repair slot, or under the inventory card and the rail.
 #[cfg(feature = "debug")]
 #[derive(Resource)]
 struct NodesBefore(Vec<Entity>);
 
-/// Every UI node under the inventory card and the context line, sorted.
+/// Every UI node under the inventory card and the rail, sorted.
 #[cfg(feature = "debug")]
 fn inventory_nodes(world: &mut World) -> Vec<Entity> {
-    let roots = [named(world, PANE_HOLD), named(world, DOCK_BANNER)];
+    let roots = [named(world, PANE_HOLD), named(world, LEFT_DEBUG_RAIL)];
     let mut nodes: Vec<Entity> = roots
         .into_iter()
         .flat_map(|root| descendants_with::<Node>(world, root))
@@ -5703,7 +5909,7 @@ fn inventory_nodes(world: &mut World) -> Vec<Entity> {
     nodes
 }
 
-/// Note the inventory and context-line nodes for [`assert_nodes_kept`].
+/// Note the inventory and rail nodes for [`assert_nodes_kept`].
 #[cfg(feature = "debug")]
 fn note_nodes(script: Script) -> Script {
     script
@@ -5715,8 +5921,8 @@ fn note_nodes(script: Script) -> Script {
         .add()
 }
 
-/// The inventory and context-line nodes are the ones [`note_nodes`] saw:
-/// `what` respawned no row, inspector part or context-line text.
+/// The inventory and rail nodes are the ones [`note_nodes`] saw: `what`
+/// respawned no row, inspector part or rail text.
 #[cfg(feature = "debug")]
 fn assert_nodes_kept(script: Script, what: &'static str) -> Script {
     script
@@ -5731,7 +5937,7 @@ fn assert_nodes_kept(script: Script, what: &'static str) -> Script {
             let new = after.iter().filter(|node| !before.contains(node)).count();
             assert!(
                 gone == 0 && new == 0,
-                "{what} must update the inventory and context line in place, \
+                "{what} must update the inventory and rail in place, \
                  not despawn {gone} and spawn {new} node(s)"
             );
             info!("sketch: {what} kept all {} inventory nodes", after.len());
@@ -6054,10 +6260,7 @@ fn station_deals(mut script: Script) -> Script {
         .add()
         .step("sketch: the confirmation shows the hold overfilled")
         .on_enter(|world: &mut World| {
-            assert_eq!(
-                named_text(world, DEAL_HOLD),
-                "Picket hold after: 12.5 t / 12.0 t"
-            );
+            assert_eq!(named_text(world, DEAL_HOLD), "12.5 t / 12.0 t");
         })
         .add();
     script = transact(
@@ -6552,8 +6755,8 @@ fn ship_repairs(mut script: Script) -> Script {
     expect_cues(script, "the bay switch", &[UiSfx::MenuSelect])
 }
 
-/// In a window too short for the narrow ship view, the wheel over the
-/// context line scrolls the body until the ship panel is on screen.
+/// In a window too short for the narrow ship view, the wheel over the rail
+/// scrolls the body until the ship panel is on screen.
 #[cfg(feature = "debug")]
 fn scroll_short(script: Script) -> Script {
     let script = resize(script, SHORT, "short");
@@ -6568,12 +6771,12 @@ fn scroll_short(script: Script) -> Script {
                 window.max.x,
                 window.max.y
             );
-            let banner = ui_node_centre(world, DOCK_BANNER).expect("the context line is laid out");
-            move_cursor(banner)(world);
+            let status = ui_node_centre(world, DOCK_HEAD).expect("the rail status is laid out");
+            move_cursor(status)(world);
         })
         .until(frames(2))
         .add()
-        .step("sketch: wheel down over the context line")
+        .step("sketch: wheel down over the rail")
         .on_enter(scroll_lines(-10.0))
         .until(frames(4))
         .add()
@@ -6636,26 +6839,26 @@ fn open(script: Script, view: SketchView) -> Script {
     expect_cues(script, "a view tab", &[UiSfx::MenuSelect])
 }
 
-/// Open NOVA OS with its own key over the screens and close it with Escape,
-/// then press Escape with nothing open. The screens stay up, nothing pauses
-/// or opens, and the clocks stay held throughout.
+/// Open the interface with its own key over the screens and close it with
+/// Escape, then press Escape with nothing open. The screens stay up, nothing
+/// pauses or opens, and the clocks stay held throughout.
 #[cfg(feature = "debug")]
-fn nova_os_round_trip(script: Script) -> Script {
+fn interface_round_trip(script: Script) -> Script {
     let pause_is =
         |wanted: PauseStates| resource_where::<State<PauseStates>>(move |s| *s.get() == wanted);
     script
-        .step("sketch: Tab opens NOVA OS over the screens")
+        .step("sketch: Tab opens the interface over the screens")
         .on_enter(press_key(KeyCode::Tab))
-        .until(pause_is(PauseStates::NovaOs))
+        .until(pause_is(PauseStates::Interface))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("sketch: release Tab")
         .on_enter(release_key(KeyCode::Tab))
         .until(frames(10))
         .add()
-        .step("sketch: NOVA OS kept the simulation still")
+        .step("sketch: the interface kept the simulation still")
         .on_enter(|world: &mut World| {
-            assert_sim_still(world, "NOVA OS open");
+            assert_sim_still(world, "interface open");
             let orbit = map_orbit(world);
             world.insert_resource(GestureProbe {
                 at: Vec2::ZERO,
@@ -6666,7 +6869,7 @@ fn nova_os_round_trip(script: Script) -> Script {
         })
         .until(frames(5))
         .add()
-        .step("sketch: W under NOVA OS left the screens' map alone")
+        .step("sketch: W under the interface left the screens' map alone")
         .on_enter(|world: &mut World| {
             release_key(KeyCode::KeyW)(world);
             // The target, not the center: the center may still be settling
@@ -6679,22 +6882,22 @@ fn nova_os_round_trip(script: Script) -> Script {
             let after = map_orbit(world).center_target;
             assert_eq!(
                 after, before,
-                "W while NOVA OS is open belongs to NOVA OS, not the screens' map"
+                "W while the interface is open belongs to it, not the screens' map"
             );
-            assert_ship_unflown(world, "W under NOVA OS");
+            assert_ship_unflown(world, "W under the interface");
         })
         .add()
-        .step("sketch: Escape closes NOVA OS")
+        .step("sketch: Escape closes the interface")
         .on_enter(press_key(KeyCode::Escape))
         .until(pause_is(PauseStates::Unpaused))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("sketch: release Escape after NOVA OS")
+        .step("sketch: release Escape after the interface")
         .on_enter(release_key(KeyCode::Escape))
         .until(frames(10))
         .add()
-        .step("sketch: closing NOVA OS left the simulation still")
-        .on_enter(|world: &mut World| assert_sim_still(world, "NOVA OS closed"))
+        .step("sketch: closing the interface left the simulation still")
+        .on_enter(|world: &mut World| assert_sim_still(world, "interface closed"))
         .add()
         .step("sketch: Escape with nothing open")
         .on_enter(press_key(KeyCode::Escape))
@@ -6710,7 +6913,7 @@ fn nova_os_round_trip(script: Script) -> Script {
             assert_eq!(
                 pause,
                 PauseStates::Unpaused,
-                "Escape over the screens must neither pause nor open NOVA OS"
+                "Escape over the screens must neither pause nor open the interface"
             );
             assert!(
                 world.resource::<SketchView>() == &SketchView::Map,
@@ -6811,10 +7014,37 @@ fn section_order(world: &mut World) -> (Option<String>, Vec<String>) {
 }
 
 /// Next moves the ship selection one section along the code order, and Prev
-/// brings it back.
+/// brings it back. Neither respawns a ship card node outside the repair slot,
+/// which the selection rebuilds.
 #[cfg(feature = "debug")]
 fn step_sections(script: Script) -> Script {
+    let ship_nodes = |world: &mut World| {
+        let pane = named(world, PANE_SHIP);
+        let slot = named(world, SHIP_SERVICE);
+        let rebuilt = descendants_with::<Node>(world, slot);
+        let mut nodes: Vec<Entity> = descendants_with::<Node>(world, pane)
+            .into_iter()
+            .filter(|node| *node == slot || !rebuilt.contains(node))
+            .collect();
+        nodes.sort();
+        nodes
+    };
+    let kept = move |world: &mut World, step: &str| {
+        let before = world.resource::<NodesBefore>().0.clone();
+        let after = ship_nodes(world);
+        assert_eq!(
+            before, after,
+            "{step} must update the ship card in place, not respawn a node outside the repair \
+             slot"
+        );
+    };
     let script = script
+        .step("sketch: note the ship nodes before Next")
+        .on_enter(move |world: &mut World| {
+            let nodes = ship_nodes(world);
+            world.insert_resource(NodesBefore(nodes));
+        })
+        .add()
         .click_named(
             "sketch: next section",
             SHIP_NEXT,
@@ -6825,7 +7055,7 @@ fn step_sections(script: Script) -> Script {
         .until(frames(3))
         .add()
         .step("sketch: Next moved one section along")
-        .on_enter(|world: &mut World| {
+        .on_enter(move |world: &mut World| {
             let (current, codes) = section_order(world);
             let at = codes
                 .iter()
@@ -6841,6 +7071,22 @@ fn step_sections(script: Script) -> Script {
                 named_text(world, SHIP_DETAIL).starts_with(expected.as_str()),
                 "the detail must follow Next to {expected}"
             );
+            let selected = world.resource::<ShipSelection>().0;
+            let kind = world
+                .run_system_once(move |sections: ShipSections| {
+                    sections
+                        .collect()
+                        .into_iter()
+                        .find(|view| Some(view.entity) == selected)
+                        .map(|view| view.kind)
+                })
+                .expect("the section model runs");
+            assert_eq!(
+                Some(named_text(world, SHIP_ABOUT).as_str()),
+                kind.map(section_about),
+                "the description must follow Next to {expected}"
+            );
+            kept(world, "Next");
             info!("sketch: Next selected {expected}");
         })
         .add();
@@ -6856,13 +7102,15 @@ fn step_sections(script: Script) -> Script {
         .until(frames(3))
         .add()
         .step("sketch: Prev came back")
-        .on_enter(|world: &mut World| {
+        .on_enter(move |world: &mut World| {
             let (current, _) = section_order(world);
             assert_eq!(
                 current.as_deref(),
                 Some(PICKED_SECTION),
                 "Prev must come back to {PICKED_SECTION}"
             );
+            kept(world, "Prev");
+            world.remove_resource::<NodesBefore>();
         })
         .add();
     expect_cues(script, "Prev", &[UiSfx::MenuSelect])
@@ -6977,7 +7225,7 @@ fn player_position(world: &World) -> Vec3 {
         .expect("one player ship")
 }
 
-/// The opening map radius for the live scene, by the NOVA OS helpers.
+/// The opening map radius for the live scene, by the interface helpers.
 #[cfg(feature = "debug")]
 fn expected_map_framing(world: &mut World) -> f32 {
     let player = player_position(world);
@@ -7173,7 +7421,7 @@ fn blip_positions(world: &World) -> Vec<(Entity, Vec2)> {
 }
 
 /// Drag the pane background 120 px right with the left button, and check
-/// the orbit turned by the NOVA OS drag rate and the blips moved with it.
+/// the orbit turned by the interface drag rate and the blips moved with it.
 #[cfg(feature = "debug")]
 fn drag_pane(script: Script, view: SketchView) -> Script {
     const STEP_PX: f32 = 40.0;
@@ -7312,7 +7560,7 @@ fn wheel_pane(script: Script, view: SketchView) -> Script {
         .add()
 }
 
-/// The NOVA OS zoom floor and ceiling a pane's wheel is held between.
+/// The interface zoom floor and ceiling a pane's wheel is held between.
 #[cfg(feature = "debug")]
 fn zoom_limits(world: &mut World, view: SketchView) -> (f32, f32) {
     match view {
@@ -7394,7 +7642,7 @@ fn window_rect(world: &mut World) -> Rect {
 
 /// One pane is up and inside the window, the other views' panes are gone,
 /// exactly the view's own 3D scene is live and drawing at the pane's size,
-/// the pane and scene keep their rects, the context line and the view's
+/// the pane and scene keep their rects, the rail and the view's
 /// controls match the fixture and context, the HUD is hidden, the cursor is
 /// free, the simulation is still, and no node or text runs off screen.
 #[cfg(feature = "debug")]
@@ -7449,7 +7697,7 @@ fn assert_view(world: &mut World, view: SketchView, context: SketchContext, when
         window.max.y
     );
     // The pane is the largest thing on screen, not a strip in a corner. The
-    // context line takes its fixed share in every context.
+    // rail takes its fixed share in every view and context.
     let share = rect.width() * rect.height() / (window.width() * window.height());
     assert!(
         share > 0.4,
@@ -7471,6 +7719,7 @@ fn assert_view(world: &mut World, view: SketchView, context: SketchContext, when
     }
     assert_scenes(world, view, when);
     assert_dock(world, context, when);
+    assert_footer(world, view, when);
     match view {
         SketchView::Map => {
             assert_map_controls(world, when);
@@ -7535,24 +7784,22 @@ fn named(world: &mut World, name: &str) -> Entity {
     }
 }
 
-/// The context line keeps its fixed height, holds no control, shows the
-/// fixture credits and the last result, and names what the context is at.
+/// The one rail keeps its width and place, shows the fixture credits and the
+/// last result, and names what the context is at. The rail entity is logged
+/// so a walk shows it survive every view and context.
 #[cfg(feature = "debug")]
 fn assert_dock(world: &mut World, context: SketchContext, when: &str) {
-    let narrow = window_rect(world).width() < NARROW_BELOW_PX;
-    let banner = ui_node_rect(world, DOCK_BANNER)
-        .unwrap_or_else(|| panic!("the context line is not shown ({when})"));
+    let rail = named(world, LEFT_DEBUG_RAIL);
+    let rect = ui_node_rect(world, LEFT_DEBUG_RAIL)
+        .unwrap_or_else(|| panic!("the rail is not shown ({when})"));
     assert!(
-        (banner.height() - banner_px(narrow)).abs() < 0.5,
-        "the context line must keep its {} px height, not {} ({when})",
-        banner_px(narrow),
-        banner.height()
+        (rect.width() - RAIL_PX).abs() < 0.5,
+        "the rail must keep its {RAIL_PX} px width, not {} ({when})",
+        rect.width()
     );
-    let banner_node = named(world, DOCK_BANNER);
-    assert!(
-        descendants_with::<Button>(world, banner_node).is_empty(),
-        "the context line must hold no control ({when})"
-    );
+    let size = window_rect(world).size();
+    assert_steady(world, format!("{size} rail"), rect, when);
+    info!("sketch: rail {rail} ({when})");
     let fixture = world.resource::<SketchFixture>().clone();
     assert_eq!(
         (
@@ -7560,7 +7807,7 @@ fn assert_dock(world: &mut World, context: SketchContext, when: &str) {
             named_text(world, DOCK_NOTICE)
         ),
         (fixture.credits_text(), fixture.notice.clone()),
-        "the context line must show the fixture credits and last result ({when})"
+        "the rail must show the fixture credits and last result ({when})"
     );
     let (head, partner) = match context {
         SketchContext::Undocked => ("UNDOCKED", "No station or boarded ship"),
@@ -7573,7 +7820,7 @@ fn assert_dock(world: &mut World, context: SketchContext, when: &str) {
             named_text(world, DOCK_PARTNER)
         ),
         (head.to_string(), partner.to_string()),
-        "the context line must name the context and what the ship is at ({when})"
+        "the rail must name the context and what the ship is at ({when})"
     );
 }
 
@@ -7677,6 +7924,297 @@ fn assert_map_legend(world: &mut World, when: &str) {
             "{key} must be on screen ({when})"
         );
     }
+}
+
+/// Map and Ship end in one footer across the scene and its panel, under
+/// both, in three equal zones: the legend left; in the centre, the view's
+/// buttons and exactly its key hints on one line over exactly the pointer
+/// hints on another; and the live selection's summary right. The map's
+/// detail panel takes [`DETAIL_SHARE`] of its row beside the scene and
+/// shows the hint with no contact selected, or the contact's icon in its
+/// stance colour, code, name, kind and range. The ship panel takes the same
+/// share, or [`SHIP_PANEL_NARROW_PX`] under the scene when narrow, and holds
+/// the preview, the texts, the selected kind's description, Prev/Next and
+/// the repair slot; the footer keeps only Fit and Reset. The inventory has
+/// no footer.
+#[cfg(feature = "debug")]
+fn assert_footer(world: &mut World, view: SketchView, when: &str) {
+    if view == SketchView::Inventory {
+        assert_eq!(
+            count_named(world, VIEW_FOOTER),
+            0,
+            "the inventory must have no view footer ({when})"
+        );
+        return;
+    }
+    let rect = |world: &mut World, name: &str| {
+        ui_node_rect(world, name).unwrap_or_else(|| panic!("{name} is not laid out ({when})"))
+    };
+    let footer = rect(world, VIEW_FOOTER);
+    let pane = rect(world, view.pane());
+    let (above, legend, buttons, summary): (Rect, Vec<String>, &[&str], &str) = match view {
+        SketchView::Map => (
+            rect(world, MAP_SCENE).union(rect(world, MAP_DETAIL)),
+            vec![MAP_LEGEND.to_string()],
+            &[MAP_REFRAME],
+            MAP_READOUT,
+        ),
+        SketchView::Ship => (
+            rect(world, SHIP_SCENE).union(rect(world, SHIP_PANEL)),
+            SectionIcon::ALL
+                .iter()
+                .map(|icon| format!("Sketch Legend {}", icon.label()))
+                .collect(),
+            &[SHIP_FIT, SHIP_RESET],
+            SHIP_SUMMARY,
+        ),
+        SketchView::Inventory => unreachable!("returned above"),
+    };
+    assert!(
+        inside(footer, pane)
+            && (footer.min.x - above.min.x).abs() < 1.0
+            && (footer.max.x - above.max.x).abs() < 1.0
+            && footer.min.y >= above.max.y - 1.0,
+        "the footer {footer:?} must span the width under {above:?} inside the pane {pane:?} \
+         ({when})"
+    );
+    let zones = [FOOTER_LEGEND, FOOTER_CONTROLS, FOOTER_SUMMARY].map(|zone| rect(world, zone));
+    // Layout rounds each zone to whole pixels, so equal widths differ by one.
+    assert!(
+        zones.iter().all(|zone| inside(*zone, footer))
+            && zones.windows(2).all(|pair| {
+                pair[0].max.x <= pair[1].min.x + 1.0
+                    && (pair[0].width() - pair[1].width()).abs() < 1.5
+            }),
+        "the footer {footer:?} must hold three equal zones left to right, not {zones:?} ({when})"
+    );
+    let [left, centre, right] = zones;
+    for name in &legend {
+        let at = rect(world, name);
+        assert!(
+            inside(at, left),
+            "{name} {at:?} must sit in the left zone {left:?} ({when})"
+        );
+    }
+    for name in buttons.iter().copied().chain([FOOTER_HINTS]) {
+        let at = rect(world, name);
+        assert!(
+            inside(at, centre),
+            "{name} {at:?} must sit in the centre zone {centre:?} ({when})"
+        );
+    }
+    // Tree order: the key hints in the button row, then the pointer hints.
+    let mut hints: Vec<(String, Vec<String>, Rect)> = Vec::new();
+    let mut stack = vec![named(world, FOOTER_CONTROLS)];
+    while let Some(entity) = stack.pop() {
+        let name = world.get::<Name>(entity).map(|name| name.to_string());
+        if let Some(name) = name.filter(|name| name.starts_with(HINT_PREFIX)) {
+            let texts = world
+                .get::<Children>(entity)
+                .map(|children| {
+                    children
+                        .iter()
+                        .filter_map(|part| world.get::<Text>(part).map(|text| text.0.clone()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let at = rect(world, &name);
+            hints.push((name, texts, at));
+        }
+        if let Some(children) = world.get::<Children>(entity) {
+            stack.extend(children.iter().rev());
+        }
+    }
+    let wanted: Vec<(String, Vec<String>)> = input_hints(view)
+        .iter()
+        .chain(&POINTER_HINTS)
+        .map(|(input, action)| {
+            (
+                format!("{HINT_PREFIX}{input}"),
+                vec![input.to_string(), action.to_string()],
+            )
+        })
+        .collect();
+    assert_eq!(
+        hints
+            .iter()
+            .map(|(name, texts, _)| (name.clone(), texts.clone()))
+            .collect::<Vec<_>>(),
+        wanted,
+        "the footer must hint exactly the inputs the {view:?} view handles ({when})"
+    );
+    // One line each: a wrapped hint is taller than the rest, and a wrapped
+    // row puts its hints on different lines.
+    let line = hints
+        .iter()
+        .map(|(_, _, at)| at.height())
+        .fold(f32::INFINITY, f32::min);
+    let button_y = rect(world, buttons[0]).center().y;
+    let pointer_y = rect(world, FOOTER_HINTS).center().y;
+    let keys = input_hints(view).len();
+    for (index, (name, _, at)) in hints.iter().enumerate() {
+        let row_y = if index < keys { button_y } else { pointer_y };
+        assert!(
+            inside(*at, centre)
+                && (at.height() - line).abs() < 1.0
+                && (at.center().y - row_y).abs() < 1.0,
+            "{name} {at:?} must sit on one line in its row at y {row_y} inside the centre zone \
+             {centre:?} ({when})"
+        );
+    }
+    let at = rect(world, summary);
+    assert!(
+        inside(at, right),
+        "{summary} {at:?} must sit in the right zone {right:?} ({when})"
+    );
+    let selected = match view {
+        SketchView::Map => 'map: {
+            let (scene, panel) = (rect(world, MAP_SCENE), rect(world, MAP_DETAIL));
+            let row = scene.union(panel);
+            assert!(
+                scene.max.x <= panel.min.x
+                    && (scene.min.y - panel.min.y).abs() < 1.0
+                    && (scene.max.y - panel.max.y).abs() < 1.0
+                    && (panel.width() - row.width() * DETAIL_SHARE / 100.0).abs() < 1.0,
+                "the detail panel {panel:?} must take {DETAIL_SHARE}% of the row beside \
+                 the scene {scene:?} ({when})"
+            );
+            let selected = world.resource::<MapSelection>().0;
+            let contact = world
+                .run_system_once(move |contacts: MapContacts, markers: BodyMarkers| {
+                    selected.and_then(|selected| {
+                        let contact = contacts
+                            .collect()
+                            .into_iter()
+                            .find(|contact| contact.entity == selected)?;
+                        let mark = map_mark(contact.entity, contact.kind, &markers);
+                        Some((contact, mark))
+                    })
+                })
+                .expect("the contact model runs");
+            let hint = ui_node_rect(world, MAP_DETAIL_HINT);
+            let icon = ui_node_rect(world, MAP_DETAIL_ICON);
+            let Some((contact, mark)) = contact else {
+                assert!(
+                    hint.is_some_and(|hint| inside(hint, panel)) && icon.is_none(),
+                    "with no contact selected the detail panel must show only the hint ({when})"
+                );
+                break 'map None;
+            };
+            assert!(
+                hint.is_none() && icon.is_some_and(|icon| inside(icon, panel)),
+                "with {} selected the detail panel must show the contact, not the hint ({when})",
+                contact.code
+            );
+            let icons = world.resource::<SketchIcons>().bodies.clone();
+            let drawn = world
+                .query::<(&Name, &ImageNode, &ThemedImageTint)>()
+                .iter(world)
+                .find(|(name, _, _)| name.as_str() == MAP_DETAIL_ICON)
+                .map(|(_, image, tint)| (image.image.clone(), tint.color));
+            assert_eq!(
+                drawn,
+                Some((icons[mark.body.index()].clone(), kind_color(mark.kind))),
+                "the detail panel must show {}'s {} icon in its stance colour ({when})",
+                contact.code,
+                mark.label()
+            );
+            let range = nova_ui::units::distance(Meters::from_engine(contact.range));
+            let shown = [
+                MAP_DETAIL_CODE,
+                MAP_DETAIL_NAME,
+                MAP_DETAIL_KIND,
+                MAP_DETAIL_RANGE,
+            ]
+            .map(|name| named_text(world, name));
+            assert_eq!(
+                shown,
+                [
+                    contact.code.clone(),
+                    contact.name.clone(),
+                    mark.label().to_string(),
+                    range
+                ],
+                "the detail panel must name the selected contact ({when})"
+            );
+            Some(contact.code)
+        }
+        SketchView::Ship => {
+            let (scene, panel) = (rect(world, SHIP_SCENE), rect(world, SHIP_PANEL));
+            let row = scene.union(panel);
+            let placed = if window_rect(world).width() < NARROW_BELOW_PX {
+                scene.max.y <= panel.min.y
+                    && (scene.min.x - panel.min.x).abs() < 1.0
+                    && (scene.max.x - panel.max.x).abs() < 1.0
+                    && (panel.height() - SHIP_PANEL_NARROW_PX).abs() < 1.0
+            } else {
+                scene.max.x <= panel.min.x
+                    && (scene.min.y - panel.min.y).abs() < 1.0
+                    && (scene.max.y - panel.max.y).abs() < 1.0
+                    && (panel.width() - row.width() * DETAIL_SHARE / 100.0).abs() < 1.0
+            };
+            assert!(
+                placed,
+                "the ship panel {panel:?} must take {DETAIL_SHARE}% of the row beside the scene \
+                 {scene:?}, or {SHIP_PANEL_NARROW_PX} px under it when narrow ({when})"
+            );
+            for name in [
+                SHIP_PREVIEW,
+                SHIP_DETAIL,
+                SHIP_STATUS,
+                SHIP_ABOUT,
+                SHIP_PREV,
+                SHIP_NEXT,
+                SHIP_SERVICE,
+            ] {
+                let count = count_named(world, name);
+                let at = rect(world, name);
+                assert!(
+                    count == 1 && inside(at, panel),
+                    "{name} {at:?} must sit once in the ship panel {panel:?}, not {count} \
+                     time(s) ({when})"
+                );
+            }
+            let frame = parent_rect(world, SHIP_PREVIEW);
+            assert!(
+                (frame.size() - Vec2::splat(SHIP_PREVIEW_PX))
+                    .abs()
+                    .max_element()
+                    < 1.0,
+                "the preview frame {frame:?} must be {SHIP_PREVIEW_PX} px square ({when})"
+            );
+            let selected = world.resource::<ShipSelection>().0;
+            let (code, kind) = world
+                .run_system_once(move |sections: ShipSections| {
+                    let selected = selected?;
+                    sections
+                        .collect()
+                        .into_iter()
+                        .find(|view| view.entity == selected)
+                        .map(|view| (view.code, view.kind))
+                })
+                .expect("the section model runs")
+                .unwrap_or_else(|| panic!("the ship view has a selection ({when})"));
+            assert_eq!(
+                named_text(world, SHIP_ABOUT),
+                section_about(kind),
+                "the ship panel must describe {code}'s {kind:?} ({when})"
+            );
+            Some(code)
+        }
+        SketchView::Inventory => unreachable!("returned above"),
+    };
+    let line = named_text(world, summary);
+    // The ship view always selects a section; only the map may have none.
+    let live = match (&selected, view) {
+        (Some(code), _) => line.starts_with(&format!("{code}  ")),
+        (None, SketchView::Map) => line == "Select a contact.",
+        (None, _) => false,
+    };
+    assert!(
+        live,
+        "the footer summary `{line}` must name the live selection {selected:?} ({when})"
+    );
 }
 
 /// The ship panel shows the selected section's icon, fixture condition and
@@ -7992,14 +8530,33 @@ fn assert_holds(world: &mut World, context: SketchContext, when: &str) {
     );
 }
 
-/// The inspector shows the inspected item's icon, name and category, then
-/// either its facts, or the open confirmation of the deal the context allows
-/// on it; with nothing inspected, only a hint.
+/// The inspector takes [`DETAIL_SHARE`] of its row beside the stores, or
+/// [`INSPECTOR_NARROW_PX`] under them when narrow, inside the row. It shows
+/// the inspected item's icon, name and category, then either its facts, or
+/// the open confirmation of the deal the context allows on it; with nothing
+/// inspected, only a hint.
 #[cfg(feature = "debug")]
 fn assert_inspector(world: &mut World, context: SketchContext, when: &str) {
+    let panel = ui_node_rect(world, INSPECTOR)
+        .unwrap_or_else(|| panic!("the inspector must be shown ({when})"));
+    let row = parent_rect(world, INSPECTOR);
+    let stores = ui_node_rect(world, STORE_COLUMN_PARTNER).expect("the partner column is laid out");
+    let placed = if window_rect(world).width() < NARROW_BELOW_PX {
+        (panel.width() - row.width()).abs() < 1.0
+            && (panel.height() - INSPECTOR_NARROW_PX).abs() < 1.0
+            && (panel.max.y - row.max.y).abs() < 1.0
+            && stores.max.y <= panel.min.y
+    } else {
+        (panel.width() - row.width() * DETAIL_SHARE / 100.0).abs() < 1.0
+            && (panel.max.x - row.max.x).abs() < 1.0
+            && stores.max.x <= panel.min.x
+            && (panel.min.y - row.min.y).abs() < 1.0
+            && (panel.max.y - row.max.y).abs() < 1.0
+    };
     assert!(
-        ui_node_rect(world, INSPECTOR).is_some(),
-        "the inspector must be shown ({when})"
+        placed && inside(panel, row),
+        "the inspector {panel:?} must take {DETAIL_SHARE}% of the row {row:?} beside the \
+         stores {stores:?}, or {INSPECTOR_NARROW_PX} px under them when narrow ({when})"
     );
     let inspected = world.resource::<Inspected>().0;
     let draft = world.resource::<Draft>().0;
@@ -8183,8 +8740,8 @@ fn assert_scenes(world: &mut World, view: SketchView, when: &str) {
 }
 
 /// No laid-out node under the root leaves the window or its parent's box, and
-/// no text is wider than its own box. Blips are skipped: a contact at the
-/// image edge is allowed to straddle it, as on the NOVA OS map.
+/// no text draws wider than its own box. Blips are skipped: a contact at the
+/// image edge is allowed to straddle it, as on the interface map.
 #[cfg(feature = "debug")]
 fn assert_nothing_overflows(world: &mut World, window: Rect, when: &str) {
     let root = world
@@ -8221,7 +8778,17 @@ fn assert_nothing_overflows(world: &mut World, window: Rect, when: &str) {
                     offenders.push(format!("{label} leaves its parent: {rect:?} in {parent:?}"));
                 }
                 if let Some(layout) = world.get::<bevy::text::TextLayoutInfo>(entity) {
-                    let width = layout.size.x * scale;
+                    // Judge the drawn glyphs: `layout.size` also counts the
+                    // space a wrap leaves at the end of a line, and
+                    // right-justified text hangs that space, a glyph with no
+                    // atlas width, past the box.
+                    let width = layout
+                        .glyphs
+                        .iter()
+                        .filter(|glyph| glyph.atlas_info.rect.width() > 0.0)
+                        .map(|glyph| glyph.position.x + glyph.atlas_info.rect.width() / 2.0)
+                        .fold(0.0, f32::max)
+                        * scale;
                     if width > rect.width() + 1.0 {
                         offenders.push(format!(
                             "{label} text {width} wider than its box {}",

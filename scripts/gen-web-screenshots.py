@@ -168,10 +168,11 @@ FIGURES = [
     ("wiki-section-drives.png",         "screenshot_section_drives"),
     ("wiki-section-vector-drive.png",   "screenshot_section_drives"),
     ("wiki-section-capital-drive.png",  "screenshot_section_drives"),
-    # The ship computer: terminal output, map and live ship schematic.
-    ("wiki-nova-os-terminal.png",       "screenshot_nova_os_terminal"),
-    ("wiki-nova-os-map.png",            "screenshot_nova_os_apps"),
-    ("wiki-nova-os-ship.png",           "screenshot_nova_os_apps"),
+    # The command shell, and the TAB interface's map and ship panes.
+    ("wiki-command-shell.png",          "screenshot_command_shell"),
+    ("wiki-interface-map.png",          "screenshot_interface"),
+    ("wiki-interface-ship.png",         "screenshot_interface"),
+    ("wiki-interface-inventory.png",    "screenshot_interface"),
     # Current editor, sandbox and release diagnostics.
     ("feature-editor.png",               "screenshot_editor"),
     ("wiki-sandbox-range.png",           "screenshot_editor"),
