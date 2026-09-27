@@ -203,12 +203,12 @@ RCS is a docking aid, not standard flight: it appears only when a scenario grant
         <tr>
             <td>Cycle fine-lock component</td>
             <td>
+                <kbd>[</kbd> <kbd>]</kbd> / weapons raised +
                 <span
                     class="pf pf-mouse-scroll"
                     role="img"
                     aria-label="Scroll wheel"
                 ></span>
-                / <kbd>[</kbd> <kbd>]</kbd>
             </td>
             <td>
                 <span
@@ -222,6 +222,17 @@ RCS is a docking aid, not standard flight: it appears only when a scenario grant
                     aria-label="D-Pad right"
                 ></span>
             </td>
+        </tr>
+        <tr>
+            <td>Zoom the chase camera (up = closer)</td>
+            <td>
+                <span
+                    class="pf pf-mouse-scroll"
+                    role="img"
+                    aria-label="Scroll wheel"
+                ></span>
+            </td>
+            <td>-</td>
         </tr>
     </tbody>
 </table>

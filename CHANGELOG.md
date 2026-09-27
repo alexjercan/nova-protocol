@@ -22,6 +22,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   Map GOTO.
 - The ship off the helm pauses its orders until the helm comes back. A
   maneuver flies the pair and no longer ends the dock; only DOCK or damage do.
+- The mouse wheel zooms the chase camera in normal flight and free look. With
+  weapons raised it steps the component lock. Keys ] and [ step it in any
+  stance.
 
 ### Ships & Sections
 

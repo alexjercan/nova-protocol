@@ -31,6 +31,7 @@ mod rig;
 pub mod skybox;
 pub mod wasd;
 pub mod wasd_controller;
+mod zoom;
 
 pub use self::{
     authority::{CameraAuthorityPlugin, CameraAuthoritySystems},
@@ -42,6 +43,7 @@ pub use self::{
         SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
         SpaceshipCameraTurretInputMarker, SpaceshipRotationInputActiveMarker,
     },
+    zoom::ChaseZoom,
 };
 use self::{
     framing::{update_camera_rig, update_chase_camera_input},
@@ -56,6 +58,7 @@ use self::{
         PlayerInputMarker,
     },
 };
+pub(crate) use self::{mode::action_held, rig::CombatInput};
 
 /// Glob-import surface: `use nova_gameplay::camera::prelude::*` re-exports the
 /// public API of this module and of the six rigs it is built on.
@@ -63,7 +66,7 @@ pub mod prelude {
     pub use super::{
         chase::prelude::*, chase_camera_opening_pose, post::prelude::*, skybox::prelude::*,
         wasd::prelude::*, wasd_controller::prelude::*, ActiveLookRay, CameraAuthorityPlugin,
-        CameraAuthoritySystems, NovaCameraSystems, SpaceshipCameraControlMode,
+        CameraAuthoritySystems, ChaseZoom, NovaCameraSystems, SpaceshipCameraControlMode,
         SpaceshipCameraController, SpaceshipCameraControllerPlugin,
         SpaceshipCameraFreeLookInputMarker, SpaceshipCameraInputMarker,
         SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,
@@ -87,6 +90,7 @@ impl Plugin for SpaceshipCameraControllerPlugin {
         app.register_input_actions(camera_bindings());
 
         app.init_resource::<SpaceshipCameraControlMode>();
+        app.init_resource::<ChaseZoom>();
         app.add_input_context::<PlayerInputMarker>();
 
         app.add_observer(insert_camera_controller);

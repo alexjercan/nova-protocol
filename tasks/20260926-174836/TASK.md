@@ -124,8 +124,9 @@ below are from `6eaf99673`.
     old `novaos_*.webp` are deleted.
   - `web/src/wiki/nova-os.md` -> `web/src/wiki/interface.md` (opening, map,
     ship, rebinding). Lessons link `wiki/interface#...`.
-  - `ui_app_variants` is deleted. PR #77 history keeps the sketch for
-    `20260926-174806`.
+  - `ui_app_variants` stays runnable as the PR #77 design reference and
+    imports `nova_interface`. Its inventory, station, credit and repair
+    mocks stay example-local for `20260926-174806`; none reach production.
 - Internal names (owner-approved 2026-09-26, option A):
   `ActionContext::ViewerApp` -> `ActionContext::InterfacePane`;
   `novaos_bindings` -> `interface_bindings`; `HudNovaOsExempt` ->
@@ -306,8 +307,8 @@ Escape in modal -> return_to (Interface | Paused | Unpaused | menu/editor)
 - Docs for removed unshipped behavior.
 
 ### Affected examples, docs, content, and CI
-- Examples (`Cargo.toml` entries): `ui_app_variants` (167, becomes redundant
-  or trimmed), `system_nova_os` (463), `system_command_shell` (467),
+- Examples (`Cargo.toml` entries): `ui_app_variants` (167, kept as the PR #77
+  reference), `system_nova_os` (463), `system_command_shell` (467),
   `system_headless_novaos` (475), `system_headless_drag` (487),
   `system_headless_crt` (491), `screenshot_nova_os_terminal` (634),
   `screenshot_nova_os_apps` (638), `lesson_novaos` (837),

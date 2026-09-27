@@ -82,8 +82,8 @@ use nova_ui::{
 pub const DOCK_BOTTOM_PX: f32 = 14.0;
 
 /// The verb names, in dock display order (left to right). The component-cycle
-/// chip documents the wheel gesture: plain scroll steps the component
-/// fine-lock; CTRL+scroll steps the ship lock through the tracked candidates.
+/// chip shows the wheel while the weapons are raised, when the wheel steps the
+/// component fine-lock, and the cycle key otherwise, when the wheel zooms.
 pub const DOCK_VERBS: [&str; 9] = [
     "STOP",
     "GOTO",

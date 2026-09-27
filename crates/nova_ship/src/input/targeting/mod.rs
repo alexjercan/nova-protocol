@@ -58,7 +58,7 @@ pub mod safety;
 mod sensing;
 mod state;
 
-use component_lock::{on_component_cycle_prev, update_component_lock};
+use component_lock::update_component_lock;
 use contacts::{tick_lock_focus, update_contacts_and_locks};
 use gesture::{on_lock_clear_tap, on_radar_cancel, on_radar_commit, on_radar_start};
 use radar::update_radar_search;
@@ -68,7 +68,10 @@ pub(crate) use sensing::update_sensor_contacts;
 #[cfg(test)]
 pub(crate) use self::safety::update_weapons_safety_for_tests;
 pub(crate) use self::{
-    component_lock::{on_component_cycle_next, ComponentCycleNextInput, ComponentCyclePrevInput},
+    component_lock::{
+        on_component_cycle_next, on_component_cycle_prev, step_component_lock,
+        ComponentCycleNextInput, ComponentCyclePrevInput, RCS_SCROLL_STEP,
+    },
     gesture::{RadarClearInput, RadarHoldInput},
 };
 pub use self::{

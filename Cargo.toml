@@ -161,6 +161,12 @@ path = "examples/playable/parts_viewer.rs"
 name = "widget_zoo"
 path = "examples/playable/widget_zoo.rs"
 
+# Themed map, ship and inventory screens over a paused fixture scenario. Mock
+# station trade, loot and repair only: nothing docks, boards or changes play.
+[[example]]
+name = "ui_app_variants"
+path = "examples/playable/ui_app_variants.rs"
+
 # The asteroid KIND lineup: five kinds across three silhouette seeds, every
 # rock spawned through the real scenario path, with the `plain` control column
 # standing in as the before picture.

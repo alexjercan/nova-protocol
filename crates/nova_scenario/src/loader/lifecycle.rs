@@ -236,7 +236,8 @@ fn start_errors(scenario: &ScenarioConfig, gate: &ContentGate) -> Vec<String> {
 const UNCREWED_VIEW: (Meters3, Vec3) = (Meters3::new(0.0, 100.0, 200.0), Vec3::ZERO);
 
 /// The pose the scenario camera opens on: behind the player hull it is about to
-/// spawn, at the chase rig's own distance for that hull's size.
+/// spawn, at the chase rig's own distance for that hull's size and the session
+/// `zoom` level.
 ///
 /// Read off the AUTHORED spawn rather than the live entity, because the camera
 /// is spawned before any of the scenario's objects are: a camera that waited
@@ -251,6 +252,7 @@ fn opening_view(
     scenario: &ScenarioConfig,
     ships: Option<&GameShipDesigns>,
     sections: Option<&GameSections>,
+    zoom: f32,
 ) -> Transform {
     let Some((base, spaceship)) = player_spawn(scenario) else {
         let (at, look) = UNCREWED_VIEW;
@@ -267,7 +269,7 @@ fn opening_view(
     );
     let envelope = hull_envelope(&design);
     // Engine boundary: a Bevy transform counts world units.
-    chase_camera_opening_pose(base.position.to_engine(), base.rotation, envelope)
+    chase_camera_opening_pose(base.position.to_engine(), base.rotation, envelope, zoom)
 }
 
 /// The scenario's player spawn, if it has one.
@@ -346,6 +348,8 @@ pub(super) fn on_load_scenario(
     mut failure: Option<ResMut<ScenarioStartFailure>>,
     mut cheats: Option<ResMut<RunCheats>>,
     bindings: Res<InputBindings>,
+    // Absent in a scenario-only app, which has no chase camera to zoom.
+    zoom: Option<Res<ChaseZoom>>,
 ) {
     // The runtime content gate: a scenario with Error-level findings REFUSES to
     // start - better a clear failure than a silently half-spawned scene.
@@ -423,7 +427,12 @@ pub(super) fn on_load_scenario(
         Camera3d::default(),
         PostProcessingCamera,
         WASDCameraController,
-        opening_view(&scenario, gate.ships.as_deref(), gate.sections.as_deref()),
+        opening_view(
+            &scenario,
+            gate.ships.as_deref(),
+            gate.sections.as_deref(),
+            zoom.map_or(1.0, |zoom| zoom.manual()),
+        ),
         PendingSkyboxSwap {
             cubemap: scenario.cubemap.resolve(&asset_server),
             brightness: Some(scenario.skybox_brightness),
@@ -752,7 +761,7 @@ mod tests {
         let out_there = Meters3::new(4_000.0, 0.0, -12_000.0);
         let scenario = scenario_with("far_player", vec![player_at(out_there, Quat::IDENTITY, 1)]);
 
-        let view = opening_view(&scenario, None, None);
+        let view = opening_view(&scenario, None, None, 1.0);
 
         let spawn = out_there.to_engine();
         assert!(
@@ -792,7 +801,7 @@ mod tests {
             )])],
         );
 
-        let view = opening_view(&scenario, None, None);
+        let view = opening_view(&scenario, None, None, 1.0);
 
         assert!(
             view.translation.distance(out_there.to_engine()) < 100.0,
@@ -808,7 +817,9 @@ mod tests {
         let at = Meters3::new(0.0, 0.0, 0.0);
         let reach = |cells| {
             let scenario = scenario_with("hull", vec![player_at(at, Quat::IDENTITY, cells)]);
-            opening_view(&scenario, None, None).translation.length()
+            opening_view(&scenario, None, None, 1.0)
+                .translation
+                .length()
         };
         let (carrier, skiff) = (reach(30), reach(1));
 
@@ -890,7 +901,7 @@ mod tests {
     /// backdrop that poses its own camera is unaffected.
     #[test]
     fn a_scenario_with_no_player_opens_on_the_origin() {
-        let view = opening_view(&scenario_with("empty", vec![]), None, None);
+        let view = opening_view(&scenario_with("empty", vec![]), None, None, 1.0);
 
         assert_eq!(
             view.translation,
