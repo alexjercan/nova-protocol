@@ -10,9 +10,11 @@
 //! wears the icon of what it is (ship, asteroid, planet, objective) in its
 //! stance colour. A detail panel on the map's right fifth shows the selected
 //! contact's icon, code, name, kind and range, or a hint with none selected.
-//! On the ship, a side panel details the selected section,
-//! Prev/Next step through the sections, Fit frames the whole hull and Reset
-//! also restores the opening angles. Under each view and its panel, a
+//! On the ship, a panel on the right fifth, or under the scene in a narrow
+//! window, shows the selected section's icon, code, kind, fixture condition
+//! and a short description of its kind, with Prev/Next to step through the
+//! sections. In the footer, Fit frames the whole hull and Reset also
+//! restores the opening angles. Under each view and its panel, a
 //! full-width footer shows the legend of the kinds the view plots on the
 //! left, the view's buttons and the inputs it handles in the centre, and the
 //! selected contact or section on the right. The data,
@@ -70,8 +72,10 @@
 //!   effect and every refusal's, the deal a row opens per context, that a
 //!   double click trades once, the interface cue of each control, the equal
 //!   store columns, the rows, filters and weight bars, the map detail
-//!   panel's share and contents, the map and ship footer's zones, input
+//!   panel's share and contents, the ship panel's share or narrow height,
+//!   description and Prev/Next, the map and ship footer's zones, input
 //!   hints and live summary, that a map selection respawns no map node, that
+//!   a ship step respawns no ship node outside the repair slot, that
 //!   a selection, a quantity change or a refused Confirm respawns no
 //!   inventory or rail node, that a closed deal gives the keyboard back, the
 //!   rail's width, place and status, the 3D repaint, that the simulation
@@ -166,6 +170,7 @@ const SHIP_PANEL: &str = "Sketch Ship Panel";
 const SHIP_PREVIEW: &str = "Sketch Ship Preview";
 const SHIP_DETAIL: &str = "Sketch Ship Detail";
 const SHIP_STATUS: &str = "Sketch Ship Status";
+const SHIP_ABOUT: &str = "Sketch Ship About";
 const SHIP_SUMMARY: &str = "Sketch Ship Summary";
 const SHIP_CONDITION: &str = "Sketch Ship Condition";
 const SHIP_SERVICE: &str = "Sketch Ship Service";
@@ -1184,9 +1189,9 @@ fn control_row(justify: JustifyContent) -> Node {
     }
 }
 
-/// Share of the map's split row the detail panel takes; the scene takes the
-/// rest.
-const MAP_DETAIL_SHARE: f32 = 20.0;
+/// Share of a split row the map's detail panel and the wide ship panel take;
+/// the scene takes the rest.
+const DETAIL_SHARE: f32 = 20.0;
 
 /// The map: the scene with the contact detail panel beside it at every
 /// width, over the full-width footer. Nothing on the map trades, repairs or
@@ -1321,18 +1326,19 @@ fn input_hint(row: &mut ChildSpawnerCommands, (input, action): &(&str, &str)) {
         });
 }
 
-/// Width of the ship panel and the inventory inspector beside their views, in
-/// logical px.
+/// Width of the inventory inspector beside its view, in logical px.
 const SIDE_PX: f32 = 300.0;
 /// Height of the ship panel stacked under the ship view, in logical px: the
-/// preview head and the repair slot.
-const SHIP_PANEL_NARROW_PX: f32 = 200.0;
+/// preview head with the section texts and Prev/Next, and the repair slot.
+const SHIP_PANEL_NARROW_PX: f32 = 240.0;
+/// Side of the ship panel's section preview frame, in logical px.
+const SHIP_PREVIEW_PX: f32 = 96.0;
 /// Height of the repair slot, in logical px. Fixed, so the scene beside or
 /// above it keeps its size in every context and repair state.
 const REPAIR_PX: f32 = 92.0;
 
-/// The ship: the scene with the section panel beside it, or under it when
-/// narrow, over the full-width footer.
+/// The ship: the scene with the section panel beside it in [`DETAIL_SHARE`]
+/// of the row, or under it when narrow, over the full-width footer.
 fn ship_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool, min_height: f32) {
     card(body, PANE_SHIP, "Ship", min_height, |c| {
         c.spawn(split(narrow)).with_children(|split| {
@@ -1352,13 +1358,9 @@ fn ship_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool,
     });
 }
 
-/// Prev, Next, Fit and Reset, in the footer's button row.
+/// Fit and Reset, the camera controls in the footer's button row. Prev and
+/// Next step the selection from the ship panel.
 fn ship_controls(row: &mut ChildSpawnerCommands) {
-    for (label, name, step) in [("Prev", SHIP_PREV, -1), ("Next", SHIP_NEXT, 1)] {
-        compact_button(row, ButtonSpec::new(label).fit(), name)
-            .insert(SketchClick)
-            .observe(step_section(step));
-    }
     compact_button(row, ButtonSpec::new("Fit").fit(), SHIP_FIT)
         .insert(SketchClick)
         .observe(fit_ship);
@@ -1468,36 +1470,42 @@ fn icon_frame(size: f32) -> impl Bundle {
     )
 }
 
-/// The selected section: its icon, code, kind and condition, and the repair
-/// slot. [`update_ship_detail`] fills the texts, the icon and the bar;
-/// [`refresh_repair_slot`] fills the repair slot.
+/// The selected section: its icon, code, kind, condition and description,
+/// Prev/Next to step the selection, and the repair slot. Wide, the panel
+/// takes [`DETAIL_SHARE`] of the row and stacks the preview over the texts;
+/// narrow, it is [`SHIP_PANEL_NARROW_PX`] high under the scene with the
+/// preview beside the texts. [`update_ship_detail`] fills the texts, the icon
+/// and the bar; [`refresh_repair_slot`] fills the repair slot.
 fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool) {
+    let ((width, height), head) = if narrow {
+        ((percent(100), px(SHIP_PANEL_NARROW_PX)), FlexDirection::Row)
+    } else {
+        ((percent(DETAIL_SHARE), auto()), FlexDirection::Column)
+    };
     split
-        .spawn((
-            Name::new(SHIP_PANEL),
-            side_panel(narrow, SHIP_PANEL_NARROW_PX),
-        ))
+        .spawn((Name::new(SHIP_PANEL), panel_box(width, height)))
         .with_children(|panel| {
             panel
                 .spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
+                    flex_direction: head,
                     column_gap: px(12),
+                    row_gap: px(10),
                     flex_shrink: 0.0,
                     ..default()
                 })
                 .with_children(|head| {
-                    head.spawn(icon_frame(64.0)).with_children(|frame| {
-                        frame.spawn((
-                            ShipPreview,
-                            Name::new(SHIP_PREVIEW),
-                            icon_node(
-                                icons.sections[SectionIcon::Hull.index()].clone(),
-                                SectionIcon::Hull.color(),
-                                48.0,
-                            ),
-                        ));
-                    });
+                    head.spawn(icon_frame(SHIP_PREVIEW_PX))
+                        .with_children(|frame| {
+                            frame.spawn((
+                                ShipPreview,
+                                Name::new(SHIP_PREVIEW),
+                                icon_node(
+                                    icons.sections[SectionIcon::Hull.index()].clone(),
+                                    SectionIcon::Hull.color(),
+                                    SHIP_PREVIEW_PX * 0.75,
+                                ),
+                            ));
+                        });
                     head.spawn(Node {
                         flex_grow: 1.0,
                         min_width: px(0),
@@ -1525,6 +1533,18 @@ fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: boo
                                 ThemedFill::new(UiColor::Nominal),
                             ));
                         });
+                        detail.spawn((Name::new(SHIP_ABOUT), themed_text("", 13.0, UiColor::Body)));
+                        detail
+                            .spawn(control_row(JustifyContent::FlexStart))
+                            .with_children(|row| {
+                                for (label, name, step) in
+                                    [("Prev", SHIP_PREV, -1), ("Next", SHIP_NEXT, 1)]
+                                {
+                                    compact_button(row, ButtonSpec::new(label).fit(), name)
+                                        .insert(SketchClick)
+                                        .observe(step_section(step));
+                                }
+                            });
                     });
                 });
             panel.spawn((
@@ -1549,7 +1569,7 @@ fn map_detail(split: &mut ChildSpawnerCommands, icons: &SketchIcons) {
     split
         .spawn((
             Name::new(MAP_DETAIL),
-            panel_box(percent(MAP_DETAIL_SHARE), auto()),
+            panel_box(percent(DETAIL_SHARE), auto()),
         ))
         .with_children(|panel| {
             panel
@@ -3167,9 +3187,24 @@ fn update_map_detail(
     );
 }
 
-/// The selected section's code, name, family and fixture condition in the
-/// ship panel, with its family icon and a condition bar, and its code and
-/// condition in the footer summary.
+/// The fixture description of a section kind in the ship panel. The TAB
+/// interface keeps its own copy crate-private; this example leaves the
+/// interface unchanged.
+fn section_about(kind: SectionClass) -> &'static str {
+    match kind {
+        SectionClass::Hull => "Structural armour plating.",
+        SectionClass::Thruster => "Main drive; provides thrust.",
+        SectionClass::Controller => "Command core; runs the ship.",
+        SectionClass::Turret => "Point-defence gun.",
+        SectionClass::Torpedo => "Torpedo launch tube.",
+        SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
+        SectionClass::Docking => "Docking port; locks onto another hull.",
+    }
+}
+
+/// The selected section's code, name, family, fixture condition and
+/// description in the ship panel, with its family icon and a condition bar,
+/// and its code and condition in the footer summary.
 fn update_ship_detail(
     selection: Res<ShipSelection>,
     sections: ShipSections,
@@ -3209,6 +3244,7 @@ fn update_ship_detail(
             condition_status(pct)
         ),
     );
+    set_named_text(&mut texts, SHIP_ABOUT, section_about(view.kind));
     for (mut image, mut tint) in &mut previews {
         let wanted = &icons.sections[icon.index()];
         if image.image != *wanted {
@@ -5475,8 +5511,8 @@ fn sketch_script() -> Script {
     for view in [Inventory, Map] {
         script = open(script, view);
         script = verdict(script, view, Station, "mid");
+        script = shot(script, &format!("mid-hardware-{}-station", view.slug()));
     }
-    script = shot(script, "mid-hardware-map-station");
 
     script = resize(script, NARROW, "narrow");
     for view in [Map, Ship, Inventory] {
@@ -5838,8 +5874,8 @@ fn select_row(
     .add()
 }
 
-/// Every UI node under a card, and the rail for the inventory, as a step
-/// noted it.
+/// The UI nodes a step noted: under the map card, under the ship card outside
+/// the repair slot, or under the inventory card and the rail.
 #[cfg(feature = "debug")]
 #[derive(Resource)]
 struct NodesBefore(Vec<Entity>);
@@ -6964,10 +7000,37 @@ fn section_order(world: &mut World) -> (Option<String>, Vec<String>) {
 }
 
 /// Next moves the ship selection one section along the code order, and Prev
-/// brings it back.
+/// brings it back. Neither respawns a ship card node outside the repair slot,
+/// which the selection rebuilds.
 #[cfg(feature = "debug")]
 fn step_sections(script: Script) -> Script {
+    let ship_nodes = |world: &mut World| {
+        let pane = named(world, PANE_SHIP);
+        let slot = named(world, SHIP_SERVICE);
+        let rebuilt = descendants_with::<Node>(world, slot);
+        let mut nodes: Vec<Entity> = descendants_with::<Node>(world, pane)
+            .into_iter()
+            .filter(|node| *node == slot || !rebuilt.contains(node))
+            .collect();
+        nodes.sort();
+        nodes
+    };
+    let kept = move |world: &mut World, step: &str| {
+        let before = world.resource::<NodesBefore>().0.clone();
+        let after = ship_nodes(world);
+        assert_eq!(
+            before, after,
+            "{step} must update the ship card in place, not respawn a node outside the repair \
+             slot"
+        );
+    };
     let script = script
+        .step("sketch: note the ship nodes before Next")
+        .on_enter(move |world: &mut World| {
+            let nodes = ship_nodes(world);
+            world.insert_resource(NodesBefore(nodes));
+        })
+        .add()
         .click_named(
             "sketch: next section",
             SHIP_NEXT,
@@ -6978,7 +7041,7 @@ fn step_sections(script: Script) -> Script {
         .until(frames(3))
         .add()
         .step("sketch: Next moved one section along")
-        .on_enter(|world: &mut World| {
+        .on_enter(move |world: &mut World| {
             let (current, codes) = section_order(world);
             let at = codes
                 .iter()
@@ -6994,6 +7057,22 @@ fn step_sections(script: Script) -> Script {
                 named_text(world, SHIP_DETAIL).starts_with(expected.as_str()),
                 "the detail must follow Next to {expected}"
             );
+            let selected = world.resource::<ShipSelection>().0;
+            let kind = world
+                .run_system_once(move |sections: ShipSections| {
+                    sections
+                        .collect()
+                        .into_iter()
+                        .find(|view| Some(view.entity) == selected)
+                        .map(|view| view.kind)
+                })
+                .expect("the section model runs");
+            assert_eq!(
+                Some(named_text(world, SHIP_ABOUT).as_str()),
+                kind.map(section_about),
+                "the description must follow Next to {expected}"
+            );
+            kept(world, "Next");
             info!("sketch: Next selected {expected}");
         })
         .add();
@@ -7009,13 +7088,15 @@ fn step_sections(script: Script) -> Script {
         .until(frames(3))
         .add()
         .step("sketch: Prev came back")
-        .on_enter(|world: &mut World| {
+        .on_enter(move |world: &mut World| {
             let (current, _) = section_order(world);
             assert_eq!(
                 current.as_deref(),
                 Some(PICKED_SECTION),
                 "Prev must come back to {PICKED_SECTION}"
             );
+            kept(world, "Prev");
+            world.remove_resource::<NodesBefore>();
         })
         .add();
     expect_cues(script, "Prev", &[UiSfx::MenuSelect])
@@ -7835,9 +7916,13 @@ fn assert_map_legend(world: &mut World, when: &str) {
 /// both, in three equal zones: the legend left; in the centre, the view's
 /// buttons and exactly its key hints on one line over exactly the pointer
 /// hints on another; and the live selection's summary right. The map's
-/// detail panel takes [`MAP_DETAIL_SHARE`] of its row beside the scene and
+/// detail panel takes [`DETAIL_SHARE`] of its row beside the scene and
 /// shows the hint with no contact selected, or the contact's icon in its
-/// stance colour, code, name, kind and range. The inventory has no footer.
+/// stance colour, code, name, kind and range. The ship panel takes the same
+/// share, or [`SHIP_PANEL_NARROW_PX`] under the scene when narrow, and holds
+/// the preview, the texts, the selected kind's description, Prev/Next and
+/// the repair slot; the footer keeps only Fit and Reset. The inventory has
+/// no footer.
 #[cfg(feature = "debug")]
 fn assert_footer(world: &mut World, view: SketchView, when: &str) {
     if view == SketchView::Inventory {
@@ -7866,7 +7951,7 @@ fn assert_footer(world: &mut World, view: SketchView, when: &str) {
                 .iter()
                 .map(|icon| format!("Sketch Legend {}", icon.label()))
                 .collect(),
-            &[SHIP_PREV, SHIP_NEXT, SHIP_FIT, SHIP_RESET],
+            &[SHIP_FIT, SHIP_RESET],
             SHIP_SUMMARY,
         ),
         SketchView::Inventory => unreachable!("returned above"),
@@ -7976,8 +8061,8 @@ fn assert_footer(world: &mut World, view: SketchView, when: &str) {
                 scene.max.x <= panel.min.x
                     && (scene.min.y - panel.min.y).abs() < 1.0
                     && (scene.max.y - panel.max.y).abs() < 1.0
-                    && (panel.width() - row.width() * MAP_DETAIL_SHARE / 100.0).abs() < 1.0,
-                "the detail panel {panel:?} must take {MAP_DETAIL_SHARE}% of the row beside \
+                    && (panel.width() - row.width() * DETAIL_SHARE / 100.0).abs() < 1.0,
+                "the detail panel {panel:?} must take {DETAIL_SHARE}% of the row beside \
                  the scene {scene:?} ({when})"
             );
             let selected = world.resource::<MapSelection>().0;
@@ -8040,7 +8125,69 @@ fn assert_footer(world: &mut World, view: SketchView, when: &str) {
             );
             Some(contact.code)
         }
-        SketchView::Ship => section_order(world).0,
+        SketchView::Ship => {
+            let (scene, panel) = (rect(world, SHIP_SCENE), rect(world, SHIP_PANEL));
+            let row = scene.union(panel);
+            let placed = if window_rect(world).width() < NARROW_BELOW_PX {
+                scene.max.y <= panel.min.y
+                    && (scene.min.x - panel.min.x).abs() < 1.0
+                    && (scene.max.x - panel.max.x).abs() < 1.0
+                    && (panel.height() - SHIP_PANEL_NARROW_PX).abs() < 1.0
+            } else {
+                scene.max.x <= panel.min.x
+                    && (scene.min.y - panel.min.y).abs() < 1.0
+                    && (scene.max.y - panel.max.y).abs() < 1.0
+                    && (panel.width() - row.width() * DETAIL_SHARE / 100.0).abs() < 1.0
+            };
+            assert!(
+                placed,
+                "the ship panel {panel:?} must take {DETAIL_SHARE}% of the row beside the scene \
+                 {scene:?}, or {SHIP_PANEL_NARROW_PX} px under it when narrow ({when})"
+            );
+            for name in [
+                SHIP_PREVIEW,
+                SHIP_DETAIL,
+                SHIP_STATUS,
+                SHIP_ABOUT,
+                SHIP_PREV,
+                SHIP_NEXT,
+                SHIP_SERVICE,
+            ] {
+                let count = count_named(world, name);
+                let at = rect(world, name);
+                assert!(
+                    count == 1 && inside(at, panel),
+                    "{name} {at:?} must sit once in the ship panel {panel:?}, not {count} \
+                     time(s) ({when})"
+                );
+            }
+            let frame = parent_rect(world, SHIP_PREVIEW);
+            assert!(
+                (frame.size() - Vec2::splat(SHIP_PREVIEW_PX))
+                    .abs()
+                    .max_element()
+                    < 1.0,
+                "the preview frame {frame:?} must be {SHIP_PREVIEW_PX} px square ({when})"
+            );
+            let selected = world.resource::<ShipSelection>().0;
+            let (code, kind) = world
+                .run_system_once(move |sections: ShipSections| {
+                    let selected = selected?;
+                    sections
+                        .collect()
+                        .into_iter()
+                        .find(|view| view.entity == selected)
+                        .map(|view| (view.code, view.kind))
+                })
+                .expect("the section model runs")
+                .unwrap_or_else(|| panic!("the ship view has a selection ({when})"));
+            assert_eq!(
+                named_text(world, SHIP_ABOUT),
+                section_about(kind),
+                "the ship panel must describe {code}'s {kind:?} ({when})"
+            );
+            Some(code)
+        }
         SketchView::Inventory => unreachable!("returned above"),
     };
     let line = named_text(world, summary);

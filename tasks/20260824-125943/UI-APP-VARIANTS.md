@@ -64,11 +64,12 @@ beside `widget_zoo`.
   framing on the player. The map has no dock, trade or repair control.
 - **Ship**: the picket's blocks, tinted by section kind, with a themed icon
   badge per section (weapon, thruster, controller, hull, docking) and a 3D
-  bow arrow ahead of the foremost block. Prev, Next, Fit and Reset sit
-  centered under the view, and the kind legend sits left of them, or on its
-  own row under them when narrow. A themed detail panel sits to the right,
-  and under the view when narrow: the selected section's icon, code, name,
-  family, status, a condition bar and the repair slot. Click a badge
+  bow arrow ahead of the foremost block. Fit and Reset sit in the centre of
+  the footer under the view, with the kind legend left of them. A themed
+  detail panel takes the right fifth of the row, and sits under the view
+  when narrow: the selected section's icon, code, name, family, status, a
+  condition bar, a short description of its kind, Prev and Next, and the
+  repair slot. Click a badge
   to select it; the view eases onto it. Prev/Next step through the sections
   in order and wrap. Fit frames the whole hull and keeps the angles; Reset
   also restores the opening angles. The fixture seeds wear on `PDC-1` (45%)
