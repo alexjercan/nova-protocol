@@ -20,12 +20,17 @@ use crate::{
     terminal::section_kind_from_markers,
 };
 
-/// Fixed width of the section panel beside the ship view, in logical px.
-const SHIP_PANEL_PX: f32 = 300.0;
+/// Least width of the section panel, in logical px: the widest note, the
+/// rebind prompt, fits on one line at this width. A small window keeps this
+/// width rather than the panel's 20% share.
+const SHIP_PANEL_MIN_PX: f32 = 300.0;
+/// Side of the section preview frame, in logical px.
+const SHIP_PREVIEW_PX: f32 = 96.0;
 
-/// Build the section panel: the selected section's icon, code, name, status
-/// and condition bar, its detail, the Repair, Reload and Rebind buttons, and
-/// the note line. [`update_ship_panel`] fills it. The texts carry a
+/// Build the section panel: the selected section's icon over its code, name,
+/// status and condition bar, its detail, Prev and Next, the Repair, Reload
+/// and Rebind buttons, and the note line. The panel takes 20% of the row
+/// beside the view. [`update_ship_panel`] fills it. The texts carry a
 /// [`ShipPanelField`] so one system refreshes them; the buttons carry a
 /// [`ShipPanelButton`] and route through the [`ShipSectionCommand`] seam via
 /// `Activate` observers.
@@ -34,7 +39,8 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
         .spawn((
             ShipPanelMarker,
             Node {
-                width: Val::Px(SHIP_PANEL_PX),
+                width: Val::Percent(20.0),
+                min_width: Val::Px(SHIP_PANEL_MIN_PX),
                 flex_shrink: 0.0,
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(10.0),
@@ -52,17 +58,16 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
         .with_children(|panel| {
             panel
                 .spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(12.0),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(10.0),
                     flex_shrink: 0.0,
                     ..default()
                 })
                 .with_children(|head| {
                     head.spawn((
                         Node {
-                            width: Val::Px(64.0),
-                            height: Val::Px(64.0),
+                            width: Val::Px(SHIP_PREVIEW_PX),
+                            height: Val::Px(SHIP_PREVIEW_PX),
                             flex_shrink: 0.0,
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::Center,
@@ -81,12 +86,11 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             icon_node(
                                 icons.section(SectionIconType::Hull),
                                 SectionIconType::Hull.color(),
-                                48.0,
+                                SHIP_PREVIEW_PX * 0.75,
                             ),
                         ));
                     });
                     head.spawn(Node {
-                        flex_grow: 1.0,
                         min_width: Val::Px(0.0),
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(6.0),
@@ -131,6 +135,21 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                 ShipPanelField::Detail,
                 themed_label("", 12.0, UiColor::Body),
             ));
+            panel
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(8.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    for (label, step) in [("Prev", -1), ("Next", 1)] {
+                        row.spawn((
+                            button(ButtonSpec::new(label).fit()),
+                            Name::new(format!("Ship{label}")),
+                        ))
+                        .observe(on_ship_step_button(step));
+                    }
+                });
             panel
                 .spawn(Node {
                     flex_direction: FlexDirection::Row,

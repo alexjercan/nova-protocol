@@ -130,7 +130,7 @@ The Ship pane is a schematic 3D viewer of your own hull: one block per section, 
 | `RAIL-1` | Railgun | Weapon |
 | `DOCK-1` | Docking clamp | Docking |
 
-Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or with **Prev** / **Next** under the view. The panel shows its family icon, a condition bar, its status, what it does, its HP, ammunition and current bindings.
+Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or with **Prev** / **Next** in the panel. The panel shows its family icon, a condition bar, its status, what it does, its HP, ammunition and current bindings.
 
 | Key | Button | Does |
 | --- | --- | --- |

@@ -34,8 +34,7 @@ use crate::{
     inventory::inventory_body,
     map::{on_map_reframe_button, MapLegendMarker, MapReadoutMarker, MapViewportMarker},
     ship::{
-        on_ship_fit_button, on_ship_reset_button, on_ship_step_button, spawn_ship_panel,
-        ShipRuntime, ShipViewportMarker,
+        on_ship_fit_button, on_ship_reset_button, spawn_ship_panel, ShipRuntime, ShipViewportMarker,
     },
     terminal::NovaOsCloseTransition,
 };
@@ -430,7 +429,7 @@ fn map_body(body: &mut ChildSpawnerCommands) {
     });
 }
 
-/// The ship: the scene with the section legend and the step, fit and reset
+/// The ship: the scene with the section legend and the fit and reset
 /// controls centred under it, and the section panel beside it. An empty side
 /// as wide as the legend's keeps the controls centred.
 fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
@@ -492,14 +491,6 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                         });
                         foot.spawn(control_row(JustifyContent::Center))
                             .with_children(|controls| {
-                                for (label, step) in [("Prev", -1), ("Next", 1)] {
-                                    controls
-                                        .spawn((
-                                            button(ButtonSpec::new(label).fit()),
-                                            Name::new(format!("Ship{label}")),
-                                        ))
-                                        .observe(on_ship_step_button(step));
-                                }
                                 controls
                                     .spawn((
                                         button(ButtonSpec::new("Fit").fit()),
