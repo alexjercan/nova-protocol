@@ -625,10 +625,6 @@ pub(crate) fn on_map_blip_click(
 /// Fill the contact panel and the footer summary from the selection, with a
 /// GOTO result on the note while it shows. Rewrites text, colour and the icon
 /// in place and only on a difference, so a held selection writes nothing.
-#[expect(
-    clippy::type_complexity,
-    reason = "the panel's text lines and its icon"
-)]
 pub(crate) fn update_map_panel(
     runtime: Res<MapRuntime>,
     icons: Res<InterfaceIcons>,
