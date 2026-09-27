@@ -382,6 +382,7 @@ const WIKI_PAGES = [
             "Opening and closing",
             "The map",
             "The ship",
+            "The inventory",
             "Rebinding a section",
             "The command shell",
         ],

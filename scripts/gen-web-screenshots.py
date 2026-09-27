@@ -172,6 +172,7 @@ FIGURES = [
     ("wiki-command-shell.png",          "screenshot_command_shell"),
     ("wiki-interface-map.png",          "screenshot_interface"),
     ("wiki-interface-ship.png",         "screenshot_interface"),
+    ("wiki-interface-inventory.png",    "screenshot_interface"),
     # Current editor, sandbox and release diagnostics.
     ("feature-editor.png",               "screenshot_editor"),
     ("wiki-sandbox-range.png",           "screenshot_editor"),

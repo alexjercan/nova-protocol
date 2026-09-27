@@ -1,12 +1,13 @@
-//! screenshot_interface: the TAB interface, Map pane then Ship pane
-//! (`wiki-interface-map.png` and `wiki-interface-ship.png`).
+//! screenshot_interface: the TAB interface, Map, Ship, then Inventory panes
+//! (`wiki-interface-map.png`, `wiki-interface-ship.png`, and
+//! `wiki-interface-inventory.png`).
 //!
 //! It boots the range with traffic from `shared/computer.rs`, opens the
 //! interface with Tab (it opens on the Map pane) and switches to the Ship pane
-//! with M, both through the real keyboard path.
+//! with M, then switches to Inventory with M again, through the real keyboard path.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
-//! - `NOVA_AUTOPILOT=1` alone: the smoke path - open both panes, exit clean,
+//! - `NOVA_AUTOPILOT=1` alone: the smoke path - open all three panes, exit clean,
 //!   capturing nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also write the PNGs (staged under
 //!   `NOVA_CAPTURE_DIR`).
@@ -39,7 +40,7 @@ use computer::press_tab;
 #[derive(Parser)]
 #[command(name = "screenshot_interface")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the TAB interface Map and Ship panes. Autopilot-only: a scripted command walk", long_about = None)]
+#[command(about = "Capture the TAB interface Map, Ship, and Inventory panes. Autopilot-only: a scripted command walk", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {
@@ -87,13 +88,26 @@ fn main() -> bevy::app::AppExit {
                 .deadline(STEP_DEADLINE_SECS)
                 .add()
                 .step("settle the ship pane for the shot")
+                .on_enter(release_key(KeyCode::KeyM))
                 .until(frames(SETTLE_FRAMES))
                 .add()
-                // The last step holds until the PNG is on disk, so the driver
-                // cannot report done out from under a pending write.
                 .step("capture the ship pane")
-                .on_enter(move |world| shoot(world, "wiki-interface-ship.png"))
+                .on_enter(|world| shoot(world, "wiki-interface-ship.png"))
                 .until(shot_written("wiki-interface-ship.png"))
+                .deadline(SHOT_DEADLINE_SECS)
+                .add()
+                .step("switch to the inventory pane")
+                .on_enter(press_key(KeyCode::KeyM))
+                .until(the_pane_shows(InterfacePaneType::Inventory))
+                .deadline(STEP_DEADLINE_SECS)
+                .add()
+                .step("settle the inventory pane for the shot")
+                .until(frames(SETTLE_FRAMES))
+                .add()
+                // Wait until the PNG is on disk before the driver exits.
+                .step("capture the inventory pane")
+                .on_enter(|world| shoot(world, "wiki-interface-inventory.png"))
+                .until(shot_written("wiki-interface-inventory.png"))
                 .deadline(SHOT_DEADLINE_SECS)
                 .add(),
         );

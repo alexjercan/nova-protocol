@@ -185,9 +185,9 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
             >assets/wiki-interface-inventory.png</span
         >
         <span class="figure__placeholder-note"
-            >The Inventory pane while docked: the category
-            filters, your ship's column, the docked ship's column
-            and the inspector on a selected item.</span
+            >The Inventory pane while undocked: category filters,
+            your ship's empty store and the item inspector. The
+            partner column appears only while docked.</span
         >
     </div>
 </figure>
