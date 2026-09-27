@@ -85,13 +85,15 @@ beside `widget_zoo`.
   with fixture prices and no weight bar. Boarded, the raider's hold shows
   with its own weight bar. The picket's hold takes the left half and the
   other store the right half in every context; undocked the right half
-  stays empty, so a context switch does not resize the hold.
+  stays empty, so a context switch does not resize the hold. The stores
+  take the left four fifths of the row and the inspector the right fifth,
+  and the inspector sits 350 px high under them when narrow.
   Every line is one fixed-height row with a kind icon, name, quantity and
   mass.
 - **Inspector**: click a row to select it. It shows the kind icon, name,
   category, unit mass, stock in that store, and the fixture price, or
-  `No price` where no deal is allowed. The facts stay while a deal is open,
-  and the deal's controls show below them.
+  `No price` where no deal is allowed. A long fact wraps at words. The
+  facts stay while a deal is open, and the deal's controls show below them.
 - **Deals**: a row click opens the one deal the context allows on it at one
   unit: Buy on a market item and Sell on an own item at the station (paid),
   Loot on a raider item when boarded (free). Own cargo has no deal when
@@ -124,14 +126,14 @@ beside `widget_zoo`.
 ## Frames
 
 Captured under Xvfb with lavapipe by the harnessed walk. Desktop is
-1600x900, mid is 1120x820, narrow is 720x1000. Frames are in
+1600x900, mid is 1352x820, narrow is 1024x900. Frames are in
 `ui-app-variants/`, with the prefix `ui_app_variants-`.
 
 | View | Phosphor, desktop | Hardware, desktop | Narrow |
 | --- | --- | --- | --- |
-| Map | `phosphor-map` (on `HOST-1`), `phosphor-map-recentered` (on `AST-2`) | `hardware-map-station` | `narrow-hardware-map-station`, `narrow-phosphor-map-undocked` |
+| Map | `phosphor-map` (on `HOST-1`), `phosphor-map-recentered` (on `AST-2`) | `hardware-map-station`, `mid-hardware-map-station` | `narrow-hardware-map-station`, `narrow-phosphor-map-undocked` |
 | Ship | `phosphor-ship` (on `PDC-1`), `phosphor-ship-station` (after repair) | `hardware-ship-station`, `hardware-ship-boarded`, `mid-hardware-ship-station` | `narrow-hardware-ship-station`, `narrow-phosphor-ship-boarded`, `narrow-phosphor-ship-undocked` |
-| Inventory | `phosphor-inventory` (inspector), `phosphor-inventory-station` (refused buy), `phosphor-inventory-boarded` (after loot) | `hardware-inventory-station`, `hardware-inventory-boarded` | `narrow-hardware-inventory-station`, `narrow-hardware-inventory-deal` (water deal), `short-hardware-inventory-deal` (720x760, scrolled to Confirm), `narrow-hardware-inventory-boarded`, `narrow-phosphor-inventory-boarded` |
+| Inventory | `phosphor-inventory` (inspector), `phosphor-inventory-station` (refused buy), `phosphor-inventory-boarded` (after loot) | `hardware-inventory-station`, `hardware-inventory-boarded`, `mid-hardware-inventory-station`, `mid-hardware-inventory-deal` (water deal), `mid-hardware-inventory-undocked`, `mid-hardware-inventory-boarded` | `narrow-hardware-inventory-station`, `narrow-hardware-inventory-deal` (water deal), `short-hardware-inventory-deal` (1024x600, scrolled to Confirm), `narrow-hardware-inventory-boarded`, `narrow-phosphor-inventory-boarded` |
 
 ## What the harnessed walk proves
 
@@ -200,12 +202,15 @@ Captured under Xvfb with lavapipe by the harnessed walk. Desktop is
   contexts (`not at a station`, `not boarded`, `repair needs a station`);
 - every refusal leaves cargo, credits, condition and the bay unchanged;
 - the theme flip repaints the 3D materials in place;
-- at 1120 px the ship panel and inspector stay beside their views, and at
-  720 px they stack; no node leaves the window or its parent's box;
-- in a 720x760 window the ship panel starts below the window, and the wheel
+- at 1352 px the ship panel and inspector take a fifth of their rows beside
+  their views, and at 1024 px they stack; no node leaves the window or its
+  parent's box;
+- at 1352 px a water deal opens in the inspector with every inventory node
+  kept, and its facts and Confirm fit the panel;
+- in a 1024x600 window the ship panel starts below the window, and the wheel
   over the context line scrolls the page until the panel is in view;
-- at 720 px a water deal shows Confirm under the facts inside the 350 px
-  inspector, and in a 720x760 window the wheel over the context line
+- at 1024 px a water deal shows Confirm under the facts inside the 350 px
+  inspector, and in a 1024x600 window the wheel over the context line
   scrolls the page until Confirm is in view;
 - after the scenario loads, `Time<Virtual>` and `Time<Physics>` stay paused,
   no fixed step runs, and no contact moves, through every step, an interface

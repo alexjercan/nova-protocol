@@ -73,14 +73,15 @@
 //!   double click trades once, the interface cue of each control, the equal
 //!   store columns, the rows, filters and weight bars, the map detail
 //!   panel's share and contents, the ship panel's share or narrow height,
-//!   description and Prev/Next, the map and ship footer's zones, input
-//!   hints and live summary, that a map selection respawns no map node, that
-//!   a ship step respawns no ship node outside the repair slot, that
-//!   a selection, a quantity change or a refused Confirm respawns no
-//!   inventory or rail node, that a closed deal gives the keyboard back, the
-//!   rail's width, place and status, the 3D repaint, that the simulation
-//!   never advances and that no input reaches the ship. Repeat at a mid and
-//!   a narrow window size, scroll a short window, then exit.
+//!   description and Prev/Next, the inspector's share or narrow height, the
+//!   map and ship footer's zones, input hints and live summary, that a map
+//!   selection respawns no map node, that a ship step respawns no ship node
+//!   outside the repair slot, that a selection, a quantity change or a
+//!   refused Confirm respawns no inventory or rail node, that a closed deal
+//!   gives the keyboard back, the rail's width, place and status, the 3D
+//!   repaint, that the simulation never advances and that no input reaches
+//!   the ship. Repeat at a mid and a narrow window size, scroll a short
+//!   window, then exit.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>`: the same walk,
 //!   plus a frame of every view.
 
@@ -1189,8 +1190,8 @@ fn control_row(justify: JustifyContent) -> Node {
     }
 }
 
-/// Share of a split row the map's detail panel and the wide ship panel take;
-/// the scene takes the rest.
+/// Share of a split row the map's detail panel, the wide ship panel and the
+/// wide inventory inspector take; the scene or the stores take the rest.
 const DETAIL_SHARE: f32 = 20.0;
 
 /// The map: the scene with the contact detail panel beside it at every
@@ -1326,8 +1327,6 @@ fn input_hint(row: &mut ChildSpawnerCommands, (input, action): &(&str, &str)) {
         });
 }
 
-/// Width of the inventory inspector beside its view, in logical px.
-const SIDE_PX: f32 = 300.0;
 /// Height of the ship panel stacked under the ship view, in logical px: the
 /// preview head with the section texts and Prev/Next, and the repair slot.
 const SHIP_PANEL_NARROW_PX: f32 = 240.0;
@@ -1414,16 +1413,6 @@ fn split(narrow: bool) -> Node {
         column_gap: px(12),
         row_gap: px(12),
         ..default()
-    }
-}
-
-/// A themed side panel: [`SIDE_PX`] wide beside its view, or full width and
-/// `narrow_px` high under it.
-fn side_panel(narrow: bool, narrow_px: f32) -> impl Bundle {
-    if narrow {
-        panel_box(percent(100), px(narrow_px))
-    } else {
-        panel_box(px(SIDE_PX), auto())
     }
 }
 
@@ -4486,13 +4475,17 @@ fn column_node(row_gap: f32) -> Node {
 
 /// The inspector, built once: a hint with nothing selected; the item's icon,
 /// name and category; its facts; and the confirmation in their place while
-/// one is open. [`update_inspector`] fills it.
+/// one is open. Wide, it takes [`DETAIL_SHARE`] of the row beside the stores;
+/// narrow, it is [`INSPECTOR_NARROW_PX`] high under them.
+/// [`update_inspector`] fills it.
 fn inspector(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool) {
+    let (width, height) = if narrow {
+        (percent(100), px(INSPECTOR_NARROW_PX))
+    } else {
+        (percent(DETAIL_SHARE), auto())
+    };
     split
-        .spawn((
-            Name::new(INSPECTOR),
-            side_panel(narrow, INSPECTOR_NARROW_PX),
-        ))
+        .spawn((Name::new(INSPECTOR), panel_box(width, height)))
         .with_children(|panel| {
             panel
                 .spawn((InspectorPart::Hint, column_node(10.0)))
@@ -4549,7 +4542,9 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool
         });
 }
 
-/// A label on the left and a named value on the right.
+/// A label on the left and a named value on the right. The value wraps at
+/// words: a long stock line such as `4 t in Mock station market` does not fit
+/// one line of the inspector at the mid width.
 fn fact(panel: &mut ChildSpawnerCommands, label: &str, name: &str) {
     panel
         .spawn(control_row(JustifyContent::SpaceBetween))
@@ -4558,7 +4553,7 @@ fn fact(panel: &mut ChildSpawnerCommands, label: &str, name: &str) {
             row.spawn((
                 Name::new(name.to_string()),
                 themed_text("", 13.0, UiColor::Body),
-                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                TextLayout::new(Justify::Right, LineBreak::WordBoundary),
             ));
         });
 }
@@ -5501,18 +5496,42 @@ fn sketch_script() -> Script {
     script = verdict(script, Ship, Boarded, "hardware");
     script = shot(script, "hardware-ship-boarded");
 
-    // Just over the narrow break: the side panels still sit beside their
-    // views.
+    // Just over the narrow break: the detail panels and the inspector still
+    // sit beside their views, in their share of the row.
     script = resize(script, MID, "mid");
     script = verdict(script, Ship, Boarded, "mid");
     script = switch_context(script, Station);
     script = verdict(script, Ship, Station, "mid");
     script = shot(script, "mid-hardware-ship-station");
-    for view in [Inventory, Map] {
-        script = open(script, view);
-        script = verdict(script, view, Station, "mid");
-        script = shot(script, &format!("mid-hardware-{}-station", view.slug()));
+    script = open(script, Inventory);
+    script = verdict(script, Inventory, Station, "mid");
+    script = shot(script, "mid-hardware-inventory-station");
+    // The narrowest wide inspector holds the water's facts and its deal.
+    script = note_nodes(script);
+    script = select_row(
+        script,
+        "open the water mid",
+        Store::Market,
+        "Water",
+        Some(Deal::Buy),
+    );
+    script = assert_nodes_kept(script, "opening the water mid");
+    script = verdict(script, Inventory, Station, "mid deal");
+    script = shot(script, "mid-hardware-inventory-deal");
+    // Undocked drops the market selection and the deal, so the other
+    // contexts and the narrow walk start from the empty inspector.
+    for (context, slug) in [
+        (Undocked, "mid-hardware-inventory-undocked"),
+        (Boarded, "mid-hardware-inventory-boarded"),
+    ] {
+        script = switch_context(script, context);
+        script = verdict(script, Inventory, context, "mid");
+        script = shot(script, slug);
     }
+    script = switch_context(script, Station);
+    script = open(script, Map);
+    script = verdict(script, Map, Station, "mid");
+    script = shot(script, "mid-hardware-map-station");
 
     script = resize(script, NARROW, "narrow");
     for view in [Map, Ship, Inventory] {
@@ -8516,14 +8535,33 @@ fn assert_holds(world: &mut World, context: SketchContext, when: &str) {
     );
 }
 
-/// The inspector shows the inspected item's icon, name and category, then
-/// either its facts, or the open confirmation of the deal the context allows
-/// on it; with nothing inspected, only a hint.
+/// The inspector takes [`DETAIL_SHARE`] of its row beside the stores, or
+/// [`INSPECTOR_NARROW_PX`] under them when narrow, inside the row. It shows
+/// the inspected item's icon, name and category, then either its facts, or
+/// the open confirmation of the deal the context allows on it; with nothing
+/// inspected, only a hint.
 #[cfg(feature = "debug")]
 fn assert_inspector(world: &mut World, context: SketchContext, when: &str) {
+    let panel = ui_node_rect(world, INSPECTOR)
+        .unwrap_or_else(|| panic!("the inspector must be shown ({when})"));
+    let row = parent_rect(world, INSPECTOR);
+    let stores = ui_node_rect(world, STORE_COLUMN_PARTNER).expect("the partner column is laid out");
+    let placed = if window_rect(world).width() < NARROW_BELOW_PX {
+        (panel.width() - row.width()).abs() < 1.0
+            && (panel.height() - INSPECTOR_NARROW_PX).abs() < 1.0
+            && (panel.max.y - row.max.y).abs() < 1.0
+            && stores.max.y <= panel.min.y
+    } else {
+        (panel.width() - row.width() * DETAIL_SHARE / 100.0).abs() < 1.0
+            && (panel.max.x - row.max.x).abs() < 1.0
+            && stores.max.x <= panel.min.x
+            && (panel.min.y - row.min.y).abs() < 1.0
+            && (panel.max.y - row.max.y).abs() < 1.0
+    };
     assert!(
-        ui_node_rect(world, INSPECTOR).is_some(),
-        "the inspector must be shown ({when})"
+        placed && inside(panel, row),
+        "the inspector {panel:?} must take {DETAIL_SHARE}% of the row {row:?} beside the \
+         stores {stores:?}, or {INSPECTOR_NARROW_PX} px under them when narrow ({when})"
     );
     let inspected = world.resource::<Inspected>().0;
     let draft = world.resource::<Draft>().0;
