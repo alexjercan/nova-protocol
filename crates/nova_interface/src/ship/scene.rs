@@ -394,10 +394,16 @@ pub(crate) fn reconcile_ship_target(
     let Ok((computed, mut node)) = q_viewport.single_mut() else {
         return;
     };
+    // A viewport that is not laid out yet measures zero. Attaching the image
+    // then lets its placeholder size shape the node, which paints one frame
+    // as a square before the real layout lands.
+    let desired = computed.size().round().as_uvec2();
+    if desired.cmpeq(UVec2::ZERO).any() {
+        return;
+    }
     if node.image != *image {
         node.image = image.clone();
     }
-    let desired = computed.size().round().as_uvec2().max(UVec2::ONE);
     resize_render_target(
         images,
         image,
@@ -602,34 +608,24 @@ pub(crate) fn project_ship_blips(
     else {
         return;
     };
+    // The camera re-derives its target size in `PostUpdate`, so in the frame
+    // the target reconciler resizes the image it still projects into the old
+    // size. On open that is the small placeholder: every point lands in the
+    // top-left corner and passes the bounds filter below. A viewport that is
+    // not laid out yet measures zero and never matches. Only position and
+    // visibility wait for it; new blips still spawn hidden, so the legend
+    // does not wait.
+    let stale_camera = camera.physical_target_size() != Some(computed.size().round().as_uvec2());
     // The scene camera draws into an image whose pixels ARE the viewport
     // node's physical pixels, so it answers in physical pixels while `Node`
     // asks for logical ones. Do the conversion once, here.
     let to_logical = computed.inverse_scale_factor();
     let size = computed.size() * to_logical;
-    // A node that has not been laid out yet reports an inverse scale factor of
-    // 0, which would collapse `size` to zero AND every projected point to the
-    // origin - and `Vec2::ZERO` PASSES the bounds filter below. One frame of
-    // every blip piled in the corner, each time the panel opens.
-    if to_logical <= 0.0 {
-        return;
-    }
     let list = sections.collect();
 
     let mut seen = bevy::platform::collections::HashSet::new();
     for view in &list {
         seen.insert(view.entity);
-        // Project the section's SCENE-space position (its local offset - the
-        // scene root is anchored at the origin, so blocks and blips share this
-        // frame). Projecting the world position would only line up when the ship
-        // sits at the world origin, so blips would drift off the blocks in flight.
-        let projected = camera
-            .world_to_viewport(cam_gt, view.local.translation)
-            .ok()
-            .map(|p| p * to_logical)
-            .filter(|p| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y);
-        let selected = runtime.selected == Some(view.entity);
-
         let Some(&blip) = runtime.blips.get(&view.entity) else {
             let id = spawn_ship_blip(&mut commands, viewport, view, &icons);
             runtime.blips.insert(view.entity, id);
@@ -640,18 +636,30 @@ pub(crate) fn project_ship_blips(
         let Ok((mut node, mut visibility, mut border, children)) = q_blip.get_mut(blip) else {
             continue;
         };
-        if let Some(p) = projected {
-            let left = Val::Px(p.x - SHIP_BLIP_PX * 0.5);
-            let top = Val::Px(p.y - SHIP_BLIP_PX * 0.5);
-            if node.left != left || node.top != top {
-                node.left = left;
-                node.top = top;
+        if !stale_camera {
+            // Project the section's SCENE-space position (its local offset - the
+            // scene root is anchored at the origin, so blocks and blips share this
+            // frame). Projecting the world position would only line up when the ship
+            // sits at the world origin, so blips would drift off the blocks in flight.
+            let projected = camera
+                .world_to_viewport(cam_gt, view.local.translation)
+                .ok()
+                .map(|p| p * to_logical)
+                .filter(|p| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y);
+            if let Some(p) = projected {
+                let left = Val::Px(p.x - SHIP_BLIP_PX * 0.5);
+                let top = Val::Px(p.y - SHIP_BLIP_PX * 0.5);
+                if node.left != left || node.top != top {
+                    node.left = left;
+                    node.top = top;
+                }
             }
+            visibility.set_if_neq(match projected {
+                Some(_) => Visibility::Inherited,
+                None => Visibility::Hidden,
+            });
         }
-        visibility.set_if_neq(match projected {
-            Some(_) => Visibility::Inherited,
-            None => Visibility::Hidden,
-        });
+        let selected = runtime.selected == Some(view.entity);
         let alpha = if selected { 1.0 } else { 0.0 };
         if border.alpha != alpha {
             border.alpha = alpha;

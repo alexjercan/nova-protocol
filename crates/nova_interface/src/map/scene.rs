@@ -190,10 +190,16 @@ pub(crate) fn reconcile_map_target(
     let Ok((computed, mut node)) = q_viewport.single_mut() else {
         return;
     };
+    // A viewport that is not laid out yet measures zero. Attaching the image
+    // then lets its placeholder size shape the node, which paints one frame
+    // as a square before the real layout lands.
+    let desired = computed.size().round().as_uvec2();
+    if desired.cmpeq(UVec2::ZERO).any() {
+        return;
+    }
     if node.image != *image {
         node.image = image.clone();
     }
-    let desired = computed.size().round().as_uvec2().max(UVec2::ONE);
     resize_render_target(
         images,
         image,
@@ -429,18 +435,19 @@ pub(crate) fn project_map_blips(
     else {
         return;
     };
+    // The camera re-derives its target size in `PostUpdate`, so in the frame
+    // the target reconciler resizes the image it still projects into the old
+    // size. On open that is the small placeholder: every point lands in the
+    // top-left corner and passes the bounds filter below. A viewport that is
+    // not laid out yet measures zero and never matches. Only position and
+    // visibility wait for it; new blips still spawn hidden, so the legend
+    // does not wait.
+    let stale_camera = camera.physical_target_size() != Some(computed.size().round().as_uvec2());
     // The scene camera draws into an image whose pixels ARE the viewport
     // node's physical pixels, so it answers in physical pixels while `Node`
     // asks for logical ones. Do the conversion once, here.
     let to_logical = computed.inverse_scale_factor();
     let size = computed.size() * to_logical;
-    // A node that has not been laid out yet reports an inverse scale factor of
-    // 0, which would collapse `size` to zero AND every projected point to the
-    // origin - and `Vec2::ZERO` PASSES the bounds filter below. One frame of
-    // every blip piled in the corner, each time the panel opens.
-    if to_logical <= 0.0 {
-        return;
-    }
     let list = contacts.collect();
 
     let mut seen = bevy::platform::collections::HashSet::new();
@@ -455,25 +462,27 @@ pub(crate) fn project_map_blips(
         else {
             continue;
         };
-        let projected = camera
-            .world_to_viewport(cam_gt, contact.world_pos)
-            .ok()
-            .map(|p| p * to_logical)
-            .filter(|p| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y);
-        match projected {
-            Some(p) => {
-                let (left, top) = (
-                    Val::Px(p.x - MAP_BLIP_PX * 0.5),
-                    Val::Px(p.y - MAP_BLIP_PX * 0.5),
-                );
-                if node.left != left || node.top != top {
-                    node.left = left;
-                    node.top = top;
+        if !stale_camera {
+            let projected = camera
+                .world_to_viewport(cam_gt, contact.world_pos)
+                .ok()
+                .map(|p| p * to_logical)
+                .filter(|p| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y);
+            match projected {
+                Some(p) => {
+                    let (left, top) = (
+                        Val::Px(p.x - MAP_BLIP_PX * 0.5),
+                        Val::Px(p.y - MAP_BLIP_PX * 0.5),
+                    );
+                    if node.left != left || node.top != top {
+                        node.left = left;
+                        node.top = top;
+                    }
+                    vis.set_if_neq(Visibility::Inherited);
                 }
-                vis.set_if_neq(Visibility::Inherited);
-            }
-            None => {
-                vis.set_if_neq(Visibility::Hidden);
+                None => {
+                    vis.set_if_neq(Visibility::Hidden);
+                }
             }
         }
         // A ship can change sides while the map is open.

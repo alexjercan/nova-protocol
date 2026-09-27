@@ -71,7 +71,7 @@ use bevy::prelude::*;
 use nova_gameplay::GameStates;
 use nova_hud::NovaHudSystems;
 use nova_input::prelude::RegisterInputActions;
-use nova_ui::widget::button_on_setting;
+use nova_ui::{theme::UiThemeSystems, widget::button_on_setting};
 
 use crate::{
     inventory::InventoryPaneSystems,
@@ -127,6 +127,19 @@ impl Plugin for InterfacePlugin {
                 .before(MapPaneSystems)
                 .before(ShipPaneSystems)
                 .before(InventoryPaneSystems),
+        );
+        // The widget reconcilers paint after `UiThemeSystems`. A body or pane
+        // row spawned after them shows one unpainted frame on each open and
+        // pane switch.
+        app.configure_sets(
+            Update,
+            (
+                InterfaceSystems,
+                MapPaneSystems,
+                ShipPaneSystems,
+                InventoryPaneSystems,
+            )
+                .before(UiThemeSystems),
         );
         app.add_systems(
             Update,
