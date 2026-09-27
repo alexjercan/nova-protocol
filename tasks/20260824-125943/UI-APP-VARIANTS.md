@@ -2,7 +2,10 @@
 
 A playable Bevy sketch of themed, click-based map, ship and inventory screens
 from the owner UI review in `TASK.md`. It is the design artifact for that
-direction. It is not runtime UI and settles no open decision.
+direction. It is not runtime UI and settles no open decision. The TAB
+interface (`nova_interface`) ships its Map and Ship panes from this sketch;
+the sketch stays runnable as the design reference for the inventory and
+station screens.
 
 Run it:
 
@@ -28,7 +31,8 @@ beside `widget_zoo`.
   is off and no key or mouse input reaches the ship.
 - Map and Ship are 3D views. Each pane is its own camera drawing into an
   image. The contact and section models, map rings, framing, zoom limits,
-  orbit gesture and center ease come from NOVA OS (`nova_os_ui` prelude).
+  orbit gesture and center ease come from the TAB interface
+  (`nova_interface` prelude).
   The palette, icons, blips, legends, selection and pane lifecycle belong to
   the example.
 - Three mock contexts, picked in the top bar: Undocked, Station and Boarded.
@@ -39,8 +43,8 @@ beside `widget_zoo`.
   example-local fixture state (`SketchFixture`), from 1200 cr. Transactions
   change only that state: gameplay health and cargo are never written, and
   nothing persists.
-- NOVA OS behavior and its TAB binding are unchanged. The sketch only adds
-  public exports of the NOVA OS viewport helpers and zoom limits it uses.
+- The sketch leaves the interface and its TAB binding unchanged. It uses
+  the viewport helpers and zoom limits that the interface prelude exports.
 
 ## What each screen shows
 
@@ -140,8 +144,9 @@ Captured under Xvfb with lavapipe by the harnessed walk. Desktop is
   or transfer control;
 - a clicked contact or section sets the readout or detail, and the orbit
   center eases onto it by real-time ease steps;
-- a drag turns the orbit by the NOVA OS gesture amount and moves the blips;
-  the wheel zooms by the NOVA OS amount and stops at the NOVA OS ceiling;
+- a drag turns the orbit by the interface gesture amount and moves the
+  blips; the wheel zooms by the interface amount and stops at the interface
+  ceiling;
   Reframe restores the opening angles, radius and center;
 - W, D and Space move the map camera forward, right and up, and Shift moves it
   down, with its angles and zoom unchanged;
@@ -202,11 +207,11 @@ Captured under Xvfb with lavapipe by the harnessed walk. Desktop is
   inspector, and in a 720x760 window the wheel over the context line
   scrolls the page until Confirm is in view;
 - after the scenario loads, `Time<Virtual>` and `Time<Physics>` stay paused,
-  no fixed step runs, and no contact moves, through every step, a NOVA OS
+  no fixed step runs, and no contact moves, through every step, an interface
   open and close, and a lone Escape. The cursor stays free.
 - player control stays suspended, and on no frame is the flight context live
   or a burn, RCS, thruster or turret input set, including while the map
-  camera flies. W held under NOVA OS does not move the sketch camera.
+  camera flies. W held under the interface does not move the sketch camera.
 
 Before the pause guard, the walk failed as soon as the scenario released
 its load hold (`ui-app-variants/before-pause-guard.txt`).
@@ -218,19 +223,19 @@ its load hold (`ui-app-variants/before-pause-guard.txt`).
   menu or screen plugin to own one, so while the sketch is idle no named
   owner holds the freeze. A production screen must take a named hold
   instead.
-- TAB opens NOVA OS over the sketch, and Escape closes it. The example has no
-  pause menu, so a lone Escape does nothing. The station UI entry key stays
-  an open decision.
+- TAB opens the interface over the sketch, and Escape closes it. The example
+  has no pause menu, so a lone Escape does nothing. The station UI entry key
+  stays an open decision.
 - Input ownership is example-only: while the sketch root exists, a `Last`
   system calls `suspend_player_control` when control is not already
   suspended, which covers the resume the scenario loader queues. The map
   camera reads keys directly. A production screen needs a named input owner.
 - No GOTO, route, trajectory or time control exists; the map only looks.
-- Contact codes are minted by NOVA OS, so which rock is `AST-1` and which is
-  `AST-2` can differ between runs.
+- Contact codes are minted by the interface, so which rock is `AST-1` and
+  which is `AST-2` can differ between runs.
 - Section, category and map icons are example-local procedural masks, not
   meshes or shipped art. The map legend and blips come from example-local
-  body markers, not from a NOVA OS contact kind.
+  body markers, not from an interface contact kind.
 - A rebuilt map scene opens framed on the player, as Reframe does. Only a
   pick of a different contact recenters, so a second click on the selected
   contact after Reframe does nothing.
