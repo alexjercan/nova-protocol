@@ -1,5 +1,5 @@
 //! Target inset: a corner HUD panel showing a live, magnified render-to-texture
-//! close-up of the currently focused/locked body - a ship, torpedo or asteroid
+//! close-up of the locked body - a ship, torpedo or asteroid
 //! flagged [`InsetZoomable`], but not a nav beacon - so the player can see which
 //! section the fine-lock is selecting (and watch it take damage / explode
 //! scope-style) instead of squinting at sub-pixel markers at range.
@@ -13,21 +13,21 @@
 //!   coexists with the main camera's per-camera post-processing + skybox and
 //!   trips none of the marker-filtered `Single<Camera>` queries.
 //! - A corner [`ImageNode`] panel showing that texture, spawned with the player
-//!   HUD (hud/mod.rs observers) and shown whenever a COMBAT LOCK exists.
+//!   HUD (hud/mod.rs observers) and shown whenever a live lock exists.
 //! - An in-scene tinted overlay on the fine-locked section, so the selection
 //!   reads in BOTH the main view and the inset with no projection code.
 //!
-//! INSET-ON-LOCK: the camera spawns/despawns and
-//! the panel shows/hides with the [`CombatLock`] itself - during a radar
-//! sweep the panel is the VIEWFINDER, and its presence is the "torpedoes
-//! are guided" signal. The focus dwell gates only the component fine-lock
-//! now. A lock on a non-zoomable body (beacon) holds the panel with the
-//! NO-SIGNAL overlay instead of blinking; the frame color + armed
-//! corner ticks carry the weapons-safety state. The camera is posed
-//! each frame on the locked ship's [`live_structure_anchor`] from a
+//! INSET-ON-LOCK: one slot shows a live [`CombatLock`] target, else a live
+//! [`TravelLock`] target. The inset reads both locks and writes neither.
+//! During a radar sweep the panel is the VIEWFINDER. The focus dwell gates
+//! only the component fine-lock. A lock on a non-zoomable body (beacon) holds
+//! the panel with the NO-SIGNAL overlay instead of blinking, and a combat
+//! beacon keeps the slot from a framable travel target. The frame color +
+//! armed corner ticks carry the weapons-safety state. The camera is posed
+//! each frame on the shown target's [`live_structure_anchor`] from a
 //! scope-like player-relative bearing.
 
-use avian3d::prelude::{ColliderAabb, ComputedCenterOfMass, Sensor};
+use avian3d::prelude::{ColliderAabb, ComputedCenterOfMass, LinearVelocity, Sensor};
 use bevy::{camera::RenderTarget, light::NotShadowCaster, prelude::*};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
@@ -36,7 +36,10 @@ use nova_ui::{
     theme::{combat, ActiveUiTheme, UiColor},
 };
 
-use crate::prelude::*;
+use crate::{
+    prelude::*,
+    torpedo_target::{closing_line, closing_speed, distance_line},
+};
 
 /// The `target_inset_hud` spawner, the inset camera, caption, highlight and kill-cam components,
 /// and `TargetInsetHudPlugin`.
@@ -176,8 +179,9 @@ struct TargetInsetNoSignalPulseMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetArmedTickMarker;
 
-/// Marker for the viewfinder's target-details line: the locked target's name +
-/// combat-state or relation tag, colored by relation.
+/// Marker for the viewfinder's target-details caption: the shown target's
+/// name, then its `DST` and `CLS` line. A combat target adds a combat-state or
+/// relation tag and takes the relation color; a travel target stays quiet.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetCaptionMarker;
 
@@ -447,8 +451,8 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
 }
 
 /// Drives the target inset: the offscreen RTT scope panel that frames the
-/// locked ship, its faction caption, armed corner ticks, NO-SIGNAL cover and
-/// kill cam, plus the fine-locked section highlight.
+/// combat or travel target, its details caption, armed corner ticks, NO-SIGNAL
+/// cover and kill cam, plus the fine-locked section highlight.
 /// Inits [`TargetInsetRenderTarget`], registers the inset types, adds the
 /// [`InsetZoomable`] tagging observers, and runs `drive_inset_camera`,
 /// `drive_inset_frame_state`, `pulse_no_signal` and `sync_section_highlight`
@@ -486,10 +490,17 @@ impl Plugin for TargetInsetHudPlugin {
         app.add_systems(
             Update,
             (
-                drive_inset_camera,
-                drive_inset_frame_state,
+                // `drive_inset_camera` starts and ends the kill cam through
+                // Commands. The caption and the DESTROYED ribbon read that
+                // component, so the sync point lets them see it the same
+                // frame: no travel caption sits over a kill-cam image.
+                (
+                    drive_inset_camera,
+                    ApplyDeferred,
+                    (drive_inset_frame_state, show_confirmed_destruction),
+                )
+                    .chain(),
                 flash_locked_target_neutralized,
-                show_confirmed_destruction,
                 pulse_no_signal,
                 sync_section_highlight,
                 clear_the_status_bar,
@@ -609,6 +620,31 @@ fn inset_camera_bundle(image: Handle<Image>, pose: Transform) -> impl Bundle {
     )
 }
 
+/// The lock slot the inset shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InsetSlotType {
+    /// The [`CombatLock`]: relation, neutralization and the kill cam.
+    Combat,
+    /// The [`TravelLock`]: quiet details only.
+    Travel,
+}
+
+/// The lock the inset shows: a live combat target, else a live travel target.
+/// A lock on a despawned entity counts as absent, so a stale combat lock
+/// yields the travel target. A confirmed combat destruction holds the slot
+/// through the kill cam in [`drive_inset_camera`] before the travel target
+/// shows.
+fn inset_subject(
+    combat: &CombatLock,
+    travel: &TravelLock,
+    q_alive: &Query<Entity>,
+) -> Option<(InsetSlotType, Entity)> {
+    let alive = |lock: Option<Entity>| lock.filter(|target| q_alive.contains(*target));
+    alive(combat.0)
+        .map(|target| (InsetSlotType::Combat, target))
+        .or_else(|| alive(travel.0).map(|target| (InsetSlotType::Travel, target)))
+}
+
 /// What the panel should do this frame, resolved before any side effects.
 enum InsetPanelState {
     /// Live camera framing on a lock.
@@ -621,25 +657,24 @@ enum InsetPanelState {
     Hidden,
 }
 
-/// Spawn/despawn the inset camera and show/hide the panel with the COMBAT
-/// LOCK (inset-on-lock: presence of the inset IS the "not dumb-fire" signal,
-/// and during a radar sweep it is the viewfinder). The focus dwell no longer
-/// gates the panel - it keeps
-/// gating only the component fine-lock. One idempotent system (like the
-/// component-marker reconcile) so every ordering of lock/section changes
-/// converges; folding the lifecycle and the pose together avoids a
-/// one-frame default-pose flash on spawn.
+/// Spawn/despawn the inset camera and show/hide the panel with the lock that
+/// [`inset_subject`] selects (inset-on-lock: during a radar sweep the panel is
+/// the viewfinder). The focus dwell gates only the component fine-lock. One
+/// idempotent system (like the component-marker reconcile) so every ordering
+/// of lock/section changes converges; folding the lifecycle and the pose
+/// together avoids a one-frame default-pose flash on spawn.
 ///
-/// Four states: no lock (or chrome hidden) = panel hidden, camera gone;
+/// Four states: no live lock (or chrome hidden) = panel hidden, camera gone;
 /// lock on a zoomable, resolvable body = panel + live camera; lock on a
 /// NON-zoomable body (a beacon) = panel with the NO-SIGNAL overlay, camera
-/// gone; and the KILL CAM: when the framed
-/// target crosses [`IntegrityDestroyMarker`] and then despawns - generic
-/// cleanup does not count - the panel and camera hold the frozen final pose for
-/// [`KILL_CAM_SECS`], filming
-/// the explosion fragments, then close. A fresh framable lock preempts the
-/// linger instantly; hiding the HUD chrome tears everything down at once.
-/// Presentation-only: no lock/safety/turret state is touched.
+/// gone; and the KILL CAM: when the framed combat target crosses
+/// [`IntegrityDestroyMarker`] and then despawns - generic cleanup does not
+/// count - the panel and camera hold the frozen final pose for
+/// [`KILL_CAM_SECS`], filming the explosion fragments, then the slot falls to
+/// the travel target or closes. A fresh framable combat lock preempts the
+/// linger instantly; a travel target waits for it; hiding the HUD chrome
+/// tears everything down at once. Presentation-only: no lock/safety/turret
+/// state is touched.
 #[expect(
     clippy::type_complexity,
     reason = "disjoint anchor/player/camera queries need explicit Without filters"
@@ -658,7 +693,12 @@ fn drive_inset_camera(
         Without<TargetInsetCameraMarker>,
     >,
     q_player: Query<
-        (&Transform, Option<&ComputedCenterOfMass>, &CombatLock),
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            &CombatLock,
+            &TravelLock,
+        ),
         (
             With<SpaceshipRootMarker>,
             With<PlayerSpaceshipMarker>,
@@ -688,18 +728,23 @@ fn drive_inset_camera(
     >,
 ) {
     let chrome = hud_visibility.shows();
-    let lock = q_player
+    let subject = q_player
         .iter()
         .next()
-        .and_then(|(_, _, lock)| lock.0)
+        .and_then(|(_, _, combat, travel)| inset_subject(combat, travel, &q_alive))
         .filter(|_| chrome);
-    // `Some(Some(anchor))` = camera framing; `Some(None)` = NO-SIGNAL;
-    // `None` = teardown-eligible.
-    let framed = lock.map(|target| match q_anchor.get(target) {
-        Ok((transform, com, true)) => Some((target, live_structure_anchor(transform, com))),
+    // `Some((slot, target, Some(anchor)))` = camera framing;
+    // `Some((slot, target, None))` = NO-SIGNAL; `None` = teardown-eligible.
+    let framed = subject.map(|(slot, target)| match q_anchor.get(target) {
+        Ok((transform, com, true)) => (slot, target, Some(live_structure_anchor(transform, com))),
         // Not zoomable (beacon) or unresolved: the panel holds, no camera.
-        _ => None,
+        _ => (slot, target, None),
     });
+    let subject_state = || match framed {
+        Some((_, target, Some(anchor))) => InsetPanelState::Live { target, anchor },
+        Some((_, _, None)) => InsetPanelState::NoSignal,
+        None => InsetPanelState::Hidden,
+    };
 
     let Some((panel, mut panel_visibility, last_framed, mut kill_cam, destroyed)) =
         q_panel.iter_mut().next()
@@ -715,8 +760,8 @@ fn drive_inset_camera(
         // Chrome hidden: everything down at once, including a running kill cam
         // and the frame memory.
         InsetPanelState::Hidden
-    } else if let Some(Some((target, anchor))) = framed {
-        // A fresh framable lock preempts any linger immediately.
+    } else if let Some((InsetSlotType::Combat, target, Some(anchor))) = framed {
+        // A fresh framable combat lock preempts any linger immediately.
         InsetPanelState::Live { target, anchor }
     } else if let Some(kill_cam) = kill_cam.as_mut() {
         kill_cam.remaining -= time.delta_secs();
@@ -725,7 +770,8 @@ fn drive_inset_camera(
                 pose: kill_cam.pose,
             }
         } else {
-            InsetPanelState::Hidden
+            // The linger ends: the slot falls to whatever lock is left.
+            subject_state()
         }
     } else if let Some(last) = confirmed_gone {
         commands.entity(panel).insert(TargetInsetKillCam {
@@ -733,10 +779,8 @@ fn drive_inset_camera(
             remaining: KILL_CAM_SECS,
         });
         InsetPanelState::KillCam { pose: last.pose }
-    } else if framed.is_some() {
-        InsetPanelState::NoSignal
     } else {
-        InsetPanelState::Hidden
+        subject_state()
     };
 
     // State bookkeeping: the frame memory exists only while live-framed
@@ -818,22 +862,35 @@ fn drive_inset_camera(
 
 /// The frame carries the safety state (shape + color): hot = the lock
 /// red border + the armed corner ticks; safe = quiet steel, no ticks. The
-/// caption is the target-details line: the locked target's name plus its
-/// neutralized state or relation, colored by relation.
-/// The gesture-time name+distance caption is gone (it read as clutter);
-/// distance rides the radar box next to the bracket instead.
+/// caption names the [`inset_subject`] target over its `DST` and `CLS` line,
+/// the same readout the combat reticle carries. A combat target adds its
+/// neutralized state or relation and takes the relation color; a travel
+/// target stays in quiet steel.
 #[expect(
     clippy::type_complexity,
     reason = "disjoint frame/tick queries need explicit Without filters"
 )]
 fn drive_inset_frame_state(
     q_player: Query<
-        (Option<&Allegiance>, &WeaponsHot, &CombatLock),
+        (
+            Option<&Allegiance>,
+            &WeaponsHot,
+            &CombatLock,
+            &TravelLock,
+            &GlobalTransform,
+            Option<&LinearVelocity>,
+        ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
-    q_names: Query<&Name>,
-    q_allegiance: Query<Option<&Allegiance>>,
-    q_neutralized: Query<(), With<NeutralizedMarker>>,
+    q_alive: Query<Entity>,
+    q_target: Query<(
+        Option<&Name>,
+        Option<&Allegiance>,
+        Has<NeutralizedMarker>,
+        &GlobalTransform,
+        Option<&LinearVelocity>,
+    )>,
+    q_kill_cam: Query<(), (With<TargetInsetHudMarker>, With<TargetInsetKillCam>)>,
     mut q_frame: Query<&mut BorderColor, With<TargetInsetHudMarker>>,
     mut q_ticks: Query<
         &mut Visibility,
@@ -844,7 +901,9 @@ fn drive_inset_frame_state(
     >,
     mut q_caption: Query<(&mut Text, &mut TextColor), With<TargetInsetCaptionMarker>>,
 ) {
-    let Some((player_allegiance, hot, lock)) = q_player.iter().next() else {
+    let Some((player_allegiance, hot, combat, travel, ship_transform, ship_vel)) =
+        q_player.iter().next()
+    else {
         return;
     };
 
@@ -868,27 +927,47 @@ fn drive_inset_frame_state(
         visibility.set_if_neq(tick_visibility);
     }
 
-    let (caption, caption_color) = match lock.0 {
-        Some(target) => {
-            let name = q_names
-                .get(target)
-                .map(|name| name.to_string())
-                .unwrap_or_else(|_| "CONTACT".to_string());
-            let (relation_tag, color) = match q_allegiance
-                .get(target)
-                .map(|allegiance| relation(player_allegiance, allegiance))
-            {
-                Ok(Relation::Hostile) => ("HOSTILE", FACTION_HOSTILE_COLOR),
-                Ok(Relation::Own) => ("OWN", FACTION_OWN_COLOR),
-                // A lock can outlive its entity by a frame; read as neutral.
-                Ok(Relation::Neutral) | Err(_) => ("NEUTRAL", FACTION_NEUTRAL_COLOR),
+    // The kill cam films the destroyed combat target, so no other target's
+    // caption may sit over it. The plugin's sync point after
+    // `drive_inset_camera` makes a kill cam started this frame visible here.
+    let subject = if q_kill_cam.is_empty() {
+        inset_subject(combat, travel, &q_alive)
+    } else {
+        None
+    };
+    let details = subject.and_then(|(slot, target)| Some((slot, q_target.get(target).ok()?)));
+    let (caption, caption_color) = match details {
+        Some((slot, (name, allegiance, neutralized, target_transform, target_vel))) => {
+            let name = name.map_or_else(|| "CONTACT".to_string(), |name| name.to_string());
+            let ship_pos = ship_transform.translation();
+            let target_pos = target_transform.translation();
+            let closing = match (ship_vel, target_vel) {
+                (Some(ship_vel), Some(target_vel)) => {
+                    closing_speed(ship_pos, **ship_vel, target_pos, **target_vel)
+                }
+                _ => None,
             };
-            let tag = if q_neutralized.contains(target) {
-                "NEUTRALIZED"
-            } else {
-                relation_tag
-            };
-            (format!("{name} - {tag}"), color)
+            let readout = format!(
+                "{}  {}",
+                distance_line(ship_pos.distance(target_pos)),
+                closing_line(closing)
+            );
+            match slot {
+                InsetSlotType::Combat => {
+                    let (relation_tag, color) = match relation(player_allegiance, allegiance) {
+                        Relation::Hostile => ("HOSTILE", FACTION_HOSTILE_COLOR),
+                        Relation::Own => ("OWN", FACTION_OWN_COLOR),
+                        Relation::Neutral => ("NEUTRAL", FACTION_NEUTRAL_COLOR),
+                    };
+                    let tag = if neutralized {
+                        "NEUTRALIZED"
+                    } else {
+                        relation_tag
+                    };
+                    (format!("{name} - {tag}\n{readout}"), color)
+                }
+                InsetSlotType::Travel => (format!("{name}\n{readout}"), INSET_BORDER_SAFE_COLOR),
+            }
         }
         None => (String::new(), FACTION_NEUTRAL_COLOR),
     };
@@ -1214,6 +1293,7 @@ mod tests {
         }
         world.entity_mut(player).insert((
             CombatLock(Some(target)),
+            TravelLock(None),
             LockFocus {
                 target: Some(target),
                 seconds: f32::MAX,
@@ -1340,18 +1420,22 @@ mod tests {
     }
 
     #[test]
-    fn a_non_zoomable_lock_holds_the_panel_with_no_signal() {
-        // A locked body that is NOT flagged InsetZoomable (a beacon) gets no
-        // camera - but the panel HOLDS with the NO-SIGNAL overlay, so
-        // a sweep crossing a beacon never blinks the viewfinder.
-        let (mut world, _player, target) = rig(3);
+    fn a_non_zoomable_combat_lock_holds_no_signal_over_a_framable_travel_target() {
+        // A combat lock on a body that is NOT flagged InsetZoomable (a beacon)
+        // gets no camera, but it owns the slot: the panel HOLDS with the
+        // NO-SIGNAL overlay even though the travel target could be framed.
+        let (mut world, player, target) = rig(3);
         world.entity_mut(target).remove::<InsetZoomable>();
+        let station = world
+            .spawn((InsetZoomable, Transform::from_xyz(0.0, 0.0, -80.0)))
+            .id();
+        world.get_mut::<TravelLock>(player).unwrap().0 = Some(station);
 
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(
             camera_count(&mut world),
             0,
-            "a non-zoomable lock (beacon) renders no second view"
+            "a non-zoomable combat lock renders no second view"
         );
         assert_eq!(
             panel_visibility(&mut world),
@@ -1364,9 +1448,9 @@ mod tests {
             "NO-SIGNAL covers the stale render"
         );
 
-        // Delivery guard: flagging it zoomable swaps the overlay for the
-        // camera, so the assertions above are really gated on the flag.
-        world.entity_mut(target).insert(InsetZoomable);
+        // Delivery guard: clearing the combat lock frames the travel target,
+        // so the assertions above are really gated on combat priority.
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(camera_count(&mut world), 1);
         assert_eq!(panel_visibility(&mut world), Visibility::Visible);
@@ -1665,9 +1749,10 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
-                Transform::IDENTITY,
+                GlobalTransform::IDENTITY,
                 WeaponsHot(false),
                 CombatLock(Some(target)),
+                TravelLock(None),
             ))
             .id();
         let frame = world
@@ -1699,7 +1784,7 @@ mod tests {
         );
         assert_eq!(
             world.entity(caption).get::<Text>().unwrap().0,
-            "SCAVENGER - HOSTILE",
+            "SCAVENGER - HOSTILE\nDST 1.00 km  CLS   ---",
             "target details show at lock time"
         );
         assert_eq!(
@@ -1714,7 +1799,7 @@ mod tests {
         world.run_system_once(drive_inset_frame_state).unwrap();
         assert_eq!(
             world.entity(caption).get::<Text>().unwrap().0,
-            "SCAVENGER - NEUTRALIZED"
+            "SCAVENGER - NEUTRALIZED\nDST 1.00 km  CLS   ---"
         );
         assert_eq!(
             world.entity(caption).get::<TextColor>().unwrap().0,
@@ -1752,7 +1837,7 @@ mod tests {
         world.run_system_once(drive_inset_frame_state).unwrap();
         assert_eq!(
             world.entity(caption).get::<Text>().unwrap().0,
-            "CONTACT - NEUTRAL",
+            "CONTACT - NEUTRAL\nDST 500 m  CLS   ---",
             "an unnamed neutral body still gets a line"
         );
         world.get_mut::<CombatLock>(player).unwrap().0 = None;
@@ -1816,6 +1901,178 @@ mod tests {
             *world.entity(flash).get::<Visibility>().unwrap(),
             Visibility::Hidden,
             "the confirmation expires"
+        );
+    }
+
+    /// The production inset systems in their plugin order, with a player
+    /// holding no lock and a full panel. Returns (app, player).
+    fn inset_app() -> (App, Entity) {
+        let mut app = App::new();
+        app.add_plugins(TargetInsetHudPlugin);
+        app.init_resource::<Time>();
+        app.init_resource::<ActiveUiTheme>();
+        app.insert_resource(super::super::HudVisibility::On);
+        app.insert_resource(TargetInsetRenderTarget(Some(Handle::default())));
+        app.world_mut().spawn(target_inset_hud(Handle::default()));
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+                GlobalTransform::IDENTITY,
+                LinearVelocity::ZERO,
+                WeaponsHot(false),
+                CombatLock(None),
+                TravelLock(None),
+            ))
+            .id();
+        (app, player)
+    }
+
+    /// A zoomable named body `z` engine units ahead of the player.
+    fn spawn_body(app: &mut App, name: &str, z: f32) -> Entity {
+        let at = Vec3::new(0.0, 0.0, -z);
+        app.world_mut()
+            .spawn((
+                Name::new(name.to_string()),
+                InsetZoomable,
+                Transform::from_translation(at),
+                GlobalTransform::from_translation(at),
+            ))
+            .id()
+    }
+
+    fn caption(world: &mut World) -> (String, Color) {
+        let (text, color) = world
+            .query_filtered::<(&Text, &TextColor), With<TargetInsetCaptionMarker>>()
+            .single(world)
+            .expect("one caption");
+        (text.0.clone(), color.0)
+    }
+
+    fn framed_target(world: &mut World) -> Option<Entity> {
+        world
+            .query_filtered::<&TargetInsetLastFramed, With<TargetInsetHudMarker>>()
+            .iter(world)
+            .next()
+            .map(|last| last.target)
+    }
+
+    #[test]
+    fn the_combat_lock_owns_the_inset_and_the_travel_lock_takes_it_back() {
+        let (mut app, player) = inset_app();
+        let raider = spawn_body(&mut app, "RAIDER", 50.0);
+        app.world_mut().entity_mut(raider).insert(Allegiance::Enemy);
+        let depot = spawn_body(&mut app, "DEPOT", 80.0);
+        // Drifting toward the player at one engine unit a second: 10 m/s.
+        app.world_mut()
+            .entity_mut(depot)
+            .insert(LinearVelocity(Vec3::Z));
+        app.world_mut()
+            .entity_mut(player)
+            .insert((CombatLock(Some(raider)), TravelLock(Some(depot))));
+
+        app.update();
+        assert_eq!(framed_target(app.world_mut()), Some(raider));
+        assert_eq!(
+            caption(app.world_mut()),
+            (
+                "RAIDER - HOSTILE\nDST 500 m  CLS   ---".to_string(),
+                FACTION_HOSTILE_COLOR
+            ),
+            "the combat lock owns the slot over a framable travel target"
+        );
+
+        // Clearing the combat lock falls back to the travel target.
+        app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = None;
+        app.update();
+        assert_eq!(framed_target(app.world_mut()), Some(depot));
+        assert_eq!(
+            caption(app.world_mut()),
+            (
+                "DEPOT\nDST 800 m  CLS +10.0 m/s".to_string(),
+                INSET_BORDER_SAFE_COLOR
+            ),
+            "travel shows quiet details with a signed closing speed"
+        );
+
+        // A combat target that vanishes without destruction proof is stale:
+        // the travel target shows, no kill cam runs, and no lock moves.
+        app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = Some(raider);
+        app.update();
+        assert_eq!(framed_target(app.world_mut()), Some(raider));
+        app.world_mut().despawn(raider);
+        app.update();
+        assert_eq!(framed_target(app.world_mut()), Some(depot));
+        assert!(caption(app.world_mut()).0.starts_with("DEPOT\n"));
+        assert!(app
+            .world_mut()
+            .query::<&TargetInsetKillCam>()
+            .iter(app.world())
+            .next()
+            .is_none());
+        assert_eq!(
+            app.world().get::<CombatLock>(player).unwrap().0,
+            Some(raider),
+            "the inset writes no lock"
+        );
+        assert_eq!(
+            app.world().get::<TravelLock>(player).unwrap().0,
+            Some(depot)
+        );
+    }
+
+    #[test]
+    fn a_destroyed_combat_target_holds_the_kill_cam_before_the_travel_target() {
+        let (mut app, player) = inset_app();
+        let raider = spawn_body(&mut app, "RAIDER", 50.0);
+        let depot = spawn_body(&mut app, "DEPOT", 80.0);
+        app.world_mut()
+            .entity_mut(player)
+            .insert((CombatLock(Some(raider)), TravelLock(Some(depot))));
+        app.update();
+        let final_pose = camera_pose(app.world_mut());
+
+        // The destruction seam while the lock holds, then the despawn and the
+        // lock clear, all before one frame.
+        app.world_mut()
+            .entity_mut(raider)
+            .insert(IntegrityDestroyMarker);
+        app.world_mut().despawn(raider);
+        app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = None;
+        app.update();
+
+        // The same frame: the frozen final shot, no travel caption over it,
+        // and the DESTROYED ribbon up.
+        let panel = panel_entity(app.world_mut());
+        assert!(app.world().get::<TargetInsetKillCam>(panel).is_some());
+        assert_eq!(camera_pose(app.world_mut()), final_pose);
+        assert_eq!(
+            caption(app.world_mut()).0,
+            "",
+            "no travel caption over the kill-cam image"
+        );
+        let ribbon = *app
+            .world_mut()
+            .query_filtered::<&Visibility, With<TargetInsetDestroyedFlashMarker>>()
+            .single(app.world())
+            .unwrap();
+        assert_eq!(ribbon, Visibility::Inherited);
+
+        // The linger ends: the travel target takes the slot that frame.
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(std::time::Duration::from_secs_f32(KILL_CAM_SECS + 0.1));
+        app.update();
+        assert!(app.world().get::<TargetInsetKillCam>(panel).is_none());
+        assert_eq!(framed_target(app.world_mut()), Some(depot));
+        assert!(caption(app.world_mut()).0.starts_with("DEPOT\n"));
+        assert_eq!(camera_count(app.world_mut()), 1);
+        assert_eq!(
+            app.world().get::<TravelLock>(player).unwrap().0,
+            Some(depot),
+            "the inset writes no lock"
         );
     }
 

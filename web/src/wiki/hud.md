@@ -25,7 +25,7 @@ The heads-up display is diegetic - the instruments read the ship's real state - 
 The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of the way when it does not. Idle cruise keeps a quiet screen - the velocity sphere, your speed, the dock's few live verbs, the always-on ship markers and the status bar - and everything else arrives with its moment.
 
 <div class="widget" data-widget="hud-context">
-<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges, redden the lead pips and put up a railgun's bore sight; a locked docking target in range puts up the docking sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears the whole contextual HUD.</p>
+<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; a travel lock with no combat lock brings up the target viewfinder on its own; hot weapons raise the ammo gauges, redden the lead pips and put up a railgun's bore sight; a locked docking target in range puts up the docking sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears the whole contextual HUD.</p>
 </div>
 
 <details class="explain">
@@ -33,6 +33,7 @@ The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of
 
 - **Autopilot burn** - the mode chip comes up, the speed chip grows (it is the number you are flying by), and the dock lights the maneuver you are flying. GOTO and ORBIT also put the destination marker and its readout up; STOP flies without one - there is no destination to mark.
 - **Combat lock** - the red reticle, its DST/CLS readout and the target viewfinder come up, and the RADAR chip inverts because the lock is the thing you would change.
+- **Travel lock** - with no combat lock held, the target viewfinder shows your travel target with its name, range and closing speed.
 - **Weapons hot** - the ammo gauges appear on your weapons and the lock readout grows. With the trigger down the reticle pulses. A hull carrying a railgun draws its [bore sight](#bore-sight).
 - **Low ammo or reloading** - a nearly-dry group (a quarter magazine or less) pulses amber and forces the gauges up on its own, even with the safety on: a dry magazine is news before you pull the trigger. An active reload holds them up the same way, with its own pulse.
 - **A posted objective** - a chip carrying the objective itself pops into the stack at the top of the screen the moment it posts, like a chat notification, and then keeps a slow breath. The chip is a notification: it leaves once you have read it - after a dwell, or the moment you open the interface.
@@ -138,7 +139,7 @@ A small filled triangle floats above every ship in view, pointing down at the hu
 
 ## Target viewfinder
 
-The corner inset renders a live, magnified 3D view of your combat lock through a second (offscreen) camera. Its frame glows hot-red while your weapons are hot and steel while safe, with corner ticks that appear only when hot; a caption names the target and its relation. Bodies that cannot be scoped (nav beacons) show a **NO-SIGNAL** panel instead. When the framed target dies the inset freezes the final pose for about two seconds - a **kill cam** - then closes. The fine-locked section glows in both the inset and the main view.
+The corner inset renders a live, magnified 3D view of your locked target through a second (offscreen) camera. Your combat lock owns it; with no combat lock it shows your travel lock, and neither lock changes. Its frame glows hot-red while your weapons are hot and steel while safe, with corner ticks that appear only when hot. A caption names the target over its range (`DST`) and closing speed (`CLS`, positive while closing). A combat target adds its relation or NEUTRALIZED in its relation colour; a travel target stays steel. Bodies that cannot be scoped (nav beacons) show a **NO-SIGNAL** panel instead, and a combat beacon keeps that panel even when your travel target could be framed. When a framed combat target is destroyed the inset freezes the final pose for about two seconds - a **kill cam** - then shows your travel target or closes. The fine-locked section glows in both the inset and the main view.
 
 ## Comms and objectives
 

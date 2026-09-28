@@ -80,6 +80,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A HELM chip reads TAKE HELM, RELEASE HELM or HELM FAULT while docked. Off a
   measured helm, blocked verbs stay on the dock dark. The mode chip reads
   NEUTRAL or HELM FAULT.
+- The target inset shows the travel lock when no combat lock is held. Its
+  caption adds range and signed closing speed. A combat kill cam plays before
+  the travel view.
 
 ### Web & Platform
 
