@@ -45,6 +45,9 @@ fn unfinished_flight_app() -> App {
     let mut app = unfinished_integrity_physics_app();
     app.init_resource::<FlightSettings>();
     app.init_resource::<GravitySettings>();
+    // Production requires the magazine through NovaFlightPlugin, which this
+    // rig does not load.
+    app.register_required_components::<SpaceshipRootMarker, RcsBudget>();
     app.add_plugins(PDControllerPlugin);
     app.configure_sets(
         FixedUpdate,
@@ -221,13 +224,13 @@ pub(super) fn spawn_extra_thruster(
         .id()
 }
 
-/// A ship that grants RCS, carrying a (zero) intent and a per-hull cap,
-/// with its mass finalized. Returns (ship, controller).
-pub(super) fn spawn_rcs_ship(app: &mut App, cap: f32) -> (Entity, Entity) {
+/// A ship that grants RCS, carrying a (zero) intent, with its mass
+/// finalized. Returns (ship, controller).
+pub(super) fn spawn_rcs_ship(app: &mut App) -> (Entity, Entity) {
     let (ship, _thruster, controller) = spawn_ship(app);
     app.world_mut()
         .entity_mut(ship)
-        .insert((RcsIntent::default(), RcsSpeedCap(cap)));
+        .insert(RcsIntent::default());
     settle(app);
     (ship, controller)
 }

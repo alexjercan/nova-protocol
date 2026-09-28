@@ -28,6 +28,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The chase camera eases back a fixed share of its distance from the first
   tick of a main-drive burn, holds through gaps under half a second and then
   eases home. A tap leans it only slightly.
+- RCS pushes at any speed from a 300 m/s magazine that refills 2 s after you
+  let go; ten violet pips under the speed chip show it. This replaces the
+  100 m/s RCS cap.
 
 ### Ships & Sections
 

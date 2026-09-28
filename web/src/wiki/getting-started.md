@@ -56,7 +56,7 @@ You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an
 
 1. **Burn to mark ALPHA.** Hold <kbd>W</kbd> to burn and steer with the mouse. ALPHA sits dead ahead; flying into its ring completes the beat.
 2. **Kill the drift.** Press <kbd>X</kbd> once and let STOP brake the trainer down. Hands off the throttle: the next lesson waits for the maneuver to finish, and a burn or <kbd>Z</kbd> takes the ship back before it is done. The mouse is safe - it only moves the camera while STOP flies.
-3. **Slide across to BRAVO.** Hold <kbd>Shift</kbd> and move the mouse to translate without turning the hull - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and RCS tops out at 100 m/s in any direction.
+3. **Slide across to BRAVO.** Hold <kbd>Shift</kbd> and move the mouse to translate without turning the hull - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and ten violet pips under the speed chip show how much RCS is left. Let go and they refill.
 
 ### Part 2 - The flight computer
 
