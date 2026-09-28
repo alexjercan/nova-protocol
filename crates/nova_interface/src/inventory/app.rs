@@ -1078,7 +1078,6 @@ impl SideView {
 /// since the interface pauses virtual time.
 #[expect(
     clippy::too_many_arguments,
-    clippy::type_complexity,
     reason = "one system reading both inventories and writing every pane part"
 )]
 pub(crate) fn update_inventory_panel(
