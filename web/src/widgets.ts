@@ -596,8 +596,10 @@ export function clearStep(
 // a given situation. Cinematic clears every tier (lib.rs:152-162); the ammo
 // layer opens on hot OR low OR reloading (situation.rs:47-49,
 // ammo_readout.rs:180); the mode chip and destination marker follow the
-// autopilot (flight_status.rs:302-335); the reticle and viewfinder follow
-// the combat lock (torpedo_target.rs:408-415, target_inset.rs:658-707).
+// autopilot (flight_status.rs:302-335); the reticle follows the combat lock
+// (torpedo_target.rs drive_reticle_anchor); the viewfinder shows the combat
+// lock, else the travel lock (target_inset.rs inset_subject), which this model
+// does not toggle.
 // Weapons are hot while raised OR combat-locked (nova_ship
 // input/targeting/safety.rs:30), so a lock is never shown safe.
 export interface HudSituationsModel {
@@ -671,7 +673,7 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
             s.combatLock,
             s.combatLock
                 ? "frame hot-red, corner ticks out"
-                : "arrives with the combat lock"
+                : "arrives with a lock"
         ),
         e(
             "Ammo gauges",
