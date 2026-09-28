@@ -93,6 +93,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   mods or engine work and Wiki on Story and Lore. The landing hero and its
   four-column directory link GitHub and itch.io.
 
+### Audio & Visuals
+
+- The base sky uses a new 1024 px cubemap with diffuse nebulae instead of the old point-star texture.
+
 ### Performance
 
 - `world_clusters` probes capture mid-fill and steady 125-cell windows; worker spans separate sector generation from geometry preparation.
