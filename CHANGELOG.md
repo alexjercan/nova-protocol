@@ -69,9 +69,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** TAB opens a themed interface with Map, Ship and Inventory
   panes; M or pad Y steps through them. GOTO and mates are pane keys; Repair,
   Reload and Rebind are keys and buttons.
-- The Inventory pane lists what your ship and a docked ship carry, with Food,
-  Ammo, Repair, Raw and Parts filters. The open-world ship starts with 12 hull
-  plates; nothing adds or spends items yet.
+- The Inventory pane lists what your ship and a docked ship carry. Ship pane
+  Repair now spends hull plates, 1 per 20 HP, anywhere; the open-world ship
+  starts with 12, restored when the scenario loads.
 - The TAB interface blips on open and close like the pause menu, and clicks
   when a tab, filter, item, contact or section pick changes, and on Reframe,
   Fit, Reset, Repair, Reload and Rebind.

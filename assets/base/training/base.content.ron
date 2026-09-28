@@ -986,7 +986,7 @@
             frames_per_second: 10.0,
             alt: "the Ship pane\'s inspector on a damaged PDC-1: Repair fills the integrity meter, then Reload refills the magazine",
         ),
-        body: "The Ship pane shows your hull. Sections use short codes such as `THR-1` and `PDC-1`. Select a section to repair its integrity or reload its magazine. Both actions happen immediately.",
+        body: "The Ship pane shows your hull. Sections use short codes such as `THR-1` and `PDC-1`. Select a section to reload its magazine, or to repair its integrity with hull plates from your inventory: each plate restores up to 20 HP. Both actions happen immediately.",
         actions: [
             "viewer_next",
             "viewer_prev",

@@ -265,7 +265,9 @@ spawn only; it has no runtime action yet.
 The items the ship carries at spawn, as a map from item to stack count. Omit
 the field for an empty hold. A count of `0` or the same item listed twice
 fails lint and load. The only item is `HullPlate`, filed under Repair. Stock
-shows in the TAB interface's Inventory pane; nothing adds or spends it yet.
+shows in the TAB interface's Inventory pane. A Ship pane repair spends hull
+plates; nothing adds items at runtime, and spent plates return when the
+scenario loads again.
 
 ```ron
 // The open-world player ship's starting stock.

@@ -1046,8 +1046,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  then Reload refills the magazine",
             ),
             "The Ship pane shows your hull. Sections use short codes such as `THR-1` and `PDC-1`. \
-             Select a section to repair its integrity or reload its magazine. Both actions happen \
-             immediately.",
+             Select a section to reload its magazine, or to repair its integrity with hull plates \
+             from your inventory: each plate restores up to 20 HP. Both actions happen immediately.",
             &["viewer_next", "viewer_prev", "ship_repair", "ship_reload"],
             "wiki/interface#the-ship",
             None,

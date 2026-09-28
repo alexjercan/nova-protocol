@@ -118,7 +118,8 @@ Docked, GOTO refuses while the game cannot measure the pair (`GOTO REFUSED: HELM
      Blocks do not encode status; badges and the panel do:
      crates/nova_interface/src/ship/scene.rs. Status words + thresholds:
      `ShipSectionView::status`. Panel: ship/app.rs, sections.rs. Actions:
-     `apply_action_to_section` (instant and free today). -->
+     `repair_section`, `reload_section`; plate rule: `plan_plate_repair` in
+     crates/nova_gameplay/src/inventory.rs. -->
 
 The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. The footer under the view holds the section legend, **Fit** and **Reset** with the pane's live key hints, and a summary of the selected section. Sections carry short codes, stable for the whole session, and a family icon:
 
@@ -136,7 +137,7 @@ Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or wit
 
 | Key | Button | Does |
 | --- | --- | --- |
-| <kbd>P</kbd> | **Repair** | Restore the section's integrity. |
+| <kbd>P</kbd> | **Repair** | Spend hull plates to restore the section's integrity, up to 20 HP per plate. |
 | <kbd>L</kbd> | **Reload** | Refill a weapon's magazine. Keyboard only; the gamepad has no reload key. |
 | <kbd>B</kbd> | **Rebind** | [Rebind](#rebinding-a-section) the section's trigger. |
 | <kbd>G</kbd> (gamepad <kbd>A</kbd>) | - | Overlay the structural mates: which sections hold which. |
@@ -148,7 +149,9 @@ Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or wit
 
 The blocks are the shape of your ship - a fill in the section family's colour inside an outline per section, with a gap so neighbours read apart. An arrow past the foremost block points at the bow. Status lives on the badges and in the panel, not in the block colour: each badge carries a pip coloured by status (`nominal`, `degraded`, `critical`, `neutralized`), and the section you have selected spells out its code beside its badge. Only that one does - a development stress hull has two thousand sections, and a label on each is a wall of text with the ship somewhere behind it.
 
-The actions answer on the panel's note line with what happened, or why not: a hull section refuses a reload (`reload: HULL-3 is a hull section, no ammo feed`), a section with no integrity to restore refuses a repair, and a success reads `repaired HULL-3: integrity restored to 100 HP`. Reloads and repairs are instant and free today; that may change.
+The actions answer on the panel's note line with what happened, or why not: a hull section refuses a reload (`reload: HULL-3 is a hull section, no ammo feed`), and a success reads `repaired HULL-3: 2 hull plates, 80/100 HP`. Both are instant. A reload is free. A repair works anywhere, docked or not, and spends [hull plates](#the-inventory) from your ship: each plate restores up to 20 HP, and part of a plate's worth still costs a whole plate. A section at 55/100 takes 3 plates and stops at 100; the unused HP of the last plate is lost. With too few plates the repair uses what you have: 2 plates take 40/100 to 80/100.
+
+Repair is off, and spends nothing, when the section has no integrity to restore, is destroyed, is at full integrity, or you carry no plates, checked in that order: `repair: HULL-3 is destroyed`, `repair: HULL-3 is at full integrity`, `repair: no hull plates`. A destroyed section is one at 0 HP, or one knocked out by a structural collapse with HP left; repair does not bring it back. When Repair and Reload are both off, the note line gives the repair reason. Spent plates are not saved: they return when the scenario loads again.
 
 </details>
 
@@ -197,9 +200,11 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      Pane: crates/nova_interface/src/inventory/app.rs `update_inventory_panel`
      (partner through `DockedShip` -> `DockingConnection`); filter order
      `FILTER_ORDER`. Open-world stock: crates/nova_authoring/src/base_content/
-     scenarios/open_world.rs `player`. Nothing adds or spends items yet. -->
+     scenarios/open_world.rs `player`. Ship pane repair spends hull plates:
+     crates/nova_interface/src/ship/sections.rs `repair_section`. Nothing adds
+     items yet. -->
 
-The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` In the open world your ship starts with 12 hull plates; every other ship starts empty, and nothing adds or spends items yet.
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` In the open world your ship starts with 12 hull plates; every other ship starts empty. A [repair](#the-ship) spends hull plates, and nothing adds items yet. Spent plates return when the scenario loads again.
 
 | Filter | Shows |
 | --- | --- |

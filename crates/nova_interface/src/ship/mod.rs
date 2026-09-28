@@ -19,10 +19,9 @@
 //! ship at the current angles, and Reset also restores the opening angles; `G` toggles structural mates; `L` reloads, `P` repairs,
 //! and `B` replaces the selected bindable section's input.
 //!
-//! Actions are instant and free for now, but they route through a single
-//! `ShipSectionCommand` seam (pane key or panel button -> message) so a future
-//! queued/over-time, resource-costed model can replace the handler without
-//! touching the callers.
+//! Actions apply at once through a single `ShipSectionCommand` seam (pane key
+//! or panel button -> message). Repair spends hull plates from the player
+//! ship's `ShipInventory`; Reload is free.
 //!
 //! # Module layout
 //!

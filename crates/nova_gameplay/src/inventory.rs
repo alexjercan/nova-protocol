@@ -4,16 +4,23 @@
 //! Every ship root requires a [`ShipInventory`], empty by default, so a reader
 //! can fetch it from any ship without a fallback. The open-world player ship
 //! starts with authored stock through `SpaceshipConfig::inventory`; nothing
-//! else seeds it, and nothing spends or adds items at runtime. A stack exists
-//! only while its count is above zero.
+//! else seeds it, and nothing adds items at runtime. A Ship pane repair spends
+//! [`ItemType::HullPlate`] by the [`plan_plate_repair`] rule. Stock is not
+//! saved: spent plates return when the authored scenario loads again. A stack
+//! exists only while its count is above zero.
 
 use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 
+use crate::integrity::prelude::Health;
+
 /// The whole module.
 pub mod prelude {
-    pub use super::{ItemCategoryType, ItemType, ShipInventory};
+    pub use super::{
+        plan_plate_repair, ItemCategoryType, ItemType, PlateRepair, PlateRepairRefusalType,
+        ShipInventory, HULL_PLATE_HEALTH,
+    };
 }
 
 /// An item a ship can carry.
@@ -72,6 +79,85 @@ impl ShipInventory {
     pub fn is_empty(&self) -> bool {
         self.stacks.is_empty()
     }
+
+    /// Remove `count` of `item`; delete the stack when it empties.
+    ///
+    /// # Panics
+    ///
+    /// On `count == 0` or more than the ship carries: the caller has a bug and
+    /// must check [`count`](Self::count) first.
+    pub fn remove(&mut self, item: ItemType, count: u32) {
+        assert!(count > 0, "ShipInventory removes 0 of {item:?}");
+        let held = self.count(item);
+        assert!(
+            count <= held,
+            "ShipInventory removes {count} of {item:?} but carries {held}"
+        );
+        if count == held {
+            self.stacks.remove(&item);
+        } else {
+            self.stacks.insert(item, held - count);
+        }
+    }
+}
+
+/// Health one hull plate restores. Restore capacity a repair does not use is
+/// lost, not banked.
+pub const HULL_PLATE_HEALTH: f32 = 20.0;
+
+/// The plates a repair spends and the Health the section ends at.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlateRepair {
+    /// Hull plates to remove from the ship's inventory; above zero.
+    pub plates: u32,
+    /// The section's `Health::current` after the repair.
+    pub current: f32,
+}
+
+/// Why a section takes no plate repair, in check order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlateRepairRefusalType {
+    /// No `Health`, or a max of zero or less.
+    NoIntegrity,
+    /// At zero Health, or disabled by the integrity core with Health left.
+    Destroyed,
+    /// Already at max Health.
+    Full,
+    /// The ship carries no hull plates.
+    NoPlates,
+}
+
+/// Plan a plate repair of one section from `plates` in stock.
+///
+/// Spends `min(plates, ceil((max - current) / HULL_PLATE_HEALTH))` and ends at
+/// `min(max, current + HULL_PLATE_HEALTH * spent)`. The section's own state is
+/// checked before the stock, in [`PlateRepairRefusalType`] order. `disabled`
+/// is true when the section carries `IntegrityDisabledMarker`.
+pub fn plan_plate_repair(
+    health: Option<&Health>,
+    disabled: bool,
+    plates: u32,
+) -> Result<PlateRepair, PlateRepairRefusalType> {
+    let health = health
+        .filter(|health| health.max > 0.0)
+        .ok_or(PlateRepairRefusalType::NoIntegrity)?;
+    if health.current <= 0.0 || disabled {
+        return Err(PlateRepairRefusalType::Destroyed);
+    }
+    if health.current >= health.max {
+        return Err(PlateRepairRefusalType::Full);
+    }
+    if plates == 0 {
+        return Err(PlateRepairRefusalType::NoPlates);
+    }
+    let needed = ((health.max - health.current) / HULL_PLATE_HEALTH).ceil() as u32;
+    let spent = plates.min(needed);
+    Ok(PlateRepair {
+        plates: spent,
+        current: health
+            .max
+            .min(health.current + HULL_PLATE_HEALTH * spent as f32),
+    })
 }
 
 impl FromIterator<(ItemType, u32)> for ShipInventory {
@@ -144,6 +230,37 @@ impl<'de> serde::Deserialize<'de> for ShipInventory {
         }
 
         deserializer.deserialize_map(ShipInventoryVisitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plate_repair_spends_one_plate_per_20_missing_health_within_stock() {
+        let plan = |current: f32, max: f32, disabled: bool, plates: u32| {
+            plan_plate_repair(Some(&Health { current, max }), disabled, plates)
+        };
+        let repaired = |plates, current| Ok(PlateRepair { plates, current });
+
+        // Understock: 60 missing needs 3, 2 in stock.
+        assert_eq!(plan(40.0, 100.0, false, 2), repaired(2, 80.0));
+        // A scratch or a fraction of HP still costs one whole plate.
+        assert_eq!(plan(99.0, 100.0, false, 12), repaired(1, 100.0));
+        assert_eq!(plan(99.5, 100.0, false, 12), repaired(1, 100.0));
+        // The last plate's leftover capacity is lost: 45 missing, 3 plates, 100.
+        assert_eq!(plan(55.0, 100.0, false, 3), repaired(3, 100.0));
+
+        use PlateRepairRefusalType::*;
+        assert_eq!(plan(100.0, 100.0, false, 12), Err(Full));
+        assert_eq!(plan(0.0, 100.0, false, 12), Err(Destroyed));
+        assert_eq!(plan(50.0, 100.0, true, 12), Err(Destroyed));
+        assert_eq!(plan(50.0, 100.0, false, 0), Err(NoPlates));
+        assert_eq!(plan(0.0, 0.0, false, 12), Err(NoIntegrity));
+        assert_eq!(plan_plate_repair(None, false, 12), Err(NoIntegrity));
+        // The section's state wins over the stock.
+        assert_eq!(plan(100.0, 100.0, false, 0), Err(Full));
     }
 }
 

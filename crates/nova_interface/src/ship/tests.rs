@@ -120,33 +120,17 @@ fn section_codes_assigned_and_resolve() {
 
 #[test]
 fn ship_action_keys_mutate_through_message_handler() {
-    // The Ship pane's L/P keys raise a ShipSectionCommand; the handler applies it
-    // and flashes the result note. Pins the message path at its own boundary
-    // (deleting apply_ship_section_commands must fail this).
+    // The Ship pane's L key raises a ShipSectionCommand; the handler applies it.
+    // Pins the message path at its own boundary (deleting
+    // apply_ship_section_commands must fail this).
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
     app.add_message::<ShipSectionCommand>();
-    let (_ship, hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
+    let (_ship, _hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .run_system_once(assign_section_codes)
         .unwrap();
-
-    // Repair the hull through the message handler.
-    app.world_mut().write_message(ShipSectionCommand {
-        target: hull,
-        action: ShipAction::Repair,
-    });
-    app.world_mut()
-        .run_system_once(apply_ship_section_commands)
-        .unwrap();
-    assert_eq!(app.world().get::<Health>(hull).unwrap().current, 100.0);
-    let note = app.world().resource::<ShipRuntime>().note.clone();
-    assert!(
-        note.map(|(text, _)| text.contains("repaired HULL-1"))
-            .unwrap_or(false),
-        "the handler flashes the result on the panel note line",
-    );
 
     // Reload the turret through the message handler.
     app.world_mut().write_message(ShipSectionCommand {
@@ -157,6 +141,137 @@ fn ship_action_keys_mutate_through_message_handler() {
         .run_system_once(apply_ship_section_commands)
         .unwrap();
     assert_eq!(app.world().get::<SectionAmmo>(turret).unwrap().rounds, 6);
+}
+
+#[test]
+fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
+    // Repair spends the player ship's hull plates, one per 20 missing HP up to
+    // the stock, with the Health change. Every refusal leaves Health, markers
+    // and both ships' inventories untouched.
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.init_resource::<ShipRuntime>();
+    app.add_message::<ShipSectionCommand>();
+    // A scheduled system keeps one reader cursor, so each frame reads only its
+    // own commands; a `run_system_once` reader would replay older ones.
+    app.add_systems(Update, apply_ship_section_commands);
+    let (ship, hull, turret, thruster) = spawn_scripted_ship(app.world_mut());
+    app.world_mut()
+        .run_system_once(assign_section_codes)
+        .unwrap();
+    let repair = |app: &mut App, targets: &[Entity]| {
+        for &target in targets {
+            app.world_mut().write_message(ShipSectionCommand {
+                target,
+                action: ShipAction::Repair,
+            });
+        }
+        app.update();
+    };
+    let health = |app: &App, section: Entity| app.world().get::<Health>(section).unwrap().current;
+    let plates = |app: &App, ship: Entity| {
+        app.world()
+            .get::<ShipInventory>(ship)
+            .unwrap()
+            .count(ItemType::HullPlate)
+    };
+    let note = |app: &App| {
+        app.world()
+            .resource::<ShipRuntime>()
+            .note
+            .clone()
+            .map(|(text, _)| text)
+    };
+    let stock = |count| ShipInventory::from_iter([(ItemType::HullPlate, count)]);
+
+    // No plates: the P key still sends, and the hull stays at 80/100.
+    repair(&mut app, &[hull]);
+    assert_eq!(
+        health(&app, hull),
+        80.0,
+        "a repair with no plates is not free"
+    );
+    assert_eq!(note(&app).as_deref(), Some("repair: no hull plates"));
+
+    // Two commands in one run: the first spends 1 plate for 20 missing HP, the
+    // second sees the committed full hull and spends nothing.
+    app.world_mut().entity_mut(ship).insert(stock(2));
+    repair(&mut app, &[hull, hull]);
+    assert_eq!(health(&app, hull), 100.0);
+    assert_eq!(plates(&app, ship), 1);
+    assert_eq!(
+        note(&app).as_deref(),
+        Some("repair: HULL-1 is at full integrity")
+    );
+
+    // Understock: PDC-1 at 12/60 needs 3 plates; the last one raises it by 20
+    // and the emptied stack is gone.
+    repair(&mut app, &[turret]);
+    assert_eq!(health(&app, turret), 32.0);
+    assert!(app.world().get::<ShipInventory>(ship).unwrap().is_empty());
+    assert_eq!(
+        note(&app).as_deref(),
+        Some("repaired PDC-1: 1 hull plate, 32/60 HP")
+    );
+
+    // A destroyed section and a collapse-disabled one with HP left refuse
+    // without a spend, and keep their markers.
+    app.world_mut().entity_mut(ship).insert(stock(5));
+    app.world_mut().entity_mut(turret).insert((
+        Health {
+            current: 0.0,
+            max: 60.0,
+        },
+        HealthZeroMarker,
+        IntegrityDisabledMarker,
+    ));
+    app.world_mut().entity_mut(thruster).insert((
+        Health {
+            current: 50.0,
+            max: 100.0,
+        },
+        IntegrityDisabledMarker,
+    ));
+    repair(&mut app, &[turret, thruster]);
+    assert_eq!(health(&app, turret), 0.0);
+    assert_eq!(health(&app, thruster), 50.0);
+    assert_eq!(plates(&app, ship), 5);
+    assert!(app.world().entity(turret).contains::<HealthZeroMarker>());
+    assert!(app
+        .world()
+        .entity(turret)
+        .contains::<IntegrityDisabledMarker>());
+    assert!(app
+        .world()
+        .entity(thruster)
+        .contains::<IntegrityDisabledMarker>());
+    assert_eq!(note(&app).as_deref(), Some("repair: THR-1 is destroyed"));
+
+    // Another ship's section, a ship root and a despawned entity: silent, and
+    // nothing changes on either ship.
+    let other = app.world_mut().spawn((SpaceshipRootMarker, stock(4))).id();
+    let foreign = app
+        .world_mut()
+        .spawn((
+            SectionMarker,
+            HullSectionMarker,
+            SectionClass::Hull,
+            SectionCode("HULL-9".to_string()),
+            Health {
+                current: 40.0,
+                max: 100.0,
+            },
+            ChildOf(other),
+        ))
+        .id();
+    let gone = app.world_mut().spawn_empty().id();
+    app.world_mut().despawn(gone);
+    app.world_mut().resource_mut::<ShipRuntime>().note = None;
+    repair(&mut app, &[foreign, ship, gone]);
+    assert_eq!(health(&app, foreign), 40.0);
+    assert_eq!(plates(&app, other), 4);
+    assert_eq!(plates(&app, ship), 5);
+    assert_eq!(note(&app), None);
 }
 
 #[test]
@@ -688,6 +803,7 @@ fn view_fixture(
         bindings: None,
         inactive: false,
         zero_health: false,
+        disabled: false,
     }
 }
 
@@ -892,59 +1008,54 @@ fn unknown_health_reads_nominal() {
 
 #[test]
 fn panel_action_state_gates_repair_and_reload() {
-    // Hull: repairable, no ammo feed -> reload disabled with the handler's text.
-    let hull = view_fixture(
-        SectionClass::Hull,
-        Some(Health {
-            current: 80.0,
-            max: 100.0,
-        }),
-        None,
-    );
-    let a = panel_action_state(&hull);
-    assert!(a.repair_enabled, "a hull with HP is repairable");
-    assert!(!a.reload_enabled, "a hull has no ammo feed");
-    assert!(
-        a.reason.as_deref().unwrap().contains("no ammo feed"),
-        "{:?}",
-        a.reason
-    );
+    let hp = |current, max| Some(Health { current, max });
+    let ammo = Some(SectionAmmo {
+        rounds: 2,
+        capacity: 6,
+    });
+    let reason = |a: &PanelActions| a.reason.clone().unwrap_or_default();
 
-    // Armed turret with ammo + HP: both enabled, no reason.
-    let turret = view_fixture(
-        SectionClass::Turret,
-        Some(Health {
-            current: 12.0,
-            max: 60.0,
-        }),
-        Some(SectionAmmo {
-            rounds: 2,
-            capacity: 6,
-        }),
-    );
-    let a = panel_action_state(&turret);
+    // Damaged hull with plates: repairable, no ammo feed -> the reload reason.
+    let hull = view_fixture(SectionClass::Hull, hp(80.0, 100.0), None);
+    let a = panel_action_state(&hull, 12);
+    assert!(a.repair_enabled, "a damaged hull with plates is repairable");
+    assert!(!a.reload_enabled, "a hull has no ammo feed");
+    assert!(reason(&a).contains("no ammo feed"), "{:?}", a.reason);
+
+    // No plates: the repair reason wins over the reload reason.
+    let a = panel_action_state(&hull, 0);
+    assert!(!a.repair_enabled);
+    assert_eq!(reason(&a), "repair: no hull plates");
+
+    // The section's state comes before the stock: a full hull with 0 plates.
+    let full = view_fixture(SectionClass::Hull, hp(100.0, 100.0), None);
+    let a = panel_action_state(&full, 0);
+    assert!(!a.repair_enabled);
+    assert_eq!(reason(&a), "repair: PDC-1 is at full integrity");
+
+    // Armed turret with ammo + HP + plates: both enabled, no reason.
+    let turret = view_fixture(SectionClass::Turret, hp(12.0, 60.0), ammo);
+    let a = panel_action_state(&turret, 12);
     assert!(a.repair_enabled && a.reload_enabled, "armed turret: both");
     assert!(a.reason.is_none(), "no disabled reason: {:?}", a.reason);
 
+    // Destroyed at 0 HP, or disabled by a collapse with HP left.
+    let dead = view_fixture(SectionClass::Turret, hp(0.0, 60.0), ammo);
+    let a = panel_action_state(&dead, 12);
+    assert!(!a.repair_enabled && a.reload_enabled);
+    assert_eq!(reason(&a), "repair: PDC-1 is destroyed");
+    let mut collapsed = view_fixture(SectionClass::Turret, hp(30.0, 60.0), ammo);
+    collapsed.disabled = true;
+    assert_eq!(
+        reason(&panel_action_state(&collapsed, 12)),
+        "repair: PDC-1 is destroyed"
+    );
+
     // Weapon with ammo but NO health: reload enabled, repair disabled w/ reason.
-    let ghost = view_fixture(
-        SectionClass::Turret,
-        None,
-        Some(SectionAmmo {
-            rounds: 0,
-            capacity: 6,
-        }),
-    );
-    let a = panel_action_state(&ghost);
+    let ghost = view_fixture(SectionClass::Turret, None, ammo);
+    let a = panel_action_state(&ghost, 12);
     assert!(a.reload_enabled && !a.repair_enabled);
-    assert!(
-        a.reason
-            .as_deref()
-            .unwrap()
-            .contains("no integrity to restore"),
-        "{:?}",
-        a.reason
-    );
+    assert_eq!(reason(&a), "repair: PDC-1 has no integrity to restore");
 }
 
 #[test]
@@ -990,8 +1101,11 @@ fn panel_buttons_raise_ship_section_command() {
     app.insert_state(PauseStates::Interface);
     app.init_resource::<ShipRuntime>();
     app.add_message::<ShipSectionCommand>();
+    // A scheduled handler keeps one reader cursor, so a spent repair is never
+    // replayed by a later step.
+    app.add_systems(Update, apply_ship_section_commands);
     hear_ui_cues(&mut app);
-    let (_ship, hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
+    let (ship, hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .run_system_once(assign_section_codes)
         .unwrap();
@@ -1009,9 +1123,7 @@ fn panel_buttons_raise_ship_section_command() {
         .resource_mut::<ShipRuntime>()
         .panel_reload_enabled = false;
     app.world_mut().trigger(Activate { entity: reload });
-    app.world_mut()
-        .run_system_once(apply_ship_section_commands)
-        .unwrap();
+    app.update();
     assert_eq!(
         app.world().get::<SectionAmmo>(turret).unwrap().rounds,
         2,
@@ -1032,9 +1144,7 @@ fn panel_buttons_raise_ship_section_command() {
         .set(PauseStates::Commands);
     app.update();
     app.world_mut().trigger(Activate { entity: reload });
-    app.world_mut()
-        .run_system_once(apply_ship_section_commands)
-        .unwrap();
+    app.update();
     assert_eq!(
         app.world().get::<SectionAmmo>(turret).unwrap().rounds,
         2,
@@ -1052,9 +1162,7 @@ fn panel_buttons_raise_ship_section_command() {
 
     // Enabled: activating routes the command and refills ammo to capacity.
     app.world_mut().trigger(Activate { entity: reload });
-    app.world_mut()
-        .run_system_once(apply_ship_section_commands)
-        .unwrap();
+    app.update();
     assert_eq!(
         app.world().get::<SectionAmmo>(turret).unwrap().rounds,
         6,
@@ -1064,6 +1172,9 @@ fn panel_buttons_raise_ship_section_command() {
     assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
 
     // --- Repair button on the hull (starts at 80/100), the other caller. ---
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(ShipInventory::from_iter([(ItemType::HullPlate, 1)]));
     let repair = app
         .world_mut()
         .spawn(ShipPanelButton::Repair)
@@ -1075,9 +1186,7 @@ fn panel_buttons_raise_ship_section_command() {
         .resource_mut::<ShipRuntime>()
         .panel_repair_enabled = false;
     app.world_mut().trigger(Activate { entity: repair });
-    app.world_mut()
-        .run_system_once(apply_ship_section_commands)
-        .unwrap();
+    app.update();
     assert_eq!(
         app.world().get::<Health>(hull).unwrap().current,
         80.0,
@@ -1093,9 +1202,7 @@ fn panel_buttons_raise_ship_section_command() {
         .resource_mut::<ShipRuntime>()
         .panel_repair_enabled = true;
     app.world_mut().trigger(Activate { entity: repair });
-    app.world_mut()
-        .run_system_once(apply_ship_section_commands)
-        .unwrap();
+    app.update();
     assert_eq!(
         app.world().get::<Health>(hull).unwrap().current,
         100.0,
@@ -1148,7 +1255,10 @@ fn update_ship_panel_reflects_selection() {
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
     app.insert_resource(InterfaceIcons::blank());
-    let (_ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
+    let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(ShipInventory::from_iter([(ItemType::HullPlate, 1)]));
     app.world_mut()
         .run_system_once(assign_section_codes)
         .unwrap();
@@ -1194,7 +1304,7 @@ fn update_ship_panel_reflects_selection() {
     );
     assert!(
         runtime.panel_repair_enabled,
-        "a hull with HP is repairable -> repair enabled",
+        "a damaged hull with plates is repairable -> repair enabled",
     );
 }
 
@@ -1237,6 +1347,7 @@ fn rig_section_view(entity: Entity, code: &str) -> ShipSectionView {
         bindings: None,
         inactive: false,
         zero_health: false,
+        disabled: false,
     }
 }
 

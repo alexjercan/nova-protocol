@@ -139,44 +139,61 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
 }
 
 /// Apply in-app [`ShipSectionCommand`] messages (the `L`/`P` action keys and the
-/// panel buttons), and flash the result on the panel note line.
+/// panel buttons) to player-ship sections, and flash the result on the panel
+/// note line. A target that is not a live section of the player ship is
+/// skipped with no note: every writer takes it from the pane's own list.
 pub(crate) fn apply_ship_section_commands(
     mut messages: MessageReader<ShipSectionCommand>,
     mut runtime: ResMut<ShipRuntime>,
-    q_view: Query<(
-        &SectionCode,
-        Option<&SectionClass>,
-        Has<HullSectionMarker>,
-        Has<ControllerSectionMarker>,
-        Has<ThrusterSectionMarker>,
-        Has<TurretSectionMarker>,
-        Has<TorpedoSectionMarker>,
-    )>,
+    mut q_player: Query<
+        (Entity, Option<&mut ShipInventory>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+    q_view: Query<
+        (
+            &ChildOf,
+            &SectionCode,
+            SectionKindQuery,
+            Has<IntegrityDisabledMarker>,
+        ),
+        With<SectionMarker>,
+    >,
     mut q_health: Query<&mut Health>,
     mut q_ammo: Query<&mut SectionAmmo>,
 ) {
+    let Ok((player, inventory)) = q_player.single_mut() else {
+        messages.clear();
+        return;
+    };
+    let mut inventory = inventory.expect("the player ship carries a ShipInventory");
     for command in messages.read() {
-        let Ok((code, class, hull, controller, thruster, turret, torpedo)) =
+        let Ok((child, code, (class, hull, controller, thruster, turret, torpedo), disabled)) =
             q_view.get(command.target)
         else {
             continue;
         };
+        if child.0 != player {
+            continue;
+        }
         let Some(kind) =
             section_kind_from_markers(class, hull, controller, thruster, turret, torpedo)
         else {
             continue;
         };
-        let is_weapon = kind.is_weapon();
-        let mut health = q_health.get_mut(command.target).ok();
-        let mut ammo = q_ammo.get_mut(command.target).ok();
-        let row = apply_action_to_section(
-            command.action,
-            &code.0,
-            kind,
-            is_weapon,
-            health.as_deref_mut(),
-            ammo.as_deref_mut(),
-        );
+        let row = match command.action {
+            ShipAction::Reload => reload_section(
+                &code.0,
+                kind,
+                kind.is_weapon(),
+                q_ammo.get_mut(command.target).ok().as_deref_mut(),
+            ),
+            ShipAction::Repair => repair_section(
+                &code.0,
+                q_health.get_mut(command.target).ok().as_deref_mut(),
+                disabled,
+                &mut inventory,
+            ),
+        };
         runtime.note = Some((row.text, 2.5));
     }
 }
