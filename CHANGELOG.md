@@ -123,7 +123,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
-- World streaming logs per-cell work at TRACE and reports retired cells and completed live windows in concise DEBUG summaries with app-lifetime job totals.
+- World streaming logs per-cell work at TRACE and summarizes retirements and live windows at DEBUG. PDC mount ownership logs each transition at TRACE and summarizes changes per ship at DEBUG.
 - **(breaking)** Crates `nova_os` and `nova_os_ui` are now `nova_command` and
   `nova_interface`.
 - Asteroid kind and ship design ids are typed `AsteroidKindId` and

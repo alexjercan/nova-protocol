@@ -28,6 +28,8 @@
 //! computer tier, and the assignment can only ever be an inbound HOSTILE
 //! torpedo.
 
+use std::collections::BTreeMap;
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -177,6 +179,7 @@ pub(super) fn update_point_defense_ownership(
     mut q_turret: Query<(Entity, &ChildOf, &mut PointDefenseMount), With<TurretSectionMarker>>,
 ) {
     let delta = time.delta_secs();
+    let mut changes: BTreeMap<Entity, [usize; 4]> = BTreeMap::new();
     for (turret, ChildOf(ship), mut mount) in &mut q_turret {
         let Ok((ship, lock, raised)) = q_ship.get(*ship) else {
             continue;
@@ -202,9 +205,23 @@ pub(super) fn update_point_defense_ownership(
         };
 
         if mount.authority != next {
-            debug!("update_point_defense_ownership: mount {turret:?} -> {next:?}");
+            trace!("update_point_defense_ownership: mount {turret:?} -> {next:?}");
+            let count = &mut changes.entry(ship).or_default()[match next {
+                MountAuthority::Cold => 0,
+                MountAuthority::FlightComputer => 1,
+                MountAuthority::PlayerManual => 2,
+                MountAuthority::PlayerLock => 3,
+            }];
+            *count += 1;
         }
         mount.authority = next;
+    }
+
+    for (ship, [cold, computer, manual, locked]) in changes {
+        debug!(
+            "update_point_defense_ownership: ship {ship:?}: mount transitions to Cold {cold}, \
+             FlightComputer {computer}, PlayerManual {manual}, PlayerLock {locked}"
+        );
     }
 }
 
