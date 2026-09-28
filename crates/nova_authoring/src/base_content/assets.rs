@@ -48,6 +48,12 @@ pub struct BaseContentAssets {
     /// The sealed-hatch docking port: a 1x1x1 cell whose `dock_tube` node the
     /// `DockTube` track slides 0.5 out along the port face (-Z).
     pub dock_flush: AssetRef<WorldAsset>,
+    /// The cargo intake: a 2x2x1 frame whose twelve `intake_slat_` nodes the
+    /// `IntakeDoor` track folds aside from the door face (-Z).
+    pub cargo_intake: AssetRef<WorldAsset>,
+    /// The cargo canister an intake drops: a 0.94 x 0.58 x 0.58 cell cuboid,
+    /// long axis X.
+    pub cargo_canister: AssetRef<WorldAsset>,
 
     /// The turret fire sound, authored the same `self:/` way as the meshes.
     /// Serialized into the section config's `fire_sound` field so base turrets
@@ -72,6 +78,10 @@ pub struct BaseContentAssets {
     /// The bay's muzzle iris: one servo and six petals, played on both edges
     /// of the door's travel.
     pub torpedo_door_sound: AssetRef<AudioSource>,
+    /// A cargo intake pushing a canister out of its door.
+    pub cargo_eject_sound: AssetRef<AudioSource>,
+    /// A cargo intake taking a canister into the hold, the salvage pickup.
+    pub cargo_take_sound: AssetRef<AudioSource>,
     /// The warhead. A hard front and a spray of fragments, distinct from
     /// [`Self::section_destroy_sound`] because a section failure is structural.
     pub torpedo_detonation_sound: AssetRef<AudioSource>,
@@ -208,6 +218,12 @@ impl BaseContentAssets {
             torpedo_bay: AssetRef::from("self://gltf/bay_tube.glb#Scene0".to_string()),
             railgun_lance: AssetRef::from("self://gltf/railgun_lance.glb#Scene0".to_string()),
             dock_flush: AssetRef::from("self://gltf/dock_flush.glb#Scene0".to_string()),
+            cargo_intake: AssetRef::from(
+                "self://gltf/intake_accordion_2x2x1.glb#Scene0".to_string(),
+            ),
+            cargo_canister: AssetRef::from(
+                "self://gltf/cargo_canister_cuboid.glb#Scene0".to_string(),
+            ),
 
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
             turret_twin_fire_sound: AssetRef::from("self://sounds/pdc_twin_fire.wav".to_string()),
@@ -216,6 +232,8 @@ impl BaseContentAssets {
             turret_stow_close_sound: AssetRef::from("self://sounds/pdc_stow_close.wav".to_string()),
             torpedo_launch_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
             torpedo_door_sound: AssetRef::from("self://sounds/bay_door.wav".to_string()),
+            cargo_eject_sound: AssetRef::from("self://sounds/cargo_eject.wav".to_string()),
+            cargo_take_sound: AssetRef::from("self://sounds/salvage_pickup.wav".to_string()),
             torpedo_detonation_sound: AssetRef::from(
                 "self://sounds/torpedo_detonate.wav".to_string(),
             ),

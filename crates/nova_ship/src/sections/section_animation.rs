@@ -66,6 +66,12 @@ pub enum SectionAnimationCue {
     /// is what holds the ships, so the sleeve is free to be art and arrive
     /// whenever the authored travel says.
     DockTube,
+    /// A cargo intake's accordion door: driven to 1 (folded open) while a
+    /// canister is in the intake's detection volume or a jettison waits to
+    /// leave, and back to 0 (shut) otherwise. Steered by the intake's own
+    /// system, which takes a canister in or drops one only at progress 1:
+    /// the open door is the tell that the hold is ready.
+    IntakeDoor,
 }
 
 /// How each target node moves as its track's progress runs 0 -> 1, composed
@@ -96,11 +102,30 @@ pub enum SectionAnimationMotion {
         /// model is built in.
         offset: Vec3,
     },
+    /// Fold an accordion of slats aside into two pockets, reaching `degrees`
+    /// at progress 1. Each node name must end, after the track's prefix, in
+    /// `<l|r><index>`: the side whose pocket the slat folds toward (`l` to
+    /// the parent's +X, `r` to -X) and its place counted from that pocket's
+    /// wall, from 0. A slat turns about its local X, even indices one way and
+    /// odd the other, and slides along the parent's X so that each fold
+    /// meets the next at an edge, as the pleats of an accordion do.
+    Fold {
+        /// Signed slat rotation at full progress, in degrees.
+        degrees: f32,
+        /// Slat extent across the door, along the parent's X at rest, in
+        /// world units (10 m each), measured off the glTF slat.
+        slat_width: f32,
+        /// Slat thickness, in world units (10 m each), measured off the
+        /// glTF slat.
+        slat_thickness: f32,
+    },
 }
 
 impl SectionAnimationMotion {
-    /// Write the pose at `progress` onto `transform`, relative to `rest`.
-    fn apply(self, rest: &Transform, progress: f32, transform: &mut Transform) {
+    /// Write the pose at `progress` onto `transform`, relative to the node's
+    /// rest pose.
+    fn apply(self, node: &TrackNode, progress: f32, transform: &mut Transform) {
+        let rest = &node.rest;
         match self {
             Self::RotateX { degrees } => {
                 *transform = Transform {
@@ -115,8 +140,78 @@ impl SectionAnimationMotion {
                     ..*rest
                 };
             }
+            Self::Fold {
+                degrees,
+                slat_width,
+                slat_thickness,
+            } => {
+                let slat = node
+                    .slat
+                    .expect("a Fold track node resolves with its slat place");
+                let fold = degrees.to_radians() * progress;
+                let turn = if slat.index % 2 == 0 { fold } else { -fold };
+                let reach = (slat.index as f32 + 0.5) * slat_width;
+                let mut translation = rest.translation;
+                translation.x +=
+                    slat.toward * (reach * (fold.cos() - 1.0) + slat_thickness * 0.5 * fold.sin());
+                *transform = Transform {
+                    translation,
+                    rotation: rest.rotation * Quat::from_rotation_x(turn),
+                    ..*rest
+                };
+            }
         }
     }
+
+    /// The slat place a [`Self::Fold`] node carries in its name suffix after
+    /// `prefix`, or `None` for the other motions.
+    ///
+    /// # Panics
+    ///
+    /// On a Fold node whose suffix is not `<l|r><index>`: the art and the
+    /// track disagree, and a slat with no place would fold through its
+    /// neighbours.
+    fn slat(self, section: &str, name: &str, prefix: &str) -> Option<FoldSlat> {
+        let Self::Fold { .. } = self else {
+            return None;
+        };
+        let slat = name
+            .strip_prefix(prefix)
+            .and_then(|suffix| suffix.split_at_checked(1))
+            .and_then(|(side, index)| {
+                let toward = match side {
+                    "l" => 1.0,
+                    "r" => -1.0,
+                    _ => return None,
+                };
+                Some(FoldSlat {
+                    toward,
+                    index: index.parse().ok()?,
+                })
+            });
+        Some(slat.unwrap_or_else(|| {
+            panic!("section {section}: Fold node {name:?} is not a `{prefix}<l|r><index>` slat")
+        }))
+    }
+}
+
+/// Where one [`SectionAnimationMotion::Fold`] slat sits in its door.
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+struct FoldSlat {
+    /// +1 for a slat that folds toward the parent's +X, -1 toward -X.
+    toward: f32,
+    /// The slat's place counted from its pocket's wall, from 0.
+    index: u32,
+}
+
+/// One resolved scene node of a track.
+#[derive(Clone, Copy, Debug, Reflect)]
+struct TrackNode {
+    entity: Entity,
+    /// The authored transform, captured when the scene instance readies.
+    rest: Transform,
+    /// The node's place in its door, for a Fold track only.
+    slat: Option<FoldSlat>,
 }
 
 /// One authored animation track on a section's render scene: the moving
@@ -152,9 +247,8 @@ struct TrackState {
     /// Forces one transform write even at rest - set on resolve and on
     /// retarget, so late-spawning scenes land on the current pose.
     dirty: bool,
-    /// The matched node entities and their authored rest transforms,
-    /// captured when the scene instance readies.
-    nodes: Vec<(Entity, Transform)>,
+    /// The matched scene nodes.
+    nodes: Vec<TrackNode>,
 }
 
 /// Runtime state of a section's authored animation tracks. Inserted by
@@ -286,13 +380,20 @@ fn mark_ready_section_rigs(
 /// authored pose (nothing drives an unresolved node), so first capture is
 /// the only correct one.
 fn resolve_section_animation_rigs(
-    mut q_dirty: Query<(Entity, &mut SectionAnimations), With<SectionAnimationRigDirty>>,
+    mut q_dirty: Query<
+        (Entity, Option<&Name>, &mut SectionAnimations),
+        With<SectionAnimationRigDirty>,
+    >,
     q_children: Query<&Children>,
     q_named: Query<(&Name, &Transform)>,
     mut commands: Commands,
 ) {
-    for (section, mut animations) in &mut q_dirty {
-        let known: Vec<Vec<(Entity, Transform)>> = animations
+    for (section, section_name, mut animations) in &mut q_dirty {
+        let section_label = match section_name {
+            Some(name) => format!("{name} ({section})"),
+            None => section.to_string(),
+        };
+        let known: Vec<Vec<TrackNode>> = animations
             .tracks
             .iter_mut()
             .map(|track| std::mem::take(&mut track.nodes))
@@ -302,12 +403,18 @@ fn resolve_section_animation_rigs(
                 continue;
             };
             for (track, known) in animations.tracks.iter_mut().zip(&known) {
-                if name.as_str().starts_with(track.config.node_prefix.as_str()) {
+                let prefix = track.config.node_prefix.as_str();
+                if name.as_str().starts_with(prefix) {
                     let rest = known
                         .iter()
-                        .find(|(seen, _)| *seen == node)
-                        .map_or(*transform, |&(_, rest)| rest);
-                    track.nodes.push((node, rest));
+                        .find(|seen| seen.entity == node)
+                        .map_or(*transform, |seen| seen.rest);
+                    let slat = track.config.motion.slat(&section_label, name, prefix);
+                    track.nodes.push(TrackNode {
+                        entity: node,
+                        rest,
+                        slat,
+                    });
                     track.dirty = true;
                 }
             }
@@ -360,14 +467,14 @@ fn drive_section_animations(
             if !track.dirty {
                 continue;
             }
-            for &(node, rest) in &track.nodes {
+            for node in &track.nodes {
                 // A despawned scene node is skipped, not an error: the rig
                 // re-resolves when its replacement scene readies.
-                if let Ok(mut transform) = q_transforms.get_mut(node) {
+                if let Ok(mut transform) = q_transforms.get_mut(node.entity) {
                     track
                         .config
                         .motion
-                        .apply(&rest, track.progress, &mut transform);
+                        .apply(node, track.progress, &mut transform);
                 }
             }
             track.dirty = false;

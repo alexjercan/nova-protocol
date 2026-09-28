@@ -40,6 +40,7 @@
                                     "pdc_ventral_starboard": [Keyboard(KeyM)],
                                 },
                             )),
+                            inventory: (capacity: 40, stacks: {}),
                             lootable: false,
                         )),
                     )),
@@ -95,6 +96,7 @@
                             controller: AI((
                                 engage_delay: Some(15.0),
                             )),
+                            inventory: (capacity: 40, stacks: {}),
                             lootable: false,
                         )),
                     )),

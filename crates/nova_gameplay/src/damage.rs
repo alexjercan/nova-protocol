@@ -135,6 +135,8 @@ pub enum SectionClass {
     Railgun,
     /// Docking section: the telescoping port two hulls lock together with.
     Docking,
+    /// Cargo intake section: the accordion-doored mouth canisters enter by.
+    CargoIntake,
 }
 
 impl SectionClass {

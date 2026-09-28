@@ -30,9 +30,10 @@ use crate::prelude::*;
 /// patch and an editor row address a turret's barrels by.
 pub mod prelude {
     pub use super::{
-        duplicate_muzzle_id, muzzle_ids, ControllerSectionConfigPatch, DockingSectionConfigPatch,
-        HullSectionConfigPatch, MuzzleConfigPatch, RailgunSectionConfigPatch, SectionConfigPatch,
-        SectionKindPatch, SectionPatchError, ThrusterSectionConfigPatch, TorpedoSectionConfigPatch,
+        duplicate_muzzle_id, muzzle_ids, CargoIntakeSectionConfigPatch,
+        ControllerSectionConfigPatch, DockingSectionConfigPatch, HullSectionConfigPatch,
+        MuzzleConfigPatch, RailgunSectionConfigPatch, SectionConfigPatch, SectionKindPatch,
+        SectionPatchError, ThrusterSectionConfigPatch, TorpedoSectionConfigPatch,
         TurretSectionConfigPatch,
     };
 }
@@ -168,6 +169,8 @@ pub enum SectionKindPatch {
     Railgun(RailgunSectionConfigPatch),
     /// A docking port.
     Docking(DockingSectionConfigPatch),
+    /// A cargo intake: nothing kind-specific to patch, as for a hull.
+    CargoIntake(CargoIntakeSectionConfigPatch),
 }
 
 impl SectionKindPatch {
@@ -181,6 +184,7 @@ impl SectionKindPatch {
             SectionKindPatch::Torpedo(_) => SectionClass::Torpedo,
             SectionKindPatch::Railgun(_) => SectionClass::Railgun,
             SectionKindPatch::Docking(_) => SectionClass::Docking,
+            SectionKindPatch::CargoIntake(_) => SectionClass::CargoIntake,
         }
     }
 
@@ -196,6 +200,7 @@ impl SectionKindPatch {
             SectionKindPatch::Torpedo(patch) => unchanged(patch),
             SectionKindPatch::Railgun(patch) => unchanged(patch),
             SectionKindPatch::Docking(patch) => unchanged(patch),
+            SectionKindPatch::CargoIntake(patch) => unchanged(patch),
         }
     }
 
@@ -229,6 +234,9 @@ impl SectionKindPatch {
             (SectionKind::Docking(prototype), SectionKind::Docking(edited)) => Some(
                 SectionKindPatch::Docking(DockingSectionConfigPatch::between(prototype, edited)),
             ),
+            (SectionKind::CargoIntake(_), SectionKind::CargoIntake(_)) => {
+                Some(SectionKindPatch::CargoIntake(CargoIntakeSectionConfigPatch))
+            }
             _ => None,
         }
     }
@@ -264,6 +272,7 @@ impl SectionKindPatch {
                 patch.apply(config);
                 Ok(())
             }
+            (SectionKindPatch::CargoIntake(_), SectionKind::CargoIntake(_)) => Ok(()),
             (patch, kind) => Err(SectionPatchError::KindMismatch {
                 resolved: kind.class(),
                 patch: patch.class(),
@@ -630,6 +639,12 @@ impl DockingSectionConfigPatch {
         }
     }
 }
+
+/// A cargo intake carries no patchable knobs: its volumes and speeds are the
+/// prototype's, and its health is the common [`SectionConfigPatch::health`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CargoIntakeSectionConfigPatch;
 
 /// The value a patch field takes to turn `prototype` into `edited`: the new
 /// value where the two differ, and nothing - inherit - where they do not.

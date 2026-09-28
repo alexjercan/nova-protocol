@@ -1,14 +1,16 @@
 //! What a ship carries: a closed set of item types, the category each belongs
-//! to, and the per-ship stack counts.
+//! to, the per-ship stack counts and the count the ship has room for.
 //!
-//! Every ship root requires a [`ShipInventory`], empty by default, so a reader
-//! can fetch it from any ship without a fallback. A ship starts with authored
-//! stock through `SpaceshipConfig::inventory`. A Ship pane repair spends
-//! [`ItemType::HullPlate`] by the [`plan_plate_repair`] rule, and an Inventory
-//! pane transfer moves items between two docked ships by the
-//! [`plan_item_transfer`] rule. Stock is not saved: it returns to its authored
-//! counts when the scenario loads again. A stack exists only while its count
-//! is above zero.
+//! Every ship root requires a [`ShipInventory`]. Its `Default` has no room and
+//! no stock: a code-built ship that never states an inventory carries nothing.
+//! An authored ship states its capacity and stock through
+//! `SpaceshipConfig::inventory`, which RON requires. A Ship pane repair spends
+//! [`ItemType::HullPlate`] by the [`plan_plate_repair`] rule, an Inventory pane
+//! transfer moves items between two docked ships by the [`plan_item_transfer`]
+//! rule, and a jettison drops a [`CargoCanister`] by the [`plan_item_jettison`]
+//! rule. Stock is not saved: it returns to its authored counts when the
+//! scenario loads again. A stack exists only while its count is above zero, and
+//! the counts of all stacks never pass the capacity.
 
 use std::collections::BTreeMap;
 
@@ -19,9 +21,10 @@ use crate::integrity::prelude::Health;
 /// The whole module.
 pub mod prelude {
     pub use super::{
-        plan_item_transfer, plan_plate_repair, ItemCategoryType, ItemTransferRefusalType,
-        ItemTransferType, ItemType, LootableShipMarker, PlateRepair, PlateRepairRefusalType,
-        ShipInventory, HULL_PLATE_HEALTH,
+        plan_item_jettison, plan_item_transfer, plan_plate_repair, CargoCanister, ItemCategoryType,
+        ItemJettisonRefusalType, ItemTransferRefusalType, ItemTransferType, ItemType,
+        LootableShipMarker, PlateRepair, PlateRepairRefusalType, ShipInventory, HULL_PLATE_HEALTH,
+        SHIP_CARGO_CAPACITY,
     };
 }
 
@@ -38,6 +41,14 @@ impl ItemType {
     pub fn category(self) -> ItemCategoryType {
         match self {
             Self::HullPlate => ItemCategoryType::Repair,
+        }
+    }
+
+    /// The item's display name, as the Inventory pane and a canister's tag
+    /// show it.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::HullPlate => "Hull plate",
         }
     }
 }
@@ -58,14 +69,81 @@ pub enum ItemCategoryType {
     Parts,
 }
 
-/// The items one ship carries, as a count per item type. Required by every
+/// The capacity every base-game ship states: the items it has room for across
+/// all stacks. Named at each authored ship rather than taken as a default, so
+/// a ship with a different hold states a different number.
+pub const SHIP_CARGO_CAPACITY: u32 = 40;
+
+/// The items one ship carries, as a count per item type, and the count it has
+/// room for across all stacks. Required by every
 /// [`SpaceshipRootMarker`](crate::markers::SpaceshipRootMarker).
+///
+/// The `Default` has a capacity of zero: it is the required-component value
+/// for a ship that no config states, and such a ship can take nothing.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub struct ShipInventory {
+    capacity: u32,
     stacks: BTreeMap<ItemType, u32>,
 }
 
 impl ShipInventory {
+    /// An inventory with room for `capacity` items, holding `stacks`.
+    ///
+    /// # Panics
+    ///
+    /// On a zero quantity, a repeated item, or stacks that total more than
+    /// `capacity`: the same faults the authored RON refuses, so a builder that
+    /// writes one has a bug.
+    pub fn new(capacity: u32, stacks: impl IntoIterator<Item = (ItemType, u32)>) -> Self {
+        match Self::checked(capacity, stacks) {
+            Ok(inventory) => inventory,
+            Err(fault) => panic!("{fault}"),
+        }
+    }
+
+    /// The one validation both [`new`](Self::new) and the RON parse run.
+    fn checked(
+        capacity: u32,
+        stacks: impl IntoIterator<Item = (ItemType, u32)>,
+    ) -> Result<Self, String> {
+        let mut held = BTreeMap::new();
+        let mut total: u64 = 0;
+        for (item, count) in stacks {
+            if count == 0 {
+                return Err(format!("ShipInventory stack of {item:?} has quantity 0"));
+            }
+            if held.insert(item, count).is_some() {
+                return Err(format!("ShipInventory lists {item:?} twice"));
+            }
+            total += u64::from(count);
+        }
+        if total > u64::from(capacity) {
+            return Err(format!(
+                "ShipInventory holds {total} items but has capacity {capacity}"
+            ));
+        }
+        Ok(Self {
+            capacity,
+            stacks: held,
+        })
+    }
+
+    /// How many items the ship has room for across all stacks.
+    pub fn capacity(&self) -> u32 {
+        self.capacity
+    }
+
+    /// How many items the ship carries across all stacks.
+    pub fn total(&self) -> u32 {
+        // The capacity bounds the sum, so it fits.
+        self.stacks.values().sum()
+    }
+
+    /// How many more items the ship has room for.
+    pub fn free(&self) -> u32 {
+        self.capacity - self.total()
+    }
+
     /// How many of `item` the ship carries; zero when it has no stack.
     pub fn count(&self, item: ItemType) -> u32 {
         self.stacks.get(&item).copied().unwrap_or(0)
@@ -86,15 +164,16 @@ impl ShipInventory {
     ///
     /// # Panics
     ///
-    /// On `count == 0` or a total above `u32::MAX`: the caller has a bug and
-    /// must plan the add first, as [`plan_item_transfer`] does.
+    /// On `count == 0` or more than [`free`](Self::free): the caller has a bug
+    /// and must plan the add first, as [`plan_item_transfer`] does.
     pub fn add(&mut self, item: ItemType, count: u32) {
         assert!(count > 0, "ShipInventory adds 0 of {item:?}");
-        let held = self.count(item);
-        let total = held.checked_add(count).unwrap_or_else(|| {
-            panic!("ShipInventory adds {count} of {item:?} to {held}, past u32::MAX")
-        });
-        self.stacks.insert(item, total);
+        let free = self.free();
+        assert!(
+            count <= free,
+            "ShipInventory adds {count} of {item:?} but has room for {free}"
+        );
+        self.stacks.insert(item, self.count(item) + count);
     }
 
     /// Remove `count` of `item`; delete the stack when it empties.
@@ -146,10 +225,10 @@ pub enum ItemTransferRefusalType {
         /// What the source ship carries.
         held: u32,
     },
-    /// The target ship's count would pass `u32::MAX`.
-    Overflow {
-        /// What the target ship carries.
-        held: u32,
+    /// The target ship has room for fewer than the quantity.
+    NoRoom {
+        /// How many more items the target ship has room for.
+        free: u32,
     },
 }
 
@@ -186,9 +265,75 @@ pub fn plan_item_transfer(
     if quantity > held {
         return Err(ItemTransferRefusalType::Short { held });
     }
-    let held = target.count(item);
-    if held.checked_add(quantity).is_none() {
-        return Err(ItemTransferRefusalType::Overflow { held });
+    let free = target.free();
+    if quantity > free {
+        return Err(ItemTransferRefusalType::NoRoom { free });
+    }
+    Ok(quantity)
+}
+
+/// One stack of items drifting free in a cargo canister: what a jettison
+/// drops and what a cargo intake takes in whole. The count is above zero.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+pub struct CargoCanister {
+    /// The item the canister holds.
+    pub item: ItemType,
+    /// How many it holds.
+    pub count: u32,
+}
+
+/// Why a jettison drops nothing, in check order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemJettisonRefusalType {
+    /// The ship is docked: a canister would leave into the docked pair.
+    Docked,
+    /// The ship has no live cargo intake to drop the canister through.
+    NoIntake,
+    /// The intake still holds a canister it has not dropped.
+    IntakeBusy,
+    /// The quantity text is not a whole number.
+    NoQuantity,
+    /// A quantity of zero.
+    ZeroQuantity,
+    /// The ship carries fewer than the quantity.
+    Short {
+        /// What the ship carries.
+        held: u32,
+    },
+}
+
+/// Plan a jettison of `quantity` of `item` from the player ship's `own`
+/// inventory as one canister.
+///
+/// Returns the count to remove and put in the canister. `docked` is true while
+/// the ship is docked, `has_intake` while it has a live cargo intake, and
+/// `intake_busy` while that intake still holds an earlier jettison. Checks run
+/// in [`ItemJettisonRefusalType`] order. `quantity` is `None` when the typed
+/// text is not a whole number.
+pub fn plan_item_jettison(
+    docked: bool,
+    has_intake: bool,
+    intake_busy: bool,
+    item: ItemType,
+    quantity: Option<u32>,
+    own: &ShipInventory,
+) -> Result<u32, ItemJettisonRefusalType> {
+    if docked {
+        return Err(ItemJettisonRefusalType::Docked);
+    }
+    if !has_intake {
+        return Err(ItemJettisonRefusalType::NoIntake);
+    }
+    if intake_busy {
+        return Err(ItemJettisonRefusalType::IntakeBusy);
+    }
+    let quantity = quantity.ok_or(ItemJettisonRefusalType::NoQuantity)?;
+    if quantity == 0 {
+        return Err(ItemJettisonRefusalType::ZeroQuantity);
+    }
+    let held = own.count(item);
+    if quantity > held {
+        return Err(ItemJettisonRefusalType::Short { held });
     }
     Ok(quantity)
 }
@@ -252,76 +397,71 @@ pub fn plan_plate_repair(
     })
 }
 
-impl FromIterator<(ItemType, u32)> for ShipInventory {
-    /// Collect one stack per item into an inventory.
-    ///
-    /// # Panics
-    ///
-    /// On a zero quantity or a repeated item: an empty stack is not a stack,
-    /// and a caller that lists one item twice has a bug.
-    fn from_iter<I: IntoIterator<Item = (ItemType, u32)>>(iter: I) -> Self {
-        let mut stacks = BTreeMap::new();
-        for (item, count) in iter {
-            assert!(count > 0, "ShipInventory stack of {item:?} has quantity 0");
-            let repeated = stacks.insert(item, count).is_some();
-            assert!(!repeated, "ShipInventory lists {item:?} twice");
-        }
-        Self { stacks }
-    }
-}
-
 // Hand-written rather than derived: a derived `Deserialize` would accept a
-// zero-quantity or repeated-item stack and only the (panicking)
-// `FromIterator` path would ever catch it, which is not how content lint
-// reports an authoring error. This mirrors that same message so both paths
-// name the fault the same way.
+// zero-quantity or repeated-item stack, or stock past the capacity, and only
+// the panicking `ShipInventory::new` would ever catch it, which is not how
+// content lint reports an authoring error. Both run `ShipInventory::checked`,
+// so both name the fault the same way. RON: `(capacity: 40, stacks:
+// {HullPlate: 12})`, both fields required.
 #[cfg(feature = "serde")]
 impl serde::Serialize for ShipInventory {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeMap;
+        use serde::ser::SerializeStruct;
 
-        let mut map = serializer.serialize_map(Some(self.stacks.len()))?;
-        for (item, count) in &self.stacks {
-            map.serialize_entry(item, count)?;
-        }
-        map.end()
+        let mut inventory = serializer.serialize_struct("ShipInventory", 2)?;
+        inventory.serialize_field("capacity", &self.capacity)?;
+        inventory.serialize_field("stacks", &self.stacks)?;
+        inventory.end()
     }
 }
 
 #[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for ShipInventory {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct ShipInventoryVisitor;
+        /// The authored shape. A `BTreeMap` keeps a repeated key, so the
+        /// stacks are read as pairs to catch one.
+        #[derive(serde::Deserialize)]
+        #[serde(rename = "ShipInventory", deny_unknown_fields)]
+        struct Authored {
+            capacity: u32,
+            stacks: Stacks,
+        }
 
-        impl<'de> serde::de::Visitor<'de> for ShipInventoryVisitor {
-            type Value = ShipInventory;
+        struct Stacks(Vec<(ItemType, u32)>);
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a map of item type to stack count")
-            }
+        impl<'de> serde::Deserialize<'de> for Stacks {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                struct StacksVisitor;
 
-            fn visit_map<A: serde::de::MapAccess<'de>>(
-                self,
-                mut map: A,
-            ) -> Result<Self::Value, A::Error> {
-                let mut stacks = BTreeMap::new();
-                while let Some((item, count)) = map.next_entry::<ItemType, u32>()? {
-                    if count == 0 {
-                        return Err(serde::de::Error::custom(format!(
-                            "ShipInventory stack of {item:?} has quantity 0"
-                        )));
+                impl<'de> serde::de::Visitor<'de> for StacksVisitor {
+                    type Value = Stacks;
+
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        formatter.write_str("a map of item type to stack count")
                     }
-                    if stacks.insert(item, count).is_some() {
-                        return Err(serde::de::Error::custom(format!(
-                            "ShipInventory lists {item:?} twice"
-                        )));
+
+                    fn visit_map<A: serde::de::MapAccess<'de>>(
+                        self,
+                        mut map: A,
+                    ) -> Result<Self::Value, A::Error> {
+                        let mut stacks = Vec::new();
+                        while let Some(entry) = map.next_entry::<ItemType, u32>()? {
+                            stacks.push(entry);
+                        }
+                        Ok(Stacks(stacks))
                     }
                 }
-                Ok(ShipInventory { stacks })
+
+                deserializer.deserialize_map(StacksVisitor)
             }
         }
 
-        deserializer.deserialize_map(ShipInventoryVisitor)
+        let authored = Authored::deserialize(deserializer)?;
+        ShipInventory::checked(authored.capacity, authored.stacks.0)
+            .map_err(serde::de::Error::custom)
     }
 }
 
@@ -361,11 +501,11 @@ mod transfer_tests {
     use super::*;
 
     #[test]
-    fn item_transfer_plans_refuse_in_order_and_never_overflow() {
+    fn item_transfer_plans_refuse_in_order_and_never_pass_capacity() {
         use ItemTransferRefusalType::*;
         use ItemTransferType::*;
         let plates =
-            |count: u32| -> ShipInventory { [(ItemType::HullPlate, count)].into_iter().collect() };
+            |count: u32| ShipInventory::new(SHIP_CARGO_CAPACITY, [(ItemType::HullPlate, count)]);
         let plan = |transfer, lootable, quantity, own: &ShipInventory, partner: &ShipInventory| {
             plan_item_transfer(
                 transfer,
@@ -398,10 +538,20 @@ mod transfer_tests {
             plan(Give, false, Some(1), &ShipInventory::default(), &partner),
             Err(Short { held: 0 })
         );
-        let full = plates(u32::MAX);
+        // Room is checked after stock: 35 held leaves room for 5 of the 8.
+        let nearly_full = plates(35);
         assert_eq!(
-            plan(Take, true, Some(1), &full, &partner),
-            Err(Overflow { held: u32::MAX })
+            plan(Take, true, Some(6), &nearly_full, &partner),
+            Err(NoRoom { free: 5 })
+        );
+        assert_eq!(plan(Take, true, Some(5), &nearly_full, &partner), Ok(5));
+        assert_eq!(
+            plan(Take, true, Some(9), &nearly_full, &partner),
+            Err(Short { held: 8 })
+        );
+        assert_eq!(
+            plan(Give, false, Some(1), &own, &ShipInventory::default()),
+            Err(NoRoom { free: 0 })
         );
 
         // A planned move conserves the total and empties a drained stack.
@@ -410,7 +560,34 @@ mod transfer_tests {
         partner.remove(ItemType::HullPlate, moved);
         own.add(ItemType::HullPlate, moved);
         assert_eq!(own.count(ItemType::HullPlate), 20);
+        assert_eq!(own.free(), SHIP_CARGO_CAPACITY - 20);
         assert!(partner.is_empty());
+    }
+
+    #[test]
+    fn item_jettison_plans_refuse_in_order() {
+        use ItemJettisonRefusalType::*;
+        let own = ShipInventory::new(SHIP_CARGO_CAPACITY, [(ItemType::HullPlate, 12)]);
+        let plan = |docked, has_intake, busy, quantity| {
+            plan_item_jettison(
+                docked,
+                has_intake,
+                busy,
+                ItemType::HullPlate,
+                quantity,
+                &own,
+            )
+        };
+
+        assert_eq!(plan(false, true, false, Some(4)), Ok(4));
+        assert_eq!(plan(false, true, false, Some(12)), Ok(12));
+        // Each check wins over every later one.
+        assert_eq!(plan(true, false, true, None), Err(Docked));
+        assert_eq!(plan(false, false, true, None), Err(NoIntake));
+        assert_eq!(plan(false, true, true, None), Err(IntakeBusy));
+        assert_eq!(plan(false, true, false, None), Err(NoQuantity));
+        assert_eq!(plan(false, true, false, Some(0)), Err(ZeroQuantity));
+        assert_eq!(plan(false, true, false, Some(13)), Err(Short { held: 12 }));
     }
 }
 
@@ -419,16 +596,30 @@ mod serde_tests {
     use super::*;
 
     #[test]
-    fn authored_inventory_rejects_a_zero_stack_and_a_repeated_item() {
-        let ok: ShipInventory = ron::from_str("{HullPlate: 12}").expect("valid stack parses");
+    fn authored_inventory_rejects_a_zero_stack_a_repeated_item_and_stock_past_capacity() {
+        let ok: ShipInventory = ron::from_str("(capacity: 40, stacks: {HullPlate: 12})")
+            .expect("valid inventory parses");
         assert_eq!(ok.count(ItemType::HullPlate), 12);
+        assert_eq!(ok.free(), 28);
+        let round_trip: ShipInventory =
+            ron::from_str(&ron::to_string(&ok).expect("serializes")).expect("parses back");
+        assert_eq!(round_trip, ok);
 
-        let zero = ron::from_str::<ShipInventory>("{HullPlate: 0}")
+        let zero = ron::from_str::<ShipInventory>("(capacity: 40, stacks: {HullPlate: 0})")
             .expect_err("a zero-quantity stack must fail");
         assert!(zero.to_string().contains("quantity 0"), "{zero}");
 
-        let dup = ron::from_str::<ShipInventory>("{HullPlate: 1, HullPlate: 2}")
-            .expect_err("a repeated item must fail");
+        let dup =
+            ron::from_str::<ShipInventory>("(capacity: 40, stacks: {HullPlate: 1, HullPlate: 2})")
+                .expect_err("a repeated item must fail");
         assert!(dup.to_string().contains("twice"), "{dup}");
+
+        let over = ron::from_str::<ShipInventory>("(capacity: 10, stacks: {HullPlate: 12})")
+            .expect_err("stock past capacity must fail");
+        assert!(over.to_string().contains("capacity 10"), "{over}");
+
+        let missing = ron::from_str::<ShipInventory>("(stacks: {HullPlate: 12})")
+            .expect_err("a missing capacity must fail");
+        assert!(missing.to_string().contains("capacity"), "{missing}");
     }
 }

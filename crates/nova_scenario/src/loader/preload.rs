@@ -137,6 +137,10 @@ fn push_section_meshes(config: &SectionConfig, meshes: &mut Vec<AssetRef<WorldAs
         // scenario can be waiting on.
         SectionKind::Railgun(railgun) => push_mesh(railgun.render_mesh.as_ref(), meshes),
         SectionKind::Docking(docking) => push_mesh(docking.render_mesh.as_ref(), meshes),
+        SectionKind::CargoIntake(intake) => {
+            push_mesh(Some(&intake.render_mesh), meshes);
+            push_mesh(Some(&intake.canister_mesh), meshes);
+        }
     }
 }
 

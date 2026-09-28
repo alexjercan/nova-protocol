@@ -29,12 +29,13 @@ readings](#damage-is-two-readings)).
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
 | `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds it, optional `rake_radius` spends that budget on a wider corridor instead of unused depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammo_capacity: 1` with a long `reload`. |
 | `Docking`    | Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. `capture_distance`, `capture_angle` and the two relative-speed ceilings are the envelope a `DOCK` is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see [below](#docking-ports-and-what-holds-a-pair-together)). |
+| `CargoIntake` | Cargo intake. Takes a slow `CargoCanister` whole into the ship's `ShipInventory` and drops the Inventory pane's jettisons. Its volumes are geometry off the `Cuboid` collider's -Z face, not sensors: the workspace has no collision layers, so a sensor would join the ship's compound. `detection_range` opens the door; `capture_gap`, the rotated canister footprint against `aperture_width`/`aperture_height` less `CARGO_APERTURE_MARGIN`, and `maximum_capture_speed` bound a take, which lands before a slow canister can touch the face; a canister in an avian touching pair with the ship's body, or moving away from the face, is refused; `eject_speed` sets a drop; the `IntakeDoor` track gates both. The door, drop and take trigger events that `ship_audio/machinery.rs` voices (`cargo_intake_section.rs`). |
 
 `GameSections(Vec<SectionConfig>)` is the resource of section blueprints.
 Every base prototype is GENERIC and authored under
 `crates/nova_authoring/src/base_content/sections/`, one module per family
 (`hull`, `controller`, `thruster`, `turret`, `torpedo_bay`, `railgun`,
-`docking_port`); a mod that brings modelled craft declares their parts itself. The explicit `section_catalog()` is
+`docking_port`, `cargo_intake`); a mod that brings modelled craft declares their parts itself. The explicit `section_catalog()` is
 generated into `assets/base/sections/base.content.ron` by `content -- gen` and
 merged into the resource by
 `crates/nova_assets/src/merge.rs`. The outer-skin cladding is not a prototype at

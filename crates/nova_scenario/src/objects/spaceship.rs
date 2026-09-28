@@ -458,13 +458,10 @@ pub struct SpaceshipConfig {
         serde(default, skip_serializing_if = "ShipCapabilities::is_all_enabled")
     )]
     pub capabilities: ShipCapabilities,
-    /// What the ship carries at spawn. Omitted in RON means an empty
-    /// inventory; a zero quantity or a repeated item fails the parse (see
-    /// [`ShipInventory`]'s `Deserialize` impl).
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "ShipInventory::is_empty")
-    )]
+    /// What the ship carries at spawn and how many items it has room for.
+    /// Required in RON, so every authored ship states its capacity: a zero
+    /// quantity, a repeated item or stock past the capacity fails the parse
+    /// (see [`ShipInventory`]'s `Deserialize` impl).
     pub inventory: ShipInventory,
     /// Whether a docked ship may Take from this ship's inventory although it
     /// was never neutralized: a derelict. Required in RON, so every authored
@@ -673,6 +670,11 @@ fn insert_spaceship_sections(
                 // only to build one.
                 SectionKind::Docking(docking_config) => {
                     section_entity.insert(docking_section(docking_config.clone()));
+                }
+                // Passive like a port: the intake runs off canister positions
+                // and the Inventory pane's jettison, not a bound key.
+                SectionKind::CargoIntake(intake_config) => {
+                    section_entity.insert(cargo_intake_section(intake_config.clone()));
                 }
                 SectionKind::Railgun(railgun_config) => {
                     has_weapon = true;
@@ -1307,7 +1309,7 @@ mod tests {
     #[test]
     fn collapse_threshold_ron_parses_defaults_and_stays_unserialized() {
         let authored: SpaceshipConfig = ron::from_str(
-            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))), lootable: false)"#,
+            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))), inventory: (capacity: 0, stacks: {}), lootable: false)"#,
         )
         .expect("the documented syntax parses");
         let ShipDesignSource::Inline(design) = &authored.design else {
@@ -1316,7 +1318,7 @@ mod tests {
         assert_eq!(design.integrity.collapse_threshold, Some(0.1));
 
         let omitted: SpaceshipConfig =
-            ron::from_str(r#"(controller: None, design: Inline(()), lootable: false)"#)
+            ron::from_str(r#"(controller: None, design: Inline(()), inventory: (capacity: 0, stacks: {}), lootable: false)"#)
                 .expect("omitted field parses");
         let ShipDesignSource::Inline(design) = &omitted.design else {
             panic!("an inline design");

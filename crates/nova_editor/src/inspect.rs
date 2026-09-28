@@ -2138,6 +2138,7 @@ pub(crate) fn section_config(kind: &SectionKind) -> &dyn PartialReflect {
         SectionKind::Torpedo(config) => config,
         SectionKind::Railgun(config) => config,
         SectionKind::Docking(config) => config,
+        SectionKind::CargoIntake(config) => config,
     }
 }
 
@@ -2151,6 +2152,7 @@ pub(crate) fn section_config_mut(kind: &mut SectionKind) -> &mut dyn PartialRefl
         SectionKind::Torpedo(config) => config,
         SectionKind::Railgun(config) => config,
         SectionKind::Docking(config) => config,
+        SectionKind::CargoIntake(config) => config,
     }
 }
 
@@ -2240,6 +2242,8 @@ fn section_picks(kind: &SectionKind) -> &'static [FieldSpec] {
         SectionKind::Torpedo(_) => TORPEDO_PICKS,
         SectionKind::Railgun(_) => RAILGUN_PICKS,
         SectionKind::Docking(_) => DOCKING_PICKS,
+        // Nothing to pick first: every intake field is on the full list.
+        SectionKind::CargoIntake(_) => &[],
     }
 }
 

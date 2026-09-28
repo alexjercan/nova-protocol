@@ -72,7 +72,7 @@ this directory is reachable from shipped content.
 | `dry_fire.wav` | turret `dry_fire_sound` |
 | `pdc_stow_open.wav` | turret `stow_open_sound` |
 | `pdc_stow_close.wav` | turret `stow_close_sound` |
-| `bay_door.wav` | torpedo bay `door_sound` (one file, both directions) |
+| `bay_door.wav` | torpedo bay and cargo intake `door_sound` (one file, both directions) |
 | `railgun_fire.wav` | railgun `fire_sound` |
 | `railgun_charge.wav` | railgun `charge_sound` - a LOOP, driven up in gain and rate as the charge fills |
 | `railgun_reload.wav` | railgun `reload_sound`, on the magazine coming back to capacity |
@@ -131,7 +131,8 @@ without a controller flies blind and gets no warnings at all.
 
 | File | Authored on |
 | --- | --- |
-| `salvage_pickup.wav` | the salvage crate's `pickup_sound` |
+| `salvage_pickup.wav` | the salvage crate's `pickup_sound` and the cargo intake's `take_sound` |
+| `cargo_eject.wav` | the cargo intake's `eject_sound` |
 
 ## Web (wasm) builds
 

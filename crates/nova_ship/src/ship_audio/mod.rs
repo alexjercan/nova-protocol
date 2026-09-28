@@ -24,7 +24,8 @@
 //!
 //! Every system here degrades gracefully (does nothing) until the resources it
 //! needs exist. World sounds carry no bank at all - each cue resolves its
-//! target's authored `AssetRef` (authored-or-silent).
+//! target's authored `AssetRef` (authored-or-silent). The cargo intake's door,
+//! eject and take sounds are the exception: content must author all three.
 
 use bevy::prelude::*;
 
@@ -57,7 +58,10 @@ use self::{
         play_threat_lock_cue,
     },
     loops::{drive_railgun_charge_loops, drive_rcs_loops, drive_thruster_loops},
-    machinery::{on_bay_doors_play_sfx, on_stow_doors_play_sfx},
+    machinery::{
+        on_bay_doors_play_sfx, on_canister_ejected_play_sfx, on_canister_taken_play_sfx,
+        on_intake_door_play_sfx, on_stow_doors_play_sfx,
+    },
 };
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
@@ -128,6 +132,17 @@ const WARN_HULL_VOLUME: f32 = 0.32;
 /// a heavier event than unseating, and one file plays both directions.
 const BAY_DOOR_OPEN_VOLUME: f32 = 0.16;
 const BAY_DOOR_CLOSE_VOLUME: f32 = 0.20;
+
+/// The cargo intake's accordion door: the bay iris's servo band and levels,
+/// since the base intake plays the same file.
+const INTAKE_DOOR_OPEN_VOLUME: f32 = 0.16;
+const INTAKE_DOOR_CLOSE_VOLUME: f32 = 0.20;
+
+/// A canister leaving the intake: at the heavier door edge, since the push
+/// and the door are one piece of machinery. The take plays at
+/// [`nova_gameplay::audio::SALVAGE_PICKUP_VOLUME`], the other pickup in the
+/// game.
+const CARGO_EJECT_VOLUME: f32 = 0.20;
 
 /// A shell going back into the lance. Well under the shot
 /// ([`RAILGUN_FIRE_VOLUME`], about 6 dB) - it is an answer to a silence, not an
@@ -217,6 +232,9 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_railgun_fire_play_sfx);
         app.add_observer(on_stow_doors_play_sfx);
         app.add_observer(on_bay_doors_play_sfx);
+        app.add_observer(on_intake_door_play_sfx);
+        app.add_observer(on_canister_ejected_play_sfx);
+        app.add_observer(on_canister_taken_play_sfx);
         app.add_observer(on_reload_complete_play_sfx);
         app.add_observer(on_collapse_play_hull_loss);
 

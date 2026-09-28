@@ -2582,4 +2582,208 @@
             maximum_relative_angular_speed: 5.0,
         )),
     )),
+    Section((
+        base: (
+            id: "cargo_intake_section",
+            name: "Cargo Intake Section",
+            description: "A hold mouth behind an accordion door. The door folds open for a canister within 40 m of it. The intake takes a canister moving under 5 m/s, and not away from the open door, whole, if it fits the opening and the hold has room. It never takes a canister that touches the ship. Jettison in the Inventory pane drops a canister out through the same door.",
+            health: 90.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    2.0,
+                    2.0,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_x_a",
+                    position: (
+                        1.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_b",
+                    position: (
+                        1.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_a",
+                    position: (
+                        -1.0,
+                        -0.5,
+                        -0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_b",
+                    position: (
+                        -1.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_a",
+                    position: (
+                        -0.5,
+                        1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_b",
+                    position: (
+                        0.5,
+                        1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_a",
+                    position: (
+                        -0.5,
+                        -1.0,
+                        -0.0,
+                    ),
+                    normal: (
+                        -0.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_b",
+                    position: (
+                        0.5,
+                        -1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -0.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_a_a",
+                    position: (
+                        -0.5,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_b_a",
+                    position: (
+                        0.5,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_a_b",
+                    position: (
+                        -0.5,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_b_b",
+                    position: (
+                        0.5,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: IntakeDoor,
+                    node_prefix: "intake_slat_",
+                    motion: Fold(
+                        degrees: 80.0,
+                        slat_width: 0.1458,
+                        slat_thickness: 0.02,
+                    ),
+                    open_seconds: 1.2,
+                    close_seconds: 1.2,
+                ),
+            ],
+        ),
+        kind: CargoIntake((
+            render_mesh: "self://gltf/intake_accordion_2x2x1.glb#Scene0",
+            canister_mesh: "self://gltf/cargo_canister_cuboid.glb#Scene0",
+            door_sound: "self://sounds/bay_door.wav",
+            eject_sound: "self://sounds/cargo_eject.wav",
+            take_sound: "self://sounds/salvage_pickup.wav",
+            detection_range: 40.0,
+            capture_gap: 1.0,
+            aperture_width: 14.1,
+            aperture_height: 16.0,
+            maximum_capture_speed: 5.0,
+            eject_speed: 3.0,
+        )),
+    )),
 ]

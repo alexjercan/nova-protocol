@@ -28,7 +28,8 @@ use crate::{
 pub struct SectionCode(pub String);
 
 /// The code prefix for a section kind (`HULL`, `THR`, `CTL`, `PDC` for turrets,
-/// `TRB` for torpedo bays, `RAIL` for railguns).
+/// `TRB` for torpedo bays, `RAIL` for railguns, `DOCK` for docking ports, `CGO`
+/// for cargo intakes).
 pub(crate) fn code_prefix(kind: SectionClass) -> &'static str {
     match kind {
         SectionClass::Hull => "HULL",
@@ -38,6 +39,7 @@ pub(crate) fn code_prefix(kind: SectionClass) -> &'static str {
         SectionClass::Torpedo => "TRB",
         SectionClass::Railgun => "RAIL",
         SectionClass::Docking => "DOCK",
+        SectionClass::CargoIntake => "CGO",
     }
 }
 
@@ -51,13 +53,14 @@ pub(crate) fn kind_description(kind: SectionClass) -> &'static str {
         SectionClass::Torpedo => "Torpedo launch tube.",
         SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
         SectionClass::Docking => "Docking port; locks onto another hull.",
+        SectionClass::CargoIntake => "Cargo intake; takes in slow canisters.",
     }
 }
 
 /// How many dense kind indices [`kind_index`] hands out. Moves with it: the
 /// per-kind counter array is sized from this, so a new section kind is one
 /// arm and one number, never a silently short array.
-pub(crate) const KIND_COUNT: usize = 7;
+pub(crate) const KIND_COUNT: usize = 8;
 
 /// A dense index for a section kind, for the per-kind next-index counters.
 pub(crate) fn kind_index(kind: SectionClass) -> usize {
@@ -69,6 +72,7 @@ pub(crate) fn kind_index(kind: SectionClass) -> usize {
         SectionClass::Torpedo => 4,
         SectionClass::Railgun => 5,
         SectionClass::Docking => 6,
+        SectionClass::CargoIntake => 7,
     }
 }
 

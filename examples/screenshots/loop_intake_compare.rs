@@ -2,23 +2,24 @@
 //! content tags on one bench - `loop-intake-compare`, for the owner to judge
 //! a look before any intake mechanic exists.
 //!
-//! Everything here is VISUAL ONLY. Nothing is a section prototype, carries a
-//! socket, holds cargo or spawns a ship. Three kinds of subject:
+//! Everything here is VISUAL ONLY. Nothing carries a socket, holds cargo or
+//! spawns a ship. Three kinds of subject:
 //!
-//! - INTAKES: the 2x1x1 and 2x2x1 accordion candidates, generated glbs under
-//!   `art/part-candidates/sections/` (recipes in
+//! - INTAKES: the 2x1x1 accordion candidate under
+//!   `art/part-candidates/sections/` and the promoted 2x2x1 under
+//!   `assets/base/gltf/` (recipes in
 //!   `scripts/section-part-recipes/intake_accordion_*.json`, built by
 //!   `scripts/gen-section-parts.py`). Each leaf is six named slat nodes that
-//!   fold into a zig-zag against the post and stay inside the section. No
-//!   shipped motion composes that fold (a turn plus a slide), so this example
-//!   drives it, and it panics if any fold pose leaves the cell box. Loaded
-//!   with canisters so an open door shows what the face is for.
+//!   fold into a zig-zag against the post and stay inside the section. This
+//!   example drives its own copy of the fold, and it panics if any fold pose
+//!   leaves the cell box. Loaded with canisters so an open door shows what
+//!   the face is for.
 //! - SCALE: the shipped cargo hull cell (`assets/base/gltf/hull_cargo.glb`)
 //!   bolted to the left flank of every intake. One cell is one engine unit is
 //!   10 m.
-//! - CANISTERS: the cuboid canister candidate
-//!   (`art/part-candidates/sections/cargo_canister_cuboid.glb`, an item model
-//!   built by the same generator), with content tags that show only inside
+//! - CANISTERS: the promoted cuboid canister
+//!   (`assets/base/gltf/cargo_canister_cuboid.glb`, an item model built by
+//!   the same generator), with content tags that show only inside
 //!   [`NEAR_RANGE`] of the lens, which stands in for the ship here. The walk
 //!   dollies in on them so the tags appear on camera.
 //!
@@ -70,8 +71,8 @@ const LOOP_NAME: &str = "loop-intake-compare";
 /// The cargo hull, because an intake would sit on a cargo spine.
 const SHIPPED_CELL: &str = "assets/base/gltf/hull_cargo.glb";
 
-/// The canister candidate, relative to the crate root. Long axis X.
-const CANISTER: &str = "art/part-candidates/sections/cargo_canister_cuboid.glb";
+/// The promoted canister, relative to the crate root. Long axis X.
+const CANISTER: &str = "assets/base/gltf/cargo_canister_cuboid.glb";
 
 /// The floor every subject stands on: the bottom face of a cell centred at
 /// the origin. Engine units, like every figure in this layout.
@@ -152,7 +153,7 @@ fn intakes() -> [Intake; 2] {
             x: -2.0,
         },
         Intake {
-            model: "art/part-candidates/sections/intake_accordion_2x2x1.glb",
+            model: "assets/base/gltf/intake_accordion_2x2x1.glb",
             id: "intake_accordion_2x2x1",
             size: Vec3::new(2.0, 2.0, 1.0),
             x: 3.0,

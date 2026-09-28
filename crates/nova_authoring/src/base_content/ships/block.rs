@@ -21,7 +21,7 @@ use nova_ship::prelude::{
 };
 
 use crate::base_content::{
-    sections::VECTOR_THRUSTER_SECTION_ID,
+    sections::{CARGO_INTAKE_SECTION_ID, VECTOR_THRUSTER_SECTION_ID},
     styles::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID},
 };
 
@@ -67,6 +67,18 @@ pub(crate) const BLOCK_LINE_WARSHIP_RAILGUN_ID: &str = "spinal_lance";
 
 /// The line warship's two bow torpedo bays, port then starboard.
 pub(crate) const BLOCK_LINE_WARSHIP_TORPEDO_IDS: [&str; 2] = ["torpedo_port", "torpedo_starboard"];
+
+/// The line warship's dorsal cargo intake.
+pub(crate) const BLOCK_LINE_WARSHIP_INTAKE_ID: &str = "cargo_intake";
+
+/// The four dorsal cells the line warship's intake replaces, starboard of the
+/// spine between the aft point-defense seats and the transom.
+const LINE_WARSHIP_INTAKE_CELLS: [IVec3; 4] = [
+    IVec3::new(0, 1, 5),
+    IVec3::new(1, 1, 5),
+    IVec3::new(0, 1, 6),
+    IVec3::new(1, 1, 6),
+];
 
 /// The one point-defense mount the picket carries, so content that arms or
 /// disarms it names a section rather than a hull.
@@ -377,17 +389,24 @@ pub(super) fn patrol_gunship() -> BlockShip {
 /// mated to the body. Three flight computers spread along the spine turn a
 /// hull this long. One docking collar takes the middle cell of each shoulder,
 /// hatch outboard, clear of the drives aft and the bays forward.
+///
+/// A 2x2 cargo intake replaces four top-deck cells aft, door up and flush
+/// with the deck, one plate row behind the aft point-defense seats. It is
+/// off-grid, so [`carve`] clears its cells.
 pub(super) fn line_warship() -> BlockShip {
     BlockShip {
-        cells: union(vec![
-            block(IVec3::new(-1, 0, -7), IVec3::new(3, 2, 15)),
-            // The keel: squares the transom off to the drive's 3x3 face and
-            // gives the ventral mounts a plate to hang from.
-            block(IVec3::new(-1, -1, -3), IVec3::new(3, 1, 11)),
-            block(IVec3::new(-2, 0, -4), IVec3::new(1, 1, 9)),
-            block(IVec3::new(2, 0, -4), IVec3::new(1, 1, 9)),
-            block(IVec3::new(0, 2, -3), IVec3::new(1, 1, 4)),
-        ]),
+        cells: carve(
+            union(vec![
+                block(IVec3::new(-1, 0, -7), IVec3::new(3, 2, 15)),
+                // The keel: squares the transom off to the drive's 3x3 face
+                // and gives the ventral mounts a plate to hang from.
+                block(IVec3::new(-1, -1, -3), IVec3::new(3, 1, 11)),
+                block(IVec3::new(-2, 0, -4), IVec3::new(1, 1, 9)),
+                block(IVec3::new(2, 0, -4), IVec3::new(1, 1, 9)),
+                block(IVec3::new(0, 2, -3), IVec3::new(1, 1, 4)),
+            ]),
+            &LINE_WARSHIP_INTAKE_CELLS,
+        ),
         specials: vec![
             cell_part(
                 BLOCK_BRIDGE_SECTION_ID,
@@ -453,6 +472,13 @@ pub(super) fn line_warship() -> BlockShip {
                 BLOCK_STARBOARD_COLLAR_SECTION_ID,
                 FlankType::Starboard,
                 IVec3::new(2, 0, 0),
+            ),
+            // Local -Z (the door) turns to world +Y, local +Y to world +Z.
+            part(
+                BLOCK_LINE_WARSHIP_INTAKE_ID,
+                CARGO_INTAKE_SECTION_ID,
+                Vec3::new(0.5, 1.0, 5.5),
+                Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
             ),
         ],
         plate: REINFORCED_HULL_SECTION_ID,
@@ -685,6 +711,15 @@ fn block(origin: IVec3, size: IVec3) -> Vec<IVec3> {
         .collect()
 }
 
+/// `cells` without the `hole`: the cells an off-grid special fills, which
+/// [`BlockShip::sections`] cannot claim for it.
+fn carve(cells: Vec<IVec3>, hole: &[IVec3]) -> Vec<IVec3> {
+    cells
+        .into_iter()
+        .filter(|cell| !hole.contains(cell))
+        .collect()
+}
+
 /// Every cell of every part, each one once and in first-seen order, so a hull
 /// built from overlapping boxes stays a stable section list.
 fn union(parts: Vec<Vec<IVec3>>) -> Vec<IVec3> {
@@ -880,6 +915,26 @@ mod tests {
                     section.id
                 );
             }
+        }
+    }
+
+    /// The line warship's intake sits where four top-deck cells were, door
+    /// up: no plate is left inside it and its door faces open space.
+    #[test]
+    fn the_line_warship_intake_opens_up_over_four_replaced_cells() {
+        let sections = line_warship().sections();
+        let intake = sections
+            .iter()
+            .find(|section| section.id == BLOCK_LINE_WARSHIP_INTAKE_ID)
+            .expect("the line warship carries its intake");
+        assert!((intake.rotation * Vec3::NEG_Z).abs_diff_eq(Vec3::Y, 1e-5));
+        for cell in LINE_WARSHIP_INTAKE_CELLS {
+            assert!(
+                !sections
+                    .iter()
+                    .any(|section| section.position == cell.as_vec3()),
+                "a section still fills intake cell {cell}"
+            );
         }
     }
 

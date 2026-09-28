@@ -67,9 +67,12 @@
                                     ],
                                 },
                             )),
-                            inventory: {
-                                HullPlate: 12,
-                            },
+                            inventory: (
+                                capacity: 40,
+                                stacks: {
+                                    HullPlate: 12,
+                                },
+                            ),
                             lootable: false,
                         )),
                     )),
@@ -95,9 +98,12 @@
                             ),
                             controller: r#None,
                             allegiance: Some(Neutral),
-                            inventory: {
-                                HullPlate: 8,
-                            },
+                            inventory: (
+                                capacity: 40,
+                                stacks: {
+                                    HullPlate: 8,
+                                },
+                            ),
                             lootable: true,
                         )),
                     )),

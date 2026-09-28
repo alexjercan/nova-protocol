@@ -135,7 +135,7 @@ pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConf
                     ships::on_section(TRAINER_GUN, ships::section_health(TRAINER_GUN_HEALTH)),
                 ],
             ),
-            inventory: ShipInventory::default(),
+            inventory: ShipInventory::new(SHIP_CARGO_CAPACITY, []),
             lootable: false,
         }),
     }
@@ -216,6 +216,7 @@ pub(crate) fn target_hulk(nth: usize) -> ScenarioObjectConfig {
                 plate("starboard", Vec3::new(1.0, 0.0, 0.0), LIGHT_HULL_SECTION_ID),
             ]),
             lootable: false,
+            inventory: ShipInventory::new(SHIP_CARGO_CAPACITY, []),
             ..Default::default()
         }),
     }
@@ -298,6 +299,7 @@ pub(crate) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectCo
             }),
             design: ships::patched_design(ships::BLOCK_PICKET_SHIP_ID, section_patches),
             lootable: false,
+            inventory: ShipInventory::new(SHIP_CARGO_CAPACITY, []),
             ..Default::default()
         }),
     }

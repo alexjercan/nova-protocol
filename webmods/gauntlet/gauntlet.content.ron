@@ -134,6 +134,7 @@
                                 input_mapping: {},
                             )),
                             design: Prototype(id: "block_cutter"),
+                            inventory: (capacity: 40, stacks: {}),
                             lootable: false,
                         )),
                     )),

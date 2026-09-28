@@ -2,8 +2,8 @@
 
 A `Section` is a reusable ship part defined in a mod's `*.content.ron` file.
 Create a new id to add a part to the editor palette, or reuse a base id to
-replace that part everywhere. The seven available kinds are `Hull`, `Thruster`,
-`Controller`, `Turret`, `Torpedo`, `Railgun`, and `Docking`.
+replace that part everywhere. The eight available kinds are `Hull`, `Thruster`,
+`Controller`, `Turret`, `Torpedo`, `Railgun`, `Docking`, and `CargoIntake`.
 
 Start with the two working section items in
 `assets/mods/example/example.content.ron`: one replaces
@@ -244,7 +244,8 @@ the node was modelled at. Content owns WHAT moves; the section kind's own
 systems own WHEN, by steering the cue.
 
 - `cue` - the gameplay moment that drives this track. The set is closed
-  (`MuzzleDoor`, `StowLift`, `StowDoors`, `Charge` - see the table below); a
+  (`MuzzleDoor`, `StowLift`, `StowDoors`, `Charge`, `DockTube`, `IntakeDoor` -
+  see the table below); a
   mod picks from it rather than inventing one. Several tracks may share a cue, and a cue
   no system on this section steers simply rests at 0.
 - `node_prefix` - which nodes move, by NAME PREFIX: `"door_petal_"` takes
@@ -253,7 +254,7 @@ systems own WHEN, by steering the cue.
   over every named node under the section, which is why a turret joint given a
   `name` is steered by exactly the same track machinery as a node modelled
   inside a glb.
-- `motion` - the pose at full progress, one of two:
+- `motion` - the pose at full progress, one of three:
   - `RotateX(degrees: N)` turns each node about its own LOCAL X axis. Local X
     is the hinge convention: the part is modelled with its origin ON the hinge
     line and X along it, and its placement transform aims the hinge. That is
@@ -262,6 +263,15 @@ systems own WHEN, by steering the cue.
     that node's own rest frame. Same one-track-many-nodes rule: the PDC's two
     housing lids are modelled mirror-rotated, so one signed travel closes both
     toward each other.
+  - `Fold(degrees: N, slat_width: W, slat_thickness: T)` folds an accordion
+    of slats aside into two pockets. Each node name must end, after the
+    prefix, in `l<index>` or `r<index>`: `l` folds toward the parent's +X,
+    `r` toward -X, and the index counts from that pocket's wall, from 0. A
+    slat turns `degrees` about its local X, even indices one way and odd the
+    other, and slides along the parent's X so each fold meets the next at an
+    edge. `slat_width` and `slat_thickness` are the slat box in cells,
+    measured off the art. A node under the prefix with any other suffix
+    panics the rig at spawn: the art and the track disagree.
 - `open_seconds` - seconds progress takes to run 0 -> 1.
 - `close_seconds` - seconds progress takes to run 1 -> 0. Either value at zero
   or below SNAPS that direction instead of travelling it.
@@ -280,6 +290,7 @@ Who raises each cue:
 | `StowDoors` | The turret's stow machine, sequenced against the lift: it shuts the lids only once the gun is fully down, and parts them before raising it. | shut over the sunk gun |
 | `Charge` | The railgun's charge system, from the committed trigger to the shot. It writes the charge fraction straight in, so `open_seconds` and `close_seconds` are unread on this cue: the travel is the authored `charge_seconds`, and the snap back to 0 is the shot leaving. | fully charged, the instant before firing |
 | `DockTube` | The docking port's sleeve, once the dock's fixed joint EXISTS - never before it, so the tube can never be what holds the two hulls together. It stows again the moment the dock is released. | the sleeve fully out, 0.5 cells past the port face |
+| `IntakeDoor` | The cargo intake, while a canister is in its detection volume or a jettison waits on it. It takes a canister in or drops one only at progress 1. | the door fully folded open |
 
 Authoring a `StowLift` track is what MAKES a turret retractable - the stow
 machine is armed on turrets that have one and on no others. Such a turret
@@ -1022,6 +1033,70 @@ never strand a hull clamped to something. A maneuver (ORBIT, GOTO, STOP) flies
 the pair and leaves the dock in place.
 
 <!-- Grammar verified against crates/nova_ship/src/sections/docking_section/mod.rs (config and defaults) and port.rs (the envelope and its strictest-of-two grading). Values from assets/base/sections/base.content.ron docking_port_section. -->
+
+## Cargo intake
+
+`CargoIntakeSectionConfig` - a cargo intake: a hold mouth behind a door on the
+section's local `-Z` face. The door opens for a nearby canister, the intake
+takes a slow one into the ship's [inventory](../objects/#inventory), and the
+Inventory pane's Jettison drops a canister out through it. One ships:
+`cargo_intake_section`, a 2x2x1 box on the line warship's top deck, door up.
+
+```ron
+kind: CargoIntake((
+    render_mesh: "dep://base/gltf/intake_accordion_2x2x1.glb#Scene0",
+    canister_mesh: "dep://base/gltf/cargo_canister_cuboid.glb#Scene0",
+    door_sound: "dep://base/sounds/bay_door.wav",
+    eject_sound: "dep://base/sounds/cargo_eject.wav",
+    take_sound: "dep://base/sounds/salvage_pickup.wav",
+    detection_range: 40.0,
+    capture_gap: 1.0,
+    aperture_width: 14.1,
+    aperture_height: 16.0,
+    maximum_capture_speed: 5.0,
+    eject_speed: 3.0,
+)),
+```
+
+- `render_mesh` - the intake's scene: its frame and the slat nodes its door
+  track folds. `render_mesh_transform` (optional) moves the mesh only.
+- `canister_mesh` - the scene of each canister this intake drops.
+- `door_sound` - the door servo, played when the door starts to open (quieter)
+  and to close. Required.
+- `eject_sound` - played as a canister leaves the door. Required.
+- `take_sound` - played as a canister is taken into the hold. Required.
+- `detection_range` (meters) - a canister centre in front of the door face and
+  within this distance of the face centre opens the door.
+- `capture_gap` (meters) - a canister whose nearest side is at most this far
+  from the face plane can be taken. Less than `detection_range`. A canister
+  that closes slower than `maximum_capture_speed` is taken before it touches
+  the face, so it never bumps the intake. A canister that touches any part of
+  the ship, or moves away from the face, is not taken.
+- `aperture_width`, `aperture_height` (meters) - the clear opening across the
+  face along the section's local X and Y with the door open. A canister's
+  rotated footprint must fit it with 0.5 m to spare on every side. At most the
+  collider face, and at least 6.8 m: the canister's narrow side, 5.8 m, plus
+  both margins.
+- `maximum_capture_speed` (meters per second) - the fastest a canister may
+  move relative to the intake's own point velocity and still be taken.
+- `eject_speed` (meters per second) - how fast a dropped canister leaves the
+  face, relative to the intake's own point velocity.
+
+The volumes are measured from the `-Z` face of the section's `Cuboid`
+collider, so an intake must author one. A take is whole or nothing: a
+canister with more items than the hold has room for stays out. A jettison
+waits on the intake until the door is fully open and no canister centre is
+within 12.5 m of the birth point. The canister is born 1.5 m clear of the face,
+outside the capture gap and moving away, and any intake can take it back from
+the next tick. Author an
+[`IntakeDoor` track](#animation-tracks) with a `Fold` motion to give the door
+its slats. Lint rejects an intake without a `Cuboid` collider, a range, gap,
+aperture or speed that is not finite and positive, a `capture_gap` not less
+than `detection_range`, an aperture wider than the collider face or narrower
+than 6.8 m, or no `IntakeDoor` track. A missing sound field fails the parse. Offer no link point on the `-Z`
+face: that face is the door.
+
+<!-- Grammar verified against crates/nova_ship/src/sections/cargo_intake_section.rs (config, zones, run_cargo_intakes) and crates/nova_scenario/src/lint/ship.rs check_cargo_intake_config. Values from assets/base/sections/base.content.ron cargo_intake_section. -->
 
 ## A section in a mod
 

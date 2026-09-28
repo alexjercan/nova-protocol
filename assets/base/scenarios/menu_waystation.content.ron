@@ -55,6 +55,10 @@
                             controller: AI((
                                 orbit: Some(Authored("menu_planetoid")),
                             )),
+                            inventory: (
+                                capacity: 40,
+                                stacks: {},
+                            ),
                             lootable: false,
                         )),
                     )),
@@ -81,6 +85,10 @@
                             controller: AI((
                                 orbit: Some(Authored("menu_planetoid")),
                             )),
+                            inventory: (
+                                capacity: 40,
+                                stacks: {},
+                            ),
                             lootable: false,
                         )),
                     )),

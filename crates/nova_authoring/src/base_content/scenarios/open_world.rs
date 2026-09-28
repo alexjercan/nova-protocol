@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
-use nova_gameplay::prelude::{Allegiance, ItemType};
+use nova_gameplay::prelude::{Allegiance, ItemType, ShipInventory, SHIP_CARGO_CAPACITY};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::ShipCapabilities;
@@ -98,7 +98,7 @@ fn player() -> ScenarioObjectConfig {
             }),
             capabilities: ShipCapabilities::default(),
             design: ships::design(BLOCK_LINE_WARSHIP_SHIP_ID),
-            inventory: [(ItemType::HullPlate, 12)].into_iter().collect(),
+            inventory: ShipInventory::new(SHIP_CARGO_CAPACITY, [(ItemType::HullPlate, 12)]),
             lootable: false,
         }),
     }
@@ -119,7 +119,7 @@ fn derelict() -> ScenarioObjectConfig {
             controller: SpaceshipController::None,
             capabilities: ShipCapabilities::default(),
             design: ships::design(BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID),
-            inventory: [(ItemType::HullPlate, 8)].into_iter().collect(),
+            inventory: ShipInventory::new(SHIP_CARGO_CAPACITY, [(ItemType::HullPlate, 8)]),
             lootable: true,
         }),
     }

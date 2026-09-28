@@ -70,6 +70,8 @@ pub(crate) fn section_mark(
         Some(SectionKind::Railgun(_)) => ("\u{2016}", "RAILGUN"),
         // BULLSEYE - a bore inside a collar, seen down the docking axis.
         Some(SectionKind::Docking(_)) => ("\u{25ce}", "DOCKING"),
+        // WHITE SQUARE CONTAINING BLACK SMALL SQUARE - a canister in a hold.
+        Some(SectionKind::CargoIntake(_)) => ("\u{25a3}", "INTAKE"),
 
         None => ("?", "PART"),
     }

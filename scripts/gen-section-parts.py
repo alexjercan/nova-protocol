@@ -72,6 +72,8 @@ PROMOTED_STEMS = (
     "core_wires",
     "railgun_lance",
     "dock_flush",
+    "intake_accordion_2x2x1",
+    "cargo_canister_cuboid",
 )
 PROMOTED_OUTPUTS = {
     stem: os.path.join(REPO_ROOT, "assets", "base", "gltf", stem + ".glb")
