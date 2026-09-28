@@ -1,0 +1,135 @@
+{
+  "_comment": "INTAKE CANDIDATE (accordion, 2x1x1): a one-cell-high cargo intake face. Hollow body open on -Z (the section face convention), steel frame ring on the face, gunmetal shell that ENDS behind the ring so no face shares its plane (the example's z-fight fix), a lit strip under the lintel, amber hazard blocks on the sill. Two leaves of six slats, named nodes intake_slat_l0..l5 and intake_slat_r0..r5, REST SHUT so the cell-box check grades the closed door. Each slat node is placed rotate [0,0,90], so its local X runs up the slat: a fold is a local RotateX plus a slide toward its pocket, which no shipped motion composes - loop_intake_compare drives it. Candidate only: not promoted, no SectionConfig.",
+  "frame": "core",
+  "cells": [2, 1, 1],
+  "materials": {
+    "part_amber": { "color": [0.85, 0.55, 0.12], "metallic": 0.4, "roughness": 0.5 },
+    "part_glow": { "color": [0.25, 0.8, 0.9], "metallic": 0.1, "roughness": 0.25 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "part_throat": { "color": [0.04, 0.04, 0.045], "metallic": 0.2, "roughness": 0.9 }
+  },
+  "material": "part_steel",
+  "parts": [
+    { "primitive": "box", "size": [1.96, 0.96, 0.1], "at": [0.0, 0.0, 0.45], "material": "part_throat" },
+    { "primitive": "box", "size": [0.1, 0.96, 0.8], "at": [-0.93, 0.0, 0.0], "material": "part_gunmetal" },
+    { "primitive": "box", "size": [0.1, 0.96, 0.8], "at": [0.93, 0.0, 0.0], "material": "part_gunmetal" },
+    { "primitive": "box", "size": [1.76, 0.1, 0.8], "at": [0.0, -0.43, 0.0], "material": "part_gunmetal" },
+    { "primitive": "box", "size": [1.76, 0.1, 0.8], "at": [0.0, 0.43, 0.0], "material": "part_gunmetal" },
+    { "primitive": "box", "size": [0.1, 0.02, 0.7], "at": [-0.5, 0.49, 0.1] },
+    { "primitive": "box", "size": [0.1, 0.02, 0.7], "at": [0.5, 0.49, 0.1] },
+    { "primitive": "box", "size": [0.02, 0.6, 0.55], "at": [-0.99, 0.0, 0.1] },
+    { "primitive": "box", "size": [0.02, 0.6, 0.55], "at": [0.99, 0.0, 0.1] },
+    { "primitive": "box", "size": [2.0, 0.2, 0.1], "at": [0.0, -0.4, -0.45] },
+    { "primitive": "box", "size": [2.0, 0.2, 0.1], "at": [0.0, 0.4, -0.45] },
+    { "primitive": "box", "size": [0.2, 0.6, 0.1], "at": [-0.9, 0.0, -0.45] },
+    { "primitive": "box", "size": [0.2, 0.6, 0.1], "at": [0.9, 0.0, -0.45] },
+    { "primitive": "box", "size": [1.6, 0.03, 0.04], "at": [0.0, 0.285, -0.45], "material": "part_glow" },
+    { "primitive": "box", "size": [0.12, 0.02, 0.06], "at": [-0.6667, -0.29, -0.465], "material": "part_amber" },
+    { "primitive": "box", "size": [0.12, 0.02, 0.06], "at": [-0.4, -0.29, -0.465], "material": "part_amber" },
+    { "primitive": "box", "size": [0.12, 0.02, 0.06], "at": [-0.1333, -0.29, -0.465], "material": "part_amber" },
+    { "primitive": "box", "size": [0.12, 0.02, 0.06], "at": [0.1333, -0.29, -0.465], "material": "part_amber" },
+    { "primitive": "box", "size": [0.12, 0.02, 0.06], "at": [0.4, -0.29, -0.465], "material": "part_amber" },
+    { "primitive": "box", "size": [0.12, 0.02, 0.06], "at": [0.6667, -0.29, -0.465], "material": "part_amber" }
+  ],
+  "nodes": [
+    {
+      "name": "intake_slat_l0",
+      "at": [-0.8071, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_steel" }
+      ]
+    },
+    {
+      "name": "intake_slat_l1",
+      "at": [-0.6613, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_gunmetal" }
+      ]
+    },
+    {
+      "name": "intake_slat_l2",
+      "at": [-0.5154, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_steel" }
+      ]
+    },
+    {
+      "name": "intake_slat_l3",
+      "at": [-0.3696, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_gunmetal" }
+      ]
+    },
+    {
+      "name": "intake_slat_l4",
+      "at": [-0.2238, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_steel" }
+      ]
+    },
+    {
+      "name": "intake_slat_l5",
+      "at": [-0.0779, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_gunmetal" },
+        { "primitive": "box", "size": [0.54, 0.04, 0.01], "at": [0.0, -0.0429, -0.015], "material": "part_amber" }
+      ]
+    },
+    {
+      "name": "intake_slat_r0",
+      "at": [0.8071, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_steel" }
+      ]
+    },
+    {
+      "name": "intake_slat_r1",
+      "at": [0.6613, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_gunmetal" }
+      ]
+    },
+    {
+      "name": "intake_slat_r2",
+      "at": [0.5154, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_steel" }
+      ]
+    },
+    {
+      "name": "intake_slat_r3",
+      "at": [0.3696, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_gunmetal" }
+      ]
+    },
+    {
+      "name": "intake_slat_r4",
+      "at": [0.2238, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_steel" }
+      ]
+    },
+    {
+      "name": "intake_slat_r5",
+      "at": [0.0779, 0.0, -0.3221],
+      "rotate": [0.0, 0.0, 90.0],
+      "parts": [
+        { "primitive": "box", "size": [0.58, 0.1458, 0.02], "at": [0.0, 0.0, 0.0], "material": "part_gunmetal" },
+        { "primitive": "box", "size": [0.54, 0.04, 0.01], "at": [0.0, 0.0429, -0.015], "material": "part_amber" }
+      ]
+    }
+  ]
+}

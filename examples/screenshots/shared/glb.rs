@@ -9,8 +9,10 @@
 //! gallery decodes the files itself: a page of code against a format this
 //! repo controls.
 //!
-//! Every mesh that a node of scene 0 references is decoded, with that node's
-//! translation and rotation baked into its vertices. The writer emits its
+//! Every mesh that a node of scene 0 references is decoded. [`read_glb`]
+//! bakes that node's translation and rotation into its vertices;
+//! [`read_glb_nodes`] hands back each node's rest pose beside local
+//! vertices, for a caller that animates the node itself. The writer emits its
 //! named animatable nodes (a bay's iris petals, a housing's stow lids) as
 //! flat SIBLINGS of the static root, so there is no parent chain to compose -
 //! and a file that carries one, like a Blender export, is rejected here
@@ -104,12 +106,53 @@ pub fn read_glb(path: &Path) -> Vec<GlbPrimitive> {
 /// `SectionAnimationMotion::Translate` composes it at runtime
 /// (`rest.translation + rest.rotation * offset`), so a gallery that poses a
 /// track by hand shows what the section's own animation would show. A node
-/// the writer left unnamed is never offered to `pose`.
+/// the writer left unnamed is never offered to `pose`. Panics as
+/// [`read_glb_nodes`] does.
+pub fn read_glb_posed(path: &Path, pose: &dyn Fn(&str) -> Vec3) -> Vec<GlbPrimitive> {
+    read_glb_nodes(path)
+        .into_iter()
+        .flat_map(|node| {
+            let rotation = node.rest.rotation;
+            let translation =
+                node.rest.translation + rotation * node.name.as_deref().map_or(Vec3::ZERO, pose);
+            // The node transform is baked in: a caller spawns one flat mesh
+            // per primitive and never learns which node it came off.
+            node.primitives
+                .into_iter()
+                .map(move |primitive| GlbPrimitive {
+                    positions: primitive
+                        .positions
+                        .iter()
+                        .map(|p| (rotation * Vec3::from_array(*p) + translation).to_array())
+                        .collect(),
+                    normals: primitive
+                        .normals
+                        .iter()
+                        .map(|n| (rotation * Vec3::from_array(*n)).to_array())
+                        .collect(),
+                    ..primitive
+                })
+        })
+        .collect()
+}
+
+/// One mesh-carrying node of scene 0, with its primitives left in the node's
+/// LOCAL frame, for a caller that moves the node itself.
+pub struct GlbNode {
+    /// The writer names animatable nodes only; the static root has none.
+    pub name: Option<String>,
+    /// The rest pose the file authors: translation and rotation, never scale.
+    pub rest: Transform,
+    pub primitives: Vec<GlbPrimitive>,
+}
+
+/// Decode a `scripts/nova_glb.py` glb node by node: every mesh-carrying node
+/// of scene 0, unposed.
 ///
 /// Panics on a missing file or a shape the writer never produces - these are
 /// our own generated files, and a gallery silently skipping a candidate would
 /// defeat it.
-pub fn read_glb_posed(path: &Path, pose: &dyn Fn(&str) -> Vec3) -> Vec<GlbPrimitive> {
+pub fn read_glb_nodes(path: &Path) -> Vec<GlbNode> {
     let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("glb: read {path:?}: {e}"));
     let word =
         |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().expect("glb header word"));
@@ -187,7 +230,7 @@ pub fn read_glb_posed(path: &Path, pose: &dyn Fn(&str) -> Vec3) -> Vec<GlbPrimit
     };
 
     let scene = doc["scene"].as_u64().unwrap_or(0) as usize;
-    let mut primitives = Vec::new();
+    let mut nodes = Vec::new();
     for node in doc["scenes"][scene]["nodes"]
         .as_array()
         .expect("glb scene nodes")
@@ -204,8 +247,8 @@ pub fn read_glb_posed(path: &Path, pose: &dyn Fn(&str) -> Vec3) -> Vec<GlbPrimit
             node_floats(node, "translation", 3).map_or(Vec3::ZERO, |t| Vec3::new(t[0], t[1], t[2]));
         let rotation = node_floats(node, "rotation", 4)
             .map_or(Quat::IDENTITY, |r| Quat::from_xyzw(r[0], r[1], r[2], r[3]));
-        let translation = translation + rotation * node["name"].as_str().map_or(Vec3::ZERO, pose);
 
+        let mut primitives = Vec::new();
         for primitive in doc["meshes"][mesh as usize]["primitives"]
             .as_array()
             .expect("glb primitives")
@@ -217,22 +260,19 @@ pub fn read_glb_posed(path: &Path, pose: &dyn Fn(&str) -> Vec3) -> Vec<GlbPrimit
                 .map(|values| std::array::from_fn(|i| values[i].as_f64().unwrap_or(1.0) as f32))
                 .unwrap_or([1.0; 4]);
             primitives.push(GlbPrimitive {
-                // The node transform is baked in: a caller spawns one flat
-                // mesh per primitive and never learns which node it came off.
-                positions: floats3(primitive["attributes"]["POSITION"].as_u64().expect("pos"))
-                    .into_iter()
-                    .map(|p| (rotation * Vec3::from_array(p) + translation).to_array())
-                    .collect(),
-                normals: floats3(primitive["attributes"]["NORMAL"].as_u64().expect("nrm"))
-                    .into_iter()
-                    .map(|n| (rotation * Vec3::from_array(n)).to_array())
-                    .collect(),
+                positions: floats3(primitive["attributes"]["POSITION"].as_u64().expect("pos")),
+                normals: floats3(primitive["attributes"]["NORMAL"].as_u64().expect("nrm")),
                 indices: index_buffer(primitive["indices"].as_u64().expect("idx")),
                 colour,
                 metallic: factor(material, "metallicFactor", 1.0),
                 roughness: factor(material, "roughnessFactor", 1.0),
             });
         }
+        nodes.push(GlbNode {
+            name: node["name"].as_str().map(str::to_owned),
+            rest: Transform::from_translation(translation).with_rotation(rotation),
+            primitives,
+        });
     }
-    primitives
+    nodes
 }
