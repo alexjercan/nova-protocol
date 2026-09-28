@@ -1,6 +1,6 @@
 # Debounce the binary chase-camera burn push
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: camera, flight, bug
 
@@ -17,4 +17,8 @@
 
 ## Delivery gate
 - In the isolated Sprout, reproduce a pulsed-burn before trace/test, show exact owning paths/types/signatures, before/after call graph and failure proof. Present timing/criterion options and a recommended default for review. Wait for approval before adding a type, function, test, or changing behavior.
-- Then implement approved design, run focused ship camera tests and rendered autopilot/Space comparisons, inspect frames and traces, update invalidated docs/changelog, commit explicit paths, and open a small PR against master. No merge.
+- Then implement approved design, run focused ship camera tests and rendered autopilot/Space comparisons, inspect frames and traces, update invalidated docs/changelog, commit explicit paths, and open a small PR against master. No merge until owner approval.
+
+## Delivery
+- PR #84 was squash-merged into `master` as `cae1c70ad` on 2026-09-28 after owner approval. All seven PR CI checks passed. The shipped push starts easing on the first commanded tick and holds through short quiet gaps before the delayed return.
+- Rendered skiff comparisons passed. Carrier rendering of the final asymmetric behavior and a real autopilot-flight render were not completed; those remain verification limits, not open delivery gates.
