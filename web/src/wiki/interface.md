@@ -206,7 +206,7 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      applied by crates/nova_interface/src/inventory/app.rs
      `apply_inventory_transfer_commands`. -->
 
-The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` In the open world your ship starts with 12 hull plates, with a Derelict Tender carrying 8 more moored off your starboard collar, close enough to [dock](../sections/docking/) without moving. Other ships start as their scenario authors them. A [repair](#the-ship) spends hull plates. Nothing is saved: spent and moved items return to their starting counts when the scenario loads again.
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` In the open world your ship starts with 12 hull plates, with a Derelict Tender carrying 8 more moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them. A [repair](#the-ship) spends hull plates. Nothing is saved: spent and moved items return to their starting counts when the scenario loads again.
 
 | Filter | Shows |
 | --- | --- |

@@ -42,8 +42,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New Game opens a world setup modal with a seed field. Create flies a line
   warship into an open world generated from the seed and streamed around it.
   Retry keeps the seed.
-- The open-world warship starts with 12 hull plates beside a lootable Derelict
-  Tender carrying 8, ready to dock. Stock resets when the scenario loads.
+- The open-world warship starts with 12 hull plates and a lootable Derelict
+  Tender carrying 8, moored 140 m ahead of its port collar. Stock resets when
+  the scenario loads.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.

@@ -1,7 +1,7 @@
 //! The open world's bootstrap: what New Game loads before the world streams.
 //!
 //! The scenario spawns the player's line warship, a lootable derelict tender
-//! moored off its starboard collar, and the lights. It declares
+//! moored ahead of its port collar, and the lights. It declares
 //! [`ScenarioRole::OpenWorld`], so the Scenarios picker renders no row for it.
 //! `nova_world_base` sees the role and the one player ship and streams the
 //! seeded sectors in around it. There is no objective and no outcome: the
@@ -39,13 +39,24 @@ const DERELICT_ID: &str = "derelict_tender";
 /// What the derelict is called.
 const DERELICT_NAME: &str = "Derelict Tender";
 
-/// Where the derelict stands. The warship's starboard collar is cell (2, 0, 0)
-/// facing +X, its face at (25, 0, 0) m; the tender's port collar is cell
-/// (-2, 0, -3) facing -X, its face at (-25, 0, -30) m in its own frame. Here the
-/// two faces stand square, 5 m apart, inside the 10 m docking gap. Per seed,
-/// the origin cell places no generated body within reach of the tender that
-/// does not already reach the warship; any wider standoff loses that.
-const DERELICT_POSITION: Meters3 = Meters3::new(55.0, 0.0, 30.0);
+/// Where the derelict stands. The warship's port collar is cell (-2, 0, 0)
+/// facing -X, its face at (-25, 0, 0) m; the tender's port collar is cell
+/// (-2, 0, -3) facing -X in its own frame, turned by [`DERELICT_ROTATION`] to
+/// face +X at (-30, 0, -140) m. The player flies 140 m ahead and stops with the
+/// two faces square, 5 m apart, inside the 10 m docking gap.
+///
+/// The warship turns about its centre of mass, 8.5 m aft of its origin. No
+/// part of its hull reaches past 114 m from that centre, and no part of the
+/// tender comes within 138 m of it, so turning in place at spawn cannot strike
+/// the tender. Across world seeds 0 to 39,999, 20,260,922 and 20,260,923, the
+/// origin cell places no generated body within reach of the tender that does
+/// not already reach the warship. Each measured starboard pose clear of the
+/// turn let a generated body reach the tender alone for some seed.
+const DERELICT_POSITION: Meters3 = Meters3::new(-55.0, 0.0, -170.0);
+
+/// The derelict turned 180 degrees about Y, so its port collar faces the
+/// warship's port collar line.
+const DERELICT_ROTATION: Quat = Quat::from_xyzw(0.0, 1.0, 0.0, 0.0);
 
 /// The open-world bootstrap scenario.
 pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
@@ -101,7 +112,7 @@ fn derelict() -> ScenarioObjectConfig {
             id: DERELICT_ID.to_string(),
             name: DERELICT_NAME.to_string(),
             position: DERELICT_POSITION,
-            rotation: Quat::IDENTITY,
+            rotation: DERELICT_ROTATION,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             allegiance: Some(Allegiance::Neutral),
