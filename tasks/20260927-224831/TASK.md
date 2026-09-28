@@ -1,6 +1,6 @@
 # Replace RCS speed cap with recoverable duty budget and HUD gauge
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.15.0, flight, rcs
 
