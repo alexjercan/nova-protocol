@@ -25,6 +25,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The mouse wheel zooms the chase camera in normal flight and free look. With
   weapons raised it steps the component lock. Keys ] and [ step it in any
   stance.
+- The chase camera eases back a fixed share of its distance from the first
+  tick of a main-drive burn, holds through gaps under half a second and then
+  eases home. A tap leans it only slightly.
 
 ### Ships & Sections
 

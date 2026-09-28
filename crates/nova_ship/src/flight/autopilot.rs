@@ -25,7 +25,10 @@ use super::{
         BalanceEngine,
     },
 };
-use crate::{prelude::*, sections::thruster_section::engine_direction};
+use crate::{
+    prelude::*,
+    sections::thruster_section::{engine_direction, engine_direction_local},
+};
 
 /// Fraction of `rcs_accel` the local gravity accel must stay under for the
 /// autopilot to hand a goal to the RCS - the ORBIT trim or the STOP settle.
@@ -98,7 +101,9 @@ pub(super) fn autopilot_system(
             // plans on the pair's mass, centre of mass, velocity and reach.
             // A suppressed partner's maneuver is frozen, not released.
             (Option<&DockedShip>, Option<&DockedAssembly>),
-            Has<PlayerSpaceshipMarker>,
+            // The camera's burn command: cleared every tick, set from this
+            // tick's forward allocation.
+            (Has<PlayerSpaceshipMarker>, Option<&mut MainDriveCommanded>),
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -185,9 +190,12 @@ pub(super) fn autopilot_system(
         rcs_intent,
         rcs_reference,
         (docked, assembly),
-        is_player,
+        (is_player, mut commanded),
     ) in &mut q_ship
     {
+        if let Some(commanded) = commanded.as_deref_mut() {
+            commanded.0 = false;
+        }
         match (docked, assembly) {
             (Some(docked), _) if !docked.drives => continue,
             (Some(_), None) => {
@@ -1284,6 +1292,24 @@ pub(super) fn autopilot_system(
             _ if burning => AutopilotPhase::Burn,
             _ => AutopilotPhase::Align,
         };
+
+        // A main-drive burn needs a firing forward engine: `primary` alone
+        // also marks a retro brake's set, and forward alone also marks a main
+        // drive recruited for counter-torque.
+        if let Some(commanded) = commanded.as_deref_mut() {
+            commanded.0 =
+                allocation
+                    .iter()
+                    .zip(&throttles)
+                    .any(|(&(thruster, engine), &throttle)| {
+                        engine.primary
+                            && throttle > 0.0
+                            && q_thruster.get(thruster).is_ok_and(|(.., transform, _)| {
+                                engine_direction_local(transform)
+                                    .is_some_and(|dir| is_forward_aligned(dir, Vec3::NEG_Z))
+                            })
+                    });
+        }
 
         // Spool every engine toward its allocated throttle (zero for engines
         // the allocation left dark, and for everything while settling).

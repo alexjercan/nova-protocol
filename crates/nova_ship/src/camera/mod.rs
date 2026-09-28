@@ -19,7 +19,10 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_input::prelude::*;
 
-use crate::input::bindings::camera_bindings;
+use crate::{
+    flight::{MainDriveCommanded, NovaFlightSystems},
+    input::bindings::camera_bindings,
+};
 
 mod authority;
 pub mod chase;
@@ -46,7 +49,7 @@ pub use self::{
     zoom::ChaseZoom,
 };
 use self::{
-    framing::{update_camera_rig, update_chase_camera_input},
+    framing::{update_burn_push, update_camera_rig, update_chase_camera_input, BurnPush},
     handback::on_autopilot_disengaged,
     mode::{
         derive_control_mode_and_raised, on_rotation_input, on_rotation_input_completed,
@@ -91,6 +94,9 @@ impl Plugin for SpaceshipCameraControllerPlugin {
 
         app.init_resource::<SpaceshipCameraControlMode>();
         app.init_resource::<ChaseZoom>();
+        // Before any hull spawns: every commanded hull carries its own push
+        // state, so a respawn starts disengaged.
+        app.register_required_components::<MainDriveCommanded, BurnPush>();
         app.add_input_context::<PlayerInputMarker>();
 
         app.add_observer(insert_camera_controller);
@@ -109,6 +115,10 @@ impl Plugin for SpaceshipCameraControllerPlugin {
         app.add_observer(on_rotation_input_completed);
 
         app.register_type::<WeaponsRaised>();
+
+        // On the command's own clock, after the flight layer writes it this
+        // tick, so the debounce counts fixed ticks and pauses with the world.
+        app.add_systems(FixedUpdate, update_burn_push.after(NovaFlightSystems));
 
         app.add_systems(
             Update,

@@ -250,6 +250,63 @@ fn autopilot_burn_recruits_a_lateral_on_a_shifted_hull() {
     );
 }
 
+/// Regression: a retro brake that recruits the forward main drive for
+/// counter-torque is not a main-drive burn. On the damage-shifted hull an
+/// on-axis retro torques about the offset COM, and the main drive is the
+/// only engine that opposes it, so the allocation lights it with the retro.
+/// The chase camera reads [`MainDriveCommanded`], so the recruit must not
+/// set it.
+#[test]
+fn autopilot_retro_brake_recruiting_the_main_drive_is_not_a_main_drive_burn() {
+    let mut app = flight_app();
+    let (ship, _) = spawn_damage_shifted_single_drive(&mut app, false);
+    let retro = spawn_extra_thruster(
+        &mut app,
+        ship,
+        2.0,
+        Quat::from_rotation_y(std::f32::consts::PI),
+    );
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(MainDriveCommanded::default());
+    disable_rcs(&mut app, ship);
+    settle(&mut app);
+    let main_drive = app
+        .world_mut()
+        .query::<(Entity, &Name, &ChildOf)>()
+        .iter(app.world())
+        .find(|(_, name, &ChildOf(parent))| parent == ship && name.as_str() == "main drive")
+        .map(|(entity, ..)| entity)
+        .unwrap();
+    // Moving forward (-Z): STOP's velocity error points +Z, straight along
+    // the retro, so the brake starts without a flip.
+    app.world_mut().get_mut::<LinearVelocity>(ship).unwrap().0 = Vec3::new(0.0, 0.0, -20.0);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Stop));
+    let (mut retro_peak, mut main_peak, mut commanded_ticks) = (0.0f32, 0.0f32, 0);
+    let mut frames = 0;
+    while app.world().get::<Autopilot>(ship).is_some() && frames < 1500 {
+        app.update();
+        frames += 1;
+        retro_peak = retro_peak.max(**app.world().get::<ThrusterSectionInput>(retro).unwrap());
+        main_peak = main_peak.max(**app.world().get::<ThrusterSectionInput>(main_drive).unwrap());
+        commanded_ticks += usize::from(**app.world().get::<MainDriveCommanded>(ship).unwrap());
+    }
+    assert!(
+        retro_peak > 0.2,
+        "the retro must carry the brake (peak input {retro_peak})"
+    );
+    assert!(
+        main_peak > 0.05,
+        "the main drive must be recruited for counter-torque (peak input {main_peak})"
+    );
+    assert_eq!(
+        commanded_ticks, 0,
+        "a recruited main drive must not command a main-drive burn"
+    );
+}
+
 /// Regression: the shipped 5-section player geometry (all sections on the z
 /// axis, unit masses, single rear drive at z = +2, PD at the shipped 4/4/40)
 /// holding the reverse direction from 300 u/s - the exact "wobbles when
