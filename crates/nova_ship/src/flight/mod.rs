@@ -84,6 +84,7 @@ pub(crate) use self::{
     },
     guidance::{arrival_speed_limit, flip_lead, ship_turn_rate, slew_rotation},
     manual::accumulate_rcs_axis,
+    thrusters::spool,
     well_target::{LiveWells, WellTargetFault},
 };
 
