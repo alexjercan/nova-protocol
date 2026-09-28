@@ -23,6 +23,7 @@
 - Autopilot: STOP/GOTO settle hands to RCS when `|v| < rcs_handoff_speed` (100 m/s); ORBIT and velocity-hold trim use the velocity error. Both need delta-v in the magazine, else the main drive keeps the goal.
 - HUD: ten violet pips 24 px under the speed chip, one per tenth left; spent pips dim. Shown while commanded, pushing, or not full; hidden when full and idle.
 - Audio: the RCS hiss follows `RcsBudget::applied` (delivered thrust), not the command.
+- Opposed engines (autopilot): an engine opposing the burn is never recruited for counter-torque; it stays in the allocation, dark. A rising engine waits while an opposed non-primary engine winds down above 0.005 input.
 
 ## Delivery
 
@@ -34,6 +35,7 @@
 
 - Before: `proof/rcs-repro-before.txt` (disposable test at fb744c880, removed).
 - Unit: `cargo test -p nova_ship --lib -- flight:: docking ship_audio` 236 passed; `cargo test -p nova_hud --lib` 294 passed; `cargo check --workspace` clean; web `widgets.test.ts` ran; Prettier clean on changed web files.
+- CI host variance at 6595cabbf: `proof/ci-variance/`. After the opposed-engine fix, `nova_ship` lib 1049/1049 on nix (glibc 2.42) and Ubuntu 24.04 (glibc 2.39), same binary; the one-cluster burn test passes 32/32 offsets, worst 7.4% (bound 15%).
 - Rendered fixture (lavapipe, disposable): tender at 100 m/s matched a 250 m/s target on RCS alone (252.5 m/s, 49% left); pips drained, refilled after the delay, and hid when full. Frames inspected.
 
 ## Limitations

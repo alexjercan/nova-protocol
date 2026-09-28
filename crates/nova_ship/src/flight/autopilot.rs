@@ -59,9 +59,10 @@ const RCS_RELEASE_DEFLECTION: f32 = 0.05;
 /// Off-center engine torque is balanced at the source by the wrench allocation
 /// ([`balance_throttles`], using each engine's lever arm about the live COM):
 /// differential throttle within the firing set when it has headroom,
-/// recruiting off-axis engines (laterals, retros) for pure counter-torque when
-/// it does not - at the price of a bounded sideways drift the arrival control
-/// corrects. The PD holds whatever residual the allocation cannot null.
+/// recruiting off-axis engines (laterals, retros), never one opposing the burn,
+/// for pure counter-torque when it does not - at the price of a bounded
+/// sideways drift the arrival control corrects. The PD holds whatever residual
+/// the allocation cannot null.
 pub(super) fn autopilot_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
@@ -851,9 +852,10 @@ pub(super) fn autopilot_system(
         // *primary* set (lit engines keep a slightly looser gate - hysteresis
         // via their own spooled input - so the plume does not flicker at the
         // boundary): they define the deliverable authority and receive the
-        // demand. Everything else - laterals, retros - is a counter-torque
-        // candidate the balancer may recruit when the primary set cannot
-        // balance itself (the single damage-shifted main drive).
+        // demand. Everything else - laterals, retros - except an engine
+        // opposing the burn is a counter-torque candidate the balancer may
+        // recruit when the primary set cannot balance itself (the single
+        // damage-shifted main drive).
         let mut firing_authority = 0.0f32;
         let mut allocation: Vec<(Entity, BalanceEngine)> = Vec::new();
         // Per allocation entry: world thrust direction, primary flag and
@@ -885,7 +887,16 @@ pub(super) fn autopilot_system(
                 // applies by construction, never through a render-clock
                 // GlobalTransform.
                 let pos_world = position.0 + rotation.mul_vec3(transform.translation);
-                let torque = (pos_world - com_world).cross(dir * **magnitude);
+                // An engine opposing the burn is never a recruit: its
+                // counter-torque would cancel the thrust the burn pays for.
+                // It stays in the allocation, dark, so it still spools down
+                // and holds the burn through its tail.
+                let opposed = !primary && aligned <= -settings.align_cos;
+                let torque = if opposed {
+                    Vec3::ZERO
+                } else {
+                    (pos_world - com_world).cross(dir * **magnitude)
+                };
                 // A recruit's whole thrust vector is off-plan force (see
                 // BalanceEngine); a primary engine contributes its aligned
                 // share to the demand and only the perpendicular rest to the
@@ -895,6 +906,8 @@ pub(super) fn autopilot_system(
                         **magnitude * aligned,
                         (dir - aligned * error_dir) * **magnitude,
                     )
+                } else if opposed {
+                    (0.0, Vec3::ZERO)
                 } else {
                     (0.0, dir * **magnitude)
                 };
@@ -1229,7 +1242,7 @@ pub(super) fn autopilot_system(
             };
             let coeffs: Vec<BalanceEngine> = allocation.iter().map(|(_, e)| *e).collect();
             throttles = balance_throttles(&coeffs, demand);
-            // A retro lit while the main still winds down (or the reverse)
+            // A retro raised while the main still winds down (or the reverse)
             // burns against the tail; hold every engine until it is dark.
             if hold_for_opposed_wind_down(&engine_dirs, &spooled, &throttles, settings.align_cos) {
                 throttles.fill(0.0);

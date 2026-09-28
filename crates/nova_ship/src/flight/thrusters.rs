@@ -33,7 +33,7 @@ const LATERAL_PENALTY: f32 = 0.05;
 
 /// Spooled input at or below which an engine counts as dark for
 /// [`hold_for_opposed_wind_down`].
-const OPPOSED_WIND_DOWN: f32 = 0.01;
+const OPPOSED_WIND_DOWN: f32 = 0.005;
 
 /// A cluster of live engines that push the ship in (roughly) the same world
 /// direction, with their summed per-tick authority. The planner's unit of
@@ -271,15 +271,16 @@ fn project_onto_demand(u: &mut [f32], engines: &[BalanceEngine], demand: f32) {
     }
 }
 
-/// Whether this tick's allocation must wait: it lights a dark engine (spooled
-/// at or below [`OPPOSED_WIND_DOWN`]) while an opposed non-primary engine
-/// (thrust directions within `align_cos` of opposite) is still winding down
-/// from above it. The dark engine would spool up through the other's tail and
-/// the ship would pay for thrust it cancels. A primary engine never blocks, so
-/// a recruit cannot cut the burn it balances. A recruit ramping up with the
-/// burn never blocks either: with a larger throttle it crosses the cutoff
-/// first on every retry, and a small burn would never light. `engines` holds
-/// each engine's world thrust direction and primary flag; `spooled` and
+/// Whether this tick's allocation must wait: it raises an engine above its
+/// spooled input while an opposed non-primary engine (thrust directions within
+/// `align_cos` of opposite) is still winding down from above
+/// [`OPPOSED_WIND_DOWN`]. The rising engine would spool up through the other's
+/// tail and the ship would pay for thrust it cancels. A primary engine never
+/// blocks, so a recruit cannot cut the burn it balances. A recruit ramping up
+/// with the burn never blocks either: only a falling engine is a tail. The
+/// autopilot never recruits an engine opposing its burn, so once the old tails
+/// are dark no new one appears and the hold cannot chop the burn. `engines`
+/// holds each engine's world thrust direction and primary flag; `spooled` and
 /// `throttles` are the current and allocated inputs, all in allocation order.
 /// Pure for unit testing.
 pub(super) fn hold_for_opposed_wind_down(
@@ -290,8 +291,7 @@ pub(super) fn hold_for_opposed_wind_down(
 ) -> bool {
     engines.iter().zip(spooled).zip(throttles).any(
         |((&(lit_dir, _), &lit_spooled), &lit_throttle)| {
-            lit_throttle > 0.0
-                && lit_spooled <= OPPOSED_WIND_DOWN
+            lit_throttle > lit_spooled
                 && engines.iter().zip(spooled).zip(throttles).any(
                     |((&(dir, primary), &input), &throttle)| {
                         !primary
@@ -422,7 +422,7 @@ mod tests {
     #[test]
     fn a_recruit_ramping_up_with_a_small_burn_does_not_hold_it() {
         // Main and an opposed counter-torque recruit light together from dark;
-        // the recruit's larger throttle crosses the cutoff first.
+        // the rising recruit is not a tail.
         let engines = [(Vec3::NEG_Z, true), (Vec3::Z, false)];
         let throttles = [0.05, 0.1];
         assert!(!hold_for_opposed_wind_down(
@@ -600,6 +600,85 @@ mod tests {
         assert!(
             torque.length() > 0.45,
             "a useless lever must not be trusted with the torque: {u:?}"
+        );
+    }
+
+    /// A main drive off the COM burning along +Z (torque -1 per unit about Y)
+    /// and a retro whose lever arm counters it (+1 per unit), with the retro's
+    /// coefficients as given.
+    fn shifted_main_and_retro(retro: BalanceEngine) -> [BalanceEngine; 2] {
+        [main_engine(1.0, Vec3::new(0.0, -1.0, 0.0)), retro]
+    }
+
+    #[test]
+    fn a_retro_in_the_balance_cancels_half_the_burn_it_counter_torques() {
+        // The danger the autopilot keeps out of the allocation: with its real
+        // coefficients the retro is the best counter-torque lever, so the
+        // allocator runs it at 0.5 / (1 + LATERAL_PENALTY) = 0.476 against a
+        // main at 0.5.
+        let recruited = shifted_main_and_retro(BalanceEngine {
+            forward: 0.0,
+            lateral: Vec3::NEG_Z,
+            torque: Vec3::new(0.0, 1.0, 0.0),
+            primary: false,
+        });
+        let u = balance_throttles(&recruited, 0.5);
+        assert!((u[1] - 0.476).abs() < 1e-2, "{u:?}");
+        // The autopilot enters an engine opposing the burn with no torque and
+        // no lateral; with those coefficients the retro stays dark.
+        let excluded = shifted_main_and_retro(lateral_engine(Vec3::ZERO, Vec3::ZERO));
+        let u = balance_throttles(&excluded, 0.5);
+        assert!((u[0] - 0.5).abs() < 1e-3 && u[1] == 0.0, "{u:?}");
+    }
+
+    #[test]
+    fn a_burn_waits_for_an_opposed_tail_then_ramps_without_a_chop() {
+        // The allocate-hold-spool loop of the autopilot with the retro left out
+        // of the balance. The main is barely lit (above the dark cutoff) while
+        // the retro still winds down from a brake: the main must not rise
+        // through the tail, and once the tail is dark the burn must ramp to
+        // full without another hold.
+        let settings = FlightSettings::default();
+        let dt = 1.0 / 60.0;
+        let engines = shifted_main_and_retro(lateral_engine(Vec3::ZERO, Vec3::ZERO));
+        let dirs = [(Vec3::Z, true), (Vec3::NEG_Z, false)];
+        let mut spooled = [0.02, 0.8];
+        let mut released = None;
+        for tick in 0..240 {
+            let mut u = balance_throttles(&engines, 1.0);
+            assert_eq!(u[1], 0.0, "tick {tick}: the retro was recruited");
+            let hold = hold_for_opposed_wind_down(&dirs, &spooled, &u, settings.align_cos);
+            if hold {
+                assert!(
+                    released.is_none(),
+                    "tick {tick}: the burn was chopped after it lit"
+                );
+                u.fill(0.0);
+            } else {
+                assert!(
+                    spooled[1] <= OPPOSED_WIND_DOWN,
+                    "tick {tick}: the main rose through a retro tail at {}",
+                    spooled[1]
+                );
+                released.get_or_insert(tick);
+            }
+            for (input, &target) in spooled.iter_mut().zip(&u) {
+                *input = spool(
+                    *input,
+                    target,
+                    settings.spool_up_rate,
+                    settings.spool_down_rate,
+                    dt,
+                );
+            }
+        }
+        assert!(
+            released.is_some_and(|tick| tick > 0),
+            "the lit main must wait for the tail: {released:?}"
+        );
+        assert!(
+            spooled[0] > 0.99,
+            "the burn never reached full: {spooled:?}"
         );
     }
 
