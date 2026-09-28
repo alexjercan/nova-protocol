@@ -1,0 +1,7 @@
+sprout rcs-cooldown @ fb744c880, cargo test -p nova_ship --lib zz_repro (disposable test, removed)
+REPRO A: 300 m/s hull, 1 s forward RCS: 300.0 -> 300.0 m/s (gain 0.00 m/s, uncapped would be 49.1)
+REPRO B: t=1s speed 52.1 m/s (target 150 m/s)
+REPRO B: t=2s speed 94.2 m/s (target 150 m/s)
+REPRO B: t=3s speed 99.6 m/s (target 150 m/s)
+REPRO B: t=4s speed 100.0 m/s (target 150 m/s)
+REPRO B: t=5s speed 100.0 m/s (target 150 m/s)
