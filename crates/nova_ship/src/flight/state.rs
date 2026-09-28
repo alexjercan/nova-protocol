@@ -44,9 +44,11 @@ pub struct FlightIntent {
 ///
 /// A command, not a plume: manual flight sets it when the allocator gives a
 /// forward-aligned engine throttle or a bound forward thruster is held, the
-/// autopilot when its allocation does. Spool-down, gravity and RCS never set
-/// it. Both writers clear it first on every tick they own the ship, so a tick
-/// that skips the burn never keeps the previous command. The chase camera
+/// autopilot when its allocation throttles a forward-aligned engine in the
+/// burn's firing set. A retro brake, a lateral trim and a forward engine
+/// recruited only for counter-torque never set it; nor do spool-down, gravity
+/// and RCS. Both writers clear it first on every tick they own the ship, so a
+/// tick that skips the burn never keeps the previous command. The chase camera
 /// debounces it into the burn push.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, Reflect)]
 #[reflect(Component)]

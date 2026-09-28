@@ -25,9 +25,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The mouse wheel zooms the chase camera in normal flight and free look. With
   weapons raised it steps the component lock. Keys ] and [ step it in any
   stance.
-- The chase camera leans back a fixed distance after half a second of
-  main-drive burn and returns after half a second off. Taps, brake pulses and
-  orbit trims no longer flicker it.
+- The chase camera leans back a fixed share of its distance after half a
+  second of main-drive burn and returns after half a second off. Taps, brake
+  pulses and orbit trims no longer flicker it.
 
 ### Ships & Sections
 

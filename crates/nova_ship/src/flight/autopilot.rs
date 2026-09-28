@@ -1293,19 +1293,22 @@ pub(super) fn autopilot_system(
             _ => AutopilotPhase::Align,
         };
 
-        // Forward means the hull's own main drive, not the chosen burn group:
-        // a retro brake or a lateral trim is not a main-drive burn.
+        // A main-drive burn needs a firing forward engine: `primary` alone
+        // also marks a retro brake's set, and forward alone also marks a main
+        // drive recruited for counter-torque.
         if let Some(commanded) = commanded.as_deref_mut() {
-            commanded.0 = allocation
-                .iter()
-                .zip(&throttles)
-                .any(|(&(thruster, _), &throttle)| {
-                    throttle > 0.0
-                        && q_thruster.get(thruster).is_ok_and(|(.., transform, _)| {
-                            engine_direction_local(transform)
-                                .is_some_and(|dir| is_forward_aligned(dir, Vec3::NEG_Z))
-                        })
-                });
+            commanded.0 =
+                allocation
+                    .iter()
+                    .zip(&throttles)
+                    .any(|(&(thruster, engine), &throttle)| {
+                        engine.primary
+                            && throttle > 0.0
+                            && q_thruster.get(thruster).is_ok_and(|(.., transform, _)| {
+                                engine_direction_local(transform)
+                                    .is_some_and(|dir| is_forward_aligned(dir, Vec3::NEG_Z))
+                            })
+                    });
         }
 
         // Spool every engine toward its allocated throttle (zero for engines
