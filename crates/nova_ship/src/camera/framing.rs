@@ -130,53 +130,60 @@ pub const CAMERA_HULL_CLEARANCE: Meters = Meters(5.0);
 /// not scale it, so a modulated brake cannot breathe the zoom.
 const BURN_PUSH_RIG_FRACTION: f32 = 0.15;
 
-/// How long the forward main-drive command must hold without a break to engage
-/// the burn push, and stay quiet without a break to release it, seconds of
-/// fixed (virtual) time. A Space tap and the autopilot's brake pulses and orbit
-/// micro-burns end inside it; a sustained burn outlasts it.
+/// How long the forward main-drive command must stay quiet without a break to
+/// release the burn push, seconds of fixed (virtual) time. Engaging needs no
+/// hold. The gaps between the autopilot's brake pulses and orbit micro-burns
+/// end inside it, so the camera does not ease home and back out between them.
 const BURN_PUSH_DEBOUNCE_SECONDS: f32 = 0.5;
 
 /// The chase camera's burn push, on the player ship root: whether the camera
-/// leans back, how long [`MainDriveCommanded`] has disagreed with that without
-/// a break, and how far the lean has eased toward it.
+/// leans back, how long [`MainDriveCommanded`] has been quiet without a break
+/// while engaged, and how far the lean has eased out.
 ///
 /// Stepped in `FixedUpdate` by [`update_burn_push`], on the same clock as the
 /// command, so pause freezes it and the render rate cannot change the timing.
 /// Required by [`MainDriveCommanded`], so a respawned hull starts disengaged.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub(super) struct BurnPush {
-    /// The camera eases toward a lean of [`BURN_PUSH_RIG_FRACTION`] of the
-    /// rig.
+    /// The camera holds its lean instead of easing home. Set on the first
+    /// commanded tick, cleared after [`BURN_PUSH_DEBOUNCE_SECONDS`] of quiet.
     engaged: bool,
-    /// Contiguous seconds the command has disagreed with `engaged`.
+    /// Contiguous seconds the command has been quiet while `engaged`.
     disagreeing: f32,
-    /// The share of the lean applied, 0 to 1. Spools toward `engaged` at the
-    /// thruster spool rates, so a flip of `engaged` moves the camera target
-    /// continuously instead of a whole rig fraction in one tick.
+    /// The share of the [`BURN_PUSH_RIG_FRACTION`] lean applied, 0 to 1.
+    /// Spools out on commanded ticks and home after the release at the
+    /// thruster spool rates, so the camera target never moves a whole rig
+    /// fraction in one tick.
     extension: f32,
 }
 
 impl BurnPush {
     /// One fixed tick of `dt` seconds with the forward drive `commanded` or
-    /// not, spooling the extension at `up_rate` and `down_rate` (1/s). Any
-    /// tick that agrees with the current state restarts the count.
+    /// not, spooling the extension at `up_rate` and `down_rate` (1/s).
     ///
-    /// Flips on the tick nearest the debounce: half a tick of slack, so an
+    /// A commanded tick engages and eases the extension out on that tick. A
+    /// quiet tick while engaged holds the extension, so a tap leans only as
+    /// far as its lit ticks took it and a gap never eases it back in. Releases
+    /// on the quiet tick nearest the debounce: half a tick of slack, so an
     /// `f32` sum of `dt` that lands a hair short of it (fifteen 1/30 s ticks)
-    /// cannot add a tick at any fixed rate. The extension spools toward the
-    /// state after the flip, so it starts moving on the flip tick.
+    /// cannot add a tick at any fixed rate. The extension eases home from the
+    /// release tick.
     fn step(self, commanded: bool, dt: f32, up_rate: f32, down_rate: f32) -> Self {
-        let (engaged, disagreeing) = if commanded == self.engaged {
-            (self.engaged, 0.0)
+        let (engaged, disagreeing) = if commanded || !self.engaged {
+            (commanded, 0.0)
         } else {
             let disagreeing = self.disagreeing + dt;
             if disagreeing + 0.5 * dt >= BURN_PUSH_DEBOUNCE_SECONDS {
-                (commanded, 0.0)
+                (false, 0.0)
             } else {
-                (self.engaged, disagreeing)
+                (true, disagreeing)
             }
         };
-        let target = if engaged { 1.0 } else { 0.0 };
+        let target = match (commanded, engaged) {
+            (true, _) => 1.0,
+            (false, true) => self.extension,
+            (false, false) => 0.0,
+        };
         Self {
             engaged,
             disagreeing,
@@ -185,9 +192,10 @@ impl BurnPush {
     }
 }
 
-/// Debounces the player's forward main-drive command into the camera's
-/// [`BurnPush`] and eases its extension at the [`FlightSettings`] spool rates,
-/// once per fixed tick after the flight layer writes the command.
+/// Steps the player's forward main-drive command into the camera's
+/// [`BurnPush`], which debounces the release, and eases its extension at the
+/// [`FlightSettings`] spool rates, once per fixed tick after the flight layer
+/// writes the command.
 ///
 /// The spool rates only pace the camera: the live thruster inputs, throttle and
 /// heat never reach it.
@@ -554,8 +562,11 @@ mod tests {
     const TICK: f32 = 1.0 / 64.0;
 
     /// Steps `push` through `commands`, one fixed tick each, and reports the
-    /// engaged state after every tick.
-    fn run_burn_push(mut push: BurnPush, commands: impl IntoIterator<Item = bool>) -> Vec<bool> {
+    /// push after every tick.
+    fn run_burn_push(
+        mut push: BurnPush,
+        commands: impl IntoIterator<Item = bool>,
+    ) -> Vec<BurnPush> {
         let settings = FlightSettings::default();
         commands
             .into_iter()
@@ -566,73 +577,74 @@ mod tests {
                     settings.spool_up_rate,
                     settings.spool_down_rate,
                 );
-                push.engaged
+                push
             })
             .collect()
     }
 
-    /// A Space tap shorter than the debounce never pushes the camera, during
-    /// the tap or after its release.
+    /// A one-tick Space tap engages at once and leans one spool step, then
+    /// holds that slight lean, neither growing nor easing home, until the
+    /// quiet debounce releases it.
     #[test]
-    fn a_short_main_drive_tap_never_engages_the_burn_push() {
-        let tap = std::iter::repeat_n(true, 31).chain(std::iter::repeat_n(false, 128));
-        assert!(!run_burn_push(BurnPush::default(), tap).contains(&true));
-    }
-
-    /// Autopilot brake pulses and orbit micro-burns break the command before it
-    /// has held for the debounce, so the camera never leans for them.
-    #[test]
-    fn pulsed_brakes_and_orbit_micro_burns_never_engage_the_burn_push() {
-        let pulse = |on: usize, off: usize, repeats: usize| {
-            (0..repeats)
-                .flat_map(move |_| {
-                    std::iter::repeat_n(true, on).chain(std::iter::repeat_n(false, off))
-                })
-                .collect::<Vec<_>>()
-        };
-        // A modulated brake: mostly lit, one cold tick every 30.
-        assert!(!run_burn_push(BurnPush::default(), pulse(29, 1, 20)).contains(&true));
-        // Station-keeping: a few lit ticks every second.
-        assert!(!run_burn_push(BurnPush::default(), pulse(3, 61, 20)).contains(&true));
-    }
-
-    /// A sustained command engages on the tick it has held for the debounce, a
-    /// gap shorter than the debounce keeps the push, and a quiet as long as the
-    /// debounce releases it.
-    #[test]
-    fn a_sustained_burn_engages_and_only_a_sustained_quiet_releases_it() {
+    fn a_one_tick_tap_leans_one_spool_step_and_holds_it_through_the_quiet() {
         let ticks = (BURN_PUSH_DEBOUNCE_SECONDS / TICK) as usize;
-        assert_eq!(ticks, 32, "the shipped rate counts 32 ticks");
+        let lean = 1.0 - (-FlightSettings::default().spool_up_rate * TICK).exp();
+        let tap = std::iter::once(true).chain(std::iter::repeat_n(false, ticks));
+        let pushes = run_burn_push(BurnPush::default(), tap);
 
-        let engaged = run_burn_push(BurnPush::default(), std::iter::repeat_n(true, ticks));
-        assert!(!engaged[..ticks - 1].contains(&true), "engaged early");
-        assert!(engaged[ticks - 1], "a held half second engages");
-
-        let lit = BurnPush {
-            engaged: true,
-            disagreeing: 0.0,
-            extension: 1.0,
-        };
-        let gap = std::iter::repeat_n(false, ticks - 1)
-            .chain(std::iter::once(true))
-            .chain(std::iter::repeat_n(false, ticks - 1));
+        assert!(pushes[0].engaged, "the tap did not engage");
+        assert!((pushes[0].extension - lean).abs() < 1e-6);
+        assert!(lean < 0.1, "a tap leaned {lean}, not slightly");
+        for (quiet, push) in pushes[1..ticks].iter().enumerate() {
+            assert!(push.engaged, "released after {} quiet ticks", quiet + 1);
+            assert_eq!(push.extension, pushes[0].extension, "moved while quiet");
+        }
+        assert!(!pushes[ticks].engaged, "a quiet half second kept the push");
         assert!(
-            !run_burn_push(lit, gap).contains(&false),
-            "a short gap released the push"
+            pushes[ticks].extension < pushes[0].extension,
+            "not easing home"
         );
-
-        let released = run_burn_push(lit, std::iter::repeat_n(false, ticks));
-        assert!(!released[..ticks - 1].contains(&false), "released early");
-        assert!(!released[ticks - 1], "a quiet half second releases");
     }
 
-    /// At every fixed rate the debounce flips on the tick that completes half
-    /// a second, and the camera never jumps: from the engage tick the
-    /// extension rises as `1 - e^(-up_rate t)`, from the release tick it falls
-    /// as `e^(-down_rate t)`, and no tick moves it by more than one spool step.
-    /// The ship has no thruster, so throttle and heat cannot pace it.
+    /// Autopilot brake pulses and orbit micro-burns inside the debounce keep
+    /// the push engaged. The lean grows only on lit ticks, by the spool curve
+    /// of the lit time alone, and never eases back in across a gap.
     #[test]
-    fn the_burn_push_flips_on_the_debounce_tick_and_eases_at_any_fixed_rate() {
+    fn pulsed_burns_lean_out_only_on_lit_ticks_and_never_ease_in_across_gaps() {
+        let settings = FlightSettings::default();
+        for (on, off) in [(29, 1), (3, 20)] {
+            let pulses = (0..8)
+                .flat_map(|_| std::iter::repeat_n(true, on).chain(std::iter::repeat_n(false, off)))
+                .collect::<Vec<_>>();
+            let pushes = run_burn_push(BurnPush::default(), pulses.iter().copied());
+            let mut lit = 0;
+            let mut previous = 0.0;
+            for (tick, (commanded, push)) in pulses.iter().zip(&pushes).enumerate() {
+                assert!(push.engaged, "{on}/{off} released at {tick}");
+                lit += usize::from(*commanded);
+                let expected = 1.0 - (-settings.spool_up_rate * lit as f32 * TICK).exp();
+                assert!(
+                    (push.extension - expected).abs() < 1e-4,
+                    "{on}/{off} tick {tick}: extension {} != {expected}",
+                    push.extension
+                );
+                if !commanded {
+                    assert_eq!(push.extension, previous, "{on}/{off} moved in a gap");
+                }
+                previous = push.extension;
+            }
+        }
+    }
+
+    /// At every fixed rate the push engages and starts easing out on the first
+    /// commanded tick, releases on the quiet tick that completes half a second
+    /// (15, 32 and 60 ticks at 30, 64 and 120 Hz), and never jumps: the
+    /// extension rises as `1 - e^(-up_rate t)` from the first commanded tick,
+    /// holds through the quiet, and falls as `e^(-down_rate t)` from the
+    /// release tick. The ship has no thruster, so throttle and heat cannot
+    /// pace it.
+    #[test]
+    fn the_burn_push_eases_out_at_once_and_releases_on_the_debounce_tick_at_any_fixed_rate() {
         use bevy::time::TimeUpdateStrategy;
 
         let settings = FlightSettings::default();
@@ -675,25 +687,22 @@ mod tests {
                         "{hz} Hz tick {tick}: extension stepped {previous} -> {}",
                         push.extension
                     );
-                    if tick < debounce_ticks {
-                        assert_eq!(push.engaged, !commanded, "{hz} Hz flipped at {tick}");
-                        if commanded {
-                            assert_eq!(push.extension, 0.0, "{hz} Hz leaned early at {tick}");
-                        } else {
-                            assert!(
-                                push.extension >= previous,
-                                "{hz} Hz retracted before the release at {tick}"
-                            );
-                        }
+                    if commanded {
+                        assert!(push.engaged, "{hz} Hz not engaged at {tick}");
+                        let expected = 1.0 - (-settings.spool_up_rate * tick as f32 * dt).exp();
+                        assert!(
+                            (push.extension - expected).abs() < 1e-4,
+                            "{hz} Hz tick {tick}: extension {} != {expected}",
+                            push.extension
+                        );
                         before_release = push.extension;
+                    } else if tick < debounce_ticks {
+                        assert!(push.engaged, "{hz} Hz released at {tick}");
+                        assert_eq!(push.extension, before_release, "{hz} Hz moved at {tick}");
                     } else {
-                        assert_eq!(push.engaged, commanded, "{hz} Hz no flip at {tick}");
+                        assert!(!push.engaged, "{hz} Hz no release at {tick}");
                         let k = (tick - debounce_ticks + 1) as f32 * dt;
-                        let expected = if commanded {
-                            1.0 - (-settings.spool_up_rate * k).exp()
-                        } else {
-                            before_release * (-settings.spool_down_rate * k).exp()
-                        };
+                        let expected = before_release * (-settings.spool_down_rate * k).exp();
                         assert!(
                             (push.extension - expected).abs() < 1e-4,
                             "{hz} Hz tick {tick}: extension {} != {expected}",
