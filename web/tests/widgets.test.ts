@@ -307,6 +307,7 @@ function rustNumber(rel: string, pattern: RegExp): number {
     const idle = {
         autopilot: false,
         combatLock: false,
+        travelLock: false,
         weaponsRaised: false,
         lowAmmo: false,
         reloading: false,
@@ -317,6 +318,29 @@ function rustNumber(rel: string, pattern: RegExp): number {
     for (const name of ["Ammo gauges", "Bore sight (a hull with a railgun)"]) {
         assert.equal(on(false, name), false, `${name} stays down with no lock`);
         assert.equal(on(true, name), true, `${name} comes up with a lock`);
+        assert.equal(
+            hudElements({ ...idle, travelLock: true }).find(
+                (e) => e.name === name
+            )?.on,
+            false,
+            `${name} stays down with a travel lock alone`
+        );
+    }
+    for (const [combatLock, travelLock, expected] of [
+        [false, false, false],
+        [false, true, true],
+        [true, false, true],
+        [true, true, true],
+    ] as const) {
+        const viewfinder = hudElements({
+            ...idle,
+            combatLock,
+            travelLock,
+        }).find((e) => e.name === "Target viewfinder");
+        assert.equal(viewfinder?.on, expected);
+        if (combatLock && travelLock) {
+            assert.match(viewfinder?.detail ?? "", /combat target/);
+        }
     }
 }
 

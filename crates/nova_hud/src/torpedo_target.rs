@@ -356,7 +356,7 @@ fn drive_reticle_anchor(
 /// Closing speed (positive when approaching) of `target` relative to `ship`
 /// along the line of sight, or `None` when the two positions coincide (no
 /// line of sight to project onto).
-fn closing_speed(
+pub(crate) fn closing_speed(
     ship_pos: Vec3,
     ship_vel: Vec3,
     target_pos: Vec3,
@@ -369,7 +369,7 @@ fn closing_speed(
 /// The `DST` line. The distance arrives in world units off a Bevy transform
 /// and crosses here, once; the shared policy formats the meters it is handed
 /// (meters below 1 km, kilometers above) and converts nothing.
-fn distance_line(distance: f32) -> String {
+pub(crate) fn distance_line(distance: f32) -> String {
     format!(
         "DST {}",
         nova_ui::units::distance(Meters::from_engine(distance))
@@ -379,7 +379,7 @@ fn distance_line(distance: f32) -> String {
 /// The `CLS` line: the same crossing, then the shared closing-speed policy,
 /// which prints an explicit sign - positive closing, negative opening. `None`
 /// (no velocity data on either body) renders a placeholder.
-fn closing_line(closing: Option<f32>) -> String {
+pub(crate) fn closing_line(closing: Option<f32>) -> String {
     match closing {
         Some(closing) => format!(
             "CLS {}",

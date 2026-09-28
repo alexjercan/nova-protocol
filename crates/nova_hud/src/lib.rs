@@ -818,7 +818,7 @@ fn setup_hud_lock_crosshairs(
 
 /// Build the target-inset render target + highlight assets (Assets exist at
 /// runtime, not necessarily at plugin build) and spawn the corner panel Hidden.
-/// The inset camera itself spawns/despawns with the focus dwell
+/// The inset camera itself spawns/despawns with the lock the inset shows
 /// (`target_inset::drive_inset_camera`), not with the player.
 fn setup_hud_target_inset(
     add: On<Add, PlayerSpaceshipMarker>,

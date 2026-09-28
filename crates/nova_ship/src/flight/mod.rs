@@ -66,8 +66,8 @@ pub use self::{
     },
     state::{
         resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
-        FlightArrivalStandoff, FlightIntent, FlightSettings, ManeuverTelemetry, OrbitPlan,
-        PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent,
+        FlightArrivalStandoff, FlightIntent, FlightSettings, MainDriveCommanded, ManeuverTelemetry,
+        OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent,
     },
     well_target::WellTargetType,
 };
@@ -84,6 +84,7 @@ pub(crate) use self::{
     },
     guidance::{arrival_speed_limit, flip_lead, ship_turn_rate, slew_rotation},
     manual::accumulate_rcs_axis,
+    thrusters::spool,
     well_target::{LiveWells, WellTargetFault},
 };
 
@@ -96,7 +97,7 @@ pub mod prelude {
         plan_leg, resolved_arrival_standoff, resume_ship_order, retire_ship_order_execution,
         AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy,
         FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightSettings, LegPlan,
-        ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
+        MainDriveCommanded, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
         PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, ScriptedAlign,
         ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
         ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
@@ -128,6 +129,7 @@ impl Plugin for NovaFlightPlugin {
             // Register the whole reflected tree, not just the resource root.
             .register_type::<FlightSettings>()
             .register_type::<FlightIntent>()
+            .register_type::<MainDriveCommanded>()
             .register_type::<Autopilot>()
             .register_type::<AutopilotAction>()
             .register_type::<AutopilotPhase>()
@@ -211,7 +213,9 @@ pub(super) fn insert_flight_control(add: On<Add, PlayerSpaceshipMarker>, mut com
     let entity = add.entity;
     trace!("insert_flight_control: entity {:?}", entity);
 
-    commands
-        .entity(entity)
-        .insert((FlightIntent::default(), RcsIntent::default()));
+    commands.entity(entity).insert((
+        FlightIntent::default(),
+        RcsIntent::default(),
+        MainDriveCommanded::default(),
+    ));
 }

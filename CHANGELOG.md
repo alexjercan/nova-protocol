@@ -25,6 +25,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The mouse wheel zooms the chase camera in normal flight and free look. With
   weapons raised it steps the component lock. Keys ] and [ step it in any
   stance.
+- The chase camera eases back a fixed share of its distance from the first
+  tick of a main-drive burn, holds through gaps under half a second and then
+  eases home. A tap leans it only slightly.
 - RCS pushes at any speed from a 300 m/s magazine that refills 2 s after you
   let go; ten violet pips under the speed chip show it. This replaces the
   100 m/s RCS cap.
@@ -83,6 +86,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A HELM chip reads TAKE HELM, RELEASE HELM or HELM FAULT while docked. Off a
   measured helm, blocked verbs stay on the dock dark. The mode chip reads
   NEUTRAL or HELM FAULT.
+- The target inset shows the travel lock when no combat lock is held. Its
+  caption adds range and signed closing speed. A combat kill cam plays before
+  the travel view.
 
 ### Web & Platform
 

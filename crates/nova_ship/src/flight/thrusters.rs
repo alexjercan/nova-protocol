@@ -307,7 +307,7 @@ pub(super) fn hold_for_opposed_wind_down(
 /// Move a thruster input toward `target` on an exponential ramp -
 /// framerate-independent, with distinct light-up and cut rates. Pure for unit
 /// testing.
-pub(super) fn spool(current: f32, target: f32, up_rate: f32, down_rate: f32, dt: f32) -> f32 {
+pub(crate) fn spool(current: f32, target: f32, up_rate: f32, down_rate: f32, dt: f32) -> f32 {
     let rate = if target > current { up_rate } else { down_rate };
     let alpha = 1.0 - (-rate * dt).exp();
     (current + (target - current) * alpha).clamp(0.0, 1.0)

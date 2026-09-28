@@ -88,7 +88,8 @@ impl Default for TargetingSettings {
 }
 
 /// The travel (nav) lock slot on the player ship root: the designation GOTO
-/// reads. White crosshair. `None` = no designation. Sticky: only a radar
+/// reads, and the target inset shows it while no live combat lock exists.
+/// White crosshair. `None` = no designation. Sticky: only a radar
 /// commit, a staged tap-clear, or a natural clear (death/out-of-range) moves
 /// it.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
@@ -96,7 +97,8 @@ impl Default for TargetingSettings {
 pub struct TravelLock(pub Option<Entity>);
 
 /// The combat lock slot on the player ship root: guns, torpedo commit, focus
-/// dwell, component fine-lock and the target inset read it; while it is Some
+/// dwell, component fine-lock and the target inset (ahead of the travel lock)
+/// read it; while it is Some
 /// the weapons safety stays off. Red crosshair. Sticky: only the player's tap
 /// or a named drop branch takes it away.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]

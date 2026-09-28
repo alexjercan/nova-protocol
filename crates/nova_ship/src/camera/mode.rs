@@ -239,7 +239,7 @@ mod tests {
 
     use super::*;
     use crate::camera::{
-        framing::{update_camera_rig, CAMERA_SMOOTHING},
+        framing::{update_camera_rig, BurnPush, CAMERA_SMOOTHING},
         rig::PlayerInputMarker,
         zoom::ChaseZoom,
         SpaceshipCameraController,
@@ -269,6 +269,7 @@ mod tests {
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
             Transform::from_translation(anchor),
+            BurnPush::default(),
         ));
         app.world_mut().spawn((
             SpaceshipCameraInputMarker,

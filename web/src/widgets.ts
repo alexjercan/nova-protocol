@@ -596,13 +596,15 @@ export function clearStep(
 // a given situation. Cinematic clears every tier (lib.rs:152-162); the ammo
 // layer opens on hot OR low OR reloading (situation.rs:47-49,
 // ammo_readout.rs:180); the mode chip and destination marker follow the
-// autopilot (flight_status.rs:302-335); the reticle and viewfinder follow
-// the combat lock (torpedo_target.rs:408-415, target_inset.rs:658-707).
+// autopilot (flight_status.rs:302-335); the reticle follows the combat lock
+// (torpedo_target.rs drive_reticle_anchor); the viewfinder shows the combat
+// lock, else the travel lock (target_inset.rs inset_subject).
 // Weapons are hot while raised OR combat-locked (nova_ship
 // input/targeting/safety.rs:30), so a lock is never shown safe.
 export interface HudSituationsModel {
     autopilot: boolean;
     combatLock: boolean;
+    travelLock: boolean;
     weaponsRaised: boolean;
     lowAmmo: boolean;
     reloading: boolean;
@@ -668,10 +670,12 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
         e(
             "Target viewfinder",
             "chrome",
-            s.combatLock,
+            s.combatLock || s.travelLock,
             s.combatLock
-                ? "frame hot-red, corner ticks out"
-                : "arrives with the combat lock"
+                ? "combat target: frame hot-red, corner ticks out"
+                : s.travelLock
+                  ? "travel target: neutral frame and closing speed"
+                  : "arrives with a lock"
         ),
         e(
             "Ammo gauges",
@@ -5128,6 +5132,7 @@ function initHudContext(host: HTMLElement): void {
     const state: HudSituationsModel = {
         autopilot: false,
         combatLock: false,
+        travelLock: false,
         weaponsRaised: false,
         lowAmmo: false,
         reloading: false,
@@ -5136,6 +5141,7 @@ function initHudContext(host: HTMLElement): void {
     const KEYS: { key: keyof HudSituationsModel; label: string }[] = [
         { key: "autopilot", label: "AUTOPILOT ENGAGED" },
         { key: "combatLock", label: "COMBAT LOCK" },
+        { key: "travelLock", label: "TRAVEL LOCK" },
         { key: "weaponsRaised", label: "WEAPONS RAISED" },
         { key: "lowAmmo", label: "LOW AMMO" },
         { key: "reloading", label: "RELOADING" },
