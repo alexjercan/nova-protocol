@@ -105,13 +105,17 @@ pub(super) fn budgeted_rcs_delta_v(residual: Vec3, push: Vec3, cap: f32, taper_b
 /// off-axis engine for pure counter-torque, trading a bounded sideways drift
 /// for a straight heading. Only when nothing can help - no headroom and no
 /// off-axis engine left - does the ship still pull, held by the PD as before.
+///
+/// Also writes [`MainDriveCommanded`]: an allocated forward-aligned throttle or
+/// a held bound forward thruster. Cleared first, so a skipped ship reads cold.
 pub(super) fn manual_burn_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
-    q_ship: Query<
+    mut q_ship: Query<
         (
             Entity,
             &FlightIntent,
+            Option<&mut MainDriveCommanded>,
             Option<&ComputedCenterOfMass>,
             &Position,
             &Rotation,
@@ -135,6 +139,17 @@ pub(super) fn manual_burn_system(
             Without<SpaceshipThrusterInputBinding>,
         ),
     >,
+    // Bound thrusters fire straight from their own keys, outside the
+    // allocation, so the command reads their input directly.
+    q_bound: Query<
+        (&ThrusterSectionInput, &Transform, &ChildOf),
+        (
+            With<ThrusterSectionMarker>,
+            With<SpaceshipThrusterInputBinding>,
+            Without<SectionInactiveMarker>,
+            Without<SpaceshipRootMarker>,
+        ),
+    >,
     // Docked drivers whose missing assembly is already logged, so the error
     // is said once per loss, not at the fixed rate.
     mut missing_assembly: Local<EntityHashSet>,
@@ -146,7 +161,10 @@ pub(super) fn manual_burn_system(
             .get(*ship)
             .is_ok_and(|(.., docked, assembly)| docked.is_some() && assembly.is_none())
     });
-    for (ship, intent, com, position, rotation, docked, assembly) in &q_ship {
+    for (ship, intent, mut commanded, com, position, rotation, docked, assembly) in &mut q_ship {
+        if let Some(commanded) = commanded.as_deref_mut() {
+            commanded.0 = false;
+        }
         // Only a pair's driver burns: a suppressed partner commands no
         // throttle, so no plume lights for a helm it does not hold. A driver
         // with no assembly burns nothing rather than on its root alone.
@@ -227,6 +245,20 @@ pub(super) fn manual_burn_system(
         let demand = burn * authority;
         let coeffs: Vec<BalanceEngine> = allocation.iter().map(|(_, e)| *e).collect();
         let throttles = balance_throttles(&coeffs, demand);
+
+        if let Some(commanded) = commanded.as_deref_mut() {
+            let allocated = allocation
+                .iter()
+                .zip(&throttles)
+                .any(|((_, engine), &throttle)| engine.primary && throttle > 0.0);
+            let bound = q_bound.iter().any(|(input, transform, &ChildOf(parent))| {
+                parent == ship
+                    && **input > 0.0
+                    && engine_direction_local(transform)
+                        .is_some_and(|dir| is_forward_aligned(dir, Vec3::NEG_Z))
+            });
+            commanded.0 = allocated || bound;
+        }
 
         spool_allocated_thrusters(
             ship,

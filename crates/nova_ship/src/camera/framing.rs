@@ -8,7 +8,7 @@
 //! unit (10 m) and every speed is a world unit per second (10 m/s). Nothing
 //! here is authored.
 
-use avian3d::prelude::{ComputedCenterOfMass, ComputedMass, LinearVelocity};
+use avian3d::prelude::{ComputedCenterOfMass, LinearVelocity};
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
@@ -21,7 +21,7 @@ use super::{
     },
     zoom::ChaseZoom,
 };
-use crate::{prelude::*, sections::thruster_section::engine_direction_local};
+use crate::prelude::*;
 
 pub(super) fn update_chase_camera_input(
     mut commands: Commands,
@@ -121,23 +121,76 @@ fn chase_lag_lead_seconds(smoothing: f32, dt: f32) -> f32 {
 /// a kilometre out for the same picture.
 pub const CAMERA_HULL_CLEARANCE: Meters = Meters(5.0);
 
-/// The forward main-drive acceleration at which the burn push reaches the
-/// whole [`BURN_PUSH_RIG_FRACTION`] of the rig.
-///
-/// Calibrated on the shipped salvage skiff: its two basic drives move 21
-/// sections at about this, so the calibration hull keeps the ~30 m push the old
-/// fixed 3 u rig gave it, and the carrier - a quarter of that acceleration -
-/// leans a quarter as far. Harder-accelerating hulls do NOT lean further:
-/// past this the rig stops reading as a burn and starts reading as a dolly-out.
-const BURN_PUSH_REFERENCE_ACCELERATION: MetersPerSecondSquared = MetersPerSecondSquared(60.0);
-
-/// The fraction of the live rig distance a reference-acceleration full burn
-/// pushes the camera back (anchor-frame -Z, away from the hull).
+/// The fraction of the live rig distance an engaged burn push moves the camera
+/// back (anchor-frame -Z, away from the hull).
 ///
 /// A fraction and not a distance, because the rig distance is already what
 /// tracks hull size: the old fixed 30 m was a lurch behind a 49 m skiff and
-/// nothing behind a 195 m carrier.
+/// nothing behind a 195 m carrier. Flat: throttle, heat and acceleration do
+/// not scale it, so a modulated brake cannot breathe the zoom.
 const BURN_PUSH_RIG_FRACTION: f32 = 0.15;
+
+/// How long the forward main-drive command must hold without a break to engage
+/// the burn push, and stay quiet without a break to release it, seconds of
+/// fixed (virtual) time. A Space tap and the autopilot's brake pulses and orbit
+/// micro-burns end inside it; a sustained burn outlasts it.
+const BURN_PUSH_DEBOUNCE_SECONDS: f32 = 0.5;
+
+/// The chase camera's burn push, on the player ship root: whether the camera
+/// leans back, and how long [`MainDriveCommanded`] has disagreed with that
+/// without a break.
+///
+/// Stepped in `FixedUpdate` by [`update_burn_push`], on the same clock as the
+/// command, so pause freezes it and the render rate cannot change the timing.
+/// Required by [`MainDriveCommanded`], so a respawned hull starts disengaged.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct BurnPush {
+    /// The camera leans back by [`BURN_PUSH_RIG_FRACTION`] of the rig.
+    engaged: bool,
+    /// Contiguous seconds the command has disagreed with `engaged`.
+    disagreeing: f32,
+}
+
+impl BurnPush {
+    /// One fixed tick of `dt` seconds with the forward drive `commanded` or
+    /// not. Any tick that agrees with the current state restarts the count.
+    ///
+    /// Flips on the tick nearest the debounce: half a tick of slack, so an
+    /// `f32` sum of `dt` that lands a hair short of it (fifteen 1/30 s ticks)
+    /// cannot add a tick at any fixed rate.
+    fn step(self, commanded: bool, dt: f32) -> Self {
+        if commanded == self.engaged {
+            return Self {
+                disagreeing: 0.0,
+                ..self
+            };
+        }
+        let disagreeing = self.disagreeing + dt;
+        if disagreeing + 0.5 * dt >= BURN_PUSH_DEBOUNCE_SECONDS {
+            Self {
+                engaged: commanded,
+                disagreeing: 0.0,
+            }
+        } else {
+            Self {
+                disagreeing,
+                ..self
+            }
+        }
+    }
+}
+
+/// Debounces the player's forward main-drive command into the camera's
+/// [`BurnPush`], once per fixed tick after the flight layer writes it.
+pub(super) fn update_burn_push(
+    time: Res<Time>,
+    mut q_ship: Query<(&MainDriveCommanded, &mut BurnPush), With<PlayerSpaceshipMarker>>,
+) {
+    let dt = time.delta_secs();
+    for (commanded, mut push) in &mut q_ship {
+        *push = push.step(**commanded, dt);
+    }
+}
 
 /// Survey dolly while parked in orbit: the camera distance grows to this
 /// multiple of the planned ring radius, so the orbited body, the ring and the
@@ -238,22 +291,6 @@ pub fn chase_camera_opening_pose(
         .looking_at(anchor + behind(rig.focus_offset), facing * Vec3::Y)
 }
 
-/// The burn push for this frame, world units along the rig's own axis: a
-/// fraction of the LIVE rig distance, scaled by how hard the main drive is
-/// authored to push this hull and gated by the spooled throttle.
-///
-/// Thrusters only. A push that answered to net acceleration would lean the
-/// camera back on every close pass of a gravity well, which is a fall, not a
-/// burn.
-fn burn_push_distance(rig_distance: f32, acceleration: f32, heat: f32) -> f32 {
-    let reference = BURN_PUSH_REFERENCE_ACCELERATION.to_engine();
-    if reference <= f32::EPSILON {
-        return 0.0;
-    }
-    let drive = (acceleration / reference).clamp(0.0, 1.0);
-    rig_distance * BURN_PUSH_RIG_FRACTION * drive * heat.clamp(0.0, 1.0)
-}
-
 /// The survey dolly scale for the current autopilot state: while parked
 /// in a PLANNED orbit the mode offset stretches so the camera distance
 /// reaches `plan.radius * SURVEY_RING_FACTOR` (capped, never closer than
@@ -288,9 +325,9 @@ fn survey_scale(action: Option<&AutopilotAction>, base_len: f32, envelope: f32) 
 /// so anything applied only on `mode.is_changed()` is silently lost after the
 /// first life. The hull clearance grows the composition until the camera stands
 /// outside the live [`HullEnvelopeRadius`] - without it the Turret rig parks
-/// 10 u back inside a hull that reaches 19.5 u. Heat is the hottest live
-/// forward-mounted thruster - the flight layer's main-drive definition - so
-/// autopilot burns push too, and spool-down eases the camera home. In
+/// 10 u back inside a hull that reaches 19.5 u. The burn push is the debounced
+/// [`BurnPush`], so autopilot burns push too, and the smoothing eases the
+/// camera out and home. In
 /// FreeLook/Turret the offset lives in the mouse-rig frame, so the push is a
 /// dolly-out rather than a hull-frame lean; acceptable juice either way. The
 /// survey dolly (engaged ORBIT) applies in Normal and FreeLook but NOT Turret -
@@ -301,9 +338,6 @@ fn survey_scale(action: Option<&AutopilotAction>, base_len: f32, envelope: f32) 
 /// distance ([`ChaseZoom`]).
 pub(super) fn update_camera_rig(
     time: Res<Time>,
-    // The tick a `ThrusterSectionMagnitude` impulse is authored against; the
-    // only way to read an authored magnitude as an acceleration.
-    fixed_time: Res<Time<Fixed>>,
     mode: Res<SpaceshipCameraControlMode>,
     mut zoom: ResMut<ChaseZoom>,
     camera: Single<(&mut ChaseCamera, &ChaseCameraInput), With<SpaceshipCameraController>>,
@@ -312,54 +346,15 @@ pub(super) fn update_camera_rig(
             Entity,
             Option<&LinearVelocity>,
             Option<&HullEnvelopeRadius>,
-            Option<&ComputedMass>,
+            &BurnPush,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     q_autopilot: Query<&Autopilot>,
-    q_thruster: Query<
-        (
-            &ThrusterSectionInput,
-            &ThrusterSectionMagnitude,
-            &Transform,
-            &ChildOf,
-        ),
-        (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
-    >,
 ) {
-    let (ship, ship_velocity, envelope, mass) = spaceship.into_inner();
+    let (ship, ship_velocity, envelope, burn_push) = spaceship.into_inner();
     let (mut camera, camera_input) = camera.into_inner();
 
-    let mut heat = 0.0f32;
-    let mut authority = 0.0f32;
-    for (input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
-        if parent != ship {
-            continue;
-        }
-        let Some(local_dir) = engine_direction_local(transform) else {
-            continue;
-        };
-        if is_forward_aligned(local_dir, Vec3::NEG_Z) {
-            heat = heat.max(**input);
-            authority += **magnitude * local_dir.dot(Vec3::NEG_Z);
-        }
-    }
-
-    // A `ThrusterSectionMagnitude` is an impulse per FIXED tick, so the forward
-    // set over the hull mass over the tick length is the acceleration this
-    // drive is authored to deliver. A hull with no mass yet (a marker-only root
-    // before physics has weighed it) reads as the reference drive rather than
-    // as an infinite one.
-    let tick = fixed_time.timestep().as_secs_f32();
-    let mass = mass.map_or(1.0f32, |mass| mass.value()).max(f32::EPSILON);
-    let acceleration = if tick > 0.0 {
-        authority / mass / tick
-    } else {
-        0.0
-    };
-
-    // Max heat, not a sum: the push reads "engines are lit", and one small
-    // engine at full burn is lit; authority-weighted push is a playtest knob.
     let envelope = envelope.map_or(0.0, |envelope| **envelope);
     let (base_offset, focus_offset) = mode_camera_rig(&mode);
     let hull_scale = hull_clearance_scale(base_offset, envelope);
@@ -384,12 +379,12 @@ pub(super) fn update_camera_rig(
     let offset_lead = Vec3::new(local_lead.x, local_lead.y, -local_lead.z);
 
     let rig = base_offset * scale;
-    camera.offset =
-        rig + Vec3::new(
-            0.0,
-            0.0,
-            -burn_push_distance(rig.length(), acceleration, heat),
-        ) + offset_lead;
+    let push = if burn_push.engaged {
+        rig.length() * BURN_PUSH_RIG_FRACTION
+    } else {
+        0.0
+    };
+    camera.offset = rig + Vec3::new(0.0, 0.0, -push) + offset_lead;
     camera.focus_offset = focus_offset;
     camera.smoothing = CAMERA_SMOOTHING;
 }
@@ -436,13 +431,13 @@ mod tests {
         assert_eq!(input.anchor_pos, position + local_com);
     }
 
-    /// The burn push leans the camera back with the spooled engines and eases
-    /// it home when they cool - offset returns exactly to the mode's base rig
-    /// (the flight-feel retune). Also covers the respawn case:
-    /// the rig (including smoothing) lands on a factory-fresh `ChaseCamera`
-    /// with no mode change ever happening, as after a player death re-insert.
+    /// An engaged burn push leans the camera back by the flat rig fraction and
+    /// a released one returns it exactly to the mode's base rig. Also covers
+    /// the respawn case: the rig (including smoothing) lands on a
+    /// factory-fresh `ChaseCamera` with no mode change ever happening, as after
+    /// a player death re-insert.
     #[test]
-    fn burn_push_leans_back_and_returns_to_baseline() {
+    fn an_engaged_burn_push_leans_back_a_flat_rig_fraction_and_returns_home() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.add_plugins(ChaseCameraPlugin);
@@ -456,24 +451,14 @@ mod tests {
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
                 Transform::default(),
-            ))
-            .id();
-        // A main-drive thruster: section-local -Z, i.e. forward-mounted.
-        let thruster = app
-            .world_mut()
-            .spawn((
-                ChildOf(ship),
-                ThrusterSectionMarker,
-                ThrusterSectionInput(0.0),
-                ThrusterSectionMagnitude(1.0),
-                Transform::default(),
+                BurnPush::default(),
             ))
             .id();
         let camera = app.world_mut().spawn(SpaceshipCameraController).id();
 
         let (base, focus) = mode_camera_rig(&SpaceshipCameraControlMode::Normal);
 
-        // Cold engines, no mode change ever: the full rig - offset, focus and
+        // Disengaged, no mode change ever: the full rig - offset, focus and
         // the weight-giving smoothing - lands on the default ChaseCamera.
         app.update();
         let chase = app.world().get::<ChaseCamera>(camera).unwrap();
@@ -481,12 +466,11 @@ mod tests {
         assert_eq!(chase.focus_offset, focus);
         assert_eq!(chase.smoothing, CAMERA_SMOOTHING);
 
-        // Full spool on a drive well above the reference acceleration: pushed
-        // straight back by the whole rig fraction.
-        app.world_mut()
-            .get_mut::<ThrusterSectionInput>(thruster)
-            .unwrap()
-            .0 = 1.0;
+        // Engaged: pushed straight back by the whole rig fraction.
+        *app.world_mut().get_mut::<BurnPush>(ship).unwrap() = BurnPush {
+            engaged: true,
+            disagreeing: 0.0,
+        };
         app.update();
         let pushed = app.world().get::<ChaseCamera>(camera).unwrap().offset;
         assert_eq!(
@@ -494,11 +478,8 @@ mod tests {
             base + Vec3::new(0.0, 0.0, -base.length() * BURN_PUSH_RIG_FRACTION)
         );
 
-        // Engines cold again: the camera comes home, not to a drifted base.
-        app.world_mut()
-            .get_mut::<ThrusterSectionInput>(thruster)
-            .unwrap()
-            .0 = 0.0;
+        // Released: the camera comes home, not to a drifted base.
+        *app.world_mut().get_mut::<BurnPush>(ship).unwrap() = BurnPush::default();
         app.update();
         assert_eq!(app.world().get::<ChaseCamera>(camera).unwrap().offset, base);
     }
@@ -548,35 +529,109 @@ mod tests {
         }
     }
 
-    /// The push is a fraction of the LIVE rig and of how hard the drive
-    /// actually pushes: the calibration skiff keeps its ~30 m lean, a hull that
-    /// accelerates a quarter as hard leans a quarter as far, and no drive leans
-    /// further than the reference.
-    #[test]
-    fn burn_push_follows_the_rig_and_the_drive() {
-        let reference = BURN_PUSH_REFERENCE_ACCELERATION.to_engine();
-        let skiff_rig = mode_camera_rig(&SpaceshipCameraControlMode::Normal)
-            .0
-            .length();
+    /// One shipped fixed tick, 64 Hz.
+    const TICK: f32 = 1.0 / 64.0;
 
-        let skiff = burn_push_distance(skiff_rig, reference, 1.0);
+    /// Steps `push` through `commands`, one fixed tick each, and reports the
+    /// engaged state after every tick.
+    fn run_burn_push(mut push: BurnPush, commands: impl IntoIterator<Item = bool>) -> Vec<bool> {
+        commands
+            .into_iter()
+            .map(|commanded| {
+                push = push.step(commanded, TICK);
+                push.engaged
+            })
+            .collect()
+    }
+
+    /// A Space tap shorter than the debounce never pushes the camera, during
+    /// the tap or after its release.
+    #[test]
+    fn a_short_main_drive_tap_never_engages_the_burn_push() {
+        let tap = std::iter::repeat_n(true, 31).chain(std::iter::repeat_n(false, 128));
+        assert!(!run_burn_push(BurnPush::default(), tap).contains(&true));
+    }
+
+    /// Autopilot brake pulses and orbit micro-burns break the command before it
+    /// has held for the debounce, so the camera never leans for them.
+    #[test]
+    fn pulsed_brakes_and_orbit_micro_burns_never_engage_the_burn_push() {
+        let pulse = |on: usize, off: usize, repeats: usize| {
+            (0..repeats)
+                .flat_map(move |_| {
+                    std::iter::repeat_n(true, on).chain(std::iter::repeat_n(false, off))
+                })
+                .collect::<Vec<_>>()
+        };
+        // A modulated brake: mostly lit, one cold tick every 30.
+        assert!(!run_burn_push(BurnPush::default(), pulse(29, 1, 20)).contains(&true));
+        // Station-keeping: a few lit ticks every second.
+        assert!(!run_burn_push(BurnPush::default(), pulse(3, 61, 20)).contains(&true));
+    }
+
+    /// A sustained command engages on the tick it has held for the debounce, a
+    /// gap shorter than the debounce keeps the push, and a quiet as long as the
+    /// debounce releases it.
+    #[test]
+    fn a_sustained_burn_engages_and_only_a_sustained_quiet_releases_it() {
+        let ticks = (BURN_PUSH_DEBOUNCE_SECONDS / TICK) as usize;
+        assert_eq!(ticks, 32, "the shipped rate counts 32 ticks");
+
+        let engaged = run_burn_push(BurnPush::default(), std::iter::repeat_n(true, ticks));
+        assert!(!engaged[..ticks - 1].contains(&true), "engaged early");
+        assert!(engaged[ticks - 1], "a held half second engages");
+
+        let lit = BurnPush {
+            engaged: true,
+            disagreeing: 0.0,
+        };
+        let gap = std::iter::repeat_n(false, ticks - 1)
+            .chain(std::iter::once(true))
+            .chain(std::iter::repeat_n(false, ticks - 1));
         assert!(
-            (Meters::from_engine(skiff).0 - 30.0).abs() < 2.0,
-            "the calibration hull must keep its ~30 m push, got {} m",
-            Meters::from_engine(skiff).0
+            !run_burn_push(lit, gap).contains(&false),
+            "a short gap released the push"
         );
 
-        // A quarter of the acceleration on the same rig is a quarter of the
-        // push - the carrier's gentle lean.
-        let gentle = burn_push_distance(skiff_rig, reference * 0.25, 1.0);
-        assert!((gentle - skiff * 0.25).abs() < 1e-4);
+        let released = run_burn_push(lit, std::iter::repeat_n(false, ticks));
+        assert!(!released[..ticks - 1].contains(&false), "released early");
+        assert!(!released[ticks - 1], "a quiet half second releases");
+    }
 
-        // A longer rig leans further for the same drive.
-        assert!(burn_push_distance(skiff_rig * 2.0, reference, 1.0) > skiff);
+    /// The debounce runs on the fixed clock the command is written on, so a
+    /// different fixed rate counts the same half second in its own ticks.
+    #[test]
+    fn the_burn_push_counts_the_debounce_in_fixed_ticks_at_any_rate() {
+        use bevy::time::TimeUpdateStrategy;
 
-        // Throttle gates it, and nothing beyond the reference leans further.
-        assert_eq!(burn_push_distance(skiff_rig, reference, 0.0), 0.0);
-        assert_eq!(burn_push_distance(skiff_rig, reference * 10.0, 1.0), skiff);
+        for (hz, expected) in [(30.0, 15), (120.0, 60)] {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            let fixed = Time::<Fixed>::from_hz(hz);
+            let step = fixed.timestep();
+            app.insert_resource(fixed);
+            app.insert_resource(TimeUpdateStrategy::ManualDuration(step));
+            app.add_systems(FixedUpdate, update_burn_push);
+            let ship = app
+                .world_mut()
+                .spawn((
+                    PlayerSpaceshipMarker,
+                    MainDriveCommanded(true),
+                    BurnPush::default(),
+                ))
+                .id();
+
+            // The first update's delta is zero; after it every update runs
+            // exactly one fixed tick.
+            app.update();
+            let mut ticks = 0;
+            while !app.world().get::<BurnPush>(ship).unwrap().engaged {
+                assert!(ticks < 200, "{hz} Hz never engaged");
+                app.update();
+                ticks += 1;
+            }
+            assert_eq!(ticks, expected, "{hz} Hz, {step:?} per tick");
+        }
     }
 
     #[test]
@@ -644,6 +699,7 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                BurnPush::default(),
                 Transform::default(),
             ))
             .id();
@@ -708,6 +764,7 @@ mod tests {
         app.world_mut().spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
+            BurnPush::default(),
             Transform::default(),
         ));
         let camera = app.world_mut().spawn(SpaceshipCameraController).id();
@@ -776,6 +833,7 @@ mod tests {
                 .spawn((
                     CruisingShip,
                     PlayerSpaceshipMarker,
+                    BurnPush::default(),
                     RigidBody::Dynamic,
                     Transform::default(),
                     TransformInterpolation,

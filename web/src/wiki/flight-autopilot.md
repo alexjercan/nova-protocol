@@ -31,6 +31,8 @@ In normal flight and in <kbd>Alt</kbd> free look, the scroll wheel zooms the cha
 
 Normal flight and free look share one zoom level, and free look stays farther out than normal flight. The level lasts for the game session, so a mode switch or a respawn keeps it. It is not saved, and the HUD does not show it. A planned ORBIT opens at its own survey distance. The wheel adjusts from there, and it cannot go closer than the ordinary framing. Leaving ORBIT restores your earlier level.
 
+A main-drive burn held for half a second leans the camera back by a fixed share of its distance, whether you or the autopilot fly it. Half a second without the burn brings it home. A short tap, a braking pulse or an ORBIT trim does not move it.
+
 With weapons raised (hold the right mouse button) the wheel does not zoom. It steps the component [fine-lock](../targeting-radar/) instead, and the combat camera stays as it is. While you hold <kbd>Shift</kbd> for RCS, the wheel drives vertical thrust. The gamepad has no zoom gesture.
 
 ## The hull decides the handling
