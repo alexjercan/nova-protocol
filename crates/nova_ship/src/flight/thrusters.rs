@@ -31,6 +31,10 @@ const BALANCE_PROJECT_ITERS: usize = 40;
 /// worth firing.
 const LATERAL_PENALTY: f32 = 0.05;
 
+/// Spooled input at or below which an engine counts as dark for
+/// [`hold_for_opposed_wind_down`].
+const OPPOSED_WIND_DOWN: f32 = 0.01;
+
 /// A cluster of live engines that push the ship in (roughly) the same world
 /// direction, with their summed per-tick authority. The planner's unit of
 /// choice: rotate whichever group is cheapest onto the needed burn.
@@ -267,6 +271,39 @@ fn project_onto_demand(u: &mut [f32], engines: &[BalanceEngine], demand: f32) {
     }
 }
 
+/// Whether this tick's allocation must wait: it lights a dark engine (spooled
+/// at or below [`OPPOSED_WIND_DOWN`]) while an opposed non-primary engine
+/// (thrust directions within `align_cos` of opposite) is still winding down
+/// from above it. The dark engine would spool up through the other's tail and
+/// the ship would pay for thrust it cancels. A primary engine never blocks, so
+/// a recruit cannot cut the burn it balances. A recruit ramping up with the
+/// burn never blocks either: with a larger throttle it crosses the cutoff
+/// first on every retry, and a small burn would never light. `engines` holds
+/// each engine's world thrust direction and primary flag; `spooled` and
+/// `throttles` are the current and allocated inputs, all in allocation order.
+/// Pure for unit testing.
+pub(super) fn hold_for_opposed_wind_down(
+    engines: &[(Vec3, bool)],
+    spooled: &[f32],
+    throttles: &[f32],
+    align_cos: f32,
+) -> bool {
+    engines.iter().zip(spooled).zip(throttles).any(
+        |((&(lit_dir, _), &lit_spooled), &lit_throttle)| {
+            lit_throttle > 0.0
+                && lit_spooled <= OPPOSED_WIND_DOWN
+                && engines.iter().zip(spooled).zip(throttles).any(
+                    |((&(dir, primary), &input), &throttle)| {
+                        !primary
+                            && input > OPPOSED_WIND_DOWN
+                            && throttle < input
+                            && lit_dir.dot(dir) <= -align_cos
+                    },
+                )
+        },
+    )
+}
+
 /// Move a thruster input toward `target` on an exponential ramp -
 /// framerate-independent, with distinct light-up and cut rates. Pure for unit
 /// testing.
@@ -380,6 +417,27 @@ mod tests {
         assert_eq!(burn_input(5.0, 1.0), 1.0);
         assert_eq!(burn_input(1.0, 0.0), 0.0);
         assert_eq!(burn_input(-1.0, 1.0), 0.0);
+    }
+
+    #[test]
+    fn a_recruit_ramping_up_with_a_small_burn_does_not_hold_it() {
+        // Main and an opposed counter-torque recruit light together from dark;
+        // the recruit's larger throttle crosses the cutoff first.
+        let engines = [(Vec3::NEG_Z, true), (Vec3::Z, false)];
+        let throttles = [0.05, 0.1];
+        assert!(!hold_for_opposed_wind_down(
+            &engines,
+            &[0.005, 0.02],
+            &throttles,
+            0.95
+        ));
+        // The same recruit winding down from an earlier burn holds the main.
+        assert!(hold_for_opposed_wind_down(
+            &engines,
+            &[0.005, 0.2],
+            &throttles,
+            0.95
+        ));
     }
 
     /// A firing-set engine perfectly on the burn axis: full forward per unit

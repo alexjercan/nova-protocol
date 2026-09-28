@@ -1029,55 +1029,125 @@ mod physics_tests {
         // regime): a 90-degree swing from the AI's initial -Z onto +X. The
         // 5u structural arm returns 56u, which gates at 1665u, so the picket
         // can see it out there.
-        let player = spawn_unthreatening_player(&mut app, Vec3::new(1000.0, 0.0, 0.0));
+        let player_at = Vec3::new(1000.0, 0.0, 0.0);
+        let player = spawn_unthreatening_player(&mut app, player_at);
         app.world_mut().entity_mut(player).insert(HullRadius(5.0));
         // High authority keeps the swing short; the chase is what this rig
         // measures, not the slew.
         let ship = spawn_ai_ship(&mut app, 10.0);
+        let thruster = app
+            .world_mut()
+            .query_filtered::<(Entity, &ChildOf), With<ThrusterSectionMarker>>()
+            .iter(app.world())
+            .find_map(|(entity, &ChildOf(parent))| (parent == ship).then_some(entity))
+            .unwrap();
+        let settings = app.world().resource::<FlightSettings>().clone();
 
+        // Aim cos onto the player, roll rate about the nose, and the main
+        // drive's spooled input after one tick. The hull is circling once
+        // settled, so the bearing it holds is a MOVING one and the nose
+        // trails it by the loop's tracking lag - this rig settles at 198 m/s
+        // on a 1,090 m ring, a line of sight turning at 0.18 rad/s, which its
+        // 0.5 s lag puts 5.2 degrees behind. What must not appear is a hunt on
+        // top of that. The turn that tracks the target is about an axis
+        // ACROSS the nose; about the nose itself the hull must stay quiet.
+        // Since the bcs inertia-frame fix the roll in this rig measures ~5e-6
+        // rad/s, so the 0.05 bound leaves ~4 orders of margin for solver noise
+        // while still tripping on any real roll-damping regression (the
+        // pre-fix amplitude was ~0.23 rad/s).
+        let step = |app: &mut App| {
+            app.update();
+            let transform = app.world().get::<Transform>(ship).unwrap();
+            let forward: Vec3 = transform.forward().into();
+            let aim = forward.dot((player_at - transform.translation).normalize());
+            let roll = app
+                .world()
+                .get::<AngularVelocity>(ship)
+                .unwrap()
+                .dot(forward)
+                .abs();
+            let main = **app.world().get::<ThrusterSectionInput>(thruster).unwrap();
+            (aim, roll, main)
+        };
+        let budget_of = |app: &App| *app.world().get::<RcsBudget>(ship).unwrap();
+        let phase_of = |app: &App| app.world().get::<Autopilot>(ship).map(|ap| ap.phase);
+
+        // The swing, the run-in, the flip and the capture, then a full
+        // second on the player without a limit cycle - all on RCS trim that
+        // the magazine still pays for. The run-in is no longer a 20 u/s crawl
+        // - this rig's drive stops it from 155 u/s inside the 900 u it has -
+        // so the nose spends part of the leg retrograde, on the brake, by
+        // design.
         settle(&mut app);
-        // 60 simulated seconds: the swing, the run-in, the flip and the
-        // capture. The run-in is no longer a 20 u/s crawl - this rig's drive
-        // stops it from 155 u/s inside the 900 u it has - so the nose spends
-        // part of the leg retrograde, on the brake, by design.
-        for _ in 0..3600 {
-            app.update();
+        let mut ticks = 0;
+        let mut settled = 0;
+        while settled < 60 {
+            let (aim, roll, _) = step(&mut app);
+            ticks += 1;
+            let holding = phase_of(&app) == Some(AutopilotPhase::Hold);
+            settled = if aim > 0.99 && roll < 0.05 && holding {
+                settled + 1
+            } else {
+                0
+            };
+            assert!(
+                !budget_of(&app).is_empty(&settings),
+                "the hull must hold its nose on the player (within ~8 degrees) \
+                 for a full second before its RCS magazine runs dry, held {settled} ticks \
+                 (aim cos {aim}, roll {roll} rad/s, phase {:?})",
+                phase_of(&app)
+            );
+            assert!(ticks < 7_200, "the swing must settle, held {settled} ticks");
         }
-
-        // No limit cycle on the aim: the nose must be ON the player and STAY
-        // there for a further simulated second. The hull is circling now, so
-        // the bearing it holds is a MOVING one and the nose trails it by the
-        // loop's tracking lag - this rig settles at 198 m/s on a 1,090 m ring,
-        // a line of sight turning at 0.18 rad/s, which its 0.5 s lag puts 5.2
-        // degrees behind. What must not appear is a hunt on top of that.
+        // Holding a moving bearing drains the magazine. Once it is empty the
+        // velocity comes first: the main drive takes the error back and turns
+        // the nose off the player to do it, and nothing is charged to RCS.
+        while !budget_of(&app).is_empty(&settings) {
+            step(&mut app);
+            ticks += 1;
+            assert!(
+                ticks < 36_000,
+                "the trim must eventually empty the magazine"
+            );
+        }
         let mut min_aim = f32::INFINITY;
-        let mut max_roll = 0.0f32;
-        for _ in 0..60 {
-            app.update();
-            let forward: Vec3 = app.world().get::<Transform>(ship).unwrap().forward().into();
-            let to_player = (Vec3::new(1000.0, 0.0, 0.0)
-                - app.world().get::<Transform>(ship).unwrap().translation)
-                .normalize();
-            min_aim = min_aim.min(forward.dot(to_player));
-            let spin = **app.world().get::<AngularVelocity>(ship).unwrap();
-            max_roll = max_roll.max(spin.dot(forward).abs());
+        let mut max_main = 0.0f32;
+        for _ in 0..100 {
+            let (aim, _, main) = step(&mut app);
+            min_aim = min_aim.min(aim);
+            max_main = max_main.max(main);
+            let budget = budget_of(&app);
+            assert!(
+                budget.is_empty(&settings) && budget.applied == 0.0,
+                "an empty magazine must deliver no RCS, spent {} u/s, applied {}",
+                budget.spent,
+                budget.applied
+            );
         }
         assert!(
-            min_aim > 0.99,
-            "the hull must hold its nose on the player (within ~8 degrees) \
-             for a full second, worst aim cos {min_aim}"
+            max_main > 0.05 && min_aim < 0.99,
+            "an empty magazine must hand the velocity to the main drive, \
+             peak main input {max_main}, worst aim cos {min_aim}"
         );
-        // The turn that tracks the target is about an axis ACROSS the nose;
-        // about the nose itself the hull must stay quiet. Since the bcs
-        // inertia-frame fix the roll in this rig measures ~5e-6 rad/s, so the
-        // bound leaves ~4 orders of margin for solver noise while still
-        // tripping on any real roll-damping regression (the pre-fix amplitude
-        // was ~0.23 rad/s).
-        assert!(
-            max_roll < 0.05,
-            "residual roll must stay damped, \
-             got {max_roll} rad/s"
-        );
+        // A refilled magazine gives the trim back: the nose returns to the
+        // player and stays there with the main drive cold.
+        app.world_mut().get_mut::<RcsBudget>(ship).unwrap().spent = 0.0;
+        let mut recovered = 0;
+        let mut waited = 0;
+        while recovered < 60 {
+            let (aim, roll, main) = step(&mut app);
+            waited += 1;
+            recovered = if aim > 0.99 && roll < 0.05 && main < 0.05 {
+                recovered + 1
+            } else {
+                0
+            };
+            assert!(
+                waited < 3_600,
+                "a refilled magazine must return the nose to the player, held {recovered} \
+                 ticks (aim cos {aim}, roll {roll} rad/s, main input {main})"
+            );
+        }
     }
 
     #[test]

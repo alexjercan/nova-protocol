@@ -20,8 +20,8 @@ use super::{
         ship_turn_rate, slew_rotation, slew_urgency, spool_tail, stop_rest_distance, FlipEstimate,
     },
     thrusters::{
-        balance_throttles, burn_input, choose_group, cluster_thrusters, spool_allocated_thrusters,
-        BalanceEngine,
+        balance_throttles, burn_input, choose_group, cluster_thrusters, hold_for_opposed_wind_down,
+        spool_allocated_thrusters, BalanceEngine,
     },
 };
 use crate::{prelude::*, sections::thruster_section::engine_direction};
@@ -856,6 +856,10 @@ pub(super) fn autopilot_system(
         // balance itself (the single damage-shifted main drive).
         let mut firing_authority = 0.0f32;
         let mut allocation: Vec<(Entity, BalanceEngine)> = Vec::new();
+        // Per allocation entry: world thrust direction, primary flag and
+        // spooled input, for hold_for_opposed_wind_down.
+        let mut engine_dirs: Vec<(Vec3, bool)> = Vec::new();
+        let mut spooled: Vec<f32> = Vec::new();
         if let Some(error_dir) = error_dir {
             for (thruster, input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
                 if parent != ship {
@@ -903,6 +907,8 @@ pub(super) fn autopilot_system(
                         primary,
                     },
                 ));
+                engine_dirs.push((dir, primary));
+                spooled.push(**input);
             }
         }
 
@@ -1223,6 +1229,11 @@ pub(super) fn autopilot_system(
             };
             let coeffs: Vec<BalanceEngine> = allocation.iter().map(|(_, e)| *e).collect();
             throttles = balance_throttles(&coeffs, demand);
+            // A retro lit while the main still winds down (or the reverse)
+            // burns against the tail; hold every engine until it is dark.
+            if hold_for_opposed_wind_down(&engine_dirs, &spooled, &throttles, settings.align_cos) {
+                throttles.fill(0.0);
+            }
             burning = throttles.iter().any(|&u| u > 0.0);
         }
 
