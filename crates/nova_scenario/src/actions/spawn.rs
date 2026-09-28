@@ -4,6 +4,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::LootableShipMarker;
 
 use crate::prelude::*;
 
@@ -211,6 +212,9 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                     // authored side always wins.
                     if let Some(allegiance) = config.allegiance {
                         entity_commands.insert(allegiance);
+                    }
+                    if config.lootable {
+                        entity_commands.insert(LootableShipMarker);
                     }
                 }
                 ScenarioObjectKind::Beacon(config) => {

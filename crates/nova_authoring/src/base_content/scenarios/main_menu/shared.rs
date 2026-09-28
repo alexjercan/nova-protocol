@@ -99,6 +99,7 @@ pub(super) fn backdrop_orbiter(
                 ..Default::default()
             }),
             design: ships::design(hull),
+            lootable: false,
             ..Default::default()
         }),
     }

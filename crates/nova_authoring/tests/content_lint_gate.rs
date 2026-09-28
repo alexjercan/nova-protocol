@@ -76,6 +76,7 @@ fn target_mode_lints_one_mod_in_repo_or_external() {
                                     (id: "b", position: (0.0, 0.0, 1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "imaginary_hull")),
                                 ],
                             )),
+                            lootable: false,
                         )),
                     )),
                 ],
@@ -209,6 +210,7 @@ const ACKED_SCENARIO_RON: &str = r#"[
                                     (id: "guns", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "pdc_kinetic_turret_section")),
                                 ],
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -231,6 +233,7 @@ const ACKED_SCENARIO_RON: &str = r#"[
                                     (id: "turret", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "pdc_kinetic_turret_section")),
                                 ],
                             )),
+                            lootable: false,
                         )),
                     )),
                 ],

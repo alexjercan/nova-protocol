@@ -151,7 +151,10 @@ pub(crate) fn play_interface_toggle(mut commands: Commands, bank: Option<Res<Sou
 
 /// `interface_next_tab` steps to the next pane while the interface owns the
 /// screen. An armed section rebind takes the key instead: leaving the Ship pane
-/// would drop the capture.
+/// would drop the capture. The plugin runs it in [`InputMode::Normal`] only, so
+/// a focused text field, such as the Inventory quantity, types the key instead.
+///
+/// [`InputMode::Normal`]: nova_ui::prelude::InputMode::Normal
 pub(crate) fn next_interface_pane(
     sources: InputSources,
     bindings: Res<InputBindings>,

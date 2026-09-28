@@ -34,7 +34,7 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
 | --- | --- |
 | <kbd>Tab</kbd> (or click the right stick) | The interface opens on the Map pane, or on the pane you last used. It needs a live ship, and it does not open over the pause menu. |
 | <kbd>Tab</kbd> again, <kbd>Esc</kbd>, or gamepad Start | Close it and return to flight. |
-| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, then Map again. |
+| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
 | Click **Map**, **Ship** or **Inventory** | Switch to that pane. |
 | <kbd>:</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
 
@@ -200,11 +200,13 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      Pane: crates/nova_interface/src/inventory/app.rs `update_inventory_panel`
      (partner through `DockedShip` -> `DockingConnection`); filter order
      `FILTER_ORDER`. Open-world stock: crates/nova_authoring/src/base_content/
-     scenarios/open_world.rs `player`. Ship pane repair spends hull plates:
-     crates/nova_interface/src/ship/sections.rs `repair_section`. Nothing adds
-     items yet. -->
+     scenarios/open_world.rs `player` and `derelict`. Ship pane repair spends
+     hull plates: crates/nova_interface/src/ship/sections.rs `repair_section`.
+     Take and Give: crates/nova_gameplay/src/inventory.rs `plan_item_transfer`,
+     applied by crates/nova_interface/src/inventory/app.rs
+     `apply_inventory_transfer_commands`. -->
 
-The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` In the open world your ship starts with 12 hull plates; every other ship starts empty. A [repair](#the-ship) spends hull plates, and nothing adds items yet. Spent plates return when the scenario loads again.
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` In the open world your ship starts with 12 hull plates, with a Derelict Tender carrying 8 more moored off your starboard collar, close enough to [dock](../sections/docking/) without moving. Other ships start as their scenario authors them. A [repair](#the-ship) spends hull plates. Nothing is saved: spent and moved items return to their starting counts when the scenario loads again.
 
 | Filter | Shows |
 | --- | --- |
@@ -215,7 +217,18 @@ The Inventory pane lists what your ship carries in the left column and, while yo
 | **Raw** | Mined or salvaged bulk material. |
 | **Parts** | Scavenged objects for a story, an objective or trade. |
 
-Click an item to inspect it: the inspector shows its category, what it is and how many the selected ship carries. The pane shows stock only; it does not move, buy or sell items.
+Click an item to inspect it: the inspector shows its category, what it is and how many the selected ship carries.
+
+### Take and give
+
+Docked, a click on an item opens a transfer form in the inspector at a quantity of 1:
+
+| Click | Opens | When |
+| --- | --- | --- |
+| An item in your column | **Give** to the docked ship | Always while docked, for example to deliver cargo. |
+| An item in the docked ship's column | **Take** from it | Only when the docked ship is neutralized or a lootable derelict. Taking from a live ship would be stealing. |
+
+Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or **All** for the whole stack. The slider hides when the stack holds one item. **Confirm** moves the items at once and the note line reads `Took 3 Hull plate from Derelict Tender` or `Gave 3 Hull plate to Derelict Tender`. A refused move changes nothing and keeps the form open so you can fix the quantity: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Hull plate in Derelict Tender`, `Refused: Derelict Tender is not neutralized or lootable`, or `Refused: not docked`. There is no price and no cargo limit. Items given to a ship that the open world streams away are gone with it.
 
 ## The command shell
 

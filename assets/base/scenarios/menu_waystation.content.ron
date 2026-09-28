@@ -55,6 +55,7 @@
                             controller: AI((
                                 orbit: Some(Authored("menu_planetoid")),
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -80,6 +81,7 @@
                             controller: AI((
                                 orbit: Some(Authored("menu_planetoid")),
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((

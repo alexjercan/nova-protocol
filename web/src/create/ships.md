@@ -93,6 +93,7 @@ SpawnScenarioObject((
     kind: Spaceship((
         controller: AI((engage_delay: Some(8.0))),
         design: Prototype(id: "my_corvette"),
+        lootable: false,
     )),
 )),
 ```
@@ -117,6 +118,7 @@ kind: Spaceship((
             ))))),
         },
     ),
+    lootable: false,
 )),
 ```
 
@@ -150,6 +152,7 @@ kind: Spaceship((
             ),
         ],
     )),
+    lootable: false,
 )),
 ```
 

@@ -71,7 +71,11 @@ use bevy::prelude::*;
 use nova_gameplay::{GameStates, PauseStates};
 use nova_hud::NovaHudSystems;
 use nova_input::prelude::RegisterInputActions;
-use nova_ui::{theme::UiThemeSystems, widget::button_on_setting};
+use nova_ui::{
+    input_mode::prelude::{in_input_mode, InputMode},
+    theme::UiThemeSystems,
+    widget::button_on_setting,
+};
 
 use crate::{
     inventory::InventoryPaneSystems,
@@ -146,7 +150,7 @@ impl Plugin for InterfacePlugin {
             Update,
             (
                 toggle_interface.run_if(in_state(GameStates::Playing)),
-                next_interface_pane,
+                next_interface_pane.run_if(in_input_mode(InputMode::Normal)),
                 spawn_interface_root,
                 rebuild_interface_body,
                 refresh_pane_input_hints,

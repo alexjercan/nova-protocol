@@ -49,6 +49,7 @@
                                     "pdc_ventral_starboard": [Keyboard(KeyM)],
                                 },
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -148,6 +149,7 @@
                                 engage_delay: Some(45.0),
                                 leash: Some(20000.0),
                             )),
+                            lootable: false,
                         )),
                     )),
                 ],

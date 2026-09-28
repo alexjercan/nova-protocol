@@ -148,6 +148,7 @@
                                     "pdc_ventral": [Keyboard(KeyS)],
                                 },
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -176,6 +177,7 @@
                             design: Prototype(id: "block_hauler"),
                             controller: r#None,
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -189,6 +191,7 @@
                             design: Prototype(id: "block_hauler"),
                             controller: r#None,
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -204,6 +207,7 @@
                                 engage_delay: Some(60.0),
                                 leash: Some(9000.0),
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((

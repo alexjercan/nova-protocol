@@ -2,12 +2,13 @@
 //! to, and the per-ship stack counts.
 //!
 //! Every ship root requires a [`ShipInventory`], empty by default, so a reader
-//! can fetch it from any ship without a fallback. The open-world player ship
-//! starts with authored stock through `SpaceshipConfig::inventory`; nothing
-//! else seeds it, and nothing adds items at runtime. A Ship pane repair spends
-//! [`ItemType::HullPlate`] by the [`plan_plate_repair`] rule. Stock is not
-//! saved: spent plates return when the authored scenario loads again. A stack
-//! exists only while its count is above zero.
+//! can fetch it from any ship without a fallback. A ship starts with authored
+//! stock through `SpaceshipConfig::inventory`. A Ship pane repair spends
+//! [`ItemType::HullPlate`] by the [`plan_plate_repair`] rule, and an Inventory
+//! pane transfer moves items between two docked ships by the
+//! [`plan_item_transfer`] rule. Stock is not saved: it returns to its authored
+//! counts when the scenario loads again. A stack exists only while its count
+//! is above zero.
 
 use std::collections::BTreeMap;
 
@@ -18,7 +19,8 @@ use crate::integrity::prelude::Health;
 /// The whole module.
 pub mod prelude {
     pub use super::{
-        plan_plate_repair, ItemCategoryType, ItemType, PlateRepair, PlateRepairRefusalType,
+        plan_item_transfer, plan_plate_repair, ItemCategoryType, ItemTransferRefusalType,
+        ItemTransferType, ItemType, LootableShipMarker, PlateRepair, PlateRepairRefusalType,
         ShipInventory, HULL_PLATE_HEALTH,
     };
 }
@@ -80,6 +82,21 @@ impl ShipInventory {
         self.stacks.is_empty()
     }
 
+    /// Add `count` of `item`; create the stack when the ship has none.
+    ///
+    /// # Panics
+    ///
+    /// On `count == 0` or a total above `u32::MAX`: the caller has a bug and
+    /// must plan the add first, as [`plan_item_transfer`] does.
+    pub fn add(&mut self, item: ItemType, count: u32) {
+        assert!(count > 0, "ShipInventory adds 0 of {item:?}");
+        let held = self.count(item);
+        let total = held.checked_add(count).unwrap_or_else(|| {
+            panic!("ShipInventory adds {count} of {item:?} to {held}, past u32::MAX")
+        });
+        self.stacks.insert(item, total);
+    }
+
     /// Remove `count` of `item`; delete the stack when it empties.
     ///
     /// # Panics
@@ -99,6 +116,81 @@ impl ShipInventory {
             self.stacks.insert(item, held - count);
         }
     }
+}
+
+/// Marks a ship root that a docked ship may Take from although it was never
+/// neutralized: a derelict. Authored through `SpaceshipConfig::lootable`.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+pub struct LootableShipMarker;
+
+/// Which way a transfer between two docked ships moves items.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+pub enum ItemTransferType {
+    /// From the docked partner into the player ship.
+    Take,
+    /// From the player ship into the docked partner.
+    Give,
+}
+
+/// Why a transfer moves nothing, in check order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemTransferRefusalType {
+    /// A Take from a partner that is neither neutralized nor lootable.
+    NotLootable,
+    /// The quantity text is not a whole number.
+    NoQuantity,
+    /// A quantity of zero.
+    ZeroQuantity,
+    /// The source ship carries fewer than the quantity.
+    Short {
+        /// What the source ship carries.
+        held: u32,
+    },
+    /// The target ship's count would pass `u32::MAX`.
+    Overflow {
+        /// What the target ship carries.
+        held: u32,
+    },
+}
+
+/// Plan a transfer of `quantity` of `item` between the player ship's `own`
+/// inventory and its docked `partner`'s.
+///
+/// Returns the count to remove from the source and add to the target. A Take
+/// needs `partner_lootable`: the partner is neutralized or carries
+/// [`LootableShipMarker`]; a Give does not read it. Checks run in
+/// [`ItemTransferRefusalType`] order. `quantity` is `None` when the typed
+/// text is not a whole number.
+pub fn plan_item_transfer(
+    transfer: ItemTransferType,
+    partner_lootable: bool,
+    item: ItemType,
+    quantity: Option<u32>,
+    own: &ShipInventory,
+    partner: &ShipInventory,
+) -> Result<u32, ItemTransferRefusalType> {
+    let (source, target) = match transfer {
+        ItemTransferType::Take => {
+            if !partner_lootable {
+                return Err(ItemTransferRefusalType::NotLootable);
+            }
+            (partner, own)
+        }
+        ItemTransferType::Give => (own, partner),
+    };
+    let quantity = quantity.ok_or(ItemTransferRefusalType::NoQuantity)?;
+    if quantity == 0 {
+        return Err(ItemTransferRefusalType::ZeroQuantity);
+    }
+    let held = source.count(item);
+    if quantity > held {
+        return Err(ItemTransferRefusalType::Short { held });
+    }
+    let held = target.count(item);
+    if held.checked_add(quantity).is_none() {
+        return Err(ItemTransferRefusalType::Overflow { held });
+    }
+    Ok(quantity)
 }
 
 /// Health one hull plate restores. Restore capacity a repair does not use is
@@ -261,6 +353,64 @@ mod tests {
         assert_eq!(plan_plate_repair(None, false, 12), Err(NoIntegrity));
         // The section's state wins over the stock.
         assert_eq!(plan(100.0, 100.0, false, 0), Err(Full));
+    }
+}
+
+#[cfg(test)]
+mod transfer_tests {
+    use super::*;
+
+    #[test]
+    fn item_transfer_plans_refuse_in_order_and_never_overflow() {
+        use ItemTransferRefusalType::*;
+        use ItemTransferType::*;
+        let plates =
+            |count: u32| -> ShipInventory { [(ItemType::HullPlate, count)].into_iter().collect() };
+        let plan = |transfer, lootable, quantity, own: &ShipInventory, partner: &ShipInventory| {
+            plan_item_transfer(
+                transfer,
+                lootable,
+                ItemType::HullPlate,
+                quantity,
+                own,
+                partner,
+            )
+        };
+        let (own, partner) = (plates(12), plates(8));
+
+        assert_eq!(plan(Take, true, Some(3), &own, &partner), Ok(3));
+        assert_eq!(plan(Take, true, Some(8), &own, &partner), Ok(8));
+        assert_eq!(plan(Give, false, Some(12), &own, &partner), Ok(12));
+        // Take needs a lootable partner; Give never reads it.
+        assert_eq!(plan(Take, false, Some(1), &own, &partner), Err(NotLootable));
+        // Authorization wins over the quantity.
+        assert_eq!(plan(Take, false, None, &own, &partner), Err(NotLootable));
+        assert_eq!(plan(Give, false, None, &own, &partner), Err(NoQuantity));
+        assert_eq!(
+            plan(Give, false, Some(0), &own, &partner),
+            Err(ZeroQuantity)
+        );
+        assert_eq!(
+            plan(Take, true, Some(9), &own, &partner),
+            Err(Short { held: 8 })
+        );
+        assert_eq!(
+            plan(Give, false, Some(1), &ShipInventory::default(), &partner),
+            Err(Short { held: 0 })
+        );
+        let full = plates(u32::MAX);
+        assert_eq!(
+            plan(Take, true, Some(1), &full, &partner),
+            Err(Overflow { held: u32::MAX })
+        );
+
+        // A planned move conserves the total and empties a drained stack.
+        let (mut own, mut partner) = (own, partner);
+        let moved = plan(Take, true, Some(8), &own, &partner).expect("planned");
+        partner.remove(ItemType::HullPlate, moved);
+        own.add(ItemType::HullPlate, moved);
+        assert_eq!(own.count(ItemType::HullPlate), 20);
+        assert!(partner.is_empty());
     }
 }
 

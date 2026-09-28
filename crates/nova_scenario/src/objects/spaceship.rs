@@ -466,6 +466,10 @@ pub struct SpaceshipConfig {
         serde(default, skip_serializing_if = "ShipInventory::is_empty")
     )]
     pub inventory: ShipInventory,
+    /// Whether a docked ship may Take from this ship's inventory although it
+    /// was never neutralized: a derelict. Required in RON, so every authored
+    /// ship states it; `true` inserts [`LootableShipMarker`] at spawn.
+    pub lootable: bool,
 }
 
 /// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type
@@ -1303,7 +1307,7 @@ mod tests {
     #[test]
     fn collapse_threshold_ron_parses_defaults_and_stays_unserialized() {
         let authored: SpaceshipConfig = ron::from_str(
-            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))))"#,
+            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))), lootable: false)"#,
         )
         .expect("the documented syntax parses");
         let ShipDesignSource::Inline(design) = &authored.design else {
@@ -1311,8 +1315,9 @@ mod tests {
         };
         assert_eq!(design.integrity.collapse_threshold, Some(0.1));
 
-        let omitted: SpaceshipConfig = ron::from_str(r#"(controller: None, design: Inline(()))"#)
-            .expect("omitted field parses");
+        let omitted: SpaceshipConfig =
+            ron::from_str(r#"(controller: None, design: Inline(()), lootable: false)"#)
+                .expect("omitted field parses");
         let ShipDesignSource::Inline(design) = &omitted.design else {
             panic!("an inline design");
         };

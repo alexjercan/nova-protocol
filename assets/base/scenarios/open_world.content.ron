@@ -70,6 +70,35 @@
                             inventory: {
                                 HullPlate: 12,
                             },
+                            lootable: false,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "derelict_tender",
+                            name: "Derelict Tender",
+                            position: (
+                                55.0,
+                                0.0,
+                                30.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "block_frame_tender_damaged",
+                            ),
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                            inventory: {
+                                HullPlate: 8,
+                            },
+                            lootable: true,
                         )),
                     )),
                     SpawnScenarioObject((

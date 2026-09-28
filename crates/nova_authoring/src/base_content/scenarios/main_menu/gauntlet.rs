@@ -122,6 +122,7 @@ fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
                 rotation: Quat::IDENTITY,
                 source: SectionSource::prototype("torpedo_section"),
             }]),
+            lootable: false,
             ..Default::default()
         }),
     }
@@ -251,6 +252,7 @@ pub(crate) fn menu_gauntlet(
                     ships::on_section(turret, ships::turret_magazine(GUNSHIP_ROUNDS_PER_TURRET))
                 }),
             ),
+            lootable: false,
             ..Default::default()
         }),
     });

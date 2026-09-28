@@ -55,6 +55,7 @@
                                 orbit_enabled: false,
                                 lock_enabled: false,
                             ),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((

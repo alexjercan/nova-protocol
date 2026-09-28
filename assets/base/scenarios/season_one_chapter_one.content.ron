@@ -44,6 +44,7 @@
                             ),
                             controller: Player(()),
                             allegiance: Some(Player),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -75,6 +76,7 @@
                             ),
                             controller: r#None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -99,6 +101,7 @@
                             ),
                             controller: r#None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -123,6 +126,7 @@
                             ),
                             controller: r#None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -147,6 +151,7 @@
                             ),
                             controller: r#None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((

@@ -5,16 +5,18 @@
 use bevy::{
     ecs::system::RunSystemOnce,
     ui::{ComputedNode, UiGlobalTransform},
+    ui_widgets::ValueChange,
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{DockedHelmType, DockedShip, DockingConnection};
+use nova_ui::widget::{TextFieldError, TextFieldValue};
 
 use super::*;
 use crate::{
     icons::InterfaceIcons,
     pointer_rig::{
-        click_at, hear_ui_cues, pane_pointer_rig, settle, take_churn, take_cues, track_node_churn,
-        PanePointerRig,
+        click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, settle, take_churn, take_cues,
+        track_node_churn, PanePointerRig,
     },
 };
 
@@ -192,8 +194,7 @@ fn panel_of(world: &mut World, side: InventorySideType) -> (f32, f32, bool) {
 fn inventory_rig() -> (PanePointerRig, Entity) {
     let mut rig = pane_pointer_rig();
     rig.app.insert_resource(InterfaceIcons::blank());
-    rig.app.init_resource::<InventoryRuntime>();
-    rig.app.add_systems(Update, update_inventory_panel);
+    rig.app.add_plugins(InventoryPanePlugin);
     hear_ui_cues(&mut rig.app);
     track_node_churn(&mut rig.app);
     let content_root = rig.content_root;
@@ -318,7 +319,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
         chip.0 == Some(ItemCategoryType::Ammo)
     });
     click_at(&mut rig, ammo);
-    let runtime = *rig.app.world().resource::<InventoryRuntime>();
+    let runtime = rig.app.world().resource::<InventoryRuntime>().clone();
     assert_eq!(runtime.filter, Some(ItemCategoryType::Ammo));
     assert_eq!(runtime.selected, None);
     assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
@@ -371,4 +372,333 @@ fn a_player_ship_without_an_inventory_panics_the_panel() {
     app.world_mut().entity_mut(player).remove::<ShipInventory>();
 
     app.update();
+}
+
+/// Every hull plate `ship` carries.
+fn plates(world: &World, ship: Entity) -> u32 {
+    world
+        .get::<ShipInventory>(ship)
+        .expect("a ship root carries a ShipInventory")
+        .count(ItemType::HullPlate)
+}
+
+/// The note line's text, if a result is showing.
+fn note(app: &App) -> Option<String> {
+    app.world()
+        .resource::<InventoryRuntime>()
+        .note
+        .as_ref()
+        .map(|(note, _)| note.clone())
+}
+
+#[test]
+fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
+    use ItemTransferType::{Give, Take};
+
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_resource::<InventoryRuntime>();
+    app.add_message::<InventoryTransferCommand>();
+    app.add_systems(Update, apply_inventory_transfer_commands);
+    hear_ui_cues(&mut app);
+    let player = spawn_player(app.world_mut(), 12);
+    let partner = dock_partner(app.world_mut(), player, "Derelict", 8);
+    let total = |app: &App| plates(app.world(), player) + plates(app.world(), partner);
+
+    // Write one confirmed command with its draft open, and run it.
+    let confirm = |app: &mut App, transfer, quantity: Option<u32>| {
+        let command = InventoryTransferCommand {
+            transfer,
+            item: ItemType::HullPlate,
+            quantity,
+        };
+        app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
+            transfer,
+            item: ItemType::HullPlate,
+            quantity,
+        });
+        app.world_mut().write_message(command);
+        app.update();
+        let draft_open = app.world().resource::<InventoryRuntime>().draft.is_some();
+        (note(app), take_cues(app), draft_open)
+    };
+    let moved = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
+    let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
+
+    // A live ship that was never neutralized: Take is stealing, Give is fine.
+    assert_eq!(
+        confirm(&mut app, Take, Some(3)),
+        refused("Refused: Derelict is not neutralized or lootable")
+    );
+    assert_eq!(
+        (plates(app.world(), player), plates(app.world(), partner)),
+        (12, 8)
+    );
+    assert_eq!(
+        confirm(&mut app, Give, Some(2)),
+        moved("Gave 2 Hull plate to Derelict")
+    );
+    assert_eq!(
+        (plates(app.world(), player), plates(app.world(), partner)),
+        (10, 10)
+    );
+
+    // Lootable: Take moves; each bad quantity refuses with nothing moved.
+    app.world_mut()
+        .entity_mut(partner)
+        .insert(LootableShipMarker);
+    assert_eq!(
+        confirm(&mut app, Take, Some(3)),
+        moved("Took 3 Hull plate from Derelict")
+    );
+    assert_eq!(
+        (plates(app.world(), player), plates(app.world(), partner)),
+        (13, 7)
+    );
+    assert_eq!(
+        confirm(&mut app, Take, None),
+        refused("Refused: enter a quantity")
+    );
+    assert_eq!(
+        confirm(&mut app, Take, Some(0)),
+        refused("Refused: quantity is zero")
+    );
+    assert_eq!(
+        confirm(&mut app, Take, Some(8)),
+        refused("Refused: only 7 Hull plate in Derelict")
+    );
+    assert_eq!(
+        confirm(&mut app, Give, Some(14)),
+        refused("Refused: only 13 Hull plate in NOVA")
+    );
+    assert_eq!(
+        (plates(app.world(), player), plates(app.world(), partner)),
+        (13, 7)
+    );
+
+    // Neutralized, not lootable: Take moves the whole stack and drops it.
+    app.world_mut()
+        .entity_mut(partner)
+        .remove::<LootableShipMarker>()
+        .insert(NeutralizedMarker);
+    assert_eq!(
+        confirm(&mut app, Take, Some(7)),
+        moved("Took 7 Hull plate from Derelict")
+    );
+    assert!(app
+        .world()
+        .get::<ShipInventory>(partner)
+        .unwrap()
+        .is_empty());
+    assert_eq!(total(&app), 20);
+
+    // A target at the count's limit refuses rather than wrap.
+    app.world_mut().entity_mut(partner).insert(
+        [(ItemType::HullPlate, u32::MAX)]
+            .into_iter()
+            .collect::<ShipInventory>(),
+    );
+    assert_eq!(
+        confirm(&mut app, Give, Some(1)),
+        refused("Refused: Derelict cannot hold more Hull plate")
+    );
+    assert_eq!(plates(app.world(), player), 20);
+
+    // A command that arrives after the undock moves nothing.
+    app.world_mut().entity_mut(player).remove::<DockedShip>();
+    assert_eq!(
+        confirm(&mut app, Give, Some(1)),
+        refused("Refused: not docked")
+    );
+    assert_eq!(plates(app.world(), player), 20);
+}
+
+/// The one entity carrying `C`.
+fn only<C: Component>(world: &mut World) -> Entity {
+    world
+        .query_filtered::<Entity, With<C>>()
+        .single(world)
+        .expect("the form has one of each control")
+}
+
+/// The open draft's quantity.
+fn draft_quantity(app: &App) -> Option<u32> {
+    app.world()
+        .resource::<InventoryRuntime>()
+        .draft
+        .expect("a draft is open")
+        .quantity
+}
+
+#[test]
+fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
+    let (mut rig, player) = inventory_rig();
+    let partner = dock_partner(rig.app.world_mut(), player, "Derelict", 8);
+    rig.app
+        .world_mut()
+        .entity_mut(partner)
+        .insert(LootableShipMarker);
+    settle(&mut rig.app);
+    take_cues(&mut rig.app);
+
+    // The derelict's row opens a Take of one.
+    let partner_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
+        row.side == InventorySideType::Partner
+    });
+    click_at(&mut rig, partner_row);
+    assert_eq!(
+        rig.app.world().resource::<InventoryRuntime>().draft,
+        Some(InventoryDraft {
+            transfer: ItemTransferType::Take,
+            item: ItemType::HullPlate,
+            quantity: Some(1),
+        })
+    );
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    let world = rig.app.world_mut();
+    let (field, slider, wheel) = (
+        only::<InventoryDraftField>(world),
+        only::<InventoryDraftSlider>(world),
+        only::<InventoryDraftWheel>(world),
+    );
+    assert_eq!(
+        world.get::<Node>(slider).unwrap().display,
+        Display::Flex,
+        "a stock of 8 shows the slider"
+    );
+    take_churn(&mut rig.app);
+
+    // The wheel over the quantity row steps by one, one tick each.
+    let over_wheel = centre_of::<InventoryDraftWheel>(rig.app.world_mut(), |_| true);
+    move_cursor_to(&mut rig, over_wheel);
+    for _ in 0..2 {
+        let window = rig
+            .app
+            .world_mut()
+            .query_filtered::<Entity, With<bevy::window::PrimaryWindow>>()
+            .single(rig.app.world())
+            .unwrap();
+        rig.app
+            .world_mut()
+            .write_message(bevy::window::WindowEvent::MouseWheel(
+                bevy::input::mouse::MouseWheel {
+                    unit: bevy::input::mouse::MouseScrollUnit::Line,
+                    x: 0.0,
+                    y: 1.0,
+                    window,
+                    phase: bevy::input::touch::TouchPhase::Moved,
+                },
+            ));
+        settle(&mut rig.app);
+    }
+    assert_eq!(draft_quantity(&rig.app), Some(3));
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::UiTick, UiSfx::UiTick]);
+    assert_eq!(rig.app.world().get::<TextFieldValue>(field).unwrap().0, "3");
+
+    // The slider sets it; the same value again is silent.
+    for _ in 0..2 {
+        rig.app.world_mut().trigger(ValueChange {
+            source: slider,
+            value: 6.0_f32,
+            is_final: true,
+        });
+        settle(&mut rig.app);
+    }
+    assert_eq!(draft_quantity(&rig.app), Some(6));
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::UiTick]);
+
+    // Typed text sets it; text that is not a number stays as typed, marks
+    // the field and says so, with no tick.
+    rig.app
+        .world_mut()
+        .get_mut::<TextFieldValue>(field)
+        .unwrap()
+        .0 = "4".to_string();
+    settle(&mut rig.app);
+    assert_eq!(draft_quantity(&rig.app), Some(4));
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::UiTick]);
+    rig.app
+        .world_mut()
+        .get_mut::<TextFieldValue>(field)
+        .unwrap()
+        .0 = "4x".to_string();
+    settle(&mut rig.app);
+    assert_eq!(draft_quantity(&rig.app), None);
+    assert!(take_cues(&mut rig.app).is_empty());
+    let world = rig.app.world_mut();
+    assert_eq!(world.get::<TextFieldValue>(field).unwrap().0, "4x");
+    assert!(world.get::<TextFieldError>(field).is_some());
+    let summary = world
+        .query::<(&InventoryInspectorField, &Text)>()
+        .iter(world)
+        .find(|(each, _)| **each == InventoryInspectorField::DraftSummary)
+        .map(|(_, text)| text.0.clone());
+    assert_eq!(summary.as_deref(), Some("Type a whole number"));
+
+    // All takes the whole source stack, clears the error and rewrites the field.
+    let all = centre_of::<Name>(rig.app.world_mut(), |name| {
+        name.as_str() == "InventoryDraftAll"
+    });
+    click_at(&mut rig, all);
+    assert_eq!(draft_quantity(&rig.app), Some(8));
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    let world = rig.app.world_mut();
+    assert_eq!(world.get::<TextFieldValue>(field).unwrap().0, "8");
+    assert!(world.get::<TextFieldError>(field).is_none());
+
+    // Every change rewrote the form in place: no node came or went.
+    let churn = take_churn(&mut rig.app);
+    assert_eq!((churn.spawned, churn.despawned), (0, 0), "{churn:?}");
+    let world = rig.app.world_mut();
+    assert_eq!(
+        (
+            only::<InventoryDraftField>(world),
+            only::<InventoryDraftSlider>(world),
+            only::<InventoryDraftWheel>(world),
+        ),
+        (field, slider, wheel)
+    );
+
+    // Confirm moves the stack, closes the form and leaves the note.
+    let confirm = centre_of::<Name>(rig.app.world_mut(), |name| {
+        name.as_str() == "InventoryDraftConfirm"
+    });
+    click_at(&mut rig, confirm);
+    assert_eq!(
+        (
+            plates(rig.app.world(), player),
+            plates(rig.app.world(), partner)
+        ),
+        (20, 0)
+    );
+    assert_eq!(rig.app.world().resource::<InventoryRuntime>().draft, None);
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Took 8 Hull plate from Derelict")
+    );
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+
+    // A source of one hides the slider; the field and All still set it.
+    rig.app.world_mut().entity_mut(player).insert(
+        [(ItemType::HullPlate, 1)]
+            .into_iter()
+            .collect::<ShipInventory>(),
+    );
+    settle(&mut rig.app);
+    let own_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
+        row.side == InventorySideType::Own
+    });
+    click_at(&mut rig, own_row);
+    assert_eq!(
+        rig.app
+            .world()
+            .resource::<InventoryRuntime>()
+            .draft
+            .map(|draft| draft.transfer),
+        Some(ItemTransferType::Give)
+    );
+    assert_eq!(
+        rig.app.world().get::<Node>(slider).unwrap().display,
+        Display::None
+    );
 }

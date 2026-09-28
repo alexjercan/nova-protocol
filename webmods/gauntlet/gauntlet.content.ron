@@ -134,6 +134,7 @@
                                 input_mapping: {},
                             )),
                             design: Prototype(id: "block_cutter"),
+                            lootable: false,
                         )),
                     )),
                     // --- Gates: START, six threaded gates, FINISH ---

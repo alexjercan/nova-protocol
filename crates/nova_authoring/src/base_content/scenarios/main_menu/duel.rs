@@ -256,6 +256,7 @@ fn duelist(
                 ships::BLOCK_BRIDGE_SECTION_ID,
                 ships::section_health(DUELIST_BRIDGE_HEALTH),
             ),
+            lootable: false,
             ..Default::default()
         }),
     }
@@ -314,6 +315,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
                 rotation: Quat::IDENTITY,
                 source: SectionSource::Inline(siege_bay(assets)),
             }]),
+            lootable: false,
             ..Default::default()
         }),
     });

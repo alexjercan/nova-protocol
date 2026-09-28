@@ -59,6 +59,7 @@
                             controller: Player((
                                 input_mapping: {},
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -72,6 +73,7 @@
                             design: Prototype(id: "block_frame_tender_damaged"),
                             controller: r#None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                 ],
