@@ -1,8 +1,10 @@
-# Normalize generated world object and prepared payload schemas
+# Simplify generated-world data structures
 
 - STATUS: OPEN
 - PRIORITY: 0
 - TAGS: backlog, world, refactor, api
+
+Technical cleanup only: make generated rock, planet and ship records easier to read and harder to mix up. This changes no world content or player-visible behavior. Defer until a feature touches these data structures.
 
 ## User facts
 

@@ -1,22 +1,23 @@
-# Scope situated faction encounters and station jobs
+# Add enemy, neutral, and allied ship encounters to the open world
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,world,design
+- PRIORITY: 60
+- TAGS: v0.15.0,world,encounters,design
 
-## User facts
-- The owner is interested in factions beyond the three current gameplay categories, more enemy and neutral ship designs, random events and quests from stations, while keeping a realistic near-future setting. These are research proposals, not approved feature promises.
+## Goal
 
-## Agent findings
-- `Allegiance` is currently Player/Enemy/Neutral and `relation()` is a closed pure function (`crates/nova_gameplay/src/relations.rs:26-61`); AI acquires sensor contacts, authored scenarios dispatch events, and streamed bodies are not authored-addressable. No world-scoped encounter director, faction standing or station job board exists. Lore distinguishes state military, corporate security, independent lawful contractors and piracy without treating them as unified four factions (`web/src/lore/economy.md:54-76`, `law-and-power.md:36-60`).
+Let the streamed world place small, seeded groups of enemy, neutral, and allied ships as encounters, including combat zones the player can fly into. Start with a playable example, then judge whether this makes the world better. A full faction, standing, reputation, or station-job system is a later decision, not part of this task.
 
-## Proposed design work, not implementation approval
-- Compare an authored deterministic sector encounter, a Bevy-owned seeded visit event and a hybrid named encounter template. Decide stable identities, event schedule, mod-authored data/lint, and no-duplicate-reward/retire policy before implementation.
-- Compare retaining coarse Allegiance plus situated organization metadata with replacing the relation interface by an extensible faction graph; state impact on AI, HUD, missions and saves. Do not assume a standing number or reputation-gated weapons.
-- Choose one player-readable consequence (escort request, disputed salvage, neutral distress or security patrol), with one compelling alternative to combat. New enemy designs must remain recognizable catalog designs; coordinate with existing derelict-role task `20260923-110307` rather than duplicating it.
+## Starting point
 
-## Verification to design
-- Named repeatable encounter from a world seed and event identity; authored scenario behavior unchanged; live AI targeting, neutral refusal and outcome feedback asserted; no repeat rewards after leave/return in whichever persistence tier is approved. Playtest whether approach and flight remain central rather than only menu text.
+- `crates/nova_gameplay/src/relations.rs` has Player, Enemy, and Neutral combat allegiances; there is no distinct Allied allegiance. Decide the simplest way to express allies without silently changing how the existing sides target one another.
+- `crates/nova_world_base/src/clusters.rs` places unpiloted derelicts; `crates/nova_world/src/streaming.rs` spawns them with no controller and neutral allegiance. It does not yet make live ship encounters.
+- `20260923-110307` owns regional ship designs and looks. This task owns whether, where, and how encounter ships appear and behave. `20260925-190156` owns what happens to an encounter after the sector retires.
+
+## Decisions before implementation
+
+Choose a first enemy/neutral/allied encounter, its seed and location rule, ship/AI source, combat relations, entry and outcome cues, and retirement/revisit policy. Test it in flight before generalizing. Do not add a generic faction/reputation system or a station job board just to spawn the first encounter.
 
 ## Done when
-- Owner has compared one encounter loop and faction identity boundary with consequences; chosen content, UI and lifetime contracts are ready for separate implementation gate. No scripted `WorldScript` or faction save type is assumed to exist.
+
+The owner has reviewed a code-backed first encounter and its lifetime/AI rules; after separate implementation approval, a seeded player flow shows all three ship roles and verifies combat, neutral, and allied behavior without changing authored scenarios unexpectedly.

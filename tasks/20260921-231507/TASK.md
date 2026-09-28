@@ -39,6 +39,10 @@ Gameplay:
 
 - p65 `20260901-104359` combat balance and AI: reproduce weak combat and
   weapon-spam win odds, then balance (`tasks/20260901-104359/TASK.md`)
+- p60 `20260925-190131` seeded enemy, neutral and allied ship encounters; no faction/reputation system.
+- p55 `20260923-110307` regional ship designs and looks, separate from encounter AI.
+- p50 `20260925-182711` research gravity on mobile bodies and stable orbits before any physics change.
+- p45 `20260927-224016` improve autopilot turn timing and predicted trajectory; revisit gravity after its model lands.
 
 Mechanical delivery:
 
@@ -70,6 +74,10 @@ Coordination, NOT dependency:
   content ownership, and UI surface. Neither spike may silently settle the
   other's question. Where they disagree, the disagreement is recorded as an
   open decision on both tasks, not resolved by whichever finishes first.
+- Encounter spawning and regional ship selection are separate: the former owns
+  live ship roles/AI, the latter which designs and looks suit a region. Gravity
+  research must expose its effects on both. A pre-gravity autopilot pass cannot
+  claim gravity-aware trajectory prediction.
 
 Explicitly independent:
 
@@ -86,6 +94,10 @@ decisions exist. The mechanical tasks do not have to wait for them.
 
 - `20260908-161328` full season story stays OPEN on backlog at priority 0.
   It is explicitly backburner and NOT v0.15.0.
+- `20260925-190219` ship tuning is a broad spike, `20260925-190156` persistence
+  tiers a separate research task, and `20260923-110247` a technical cleanup;
+  all three remain backlog, not v0.15.0 commitments. Asteroid-per-cluster
+  guarantee `20260925-190207` was closed as not needed.
 - `20260824-125951` grown ship cast is CLOSED as WONTDO. The cargo family is
   no longer the base game's cast, and WFC-style ships can be added as needed.
   Its premise was not migrated into another task.

@@ -1,14 +1,14 @@
-# Classify ship designs for procedural derelict selection
+# Add regional ship variety to the open world
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog, world, content, ships
+- PRIORITY: 55
+- TAGS: v0.15.0,world,ships,content
 
-## User facts
+## Goal and boundary
 
-- Procedural ship landmarks should read as hulks or derelicts, not repeat one live hauler design.
-- The base game already has damaged-tender and wreck-plate designs that can seed the first production policy.
-- Procedural selection should later support appropriate mod-provided designs without adding a closed hulk enum.
+Vary ship designs and appearances across the open world. Human activity already weights a damaged tender versus wreck plating; explore industrial, salvage, and other readable regional styles using current fields or an additional field only if the evidence needs it. Ship variety should include more than the same two hulks, and suitable mod-provided designs should participate without a closed enum. Do not assume that a new skin alone makes a new ship role.
+
+`20260925-190131` owns live enemy, neutral, and allied encounter spawns and their AI. This task owns what ship designs and looks are eligible in which places; it does not itself authorize a full faction system or new combat behavior.
 
 ## Decisions
 
@@ -21,21 +21,20 @@
 
 - `block_frame_tender_damaged` and `block_wreck_plate` are existing authored catalog entries.
 - `GameShipDesigns` has no role, tag, or suitability metadata for procedural selection.
-- The current layered generator stores one `anchorage_design` and validates catalog existence only during main-thread materialization.
+- The current layered generator uses a hardcoded two-design `DERELICT_DESIGNS` list, weighted by human activity and material density in `crates/nova_world_base/src/clusters.rs`; main-thread materialization validates catalog existence.
 - Worker generation cannot inspect the live `GameShipDesigns` resource.
 
 ## Delivery
 
-- Design explicit ship-catalog metadata for procedural roles such as derelict or wreckage suitability.
-- Define when the eligible design set is validated and snapshotted for worker-safe deterministic generation.
-- Define save and mod mismatch behavior when the eligible catalog changes.
-- Migrate base damaged-tender and wreck-plate entries to the approved metadata.
-- Update content lint, generated-world selection, catalog documentation, and editor presentation if it exposes the metadata.
-- Delete any temporary private base-design list once catalog-driven selection owns the behavior.
+- Review current ship designs and presentation options against industrial, salvage, and other regional looks; propose a small visible first set rather than inventing a closed cast.
+- Decide whether explicit catalog suitability and regional weighting are needed for the first set, and define when eligible designs are validated and snapshotted for worker-safe deterministic generation.
+- Decide save/mod mismatch behavior when the eligible catalog changes, with `20260925-190156` owning the broader lifetime policy.
+- If catalog metadata is approved, migrate the damaged-tender and wreck-plate entries, update content lint, generated-world selection, catalog documentation and editor presentation as needed, and delete the obsolete hardcoded list.
 
 ## Verification
 
-- Base content exposes a nonempty derelict-eligible set.
+- Rendered travel shows distinct ship designs and looks in the selected kinds of regions; the same seed, coordinate and catalog identity repeat the choices.
+- Base content exposes a nonempty eligible set for every selected role or region.
 - Invalid or missing metadata fails during content lint or world arming, before a sector materializes.
 - Same seed, coordinate, and catalog identity select the same design independent of visit order.
 - A mod-provided eligible design participates without a Rust enum change.
@@ -43,7 +42,6 @@
 
 ## Done when
 
-- Procedural derelict selection reads owning catalog metadata instead of a hardcoded design list.
-- Base and mod extension behavior is documented.
-- Determinism and failure semantics have focused proofs.
-- Temporary compatibility and fallback paths are absent.
+- The owner approves the first regional ship-variety slice and its content/selection policy before runtime edits.
+- The selected designs are visibly distinct in rendered world travel, with documented base and mod eligibility and focused deterministic/failure proofs.
+- Obsolete hardcoded selection and fallback paths are removed when their owning policy replaces them.

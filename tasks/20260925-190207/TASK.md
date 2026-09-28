@@ -1,8 +1,8 @@
 # Prove asteroid-group composition and field readability
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,world,design
+- TAGS: backlog, world, design
 
 ## User facts
 - Owner proposes `P* A+ S*`: optional planets, at least one asteroid or asteroid group, optional ships; prefer asteroid groups over isolated ship groups. This is a generation idea, not approved base-world tuning. Empty streamed cells can remain intentional unless explicitly changed.
@@ -18,5 +18,5 @@
 ## Verification to design
 - Seed/edge sweep of final *placed* bodies and skipped counts; seam/reverse-order and manifest validity assertions, repeated rendered flight through rock, mixed and empty fields, and matched window fill cost. Do not assert a numeric gameplay density without a measured placement count.
 
-## Done when
-- Owner has reviewed composition scope, guarantee/failure rule, variant pacing and proof, with any production generator change gated by a separate code-backed plan.
+## Closure
+- Closed as not needed by owner decision. Current world generation reads well; no asteroid-per-cluster guarantee is required. Reopen a focused task only for an observed placement or readability problem.

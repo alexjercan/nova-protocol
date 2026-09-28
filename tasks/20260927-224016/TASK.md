@@ -1,8 +1,8 @@
 # Improve autopilot turn timing and show predicted curved trajectory
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog, autopilot, navigation
+- PRIORITY: 45
+- TAGS: v0.15.0,autopilot,navigation
 
 ## User facts
 
