@@ -246,7 +246,7 @@ pub fn materialize_sector(
         ));
     }
 
-    debug!("nova_world: materialized {coord} with {objects} object(s)");
+    trace!("nova_world: materialized {coord} with {objects} object(s)");
     root
 }
 
@@ -518,7 +518,7 @@ pub fn request_sectors<G: SectorGenerator>(
     missing.sort_by_key(|coord| nearest_first(centre, *coord));
 
     for coord in missing.into_iter().take(openings) {
-        debug!("nova_world: requesting {coord}");
+        trace!("nova_world: requesting {coord}");
         commands.spawn((
             Name::new(format!("Sector Job {coord}")),
             SectorJob::start(config.clone(), coord),
@@ -570,7 +570,7 @@ pub fn collect_sector_jobs<G: SectorGenerator>(
 
         let prepared = result.unwrap_or_else(|fault| panic!("nova_world: {fault}"));
         if !desired.contains(&coord) {
-            debug!("nova_world: dropping the finished job for {coord}, it is no longer desired");
+            trace!("nova_world: dropping the finished job for {coord}, it is no longer desired");
             stats.discarded += 1;
             continue;
         }
@@ -630,9 +630,26 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
         return;
     };
 
+    let coord = prepared.description().coord;
     let texture: AssetRef<Image> = game_assets.asteroid_texture.clone().into();
     materialize_sector(&mut commands, prepared, &texture, &designs);
     stats.materialized += 1;
+
+    if desired
+        .iter()
+        .all(|wanted| *wanted == coord || live.contains_key(wanted))
+    {
+        debug!(
+            "nova_world: all {} desired sector(s) around {centre} are live; app-lifetime job \
+             totals: {} requested, {} completed, {} materialized, {} discarded, peak {} pending",
+            desired.len(),
+            stats.requested,
+            stats.completed,
+            stats.materialized,
+            stats.discarded,
+            stats.peak_pending
+        );
+    }
 }
 
 /// Take back everything outside the desired set: live roots, running jobs, and
@@ -661,31 +678,45 @@ pub fn retire_sectors<G: SectorGenerator>(
     mut stats: ResMut<SectorJobStats>,
 ) {
     assert_world_was_cleared(&config, &cleared);
-    let desired = desired_sectors(current.0, config.active_radius);
+    let centre = current.0;
+    let desired = desired_sectors(centre, config.active_radius);
 
+    let mut retired = 0_usize;
     for (coord, entity) in &live_sectors(&roots) {
         if !desired.contains(coord) {
-            debug!("nova_world: retiring {coord}");
+            trace!("nova_world: retiring {coord}");
             commands.entity(*entity).despawn();
+            retired += 1;
         }
     }
 
+    let mut cancelled = 0_usize;
     for (entity, job) in &jobs {
         if !desired.contains(&job.coord) {
-            debug!("nova_world: cancelling the job for {}", job.coord);
+            trace!("nova_world: cancelling the job for {}", job.coord);
             commands.entity(entity).despawn();
             stats.discarded += 1;
+            cancelled += 1;
         }
     }
 
+    let mut dropped = 0_usize;
     ready.0.retain(|coord, _| {
         let wanted = desired.contains(coord);
         if !wanted {
-            debug!("nova_world: dropping the prepared sector {coord}");
+            trace!("nova_world: dropping the prepared sector {coord}");
             stats.discarded += 1;
+            dropped += 1;
         }
         wanted
     });
+
+    if retired + cancelled + dropped > 0 {
+        debug!(
+            "nova_world: around {centre}, retired {retired} sector(s), cancelled {cancelled} \
+             job(s) and dropped {dropped} prepared sector(s)"
+        );
+    }
 }
 
 /// Drop the work the session no longer owns, and the world a replaced
