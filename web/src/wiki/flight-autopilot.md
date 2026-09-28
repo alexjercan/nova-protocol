@@ -82,12 +82,12 @@ See [Keybinds](../keybinds/) for the verb keys.
 
 For the last few meters of an approach - where a main-drive burn is too coarse - a ship can carry **RCS** (a reaction-control system): hold <kbd>Shift</kbd> and steer with the mouse (lateral and fore/aft) and the scroll wheel (up and down) to nudge the ship straight along its own axes, with **no rotation**. On a gamepad the same gesture is one thumb: click the left stick to engage, then push it to translate. While you hold it the helm and camera hold still so you can concentrate on the translation, the [velocity sphere](../hud/) turns violet, and a soft burn loop plays.
 
-RCS is controlled translation rather than a main-engine burn: it caps at 100 m/s in any direction. It accelerates at a mass-independent 5 g, and diagonal input shares that one speed budget and that one acceleration budget rather than multiplying either across axes.
+RCS is controlled translation rather than a main-engine burn: it accelerates at a mass-independent 5 g at any speed, so it can match a fast target, but it runs on a **magazine** of 300 m/s of velocity change. Ten violet pips under the speed chip show what is left. Let go for 2 seconds and it refills at 100 m/s every second. Diagonal input shares one acceleration budget rather than multiplying it across axes.
 
 <details class="explain">
 <summary>Show explanation</summary>
 
-The cap is on the whole velocity vector, measured relative to whatever the maneuver is holding as its reference: one, two or three axes of input all run out at the same 100 m/s, and pushing further in a direction you are already coasting at the cap does nothing - while anything that slows you down still works, at the cap and above it, so a ship carried overspeed can always brake back inside. The push is a single linear impulse through the center of mass, so RCS never rotates the hull, and the last 20 m/s before the cap taper off rather than hitting a wall. The autopilot uses the same thrusters under the hood - **GOTO** settles its arrival on RCS, and **STOP** brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops still turn the main drive into the braking direction.
+Every push draws from the magazine by the velocity change it actually delivers, in any direction, braking included. An empty magazine pushes nothing, and holding the input on an empty magazine keeps it empty: the refill starts only once you let go. The push is a single linear impulse through the center of mass, so RCS never rotates the hull. The autopilot uses the same thrusters and the same magazine - **GOTO** settles its arrival on RCS, and **STOP** brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops, or an empty magazine, still turn the main drive into the braking direction. The main drive never draws from the magazine.
 
 </details>
 

@@ -481,8 +481,8 @@ pub(crate) const MARK_ALPHA: Mark = Mark {
 };
 
 /// The thruster lesson's mark: a few hundred metres straight across from
-/// ALPHA, so the leg is a real translation at the RCS cap and a nudge rather
-/// than a burn. The tight volume is on purpose - the lesson is placing the
+/// ALPHA, so the leg is a real translation on RCS and a nudge rather than a
+/// burn. The tight volume is on purpose - the lesson is placing the
 /// hull, and a wide sphere would pass a player who merely drifted past.
 pub(crate) const MARK_BRAVO: Mark = Mark {
     id: "mark_bravo",

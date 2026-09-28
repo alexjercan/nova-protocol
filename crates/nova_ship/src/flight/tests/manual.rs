@@ -751,7 +751,7 @@ fn a_docked_driver_without_its_assembly_moves_neither_root() {
         ("rcs", |app, driver, _| {
             app.world_mut()
                 .entity_mut(driver)
-                .insert((RcsIntent(Vec3::X), RcsSpeedCap(10.0)));
+                .insert(RcsIntent(Vec3::X));
         }),
         ("autopilot", |app, driver, _| {
             app.world_mut()
@@ -801,6 +801,11 @@ fn a_docked_driver_without_its_assembly_moves_neither_root() {
         run(&mut app, 20);
 
         assert_eq!(velocity_of(&app, driver), drift, "{label}: driver pushed");
+        assert_eq!(
+            app.world().get::<RcsBudget>(driver).unwrap().spent,
+            0.0,
+            "{label}: a refused push is not charged"
+        );
         assert_eq!(
             velocity_of(&app, partner),
             Vec3::ZERO,

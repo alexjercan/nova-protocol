@@ -25,6 +25,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The mouse wheel zooms the chase camera in normal flight and free look. With
   weapons raised it steps the component lock. Keys ] and [ step it in any
   stance.
+- RCS pushes at any speed from a 300 m/s magazine that refills 2 s after you
+  let go; ten violet pips under the speed chip show it. This replaces the
+  100 m/s RCS cap.
 
 ### Ships & Sections
 

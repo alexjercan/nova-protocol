@@ -19,7 +19,6 @@ use super::{
         orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
         ship_turn_rate, slew_rotation, slew_urgency, spool_tail, stop_rest_distance, FlipEstimate,
     },
-    state::RcsReference,
     thrusters::{
         balance_throttles, burn_input, choose_group, cluster_thrusters, spool_allocated_thrusters,
         BalanceEngine,
@@ -85,15 +84,11 @@ pub(super) fn autopilot_system(
             // margin rather than the origin. Absent (a hull with no live
             // sections measured yet) reads as a point.
             Option<&HullRadius>,
-            // RCS terminal settle: the per-hull cap override and the intent the
-            // autopilot writes to hand the last-meters brake to the torque-free
-            // RCS primitive.
-            Option<&RcsSpeedCap>,
+            // RCS terminal settle: the magazine the hand-off checks and the
+            // intent the autopilot writes to hand the last-meters brake to the
+            // torque-free RCS primitive.
+            &RcsBudget,
             Option<&mut RcsIntent>,
-            // RCS error-relative reference: the autopilot writes the orbital
-            // velocity here so RCS trims a fast orbit by a sub-cap delta; zero
-            // (or absent) everywhere else.
-            Option<&mut RcsReference>,
             // A docked root flies the pair only while it drives it, and then
             // plans on the pair's mass, centre of mass, velocity and reach.
             // A suppressed partner's maneuver is frozen, not released.
@@ -181,9 +176,8 @@ pub(super) fn autopilot_system(
         prev_telemetry,
         standoff_override,
         hull_radius,
-        rcs_cap_override,
+        rcs_budget,
         rcs_intent,
-        rcs_reference,
         (docked, assembly),
         is_player,
     ) in &mut q_ship
@@ -768,40 +762,27 @@ pub(super) fn autopilot_system(
         let error_speed = error.length();
         let error_dir = (error_speed > 1e-3).then(|| error / error_speed);
 
-        // RCS terminal settle: when the maneuver's GOAL is rest (STOP,
-        // GOTO/GotoPos inside the standoff - `desired ~= 0`) and the ship is
-        // already slow enough for the speed-capped RCS to act (`|v| < cap`),
-        // hand the last-meters brake to the RCS primitive - a torque-free COM
-        // push - instead of the main drive. Gated on the ship granting the
-        // `Rcs` verb, so a hull without it (the mainline campaign, RCS disabled
-        // pending rework) keeps the exact main-drive arrival.
-        //
-        // Two RCS branches share one command formula (`error / rcs_cap`,
-        // proportional toward `desired`), differing only in the cap's reference
-        // frame:
+        // Two RCS branches hand the burn to the torque-free RCS COM push and
+        // spool the main drive down. They share one command formula
+        // (proportional toward `desired`) and differ in what must be below
+        // `rcs_handoff_speed`:
         //
         // - SETTLE: the maneuver's GOAL is rest (STOP, GOTO/GotoPos inside
-        //   the standoff - `desired ~= 0`) and the ship is already slow enough
-        //   for the ABSOLUTE cap to act (`|v| < cap`). The reference is zero,
-        //   so RCS brakes the last meters to rest.
-        // - ORBIT trim: station-keeping, where `desired` is the orbital
-        //   velocity (~2.5-6 u/s, above the cap). The RESIDUAL
-        //   `error = desired - v` is what must be sub-cap for RCS to act, and the
-        //   reference is `desired`, so `rcs_burn_system` caps `v - desired` (the
-        //   trim) instead of the absolute orbital speed. While the residual is
-        //   above the cap (spinning up, or a big ring correction), the main drive
-        //   does the work exactly as before.
+        //   the standoff - `desired ~= 0`), so the hull's own speed must be
+        //   below the hand-off and RCS brakes the last meters to rest.
+        // - TRIM: ORBIT station-keeping or a held velocity, where `desired` is
+        //   a standing velocity the ship holds. The RESIDUAL
+        //   `error = desired - v` must be below the hand-off, whatever the
+        //   absolute speed; while it is above (spinning up, a big ring
+        //   correction), the main drive does the work.
         //
-        // Both hand the burn to the torque-free RCS COM push and spool the main
-        // drive down; both are gated on the ship's `rcs_enabled` capability, so
-        // a hull without it (the mainline campaign, RCS disabled pending rework)
-        // keeps the exact main-drive behavior.
-        let rcs_cap = rcs_cap_override
-            .map(|c| c.0)
-            .unwrap_or(settings.rcs_speed_cap);
+        // Both need the ship's `rcs_enabled` capability, so a hull without it
+        // keeps the exact main-drive behavior, and delta-v left in the
+        // magazine: an empty [`RcsBudget`] hands the goal back to the main
+        // drive until it refills.
         let capabilities = ship_capabilities(ship, &q_capabilities);
         let rcs_granted = capabilities.rcs_enabled;
-        let rcs_capable = rcs_granted && rcs_cap > 0.0 && error_speed > 1e-3;
+        let rcs_capable = rcs_granted && !rcs_budget.is_empty(&settings) && error_speed > 1e-3;
         // The RCS takes a goal only where it has CLEAR authority over the local
         // gravity: its `rcs_accel` push must comfortably exceed the inward
         // pull, or a perturbed ship falls faster than RCS can correct - the
@@ -812,41 +793,36 @@ pub(super) fn autopilot_system(
         // The gate is the SAME on both branches, and for the same reason. A
         // STOP inside a well is the worse case of the two: `desired` is zero
         // for the whole descent, so an ungated settle latches the moment the
-        // ship is under the cap and then parks at the equilibrium where the
-        // proportional push equals the pull - a steady fall, with the drive
-        // cooled and `done` never firing.
+        // ship is under the hand-off speed and then parks at the equilibrium
+        // where the proportional push equals the pull - a steady fall, with the
+        // drive cooled and `done` never firing.
         let rcs_has_gravity_authority =
             local_gravity_accel < settings.rcs_accel * RCS_GRAVITY_AUTHORITY;
         let use_rcs_settle = rcs_capable
             && rcs_has_gravity_authority
             && desired.length() <= settings.stop_speed_epsilon
-            && velocity.length() < rcs_cap;
+            && velocity.length() < settings.rcs_handoff_speed;
         // The error-relative trim: the desired velocity is one the ship HOLDS,
-        // so what must be sub-cap is the residual, not the absolute speed.
+        // so what must be below the hand-off is the residual, not the absolute
+        // speed.
         // Shared by ORBIT's ring trim and a held velocity, which are the same
         // problem - a standing goal the RCS corrects around.
         let use_rcs_trim = rcs_capable
             && (is_orbit || is_velocity_hold)
             && rcs_has_gravity_authority
-            && error_speed < rcs_cap;
+            && error_speed < settings.rcs_handoff_speed;
         let use_rcs = use_rcs_settle || use_rcs_trim;
-        // The reference the cap is measured against: the orbital velocity while
-        // trimming an orbit, zero otherwise (absolute cap). Written EVERY tick
-        // so a stale orbital reference never lingers into a settle or the
-        // player.
-        let rcs_reference_v = if use_rcs_trim { desired } else { Vec3::ZERO };
         // The residual that counts as full deflection - the band the branch
-        // must hold to, never the manual cap. A proportional law brakes with
-        // a time constant of `scale / rcs_accel`, and coasts that long again
-        // in distance: scaled to the 100 m/s manual cap the settle took two
-        // seconds to kill each m/s it was handed, and a GOTO crossing its
-        // standoff at approach speed parked 30 m inside it (an entry at 40
-        // m/s, 80 m). Scaled to the crumb band the settle brakes at full
-        // deflection down to the crumbs the drive left it and fades inside
-        // them; the manual feel (cap, taper) is untouched. An ORBIT trim holds
-        // a band against the well's STANDING inward pull, and parks at an
-        // offset proportional to its scale - referenced to the manual cap
-        // that offset was wider than the hold band itself, so the trim never
+        // must hold to, never the hand-off speed. A proportional law brakes
+        // with a time constant of `scale / rcs_accel`, and coasts that long
+        // again in distance: scaled to 100 m/s the settle took two seconds to
+        // kill each m/s it was handed, and a GOTO crossing its standoff at
+        // approach speed parked 30 m inside it (an entry at 40 m/s, 80 m).
+        // Scaled to the crumb band the settle brakes at full deflection down
+        // to the crumbs the drive left it and fades inside them. An ORBIT trim
+        // holds a band against the well's STANDING inward pull, and parks at
+        // an offset proportional to its scale - referenced to 100 m/s that
+        // offset was wider than the hold band itself, so the trim never
         // reported Hold. The band the orbit must hold to is its scale.
         let rcs_scale = if use_rcs_trim && is_orbit {
             settings.orbit_hold_enter
@@ -866,11 +842,6 @@ pub(super) fn autopilot_system(
             intent.0 = rcs_command;
         } else if use_rcs {
             commands.entity(ship).insert(RcsIntent(rcs_command));
-        }
-        if let Some(mut reference) = rcs_reference {
-            reference.0 = rcs_reference_v;
-        } else if use_rcs_trim {
-            commands.entity(ship).insert(RcsReference(rcs_reference_v));
         }
 
         // The allocation set: EVERY live engine, with the coefficients the
@@ -1314,24 +1285,19 @@ pub(super) fn on_autopilot_removed_cool_engines(
         (&mut ControllerSectionRotationInput, &ChildOf),
         With<ControllerSectionMarker>,
     >,
-    mut q_rcs: Query<(&mut RcsIntent, Option<&mut RcsReference>)>,
+    mut q_rcs: Query<&mut RcsIntent>,
 ) {
     for (mut input, &ChildOf(parent)) in &mut q_thruster {
         if parent == remove.entity {
             **input = 0.0;
         }
     }
-    // Clear the RCS command AND its error-relative reference: the autopilot
-    // writes both while settling/trimming, and rcs_burn_system acts on ANY
-    // non-zero intent regardless of autopilot state. A residual intent would
-    // push the ship past rest toward the cap; a stale orbital reference would
-    // silently rebase the player's next absolute-cap nudge. Zero both on
-    // disengage.
-    if let Ok((mut intent, reference)) = q_rcs.get_mut(remove.entity) {
+    // Clear the RCS command: the autopilot writes it while settling or
+    // trimming, and rcs_burn_system acts on ANY non-zero intent regardless of
+    // autopilot state. A residual intent would push the ship off its rest and
+    // drain the magazine.
+    if let Ok(mut intent) = q_rcs.get_mut(remove.entity) {
         intent.0 = Vec3::ZERO;
-        if let Some(mut reference) = reference {
-            reference.0 = Vec3::ZERO;
-        }
     }
     if let Ok(rotation) = q_ship.get(remove.entity) {
         for (mut input, &ChildOf(parent)) in &mut q_rotation_input {

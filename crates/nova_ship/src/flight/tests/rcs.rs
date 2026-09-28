@@ -1,5 +1,5 @@
-//! RCS fine-adjustment: the capped, torque-free COM push both the pilot
-//! and the autopilot's terminal settle drive.
+//! RCS fine-adjustment: the torque-free COM push both the pilot and the
+//! autopilot's terminal settle drive, paid from the ship's delta-v magazine.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -7,10 +7,7 @@ use nova_events::prelude::{MetersPerSecond, MetersPerSecondSquared};
 use nova_gameplay::test_support::settle;
 
 use super::support::*;
-use crate::{
-    flight::{accumulate_rcs_axis, RcsReference},
-    prelude::*,
-};
+use crate::{flight::accumulate_rcs_axis, prelude::*};
 /// The virtual-joystick accumulator integrates the held offset and clamps it to
 /// the unit range the primitive expects, so a sustained push saturates at 1 and
 /// pulling back walks it toward the other rail rather than running away.
@@ -28,10 +25,19 @@ fn accumulate_rcs_axis_integrates_and_clamps_to_the_unit_range() {
 }
 
 #[test]
-fn rcs_defaults_to_one_hundred_meters_per_second_and_five_g() {
+fn rcs_defaults_to_a_three_hundred_meter_per_second_magazine_and_five_g() {
     let settings = FlightSettings::default();
     assert_eq!(
-        MetersPerSecond::from_engine(settings.rcs_speed_cap),
+        MetersPerSecond::from_engine(settings.rcs_budget),
+        MetersPerSecond(300.0)
+    );
+    assert_eq!(settings.rcs_recovery_delay, 2.0);
+    assert_eq!(
+        MetersPerSecondSquared::from_engine(settings.rcs_recovery_rate),
+        MetersPerSecondSquared(100.0)
+    );
+    assert_eq!(
+        MetersPerSecond::from_engine(settings.rcs_handoff_speed),
         MetersPerSecond(100.0)
     );
     assert_eq!(
@@ -75,39 +81,6 @@ fn player_rcs_intent_decays_when_input_stops_but_autopilot_intent_does_not() {
     );
 }
 
-/// A held RCS nudge builds the along-axis speed up toward the cap and then
-/// levels off - never past it - and, applied at the COM, never spins the
-/// hull or drifts off-axis. Identity frame, so ship-local +X is world +X.
-#[test]
-fn rcs_builds_to_the_cap_then_levels_off_without_torque() {
-    let mut app = flight_app();
-    let cap = 2.0;
-    let (ship, _controller) = spawn_rcs_ship(&mut app, cap);
-    set_rcs(&mut app, ship, Vec3::X);
-    for _ in 0..600 {
-        app.update();
-        let vx = velocity_of(&app, ship).x;
-        assert!(
-            vx <= cap + 1e-2,
-            "RCS must never push past the cap (vx={vx})"
-        );
-    }
-    let v = velocity_of(&app, ship);
-    assert!(
-        v.x > cap - 0.1,
-        "a held nudge should reach the cap (vx={})",
-        v.x
-    );
-    assert!(
-        v.y.abs() < 1e-2 && v.z.abs() < 1e-2,
-        "no off-axis drift ({v:?})"
-    );
-    assert!(
-        angular_speed_of(&app, ship) < 1e-3,
-        "an impulse at the COM must not spin the hull"
-    );
-}
-
 /// Full diagonal input shares one acceleration budget with straight input.
 /// Without the vector clamp, three saturated axes accelerate `sqrt(3)` times
 /// harder than one axis.
@@ -116,7 +89,7 @@ fn rcs_clamps_total_acceleration_magnitude_in_every_direction() {
     fn speed_after_burn(intent: Vec3) -> f32 {
         let mut app = flight_app();
         app.world_mut().resource_mut::<FlightSettings>().rcs_accel = 3.0;
-        let (ship, _) = spawn_rcs_ship(&mut app, 100.0);
+        let (ship, _) = spawn_rcs_ship(&mut app);
         set_rcs(&mut app, ship, intent);
         run(&mut app, 10);
         velocity_of(&app, ship).length()
@@ -134,47 +107,12 @@ fn rcs_clamps_total_acceleration_magnitude_in_every_direction() {
     );
 }
 
-/// The cap is directional: at `+cap` a forward command adds nothing, but the
-/// opposite command still accelerates the ship down to `-cap` - the user's
-/// "moving forward, RCS forward does nothing, backward still works" rule.
-#[test]
-fn rcs_holds_the_cap_forward_but_reverses_freely() {
-    let mut app = flight_app();
-    let cap = 2.0;
-    let (ship, _controller) = spawn_rcs_ship(&mut app, cap);
-    set_rcs(&mut app, ship, Vec3::X);
-    for _ in 0..600 {
-        app.update();
-    }
-    let at_cap = velocity_of(&app, ship).x;
-    assert!(at_cap > cap - 0.1, "should be at the cap (vx={at_cap})");
-    // Holding +X longer adds no further speed.
-    for _ in 0..200 {
-        app.update();
-    }
-    let still = velocity_of(&app, ship).x;
-    assert!(
-        (still - at_cap).abs() < 1e-2,
-        "at the cap, more +X buys nothing ({at_cap} -> {still})"
-    );
-    // The opposite command decelerates through zero toward -cap.
-    set_rcs(&mut app, ship, -Vec3::X);
-    for _ in 0..900 {
-        app.update();
-    }
-    let reversed = velocity_of(&app, ship).x;
-    assert!(
-        reversed < -(cap - 0.1),
-        "reverse RCS still works down to -cap (vx={reversed})"
-    );
-}
-
 /// RCS is a ROOT capability: a ship without it does not move, even with an
-/// intent written on it.
+/// intent written on it, and the refused command costs nothing.
 #[test]
 fn rcs_does_nothing_without_the_capability() {
     let mut app = flight_app();
-    let (ship, _controller) = spawn_rcs_ship(&mut app, 2.0);
+    let (ship, _controller) = spawn_rcs_ship(&mut app);
     disable_capabilities(&mut app, ship, |capabilities| {
         capabilities.rcs_enabled = false;
     });
@@ -186,6 +124,11 @@ fn rcs_does_nothing_without_the_capability() {
         velocity_of(&app, ship).length() < 1e-3,
         "no RCS capability, no fine-adjust"
     );
+    assert_eq!(
+        budget_of(&app, ship).spent,
+        0.0,
+        "a refused command spends nothing"
+    );
 }
 
 /// The push is in the ship's LOCAL frame: with the hull yawed 90 degrees, a
@@ -195,11 +138,10 @@ fn rcs_does_nothing_without_the_capability() {
 #[test]
 fn rcs_pushes_along_the_ship_local_axis_in_a_rotated_frame() {
     let mut app = flight_app();
-    let cap = 2.0;
     let (ship, _thruster, controller) = spawn_ship(&mut app);
     app.world_mut()
         .entity_mut(ship)
-        .insert((RcsIntent::default(), RcsSpeedCap(cap)));
+        .insert(RcsIntent::default());
     let yaw = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
     app.world_mut()
         .get_mut::<ControllerSectionRotationInput>(controller)
@@ -221,15 +163,13 @@ fn rcs_pushes_along_the_ship_local_axis_in_a_rotated_frame() {
         "the hull really is yawed away from world +X ({world_axis:?})"
     );
     set_rcs(&mut app, ship, Vec3::X);
-    for _ in 0..600 {
-        app.update();
-    }
+    run(&mut app, 60);
     let v = velocity_of(&app, ship);
     let along = v.dot(world_axis);
     let off = (v - world_axis * along).length();
     assert!(
-        along > cap - 0.15,
-        "reaches the cap along the rotated local +X (along={along})"
+        along > 4.0,
+        "a second of push builds speed along the rotated local +X (along={along})"
     );
     assert!(off < 0.05, "no world off-axis drift (off={off})");
     assert!(
@@ -238,124 +178,17 @@ fn rcs_pushes_along_the_ship_local_axis_in_a_rotated_frame() {
     );
 }
 
-/// The error-relative primitive: a ship already moving FASTER than the cap
-/// can still be trimmed by a sub-cap delta when an `RcsReference` rebases the
-/// cap. At 5 u/s with a matching 5 u/s reference, a prograde nudge pushes
-/// (residual is zero, full headroom) and climbs until `v - reference` hits
-/// the cap. WITHOUT the reference the same command gates to zero - the plain
-/// absolute cap (2 u/s) is already exceeded. Deleting the reference term in
-/// rcs_burn_system collapses the two cases, failing the "pushed" assertion.
-#[test]
-fn rcs_relative_cap_trims_a_fast_moving_reference() {
-    // With the reference: prograde trim acts despite |v| > cap.
-    let mut app = flight_app();
-    let (ship, _, _) = spawn_ship(&mut app);
-    settle(&mut app);
-    app.world_mut().entity_mut(ship).insert((
-        LinearVelocity(Vec3::new(5.0, 0.0, 0.0)),
-        RcsReference(Vec3::new(5.0, 0.0, 0.0)),
-        RcsSpeedCap(2.0),
-        RcsIntent(Vec3::new(0.5, 0.0, 0.0)),
-    ));
-    run(&mut app, 300);
-    let with_ref = velocity_of(&app, ship).x;
-    assert!(
-        with_ref > 5.1,
-        "an error-relative trim pushes prograde past the reference despite |v| > cap (v.x = {with_ref})"
-    );
-    assert!(
-        with_ref <= 5.0 + 2.0 + 0.3,
-        "but only up to cap ABOVE the reference (5 + cap = 7), got {with_ref}"
-    );
-
-    // Without the reference: the same command at |v| > cap gates to zero.
-    let mut app = flight_app();
-    let (ship, _, _) = spawn_ship(&mut app);
-    settle(&mut app);
-    app.world_mut().entity_mut(ship).insert((
-        LinearVelocity(Vec3::new(5.0, 0.0, 0.0)),
-        RcsSpeedCap(2.0),
-        RcsIntent(Vec3::new(0.5, 0.0, 0.0)),
-    ));
-    run(&mut app, 300);
-    let no_ref = velocity_of(&app, ship).x;
-    assert!(
-        no_ref < 5.05,
-        "the plain absolute cap is already exceeded, so the prograde command does nothing (v.x = {no_ref})"
-    );
-}
-
-/// The error-relative reference is cleared on disengage
-/// (`shared-primitive-clear-on-handoff`): an orbit leaves a fast `RcsReference`
-/// behind, and if it lingered it would silently rebase the player's next
-/// absolute-cap nudge. After the orbit disengages both the intent and the
-/// reference must be zero.
-#[test]
-fn orbit_rcs_reference_clears_on_disengage() {
-    let mut app = orbit_app();
-    let well = spawn_orbit_well(&mut app);
-    let (ship, _, _) = spawn_ship(&mut app);
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(Transform::from_xyz(50.0, 0.0, 0.0));
-    settle(&mut app);
-    app.world_mut()
-        .entity_mut(ship)
-        .insert(Autopilot::engage(AutopilotAction::Orbit {
-            well,
-            plan: None,
-        }));
-    // Fly until the trim is live (a non-zero reference is written).
-    let mut got_reference = false;
-    for _ in 0..1500 {
-        app.update();
-        if app
-            .world()
-            .get::<RcsReference>(ship)
-            .is_some_and(|r| r.0.length() > 1e-3)
-        {
-            got_reference = true;
-            break;
-        }
-    }
-    assert!(
-        got_reference,
-        "the orbit trim should write a live RcsReference"
-    );
-
-    app.world_mut().entity_mut(ship).remove::<Autopilot>();
-    run(&mut app, 3);
-    let reference = app
-        .world()
-        .get::<RcsReference>(ship)
-        .map(|r| r.0.length())
-        .unwrap_or(0.0);
-    let intent = app
-        .world()
-        .get::<RcsIntent>(ship)
-        .map(|i| i.0.length())
-        .unwrap_or(0.0);
-    assert!(
-        reference < 1e-3,
-        "the reference is cleared on disengage (got {reference})"
-    );
-    assert!(
-        intent < 1e-3,
-        "the intent is cleared on disengage (got {intent})"
-    );
-}
-
-/// A STOP below the 100 m/s RCS cap hands the whole brake to the torque-free
-/// RCS primitive: the hull keeps its bearing, `RcsIntent` goes non-zero, the
+/// A STOP below the 100 m/s RCS hand-off speed hands the whole brake to the
+/// torque-free RCS primitive: the hull keeps its bearing, `RcsIntent` goes non-zero, the
 /// main thruster stays cold, and the ship still reaches rest. Delete the RCS
 /// branch and the main drive fires; allow normal alignment and the hull yaws.
 #[test]
-fn stop_below_the_rcs_cap_brakes_without_turning() {
+fn stop_below_the_rcs_handoff_speed_brakes_without_turning() {
     let mut app = flight_app();
     let (ship, thruster, _controller) = spawn_ship(&mut app);
     settle(&mut app);
     let initial_rotation = *app.world().get::<Rotation>(ship).unwrap();
-    // 9 u/s is 90 m/s: below the default 100 m/s cap. The velocity is lateral
+    // 9 u/s is 90 m/s: below the default 100 m/s hand-off. The velocity is lateral
     // to the main drive, so any main-drive braking plan would have to yaw.
     app.world_mut()
         .entity_mut(ship)
@@ -387,7 +220,7 @@ fn stop_below_the_rcs_cap_brakes_without_turning() {
     let final_rotation = *app.world().get::<Rotation>(ship).unwrap();
     assert!(
         initial_rotation.angle_between(final_rotation) < 1e-3,
-        "a sub-cap STOP must keep the hull bearing"
+        "a STOP below the hand-off must keep the hull bearing"
     );
     // Settles to WITHIN the autopilot's settle_deadband (0.75) - the same
     // "bounded creep is the contract" release the main drive gets. RCS
@@ -404,7 +237,7 @@ fn stop_below_the_rcs_cap_brakes_without_turning() {
 /// After an RCS-settled STOP disengages, the ship must STAY at rest: the
 /// autopilot's residual `RcsIntent` has to be cleared on disengage, or
 /// `rcs_burn_system` (which acts on any non-zero intent, autopilot or not)
-/// keeps pushing and the ship drifts off to the RCS cap. Runs PAST the
+/// keeps pushing and the ship drifts off on the magazine. Runs PAST the
 /// disengage; fails if the on-remove clear is missing.
 #[test]
 fn rcs_settled_autopilot_leaves_the_ship_at_rest_after_disengage() {
@@ -431,7 +264,7 @@ fn rcs_settled_autopilot_leaves_the_ship_at_rest_after_disengage() {
     let at_release = velocity_of(&app, ship).length();
 
     // Coast well past release: a leftover RcsIntent would accelerate the
-    // ship toward the cap here.
+    // ship here.
     for _ in 0..400 {
         app.update();
     }
@@ -481,108 +314,218 @@ fn stop_terminal_without_the_rcs_capability_uses_the_main_drive() {
     );
 }
 
-/// The cap is one VECTOR budget, not three axes of budget: a held nudge
-/// reaches the same speed whether it is spread over one, two or three
-/// ship-local axes. Under the old per-axis gate the two-axis push settled at
-/// `sqrt(2) * cap` and the three-axis one at `sqrt(3) * cap`.
-#[test]
-fn rcs_reaches_one_speed_ceiling_on_one_two_or_three_axes() {
-    let cap = 2.0;
-    let terminal_speed = |intent: Vec3| -> f32 {
-        let mut app = flight_app();
-        let (ship, _) = spawn_rcs_ship(&mut app, cap);
-        set_rcs(&mut app, ship, intent);
-        for _ in 0..900 {
-            app.update();
-            let speed = velocity_of(&app, ship).length();
-            assert!(
-                speed <= cap + 1e-2,
-                "no direction may cross the cap (intent {intent:?}, speed {speed})"
-            );
-        }
-        velocity_of(&app, ship).length()
-    };
-
-    let one = terminal_speed(Vec3::X);
-    let two = terminal_speed(Vec3::new(1.0, 1.0, 0.0));
-    let three = terminal_speed(Vec3::ONE);
-    assert!(one > cap - 0.05, "a held nudge reaches the cap (got {one})");
-    assert!(
-        (two - one).abs() < 1e-2,
-        "two axes share the one budget: {two} vs {one}"
-    );
-    assert!(
-        (three - one).abs() < 1e-2,
-        "three axes share the one budget: {three} vs {one}"
-    );
+fn budget_of(app: &App, ship: Entity) -> RcsBudget {
+    *app.world().get::<RcsBudget>(ship).unwrap()
 }
 
-/// The vector budget is measured against the REFERENCE, so a diagonal trim of
-/// a fast-moving craft spends one cap of residual however many axes it uses -
-/// while the absolute speed stays far above the cap the whole time. This is
-/// the shape the ORBIT trim flies: a fast reference, a small residual.
+/// RCS acts at any speed: a hull already moving 300 m/s gains the full 5 g
+/// second from forward RCS, still without spin or off-axis drift.
 #[test]
-fn rcs_diagonal_trim_spends_one_budget_against_a_fast_reference() {
+fn rcs_accelerates_a_hull_already_moving_300_meters_per_second() {
     let mut app = flight_app();
-    let cap = 2.0;
-    let reference = Vec3::new(20.0, 0.0, 0.0);
-    let (ship, _, _) = spawn_ship(&mut app);
-    settle(&mut app);
-    app.world_mut().entity_mut(ship).insert((
-        LinearVelocity(reference),
-        RcsReference(reference),
-        RcsSpeedCap(cap),
-        RcsIntent(Vec3::ONE),
-    ));
-
-    for _ in 0..900 {
-        app.update();
-        let residual = (velocity_of(&app, ship) - reference).length();
-        assert!(
-            residual <= cap + 1e-2,
-            "a diagonal trim spends one cap of RESIDUAL (got {residual})"
-        );
-    }
-    let residual = (velocity_of(&app, ship) - reference).length();
-    assert!(
-        residual > cap - 0.05,
-        "the trim does reach its budget (residual {residual})"
-    );
-    assert!(
-        velocity_of(&app, ship).length() > 4.0 * cap,
-        "and the absolute speed stays far above the cap - the budget is \
-         reference-relative (v = {})",
-        velocity_of(&app, ship).length()
-    );
-}
-
-/// Recovery: a ship carried well past the cap (a maneuver, a well, a scenario
-/// hand-off) can still brake on RCS, and the retrograde push keeps FULL
-/// authority the whole way down instead of being tapered off with the rest.
-#[test]
-fn rcs_brakes_a_ship_from_above_the_cap_back_inside_it() {
-    let mut app = flight_app();
-    let cap = 2.0;
-    let (ship, _controller) = spawn_rcs_ship(&mut app, cap);
+    let (ship, _controller) = spawn_rcs_ship(&mut app);
+    let start = MetersPerSecond(300.0).to_engine();
     app.world_mut()
         .entity_mut(ship)
-        .insert(LinearVelocity(Vec3::new(3.0 * cap, 0.0, 0.0)));
-    set_rcs(&mut app, ship, -Vec3::X);
-    let mut slowest = f32::MAX;
-    for _ in 0..600 {
+        .insert(LinearVelocity(Vec3::X * start));
+    set_rcs(&mut app, ship, Vec3::X);
+    run(&mut app, 60);
+
+    let v = velocity_of(&app, ship);
+    let gain = MetersPerSecond::from_engine(v.x - start).0;
+    assert!(
+        gain > 45.0,
+        "a second of 5 g RCS at 300 m/s gains ~49 m/s, got {gain}"
+    );
+    assert!(
+        v.y.abs() < 1e-2 && v.z.abs() < 1e-2,
+        "no off-axis drift ({v:?})"
+    );
+    assert!(
+        angular_speed_of(&app, ship) < 1e-3,
+        "an impulse at the COM must not spin the hull"
+    );
+}
+
+/// The delayed magazine: a held push drains exactly the delta-v it delivers
+/// and never more than the magazine holds, a command held on an empty magazine
+/// keeps it empty, and release refills it only after the recovery delay.
+#[test]
+fn rcs_budget_drains_under_a_held_command_and_recovers_after_release() {
+    let mut app = flight_app();
+    let settings = FlightSettings::default();
+    let capacity = settings.rcs_budget;
+    let (ship, _controller) = spawn_rcs_ship(&mut app);
+    set_rcs(&mut app, ship, Vec3::X);
+
+    // Eight seconds of held push: longer than the ~6 s a full magazine lasts.
+    for _ in 0..480 {
         app.update();
-        slowest = slowest.min(velocity_of(&app, ship).length());
+        let budget = budget_of(&app, ship);
+        assert!(
+            budget.spent <= capacity + 1e-4,
+            "the magazine never overdraws ({} of {capacity})",
+            budget.spent
+        );
+        assert!(
+            (budget.spent - velocity_of(&app, ship).x).abs() < 1e-3,
+            "it pays exactly the delta-v it delivered ({} vs {})",
+            budget.spent,
+            velocity_of(&app, ship).x
+        );
+    }
+    let drained = budget_of(&app, ship);
+    assert!(
+        drained.is_empty(&settings),
+        "a held push drains the magazine"
+    );
+    assert_eq!(drained.applied, 0.0, "an empty magazine pushes nothing");
+    let top = velocity_of(&app, ship).x;
+    assert!(
+        (top - capacity).abs() < 1e-3,
+        "one magazine delivers {capacity} u/s, got {top}"
+    );
+
+    // Still holding: the empty magazine stays empty and the hull coasts.
+    run(&mut app, 180);
+    assert!(
+        budget_of(&app, ship).is_empty(&settings),
+        "a held command keeps the magazine from recovering"
+    );
+    assert_eq!(velocity_of(&app, ship).x, top, "and delivers nothing");
+
+    // Released: nothing inside the delay, then a steady refill to full.
+    set_rcs(&mut app, ship, Vec3::ZERO);
+    run(&mut app, 100);
+    assert!(
+        budget_of(&app, ship).is_empty(&settings),
+        "no recovery inside the {} s delay",
+        settings.rcs_recovery_delay
+    );
+    run(&mut app, 80);
+    let refilling = budget_of(&app, ship).fraction(&settings);
+    assert!(
+        refilling > 0.0 && refilling < 1.0,
+        "past the delay it refills gradually, got {refilling}"
+    );
+    run(&mut app, 240);
+    assert_eq!(budget_of(&app, ship).spent, 0.0, "and it refills to full");
+}
+
+/// A STOP on an empty magazine does not stall waiting for RCS: the hand-off
+/// refuses it, the main drive brakes, and the maneuver still settles.
+#[test]
+fn autopilot_stop_on_an_empty_rcs_budget_settles_on_the_main_drive() {
+    let mut app = flight_app();
+    let (ship, thruster, _controller) = spawn_ship(&mut app);
+    settle(&mut app);
+    let capacity = app.world().resource::<FlightSettings>().rcs_budget;
+    app.world_mut().entity_mut(ship).insert((
+        LinearVelocity(Vec3::new(9.0, 0.0, 0.0)),
+        RcsBudget {
+            spent: capacity,
+            ..default()
+        },
+        Autopilot::engage(AutopilotAction::Stop),
+    ));
+
+    // Inside the recovery delay the magazine is certainly still empty.
+    let mut max_thruster = 0.0f32;
+    for _ in 0..100 {
+        app.update();
+        let intent = app
+            .world()
+            .get::<RcsIntent>(ship)
+            .map_or(0.0, |i| i.0.length());
+        assert!(
+            intent < 1e-3,
+            "a starved STOP writes no RCS command, got {intent}"
+        );
+        assert_eq!(budget_of(&app, ship).applied, 0.0, "and pushes nothing");
+        max_thruster =
+            max_thruster.max(**app.world().get::<ThrusterSectionInput>(thruster).unwrap());
     }
     assert!(
-        slowest < 0.1,
-        "an overspeed ship must be able to brake all the way back to rest \
-         (slowest {slowest}, cap {cap})"
+        max_thruster > 0.5,
+        "the main drive takes the brake (max input {max_thruster})"
     );
-    // Held past rest the same command is prograde again, and the budget stops
-    // it at the cap on the far side.
+
+    let mut disengaged = false;
+    for _ in 0..1500 {
+        app.update();
+        if app.world().get::<Autopilot>(ship).is_none() {
+            disengaged = true;
+            break;
+        }
+    }
+    assert!(disengaged, "the starved STOP still completes");
     assert!(
-        velocity_of(&app, ship).length() <= cap + 1e-2,
-        "and the budget catches it again on the far side (v = {})",
+        velocity_of(&app, ship).length() < 0.8,
+        "and settles within the deadband (v = {})",
         velocity_of(&app, ship).length()
     );
+}
+
+/// A docked pair moves as one body on the driver's RCS, and only the driver
+/// pays: the partner's magazine is untouched and it makes no hiss.
+#[test]
+fn a_docked_pair_charges_only_the_driver_rcs_budget() {
+    let mut app = flight_app();
+    let (driver, ..) = spawn_ship(&mut app);
+    let (partner, ..) = spawn_ship(&mut app);
+    // Clear of the driver, so no contact pushes either hull.
+    app.world_mut()
+        .get_mut::<Transform>(partner)
+        .unwrap()
+        .translation = Vec3::X * 100.0;
+    settle(&mut app);
+    let connection = app
+        .world_mut()
+        .spawn(DockingConnection {
+            first_ship: driver,
+            first_section: Entity::PLACEHOLDER,
+            second_ship: partner,
+            second_section: Entity::PLACEHOLDER,
+            helm: DockedHelmType::Neutral,
+            measurement_fault: false,
+        })
+        .id();
+    for (ship, drives) in [(driver, true), (partner, false)] {
+        app.world_mut().entity_mut(ship).insert(DockedShip {
+            connection,
+            helm: Quat::IDENTITY,
+            drives,
+        });
+    }
+    let world = app.world();
+    let assembly = DockedAssembly {
+        mass: world.get::<ComputedMass>(driver).unwrap().value()
+            + world.get::<ComputedMass>(partner).unwrap().value(),
+        center_of_mass: Vec3::X * 50.0,
+        linear_velocity: Vec3::ZERO,
+        inertia: *world.get::<ComputedAngularInertia>(driver).unwrap(),
+        reach: 60.0,
+    };
+    app.world_mut()
+        .entity_mut(driver)
+        .insert((assembly, RcsIntent(Vec3::Y)));
+
+    run(&mut app, 60);
+    let pushed = velocity_of(&app, driver);
+    assert!(pushed.y > 4.0, "the pair is pushed ({pushed:?})");
+    assert!(
+        (velocity_of(&app, partner) - pushed).length() < 1e-4,
+        "both roots take the same delta-v"
+    );
+    let paid = budget_of(&app, driver);
+    assert!(
+        (paid.spent - pushed.y).abs() < 1e-3,
+        "the driver pays the pair's delta-v once ({} vs {})",
+        paid.spent,
+        pushed.y
+    );
+    assert!(paid.applied > 0.0, "the driver hisses");
+    let partner_budget = budget_of(&app, partner);
+    assert_eq!(partner_budget.spent, 0.0, "the partner pays nothing");
+    assert_eq!(partner_budget.applied, 0.0, "and makes no hiss");
 }

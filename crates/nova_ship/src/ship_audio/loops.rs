@@ -154,11 +154,11 @@ pub(super) fn drive_thruster_loops(
 
 /// Drive the RCS hiss from how hard each ship is fine-adjusting.
 ///
-/// ROOT-based and DRIVER-agnostic: the `RcsIntent` on the ship root is written
-/// by the player's modal and by the autopilot both, so both make the same
-/// sound. Gated on the ship's `rcs_enabled` capability and on driving any
-/// docked pair, mirroring `rcs_burn_system` - a hull that cannot RCS makes no
-/// RCS hiss, and a suppressed partner's frozen intent spends nothing.
+/// ROOT-based and DRIVER-agnostic: it reads the thrust `rcs_burn_system`
+/// delivered on the last fixed tick ([`RcsBudget::applied`]), whether the
+/// player's modal or the autopilot wrote the command. A command the burn
+/// refused - no capability, a suppressed partner, an empty magazine - pushed
+/// nothing, so it hisses nothing.
 pub(super) fn drive_rcs_loops(
     mut commands: Commands,
     time: Res<Time>,
@@ -167,10 +167,8 @@ pub(super) fn drive_rcs_loops(
         (
             Entity,
             &ShipFeedbackSounds,
-            &RcsIntent,
-            Option<&ShipCapabilities>,
+            &RcsBudget,
             Option<&CachedLoopSound>,
-            Option<&DockedShip>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -178,13 +176,7 @@ pub(super) fn drive_rcs_loops(
     q_loops: Query<(Entity, &RcsLoopSfx, &mut SfxVoice)>,
 ) {
     let mut targets: HashMap<(Entity, Handle<AudioSource>), f32> = HashMap::new();
-    for (root, sounds, intent, capabilities, cached, docked) in &q_ships {
-        if !capabilities.copied().unwrap_or_default().rcs_enabled {
-            continue;
-        }
-        if docked.is_some_and(|docked| !docked.drives) {
-            continue;
-        }
+    for (root, sounds, budget, cached) in &q_ships {
         // AUTHORED-OR-SILENT: a ship with no rcs_loop makes no sound.
         let Some(handle) = loop_handle(
             &mut commands,
@@ -195,7 +187,7 @@ pub(super) fn drive_rcs_loops(
         ) else {
             continue;
         };
-        let effort = intent.0.length();
+        let effort = budget.applied;
         if effort <= 1e-4 {
             continue;
         }
@@ -679,32 +671,31 @@ mod tests {
         );
     }
 
-    /// A ship carrying `intent` and its RCS voice on the ROOT. `deny_rcs`
-    /// turns the root capability off.
-    fn spawn_rcs_ship(app: &mut App, intent: Vec3, deny_rcs: bool) -> Entity {
+    /// A ship carrying its RCS voice on the ROOT, holding a full command and
+    /// delivering `applied` of it.
+    fn spawn_rcs_ship(app: &mut App, applied: f32) -> Entity {
         let sounds = ShipFeedbackSounds {
             rcs_loop: Some(AssetRef::from(RIG_RCS)),
             ..Default::default()
         };
-        let mut root = app.world_mut().spawn((
-            SpaceshipRootMarker,
-            GlobalTransform::from(Transform::from_translation(Vec3::ZERO)),
-            RcsIntent(intent),
-            sounds,
-        ));
-        if deny_rcs {
-            root.insert(ShipCapabilities {
-                rcs_enabled: false,
-                ..default()
-            });
-        }
-        root.id()
+        app.world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                GlobalTransform::from(Transform::from_translation(Vec3::ZERO)),
+                RcsIntent(Vec3::X),
+                RcsBudget {
+                    applied,
+                    ..default()
+                },
+                sounds,
+            ))
+            .id()
     }
 
     #[test]
     fn the_rcs_loop_plays_while_the_controller_burns_and_retires_at_rest() {
         let mut app = loop_app();
-        let ship = spawn_rcs_ship(&mut app, Vec3::new(1.0, 0.0, 0.0), false);
+        let ship = spawn_rcs_ship(&mut app, 1.0);
         settle(&mut app);
         let (route, level) = voice_for(&mut app, ship).expect("a burning ship hisses");
         assert_eq!(route, AudioRoute::Exterior);
@@ -713,10 +704,9 @@ mod tests {
             "a full-deflection burn drives the loop to its ceiling, got {level}"
         );
 
-        // Intent falls to zero (the mouse stopped / the autopilot settled).
-        app.world_mut()
-            .entity_mut(ship)
-            .insert(RcsIntent(Vec3::ZERO));
+        // The burn stops delivering (the mouse stopped / the autopilot
+        // settled).
+        app.world_mut().get_mut::<RcsBudget>(ship).unwrap().applied = 0.0;
         settle(&mut app);
         assert!(
             voice_for(&mut app, ship).is_none(),
@@ -724,12 +714,12 @@ mod tests {
         );
     }
 
+    /// A held command the burn refused or starved delivered nothing, so it
+    /// makes no sound.
     #[test]
-    fn the_rcs_loop_is_silent_without_the_rcs_verb() {
-        // Same non-zero intent, but the controller withholds Rcs - the same
-        // capability gate `rcs_burn_system` applies.
+    fn the_rcs_loop_is_silent_while_the_burn_delivers_nothing() {
         let mut app = loop_app();
-        let ship = spawn_rcs_ship(&mut app, Vec3::new(1.0, 0.0, 0.0), true);
+        let ship = spawn_rcs_ship(&mut app, 0.0);
         settle(&mut app);
         assert!(voice_for(&mut app, ship).is_none());
     }

@@ -67,7 +67,7 @@ pub use self::{
     state::{
         resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
         FlightArrivalStandoff, FlightIntent, FlightSettings, ManeuverTelemetry, OrbitPlan,
-        PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
+        PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent,
     },
     well_target::WellTargetType,
 };
@@ -87,7 +87,7 @@ pub(crate) use self::{
     well_target::{LiveWells, WellTargetFault},
 };
 
-/// The flight intent, settings, authority and the RCS speed cap, the autopilot
+/// The flight intent, settings, authority and the RCS budget, the autopilot
 /// and orbit plan, RCS state, leg navigation, maneuver telemetry, and
 /// `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
@@ -97,7 +97,7 @@ pub mod prelude {
         AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy,
         FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightSettings, LegPlan,
         ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
-        PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
+        PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, ScriptedAlign,
         ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
         ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
         ShipOrderReports, SuspendedArrivalStandoff, WellTargetType,
@@ -138,8 +138,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<FlightAuthority>()
             .register_type::<FlightArrivalStandoff>()
             .register_type::<RcsIntent>()
-            .register_type::<RcsSpeedCap>()
-            .register_type::<RcsReference>()
+            .register_type::<RcsBudget>()
             .register_type::<RcsActive>()
             .register_type::<ShipHelmOrder>()
             .register_type::<ShipOrderDirective>()
@@ -151,6 +150,11 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<ScriptedAlign>()
             .register_type::<ScriptedAlignSettled>()
             .register_type::<SuspendedArrivalStandoff>();
+
+        // Every root carries an RCS magazine, so a docked driver always has one
+        // to pay from and the HUD reads it without a fallback. The marker lives
+        // in nova_gameplay, which cannot name this crate's types.
+        app.register_required_components::<SpaceshipRootMarker, RcsBudget>();
 
         app.add_observer(insert_flight_control);
         app.add_observer(on_autopilot_removed_cool_engines);

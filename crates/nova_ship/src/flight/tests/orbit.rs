@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use nova_gameplay::{prelude::*, test_support::settle};
 
 use super::support::*;
-use crate::{flight::RcsReference, prelude::*};
+use crate::prelude::*;
 
 /// `Hold` is not a cosmetic label: `nova_scenario`'s `track_orbit_transitions`
 /// reads it as the definition of a stable orbit, and every scenario orbit event
@@ -104,31 +104,31 @@ fn strong_gravity_orbit_holds_the_ring_on_the_main_drive_not_rcs() {
     );
 }
 
-/// ORBIT trims via the error-relative RCS, but ONLY while the residual `|v -
-/// v_orbit|` is below the cap. From near-rest the desired is the full orbital
-/// velocity (~4.9 u/s at r=50, above this hull's 2 u/s cap), so the main drive
-/// spins the orbit up and RCS stays idle; once the ship is near orbital
-/// velocity the residual drops sub-cap and RCS takes over the trim. The
-/// invariant that pins error-relative (not absolute) behavior: whenever RCS is
-/// trimming, its `RcsReference` is the fast orbital velocity (well above the
-/// cap) and the VECTOR `|v - reference|` is within the one budget - impossible
-/// under the old absolute cap, which would have gated to zero.
+/// ORBIT trims on RCS only while the RESIDUAL `|v - v_orbit|` is below the
+/// hand-off speed, whatever the ship's absolute speed. From near-rest the
+/// desired is the full orbital velocity (~4.9 u/s at r=50, above this rig's
+/// 2 u/s hand-off), so the main drive spins the orbit up and RCS stays idle;
+/// once the ship is near orbital velocity the residual drops below the
+/// hand-off and RCS takes over the trim while the hull still moves faster than
+/// the hand-off. A gate on the absolute speed would never trim here.
 ///
-/// The cap is pinned per hull rather than left to
-/// [`FlightSettings::rcs_speed_cap`]: the premise is a cap BELOW the ring's
-/// orbital speed, and the shipped default (100 m/s) sits well above it.
+/// The hand-off is pinned below the ring's orbital speed; the shipped default
+/// (100 m/s) sits well above it.
 #[test]
-fn orbit_engages_rcs_only_to_trim_a_sub_cap_residual() {
-    let cap = 2.0;
+fn orbit_engages_rcs_only_to_trim_a_residual_below_the_handoff_speed() {
+    let handoff = 2.0;
     let mut app = orbit_app();
+    app.world_mut()
+        .resource_mut::<FlightSettings>()
+        .rcs_handoff_speed = handoff;
     let well = spawn_orbit_well(&mut app);
     let (ship, _, _) = spawn_ship(&mut app);
     app.world_mut()
         .entity_mut(ship)
-        .insert((Transform::from_xyz(50.0, 0.0, 0.0), RcsSpeedCap(cap)));
+        .insert(Transform::from_xyz(50.0, 0.0, 0.0));
     settle(&mut app);
-    // From rest the residual is the full orbital speed, above the cap, so
-    // the first ticks must NOT engage RCS - the main drive spins up.
+    // From rest the residual is the full orbital speed, above the hand-off,
+    // so the first ticks must NOT engage RCS - the main drive spins up.
     app.world_mut()
         .entity_mut(ship)
         .insert(Autopilot::engage(AutopilotAction::Orbit {
@@ -144,11 +144,11 @@ fn orbit_engages_rcs_only_to_trim_a_sub_cap_residual() {
             .unwrap_or(0.0);
         assert!(
             intent < 1e-3,
-            "RCS must not trim while spinning up from rest (residual > cap), got {intent}"
+            "RCS must not trim while spinning up from rest (residual > hand-off), got {intent}"
         );
     }
 
-    let mut saw_trim = false;
+    let mut saw_fast_trim = false;
     for _ in 0..1500 {
         app.update();
         let intent = app
@@ -156,29 +156,13 @@ fn orbit_engages_rcs_only_to_trim_a_sub_cap_residual() {
             .get::<RcsIntent>(ship)
             .map(|i| i.0)
             .unwrap_or(Vec3::ZERO);
-        if intent.length() > 1e-3 {
-            saw_trim = true;
-            let reference = app
-                .world()
-                .get::<RcsReference>(ship)
-                .map(|r| r.0)
-                .unwrap_or(Vec3::ZERO);
-            let v = velocity_of(&app, ship);
-            assert!(
-                reference.length() > cap,
-                "the trim reference is the fast orbital velocity, above the cap (got {})",
-                reference.length()
-            );
-            assert!(
-                (v - reference).length() <= cap + 0.5,
-                "RCS only trims a sub-cap residual (|v - ref| = {}, cap {cap})",
-                (v - reference).length()
-            );
+        if intent.length() > 1e-3 && velocity_of(&app, ship).length() > handoff {
+            saw_fast_trim = true;
         }
     }
     assert!(
-        saw_trim,
-        "ORBIT should engage the error-relative RCS once at orbital speed"
+        saw_fast_trim,
+        "ORBIT should trim on RCS at orbital speed, above the hand-off"
     );
     assert!(
         app.world().get::<Autopilot>(ship).is_some(),

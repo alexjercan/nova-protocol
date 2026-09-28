@@ -1,8 +1,9 @@
 //! Diegetic flight readouts: the old bottom-left status text rehomed onto
-//! the ship - a speed chip parked beside the velocity sphere and a mode chip
+//! the ship - a speed chip parked beside the velocity sphere, a mode chip
 //! (verb + phase) shown only while the autopilot is engaged, `HELM FAULT` on a
 //! docked hull whose pair cannot be measured, or `NEUTRAL` on a docked hull
-//! that does not drive its pair; manual flight keeps a quiet HUD.
+//! that does not drive its pair, and an RCS magazine chip shown only while RCS
+//! is commanded, pushing, or short of full; manual flight keeps a quiet HUD.
 //! Plus the projected marker on the GOTO destination.
 //!
 //! Anything measured here is an ENGINE figure - a world unit is 10 m, a speed
@@ -22,7 +23,7 @@ use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
 
 use super::{
     emphasis::prelude::*, hull_shell::prelude::*, screen_indicator::prelude::*,
-    situation::prelude::*, NAV_CYAN,
+    situation::prelude::*, velocity::prelude::*, NAV_CYAN,
 };
 
 /// The flight-status and autopilot-destination spawners with their configs, markers and
@@ -32,7 +33,8 @@ pub mod prelude {
         autopilot_destination_hud, flight_status_hud, AutopilotDestinationHudConfig,
         AutopilotDestinationHudMarker, AutopilotDestinationUIMarker, FlightStatusHudConfig,
         FlightStatusHudMarker, FlightStatusHudPlugin, FlightStatusHudTargetEntity,
-        ModeChipUIMarker, SpeedChipUIMarker, DESTINATION_MARKER_PX,
+        ModeChipUIMarker, RcsBudgetChipUIMarker, RcsBudgetPipUIMarker, SpeedChipUIMarker,
+        DESTINATION_MARKER_PX,
     };
 }
 
@@ -67,6 +69,21 @@ const SPEED_CHIP_LIFT_PX: f32 = -90.0;
 /// gap after the lift above.
 const MODE_CHIP_LIFT_PX: f32 = -114.0;
 
+/// The RCS magazine chip stacks one row below the speed chip, keeping the same
+/// 24 px row pitch as the mode chip above it.
+const RCS_CHIP_LIFT_PX: f32 = -66.0;
+
+/// Pips on the RCS magazine chip; each is a tenth of the magazine.
+const RCS_PIPS: usize = 10;
+
+/// Width, height and gap (px) of one RCS magazine pip.
+const RCS_PIP_W: f32 = 4.0;
+const RCS_PIP_H: f32 = 10.0;
+const RCS_PIP_GAP: f32 = 2.0;
+
+/// Alpha of a spent RCS pip, so the empty track still reads as ten slots.
+const RCS_PIP_SPENT_ALPHA: f32 = 0.2;
+
 /// Peak scale of the speed chip while the autopilot flies - demo 2's
 /// `.speed.emph`.
 const SPEED_CHIP_EMPHASIS: f32 = 1.14;
@@ -91,6 +108,15 @@ pub struct SpeedChipUIMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ModeChipUIMarker;
 
+/// Marker for the RCS magazine chip. Public for the same reason as
+/// [`SpeedChipUIMarker`].
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct RcsBudgetChipUIMarker;
+
+/// One pip of the RCS magazine chip, by its index from the left.
+#[derive(Component, Debug, Clone, Copy, Deref, Reflect)]
+pub struct RcsBudgetPipUIMarker(pub usize);
+
 /// Which row a flight chip rides on (px above its ship's centre of mass) and,
 /// by carrying it, that the chip is one [`anchor_flight_chips`] places. The
 /// horizontal half of the placement is not authored here - it is whatever this
@@ -108,9 +134,9 @@ pub struct FlightStatusHudConfig {
 }
 
 /// UI bundle for the ship status chips: one indicator layer with the speed
-/// chip (anchored to the ship from spawn - it is always on) and the mode
-/// chip (anchor driven at runtime; it spawns hidden exactly like the
-/// disengaged state it starts in).
+/// chip (anchored to the ship from spawn - it is always on), and the mode and
+/// RCS magazine chips (anchors driven at runtime; they spawn hidden exactly
+/// like the idle state they start in).
 pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
     trace!("flight_status_hud: config {:?}", config);
 
@@ -178,6 +204,30 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                 chip_paint(ChipTone::Amber),
                 ChipText::value(ChipTone::Amber),
                 TextColor(Color::NONE),
+            ),
+            (
+                Name::new("RcsBudgetChipUI"),
+                RcsBudgetChipUIMarker,
+                chip(None, RCS_CHIP_LIFT_PX),
+                chip_paint(ChipTone::Readout),
+                children![(
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(RCS_PIP_GAP),
+                        ..default()
+                    },
+                    Children::spawn(SpawnIter((0..RCS_PIPS).map(|index| {
+                        (
+                            RcsBudgetPipUIMarker(index),
+                            Node {
+                                width: Val::Px(RCS_PIP_W),
+                                height: Val::Px(RCS_PIP_H),
+                                ..default()
+                            },
+                            BackgroundColor(rcs_pip_color(true)),
+                        )
+                    }))),
+                )],
             ),
         ],
     )
@@ -247,9 +297,10 @@ pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl 
 }
 
 /// Drives the diegetic flight readouts: the speed chip, the autopilot mode
-/// chip, and the destination marker anchor.
-/// Adds `drive_speed_chip`, `emphasize_speed_on_burn`, `drive_mode_chip` and
-/// `drive_destination_anchor` in Update within [`super::NovaHudSystems`], plus
+/// chip, the RCS magazine chip, and the destination marker anchor.
+/// Adds `drive_speed_chip`, `emphasize_speed_on_burn`, `drive_mode_chip`,
+/// `drive_rcs_budget_chip` and `drive_destination_anchor` in Update within
+/// [`super::NovaHudSystems`], plus
 /// `anchor_flight_chips` in PostUpdate between the chase camera and the
 /// indicator projection.
 #[derive(Default)]
@@ -265,6 +316,7 @@ impl Plugin for FlightStatusHudPlugin {
                 drive_speed_chip,
                 emphasize_speed_on_burn,
                 drive_mode_chip,
+                drive_rcs_budget_chip,
                 drive_destination_anchor,
             )
                 .in_set(super::NovaHudSystems),
@@ -371,6 +423,57 @@ fn anchor_flight_chips(
             projected_edge.x - projected_com.x + CHIP_SHELL_GAP_PX + half_width,
             **lift,
         )));
+    }
+}
+
+/// The RCS violet the velocity sphere wears while RCS has the ship, full for
+/// a pip with delta-v behind it and dimmed for a spent one.
+fn rcs_pip_color(lit: bool) -> Color {
+    let violet = VelocityHudPalette::RCS_ACTIVE.indicator;
+    if lit {
+        violet
+    } else {
+        violet.with_alpha(RCS_PIP_SPENT_ALPHA)
+    }
+}
+
+/// The ship's RCS magazine beneath the speed chip: one pip per tenth left,
+/// any remainder rounding up so a magazine that is not empty never reads as
+/// empty. Shown only while RCS is commanded, pushing, or short of full, so a
+/// full idle magazine keeps the manual HUD quiet.
+fn drive_rcs_budget_chip(
+    settings: Res<FlightSettings>,
+    q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
+    mut q_ui: Query<(&mut ScreenIndicatorAnchor, &Children, &ChildOf), With<RcsBudgetChipUIMarker>>,
+    q_ship: Query<(&RcsBudget, Option<&RcsIntent>)>,
+    q_children: Query<&Children>,
+    mut q_pips: Query<(&RcsBudgetPipUIMarker, &mut BackgroundColor)>,
+) {
+    for (mut anchor, rows, &ChildOf(parent)) in &mut q_ui {
+        let Ok(ship) = q_hud.get(parent) else {
+            continue;
+        };
+        let Ok((budget, intent)) = q_ship.get(**ship) else {
+            **anchor = None;
+            continue;
+        };
+        let commanded = intent.is_some_and(|intent| intent.0 != Vec3::ZERO);
+        if !commanded && budget.spent <= 0.0 && budget.applied <= 0.0 {
+            **anchor = None;
+            continue;
+        }
+        **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
+
+        let lit = (budget.fraction(&settings) * RCS_PIPS as f32).ceil() as usize;
+        for pip in rows
+            .iter()
+            .filter_map(|row| q_children.get(row).ok())
+            .flat_map(|pips| pips.iter())
+        {
+            if let Ok((index, mut color)) = q_pips.get_mut(pip) {
+                color.set_if_neq(BackgroundColor(rcs_pip_color(**index < lit)));
+            }
+        }
     }
 }
 
@@ -557,6 +660,59 @@ mod tests {
         world.run_system_once(drive_speed_chip).unwrap();
         assert_eq!(anchor_of(&world, speed), None);
         assert!(text_of(&world, speed).is_empty());
+    }
+
+    /// The RCS chip reads the magazine a tenth per pip, rounding a remainder
+    /// up, and stays hidden while the magazine is full and idle.
+    #[test]
+    fn the_rcs_chip_lights_one_pip_per_tenth_of_the_magazine_left() {
+        let mut world = World::new();
+        world.init_resource::<FlightSettings>();
+        let capacity = world.resource::<FlightSettings>().rcs_budget;
+        let ship = world
+            .spawn((LinearVelocity(Vec3::ZERO), RcsBudget::default()))
+            .id();
+        let layer = world
+            .spawn(flight_status_hud(FlightStatusHudConfig { target: ship }))
+            .id();
+        let chip = world.entity(layer).get::<Children>().unwrap()[2];
+        let lit = |world: &mut World| {
+            let mut pips = world.query::<(&RcsBudgetPipUIMarker, &BackgroundColor)>();
+            let colors: Vec<_> = pips.iter(world).map(|(_, color)| color.0).collect();
+            assert_eq!(colors.len(), RCS_PIPS, "the chip carries ten pips");
+            colors
+                .iter()
+                .filter(|&&color| color == rcs_pip_color(true))
+                .count()
+        };
+
+        world.run_system_once(drive_rcs_budget_chip).unwrap();
+        assert_eq!(anchor_of(&world, chip), None, "full and idle: hidden");
+
+        // 65% left rounds up to seven pips.
+        world.get_mut::<RcsBudget>(ship).unwrap().spent = 0.35 * capacity;
+        world.run_system_once(drive_rcs_budget_chip).unwrap();
+        assert_eq!(
+            anchor_of(&world, chip),
+            Some(ScreenIndicatorAnchorKind::Entity(ship))
+        );
+        assert_eq!(lit(&mut world), 7);
+
+        // A crumb left still shows one pip; an empty magazine shows none.
+        world.get_mut::<RcsBudget>(ship).unwrap().spent = 0.99 * capacity;
+        world.run_system_once(drive_rcs_budget_chip).unwrap();
+        assert_eq!(lit(&mut world), 1);
+        world.get_mut::<RcsBudget>(ship).unwrap().spent = capacity;
+        world.run_system_once(drive_rcs_budget_chip).unwrap();
+        assert_eq!(lit(&mut world), 0);
+
+        // Full again but commanded: shown with every pip lit.
+        world
+            .entity_mut(ship)
+            .insert((RcsBudget::default(), RcsIntent(Vec3::X)));
+        world.run_system_once(drive_rcs_budget_chip).unwrap();
+        assert!(anchor_of(&world, chip).is_some(), "a held command shows it");
+        assert_eq!(lit(&mut world), RCS_PIPS);
     }
 
     #[test]

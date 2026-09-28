@@ -70,7 +70,7 @@ import {
     panGains,
     railgunRecoil,
     RCS_ACCEL,
-    RCS_SPEED_CAP,
+    RCS_HANDOFF_SPEED,
     rcsPush,
     seededDraws,
     segmentClearance,
@@ -528,12 +528,12 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         "FlightSettings::arrival_standoff, in meters"
     );
     assert.equal(
-        RCS_SPEED_CAP * METERS_PER_UNIT,
+        RCS_HANDOFF_SPEED * METERS_PER_UNIT,
         rustNumber(
             FLIGHT,
-            /rcs_speed_cap: MetersPerSecond\(([0-9_.]+)\)\.to_engine/
+            /rcs_handoff_speed: MetersPerSecond\(([0-9_.]+)\)\.to_engine/
         ),
-        "FlightSettings::rcs_speed_cap, in m/s"
+        "FlightSettings::rcs_handoff_speed, in m/s"
     );
     assert.equal(
         RCS_ACCEL * METERS_PER_UNIT,

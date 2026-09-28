@@ -93,31 +93,65 @@ pub struct RcsIntent(pub Vec3);
 #[reflect(Component)]
 pub struct RcsActive;
 
-/// Per-ship override of the RCS fine-adjust speed cap (u/s), on the ship root.
-/// RCS is the ONE capped drive - that is what a fine-adjust mode is, while the
-/// main drive is plain Newtonian - so a ship without this component still gets
-/// the default [`FlightSettings::rcs_speed_cap`]; the component only lets a
-/// scenario tune the ceiling per hull. `rcs_burn_system` spends it as one
-/// VECTOR budget: straight and diagonal nudges share the one ceiling on
-/// `|velocity - reference|`.
-#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+/// The RCS delta-v magazine on a ship root: how much fine-adjust the hull has
+/// left before its cold-gas quads run dry, and how long it has been idle.
+/// Required on every root, so a docked pair's driver pays from its own
+/// magazine and a partner pays nothing.
+///
+/// Drains by the delta-v `rcs_burn_system` actually delivers and refills only
+/// after [`FlightSettings::rcs_recovery_delay`] without a nonzero command, so
+/// a command held on an empty magazine keeps it empty. Engine units: `spent`
+/// is world units per second.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
-pub struct RcsSpeedCap(pub f32);
+pub struct RcsBudget {
+    /// Delta-v spent, u/s: `0` is full, [`FlightSettings::rcs_budget`] is
+    /// empty.
+    pub spent: f32,
+    /// Seconds since the root last held a nonzero RCS command.
+    pub idle: f32,
+    /// The fraction of a full-deflection push delivered on the last fixed
+    /// tick, `0..1`. Zero on a tick that pushed nothing - idle, refused, or
+    /// starved - so the hiss follows the thrust, not the command.
+    pub applied: f32,
+}
 
-/// World-frame REFERENCE velocity the RCS cap is measured against, on the ship
-/// root. `rcs_burn_system` caps the magnitude of `velocity - reference`, not of
-/// the absolute velocity - so RCS can trim a fast-moving craft by a sub-cap
-/// delta relative to this reference. ABSENT or ZERO restores
-/// the plain absolute cap (`reference = 0`), which is exactly the player
-/// fine-adjust mode and the STOP/GOTO terminal settle - both leave this unset.
-/// The autopilot writes it to the desired ORBITAL velocity while
-/// station-keeping, so a small prograde/retrograde correction trims the
-/// orbit instead of gating to zero (the absolute cap would fight the ~2.5-6 u/s
-/// orbital speed). Cleared to zero on autopilot disengage so a stale reference
-/// never leaks into the player's absolute-cap mode.
-#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
-#[reflect(Component)]
-pub struct RcsReference(pub Vec3);
+impl RcsBudget {
+    /// Delta-v left in the magazine, u/s.
+    pub fn remaining(&self, settings: &FlightSettings) -> f32 {
+        (settings.rcs_budget - self.spent).max(0.0)
+    }
+
+    /// The magazine's fill, `0..1`.
+    pub fn fraction(&self, settings: &FlightSettings) -> f32 {
+        if settings.rcs_budget <= 0.0 {
+            return 0.0;
+        }
+        self.remaining(settings) / settings.rcs_budget
+    }
+
+    /// Whether the magazine has no delta-v left.
+    pub fn is_empty(&self, settings: &FlightSettings) -> bool {
+        self.remaining(settings) <= 0.0
+    }
+
+    /// Draw up to `wanted` u/s from the magazine and return what it gave.
+    pub fn spend(&mut self, wanted: f32, settings: &FlightSettings) -> f32 {
+        let delivered = wanted.clamp(0.0, self.remaining(settings));
+        self.spent += delivered;
+        delivered
+    }
+
+    /// Advance an uncommanded tick: count the idle time, and once it passes
+    /// [`FlightSettings::rcs_recovery_delay`] refill at
+    /// [`FlightSettings::rcs_recovery_rate`].
+    pub fn recover(&mut self, dt: f32, settings: &FlightSettings) {
+        self.idle += dt;
+        if self.idle >= settings.rcs_recovery_delay {
+            self.spent = (self.spent - settings.rcs_recovery_rate * dt).max(0.0);
+        }
+    }
+}
 
 /// An engaged autopilot maneuver, on the ship root. Present = engaged; the
 /// input layer inserts it (X = STOP, G = GOTO the lock) and removes it on any
@@ -426,14 +460,21 @@ pub struct FlightSettings {
     /// orbits are only trusted in the unfaded core, and the safety margin keeps
     /// station-keeping off the fade band's edge.
     pub orbit_band_safety: f32,
-    /// Default RCS speed cap (u/s): the terminal speed a held RCS nudge builds
-    /// to - in any direction, one budget for all three ship-local axes - before
-    /// `rcs_burn_system` tapers the push to zero. Overridable per hull with
-    /// [`RcsSpeedCap`].
-    pub rcs_speed_cap: f32,
+    /// RCS delta-v magazine capacity (u/s): how much velocity change the
+    /// quads deliver from full before [`RcsBudget`] runs dry.
+    pub rcs_budget: f32,
+    /// Seconds without a nonzero RCS command before the magazine refills.
+    pub rcs_recovery_delay: f32,
+    /// How fast an idle magazine refills (u/s per second).
+    pub rcs_recovery_rate: f32,
+    /// The autopilot hands a settle or trim to RCS only below this speed
+    /// (u/s): the STOP/GOTO settle against the hull's speed, the ORBIT and
+    /// velocity-hold trim against the velocity error. Above it, or on an empty
+    /// magazine, the main drive keeps the goal.
+    pub rcs_handoff_speed: f32,
     /// RCS thrust as an acceleration (u/s^2): how hard a full-deflection RCS
-    /// command pushes. Sized so the cap is reached in a second or two of held
-    /// input, not instantly - fine adjust, not a second main drive.
+    /// command pushes. A full magazine lasts about six seconds of held input -
+    /// fine adjust, not a second main drive.
     pub rcs_accel: f32,
 }
 
@@ -472,7 +513,10 @@ impl Default for FlightSettings {
             orbit_clearance_factor: 1.5,
             orbit_band_safety: 0.9,
             // Convert player-facing SI values at the flight-physics boundary.
-            rcs_speed_cap: MetersPerSecond(100.0).to_engine(),
+            rcs_budget: MetersPerSecond(300.0).to_engine(),
+            rcs_recovery_delay: 2.0,
+            rcs_recovery_rate: MetersPerSecondSquared(100.0).to_engine(),
+            rcs_handoff_speed: MetersPerSecond(100.0).to_engine(),
             rcs_accel: MetersPerSecondSquared(5.0 * 9.81).to_engine(),
         }
     }

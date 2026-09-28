@@ -113,7 +113,7 @@ const TURN_RATE_SCALE = 0.9; // FlightSettings::turn_rate_scale
 const TURN_RATE_MIN_DEG = 10; // FlightSettings::turn_rate_min_deg
 const TURN_RATE_MAX_DEG = 240; // FlightSettings::turn_rate_max_deg
 export const RCS_ACCEL = 4.905; // FlightSettings::rcs_accel (world units/s^2)
-export const RCS_SPEED_CAP = 10.0; // FlightSettings::rcs_speed_cap (world units/s)
+export const RCS_HANDOFF_SPEED = 10.0; // FlightSettings::rcs_handoff_speed (world units/s)
 
 // ---- units -----------------------------------------------------------------
 //
@@ -825,11 +825,10 @@ export function gotoSim(
             if (t >= flipUntil) phase = "brake";
         } else if (phase === "brake") {
             // Outside the standoff the envelope floors the approach at
-            // 1.5 world units per second; inside it the drive brakes for zero, and only under
-            // the 2.0 world units per second RCS cap do the fine jets take over
-            // (autopilot.rs:568-577).
+            // 1.5 world units per second; inside it the drive brakes for zero,
+            // and only under the RCS hand-off speed do the fine jets take over.
             v = Math.max(v - braking * dt, x < park ? MIN_APPROACH_SPEED : 0);
-            if (x >= park && v <= RCS_SPEED_CAP) phase = "settle";
+            if (x >= park && v <= RCS_HANDOFF_SPEED) phase = "settle";
         } else {
             // RCS settle (autopilot.rs:568-602): main drive cut, the fine
             // jets brake the last stretch.
@@ -10160,16 +10159,14 @@ function initSoundMap(host: HTMLElement): void {
 
 // ---- v0.13.0: RCS is a speed budget --------------------------------------
 
-// RCS reaches a cap of 100 m/s at 5 G whatever the ship weighs
-// (nova_ship/src/flight/state.rs:475-476: `rcs_speed_cap`, `rcs_accel`,
-// converted at the physics boundary). The rule that holds the cap is
-// `budgeted_rcs_delta_v` (flight/manual.rs:75-97): a push that slows the
-// hull is free, a push that grows the speed is tapered over the last fifth
-// of the cap (SPEED_CAP_TAPER_FRACTION, manual.rs:41, applied :276), and a
-// push that would leave the sphere is clamped to its surface - so at the cap
-// the stick TURNS the velocity instead of adding to it. The impulse is
-// scaled by mass so the hull gets exactly that delta-v (manual.rs:300-303).
-const RCS_CAP_M = RCS_SPEED_CAP * METERS_PER_UNIT;
+// The v0.13.0 release post's model of the RCS speed cap as it shipped then:
+// 100 m/s at 5 G whatever the ship weighs. A push that slows the hull is
+// free, a push that grows the speed is tapered over the last fifth of the
+// cap, and a push that would leave the sphere is clamped to its surface - so
+// at the cap the stick TURNS the velocity instead of adding to it. The game
+// replaced the cap with a delta-v magazine; this widget only illustrates
+// that release.
+const RCS_CAP_M = 100;
 const RCS_ACCEL_M = RCS_ACCEL * METERS_PER_UNIT;
 const RCS_TAPER_FRACTION = 0.2;
 
