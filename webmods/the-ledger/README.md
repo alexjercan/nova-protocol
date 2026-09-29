@@ -55,7 +55,9 @@ a site resets that scan, not sites already completed.
   both guns, also has stronger plating. Raiders remain weaker.
 - Mod-owned PDCs keep this fleet independent of base weapon tuning. The
   workboat gun fires 35 rounds/s at 4 damage; the patrol gun fires 25 at 2.
-  Both have finite magazines and reloads. Base weapons are unchanged.
+  Both have finite magazines. A reload takes PDC rounds from the ship's hold:
+  player ships carry 2,000 (1,000 in Siege Line, which fills the CargoB hold),
+  and raiders carry none. Base weapons are unchanged.
 - Every map has two seeded planets, more than 50 mixed-material asteroids,
   and two AI traffic routes. Cover and open flight routes are authored
   separately. Asteroids are destructible and have no gravity; planets have

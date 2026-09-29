@@ -1937,14 +1937,7 @@ pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) ->
             // state the caller asked for.
             return false;
         };
-        let reload = entity
-            .get::<SectionReload>()
-            .map_or(ReloadConfig::Disabled, |reload| {
-                ReloadConfig::Batch(SectionReloadConfig {
-                    delay: reload.delay,
-                    amount: reload.amount,
-                })
-            });
+        let reload = entity.get::<SectionReload>().copied();
         entity.insert(SuspendedSectionAmmo {
             capacity: ammo.capacity,
             reload,
@@ -1956,8 +1949,10 @@ pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) ->
             return false;
         };
         entity.insert(SectionAmmo::new(suspended.capacity));
-        if let ReloadConfig::Batch(reload) = suspended.reload {
-            entity.insert(SectionReload::from_config(reload));
+        if let Some(mut reload) = suspended.reload {
+            // Full magazine, so no reload is in flight.
+            reload.elapsed = 0.0;
+            entity.insert(reload);
         }
         entity.remove::<SuspendedSectionAmmo>();
     }

@@ -51,19 +51,6 @@ impl NovaOsFlightLog {
     }
 }
 
-pub(crate) fn section_kind_label(kind: SectionClass) -> &'static str {
-    match kind {
-        SectionClass::Hull => "HULL",
-        SectionClass::Thruster => "THRUSTER",
-        SectionClass::Controller => "CONTROLLER",
-        SectionClass::Turret => "TURRET",
-        SectionClass::Torpedo => "TORPEDO",
-        SectionClass::Railgun => "RAILGUN",
-        SectionClass::Docking => "DOCKING",
-        SectionClass::CargoIntake => "CARGO INTAKE",
-    }
-}
-
 pub(crate) fn section_kind_from_markers(
     class: Option<&SectionClass>,
     hull: bool,

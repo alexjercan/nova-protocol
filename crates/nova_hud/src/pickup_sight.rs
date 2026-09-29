@@ -803,7 +803,7 @@ mod tests {
                 RigidBody::Dynamic,
                 Transform::default(),
                 TravelLock(None),
-                ShipInventory::new(400, []),
+                ShipInventory::new(400_000, []),
             ))
             .id();
         app.world_mut().spawn((

@@ -141,6 +141,10 @@ const DISCIPLINE_LESSON: &str = "combat_barrel_discipline";
 const PLAYER_ID: &str = "reach_player";
 /// Scenario id of the hostile torpedo boat at the far end of the lane.
 const BOAT_ID: &str = "reach_boat";
+/// PDC rounds the player's inventory holds, the stock `menu_duel` gives the
+/// same gunship. The quiet beat after the sheet reloads from it, so the lane
+/// fill starts on full magazines.
+const PDC_RESERVE: u32 = 2000;
 
 /// How far a PDC round gets: 1,000 m/s for a 2.0 s lifetime
 /// (`base_content/sections/turret.rs`). Not authored anywhere as a range -
@@ -344,7 +348,8 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 }
 
 /// The set: an armed hull at the origin with the magazines it was authored
-/// with, and one hostile torpedo boat parked past the end of its guns.
+/// with and [`PDC_RESERVE`] rounds to reload them, and one hostile torpedo boat
+/// parked past the end of its guns.
 fn the_gun_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     // The AUTHORED magazines rather than `hollow::unlimited_turrets`: the
     // barrel-discipline guard counts the rounds the mounts spend per cell, and
@@ -359,6 +364,7 @@ fn the_gun_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioC
         SpaceshipController::None,
         Some(Allegiance::Player),
         kit::catalog_ship(ships, "block_gunship"),
+        ShipInventoryStock::new([(ItemType::PdcRound, PDC_RESERVE)]),
     );
     let boat = hollow::ship(
         BOAT_ID,
@@ -370,6 +376,7 @@ fn the_gun_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioC
         SpaceshipController::None,
         Some(Allegiance::Enemy),
         dev_fixtures::cleanup_leader(),
+        ShipInventoryStock::new([]),
     );
 
     ScenarioConfig {

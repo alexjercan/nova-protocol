@@ -342,6 +342,7 @@ fn the_field(
         // recording would read as the rock stopping the gun rather than the
         // rounds.
         hollow::unlimited_turrets(sections, player_hull.clone()),
+        ShipInventoryStock::new([]),
     );
 
     let covered = hollow::ship(
@@ -352,6 +353,7 @@ fn the_field(
         SpaceshipController::None,
         Some(Allegiance::Enemy),
         dev_fixtures::raider(),
+        ShipInventoryStock::new([]),
     );
     let wing = hollow::ship(
         WING_ID,
@@ -361,6 +363,7 @@ fn the_field(
         SpaceshipController::None,
         Some(Allegiance::Player),
         kit::catalog_ship(ships, "block_gunship"),
+        ShipInventoryStock::new([]),
     );
     // No allegiance AT ALL, rather than a third faction: a ship the relation
     // model cannot place is exactly what the grey triangle means.
@@ -372,6 +375,7 @@ fn the_field(
         SpaceshipController::None,
         None,
         kit::catalog_ship(ships, "block_cutter"),
+        ShipInventoryStock::new([]),
     );
 
     ScenarioConfig {

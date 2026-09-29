@@ -171,6 +171,7 @@ pub fn ambush_hollow(
         // The player holds fire through several beats; running dry mid-capture
         // would leave a reload where the tracers should be.
         unlimited_turrets(sections, player_hull.clone()),
+        ShipInventoryStock::new([]),
     );
 
     // The lock subject: not AI, because an AI hostile flies to a 1 km
@@ -188,6 +189,7 @@ pub fn ambush_hollow(
         SpaceshipController::None,
         Some(Allegiance::Enemy),
         dev_fixtures::raider(),
+        ShipInventoryStock::new([]),
     );
 
     // The live background: two friendlies working the near flanks, two hostiles
@@ -208,6 +210,7 @@ pub fn ambush_hollow(
         ]),
         Some(Allegiance::Player),
         kit::catalog_ship(ships, "block_gunship"),
+        ShipInventoryStock::new([]),
     );
     let wingman_b = ship(
         "hollow_wing_b",
@@ -221,6 +224,7 @@ pub fn ambush_hollow(
         ]),
         Some(Allegiance::Player),
         kit::catalog_ship(ships, "block_gunship"),
+        ShipInventoryStock::new([]),
     );
     let hostile_a = ship(
         "hollow_hostile_a",
@@ -234,6 +238,7 @@ pub fn ambush_hollow(
         ]),
         None,
         dev_fixtures::raider(),
+        ShipInventoryStock::new([]),
     );
     let hostile_b = ship(
         "hollow_hostile_b",
@@ -247,6 +252,7 @@ pub fn ambush_hollow(
         ]),
         None,
         dev_fixtures::raider(),
+        ShipInventoryStock::new([]),
     );
 
     // The torpedo boat: the cleanup leader fixture, the only small craft in
@@ -265,6 +271,7 @@ pub fn ambush_hollow(
         SpaceshipController::None,
         Some(Allegiance::Player),
         dev_fixtures::cleanup_leader(),
+        ShipInventoryStock::new([]),
     );
 
     ScenarioConfig {
@@ -313,6 +320,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
         }),
         None,
         kit::catalog_ship(ships, "block_gunship"),
+        ShipInventoryStock::new([]),
     );
     let raider = ship(
         RAIDER_ID,
@@ -322,6 +330,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
         SpaceshipController::None,
         Some(Allegiance::Enemy),
         dev_fixtures::raider(),
+        ShipInventoryStock::new([]),
     );
     let lance = ship(
         LANCE_ID,
@@ -333,6 +342,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
         SpaceshipController::None,
         Some(Allegiance::Player),
         dev_fixtures::cleanup_leader(),
+        ShipInventoryStock::new([]),
     );
     let shell = kit::NearField {
         id_prefix: "ordnance_rock_",
@@ -409,6 +419,7 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
         SpaceshipController::None,
         Some(Allegiance::Player),
         dev_fixtures::cleanup_leader(),
+        ShipInventoryStock::new([]),
     );
     let straight_at = TYPES_POSITION - apart;
     let straight = ship(
@@ -419,6 +430,7 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
         SpaceshipController::None,
         Some(Allegiance::Player),
         lance_loaded(dev_fixtures::cleanup_leader()),
+        ShipInventoryStock::new([]),
     );
     let raider = ship(
         RAIDER_ID,
@@ -428,6 +440,7 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
         SpaceshipController::None,
         Some(Allegiance::Enemy),
         dev_fixtures::raider(),
+        ShipInventoryStock::new([]),
     );
     // The player's hull is in the set but not in the frame: the camera rides
     // the salvo a kilometre out. It is here because the game is a game about a
@@ -444,6 +457,7 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
         }),
         None,
         kit::catalog_ship(ships, "block_gunship"),
+        ShipInventoryStock::new([]),
     );
     // A shell, because a camera riding two rounds that hold station in frame
     // needs something standing still to move against - without it the sheet is
@@ -536,6 +550,7 @@ pub fn solo_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scenari
         }),
         None,
         kit::catalog_ship(ships, "block_gunship"),
+        ShipInventoryStock::new([]),
     );
     let shell = kit::NearField {
         id_prefix: "solo_rock_",
@@ -597,6 +612,7 @@ pub fn duel_hollow(
         }),
         None,
         unlimited_turrets(sections, player_hull.clone()),
+        ShipInventoryStock::new([]),
     );
     let raider = ship(
         RAIDER_ID,
@@ -606,6 +622,7 @@ pub fn duel_hollow(
         SpaceshipController::None,
         Some(Allegiance::Enemy),
         dev_fixtures::raider(),
+        ShipInventoryStock::new([]),
     );
 
     ScenarioConfig {
@@ -689,6 +706,7 @@ pub fn hunter_hollow(
         }),
         None,
         player_hull,
+        ShipInventoryStock::new([]),
     );
     let raider = ship(
         RAIDER_ID,
@@ -718,6 +736,7 @@ pub fn hunter_hollow(
         }),
         Some(Allegiance::Enemy),
         dev_fixtures::raider(),
+        ShipInventoryStock::new([]),
     );
 
     // ITS OWN SHELL, pushed well out, and this is the one thing in the set
@@ -904,6 +923,7 @@ pub fn flight_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scena
         }),
         None,
         kit::catalog_ship(ships, "block_gunship"),
+        ShipInventoryStock::new([]),
     );
 
     ScenarioConfig {
@@ -944,7 +964,8 @@ fn shell() -> kit::NearField {
     }
 }
 
-/// One posed ship in the set.
+/// One posed ship in the set, carrying `inventory`: the reserve its weapons'
+/// idle reload draws on.
 pub fn ship(
     id: &str,
     name: &str,
@@ -953,6 +974,7 @@ pub fn ship(
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
     hull: ShipDesign,
+    inventory: ShipInventoryStock,
 ) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -965,6 +987,7 @@ pub fn ship(
             controller,
             allegiance,
             design: ShipDesignSource::Inline(hull),
+            inventory,
             ..default()
         }),
     })

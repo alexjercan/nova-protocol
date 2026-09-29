@@ -63,7 +63,6 @@ pub(crate) struct ShipStatusPip;
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ShipPanelButton {
     Repair,
-    Reload,
     Rebind,
 }
 #[derive(Component)]
@@ -137,11 +136,10 @@ pub struct ShipRuntime {
     pub(crate) selected: Option<Entity>,
     /// A transient note (e.g. an action result) shown in the panel.
     pub(crate) note: Option<(String, f32)>,
-    /// Whether Repair / Reload are valid for the current selection, cached by
-    /// `update_ship_panel` so the button `Activate` observers can no-op on a
+    /// Whether Repair is valid for the current selection, cached by
+    /// `update_ship_panel` so the button `Activate` observer can no-op on a
     /// disabled action without re-deriving the section's validity.
     pub(crate) panel_repair_enabled: bool,
-    pub(crate) panel_reload_enabled: bool,
     pub(crate) panel_rebind_enabled: bool,
     /// Section waiting for a replacement keyboard or mouse binding.
     pub(crate) rebinding: Option<Entity>,
@@ -435,12 +433,12 @@ pub fn ease_orbit_center(center: Vec3, target: Vec3, dt: f32) -> Vec3 {
 }
 
 /// Read the keyboard/mouse while the Ship pane is showing: orbit, cycle the
-/// selection, and raise reload/repair on the selected section.
+/// selection, and raise repair on the selected section.
 pub(crate) fn ship_input(
     mut input: NovaOsAppInput,
     mut runtime: ResMut<ShipRuntime>,
     sections: ShipSections,
-    mut commands: MessageWriter<ShipSectionCommand>,
+    mut commands: MessageWriter<SectionRepairCommand>,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
     mut q_mates: Query<&mut Visibility, With<ShipMateOverlay>>,
 ) {
@@ -537,17 +535,8 @@ pub(crate) fn ship_input(
             runtime.note = None;
             return;
         }
-        if input.just_pressed("ship_reload") {
-            commands.write(ShipSectionCommand {
-                target: sel,
-                action: ShipAction::Reload,
-            });
-        }
         if input.just_pressed("ship_repair") {
-            commands.write(ShipSectionCommand {
-                target: sel,
-                action: ShipAction::Repair,
-            });
+            commands.write(SectionRepairCommand { target: sel });
         }
     }
 }
@@ -915,7 +904,7 @@ pub(crate) fn on_ship_repair_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     runtime: Res<ShipRuntime>,
-    mut section_commands: MessageWriter<ShipSectionCommand>,
+    mut section_commands: MessageWriter<SectionRepairCommand>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
@@ -923,10 +912,7 @@ pub(crate) fn on_ship_repair_button(
         return;
     }
     if let Some(target) = runtime.selected {
-        section_commands.write(ShipSectionCommand {
-            target,
-            action: ShipAction::Repair,
-        });
+        section_commands.write(SectionRepairCommand { target });
         play_menu_select(&mut commands, bank.as_deref());
     }
 }
@@ -948,26 +934,6 @@ pub(crate) fn on_ship_rebind_button(
     runtime.rebind_awaiting_release = runtime.rebinding.is_some();
     runtime.note = None;
     if runtime.rebinding.is_some() {
-        play_menu_select(&mut commands, bank.as_deref());
-    }
-}
-
-pub(crate) fn on_ship_reload_button(
-    _activate: On<Activate>,
-    pause: Res<State<PauseStates>>,
-    runtime: Res<ShipRuntime>,
-    mut section_commands: MessageWriter<ShipSectionCommand>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
-) {
-    if *pause.get() != PauseStates::Interface || !runtime.panel_reload_enabled {
-        return;
-    }
-    if let Some(target) = runtime.selected {
-        section_commands.write(ShipSectionCommand {
-            target,
-            action: ShipAction::Reload,
-        });
         play_menu_select(&mut commands, bank.as_deref());
     }
 }
@@ -1029,7 +995,6 @@ pub(crate) fn update_ship_panel(
     };
 
     runtime.panel_repair_enabled = actions.repair_enabled;
-    runtime.panel_reload_enabled = actions.reload_enabled;
     runtime.panel_rebind_enabled = selected
         .as_ref()
         .is_some_and(|view| view.bindings.is_some());
@@ -1067,7 +1032,6 @@ pub(crate) fn update_ship_panel(
     for (entity, button, disabled) in &q_button {
         let enabled = match button {
             ShipPanelButton::Repair => actions.repair_enabled,
-            ShipPanelButton::Reload => actions.reload_enabled,
             ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
         };
         // Runs every frame the pane owns the screen, so only a change in the

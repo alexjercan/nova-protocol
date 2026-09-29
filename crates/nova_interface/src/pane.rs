@@ -52,7 +52,7 @@ pub enum InterfacePaneType {
     /// The local-space map: contacts, range and bearing, and GOTO.
     #[default]
     Map,
-    /// The player ship: sections, repair, reload, rebind and mates.
+    /// The player ship: sections, repair, rebind and mates.
     Ship,
     /// What the player ship carries, and what a docked ship carries.
     Inventory,
@@ -524,7 +524,6 @@ const SHIP_KEY_HINTS: &[(&str, &[&str])] = &[
     ("Select", &["viewer_prev", "viewer_next"]),
     ("Mates", &["ship_mates"]),
     ("Repair", &["ship_repair"]),
-    ("Reload", &["ship_reload"]),
     ("Rebind", &["ship_rebind"]),
 ];
 

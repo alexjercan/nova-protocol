@@ -54,7 +54,9 @@
                                 goto_enabled: false,
                                 orbit_enabled: false,
                             ),
-                            inventory: {},
+                            inventory: {
+                                PdcRound: 2000,
+                            },
                             lootable: false,
                         )),
                     )),

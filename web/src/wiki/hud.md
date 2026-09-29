@@ -165,7 +165,7 @@ An objective chip carries the objective itself behind a diamond; it pops the mom
 
 Press <kbd>Tab</kbd> (or click the right stick on a gamepad) to open the **interface**: a full-screen panel with Map, Ship and Inventory panes that pauses the game and frees the cursor. <kbd>M</kbd> (or <kbd>Y</kbd> on a gamepad) steps to the next pane; <kbd>Tab</kbd> or <kbd>Esc</kbd> closes it and resumes flight. A posted objective's chip carries a `TAB` cue while it is up - the in-flight reminder that the interface is there.
 
-The interface has [its own page](../interface/): the map and GOTO, the ship's sections and their repair, reload and rebind actions. Press <kbd>:</kbd> for the [command shell](../commands/), which prints the flight log and answers `objectives`.
+The interface has [its own page](../interface/): the map and GOTO, the ship's sections and their repair and rebind actions. Press <kbd>:</kbd> for the [command shell](../commands/), which prints the flight log and answers `objectives`.
 
 ## The screen substrate
 

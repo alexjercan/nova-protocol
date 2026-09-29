@@ -176,6 +176,8 @@ Every one of these is refused until you run `cheats enable`. That command is the
 
 **What `ammo infinite off` gives back.** Turning it on suspends the magazine; turning it off restores the authored capacity **full**, and re-seeds the reload from the section's own configuration. It does not try to remember the count you had when you switched it on - a number from before the cheat is not a number the run earned either way, and a full magazine is the state you can reason about.
 
+**Neither cheat touches your hold.** The ordinary idle reload spends matching ammunition from the ship's own inventory (see [Magazines](../combat-weapons/#magazines)); both `ammo` cheats bypass that and act on the magazine directly, spending and returning nothing from stock.
+
 **This is not the scenario language.** A scenario author has a much larger vocabulary (spawning, despawning, allegiance, forced launches, outcomes). None of it is reachable from this prompt. The catalog above is the whole public surface, and a new scenario action does not appear here unless somebody deliberately adds it.
 
 </details>

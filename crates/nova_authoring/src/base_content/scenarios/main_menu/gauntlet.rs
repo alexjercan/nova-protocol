@@ -351,7 +351,9 @@ pub(crate) fn menu_gauntlet(
     // Each battery fires on its own self-restarting clock; the staggered
     // periods keep the two flanks trading lanes instead of salvoing. A
     // launch during the aftermath linger (gunship gone) is skipped by the
-    // action itself.
+    // action itself. A battery has no hull section, so it has no hold for a
+    // torpedo reserve: the scene grants its bay unlimited ammunition, which
+    // is a no-op after the first launch.
     for (id, _, _, period) in BATTERY_PARKS {
         events.push(ScenarioEventConfig {
             label: None,
@@ -361,6 +363,10 @@ pub(crate) fn menu_gauntlet(
                 key: format!("{id}_fire"),
             })],
             actions: vec![
+                EventActionConfig::SetInfiniteAmmo(SetInfiniteAmmoActionConfig {
+                    id: id.to_string(),
+                    enabled: true,
+                }),
                 EventActionConfig::ForceTorpedoFire(ForceTorpedoFireActionConfig {
                     ship: id.to_string(),
                     section: BAY_SECTION_ID.to_string(),

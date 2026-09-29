@@ -461,7 +461,7 @@ pub struct SpaceshipConfig {
     /// What the ship carries at spawn. Required in RON, so every authored ship
     /// states its stock: a zero quantity or a repeated item fails the parse
     /// (see [`ShipInventoryStock`]'s `Deserialize` impl). The design's hull
-    /// sections set the hold ([`ResolvedShipDesign::cargo_capacity_kg`]);
+    /// sections set the hold ([`ResolvedShipDesign::cargo_capacity_g`]);
     /// lint refuses heavier stock and the spawn panics on it.
     pub inventory: ShipInventoryStock,
     /// Whether a docked ship may Take from this ship's inventory although it
@@ -591,7 +591,7 @@ fn insert_spaceship_sections(
             rcs_loop: presentation.rcs_loop_sound.clone(),
         },
         ShipHullWarning(presentation.warn_hull_fraction.clamp(0.0, 1.0)),
-        ShipInventory::new(design.cargo_capacity_kg(), stock.stacks()),
+        ShipInventory::new(design.cargo_capacity_g(), stock.stacks()),
     ));
     commands.entity(entity).remove::<ShipInventoryStock>();
 
@@ -1579,8 +1579,8 @@ mod tests {
         let (world, ship) = spawn_stocked_two_hull_ship(12);
 
         let inventory = world.entity(ship).get::<ShipInventory>().unwrap();
-        assert_eq!(inventory.capacity_kg(), 200);
-        assert_eq!(inventory.used_kg(), 120);
+        assert_eq!(inventory.capacity_g(), 200_000);
+        assert_eq!(inventory.used_g(), 120_000);
         assert_eq!(inventory.count(ItemType::HullPlate), 12);
         assert!(world.entity(ship).get::<ShipInventoryStock>().is_none());
     }

@@ -798,7 +798,8 @@ fn drive_ammo_readouts(
     theme: Res<ActiveUiTheme>,
     q_readouts: Query<(&AmmoReadoutSection, &AmmoReadoutKind, &Children), With<AmmoReadoutMarker>>,
     q_ammo: Query<&SectionAmmo>,
-    q_reload: Query<&SectionReload>,
+    q_reload: Query<(NameOrEntity, &SectionReload, &ChildOf)>,
+    q_inventory: Query<&ShipInventory>,
     q_loaded: Query<&LoadedBullet>,
     mut q_pips: Query<
         (&AmmoReadoutPip, &mut BackgroundColor, Option<&Children>),
@@ -827,18 +828,28 @@ fn drive_ammo_readouts(
             // magazine of types to choose from, it authors the one slug.
             AmmoReadoutKind::Railgun => (ammo.rounds as usize, DamageType::Pierce),
         };
-        // Preview only the next batch. Progress changes its pulse brightness,
-        // not its size, so the gauge says both how much is coming and how near.
+        // Preview only the next batch, as much as the ship's matching reserve
+        // can supply. Progress changes its pulse brightness, not its size, so
+        // the gauge says both how much is coming and how near.
         let active_reload = q_reload
             .get(**section)
             .ok()
-            .filter(|reload| reload.is_reloading(ammo));
-        let reload_end = active_reload.map_or(steady_lit, |reload| match kind {
+            .map(|(name, reload, parent)| {
+                let reserve = q_inventory
+                    .get(parent.parent())
+                    .unwrap_or_else(|_| {
+                        panic!("weapon section {name} reloads from a parent with no ShipInventory")
+                    })
+                    .count(reload.item);
+                (reload, reserve)
+            })
+            .filter(|(reload, reserve)| reload.is_reloading(ammo, *reserve));
+        let reload_end = active_reload.map_or(steady_lit, |(reload, reserve)| match kind {
             AmmoReadoutKind::Turret => {
-                turret_lit_segments(reload.incoming_rounds(ammo), ammo.capacity)
+                turret_lit_segments(reload.incoming_rounds(ammo, reserve), ammo.capacity)
             }
             AmmoReadoutKind::Torpedo | AmmoReadoutKind::Railgun => {
-                reload.incoming_rounds(ammo) as usize
+                reload.incoming_rounds(ammo, reserve) as usize
             }
         });
         // Nearly dry: the whole group goes amber and breathes, so a magazine
@@ -857,14 +868,14 @@ fn drive_ammo_readouts(
             LIT_ALPHA
         };
         let lit_color = hue.with_alpha(lit_alpha);
-        let reload_color = hue.with_alpha(active_reload.map_or(DIM_ALPHA, |reload| {
+        let reload_color = hue.with_alpha(active_reload.map_or(DIM_ALPHA, |(reload, _)| {
             reload_alpha(time.elapsed_secs(), reload.progress())
         }));
         let dim_color = hue.with_alpha(DIM_ALPHA);
         // Quantized so a pip that is not moving writes no `Node` at all, and a
         // pip that is moving writes one a hundred times over the whole wait
         // instead of once a frame.
-        let fill_height = active_reload.map_or(0.0, |reload| {
+        let fill_height = active_reload.map_or(0.0, |(reload, _)| {
             (reload.progress() * RELOAD_FILL_STEPS).round() / RELOAD_FILL_STEPS
         });
         let fill_color = hue.with_alpha(RELOAD_FILL_ALPHA);
@@ -1014,9 +1025,21 @@ mod tests {
 
     use super::*;
 
+    /// The player ship, carrying a reserve for every weapon's reload.
     fn spawn_player(world: &mut World) -> Entity {
         world
-            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                ShipInventory::new(
+                    10_000_000,
+                    [
+                        (ItemType::PdcRound, 1000),
+                        (ItemType::RailSlug, 10),
+                        (ItemType::Torpedo, 10),
+                    ],
+                ),
+            ))
             .id()
     }
 
@@ -1651,8 +1674,8 @@ mod tests {
             .count()
     }
 
-    fn reload_at(delay: f32, amount: u32, progress: f32) -> SectionReload {
-        let mut reload = SectionReload::from_config(SectionReloadConfig { delay, amount });
+    fn reload_at(item: ItemType, delay: f32, amount: u32, progress: f32) -> SectionReload {
+        let mut reload = SectionReload::from_config(SectionReloadConfig { delay, amount }, item);
         reload.elapsed = delay * progress;
         reload
     }
@@ -1670,7 +1693,9 @@ mod tests {
             .get_mut::<SectionAmmo>()
             .unwrap()
             .rounds = 0;
-        world.entity_mut(turret).insert(reload_at(3.0, 200, 0.5));
+        world
+            .entity_mut(turret)
+            .insert(reload_at(ItemType::PdcRound, 3.0, 200, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1680,6 +1705,22 @@ mod tests {
             3,
             "200 of 500 previews three coarse ring segments"
         );
+
+        // A short reserve previews only what it can load; an empty one
+        // previews nothing.
+        world
+            .entity_mut(player)
+            .insert(ShipInventory::new(10_000_000, [(ItemType::PdcRound, 50)]));
+        world.run_system_once(drive_ammo_readouts).unwrap();
+        assert_eq!(
+            reload_pip_count(&mut world, turret),
+            turret_lit_segments(50, 500)
+        );
+        world
+            .entity_mut(player)
+            .insert(ShipInventory::new(10_000_000, []));
+        world.run_system_once(drive_ammo_readouts).unwrap();
+        assert_eq!(reload_pip_count(&mut world, turret), 0);
 
         world.entity_mut(turret).remove::<SectionReload>();
         world.run_system_once(drive_ammo_readouts).unwrap();
@@ -1699,7 +1740,9 @@ mod tests {
             .get_mut::<SectionAmmo>()
             .unwrap()
             .rounds = 1;
-        world.entity_mut(torpedo).insert(reload_at(10.0, 1, 0.5));
+        world
+            .entity_mut(torpedo)
+            .insert(reload_at(ItemType::Torpedo, 10.0, 1, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1776,7 +1819,9 @@ mod tests {
             .get_mut::<SectionAmmo>()
             .unwrap()
             .rounds = 1;
-        world.entity_mut(torpedo).insert(reload_at(4.0, 1, 0.5));
+        world
+            .entity_mut(torpedo)
+            .insert(reload_at(ItemType::Torpedo, 4.0, 1, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
         let reloading = lit_pip_color(&mut world, torpedo).expect("a lit pip");
@@ -1801,7 +1846,9 @@ mod tests {
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
-        world.entity_mut(turret).insert(reload_at(2.0, 8, 0.0));
+        world
+            .entity_mut(turret)
+            .insert(reload_at(ItemType::PdcRound, 2.0, 8, 0.0));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1861,7 +1908,9 @@ mod tests {
             .get_mut::<SectionAmmo>()
             .unwrap()
             .rounds = 0;
-        world.entity_mut(lance).insert(reload_at(12.0, 1, 0.25));
+        world
+            .entity_mut(lance)
+            .insert(reload_at(ItemType::RailSlug, 12.0, 1, 0.25));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 
@@ -1871,7 +1920,9 @@ mod tests {
             "a quarter of the wait is a quarter of the pip"
         );
 
-        world.entity_mut(lance).insert(reload_at(12.0, 1, 0.75));
+        world
+            .entity_mut(lance)
+            .insert(reload_at(ItemType::RailSlug, 12.0, 1, 0.75));
         world.run_system_once(drive_ammo_readouts).unwrap();
         assert_eq!(
             fill_percent(&mut world, lance),
@@ -1925,7 +1976,9 @@ mod tests {
             .get_mut::<SectionAmmo>()
             .unwrap()
             .rounds = 0;
-        world.entity_mut(turret).insert(reload_at(3.0, 200, 0.5));
+        world
+            .entity_mut(turret)
+            .insert(reload_at(ItemType::PdcRound, 3.0, 200, 0.5));
         world.run_system_once(sync_ammo_readouts).unwrap();
         world.run_system_once(drive_ammo_readouts).unwrap();
 

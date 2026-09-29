@@ -91,6 +91,8 @@ pub(crate) enum InspectorPart {
     Item,
     /// The transfer form, while a draft is open.
     Form,
+    /// The draft quantity's total weight, while the quantity is a whole number.
+    TotalWeight,
 }
 
 /// A text of the inspector that [`update_inventory_panel`] fills.
@@ -104,6 +106,10 @@ pub(crate) enum InventoryInspectorField {
     About,
     /// How many the selected side carries, and which ship that is.
     Stock,
+    /// The mass of one item.
+    Weight,
+    /// The mass of the draft's quantity.
+    TotalWeight,
     /// What moving items takes where the player ship is now.
     Context,
     /// The last transfer result.
@@ -146,6 +152,9 @@ struct ColumnDraw {
 fn item_about(item: ItemType) -> &'static str {
     match item {
         ItemType::HullPlate => "Structural plating for hull sections.",
+        ItemType::PdcRound => "Point-defense round. Kinetic and Pierce mounts reload from it.",
+        ItemType::RailSlug => "Railgun slug. Railgun mounts reload from it.",
+        ItemType::Torpedo => "Torpedo. Every torpedo bay reloads from it.",
     }
 }
 
@@ -455,6 +464,27 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                                 TextLayout::new(Justify::Right, LineBreak::WordBoundary),
                             ));
                         });
+                    item.spawn(control_row(JustifyContent::SpaceBetween))
+                        .with_children(|fact| {
+                            fact.spawn(themed_label("Weight", 12.0, UiColor::Label));
+                            fact.spawn((
+                                InventoryInspectorField::Weight,
+                                themed_label("", 13.0, UiColor::Body),
+                                TextLayout::new(Justify::Right, LineBreak::WordBoundary),
+                            ));
+                        });
+                    item.spawn((
+                        InspectorPart::TotalWeight,
+                        control_row(JustifyContent::SpaceBetween),
+                    ))
+                    .with_children(|fact| {
+                        fact.spawn(themed_label("Total weight", 12.0, UiColor::Label));
+                        fact.spawn((
+                            InventoryInspectorField::TotalWeight,
+                            themed_label("", 13.0, UiColor::Body),
+                            TextLayout::new(Justify::Right, LineBreak::WordBoundary),
+                        ));
+                    });
                     item.spawn((
                         InspectorPart::Form,
                         Node {
@@ -485,35 +515,45 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
         InventoryInspectorField::DraftTitle,
         themed_label("", 13.0, UiColor::Accent),
     ));
-    form.spawn((InventoryDraftWheel, control_row(JustifyContent::FlexStart)))
-        .observe(wheel_inventory_draft)
-        .with_children(|row| {
-            row.spawn(Node {
-                width: px(72),
-                flex_shrink: 0.0,
-                ..default()
-            })
-            .with_children(|cell| {
-                cell.spawn((
-                    InventoryDraftField,
-                    text_field(TextFieldSpec::new("1").max_chars(5).dense()),
-                ));
-            });
-            row.spawn((
-                InventoryInspectorField::DraftStock,
-                themed_label("", 15.0, UiColor::Primary),
-                Node {
-                    flex_grow: 1.0,
-                    ..default()
-                },
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+    form.spawn((
+        InventoryDraftWheel,
+        // A four-digit stock at the 1024 px default window leaves no room for
+        // All beside the field and the count; it wraps under them instead of
+        // running past the inspector's edge.
+        Node {
+            flex_wrap: FlexWrap::Wrap,
+            row_gap: px(6),
+            ..control_row(JustifyContent::FlexStart)
+        },
+    ))
+    .observe(wheel_inventory_draft)
+    .with_children(|row| {
+        row.spawn(Node {
+            width: px(72),
+            flex_shrink: 0.0,
+            ..default()
+        })
+        .with_children(|cell| {
+            cell.spawn((
+                InventoryDraftField,
+                text_field(TextFieldSpec::new("1").max_chars(5).dense()),
             ));
-            row.spawn((
-                Name::new("InventoryDraftAll"),
-                compact_button(ButtonSpec::new("All").fit().ghost()),
-            ))
-            .observe(fill_inventory_draft);
         });
+        row.spawn((
+            InventoryInspectorField::DraftStock,
+            themed_label("", 15.0, UiColor::Primary),
+            Node {
+                flex_grow: 1.0,
+                ..default()
+            },
+            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+        ));
+        row.spawn((
+            Name::new("InventoryDraftAll"),
+            compact_button(ButtonSpec::new("All").fit().ghost()),
+        ))
+        .observe(fill_inventory_draft);
+    });
     form.spawn((
         InventoryDraftSlider,
         Slider {
@@ -1070,8 +1110,11 @@ fn transfer_items(
                 ItemTransferRefusalType::Short { held } => {
                     format!("Refused: only {held} {label} in {source_title}")
                 }
-                ItemTransferRefusalType::NoRoom { free_kg } => {
-                    format!("Refused: {target_title} has room for {free_kg} kg more")
+                ItemTransferRefusalType::NoRoom { free_g } => {
+                    format!(
+                        "Refused: {target_title} has room for {} more",
+                        kg_text(u64::from(free_g))
+                    )
                 }
             }
         })?;
@@ -1115,7 +1158,10 @@ fn jettison_items(
     .map_err(|refusal| match refusal {
         ItemJettisonRefusalType::Docked => "Refused: undock to jettison".to_string(),
         ItemJettisonRefusalType::NoIntake => "Refused: no working cargo intake".to_string(),
-        ItemJettisonRefusalType::Overweight => "Refused: canister exceeds 200 kg".to_string(),
+        ItemJettisonRefusalType::Overweight => format!(
+            "Refused: canister exceeds {}",
+            kg_text(u64::from(CARGO_CANISTER_MAX_MASS_G))
+        ),
         ItemJettisonRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
         ItemJettisonRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
         ItemJettisonRefusalType::Short { held } => {
@@ -1207,9 +1253,9 @@ pub(crate) fn update_inventory_panel(
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let own = SideView {
         heading: format!(
-            "{own_title} {}/{} kg",
-            own_inventory.used_kg(),
-            own_inventory.capacity_kg()
+            "{own_title} {} / {}",
+            kg_text(u64::from(own_inventory.used_g())),
+            kg_text(u64::from(own_inventory.capacity_g()))
         ),
         title: own_title,
         stacks: Some(own_inventory.stacks().collect()),
@@ -1338,6 +1384,7 @@ pub(crate) fn update_inventory_panel(
             InspectorPart::Hint => selected.is_none(),
             InspectorPart::Item => selected.is_some(),
             InspectorPart::Form => draft.is_some(),
+            InspectorPart::TotalWeight => draft.is_some_and(|draft| draft.quantity.is_some()),
         };
         let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
@@ -1361,6 +1408,11 @@ pub(crate) fn update_inventory_panel(
             .count(item)
             .expect("the selection was cleared above unless its side carries the item");
         (item, format!("x{count} in {}", view.title))
+    });
+    let total_weight = draft.and_then(|draft| {
+        draft
+            .quantity
+            .map(|quantity| kg_text(u64::from(draft.item.mass_g()) * u64::from(quantity)))
     });
     let form = draft.map(|draft| {
         let (source, title) = match draft.action {
@@ -1408,6 +1460,13 @@ pub(crate) fn update_inventory_panel(
                 (item_about(*item).to_string(), UiColor::Body)
             }
             (InventoryInspectorField::Stock, Some((_, stock)), _) => (stock.clone(), UiColor::Body),
+            (InventoryInspectorField::Weight, Some((item, _)), _) => {
+                (kg_text(u64::from(item.mass_g())), UiColor::Body)
+            }
+            (InventoryInspectorField::TotalWeight, ..) => match &total_weight {
+                Some(total) => (total.clone(), UiColor::Body),
+                None => continue,
+            },
             (InventoryInspectorField::DraftTitle, _, Some((title, ..))) => {
                 (title.clone(), UiColor::Accent)
             }

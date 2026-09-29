@@ -25,6 +25,9 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
   1.0.0. Required: the base game has no manual speed cap any more, and a file
   still authoring `speed_cap` is refused at load. Expect a held burn to keep
   building speed; STOP is the way to shed it.
+- **(breaking)** Player ships carry 2,000 PDC rounds; Siege Line's CargoB
+  carries 1,000, a full hold. Needs a base game where a reload takes rounds
+  from the hold. Raiders carry none, so their spent magazines stay empty.
 
 ## 1.28.0
 

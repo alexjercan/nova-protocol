@@ -487,7 +487,7 @@ fn run_cargo_intakes(
                 !touching_ship
                     && relative.length() <= maximum_speed
                     && relative.dot(normal) <= 0.0
-                    && inventory.free_kg() >= read.canister.total_mass_kg()
+                    && inventory.free_g() >= read.canister.total_mass_g()
             };
             readiness.pairs.push(CargoPickupPair {
                 ship,

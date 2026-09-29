@@ -266,14 +266,26 @@ spawn only; it has no runtime action yet.
 What the ship carries at spawn: a map from item to stack count. The field is
 required; write `inventory: {}` for an empty hold. A count of `0` or the same
 item listed twice fails lint and load. The design sets the hold: 100 kg per
-hull section. Stock heavier than the hold fails lint, then load. The only item
-is `HullPlate`, 10 kg each, filed under Repair. Stock shows in the TAB interface's Inventory pane. A Ship pane repair
-spends hull plates, and a docked player can Give items to any ship and Take
-them from a neutralized or `lootable: true` one, never past the receiving
-ship's hold. An undocked player with a
+hull section. Stock heavier than the hold fails lint, then load. Stock shows
+in the TAB interface's Inventory pane. A Ship pane repair spends hull plates,
+and every weapon's idle reload draws its matching round from this same stock
+- see [Turret `reload`](../sections/#turret). A docked player can
+Give items to any ship and Take them from a neutralized or `lootable: true`
+one, never past the receiving ship's hold. An undocked player with a
 [cargo intake](../sections/#cargo-intake) can Jettison items in a canister and
 take canisters back in. Nothing is saved: stock returns to its authored counts
 when the scenario loads again.
+
+| Item | Mass | Category |
+| --- | --- | --- |
+| `HullPlate` | 10 kg | Repair |
+| `PdcRound` | 0.2 kg | Ammo |
+| `RailSlug` | 20 kg | Ammo |
+| `Torpedo` | 150 kg | Ammo |
+
+`PdcRound` feeds both Kinetic and Pierce turret mounts - the mount decides the
+round's damage type, not the item. `Torpedo` feeds every torpedo bay type,
+Serpent and Lance alike - the bay decides the flight.
 
 ```ron
 // The open world's derelict: nobody aboard, free to loot.
@@ -290,8 +302,11 @@ lootable: true,
      crates/nova_scenario/src/actions/spawn.rs).
      Parse: crates/nova_gameplay/src/inventory.rs (`ShipInventoryStock` Deserialize).
      Hold: crates/nova_scenario/src/objects/ship_design.rs
-     (`ResolvedShipDesign::cargo_capacity_kg`); overstock lint in
-     crates/nova_scenario/src/lint/ship.rs `check_object_prototypes`. -->
+     (`ResolvedShipDesign::cargo_capacity_g` :402, `HULL_SECTION_CARGO_G` :393);
+     overstock lint in crates/nova_scenario/src/lint/ship.rs
+     `check_object_prototypes`. Item catalog, masses and categories:
+     crates/nova_gameplay/src/inventory.rs `ItemType::mass_g`,
+     `ItemType::category`. -->
 
 ### Section patches
 

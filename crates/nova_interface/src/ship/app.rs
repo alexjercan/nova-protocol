@@ -1,12 +1,11 @@
-//! The Ship pane's side panel layout and the handler for the section actions
-//! its keys and buttons route into `ShipSectionCommand`.
+//! The Ship pane's side panel layout and the handler for the repair action
+//! its key and panel button route into `SectionRepairCommand`.
 //!
-//! Touch this module when changing the ship panel or what a section action
+//! Touch this module when changing the ship panel or what the repair action
 //! does.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_ship::prelude::*;
 use nova_ui::{
     prelude::*,
     theme::UiColor,
@@ -17,15 +16,14 @@ use super::{scene::*, sections::*};
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     pane::{panel_preview_frame, side_panel, themed_label, PANEL_PREVIEW_PX},
-    terminal::section_kind_from_markers,
 };
 
 /// Build the section panel: the selected section's icon over its code, name,
-/// status and condition bar, its detail, Prev and Next, the Repair, Reload
+/// status and condition bar, its detail, Prev and Next, the Repair
 /// and Rebind buttons, and the note line, beside the view.
 /// [`update_ship_panel`] fills it. The texts carry a
 /// [`ShipPanelField`] so one system refreshes them; the buttons carry a
-/// [`ShipPanelButton`] and route through the [`ShipSectionCommand`] seam via
+/// [`ShipPanelButton`] and route through the [`SectionRepairCommand`] seam via
 /// `Activate` observers.
 pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
@@ -124,11 +122,6 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     ))
                     .observe(on_ship_repair_button);
                     row.spawn((
-                        ShipPanelButton::Reload,
-                        button(ButtonSpec::new("Reload").fit()),
-                    ))
-                    .observe(on_ship_reload_button);
-                    row.spawn((
                         ShipPanelButton::Rebind,
                         button(ButtonSpec::new("Rebind").fit()),
                     ))
@@ -138,28 +131,19 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
         });
 }
 
-/// Apply in-app [`ShipSectionCommand`] messages (the `L`/`P` action keys and the
-/// panel buttons) to player-ship sections, and flash the result on the panel
+/// Apply in-app [`SectionRepairCommand`] messages (the `P` action key and the
+/// panel button) to player-ship sections, and flash the result on the panel
 /// note line. A target that is not a live section of the player ship is
 /// skipped with no note: every writer takes it from the pane's own list.
 pub(crate) fn apply_ship_section_commands(
-    mut messages: MessageReader<ShipSectionCommand>,
+    mut messages: MessageReader<SectionRepairCommand>,
     mut runtime: ResMut<ShipRuntime>,
     mut q_player: Query<
         (Entity, Option<&mut ShipInventory>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
-    q_view: Query<
-        (
-            &ChildOf,
-            &SectionCode,
-            SectionKindQuery,
-            Has<IntegrityDisabledMarker>,
-        ),
-        With<SectionMarker>,
-    >,
+    q_view: Query<(&ChildOf, &SectionCode, Has<IntegrityDisabledMarker>), With<SectionMarker>>,
     mut q_health: Query<&mut Health>,
-    mut q_ammo: Query<&mut SectionAmmo>,
 ) {
     let Ok((player, inventory)) = q_player.single_mut() else {
         messages.clear();
@@ -167,33 +151,18 @@ pub(crate) fn apply_ship_section_commands(
     };
     let mut inventory = inventory.expect("the player ship carries a ShipInventory");
     for command in messages.read() {
-        let Ok((child, code, (class, hull, controller, thruster, turret, torpedo), disabled)) =
-            q_view.get(command.target)
-        else {
+        let Ok((child, code, disabled)) = q_view.get(command.target) else {
             continue;
         };
         if child.0 != player {
             continue;
         }
-        let Some(kind) =
-            section_kind_from_markers(class, hull, controller, thruster, turret, torpedo)
-        else {
-            continue;
-        };
-        let row = match command.action {
-            ShipAction::Reload => reload_section(
-                &code.0,
-                kind,
-                kind.is_weapon(),
-                q_ammo.get_mut(command.target).ok().as_deref_mut(),
-            ),
-            ShipAction::Repair => repair_section(
-                &code.0,
-                q_health.get_mut(command.target).ok().as_deref_mut(),
-                disabled,
-                &mut inventory,
-            ),
-        };
+        let row = repair_section(
+            &code.0,
+            q_health.get_mut(command.target).ok().as_deref_mut(),
+            disabled,
+            &mut inventory,
+        );
         runtime.note = Some((row.text, 2.5));
     }
 }

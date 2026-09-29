@@ -668,10 +668,16 @@ Section-wide fields (once, alongside `root`):
   `Limited(n)` for an ammo slot of `n` rounds.
 - `reload` - how spent rounds come back: `Disabled` (the default - a spent
   magazine stays empty) or `Batch((delay, amount))`. Every successful shot
-  resets the timer; after `delay` quiet seconds, `amount` rounds return,
-  clamped to capacity. Batches repeat while the weapon stays idle, and an empty
-  trigger pull does not reset the timer. A `Batch` on an `Unlimited` weapon is
-  a lint error - there is nothing to refill.
+  resets the timer; after `delay` quiet seconds, `amount` rounds move from the
+  ship's own [inventory](../objects/#inventory) into the magazine - `PdcRound`
+  for a turret (both Kinetic and Pierce mounts draw the same item), `Torpedo`
+  for a bay, `RailSlug` for a railgun - clamped to the least of the magazine's
+  missing rounds, `amount`, and what the ship carries. With none of that item
+  in the ship's inventory the delay does not advance, so an empty magazine
+  stays empty until the ship is restocked. Batches repeat while the weapon
+  stays idle, and an empty trigger pull does not reset the timer. A `Batch` on
+  an `Unlimited` weapon is a lint error - there is nothing to refill, and the
+  section's parent ship must carry a `ShipInventory` or the reload panics.
 
 ## Torpedo
 
@@ -830,10 +836,13 @@ kind: Torpedo((
   total speed instead: a total-speed cap leaves the torpedo ballistic at cruise
   and unable to steer at all.
 - `ammunition` - the magazine in torpedoes: `Unlimited` or `Limited(n)`.
-- `reload` - `Disabled`, or the same `Batch((delay, amount))` a turret uses. The shipped bay
-  restores one torpedo after ten seconds without a launch. Another launch
-  resets that timer. Ammunition is a rate limit, not a permanent budget, but a
-  bay must win through its six-round salvo rather than by outwaiting one PDC.
+- `reload` - `Disabled`, or the same `Batch((delay, amount))` a turret uses,
+  drawing `Torpedo` items from the ship's inventory. The shipped bay restores
+  one torpedo after ten seconds without a launch, taking one `Torpedo` item
+  from the ship's stock to do it; with none left the ten seconds does not
+  start. Another launch resets that timer. Ammunition is a rate limit, not a
+  permanent budget, but a bay must win through its six-round salvo rather than
+  by outwaiting one PDC.
 
 ### The fuze is not a bay field
 
@@ -946,8 +955,9 @@ kind: Railgun((
 - `ammunition` - shells carried: `Limited(n)`, or `Unlimited` (the default
   every weapon section shares).
 - `reload` - the same `Disabled` / `Batch((delay, amount))` a turret and a bay
-  use. For a one-shell magazine it IS the cadence: the shipped railgun
-  is one shot every twelve quiet seconds, and the section's ammo gauge is the
+  use, drawing `RailSlug` items from the ship's inventory; with none left the
+  wait does not start. For a one-shell magazine it IS the cadence: the shipped
+  railgun is one shot every twelve quiet seconds, and the section's ammo gauge is the
   countdown.
 
 The scope below is the walk the game runs, on the block the range measures

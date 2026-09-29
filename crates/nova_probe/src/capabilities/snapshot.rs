@@ -1541,7 +1541,7 @@ fn ordnance_record(world: &World, entity: Entity) -> (String, serde_json::Value)
 mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    use nova_gameplay::prelude::DamageType;
+    use nova_gameplay::prelude::{DamageType, ItemType};
     use nova_ship::prelude::{unit_cube_link_points, SectionReloadConfig};
 
     use super::*;
@@ -1584,10 +1584,13 @@ mod tests {
                 WeaponsHot(true),
             ))
             .id();
-        let mut reload = SectionReload::from_config(SectionReloadConfig {
-            delay: 4.0,
-            amount: 5,
-        });
+        let mut reload = SectionReload::from_config(
+            SectionReloadConfig {
+                delay: 4.0,
+                amount: 5,
+            },
+            ItemType::PdcRound,
+        );
         reload.elapsed = 1.5;
         let section = app
             .world_mut()

@@ -38,7 +38,7 @@ fn spawn_inventory_body(app: &mut App, parent: Entity) {
 
 /// A 400 kg hold carrying `plates` hull plates of 10 kg.
 fn hold(plates: u32) -> ShipInventory {
-    ShipInventory::new(400, [(ItemType::HullPlate, plates)])
+    ShipInventory::new(400_000, [(ItemType::HullPlate, plates)])
 }
 
 /// A player ship carrying `plates` hull plates.
@@ -142,7 +142,7 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
     // The player's title carries its load against its capacity.
     assert_eq!(
         column_title(world, InventorySideType::Own),
-        "NOVA 120/400 kg"
+        "NOVA 120 kg / 400 kg"
     );
     assert_eq!(
         column_texts(world, InventorySideType::Own),
@@ -285,7 +285,12 @@ fn the_filters_read_all_food_ammo_repair_raw_parts_left_to_right() {
 #[test]
 fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     let (mut rig, player) = inventory_rig();
-    dock_partner(rig.app.world_mut(), player, "Picket", 40);
+    let partner = dock_partner(rig.app.world_mut(), player, "Picket", 39);
+    rig.app
+        .world_mut()
+        .get_mut::<ShipInventory>(partner)
+        .expect("the partner has a hold")
+        .add(ItemType::PdcRound, 7);
     settle(&mut rig.app);
     take_churn(&mut rig.app);
     let rows = row_entities(rig.app.world_mut());
@@ -312,14 +317,33 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     click_at(&mut rig, partner_row);
     assert!(take_cues(&mut rig.app).is_empty());
     assert_eq!(take_churn(&mut rig.app), Default::default());
-    let stock = rig
-        .app
-        .world_mut()
-        .query::<(&InventoryInspectorField, &Text)>()
-        .iter(rig.app.world())
-        .find(|(field, _)| **field == InventoryInspectorField::Stock)
-        .map(|(_, text)| text.0.clone());
-    assert_eq!(stock.as_deref(), Some("x40 in Picket"));
+    let inspector = |world: &mut World, wanted: InventoryInspectorField| {
+        world
+            .query::<(&InventoryInspectorField, &Text)>()
+            .iter(world)
+            .find(|(field, _)| **field == wanted)
+            .map(|(_, text)| text.0.clone())
+    };
+    let total_weight_shown = |world: &mut World| {
+        world
+            .query::<(&InspectorPart, &Node)>()
+            .iter(world)
+            .find(|(part, _)| **part == InspectorPart::TotalWeight)
+            .map(|(_, node)| node.display)
+            .expect("the inspector has a total weight row")
+            != Display::None
+    };
+    let world = rig.app.world_mut();
+    assert_eq!(
+        inspector(world, InventoryInspectorField::Stock).as_deref(),
+        Some("x39 in Picket")
+    );
+    assert_eq!(
+        inspector(world, InventoryInspectorField::Weight).as_deref(),
+        Some("10 kg")
+    );
+    // Picket is not lootable, so its row opens no draft to weigh.
+    assert!(!total_weight_shown(world));
 
     // Ammo hides the hull plates and drops the selection with them.
     let ammo = centre_of::<InventoryFilterChip>(rig.app.world_mut(), |chip| {
@@ -334,8 +358,24 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
         column_texts(rig.app.world_mut(), InventorySideType::Own),
         ["Nothing in this category."]
     );
-    assert!(row_entities(rig.app.world_mut()).is_empty());
     take_churn(&mut rig.app);
+
+    // A round weighs a fraction of a kilogram.
+    let rounds_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
+        *row == InventoryRow {
+            side: InventorySideType::Partner,
+            item: ItemType::PdcRound,
+        }
+    });
+    click_at(&mut rig, rounds_row);
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    take_churn(&mut rig.app);
+    let world = rig.app.world_mut();
+    assert_eq!(
+        inspector(world, InventoryInspectorField::Weight).as_deref(),
+        Some("0.2 kg")
+    );
+    assert!(!total_weight_shown(world));
 
     // The current filter again rebuilds nothing and stays silent.
     click_at(&mut rig, ammo);
@@ -628,7 +668,7 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
         refused("Refused: canister exceeds 200 kg")
     );
     assert_eq!(plates(app.world(), player), 12);
-    assert_eq!(ejection(&app, intake).unwrap().0.total_mass_kg(), 190);
+    assert_eq!(ejection(&app, intake).unwrap().0.total_mass_g(), 190_000);
     app.world_mut()
         .entity_mut(intake)
         .remove::<CargoIntakeEjection>();
@@ -695,6 +735,22 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         })
     );
     assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    // The total weighs the draft's quantity, never the source stack of 8.
+    let total_weight = |world: &mut World| {
+        let shown = world
+            .query::<(&InspectorPart, &Node)>()
+            .iter(world)
+            .any(|(part, node)| {
+                *part == InspectorPart::TotalWeight && node.display != Display::None
+            });
+        let text = world
+            .query::<(&InventoryInspectorField, &Text)>()
+            .iter(world)
+            .find(|(each, _)| **each == InventoryInspectorField::TotalWeight)
+            .map(|(_, text)| text.0.clone());
+        shown.then(|| text.expect("the total weight row has a value"))
+    };
+    assert_eq!(total_weight(rig.app.world_mut()).as_deref(), Some("10 kg"));
     let world = rig.app.world_mut();
     let (field, slider, wheel) = (
         only::<InventoryDraftField>(world),
@@ -732,6 +788,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         settle(&mut rig.app);
     }
     assert_eq!(draft_quantity(&rig.app), Some(3));
+    assert_eq!(total_weight(rig.app.world_mut()).as_deref(), Some("30 kg"));
     assert_eq!(take_cues(&mut rig.app), [UiSfx::UiTick, UiSfx::UiTick]);
     assert_eq!(rig.app.world().get::<TextFieldValue>(field).unwrap().0, "3");
 
@@ -745,6 +802,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         settle(&mut rig.app);
     }
     assert_eq!(draft_quantity(&rig.app), Some(6));
+    assert_eq!(total_weight(rig.app.world_mut()).as_deref(), Some("60 kg"));
     assert_eq!(take_cues(&mut rig.app), [UiSfx::UiTick]);
 
     // Typed text sets it; text that is not a number stays as typed, marks
@@ -756,6 +814,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         .0 = "4".to_string();
     settle(&mut rig.app);
     assert_eq!(draft_quantity(&rig.app), Some(4));
+    assert_eq!(total_weight(rig.app.world_mut()).as_deref(), Some("40 kg"));
     assert_eq!(take_cues(&mut rig.app), [UiSfx::UiTick]);
     rig.app
         .world_mut()
@@ -764,6 +823,11 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         .0 = "4x".to_string();
     settle(&mut rig.app);
     assert_eq!(draft_quantity(&rig.app), None);
+    assert_eq!(
+        total_weight(rig.app.world_mut()),
+        None,
+        "no quantity, no total row"
+    );
     assert!(take_cues(&mut rig.app).is_empty());
     let world = rig.app.world_mut();
     assert_eq!(world.get::<TextFieldValue>(field).unwrap().0, "4x");
@@ -781,6 +845,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
     });
     click_at(&mut rig, all);
     assert_eq!(draft_quantity(&rig.app), Some(8));
+    assert_eq!(total_weight(rig.app.world_mut()).as_deref(), Some("80 kg"));
     assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
     let world = rig.app.world_mut();
     assert_eq!(world.get::<TextFieldValue>(field).unwrap().0, "8");

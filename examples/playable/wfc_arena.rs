@@ -1452,15 +1452,26 @@ fn arena(
     let ships: Vec<EventActionConfig> = drafted
         .into_iter()
         .enumerate()
-        .map(|(slot, (seed, hull))| {
-            EventActionConfig::SpawnScenarioObject(combatant(
-                slot,
-                seed,
-                hull,
-                &roster.ships[slot],
-                places[slot],
-                &roster.binding_overrides,
-            ))
+        .flat_map(|(slot, (seed, hull))| {
+            [
+                EventActionConfig::SpawnScenarioObject(combatant(
+                    slot,
+                    seed,
+                    hull,
+                    &roster.ships[slot],
+                    places[slot],
+                    &roster.binding_overrides,
+                )),
+                // Perf-only override: the arena is a load fixture, and its
+                // fights keep the sustained fire the pre-M3 free reload gave
+                // them. A drafted hull's hold cannot carry a reserve for its
+                // armament, so combatants carry none and fire without a
+                // magazine.
+                EventActionConfig::SetInfiniteAmmo(SetInfiniteAmmoActionConfig {
+                    id: format!("{FIGHTER_ID_PREFIX}{slot}"),
+                    enabled: true,
+                }),
+            ]
         })
         .collect();
 

@@ -1,14 +1,16 @@
 //! lesson_combat_battery: the two COMBAT demonstrations about the BATTERY
 //! ITSELF - `combat_magazines` (a magazine draining through a burst and coming
-//! back in one lump) and `combat_point_defense` (the flight computer working
-//! the idle mounts against inbound torpedoes).
+//! back in one batch from the ship's reserve) and `combat_point_defense` (the
+//! flight computer working the idle mounts against inbound torpedoes).
 //!
 //! One producer, two frames, one set: an armed player parked square at the
-//! origin with real magazines in its guns, and three hostile torpedo boats
-//! stood off beyond the reach of those guns. Both lessons are about what the
-//! ship's own weapons do while nobody is flying them - one about the rate limit
-//! the magazine imposes, the other about who holds the mounts when the player
-//! does not - so both want the same hull, the same battery and the same HUD.
+//! origin with real magazines in its guns and [`PDC_RESERVE`] rounds in its
+//! inventory for them to reload from, and three hostile torpedo boats stood
+//! off beyond the reach of those guns. Both lessons are about what the ship's
+//! own weapons do while nobody is flying them - one about the magazine
+//! refilling from the reserve, the other about who holds the mounts when the
+//! player does not - so both want the same hull, the same battery and the
+//! same HUD.
 //!
 //! The boats are authored at more than 2.2 km AND at least 150 m off the axis
 //! the guns fire down, which is deliberate: a PDC round dies at 2.0 km
@@ -24,7 +26,8 @@
 //! [`MAGAZINE_HASTE`] for the length of the recording and five and a half
 //! seconds of ship time fit in the twenty cells. Nothing is faked: the gun
 //! fires at its authored rate, the magazine spends a round a shot, and the
-//! batch arrives on the section's own reload clock. Only the clock the CAMERA
+//! batch arrives on the section's own reload clock, moved out of the ship's
+//! inventory. Only the clock the CAMERA
 //! runs on is different, the way `lesson_combat_rounds` slows the same clock to
 //! 5% to follow two rounds down a lane.
 //!
@@ -134,6 +137,10 @@ const DEFENSE_SHOT: &str = "combat_point_defense.png";
 
 /// Scenario ids of the cast.
 const PLAYER_ID: &str = "battery_player";
+/// PDC rounds the player's inventory holds for the idle reload. More than the
+/// four batches the burst can draw, so the magazine lesson never shows a
+/// short reserve.
+const PDC_RESERVE: u32 = 1200;
 /// The three hostile torpedo boats, port, starboard and high.
 const BOAT_IDS: [&str; 3] = [
     "battery_boat_port",
@@ -220,6 +227,13 @@ const BURST_SECS: f32 = 1.3;
 /// whole interval and report a magazine that never refilled.
 #[cfg(feature = "debug")]
 const QUIET_SECS: f32 = 3.5;
+
+/// The first part of [`QUIET_SECS`], in ship seconds: long enough for the
+/// round-or-so of fire past the release (see [`BURST_SECS`]) to leave, and
+/// far short of the reload's three seconds, so the rounds counted after it
+/// change only by reload.
+#[cfg(feature = "debug")]
+const RELEASE_TAIL_SECS: f32 = 0.5;
 
 /// Where the point-defence still's eye stands, and what it looks at.
 ///
@@ -315,6 +329,7 @@ fn the_battery(
         // gauge only exists for a section that carries a `SectionAmmo`, so a
         // rig with unlimited guns has nothing for this lesson to photograph.
         player_hull,
+        ShipInventoryStock::new([(ItemType::PdcRound, PDC_RESERVE)]),
     );
 
     let boats: Vec<EventActionConfig> = BOAT_IDS
@@ -331,6 +346,7 @@ fn the_battery(
                 SpaceshipController::None,
                 Some(Allegiance::Enemy),
                 dev_fixtures::cleanup_leader(),
+                ShipInventoryStock::new([]),
             )
         })
         .collect();
@@ -427,6 +443,30 @@ fn lowest_magazine(world: &mut World) -> Option<(u32, u32)> {
         .min_by_key(|(rounds, _)| *rounds)
 }
 
+/// Rounds loaded in the player's magazines plus PDC rounds in its inventory.
+/// A reload moves rounds between the two, so only firing changes the sum.
+#[cfg(feature = "debug")]
+fn loaded_plus_reserve(world: &mut World) -> (u32, u32) {
+    let player = hollow::player_root(world).expect("the player ship went missing");
+    let mut query = world.query::<(&SectionAmmo, &ChildOf)>();
+    let loaded = query
+        .iter(world)
+        .filter(|(_, ChildOf(parent))| *parent == player)
+        .map(|(ammo, _)| ammo.rounds)
+        .sum();
+    let reserve = world
+        .get::<ShipInventory>(player)
+        .expect("every ship root carries a ShipInventory")
+        .count(ItemType::PdcRound);
+    (loaded, reserve)
+}
+
+/// [`loaded_plus_reserve`] once the gun stops after the release, for the
+/// batch step to check against.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct RoundsAtCeaseFire(u32);
+
 /// Pull every torpedo bay's trigger. The boats are the only hulls in the set
 /// with bays, so this is their salvo.
 #[cfg(feature = "debug")]
@@ -520,8 +560,8 @@ fn combat_battery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugi
         .until(and(player_ship_present(), scenario_camera_present()))
         .deadline(30.0)
         .add()
-        // A MAGAZINE IS A RATE LIMIT. The eye goes to the forward dorsal pair
-        // and stays there: the drain is the motion.
+        // A MAGAZINE REFILLS FROM THE RESERVE. The eye goes to the forward
+        // dorsal pair and stays there: the drain is the motion.
         .step("raise the instruments and frame the forward mounts")
         .on_enter(|world: &mut World| {
             hollow::hud_instrument(world);
@@ -569,7 +609,17 @@ fn combat_battery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugi
                  bindings reached the mounts."
             );
         })
-        .until(and(sheet_written(MAGAZINE_LESSON), elapsed(QUIET_SECS)))
+        .until(elapsed(RELEASE_TAIL_SECS))
+        .add()
+        .step("count the rounds once the gun has stopped")
+        .on_enter(|world: &mut World| {
+            let (loaded, reserve) = loaded_plus_reserve(world);
+            world.insert_resource(RoundsAtCeaseFire(loaded + reserve));
+        })
+        .until(and(
+            sheet_written(MAGAZINE_LESSON),
+            elapsed(QUIET_SECS - RELEASE_TAIL_SECS),
+        ))
         .deadline(120.0)
         .add()
         // The batch has to have landed inside the sheet, or the reader is shown
@@ -588,6 +638,19 @@ fn combat_battery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugi
                  the sheet closed: the loop would wrap from a drained ring to a full one. Check \
                  MAGAZINE_HASTE still fits the section's authored reload delay into twenty cells \
                  and that BURST_SECS spends less than one batch."
+            );
+            // The batch came out of the inventory, round for round.
+            let (loaded, reserve) = loaded_plus_reserve(world);
+            let at_cease_fire = world.resource::<RoundsAtCeaseFire>().0;
+            assert!(
+                reserve < PDC_RESERVE,
+                "the reserve still holds {reserve} of {PDC_RESERVE}: the refill drew nothing"
+            );
+            assert_eq!(
+                loaded + reserve,
+                at_cease_fire,
+                "{loaded} loaded + {reserve} in reserve after the batch, {at_cease_fire} at cease \
+                 fire: a reload must move rounds, not mint them"
             );
         })
         .until(frames(1))

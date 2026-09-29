@@ -83,7 +83,7 @@ Nothing pierces a rock while its collider remains: an asteroid or a planetoid st
 
 ## Trigger discipline
 
-A magazine is a rate limit, not a budget - every weapon refills, and the rule is the same for all three (see [Magazines](../../combat-weapons/#magazines)). What that rhythm is worth is easiest to read on the gun, with the bay and the railgun beside it for scale.
+A magazine is a rate limit, not a hard stop while you carry the ammunition to feed it - every weapon refills from your ship's stock of matching rounds, and the rule is the same for all three (see [Magazines](../../combat-weapons/#magazines)). What that rhythm is worth is easiest to read on the gun, with the bay and the railgun beside it for scale.
 
 <!-- Stats verified against crates/nova_authoring/src/base_content/sections/ (turret.rs: PDC ammunition Limited(500), reload delay 3.0 / amount 200, fire_rate 100; torpedo_bay.rs: bay ammunition Limited(6), reload delay 10.0 / amount 1, fire_rate 1.0; railgun.rs: ammunition Limited(1), reload delay 12.0 / amount 1, charge 1.5) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock :217, each completed delay restores one batch :252-259, clamped at capacity :237, empty trigger pulls never call on_shot :216). The sustained column is this page's own arithmetic, amount / (delay + batch fire time). -->
 

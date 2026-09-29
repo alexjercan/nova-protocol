@@ -35,7 +35,7 @@
                                 input_mapping: {"turret_port": [Mouse(Left), Gamepad(RightTrigger2)], "turret_starboard": [Mouse(Left), Gamepad(RightTrigger2)]},
                             )),
                             allegiance: Some(Player),
-                            inventory: {},
+                            inventory: {PdcRound: 2000},
                             lootable: false,
                         )),
                     )),

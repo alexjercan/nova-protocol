@@ -98,7 +98,14 @@ fn player() -> ScenarioObjectConfig {
             }),
             capabilities: ShipCapabilities::default(),
             design: ships::design(BLOCK_LINE_WARSHIP_SHIP_ID),
-            inventory: ShipInventoryStock::new([(ItemType::HullPlate, 12)]),
+            // Plates for repair and a finite reserve for every idle reload:
+            // point defense, railgun and torpedo bays. 3,520 kg in all.
+            inventory: ShipInventoryStock::new([
+                (ItemType::HullPlate, 12),
+                (ItemType::PdcRound, 6000),
+                (ItemType::RailSlug, 20),
+                (ItemType::Torpedo, 12),
+            ]),
             lootable: false,
         }),
     }

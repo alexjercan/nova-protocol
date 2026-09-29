@@ -119,7 +119,7 @@ fn intake_app(stock: u32) -> (App, Entity, Entity) {
             SpaceshipRootMarker,
             RigidBody::Dynamic,
             Transform::default(),
-            ShipInventory::new(400, [(ItemType::HullPlate, stock)]),
+            ShipInventory::new(400_000, [(ItemType::HullPlate, stock)]),
         ))
         .id();
     app.world_mut().spawn((
@@ -662,8 +662,8 @@ fn a_canister_larger_than_the_free_room_is_refused_whole() {
     assert_eq!(
         app.world()
             .get::<CargoCanister>(canister)
-            .map(CargoCanister::total_mass_kg),
-        Some(40)
+            .map(CargoCanister::total_mass_g),
+        Some(40_000)
     );
 
     // Room is the only thing that refused it.

@@ -117,9 +117,11 @@ Docked, GOTO refuses while the game cannot measure the pair (`GOTO REFUSED: HELM
      icons and tints: crates/nova_interface/src/icons.rs `SectionIconType`.
      Blocks do not encode status; badges and the panel do:
      crates/nova_interface/src/ship/scene.rs. Status words + thresholds:
-     `ShipSectionView::status`. Panel: ship/app.rs, sections.rs. Actions:
-     `repair_section`, `reload_section`; plate rule: `plan_plate_repair` in
-     crates/nova_gameplay/src/inventory.rs. -->
+     `ShipSectionView::status`. Panel: ship/app.rs, sections.rs. Repair action:
+     `repair_section`; plate rule: `plan_plate_repair` in
+     crates/nova_gameplay/src/inventory.rs. Weapon magazines refill on their
+     own idle timer instead: crates/nova_ship/src/sections/ammo.rs
+     `SectionReload::advance`. -->
 
 The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. The footer under the view holds the section legend, **Fit** and **Reset** with the pane's live key hints, and a summary of the selected section. Sections carry short codes, stable for the whole session, and a family icon:
 
@@ -138,7 +140,6 @@ Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or wit
 | Key | Button | Does |
 | --- | --- | --- |
 | <kbd>P</kbd> | **Repair** | Spend hull plates to restore the section's integrity, up to 20 HP per plate. |
-| <kbd>L</kbd> | **Reload** | Refill a weapon's magazine. Keyboard only; the gamepad has no reload key. |
 | <kbd>B</kbd> | **Rebind** | [Rebind](#rebinding-a-section) the section's trigger. |
 | <kbd>G</kbd> (gamepad <kbd>A</kbd>) | - | Overlay the structural mates: which sections hold which. |
 | - | **Fit** | Frame the whole ship at its current angle. |
@@ -149,9 +150,11 @@ Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or wit
 
 The blocks are the shape of your ship - a fill in the section family's colour inside an outline per section, with a gap so neighbours read apart. An arrow past the foremost block points at the bow. Status lives on the badges and in the panel, not in the block colour: each badge carries a pip coloured by status (`nominal`, `degraded`, `critical`, `neutralized`), and the section you have selected spells out its code beside its badge. Only that one does - a development stress hull has two thousand sections, and a label on each is a wall of text with the ship somewhere behind it.
 
-The actions answer on the panel's note line with what happened, or why not: a hull section refuses a reload (`reload: HULL-3 is a hull section, no ammo feed`), and a success reads `repaired HULL-3: 2 hull plates, 80/100 HP`. Both are instant. A reload is free. A repair works anywhere, docked or not, and spends [hull plates](#the-inventory) from your ship: each plate restores up to 20 HP, and part of a plate's worth still costs a whole plate. A section at 55/100 takes 3 plates and stops at 100; the unused HP of the last plate is lost. With too few plates the repair uses what you have: 2 plates take 40/100 to 80/100.
+Repair is the panel's only action key. It answers on the note line with what happened, or why not, and it is instant: a success reads `repaired HULL-3: 2 hull plates, 80/100 HP`. It works anywhere, docked or not, and spends [hull plates](#the-inventory) from your ship: each plate restores up to 20 HP, and part of a plate's worth still costs a whole plate. A section at 55/100 takes 3 plates and stops at 100; the unused HP of the last plate is lost. With too few plates the repair uses what you have: 2 plates take 40/100 to 80/100.
 
-Repair is off, and spends nothing, when the section has no integrity to restore, is destroyed, is at full integrity, or you carry no plates, checked in that order: `repair: HULL-3 is destroyed`, `repair: HULL-3 is at full integrity`, `repair: no hull plates`. A destroyed section is one at 0 HP, or one knocked out by a structural collapse with HP left; repair does not bring it back. When Repair and Reload are both off, the note line gives the repair reason. Spent plates are not saved: they return when the scenario loads again.
+Repair is off, and spends nothing, when the section has no integrity to restore, is destroyed, is at full integrity, or you carry no plates, checked in that order: `repair: HULL-3 has no integrity to restore`, `repair: HULL-3 is destroyed`, `repair: HULL-3 is at full integrity`, `repair: no hull plates`. A destroyed section is one at 0 HP, or one knocked out by a structural collapse with HP left; repair does not bring it back. Spent plates are not saved: they return when the scenario loads again.
+
+There is no manual reload. A weapon's magazine refills on its own from your inventory - see [Magazines](../combat-weapons/#magazines) - and with no matching ammunition left in stock, an empty magazine stays empty until you restock it.
 
 </details>
 
@@ -202,7 +205,7 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      `FILTER_ORDER`. Open-world stock: crates/nova_authoring/src/base_content/
      scenarios/open_world.rs `player` and `derelict`. Ship pane repair spends
      hull plates: crates/nova_interface/src/ship/sections.rs `repair_section`.
-     Hold: `HULL_SECTION_CARGO_KG` and `ResolvedShipDesign::cargo_capacity_kg`
+     Hold: `HULL_SECTION_CARGO_G` and `ResolvedShipDesign::cargo_capacity_g`
      in crates/nova_scenario/src/objects/ship_design.rs.
      Take and Give: crates/nova_gameplay/src/inventory.rs `plan_item_transfer`;
      Jettison: `plan_item_jettison`; both applied by
@@ -212,7 +215,7 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      crates/nova_authoring/src/base_content/sections/cargo_intake.rs. Tag:
      crates/nova_hud/src/cargo_canister_chips.rs. -->
 
-The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it, for example `Line Warship 120/13200 kg`. A hull plate weighs 10 kg. In the open world your ship starts with 12 hull plates, with a Derelict Tender carrying 8 more moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them. A [repair](#the-ship) spends hull plates. Nothing is saved: spent and moved items return to their starting counts when the scenario loads again.
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it, for example `Line Warship 3520 kg / 13200 kg`. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs and 12 torpedoes - 3,520 kg in all - with a Derelict Tender carrying 8 more hull plates moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A [repair](#the-ship) spends hull plates, and a weapon's idle [reload](../combat-weapons/#magazines) spends matching ammunition. Nothing is saved: spent and moved items return to their starting counts when the scenario loads again.
 
 | Filter | Shows |
 | --- | --- |
@@ -223,7 +226,7 @@ The Inventory pane lists what your ship carries in the left column and, while yo
 | **Raw** | Mined or salvaged bulk material. |
 | **Parts** | Scavenged objects for a story, an objective or trade. |
 
-Click an item to inspect it: the inspector shows its category, what it is and how many the selected ship carries.
+Click an item to inspect it: the inspector shows its category, what it is, how many the selected ship carries and the weight of one item. A PDC round weighs 0.2 kg. While a Take, Give or Jettison is open, **Total weight** shows the weight of the quantity you chose: 2 hull plates read 20 kg however many you carry.
 
 ### Take and give
 

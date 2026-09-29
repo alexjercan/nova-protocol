@@ -647,17 +647,18 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             looping(
                 "combat_magazines",
                 "a gunship's dorsal mounts firing, the ammo ring beside each one losing pips \
-                 through the burst and coming back full on one batch a few frames after the \
-                 trigger comes up",
+                 through the burst and coming back one batch from the ship's reserve a few \
+                 frames after the trigger comes up",
             ),
-            "Weapons automatically refill their magazines after a short time without firing. \
-             Firing again restarts the wait. Long bursts can empty a magazine temporarily, but \
-             ammunition never runs out permanently.",
+            "Weapons refill their magazines after a short time without firing. Firing again \
+             restarts the wait. Each refill takes matching ammunition from your inventory: PDC \
+             rounds, rail slugs, or torpedoes. With no matching ammunition left, an empty \
+             magazine stays empty.",
             &[],
             "wiki/combat-weapons#magazines",
             Some(DRILL_GUNNERY_ID),
             &[],
-            &["Weapon magazines refill after a short time without firing."],
+            &["Weapon magazines refill from inventory ammunition after a short time without firing."],
         ),
         lesson(
             "combat_torpedoes",
@@ -1039,20 +1040,20 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "interface_ship_service",
             Interface,
             20,
-            "Repair and reload a section",
+            "Repair a section",
             looping(
                 "interface_ship_service",
-                "the Ship pane's inspector on a damaged PDC-1: Repair fills the integrity meter, \
-                 then Reload refills the magazine",
+                "the Ship pane's inspector on a damaged PDC-1: Repair spends hull plates and \
+                 fills the integrity meter",
             ),
             "The Ship pane shows your hull. Sections use short codes such as `THR-1` and `PDC-1`. \
-             Select a section to reload its magazine, or to repair its integrity with hull plates \
-             from your inventory: each plate restores up to 20 HP. Both actions happen immediately.",
-            &["viewer_next", "viewer_prev", "ship_repair", "ship_reload"],
+             Select a damaged section to repair it with hull plates from your inventory: each \
+             plate restores up to 20 HP. The repair happens immediately.",
+            &["viewer_next", "viewer_prev", "ship_repair"],
             "wiki/interface#the-ship",
             None,
             &[],
-            &["Select a section in the Ship pane to repair or reload it."],
+            &["Select a section in the Ship pane to repair it with hull plates."],
         ),
         lesson(
             "interface_rebind_section",
