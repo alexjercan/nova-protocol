@@ -60,8 +60,9 @@ impl ItemType {
     }
 
     /// Mass of `count` of this item in grams. Wide so a count read from
-    /// content cannot overflow before a capacity check refuses it.
-    fn stack_mass_g(self, count: u32) -> u64 {
+    /// content or typed at the Command shell cannot overflow before a
+    /// capacity check refuses it.
+    pub fn stack_mass_g(self, count: u32) -> u64 {
         u64::from(count) * u64::from(self.mass_g())
     }
 

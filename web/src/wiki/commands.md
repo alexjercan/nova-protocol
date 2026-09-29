@@ -75,7 +75,7 @@ The prompt reads `cmd>`. As you type, a dim ghost continues the line toward the 
 NOVA OS v0.13.0 // COMMANDS
 POST ......... command shell / ok
 CORE ......... local game runtime / attached
-REGISTRY ..... 27 commands / ready
+REGISTRY ..... 28 commands / ready
 WORLD ........ tutorial / paused
 CHEATS ....... disabled / run clean
 Hint: type `help` and press Enter.
@@ -162,13 +162,16 @@ Every one of these is refused until you run `cheats enable`. That command is the
 | `ammo infinite <ship-id> <on\|off>` | unlimited ammunition on one ship's weapons |
 | `ammo refill <ship-id>` | top up every finite magazine on a ship |
 | `ammo refill section <ship-id> <section-id>` | top up one magazine |
+| `item give <ship-id> <item-id> <quantity>` | add items to one ship's inventory, e.g. `item give player_spaceship HullPlate 12` |
 
 <details class="explain">
 <summary>Show explanation</summary>
 
 <!-- The mark: crates/nova_gameplay/src/cheats.rs:43-63 (arm() is one-way, begin_new_run clears).
      Arming checked once, on the class: crates/nova_console/src/dispatch.rs.
-     Restoration rule: SuspendedSectionAmmo, crates/nova_ship/src/sections/ammo.rs:98. -->
+     Restoration rule: SuspendedSectionAmmo, crates/nova_ship/src/sections/ammo.rs:98.
+     `item give`: crates/nova_console/src/cheats.rs `item_give`; item masses:
+     crates/nova_gameplay/src/inventory.rs `ItemType::mass_g`. -->
 
 **Why the mark is one-way.** A run that was ever armed was never clean, whether or not you went on to use a cheat. Marking at the moment you ask, rather than at the moment you benefit, is what makes the mark honest - and it gives the refusal something true to say rather than pretending the command does not exist.
 
@@ -176,7 +179,9 @@ Every one of these is refused until you run `cheats enable`. That command is the
 
 **What `ammo infinite off` gives back.** Turning it on suspends the magazine; turning it off restores the authored capacity **full**, and re-seeds the reload from the section's own configuration. It does not try to remember the count you had when you switched it on - a number from before the cheat is not a number the run earned either way, and a full magazine is the state you can reason about.
 
-**Neither cheat touches your hold.** The ordinary idle reload spends matching ammunition from the ship's own inventory (see [Magazines](../combat-weapons/#magazines)); both `ammo` cheats bypass that and act on the magazine directly, spending and returning nothing from stock.
+**The `ammo` cheats do not touch your hold.** The ordinary idle reload spends matching ammunition from the ship's own inventory (see [Magazines](../combat-weapons/#magazines)); both `ammo` cheats bypass that and act on the magazine directly, spending and returning nothing from stock.
+
+**`item give` fills the hold instead.** The item id is the name a scenario file writes: `HullPlate`, `PdcRound`, `RailSlug` or `Torpedo`, in that exact case. The quantity is a whole number above zero, and the items weigh what they always weigh (a hull plate 10 kg, a PDC round 0.2 kg, a rail slug 20 kg, a torpedo 150 kg). The whole quantity fits the ship's free hold or none of it is added: with 280 kg free, 29 hull plates are refused whole. An unknown ship, item or quantity adds nothing either. The idle reload then loads from the new stock as usual.
 
 **This is not the scenario language.** A scenario author has a much larger vocabulary (spawning, despawning, allegiance, forced launches, outcomes). None of it is reachable from this prompt. The catalog above is the whole public surface, and a new scenario action does not appear here unless somebody deliberately adds it.
 
