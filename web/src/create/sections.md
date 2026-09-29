@@ -1049,7 +1049,7 @@ the pair and leaves the dock in place.
 `CargoIntakeSectionConfig` - a cargo intake: a hold mouth behind a door on the
 section's local `-Z` face. The door opens for a nearby canister, the intake
 takes a slow one into the ship's [inventory](../objects/#inventory), and the
-Inventory pane's Jettison drops a canister out through it. One ships:
+Inventory pane's Jettison drops canisters out through it. One ships:
 `cargo_intake_section`, a 3x2x1 box on the line warship's top deck, door up.
 
 ```ron
@@ -1095,10 +1095,12 @@ kind: CargoIntake((
 The volumes are measured from the `-Z` face of the section's `Cuboid`
 collider, so an intake must author one. A take is whole or nothing: a
 canister heavier than the hold's free mass stays out. A canister can hold
-several item types up to 200 kg total; hull plates weigh 10 kg each. A canister has 20 HP; at zero it and its contents
-are lost. Jettisons merge into the pending canister, which waits on the intake
-until the door is fully open and no canister centre is
-within 12.5 m of the birth point. The canister is born 1.5 m clear of the face,
+several item types up to 200 kg total; hull plates weigh 10 kg each. A
+canister has 20 HP; at zero it and its contents are lost. A jettison fills
+canisters with whole items, topping up the last waiting one first, and queues
+them on the intake; the intake drops the front one once the door is fully open
+and no canister centre is within 12.5 m of the birth point. Waiting canisters
+are lost with the intake. The canister is born 1.5 m clear of the face,
 outside the capture gap and moving away, and any intake can take it back from
 the next tick. Author an
 [`IntakeDoor` track](#animation-tracks) with a `Fold` motion to give the door

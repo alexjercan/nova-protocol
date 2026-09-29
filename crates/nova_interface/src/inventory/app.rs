@@ -6,7 +6,7 @@
 //! Touch this module when changing what the Inventory pane shows, how a row
 //! is selected or how an action is confirmed.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use bevy::{
     ecs::system::SystemParam,
@@ -18,7 +18,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{
-    CargoIntakeEjection, CargoIntakeSectionMarker, DockedShip, DockingConnection,
+    CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedShip, DockingConnection,
 };
 use nova_ui::{
     theme::UiColor,
@@ -740,7 +740,7 @@ pub(crate) struct InventoryShips<'w, 's> {
         (
             Entity,
             &'static ChildOf,
-            Option<&'static CargoIntakeEjection>,
+            Option<&'static CargoIntakeEjectionQueue>,
         ),
         (
             With<CargoIntakeSectionMarker>,
@@ -808,12 +808,18 @@ impl InventoryShips<'_, '_> {
     }
 
     /// The live cargo intake a jettison from `ship` leaves through, the lowest
-    /// entity when there are several, with its pending ejection.
-    pub(crate) fn intake(&self, ship: Entity) -> Option<(Entity, Option<CargoCanister>)> {
+    /// entity when there are several, with its waiting canisters, empty when
+    /// none wait.
+    pub(crate) fn intake(&self, ship: Entity) -> Option<(Entity, VecDeque<CargoCanister>)> {
         self.intakes
             .iter()
             .filter(|(_, child_of, _)| child_of.parent() == ship)
-            .map(|(intake, _, pending)| (intake, pending.map(|pending| pending.0.clone())))
+            .map(|(intake, _, waiting)| {
+                (
+                    intake,
+                    waiting.map_or_else(VecDeque::new, |waiting| waiting.0.clone()),
+                )
+            })
             .min_by_key(|(intake, _)| *intake)
     }
 
@@ -1043,10 +1049,11 @@ pub(crate) fn sync_inventory_draft_controls(
 /// rule. Flash the result on the note line.
 ///
 /// A move removes from the source and adds to the target in this one run. A
-/// jettison removes from the player ship and puts the canister on the intake
-/// as a [`CargoIntakeEjection`] in this one run; the intake drops it when its
-/// door is open. Either closes the draft and clicks. A refusal changes no
-/// inventory, keeps the draft open so the quantity can change, and buzzes.
+/// jettison removes the whole quantity from the player ship and queues its
+/// canisters on the intake's [`CargoIntakeEjectionQueue`] in this one run; the
+/// intake drops them one at a time once gameplay runs and its door is open.
+/// Either closes the draft and clicks. A refusal changes no inventory, keeps
+/// the draft open so the quantity can change, and buzzes.
 /// Each command reads the state the previous one left. With no player ship, or
 /// more than one, the commands are dropped, as the panel draws nothing then.
 pub(crate) fn apply_inventory_action_commands(
@@ -1130,27 +1137,27 @@ fn transfer_items(
     })
 }
 
-/// Put one command's items on the player's cargo intake as a canister, or say
-/// why not. Both texts are the note line. `pending` tracks deferred merges.
+/// Queue one command's items on the player's cargo intake as canisters, or say
+/// why not. Both texts are the note line. `pending` tracks deferred queues.
 fn jettison_items(
     ships: &mut InventoryShips,
     pair: InventoryPair,
     command: InventoryActionCommand,
-    pending: &mut BTreeMap<Entity, CargoCanister>,
+    pending: &mut BTreeMap<Entity, VecDeque<CargoCanister>>,
     commands: &mut Commands,
 ) -> Result<String, String> {
     let InventoryActionCommand { item, quantity, .. } = command;
     let label = item.label();
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let intake = ships.intake(pair.own);
-    let queued = intake
+    let tail = intake
         .as_ref()
-        .and_then(|(entity, existing)| pending.get(entity).or(existing.as_ref()));
+        .and_then(|(entity, waiting)| pending.get(entity).unwrap_or(waiting).back());
     let (_, own, _) = ships.ship(pair.own);
-    let count = plan_item_jettison(
+    let jettison = plan_item_jettison(
         pair.partner.is_some(),
         intake.is_some(),
-        queued,
+        tail,
         item,
         quantity,
         own,
@@ -1158,33 +1165,44 @@ fn jettison_items(
     .map_err(|refusal| match refusal {
         ItemJettisonRefusalType::Docked => "Refused: undock to jettison".to_string(),
         ItemJettisonRefusalType::NoIntake => "Refused: no working cargo intake".to_string(),
-        ItemJettisonRefusalType::Overweight => format!(
-            "Refused: canister exceeds {}",
-            kg_text(u64::from(CARGO_CANISTER_MAX_MASS_G))
-        ),
         ItemJettisonRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
         ItemJettisonRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
         ItemJettisonRefusalType::Short { held } => {
             format!("Refused: only {held} {label} in {own_title}")
         }
+        ItemJettisonRefusalType::Overweight => format!(
+            "Refused: one {label} exceeds a {} canister",
+            kg_text(u64::from(CARGO_CANISTER_MAX_MASS_G))
+        ),
     })?;
-    let (intake, existing) = intake.expect("plan_item_jettison refuses a ship with no intake");
+    let (intake, waiting) = intake.expect("plan_item_jettison refuses a ship with no intake");
     let (_, mut own, ..) = ships
         .ships
         .get_mut(pair.own)
         .expect("InventoryShips::pair checked the player ship");
-    own.remove(item, count);
-    let canister = if let Some(mut earlier) = pending.remove(&intake).or(existing) {
-        earlier.add(item, count);
-        earlier
-    } else {
-        CargoCanister::new(item, count)
-    };
+    own.remove(item, jettison.count);
+    let mut queue = pending.remove(&intake).unwrap_or(waiting);
+    if jettison.merged > 0 {
+        queue
+            .back_mut()
+            .expect("plan_item_jettison merges only into a waiting canister")
+            .add(item, jettison.merged);
+    }
+    queue.extend(jettison.canisters);
+    let waiting = queue.len();
     commands
         .entity(intake)
-        .insert(CargoIntakeEjection(canister.clone()));
-    pending.insert(intake, canister);
-    Ok(format!("Jettisoned {count} {label}"))
+        .insert(CargoIntakeEjectionQueue(queue.clone()));
+    pending.insert(intake, queue);
+    let noun = if waiting == 1 {
+        "canister"
+    } else {
+        "canisters"
+    };
+    Ok(format!(
+        "Jettisoned {} {label}: {waiting} {noun} queued",
+        jettison.count
+    ))
 }
 
 /// One side as the pane draws it: the heading and its stacks, or `None` for a

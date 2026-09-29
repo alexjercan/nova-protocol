@@ -2,6 +2,8 @@
 //! and the docked partner's real inventories, the blank partner slot, and
 //! filter and row selection through window picking.
 
+use std::collections::VecDeque;
+
 use bevy::{
     ecs::system::RunSystemOnce,
     ui::{ComputedNode, UiGlobalTransform},
@@ -9,7 +11,8 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{
-    CargoIntakeEjection, CargoIntakeSectionMarker, DockedHelmType, DockedShip, DockingConnection,
+    CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedHelmType, DockedShip,
+    DockingConnection,
 };
 use nova_ui::widget::{TextFieldError, TextFieldValue};
 
@@ -592,8 +595,11 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     };
     let dropped = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
     let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
-    let ejection =
-        |app: &App, intake: Entity| app.world().get::<CargoIntakeEjection>(intake).cloned();
+    let queue = |app: &App, intake: Entity| {
+        app.world()
+            .get::<CargoIntakeEjectionQueue>(intake)
+            .map(|queue| queue.0.iter().map(CargoCanister::total_mass_g).collect())
+    };
 
     assert_eq!(
         confirm(&mut app, &[Some(4)]),
@@ -618,60 +624,51 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
         refused("Refused: only 12 Hull plate in NOVA")
     );
     assert_eq!(plates(app.world(), player), 12);
-    assert_eq!(ejection(&app, intake), None);
+    assert_eq!(queue(&app, intake), None);
 
     // The stack leaves the hold and waits on the intake in the same run; a
-    // second jettison in that run merges into the pending canister.
+    // second jettison in that run merges into the waiting canister.
     assert_eq!(
         confirm(&mut app, &[Some(4), Some(1)]),
         (
-            Some("Jettisoned 1 Hull plate".to_string()),
+            Some("Jettisoned 1 Hull plate: 1 canister queued".to_string()),
             vec![UiSfx::MenuSelect, UiSfx::MenuSelect],
             false
         )
     );
     assert_eq!(plates(app.world(), player), 7);
-    assert_eq!(
-        ejection(&app, intake),
-        Some(CargoIntakeEjection(CargoCanister::new(
-            ItemType::HullPlate,
-            5
-        )))
-    );
+    assert_eq!(queue(&app, intake), Some(vec![50_000]));
     assert_eq!(
         confirm(&mut app, &[Some(1)]),
-        dropped("Jettisoned 1 Hull plate")
+        dropped("Jettisoned 1 Hull plate: 1 canister queued")
     );
     assert_eq!(plates(app.world(), player), 6);
+    assert_eq!(queue(&app, intake), Some(vec![60_000]));
 
-    // Once dropped, the intake takes the next one.
+    // Past one canister, Confirm removes the whole quantity at once: the
+    // waiting 190 kg canister takes one plate and new canisters the rest.
+    app.world_mut().entity_mut(player).insert(hold(39));
     app.world_mut()
         .entity_mut(intake)
-        .remove::<CargoIntakeEjection>();
+        .insert(CargoIntakeEjectionQueue(VecDeque::from([
+            CargoCanister::new(ItemType::HullPlate, 19),
+        ])));
     assert_eq!(
-        confirm(&mut app, &[Some(6)]),
-        dropped("Jettisoned 6 Hull plate")
+        confirm(&mut app, &[Some(40)]),
+        refused("Refused: only 39 Hull plate in NOVA")
+    );
+    assert_eq!(plates(app.world(), player), 39);
+    assert_eq!(queue(&app, intake), Some(vec![190_000]));
+    assert_eq!(
+        confirm(&mut app, &[Some(39)]),
+        dropped("Jettisoned 39 Hull plate: 3 canisters queued")
     );
     assert_eq!(plates(app.world(), player), 0);
+    assert_eq!(queue(&app, intake), Some(vec![200_000, 200_000, 180_000]));
     app.world_mut()
         .entity_mut(intake)
-        .remove::<CargoIntakeEjection>();
+        .remove::<CargoIntakeEjectionQueue>();
     app.world_mut().entity_mut(player).insert(hold(12));
-    app.world_mut()
-        .entity_mut(intake)
-        .insert(CargoIntakeEjection(CargoCanister::new(
-            ItemType::HullPlate,
-            19,
-        )));
-    assert_eq!(
-        confirm(&mut app, &[Some(2)]),
-        refused("Refused: canister exceeds 200 kg")
-    );
-    assert_eq!(plates(app.world(), player), 12);
-    assert_eq!(ejection(&app, intake).unwrap().0.total_mass_g(), 190_000);
-    app.world_mut()
-        .entity_mut(intake)
-        .remove::<CargoIntakeEjection>();
 
     // A disabled intake is no intake, and a docked ship drops nothing.
     app.world_mut()
@@ -690,7 +687,7 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
         refused("Refused: undock to jettison")
     );
     assert_eq!(plates(app.world(), player), 12);
-    assert_eq!(ejection(&app, intake), None);
+    assert_eq!(queue(&app, intake), None);
 }
 
 /// The one entity carrying `C`.
