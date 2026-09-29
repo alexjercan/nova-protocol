@@ -692,7 +692,7 @@ fn background_chance(environment: Environment) -> f32 {
 }
 
 /// A smoothstep from `low` to `high`.
-fn ramp(value: f32, low: f32, high: f32) -> f32 {
+pub(crate) fn ramp(value: f32, low: f32, high: f32) -> f32 {
     let t = ((value - low) / (high - low)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
 }

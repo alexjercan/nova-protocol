@@ -258,6 +258,16 @@ path = "examples/playable/world_field_slices.rs"
 name = "world_field_clouds"
 path = "examples/playable/world_field_clouds.rs"
 
+# The seeded civilization field ship selection will read: three world seeds on
+# three planes through the origin, each painted as six maps (primary
+# civilization, reach count, advancement under both candidate curves, living
+# share and the pre-eligibility dominant role), plus a count report. What a
+# tuning pass judges here is coverage, overlap and the regional mix before any
+# civilization fields a ship.
+[[example]]
+name = "world_civilizations"
+path = "examples/playable/world_civilizations.rs"
+
 # The same streaming loop over a world whose bodies come in GROUPS: asteroid-rich,
 # rock-only, planet-heavy, derelict-only and low-rock, decided on a global
 # lattice from three environment fields and owned body by body by the cell each
