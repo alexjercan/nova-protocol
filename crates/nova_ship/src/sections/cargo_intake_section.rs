@@ -26,8 +26,11 @@
 //!
 //! The same fixed pass publishes [`CargoPickupReadiness`] for every live
 //! intake/canister pair, including canisters outside detection. Each pair's
-//! `ready` flag is the take decision. A zero-health canister is destroyed
-//! rather than offered to the intake or shown as a pickup candidate.
+//! `ready` flag is the take decision. A pair carries no pose: the pass reads
+//! raw fixed-tick poses, so a reader on the render clock recomputes the face
+//! with [`cargo_intake_face`] from rendered poses. A zero-health canister is
+//! destroyed rather than offered to the intake or shown as a pickup
+//! candidate.
 //!
 //! A take moves the whole canister into the ship's [`ShipInventory`] or does
 //! nothing: a canister heavier than the hold's free mass stays out.
@@ -50,16 +53,16 @@ use nova_gameplay::{asset_ref::AssetRef, prelude::*};
 use super::local_pose_in_root;
 use crate::{physics::prelude::rigid_body_point_velocity, prelude::*};
 
-/// The `cargo_intake_section` spawners, its config, marker, pending ejection,
-/// events, the canister bundle and `CargoIntakeSectionPlugin` with
-/// `CargoIntakeSystems`.
+/// The `cargo_intake_section` spawners, its face helper, config, marker,
+/// pending ejection, events, the canister bundle and
+/// `CargoIntakeSectionPlugin` with `CargoIntakeSystems`.
 pub mod prelude {
     pub use super::{
-        cargo_canister, cargo_intake_section, preview_cargo_intake_section, CargoCanisterEjected,
-        CargoCanisterTaken, CargoIntakeDoorMoved, CargoIntakeEjection, CargoIntakeSectionConfig,
-        CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker, CargoIntakeSectionPlugin,
-        CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness, CARGO_APERTURE_MARGIN,
-        CARGO_CANISTER_SIZE,
+        cargo_canister, cargo_intake_face, cargo_intake_section, preview_cargo_intake_section,
+        CargoCanisterEjected, CargoCanisterTaken, CargoIntakeDoorMoved, CargoIntakeEjection,
+        CargoIntakeSectionConfig, CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker,
+        CargoIntakeSectionPlugin, CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness,
+        CARGO_APERTURE_MARGIN, CARGO_CANISTER_SIZE,
     };
 }
 
@@ -186,12 +189,6 @@ pub struct CargoPickupPair {
     pub intake: Entity,
     /// Live canister candidate, including candidates outside detection.
     pub canister: Entity,
-    /// Centre of the intake's front face, in world units.
-    pub face: Vec3,
-    /// Outward direction of the intake's front face.
-    pub normal: Vec3,
-    /// Canister centre, in world units.
-    pub canister_position: Vec3,
     /// True exactly when this pass can take this candidate through this intake.
     pub ready: bool,
 }
@@ -262,6 +259,20 @@ pub fn cargo_canister(
         LinearVelocity(velocity),
         CargoCanisterRenderMesh(mesh),
     )
+}
+
+/// The centre and outward normal of the door face of an intake at `position`
+/// with `rotation`: the collider's local -Z face. The centre is in the units
+/// and frame of `position`; the normal is a unit vector in that frame. The
+/// collider is not scaled, so the pose must carry no scale: no ship root or
+/// section entity is scaled, only render-mesh children.
+pub fn cargo_intake_face(
+    position: Vec3,
+    rotation: Quat,
+    collider: SectionCollider,
+) -> (Vec3, Vec3) {
+    let normal = rotation * Vec3::NEG_Z;
+    (position + normal * collider.aabb_half_extents().z, normal)
 }
 
 /// Where a canister is relative to one intake.
@@ -460,8 +471,7 @@ fn run_cargo_intakes(
             .cue_progress(SectionAnimationCue::IntakeDoor)
             .is_none_or(|progress| progress >= 1.0);
 
-        let normal = intake_rotation * Vec3::NEG_Z;
-        let face_centre = intake_position + normal * half_extents.z;
+        let (face_centre, normal) = cargo_intake_face(intake_position, intake_rotation, *collider);
         for (read, zone) in canisters.iter_mut().zip(&zones) {
             if read.taken {
                 continue;
@@ -483,9 +493,6 @@ fn run_cargo_intakes(
                 ship,
                 intake,
                 canister: read.entity,
-                face: face_centre,
-                normal,
-                canister_position: read.position,
                 ready,
             });
             if !ready {

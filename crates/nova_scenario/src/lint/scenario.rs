@@ -2131,7 +2131,7 @@ mod tests {
         assert!(overstock(10).is_empty(), "100 kg fits a 100 kg hold");
         assert_eq!(
             overstock(11),
-            ["ship 'warship': inventory stock of 110 kg passes its 100 kg hold"]
+            ["ship 'warship': inventory stock of 110 kg exceeds its 100 kg hold"]
         );
     }
 

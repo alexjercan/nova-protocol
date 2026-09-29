@@ -57,7 +57,7 @@ pub(super) fn check_object_prototypes(
         issues.push(LintIssue::error(
             scenario,
             format!(
-                "ship '{}': inventory stock of {stock_kg} kg passes its {capacity_kg} kg hold",
+                "ship '{}': inventory stock of {stock_kg} kg exceeds its {capacity_kg} kg hold",
                 config.base.id
             ),
         ));

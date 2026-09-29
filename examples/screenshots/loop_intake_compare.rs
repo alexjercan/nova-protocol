@@ -372,7 +372,11 @@ impl Slat {
 
     /// The slat's pose at `fold` radians.
     fn pose(&self, fold: f32) -> Transform {
-        let sign = if self.index % 2 == 0 { 1.0 } else { -1.0 };
+        let sign = if self.index.is_multiple_of(2) {
+            1.0
+        } else {
+            -1.0
+        };
         let mut pose = self.rest;
         pose.translation.x = self.pocket
             + self.toward

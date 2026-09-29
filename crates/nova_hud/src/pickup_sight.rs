@@ -8,7 +8,7 @@
 //! [`CargoPickupReadiness`], the same fixed pass that decides a take
 //! (`run_cargo_intakes` in `nova_ship::sections::cargo_intake_section`). It
 //! publishes every live intake/canister pair, in or out of range. The
-//! sight reads that pass's decision instead of computing a separate gate.
+//! sight reads those published pairs instead of computing a separate gate.
 //! A pair is trusted only while both ends still validate live (the canister
 //! with positive [`Health::current`], the intake with
 //! [`CargoIntakeSectionMarker`], without [`SectionInactiveMarker`], and still
@@ -17,6 +17,11 @@
 //! take despawns the canister in the same fixed pass that marks it ready, so
 //! the sight clears with it; the take sound, not the sight, confirms the
 //! take.
+//!
+//! Every pose the sight draws or measures is the interpolated
+//! `GlobalTransform` of the ship, the intake and the canister, never the raw
+//! fixed-tick pose: the sight is drawn over the rendered models, so the face
+//! comes from [`cargo_intake_face`] on the intake's rendered pose.
 //!
 //! # Which pair is drawn
 //!
@@ -158,51 +163,67 @@ fn draw_sight(face: Vec3, normal: Vec3, canister_position: Vec3) -> Vec<Drawn> {
     drawn
 }
 
-/// The published pair to draw for `ship` at `ship_position`: among pairs
-/// whose canister lies within [`CARGO_PICKUP_SIGHT_RANGE`] of the ship and
-/// whose ends still validate live, a pair naming `locked` first, else any
-/// pair. Among the chosen set, the nearest intake face to its canister wins,
-/// then the lower canister and intake entity IDs. `readiness` is a snapshot
-/// from the last fixed pass and can still name a canister that has died or
-/// an intake that has gone inactive, been despawned, or been reparented off
-/// `ship`.
-fn select_pair<'a>(
-    pairs: &'a [CargoPickupPair],
+/// The intake face, its outward normal and the canister centre to draw for
+/// `ship` rendered at `ship_position`, all from rendered poses: among
+/// published pairs whose ends still validate live and whose rendered
+/// canister lies within [`CARGO_PICKUP_SIGHT_RANGE`] of the ship, a pair
+/// naming `locked` first, else any pair. Among the chosen set, the nearest
+/// rendered intake face to its canister wins, then the lower canister and
+/// intake entity IDs. `pairs` is a snapshot from the last fixed pass and can
+/// still name a canister that has died or an intake that has gone inactive,
+/// been despawned, or been reparented off `ship`.
+fn select_pair(
+    pairs: &[CargoPickupPair],
     ship: Entity,
     ship_position: Vec3,
     locked: Option<Entity>,
-    q_live_canisters: &Query<&Health, (With<CargoCanister>, Without<HealthZeroMarker>)>,
+    q_live_canisters: &Query<
+        (&Health, &GlobalTransform),
+        (With<CargoCanister>, Without<HealthZeroMarker>),
+    >,
     q_live_intakes: &Query<
-        &ChildOf,
+        (&ChildOf, &GlobalTransform, &SectionCollider),
         (
             With<CargoIntakeSectionMarker>,
             Without<SectionInactiveMarker>,
         ),
     >,
-) -> Option<&'a CargoPickupPair> {
+) -> Option<(Vec3, Vec3, Vec3)> {
     let range = CARGO_PICKUP_SIGHT_RANGE.to_engine();
-    let candidates = pairs.iter().filter(move |pair| {
-        pair.ship == ship
-            && pair.canister_position.distance_squared(ship_position) <= range * range
-            && q_live_canisters
-                .get(pair.canister)
-                .is_ok_and(|health| health.current > 0.0)
-            && q_live_intakes
-                .get(pair.intake)
-                .is_ok_and(|&ChildOf(parent)| parent == ship)
+    let candidates = pairs.iter().filter_map(|pair| {
+        if pair.ship != ship {
+            return None;
+        }
+        let (health, canister_pose) = q_live_canisters.get(pair.canister).ok()?;
+        let (&ChildOf(parent), intake_pose, &collider) = q_live_intakes.get(pair.intake).ok()?;
+        let canister_position = canister_pose.translation();
+        if health.current <= 0.0
+            || parent != ship
+            || canister_position.distance_squared(ship_position) > range * range
+        {
+            return None;
+        }
+        let (face, normal) =
+            cargo_intake_face(intake_pose.translation(), intake_pose.rotation(), collider);
+        Some((pair, face, normal, canister_position))
     });
-    let nearest = |pairs: &mut dyn Iterator<Item = &'a CargoPickupPair>| {
-        pairs.min_by(|a, b| {
-            let da = a.face.distance_squared(a.canister_position);
-            let db = b.face.distance_squared(b.canister_position);
-            da.total_cmp(&db)
-                .then(a.canister.cmp(&b.canister))
-                .then(a.intake.cmp(&b.intake))
-        })
+    let candidates: Vec<_> = candidates.collect();
+    let nearest = |locked: Option<Entity>| {
+        candidates
+            .iter()
+            .filter(|(pair, ..)| locked.is_none_or(|locked| pair.canister == locked))
+            .min_by(|(a, a_face, _, a_canister), (b, b_face, _, b_canister)| {
+                a_face
+                    .distance_squared(*a_canister)
+                    .total_cmp(&b_face.distance_squared(*b_canister))
+                    .then(a.canister.cmp(&b.canister))
+                    .then(a.intake.cmp(&b.intake))
+            })
+            .map(|&(_, face, normal, canister)| (face, normal, canister))
     };
     locked
-        .and_then(|locked| nearest(&mut candidates.clone().filter(|pair| pair.canister == locked)))
-        .or_else(|| nearest(&mut candidates.clone()))
+        .and_then(|locked| nearest(Some(locked)))
+        .or_else(|| nearest(None))
 }
 
 /// Reconcile live readiness against the player's ship and lock.
@@ -216,9 +237,12 @@ fn sync_pickup_sight(
         (Entity, &GlobalTransform, Option<&TravelLock>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
-    q_live_canisters: Query<&Health, (With<CargoCanister>, Without<HealthZeroMarker>)>,
+    q_live_canisters: Query<
+        (&Health, &GlobalTransform),
+        (With<CargoCanister>, Without<HealthZeroMarker>),
+    >,
     q_live_intakes: Query<
-        &ChildOf,
+        (&ChildOf, &GlobalTransform, &SectionCollider),
         (
             With<CargoIntakeSectionMarker>,
             Without<SectionInactiveMarker>,
@@ -230,7 +254,7 @@ fn sync_pickup_sight(
         .single()
         .ok()
         .and_then(|(ship, transform, travel)| {
-            let pair = select_pair(
+            let (face, normal, canister_position) = select_pair(
                 &readiness.pairs,
                 ship,
                 transform.translation(),
@@ -238,7 +262,7 @@ fn sync_pickup_sight(
                 &q_live_canisters,
                 &q_live_intakes,
             )?;
-            Some(draw_sight(pair.face, pair.normal, pair.canister_position))
+            Some(draw_sight(face, normal, canister_position))
         })
         .unwrap_or_default();
 
@@ -318,22 +342,41 @@ mod tests {
             .id()
     }
 
-    /// A live intake entity, parented to `ship` and carrying exactly the
-    /// components `select_pair` checks for liveness.
-    fn spawn_intake(app: &mut App, ship: Entity, active: bool) -> Entity {
-        let mut entity =
-            app.world_mut()
-                .spawn((Name::new("intake"), ChildOf(ship), CargoIntakeSectionMarker));
+    /// The collider of every fixture intake: its door face is 0.5 world
+    /// units in front of its centre, along its local -Z.
+    const INTAKE_COLLIDER: SectionCollider = SectionCollider::Cuboid {
+        size: Vec3::new(3.0, 2.0, 1.0),
+    };
+
+    /// A live intake entity, parented to `ship`, carrying exactly the
+    /// components `select_pair` reads, and rendered facing -Z with its door
+    /// face centred on `face`. `ship` must already carry its rendered pose.
+    fn spawn_intake(app: &mut App, ship: Entity, active: bool, face: Vec3) -> Entity {
+        let ship_at = app
+            .world()
+            .get::<GlobalTransform>(ship)
+            .expect("the ship has a rendered pose")
+            .translation();
+        let at = face + Vec3::Z * INTAKE_COLLIDER.aabb_half_extents().z;
+        let mut entity = app.world_mut().spawn((
+            Name::new("intake"),
+            ChildOf(ship),
+            CargoIntakeSectionMarker,
+            INTAKE_COLLIDER,
+            Transform::from_translation(at - ship_at),
+            GlobalTransform::from_translation(at),
+        ));
         if !active {
             entity.insert(SectionInactiveMarker);
         }
         entity.id()
     }
 
-    /// A canister entity carrying exactly the field `q_live_canisters`
-    /// checks for liveness: `run_cargo_intakes` gates on `Health.current`
-    /// itself, so a dead canister here is zeroed rather than marker-tagged.
-    fn spawn_canister(app: &mut App, alive: bool) -> Entity {
+    /// A canister entity rendered at `at`, carrying exactly the fields
+    /// `q_live_canisters` reads: `run_cargo_intakes` gates on
+    /// `Health.current` itself, so a dead canister here is zeroed rather
+    /// than marker-tagged.
+    fn spawn_canister(app: &mut App, alive: bool, at: Vec3) -> Entity {
         let health = if alive {
             Health::new(20.0)
         } else {
@@ -347,25 +390,17 @@ mod tests {
                 Name::new("canister"),
                 CargoCanister::new(ItemType::HullPlate, 1),
                 health,
+                Transform::from_translation(at),
+                GlobalTransform::from_translation(at),
             ))
             .id()
     }
 
-    fn pair(
-        ship: Entity,
-        intake: Entity,
-        canister: Entity,
-        face: Vec3,
-        canister_position: Vec3,
-        ready: bool,
-    ) -> CargoPickupPair {
+    fn pair(ship: Entity, intake: Entity, canister: Entity, ready: bool) -> CargoPickupPair {
         CargoPickupPair {
             ship,
             intake,
             canister,
-            face,
-            normal: Vec3::NEG_Z,
-            canister_position,
             ready,
         }
     }
@@ -416,14 +451,14 @@ mod tests {
     fn without_a_lock_the_nearest_canister_draws_the_sight() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let intake = spawn_intake(&mut app, player, true);
-        let far = spawn_canister(&mut app, true);
-        let near = spawn_canister(&mut app, true);
         let face = Vec3::new(0.0, 0.0, -1.0);
+        let intake = spawn_intake(&mut app, player, true, face);
         let near_position = Vec3::new(0.0, 0.0, -5.0);
+        let far = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -15.0));
+        let near = spawn_canister(&mut app, true, near_position);
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(player, intake, far, face, Vec3::new(0.0, 0.0, -15.0), false),
-            pair(player, intake, near, face, near_position, false),
+            pair(player, intake, far, false),
+            pair(player, intake, near, false),
         ];
         app.update();
 
@@ -436,21 +471,21 @@ mod tests {
     }
 
     /// A travel-locked canister in range is drawn over a nearer unlocked
-    /// one: the lock names the canister the pilot wants. Past 200 m the
-    /// lock gives way to the nearer canister still in range.
+    /// one: the lock names the canister the pilot wants. Once it renders
+    /// past 200 m the lock gives way to the nearer canister still in range.
     #[test]
     fn a_locked_canister_in_range_outranks_a_nearer_one() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let intake = spawn_intake(&mut app, player, true);
-        let locked = spawn_canister(&mut app, true);
-        let near = spawn_canister(&mut app, true);
         let face = Vec3::new(0.0, 0.0, -1.0);
+        let intake = spawn_intake(&mut app, player, true, face);
         let near_position = Vec3::new(0.0, 0.0, -5.0);
         let locked_position = Vec3::new(0.0, 0.0, -15.0);
+        let locked = spawn_canister(&mut app, true, locked_position);
+        let near = spawn_canister(&mut app, true, near_position);
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(player, intake, near, face, near_position, false),
-            pair(player, intake, locked, face, locked_position, false),
+            pair(player, intake, near, false),
+            pair(player, intake, locked, false),
         ];
         app.world_mut()
             .entity_mut(player)
@@ -464,11 +499,10 @@ mod tests {
             pose.translation
         );
 
-        let out_of_range = Vec3::NEG_Z * Meters(201.0).to_engine();
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(player, intake, near, face, near_position, false),
-            pair(player, intake, locked, face, out_of_range, false),
-        ];
+        let out_of_range = Transform::from_translation(Vec3::NEG_Z * Meters(201.0).to_engine());
+        app.world_mut()
+            .entity_mut(locked)
+            .insert((out_of_range, GlobalTransform::from(out_of_range)));
         app.update();
 
         let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
@@ -479,28 +513,29 @@ mod tests {
         );
     }
 
-    /// The sight reaches canisters up to and including 200 m from the ship
-    /// itself, not from the intake face, and clears once the canister
-    /// drifts past.
+    /// The sight reaches canisters rendered up to and including 200 m from
+    /// the rendered ship itself, not from the intake face, and clears once
+    /// the canister drifts past.
     #[test]
     fn only_a_canister_within_200_m_of_the_ship_draws_the_sight() {
         let mut app = sight_app();
         let ship_position = Vec3::new(3.0, 0.0, 0.0);
         let player = spawn_player(&mut app, ship_position);
-        let intake = spawn_intake(&mut app, player, true);
-        let canister = spawn_canister(&mut app, true);
-        let face = Vec3::new(3.0, 0.0, -1.0);
+        let intake = spawn_intake(&mut app, player, true, Vec3::new(3.0, 0.0, -1.0));
         let at = |meters: f32| ship_position + Vec3::NEG_Z * Meters(meters).to_engine();
+        let canister = spawn_canister(&mut app, true, at(200.0));
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
-            vec![pair(player, intake, canister, face, at(200.0), false)];
+            vec![pair(player, intake, canister, false)];
         app.update();
         assert!(
             part(&mut app, PickupSightPart::Line).is_some(),
             "a canister exactly 200 m from the ship draws the sight"
         );
 
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
-            vec![pair(player, intake, canister, face, at(201.0), false)];
+        let past = Transform::from_translation(at(201.0));
+        app.world_mut()
+            .entity_mut(canister)
+            .insert((past, GlobalTransform::from(past)));
         app.update();
         assert!(
             parts(&mut app).is_empty(),
@@ -515,7 +550,7 @@ mod tests {
     fn a_lock_without_a_published_pair_draws_nothing() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let canister = spawn_canister(&mut app, true);
+        let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -3.0));
         app.world_mut()
             .entity_mut(player)
             .insert(TravelLock(Some(canister)));
@@ -530,27 +565,19 @@ mod tests {
     fn a_lock_on_a_non_canister_falls_back_to_the_nearest_canister() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let intake = spawn_intake(&mut app, player, true);
-        let other = app.world_mut().spawn(Name::new("not a canister")).id();
-        let canister = spawn_canister(&mut app, true);
+        let intake = spawn_intake(&mut app, player, true, Vec3::ZERO);
+        let other = app
+            .world_mut()
+            .spawn((
+                Name::new("not a canister"),
+                Transform::from_xyz(0.0, 0.0, -3.0),
+            ))
+            .id();
         let canister_position = Vec3::new(0.0, 0.0, -9.0);
+        let canister = spawn_canister(&mut app, true, canister_position);
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(
-                player,
-                intake,
-                other,
-                Vec3::ZERO,
-                Vec3::new(0.0, 0.0, -3.0),
-                true,
-            ),
-            pair(
-                player,
-                intake,
-                canister,
-                Vec3::ZERO,
-                canister_position,
-                false,
-            ),
+            pair(player, intake, other, true),
+            pair(player, intake, canister, false),
         ];
         app.world_mut()
             .entity_mut(player)
@@ -571,17 +598,14 @@ mod tests {
     fn a_pair_published_for_another_ship_draws_nothing() {
         let mut app = sight_app();
         spawn_player(&mut app, Vec3::ZERO);
-        let other_ship = app.world_mut().spawn(Name::new("other ship")).id();
-        let intake = spawn_intake(&mut app, other_ship, true);
-        let canister = spawn_canister(&mut app, true);
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![pair(
-            other_ship,
-            intake,
-            canister,
-            Vec3::ZERO,
-            Vec3::new(0.0, 0.0, -3.0),
-            true,
-        )];
+        let other_ship = app
+            .world_mut()
+            .spawn((Name::new("other ship"), Transform::default()))
+            .id();
+        let intake = spawn_intake(&mut app, other_ship, true, Vec3::ZERO);
+        let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -3.0));
+        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
+            vec![pair(other_ship, intake, canister, true)];
         app.update();
         assert!(parts(&mut app).is_empty());
     }
@@ -594,20 +618,13 @@ mod tests {
     fn a_stale_pair_naming_a_dead_canister_falls_back_to_a_live_one() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let intake = spawn_intake(&mut app, player, true);
-        let dead = spawn_canister(&mut app, false);
-        let live = spawn_canister(&mut app, true);
+        let intake = spawn_intake(&mut app, player, true, Vec3::ZERO);
+        let dead = spawn_canister(&mut app, false, Vec3::new(0.0, 0.0, -3.0));
         let live_position = Vec3::new(0.0, 0.0, -9.0);
+        let live = spawn_canister(&mut app, true, live_position);
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(
-                player,
-                intake,
-                dead,
-                Vec3::ZERO,
-                Vec3::new(0.0, 0.0, -3.0),
-                true,
-            ),
-            pair(player, intake, live, Vec3::ZERO, live_position, false),
+            pair(player, intake, dead, true),
+            pair(player, intake, live, false),
         ];
         app.world_mut()
             .entity_mut(player)
@@ -629,16 +646,10 @@ mod tests {
     fn a_stale_pair_naming_an_inactive_intake_draws_nothing() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let intake = spawn_intake(&mut app, player, false);
-        let canister = spawn_canister(&mut app, true);
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![pair(
-            player,
-            intake,
-            canister,
-            Vec3::ZERO,
-            Vec3::new(0.0, 0.0, -3.0),
-            true,
-        )];
+        let intake = spawn_intake(&mut app, player, false, Vec3::ZERO);
+        let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -3.0));
+        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
+            vec![pair(player, intake, canister, true)];
         app.update();
         assert!(parts(&mut app).is_empty());
     }
@@ -651,39 +662,31 @@ mod tests {
     fn a_stale_pair_naming_a_reparented_intake_draws_nothing() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let other_ship = app.world_mut().spawn(Name::new("other ship")).id();
-        let intake = spawn_intake(&mut app, other_ship, true);
-        let canister = spawn_canister(&mut app, true);
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![pair(
-            player,
-            intake,
-            canister,
-            Vec3::ZERO,
-            Vec3::new(0.0, 0.0, -3.0),
-            true,
-        )];
+        let other_ship = app
+            .world_mut()
+            .spawn((Name::new("other ship"), Transform::default()))
+            .id();
+        let intake = spawn_intake(&mut app, other_ship, true, Vec3::ZERO);
+        let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -3.0));
+        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
+            vec![pair(player, intake, canister, true)];
         app.update();
         assert!(parts(&mut app).is_empty());
     }
 
-    /// The whole point of the instrument: the plate stands on the intake
-    /// face and the line reaches exactly the published canister position.
+    /// The whole point of the instrument: the plate stands on the rendered
+    /// intake face and the line reaches the rendered canister, and both
+    /// follow those rendered poses from frame to frame while the fixed
+    /// pass's published pair does not change.
     #[test]
-    fn the_plate_sits_on_the_face_and_the_line_reaches_the_canister() {
+    fn the_plate_and_line_follow_the_rendered_intake_face_and_canister() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let intake = spawn_intake(&mut app, player, true);
-        let canister = spawn_canister(&mut app, true);
         let face = Vec3::new(0.0, 0.0, -1.0);
-        let canister_position = Vec3::new(0.0, 0.0, -4.0);
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![pair(
-            player,
-            intake,
-            canister,
-            face,
-            canister_position,
-            false,
-        )];
+        let intake = spawn_intake(&mut app, player, true, face);
+        let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -4.0));
+        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
+            vec![pair(player, intake, canister, false)];
         app.world_mut()
             .entity_mut(player)
             .insert(TravelLock(Some(canister)));
@@ -692,12 +695,11 @@ mod tests {
         for arm in 0..2 {
             let pose = part(&mut app, PickupSightPart::Plate { arm }).expect("both arms drawn");
             assert!(
-                (pose.translation - face).length() < PLATE_LIFT + 1e-3,
-                "arm {arm} stands on the intake face: {:?}",
+                (pose.translation - (face + Vec3::NEG_Z * PLATE_LIFT)).length() < 1e-3,
+                "arm {arm} floats off the intake face along its normal: {:?}",
                 pose.translation
             );
         }
-
         let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
         let (direction, length) = segment(pose);
         assert!(
@@ -707,6 +709,45 @@ mod tests {
         assert!(
             direction.dot(Vec3::NEG_Z) > 0.99,
             "and runs from the face toward the canister: {direction:?}"
+        );
+
+        // The next frame renders the intake turned a quarter turn about +Y,
+        // so its door faces -X, and the canister beside it. The player sits
+        // at the origin, so the intake's local pose is its rendered pose.
+        let intake_pose = Transform::from_xyz(2.0, 0.0, -3.0)
+            .with_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
+        let canister_pose = Transform::from_xyz(-2.5, 0.0, -3.0);
+        app.world_mut()
+            .entity_mut(intake)
+            .insert((intake_pose, GlobalTransform::from(intake_pose)));
+        app.world_mut()
+            .entity_mut(canister)
+            .insert((canister_pose, GlobalTransform::from(canister_pose)));
+        app.update();
+
+        let face = Vec3::new(1.5, 0.0, -3.0);
+        for arm in 0..2 {
+            let pose = part(&mut app, PickupSightPart::Plate { arm }).expect("both arms drawn");
+            assert!(
+                (pose.translation - (face + Vec3::NEG_X * PLATE_LIFT)).length() < 1e-3,
+                "arm {arm} follows the turned face: {:?}",
+                pose.translation
+            );
+        }
+        let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
+        let (direction, length) = segment(pose);
+        assert!(
+            (pose.translation - (face + canister_pose.translation) * 0.5).length() < 1e-3,
+            "the line follows the rendered face and canister: {:?}",
+            pose.translation
+        );
+        assert!(
+            (length - 4.0).abs() < 1e-3,
+            "line spans the turned face to the moved canister: {length}"
+        );
+        assert!(
+            direction.dot(Vec3::NEG_X) > 0.99,
+            "and runs from the turned face toward the canister: {direction:?}"
         );
     }
 
@@ -718,29 +759,14 @@ mod tests {
     fn two_pairs_for_the_same_canister_draw_the_nearer_face() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let near_intake = spawn_intake(&mut app, player, true);
-        let far_intake = spawn_intake(&mut app, player, true);
-        let canister = spawn_canister(&mut app, true);
         let near_face = Vec3::new(0.0, 0.0, -1.0);
-        let far_face = Vec3::new(10.0, 0.0, -10.0);
+        let near_intake = spawn_intake(&mut app, player, true, near_face);
+        let far_intake = spawn_intake(&mut app, player, true, Vec3::new(10.0, 0.0, -10.0));
         let canister_position = Vec3::new(0.0, 0.0, -4.0);
+        let canister = spawn_canister(&mut app, true, canister_position);
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(
-                player,
-                near_intake,
-                canister,
-                near_face,
-                canister_position,
-                false,
-            ),
-            pair(
-                player,
-                far_intake,
-                canister,
-                far_face,
-                canister_position,
-                true,
-            ),
+            pair(player, near_intake, canister, false),
+            pair(player, far_intake, canister, true),
         ];
         app.world_mut()
             .entity_mut(player)

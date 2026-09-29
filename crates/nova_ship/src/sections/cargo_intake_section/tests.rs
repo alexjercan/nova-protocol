@@ -562,8 +562,16 @@ fn published_pickup_readiness_matches_the_take_and_refuses_unmet_gates() {
         .find(|pair| pair.intake == intake && pair.canister == canister)
         .unwrap();
     assert_eq!(pair.ship, ship);
-    assert!((pair.face - Vec3::new(0.0, 0.0, FACE_Z)).length() < 0.01);
-    assert_eq!(pair.normal, Vec3::NEG_Z);
+    // The HUD recomputes the face from the intake's rendered pose; on the
+    // settled fixture that is the -Z face the take measures against.
+    let intake_pose = app.world().get::<GlobalTransform>(intake).unwrap();
+    let (face, normal) = cargo_intake_face(
+        intake_pose.translation(),
+        intake_pose.rotation(),
+        *app.world().get::<SectionCollider>(intake).unwrap(),
+    );
+    assert!((face - Vec3::new(0.0, 0.0, FACE_Z)).length() < 0.01);
+    assert!((normal - Vec3::NEG_Z).length() < 1e-5);
     assert!(!pair.ready, "a closed door cannot take cargo");
     assert!(app.world().get_entity(canister).is_ok());
 
