@@ -149,7 +149,11 @@ impl SectionAnimationMotion {
                     .slat
                     .expect("a Fold track node resolves with its slat place");
                 let fold = degrees.to_radians() * progress;
-                let turn = if slat.index % 2 == 0 { fold } else { -fold };
+                let turn = if slat.index.is_multiple_of(2) {
+                    fold
+                } else {
+                    -fold
+                };
                 let reach = (slat.index as f32 + 0.5) * slat_width;
                 let mut translation = rest.translation;
                 translation.x +=
