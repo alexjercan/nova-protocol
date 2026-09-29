@@ -24,8 +24,13 @@
 //! while it moves away, so a canister slowed by an impact is taken only once
 //! it separates and closes on the door again.
 //!
+//! The same fixed pass publishes [`CargoPickupReadiness`] for every live
+//! intake/canister pair, including canisters outside detection. Each pair's
+//! `ready` flag is the take decision. A zero-health canister is destroyed
+//! rather than offered to the intake or shown as a pickup candidate.
+//!
 //! A take moves the whole canister into the ship's [`ShipInventory`] or does
-//! nothing: a canister with more items than the hold has room for stays out.
+//! nothing: a canister heavier than the hold's free mass stays out.
 //! A jettison waits on the intake as a [`CargoIntakeEjection`] until the door
 //! is fully open and no canister is near the birth point. The canister is
 //! born through `Commands`, so the tick that drops it cannot see it, and with
@@ -53,7 +58,8 @@ pub mod prelude {
         cargo_canister, cargo_intake_section, preview_cargo_intake_section, CargoCanisterEjected,
         CargoCanisterTaken, CargoIntakeDoorMoved, CargoIntakeEjection, CargoIntakeSectionConfig,
         CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker, CargoIntakeSectionPlugin,
-        CargoIntakeSystems, CARGO_APERTURE_MARGIN, CARGO_CANISTER_SIZE,
+        CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness, CARGO_APERTURE_MARGIN,
+        CARGO_CANISTER_SIZE,
     };
 }
 
@@ -61,6 +67,11 @@ pub mod prelude {
 /// axis X. Measured off `cargo_canister_cuboid.glb`, whose end caps are the
 /// widest part.
 pub const CARGO_CANISTER_SIZE: Vec3 = Vec3::new(0.94, 0.58, 0.58);
+
+/// A canister's scanner return in world units. At the default 30x
+/// [`TargetingSettings::signature_range_per_unit`] a pilot can travel-lock it
+/// from about 102 m, past the 50 m point-blank range of unsigned debris.
+const CARGO_CANISTER_LOCK_SIGNATURE: f32 = 0.34;
 
 /// The clear space a canister's rotated footprint keeps from each edge of the
 /// aperture for a take: a tumbling canister's footprint changes between
@@ -130,7 +141,7 @@ pub struct CargoIntakeSectionConfigHelper(CargoIntakeSectionConfig);
 /// A jettisoned stack that waits on the intake for the door. Already removed
 /// from the ship's inventory: it shares the intake's fate, as the inventory
 /// shares the ship's. One per intake.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct CargoIntakeEjection(pub CargoCanister);
 
@@ -156,6 +167,33 @@ pub struct CargoCanisterEjected {
 pub struct CargoCanisterTaken {
     /// The intake that took it.
     pub entity: Entity,
+}
+
+/// The last fixed intake pass's live intake/canister pairs. An absent pair is
+/// not ready; preview and inactive intakes never publish pairs.
+#[derive(Resource, Default, Debug)]
+pub struct CargoPickupReadiness {
+    /// Pairs in intake and then canister entity order.
+    pub pairs: Vec<CargoPickupPair>,
+}
+
+/// One candidate measured by the same fixed pass that decides a take.
+#[derive(Clone, Copy, Debug)]
+pub struct CargoPickupPair {
+    /// Ship carrying the intake.
+    pub ship: Entity,
+    /// Live intake section.
+    pub intake: Entity,
+    /// Live canister candidate, including candidates outside detection.
+    pub canister: Entity,
+    /// Centre of the intake's front face, in world units.
+    pub face: Vec3,
+    /// Outward direction of the intake's front face.
+    pub normal: Vec3,
+    /// Canister centre, in world units.
+    pub canister_position: Vec3,
+    /// True exactly when this pass can take this candidate through this intake.
+    pub ready: bool,
 }
 
 #[derive(Component, Clone, Debug, Deref, Reflect)]
@@ -205,6 +243,8 @@ pub fn cargo_canister(
             CARGO_CANISTER_SIZE.z,
         ),
         ColliderDensity(1.0),
+        Health::new(20.0),
+        LockSignature(CARGO_CANISTER_LOCK_SIGNATURE),
         // Seeded like a launched torpedo: a body spawned mid-tick misses
         // FixedFirst, so without a `start` its first rendered frame would show
         // the raw pose while the ship it leaves renders eased.
@@ -318,22 +358,29 @@ fn run_cargo_intakes(
             Without<SectionInactiveMarker>,
         ),
     >,
-    q_canisters: Query<(
-        Entity,
-        &CargoCanister,
-        &Position,
-        &Rotation,
-        &LinearVelocity,
-    )>,
+    q_canisters: Query<
+        (
+            Entity,
+            &CargoCanister,
+            &Position,
+            &Rotation,
+            &LinearVelocity,
+            &Health,
+        ),
+        Without<HealthZeroMarker>,
+    >,
     q_chain: Query<(&Transform, &ChildOf)>,
     collisions: Collisions,
+    mut readiness: ResMut<CargoPickupReadiness>,
 ) {
+    readiness.pairs.clear();
     let mut canisters: Vec<CanisterRead> = q_canisters
         .iter()
+        .filter(|(_, _, _, _, _, health)| health.current > 0.0)
         .map(
-            |(entity, canister, position, rotation, velocity)| CanisterRead {
+            |(entity, canister, position, rotation, velocity, _)| CanisterRead {
                 entity,
-                canister: *canister,
+                canister: canister.clone(),
                 position: position.0,
                 rotation: rotation.0,
                 velocity: velocity.0,
@@ -414,44 +461,51 @@ fn run_cargo_intakes(
             .is_none_or(|progress| progress >= 1.0);
 
         let normal = intake_rotation * Vec3::NEG_Z;
-        if open {
-            for (read, zone) in canisters.iter_mut().zip(&zones) {
-                if *zone != CargoIntakeZoneType::Capture {
-                    continue;
-                }
+        let face_centre = intake_position + normal * half_extents.z;
+        for (read, zone) in canisters.iter_mut().zip(&zones) {
+            if read.taken {
+                continue;
+            }
+            let ready = *zone == CargoIntakeZoneType::Capture && open && {
                 let relative = read.velocity - point_velocity(read.position);
-                // Any contact impulse of the last physics step came from a
-                // manifold, and avian flags every pair with a manifold as
-                // touching, speculative ones too. The flags persist until the
-                // next step, after this pass.
+                // Avian keeps manifold pairs until the next step,
+                // including speculative contacts. A refused canister
+                // must separate before it can close on the door again.
                 let touching_ship = collisions
                     .collisions_with(read.entity)
                     .any(|pair| pair.body1 == Some(ship) || pair.body2 == Some(ship));
-                // A refused canister stays drifting with its tag. One that hit
-                // the ship is taken only once it separates and closes on the
-                // door again.
-                if touching_ship
-                    || relative.length() > maximum_speed
-                    || relative.dot(normal) > 0.0
-                    || inventory.free() < read.canister.count
-                {
-                    continue;
-                }
-                inventory.add(read.canister.item, read.canister.count);
-                commands.entity(read.entity).despawn();
-                commands.trigger(CargoCanisterTaken { entity: intake });
-                read.taken = true;
+                !touching_ship
+                    && relative.length() <= maximum_speed
+                    && relative.dot(normal) <= 0.0
+                    && inventory.free_kg() >= read.canister.total_mass_kg()
+            };
+            readiness.pairs.push(CargoPickupPair {
+                ship,
+                intake,
+                canister: read.entity,
+                face: face_centre,
+                normal,
+                canister_position: read.position,
+                ready,
+            });
+            if !ready {
+                continue;
             }
+            for (item, count) in read.canister.stacks() {
+                inventory.add(item, count);
+            }
+            commands.entity(read.entity).despawn();
+            commands.trigger(CargoCanisterTaken { entity: intake });
+            read.taken = true;
         }
 
-        let face_centre = intake_position + normal * half_extents.z;
         let birth = face_centre
             + normal * (CARGO_CANISTER_SIZE.z * 0.5 + capture_gap + CARGO_CANISTER_CLEARANCE);
         // Two canisters whose centres are a full diagonal apart cannot overlap.
         let birth_clear = canisters.iter().all(|read| {
             read.taken || read.position.distance(birth) >= CARGO_CANISTER_SIZE.length()
         });
-        let pending = ejection.map(|&CargoIntakeEjection(canister)| canister);
+        let pending = ejection.map(|ejection| ejection.0.clone());
         if let Some(canister) = pending.filter(|_| open && birth_clear) {
             let velocity = point_velocity(birth) + normal * config.eject_speed.to_engine();
             commands.entity(intake).remove::<CargoIntakeEjection>();
@@ -489,6 +543,16 @@ fn insert_cargo_intake_section_render(
     )]);
 }
 
+fn despawn_destroyed_canister(
+    add: On<Add, HealthZeroMarker>,
+    mut commands: Commands,
+    canisters: Query<(), With<CargoCanister>>,
+) {
+    if canisters.contains(add.entity) {
+        commands.entity(add.entity).despawn();
+    }
+}
+
 /// Spawn a canister's scene.
 fn insert_cargo_canister_render(
     add: On<Add, CargoCanister>,
@@ -512,8 +576,8 @@ fn insert_cargo_canister_render(
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CargoIntakeSystems;
 
-/// Adds cargo intakes: the door driver, takes and drops, and (when `render`)
-/// the intake and canister scenes.
+/// Adds cargo intakes: the door driver, takes and drops, readiness, and (when
+/// `render`) the intake and canister scenes.
 #[derive(Default)]
 pub struct CargoIntakeSectionPlugin {
     /// Whether the render-side half is added (false on headless servers).
@@ -527,6 +591,8 @@ impl Plugin for CargoIntakeSectionPlugin {
         app.register_type::<CargoIntakeSectionMarker>();
         app.register_type::<CargoIntakeEjection>();
         app.register_type::<CargoCanister>();
+        app.init_resource::<CargoPickupReadiness>();
+        app.add_observer(despawn_destroyed_canister);
 
         app.configure_sets(
             FixedUpdate,

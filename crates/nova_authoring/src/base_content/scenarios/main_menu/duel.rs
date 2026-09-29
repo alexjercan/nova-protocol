@@ -257,7 +257,7 @@ fn duelist(
                 ships::section_health(DUELIST_BRIDGE_HEALTH),
             ),
             lootable: false,
-            inventory: ShipInventory::new(SHIP_CARGO_CAPACITY, []),
+            inventory: ShipInventoryStock::new([]),
             ..Default::default()
         }),
     }
@@ -317,7 +317,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
                 source: SectionSource::Inline(siege_bay(assets)),
             }]),
             lootable: false,
-            inventory: ShipInventory::new(SHIP_CARGO_CAPACITY, []),
+            inventory: ShipInventoryStock::new([]),
             ..Default::default()
         }),
     });

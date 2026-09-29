@@ -202,7 +202,8 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      `FILTER_ORDER`. Open-world stock: crates/nova_authoring/src/base_content/
      scenarios/open_world.rs `player` and `derelict`. Ship pane repair spends
      hull plates: crates/nova_interface/src/ship/sections.rs `repair_section`.
-     Capacity: `SHIP_CARGO_CAPACITY` in crates/nova_gameplay/src/inventory.rs.
+     Hold: `HULL_SECTION_CARGO_KG` and `ResolvedShipDesign::cargo_capacity_kg`
+     in crates/nova_scenario/src/objects/ship_design.rs.
      Take and Give: crates/nova_gameplay/src/inventory.rs `plan_item_transfer`;
      Jettison: `plan_item_jettison`; both applied by
      crates/nova_interface/src/inventory/app.rs
@@ -211,7 +212,7 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      crates/nova_authoring/src/base_content/sections/cargo_intake.rs. Tag:
      crates/nova_hud/src/cargo_canister_chips.rs. -->
 
-The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` Every shipped ship holds up to 40 items across all its stacks, and your column's title shows your load against it, for example `Line Warship 12/40`. In the open world your ship starts with 12 hull plates, with a Derelict Tender carrying 8 more moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them. A [repair](#the-ship) spends hull plates. Nothing is saved: spent and moved items return to their starting counts when the scenario loads again.
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it, for example `Line Warship 120/13200 kg`. A hull plate weighs 10 kg. In the open world your ship starts with 12 hull plates, with a Derelict Tender carrying 8 more moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them. A [repair](#the-ship) spends hull plates. Nothing is saved: spent and moved items return to their starting counts when the scenario loads again.
 
 | Filter | Shows |
 | --- | --- |
@@ -233,28 +234,28 @@ Docked, a click on an item opens a transfer form in the inspector at a quantity 
 | An item in your column | **Give** to the docked ship | Always while docked, for example to deliver cargo. |
 | An item in the docked ship's column | **Take** from it | Only when the docked ship is neutralized or a lootable derelict. Taking from a live ship would be stealing. |
 
-Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or **All** for the whole stack. The slider hides when the stack holds one item. **Confirm** moves the items at once and the note line reads `Took 3 Hull plate from Derelict Tender` or `Gave 3 Hull plate to Derelict Tender`. A refused move changes nothing and keeps the form open so you can fix the quantity: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Hull plate in Derelict Tender`, `Refused: Derelict Tender has room for 3 more`, `Refused: Derelict Tender is not neutralized or lootable`, or `Refused: not docked`. A move never splits to fit: with room for 3, a move of 5 is refused whole. There is no price. Items given to a ship that the open world streams away are gone with it.
+Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or **All** for the whole stack. The slider hides when the stack holds one item. **Confirm** moves the items at once and the note line reads `Took 3 Hull plate from Derelict Tender` or `Gave 3 Hull plate to Derelict Tender`. A refused move changes nothing and keeps the form open so you can fix the quantity: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Hull plate in Derelict Tender`, `Refused: Derelict Tender has room for 30 kg more`, `Refused: Derelict Tender is not neutralized or lootable`, or `Refused: not docked`. A move never splits to fit: with room for 30 kg, a move of 5 hull plates is refused whole. There is no price. Items given to a ship that the open world streams away are gone with it.
 
 ### Jettison and pickup
 
-A **cargo intake** is a 20 x 20 m hold mouth behind an accordion door. The open world's line warship carries one on its top deck, aft of the dorsal guns, door up.
+A **cargo intake** is a 30 x 20 m hold mouth behind an accordion door. The open world's line warship carries one on its top deck, aft of the dorsal guns, door up.
 
-Undocked, with a working intake, a click on an item in your column opens a **Jettison** form. **Confirm** takes the items out of your hold at once and packs them into one canister, and the note line reads `Jettisoned 4 Hull plate`. The door folds open, and the canister leaves through it at 3 m/s relative to your ship. A refused jettison changes nothing: `Refused: undock to jettison`, `Refused: no working cargo intake`, `Refused: the cargo intake still holds a canister`, `Refused: enter a quantity`, `Refused: quantity is zero`, or `Refused: only 2 Hull plate in Line Warship`. An intake holds one canister back until its door is fully open and no canister sits within 12.5 m of where it leaves.
+Undocked, with a working intake, a click on an item in your column opens a **Jettison** form. **Confirm** takes the items out of your hold at once and packs them into the intake's pending canister, and the note line reads `Jettisoned 4 Hull plate`. More confirmed stacks merge into that pending canister, even in the same frame. Each hull plate weighs 10 kg; a canister holds at most 200 kg across all its stacks. The door folds open, and the canister leaves through it at 3 m/s relative to your ship. A refused jettison changes nothing: `Refused: undock to jettison`, `Refused: no working cargo intake`, `Refused: canister exceeds 200 kg`, `Refused: enter a quantity`, `Refused: quantity is zero`, or `Refused: only 2 Hull plate in Line Warship`. An intake holds one canister back until its door is fully open and no canister sits within 12.5 m of where it leaves.
 
 To take a canister in, bring the intake's door to it:
 
 | Canister | What the intake does |
 | --- | --- |
 | In front of the door and within 40 m of it | Opens the door. |
-| Within 1 m of the door face, clear of the 14 x 16 m opening's edges by 0.5 m, and moving under 5 m/s relative to it, not away from it | Takes the whole canister into your hold once the door is fully open, before it touches the door. |
+| Within 1 m of the door face, clear of the 22.2 x 15.3 m opening's edges by 0.5 m, and moving under 5 m/s relative to it, not away from it | Takes the whole canister into your hold once the door is fully open, before it touches the door. |
 | Faster than 5 m/s relative to the door | Is not taken, and hits the door. |
 | Touching any part of your ship | Is not taken. Once it drifts off, it is taken when it comes back under 5 m/s. |
-| Holding more items than your hold has room for | Stays out, whole. |
+| Heavier than your hold has room for | Stays out, whole. |
 | Just jettisoned | Is taken back the moment it closes on the open door again. |
 
-The door, a drop and a take each make a sound at the intake.
+The door, a drop and a take each make a sound at the intake. With a canister within 200 m of your ship, the pickup sight draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap slowly. The sight stays cyan while closing. The take sound and the canister going through the door confirm a take; the sight goes with the canister. An unavailable intake, or no canister within 200 m, draws no sight.
 
-Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`. The tag hides while the canister is off-screen. Canisters are not saved: they go when the scenario ends, and a jettisoned stack returns to your hold when the scenario loads again.
+Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for multiple item types, with its total mass in kg. The tag hides while the canister is off-screen. A canister has 20 HP; at zero it and its contents are destroyed, not picked up. Canisters can be designated with a travel lock but cannot enter the combat target slot. Canisters are not saved: they go when the scenario ends, and a jettisoned stack returns to your hold when the scenario loads again.
 
 ## The command shell
 

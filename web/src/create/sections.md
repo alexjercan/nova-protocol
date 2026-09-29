@@ -1040,19 +1040,19 @@ the pair and leaves the dock in place.
 section's local `-Z` face. The door opens for a nearby canister, the intake
 takes a slow one into the ship's [inventory](../objects/#inventory), and the
 Inventory pane's Jettison drops a canister out through it. One ships:
-`cargo_intake_section`, a 2x2x1 box on the line warship's top deck, door up.
+`cargo_intake_section`, a 3x2x1 box on the line warship's top deck, door up.
 
 ```ron
 kind: CargoIntake((
-    render_mesh: "dep://base/gltf/intake_accordion_2x2x1.glb#Scene0",
+    render_mesh: "dep://base/gltf/intake_accordion_3x2x1.glb#Scene0",
     canister_mesh: "dep://base/gltf/cargo_canister_cuboid.glb#Scene0",
     door_sound: "dep://base/sounds/bay_door.wav",
     eject_sound: "dep://base/sounds/cargo_eject.wav",
     take_sound: "dep://base/sounds/salvage_pickup.wav",
     detection_range: 40.0,
     capture_gap: 1.0,
-    aperture_width: 14.1,
-    aperture_height: 16.0,
+    aperture_width: 22.2,
+    aperture_height: 15.3,
     maximum_capture_speed: 5.0,
     eject_speed: 3.0,
 )),
@@ -1084,8 +1084,10 @@ kind: CargoIntake((
 
 The volumes are measured from the `-Z` face of the section's `Cuboid`
 collider, so an intake must author one. A take is whole or nothing: a
-canister with more items than the hold has room for stays out. A jettison
-waits on the intake until the door is fully open and no canister centre is
+canister heavier than the hold's free mass stays out. A canister can hold
+several item types up to 200 kg total; hull plates weigh 10 kg each. A canister has 20 HP; at zero it and its contents
+are lost. Jettisons merge into the pending canister, which waits on the intake
+until the door is fully open and no canister centre is
 within 12.5 m of the birth point. The canister is born 1.5 m clear of the face,
 outside the capture gap and moving away, and any intake can take it back from
 the next tick. Author an

@@ -36,9 +36,9 @@ fn spawn_inventory_body(app: &mut App, parent: Entity) {
         .expect("building the Inventory pane body");
 }
 
-/// A 40-item hold carrying `plates` hull plates.
+/// A 400 kg hold carrying `plates` hull plates of 10 kg.
 fn hold(plates: u32) -> ShipInventory {
-    ShipInventory::new(SHIP_CARGO_CAPACITY, [(ItemType::HullPlate, plates)])
+    ShipInventory::new(400, [(ItemType::HullPlate, plates)])
 }
 
 /// A player ship carrying `plates` hull plates.
@@ -140,7 +140,10 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
     app.update();
     let world = app.world_mut();
     // The player's title carries its load against its capacity.
-    assert_eq!(column_title(world, InventorySideType::Own), "NOVA 12/40");
+    assert_eq!(
+        column_title(world, InventorySideType::Own),
+        "NOVA 120/400 kg"
+    );
     assert_eq!(
         column_texts(world, InventorySideType::Own),
         ["Hull plate", "x12"]
@@ -500,7 +503,7 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
     app.world_mut().entity_mut(partner).insert(hold(39));
     assert_eq!(
         confirm(&mut app, Give, Some(2)),
-        refused("Refused: Derelict has room for 1 more")
+        refused("Refused: Derelict has room for 10 kg more")
     );
     assert_eq!(
         (plates(app.world(), player), plates(app.world(), partner)),
@@ -550,7 +553,7 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     let dropped = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
     let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
     let ejection =
-        |app: &App, intake: Entity| app.world().get::<CargoIntakeEjection>(intake).copied();
+        |app: &App, intake: Entity| app.world().get::<CargoIntakeEjection>(intake).cloned();
 
     assert_eq!(
         confirm(&mut app, &[Some(4)]),
@@ -578,43 +581,57 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     assert_eq!(ejection(&app, intake), None);
 
     // The stack leaves the hold and waits on the intake in the same run; a
-    // second jettison in that run finds the intake loaded. The first closed
-    // the draft, and a refusal does not reopen it.
+    // second jettison in that run merges into the pending canister.
     assert_eq!(
         confirm(&mut app, &[Some(4), Some(1)]),
         (
-            Some("Refused: the cargo intake still holds a canister".to_string()),
-            vec![UiSfx::MenuSelect, UiSfx::EditorDeny],
+            Some("Jettisoned 1 Hull plate".to_string()),
+            vec![UiSfx::MenuSelect, UiSfx::MenuSelect],
             false
         )
     );
-    assert_eq!(plates(app.world(), player), 8);
+    assert_eq!(plates(app.world(), player), 7);
     assert_eq!(
         ejection(&app, intake),
-        Some(CargoIntakeEjection(CargoCanister {
-            item: ItemType::HullPlate,
-            count: 4,
-        }))
+        Some(CargoIntakeEjection(CargoCanister::new(
+            ItemType::HullPlate,
+            5
+        )))
     );
     assert_eq!(
         confirm(&mut app, &[Some(1)]),
-        refused("Refused: the cargo intake still holds a canister")
+        dropped("Jettisoned 1 Hull plate")
     );
-    assert_eq!(plates(app.world(), player), 8);
+    assert_eq!(plates(app.world(), player), 6);
 
     // Once dropped, the intake takes the next one.
     app.world_mut()
         .entity_mut(intake)
         .remove::<CargoIntakeEjection>();
     assert_eq!(
-        confirm(&mut app, &[Some(8)]),
-        dropped("Jettisoned 8 Hull plate")
+        confirm(&mut app, &[Some(6)]),
+        dropped("Jettisoned 6 Hull plate")
     );
     assert_eq!(plates(app.world(), player), 0);
     app.world_mut()
         .entity_mut(intake)
         .remove::<CargoIntakeEjection>();
     app.world_mut().entity_mut(player).insert(hold(12));
+    app.world_mut()
+        .entity_mut(intake)
+        .insert(CargoIntakeEjection(CargoCanister::new(
+            ItemType::HullPlate,
+            19,
+        )));
+    assert_eq!(
+        confirm(&mut app, &[Some(2)]),
+        refused("Refused: canister exceeds 200 kg")
+    );
+    assert_eq!(plates(app.world(), player), 12);
+    assert_eq!(ejection(&app, intake).unwrap().0.total_mass_kg(), 190);
+    app.world_mut()
+        .entity_mut(intake)
+        .remove::<CargoIntakeEjection>();
 
     // A disabled intake is no intake, and a docked ship drops nothing.
     app.world_mut()

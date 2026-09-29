@@ -1,19 +1,29 @@
-//! Cargo canister HUD chips: one screen-projected amber chip per
-//! [`CargoCanister`], reading what it holds ("4 Hull plate"), so a jettisoned
-//! or drifting stack is found by eye and not only by its model.
+//! Cargo canister HUD chips: one screen-projected content tag per
+//! [`CargoCanister`], reading what it holds ("4 Hull plate") and its total
+//! mass in a muted line under that, so a jettisoned or drifting stack is
+//! found by eye and not only by its model.
+//!
+//! A canister with more than one item stack has no single name to show, so
+//! the label reads "Mixed cargo" rather than naming only the first stack -
+//! silently dropping every stack past the first would misreport what the
+//! canister actually holds.
+//!
+//! The tag's look - dark scrim, amber accent bar, glow name, muted mass - follows
+//! `examples/screenshots/loop_intake_compare.rs` (`spawn_tag`) rather than the
+//! shared amber pill:
+//! this is cargo content over a canister's own model, not a HUD readout.
 //!
 //! The chip shows only while the player ship is within [`CARGO_TAG_RANGE`] of
 //! the canister and hides off-screen: a canister is a pickup near the ship,
 //! not a destination, and the viewport edges stay reserved for threats and the
-//! active objective. The shape - layer, pill, label leaf, despawn - is
-//! [`anchored_chip`](super::anchored_chip)'s.
+//! active objective. The layer, anchor and despawn are
+//! [`anchored_chip`](super::anchored_chip)'s; the tag's own paint is not.
 //!
 //! Chrome tier: a pickup tag, not a flight instrument.
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
 
 use super::{anchored_chip::prelude::*, screen_indicator::prelude::*};
 
@@ -33,15 +43,52 @@ const CHIP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     min_px: 20.0,
 };
 
-const LABEL_FONT_PX: f32 = 12.0;
+const LABEL_FONT_PX: f32 = 15.0;
+
+/// Font size of the muted mass line under the label.
+const MASS_FONT_PX: f32 = 12.0;
+
+/// The tag's dark scrim, `loop_intake_compare`'s `spawn_tag` background.
+const SCRIM_COLOR: Color = Color::srgba(0.02, 0.03, 0.04, 0.8);
+
+/// The accent bar's amber, `loop_intake_compare`'s `spawn_tag` bar colour.
+const BAR_COLOR: Color = Color::srgb(0.95, 0.62, 0.15);
+/// Width of the accent bar, logical pixels.
+const BAR_WIDTH_PX: f32 = 4.0;
+
+/// The item label's glow colour, `loop_intake_compare`'s cargo-name colour.
+const LABEL_COLOR: Color = Color::srgb(0.45, 0.9, 0.98);
+/// The mass line's muted colour, `loop_intake_compare`'s mass-line colour.
+const MASS_COLOR: Color = Color::srgb(0.8, 0.82, 0.84);
 
 /// Marker for one canister chip layer (one per canister). The family tag every
 /// canister chip system is gated on.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct CargoCanisterChipHudMarker;
 
+/// Marker for a canister chip's mass line - the muted leaf under the item
+/// label. A separate marker from [`AnchoredChipLabelMarker`] (the item label
+/// itself carries that one) so the update pass can write each line without
+/// mistaking one for the other.
+#[derive(Component, Debug, Clone, Reflect)]
+struct CargoCanisterChipMassMarker;
+
+/// What a canister chip reads: the item line ("4 Hull plate" or "Mixed cargo"
+/// once it holds more than one stack) and its total mass.
+fn cargo_canister_chip_text(canister: &CargoCanister) -> (String, String) {
+    let mut stacks = canister.stacks();
+    let label = match (stacks.next(), stacks.next()) {
+        (Some((item, count)), None) => format!("{count} {}", item.label()),
+        _ => "Mixed cargo".to_string(),
+    };
+    (label, format!("{} kg", canister.total_mass_kg()))
+}
+
 /// UI bundle for one canister's chip layer, spawned hidden: the range pass
 /// anchors it once the player ship is near.
+///
+/// `loop_intake_compare`'s `spawn_tag` shape: a dark scrim row holding a thin
+/// amber accent bar beside a padded column of the two text lines.
 fn cargo_canister_chip_hud(canister: Entity) -> impl Bundle {
     (
         Name::new("CargoCanisterChipHUD"),
@@ -57,14 +104,43 @@ fn cargo_canister_chip_hud(canister: Entity) -> impl Bundle {
                     offset: Vec2::ZERO,
                     offscreen: ScreenIndicatorOffscreen::Hide,
                 },
-                chip_node(),
+                Node {
+                    display: Display::Flex,
+                    align_items: AlignItems::Stretch,
+                    ..default()
+                },
             ),
             CHIP_CLEARANCE,
-            chip_paint(ChipTone::Amber),
-            children![(
-                Name::new("CargoCanisterChipLabel"),
-                anchored_chip_label(LABEL_FONT_PX, Color::NONE, ChipText::value(ChipTone::Amber)),
-            )],
+            BackgroundColor(SCRIM_COLOR),
+            children![
+                (
+                    Name::new("CargoCanisterChipBar"),
+                    Node {
+                        width: Val::Px(BAR_WIDTH_PX),
+                        ..default()
+                    },
+                    BackgroundColor(BAR_COLOR),
+                ),
+                (
+                    Name::new("CargoCanisterChipLines"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        padding: UiRect::axes(Val::Px(7.0), Val::Px(3.0)),
+                        ..default()
+                    },
+                    children![
+                        (
+                            Name::new("CargoCanisterChipLabel"),
+                            anchored_chip_label(LABEL_FONT_PX, LABEL_COLOR, ()),
+                        ),
+                        (
+                            Name::new("CargoCanisterChipMass"),
+                            CargoCanisterChipMassMarker,
+                            anchored_chip_label(MASS_FONT_PX, MASS_COLOR, ()),
+                        ),
+                    ],
+                ),
+            ],
         )],
     )
 }
@@ -80,7 +156,11 @@ fn setup_cargo_canister_chip(add: On<Add, CargoCanister>, mut commands: Commands
 fn update_cargo_canister_chips(
     q_chips: Query<&AnchoredChipTarget, With<CargoCanisterChipHudMarker>>,
     mut q_nodes: Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<AnchoredChipNodeMarker>>,
-    mut q_labels: Query<(&mut Text, &ChildOf), With<AnchoredChipLabelMarker>>,
+    mut q_texts: Query<
+        (&mut Text, &ChildOf, Has<CargoCanisterChipMassMarker>),
+        With<AnchoredChipLabelMarker>,
+    >,
+    q_lines: Query<&ChildOf>,
     q_canisters: Query<(&CargoCanister, &GlobalTransform)>,
     q_player: Query<&GlobalTransform, With<PlayerSpaceshipMarker>>,
 ) {
@@ -98,7 +178,10 @@ fn update_cargo_canister_chips(
             **anchor = wanted;
         }
     }
-    for (mut text, ChildOf(node)) in &mut q_labels {
+    for (mut text, ChildOf(lines), is_mass) in &mut q_texts {
+        let Ok(ChildOf(node)) = q_lines.get(*lines) else {
+            continue;
+        };
         let Ok((_, ChildOf(layer))) = q_nodes.get(*node) else {
             continue;
         };
@@ -108,15 +191,16 @@ fn update_cargo_canister_chips(
         let Ok((canister, _)) = q_canisters.get(**target) else {
             continue;
         };
-        let next = format!("{} {}", canister.count, canister.item.label());
+        let (label, mass) = cargo_canister_chip_text(canister);
+        let next = if is_mass { mass } else { label };
         if **text != next {
             **text = next;
         }
     }
 }
 
-/// Draws one amber chip per [`CargoCanister`] near the player ship, reading
-/// its count and item (Chrome tier). Adds the spawn and despawn observers and
+/// Draws one content tag per [`CargoCanister`] near the player ship, reading
+/// its stacks and mass (Chrome tier). Adds the spawn and despawn observers and
 /// runs the range and label pass in Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct CargoCanisterChipsHudPlugin;

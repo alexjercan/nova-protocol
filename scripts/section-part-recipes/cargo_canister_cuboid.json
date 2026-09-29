@@ -1,5 +1,5 @@
 {
-  "_comment": "ITEM CANDIDATE (cargo canister, cuboid), not a section: it takes the core frame only for the centred 1x1x1 cell box and budget checks. Long axis X, origin at the centre. A canvas body between gunmetal end caps, gunmetal rails down the four long edges, and an amber band off-centre so the canister reads its own orientation. Caps are 0.58 square, so the canister clears the 0.60 opening of the 2x1x1 intake candidate instead of sitting flush. Promoted: the cargo canister an intake drops and takes in (CargoIntakeSectionConfig canister_mesh).",
+  "_comment": "ITEM CANDIDATE (cargo canister, cuboid), not a section: it takes the core frame only for the centred 1x1x1 cell box and budget checks. Long axis X, origin at the centre. A canvas body between gunmetal end caps, gunmetal rails down the four long edges, and an amber band off-centre so the canister reads its own orientation. Caps are 0.58 square, the cross-section of the runtime CARGO_CANISTER_SIZE. Promoted: the cargo canister an intake drops and takes in (CargoIntakeSectionConfig canister_mesh).",
   "frame": "core",
   "cells": [1, 1, 1],
   "materials": {

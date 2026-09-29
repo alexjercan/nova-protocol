@@ -458,11 +458,12 @@ pub struct SpaceshipConfig {
         serde(default, skip_serializing_if = "ShipCapabilities::is_all_enabled")
     )]
     pub capabilities: ShipCapabilities,
-    /// What the ship carries at spawn and how many items it has room for.
-    /// Required in RON, so every authored ship states its capacity: a zero
-    /// quantity, a repeated item or stock past the capacity fails the parse
-    /// (see [`ShipInventory`]'s `Deserialize` impl).
-    pub inventory: ShipInventory,
+    /// What the ship carries at spawn. Required in RON, so every authored ship
+    /// states its stock: a zero quantity or a repeated item fails the parse
+    /// (see [`ShipInventoryStock`]'s `Deserialize` impl). The design's hull
+    /// sections set the hold ([`ResolvedShipDesign::cargo_capacity_kg`]);
+    /// lint refuses heavier stock and the spawn panics on it.
+    pub inventory: ShipInventoryStock,
     /// Whether a docked ship may Take from this ship's inventory although it
     /// was never neutralized: a derelict. Required in RON, so every authored
     /// ship states it; `true` inserts [`LootableShipMarker`] at spawn.
@@ -529,14 +530,19 @@ fn insert_spaceship_sections(
     game_sections: Res<GameSections>,
     game_designs: Res<GameShipDesigns>,
     q_spaceship: Query<
-        (&SpaceshipDesign, &SpaceshipController, &Transform),
+        (
+            &SpaceshipDesign,
+            &SpaceshipController,
+            &Transform,
+            &ShipInventoryStock,
+        ),
         With<SpaceshipRootMarker>,
     >,
 ) {
     let entity = add.entity;
     trace!("insert_spaceship_sections: entity {:?}", entity);
 
-    let Ok((design_source, controller_config, transform)) = q_spaceship.get(entity) else {
+    let Ok((design_source, controller_config, transform, stock)) = q_spaceship.get(entity) else {
         // NOT an error: a root with no [`SpaceshipDesign`] is a hull somebody
         // built by hand rather than one a scenario authored, and an example or
         // a test is entitled to spawn one. This observer only owns the AUTHORED
@@ -585,7 +591,9 @@ fn insert_spaceship_sections(
             rcs_loop: presentation.rcs_loop_sound.clone(),
         },
         ShipHullWarning(presentation.warn_hull_fraction.clamp(0.0, 1.0)),
+        ShipInventory::new(design.cargo_capacity_kg(), stock.stacks()),
     ));
+    commands.entity(entity).remove::<ShipInventoryStock>();
 
     // An AI ship with no turret or torpedo section cannot fight; it becomes a
     // non-combatant below so it flies its routine and never chases. Tracked
@@ -1309,7 +1317,7 @@ mod tests {
     #[test]
     fn collapse_threshold_ron_parses_defaults_and_stays_unserialized() {
         let authored: SpaceshipConfig = ron::from_str(
-            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))), inventory: (capacity: 0, stacks: {}), lootable: false)"#,
+            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))), inventory: {}, lootable: false)"#,
         )
         .expect("the documented syntax parses");
         let ShipDesignSource::Inline(design) = &authored.design else {
@@ -1317,9 +1325,10 @@ mod tests {
         };
         assert_eq!(design.integrity.collapse_threshold, Some(0.1));
 
-        let omitted: SpaceshipConfig =
-            ron::from_str(r#"(controller: None, design: Inline(()), inventory: (capacity: 0, stacks: {}), lootable: false)"#)
-                .expect("omitted field parses");
+        let omitted: SpaceshipConfig = ron::from_str(
+            r#"(controller: None, design: Inline(()), inventory: {}, lootable: false)"#,
+        )
+        .expect("omitted field parses");
         let ShipDesignSource::Inline(design) = &omitted.design else {
             panic!("an inline design");
         };
@@ -1531,6 +1540,57 @@ mod tests {
             flown, named,
             "the spawn flies exactly the sections the resolver names"
         );
+    }
+
+    /// Spawn a two-hull inline design carrying `plates` hull plates, against a
+    /// catalog holding the `plate` hull prototype.
+    fn spawn_stocked_two_hull_ship(plates: u32) -> (World, Entity) {
+        let mut world = World::new();
+        world.insert_resource(GameSections(vec![section_prototype("plate")]));
+        world.init_resource::<GameShipDesigns>();
+        world.add_observer(insert_spaceship_sections);
+        let hull = |id: &str, z| SpaceshipSectionConfig {
+            id: id.to_string(),
+            position: Vec3::new(0.0, 0.0, z),
+            rotation: Quat::IDENTITY,
+            source: SectionSource::prototype("plate"),
+        };
+        let entity = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    design: ShipDesignSource::Inline(ShipDesign {
+                        sections: vec![hull("bow", 0.0), hull("stern", 1.0)],
+                        ..default()
+                    }),
+                    inventory: ShipInventoryStock::new([(ItemType::HullPlate, plates)]),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        (world, entity)
+    }
+
+    /// The spawn consumes the authored stock into an inventory whose hold the
+    /// resolved design sets: two hull sections give 200 kg.
+    #[test]
+    fn the_spawn_fills_a_hold_of_100_kg_per_hull_section_from_the_stock() {
+        let (world, ship) = spawn_stocked_two_hull_ship(12);
+
+        let inventory = world.entity(ship).get::<ShipInventory>().unwrap();
+        assert_eq!(inventory.capacity_kg(), 200);
+        assert_eq!(inventory.used_kg(), 120);
+        assert_eq!(inventory.count(ItemType::HullPlate), 12);
+        assert!(world.entity(ship).get::<ShipInventoryStock>().is_none());
+    }
+
+    /// Stock past the hold is an authoring error lint reports; a spawn that
+    /// reaches it anyway fails loudly instead of clamping.
+    #[test]
+    #[should_panic(expected = "ShipInventory holds 210 kg but has capacity 200 kg")]
+    fn the_spawn_panics_on_stock_heavier_than_the_hold() {
+        spawn_stocked_two_hull_ship(21);
     }
 
     /// A hull section prototype with no authored geometry, under `id`.

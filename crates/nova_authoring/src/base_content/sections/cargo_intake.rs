@@ -1,4 +1,4 @@
-//! The cargo intake: a 2x2 hold mouth behind an accordion door.
+//! The cargo intake: a 3x2 hold mouth behind an accordion door.
 //!
 //! Fly slowly past a drifting canister with the door facing it, and the door
 //! folds open and the intake takes the whole canister into the hold, if the
@@ -18,14 +18,14 @@ pub(crate) const CARGO_INTAKE_SECTION_ID: &str = "cargo_intake_section";
 /// is a real way to stop a pickup.
 const CARGO_INTAKE_BASE_HEALTH: f32 = 90.0;
 
-/// The intake's box: two cells across, two high, one deep, with the door on
+/// The intake's box: three cells across, two high, one deep, with the door on
 /// its local -Z face.
-const INTAKE_CELLS: Vec3 = Vec3::new(2.0, 2.0, 1.0);
+const INTAKE_CELLS: Vec3 = Vec3::new(3.0, 2.0, 1.0);
 
-/// The slat box `intake_accordion_2x2x1.json` builds each `intake_slat_`
+/// The slat box `intake_accordion_3x2x1.json` builds each `intake_slat_`
 /// node from: its width across the door and its thickness. The Fold track
 /// reads the same two numbers, so the art and the track move together.
-const SLAT_WIDTH: f32 = 0.1458;
+const SLAT_WIDTH: f32 = 0.2292;
 const SLAT_THICKNESS: f32 = 0.02;
 
 /// The intake's sockets: one per cell on every closed face, none on the door.
@@ -34,39 +34,38 @@ const SLAT_THICKNESS: f32 = 0.02;
 /// volumes are measured from that face.
 fn intake_link_points() -> Vec<LinkPoint> {
     let half = INTAKE_CELLS * 0.5;
+    // Cell centres, lettered from the negative end: three across, two up.
+    let across = [("a", -1.0), ("b", 0.0), ("c", 1.0)];
+    let up = [("a", -0.5), ("b", 0.5)];
     let mut points = Vec::new();
-    for (face, normal) in [("x", Vec3::X), ("y", Vec3::Y)] {
-        let across = if normal == Vec3::X { Vec3::Y } else { Vec3::X };
+    for (face, normal, along, cells) in [
+        ("x", Vec3::X, Vec3::Y, &up[..]),
+        ("y", Vec3::Y, Vec3::X, &across[..]),
+    ] {
         for (sign, side) in [(1.0, "positive"), (-1.0, "negative")] {
-            for (offset, cell) in [(-0.5, "a"), (0.5, "b")] {
+            for &(cell, offset) in cells {
                 points.push(LinkPoint {
                     id: format!("{side}_{face}_{cell}"),
-                    position: normal * sign * half.dot(normal) + across * offset,
+                    position: normal * sign * half.dot(normal) + along * offset,
                     normal: normal * sign,
                 });
             }
         }
     }
-    for (x, y) in [(-0.5, -0.5), (0.5, -0.5), (-0.5, 0.5), (0.5, 0.5)] {
-        points.push(LinkPoint {
-            id: format!("positive_z_{}_{}", cell_name(x), cell_name(y)),
-            position: Vec3::new(x, y, half.z),
-            normal: Vec3::Z,
-        });
+    for (x_cell, x) in across {
+        for (y_cell, y) in up {
+            points.push(LinkPoint {
+                id: format!("positive_z_{x_cell}_{y_cell}"),
+                position: Vec3::new(x, y, half.z),
+                normal: Vec3::Z,
+            });
+        }
     }
     points
 }
 
-fn cell_name(offset: f32) -> &'static str {
-    if offset < 0.0 {
-        "a"
-    } else {
-        "b"
-    }
-}
-
 /// The door track: the twelve `intake_slat_` nodes of
-/// `intake_accordion_2x2x1.glb` fold 80 degrees aside into two pockets.
+/// `intake_accordion_3x2x1.glb` fold 80 degrees aside into two pockets.
 fn intake_door_track() -> Vec<SectionAnimation> {
     vec![SectionAnimation {
         cue: SectionAnimationCue::IntakeDoor,
@@ -113,10 +112,12 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             take_sound: meshes.cargo_take_sound.clone(),
             detection_range: Meters(40.0),
             capture_gap: Meters(1.0),
-            // The clear opening between the face ring and the folded slat
-            // stacks of intake_accordion_2x2x1.json: 14.17 m by 16.0 m.
-            aperture_width: Meters(14.1),
-            aperture_height: Meters(16.0),
+            // The clear opening centred on the face, inside the folded slat
+            // stacks and the face ring of intake_accordion_3x2x1.glb. Neither
+            // is centred: the nearer slat stack is 11.13 m out and the ring
+            // top 7.70 m up, so the opening is 22.2 m by 15.3 m.
+            aperture_width: Meters(22.2),
+            aperture_height: Meters(15.3),
             maximum_capture_speed: MetersPerSecond(5.0),
             eject_speed: MetersPerSecond(3.0),
         }),

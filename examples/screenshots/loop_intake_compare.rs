@@ -1,21 +1,20 @@
-//! loop_intake_compare: accordion cargo intake candidates and canister
-//! content tags on one bench - `loop-intake-compare`, for the owner to judge
-//! a look before any intake mechanic exists.
+//! loop_intake_compare: the accordion cargo intake and canister content
+//! tags on one bench - `loop-intake-compare`, for the owner to judge the look
+//! of the intake art beside the canister it takes.
 //!
 //! Everything here is VISUAL ONLY. Nothing carries a socket, holds cargo or
 //! spawns a ship. Three kinds of subject:
 //!
-//! - INTAKES: the 2x1x1 accordion candidate under
-//!   `art/part-candidates/sections/` and the promoted 2x2x1 under
-//!   `assets/base/gltf/` (recipes in
-//!   `scripts/section-part-recipes/intake_accordion_*.json`, built by
+//! - INTAKE: the promoted 3x2x1 accordion intake
+//!   (`assets/base/gltf/intake_accordion_3x2x1.glb`, recipe in
+//!   `scripts/section-part-recipes/intake_accordion_3x2x1.json`, built by
 //!   `scripts/gen-section-parts.py`). Each leaf is six named slat nodes that
 //!   fold into a zig-zag against the post and stay inside the section. This
 //!   example drives its own copy of the fold, and it panics if any fold pose
 //!   leaves the cell box. Loaded with canisters so an open door shows what
 //!   the face is for.
 //! - SCALE: the shipped cargo hull cell (`assets/base/gltf/hull_cargo.glb`)
-//!   bolted to the left flank of every intake. One cell is one engine unit is
+//!   bolted to the left flank of the intake. One cell is one engine unit is
 //!   10 m.
 //! - CANISTERS: the promoted cuboid canister
 //!   (`assets/base/gltf/cargo_canister_cuboid.glb`, an item model built by
@@ -36,9 +35,9 @@
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full walk, recording
 //!   nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: record and encode the loop into
-//!   `NOVA_CAPTURE_DIR/loop-intake-compare.webm`: the overview with every door
-//!   shut, then open, then a door cycle on each intake, then the dolly onto
-//!   the canisters.
+//!   `NOVA_CAPTURE_DIR/loop-intake-compare.webm`: the overview with the door
+//!   shut, then open, then a door cycle close on the intake, then the dolly
+//!   onto the canisters.
 //!
 //! Capture, then pull one still per second for review:
 //! ```text
@@ -60,14 +59,14 @@ mod glb;
 #[derive(Parser)]
 #[command(name = "loop_intake_compare")]
 #[command(version = "1.0.0")]
-#[command(about = "Accordion cargo intake candidates and near-only canister content tags, beside shipped hull art", long_about = None)]
+#[command(about = "The accordion cargo intake and near-only canister content tags, beside shipped hull art", long_about = None)]
 struct Cli;
 
 /// The loop this example records - the webm's file stem.
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "loop-intake-compare";
 
-/// The shipped cell every intake is bolted to, relative to the crate root.
+/// The shipped cell the intake is bolted to, relative to the crate root.
 /// The cargo hull, because an intake would sit on a cargo spine.
 const SHIPPED_CELL: &str = "assets/base/gltf/hull_cargo.glb";
 
@@ -132,9 +131,9 @@ fn bench_plugin(app: &mut App) {
     );
 }
 
-/// One intake candidate on the bench.
+/// One intake on the bench.
 struct Intake {
-    /// The candidate glb, relative to the crate root. Its door face is -Z.
+    /// The intake glb, relative to the crate root. Its door face is -Z.
     model: &'static str,
     id: &'static str,
     /// Cell footprint: width, height, depth.
@@ -143,22 +142,14 @@ struct Intake {
     x: f32,
 }
 
-/// The two accordion candidates, one per face size.
-fn intakes() -> [Intake; 2] {
-    [
-        Intake {
-            model: "art/part-candidates/sections/intake_accordion_2x1x1.glb",
-            id: "intake_accordion_2x1x1",
-            size: Vec3::new(2.0, 1.0, 1.0),
-            x: -2.0,
-        },
-        Intake {
-            model: "assets/base/gltf/intake_accordion_2x2x1.glb",
-            id: "intake_accordion_2x2x1",
-            size: Vec3::new(2.0, 2.0, 1.0),
-            x: 3.0,
-        },
-    ]
+/// The promoted accordion intake.
+fn intakes() -> [Intake; 1] {
+    [Intake {
+        model: "assets/base/gltf/intake_accordion_3x2x1.glb",
+        id: "intake_accordion_3x2x1",
+        size: Vec3::new(3.0, 2.0, 1.0),
+        x: 0.0,
+    }]
 }
 
 /// What a content tag reads: the cargo and its mass.
@@ -187,7 +178,7 @@ const CARGO: [Contents; 3] = [
 /// with NO ships - every subject is a display entity this example owns.
 fn bench_stage(game_assets: &GameAssets) -> ScenarioConfig {
     ScenarioConfig {
-        description: "Cargo intake and canister candidates".to_string(),
+        description: "Cargo intake and canister tag bench".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -276,7 +267,7 @@ fn load_bench(
             plate_at,
             HangType::Above,
             intake.id,
-            "glb candidate, 6-slat leaves",
+            "promoted glb, 6-slat leaves",
         );
         commands.entity(plate).insert(BenchPlate);
         if index == 0 {
@@ -319,7 +310,7 @@ fn load_bench(
     );
 }
 
-/// The name prefix of every slat node in an intake candidate:
+/// The name prefix of every slat node in the intake:
 /// `intake_slat_<l|r><index>`, `l` for the leaf on the model's -X post.
 const SLAT_PREFIX: &str = "intake_slat_";
 
@@ -348,7 +339,7 @@ struct Slat {
 
 impl Slat {
     /// The slat `node` carries, or `None` for the unnamed static body. Panics
-    /// on any other name: the candidate and this example disagree.
+    /// on any other name: the intake art and this example disagree.
     fn of(node: &glb::GlbNode, model: &str) -> Option<Self> {
         let name = node.name.as_deref()?;
         let (toward, index) = name
@@ -414,10 +405,10 @@ fn posed_bounds<'a>(
         })
 }
 
-/// An intake candidate at its stand: its glb node by node, yawed so the door
+/// The intake at its stand: its glb node by node, yawed so the door
 /// face (-Z in the model) looks down the bench's +Z, and a canister per cell
 /// row inside. Panics if any fold pose leaves the cell box: a door that only
-/// fits shut is not a candidate.
+/// fits shut does not ship.
 fn spawn_intake(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
@@ -500,7 +491,7 @@ fn spawn_intake(
         });
 }
 
-/// One canister centred on `parent`, from the candidate's decoded meshes.
+/// One canister centred on `parent`, from its decoded meshes.
 fn spawn_canister(
     parent: &mut ChildSpawnerCommands,
     canister: &[(Handle<Mesh>, Handle<StandardMaterial>)],
@@ -764,14 +755,12 @@ fn frame_new_camera(
     }
 }
 
-/// The close-ups, as (eye, look) in engine units: each intake a little
+/// The close-ups, as (eye, look) in engine units: the intake a little
 /// off-axis so the folded packs read in depth, then both ends of the canister
 /// dolly. The far end holds every tag out of range; the near end stands
 /// inside [`NEAR_RANGE`] of all three.
 #[cfg(feature = "debug")]
-const SINGLE_CELL_SHOT: (Vec3, Vec3) = (Vec3::new(-1.2, 1.7, 4.2), Vec3::new(-2.4, 0.0, 0.3));
-#[cfg(feature = "debug")]
-const TWO_CELL_SHOT: (Vec3, Vec3) = (Vec3::new(3.0, 2.1, 3.1), Vec3::new(2.9, 0.75, 0.2));
+const INTAKE_SHOT: (Vec3, Vec3) = (Vec3::new(0.0, 2.3, 4.0), Vec3::new(-0.1, 0.75, 0.2));
 #[cfg(feature = "debug")]
 const CANISTERS_FAR: (Vec3, Vec3) = (Vec3::new(0.0, 3.2, 16.0), Vec3::new(0.0, -0.2, 6.0));
 #[cfg(feature = "debug")]
@@ -839,12 +828,12 @@ fn doors_at(target: f32) -> std::sync::Arc<nova_protocol::nova_debug::harness::P
     })
 }
 
-/// The driven walk: the overview shut, then open, a door cycle close on each
+/// The driven walk: the overview shut, then open, a door cycle close on the
 /// intake, then the dolly onto the canisters.
 #[cfg(feature = "debug")]
 fn intake_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let travel = DOOR_TRAVEL_SECS * 3.0;
-    let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("wait for the bench")
         .enter(GameStates::Loading)
         .until(and(
@@ -868,38 +857,31 @@ fn intake_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("hold the shut bench")
         .until(elapsed(1.0))
         .add()
-        .step("open every door")
+        .step("open the door")
         .on_enter(drive_doors(1.0))
         .until(doors_at(1.0))
         .deadline(travel)
         .add()
         .step("hold the open bench")
         .until(elapsed(0.8))
-        .add();
-    for (slug, shot, hold) in [
-        ("2x1x1", SINGLE_CELL_SHOT, 0.4),
-        ("2x2x1", TWO_CELL_SHOT, 0.8),
-    ] {
-        script = script
-            .step(format!("close on the {slug} intake"))
-            .on_enter(move |world: &mut World| frame(world, shot))
-            .until(elapsed(0.6))
-            .add()
-            .step(format!("shut the {slug} doors"))
-            .on_enter(drive_doors(0.0))
-            .until(doors_at(0.0))
-            .deadline(travel)
-            .add()
-            .step(format!("reopen the {slug} doors"))
-            .on_enter(drive_doors(1.0))
-            .until(doors_at(1.0))
-            .deadline(travel)
-            .add()
-            .step(format!("hold the open {slug} intake"))
-            .until(elapsed(hold))
-            .add();
-    }
-    script
+        .add()
+        .step("close on the intake")
+        .on_enter(|world: &mut World| frame(world, INTAKE_SHOT))
+        .until(elapsed(0.6))
+        .add()
+        .step("shut the door")
+        .on_enter(drive_doors(0.0))
+        .until(doors_at(0.0))
+        .deadline(travel)
+        .add()
+        .step("reopen the door")
+        .on_enter(drive_doors(1.0))
+        .until(doors_at(1.0))
+        .deadline(travel)
+        .add()
+        .step("hold the open intake")
+        .until(elapsed(0.8))
+        .add()
         .step("dolly onto the canisters")
         .on_enter(|world: &mut World| {
             world.insert_resource(BenchPlates(false));

@@ -71,11 +71,13 @@ pub(crate) const BLOCK_LINE_WARSHIP_TORPEDO_IDS: [&str; 2] = ["torpedo_port", "t
 /// The line warship's dorsal cargo intake.
 pub(crate) const BLOCK_LINE_WARSHIP_INTAKE_ID: &str = "cargo_intake";
 
-/// The four dorsal cells the line warship's intake replaces, starboard of the
+/// The six dorsal cells the line warship's intake replaces, centred on the
 /// spine between the aft point-defense seats and the transom.
-const LINE_WARSHIP_INTAKE_CELLS: [IVec3; 4] = [
+const LINE_WARSHIP_INTAKE_CELLS: [IVec3; 6] = [
+    IVec3::new(-1, 1, 5),
     IVec3::new(0, 1, 5),
     IVec3::new(1, 1, 5),
+    IVec3::new(-1, 1, 6),
     IVec3::new(0, 1, 6),
     IVec3::new(1, 1, 6),
 ];
@@ -390,7 +392,7 @@ pub(super) fn patrol_gunship() -> BlockShip {
 /// hull this long. One docking collar takes the middle cell of each shoulder,
 /// hatch outboard, clear of the drives aft and the bays forward.
 ///
-/// A 2x2 cargo intake replaces four top-deck cells aft, door up and flush
+/// A 3x2 cargo intake replaces six top-deck cells aft, door up and flush
 /// with the deck, one plate row behind the aft point-defense seats. It is
 /// off-grid, so [`carve`] clears its cells.
 pub(super) fn line_warship() -> BlockShip {
@@ -477,7 +479,7 @@ pub(super) fn line_warship() -> BlockShip {
             part(
                 BLOCK_LINE_WARSHIP_INTAKE_ID,
                 CARGO_INTAKE_SECTION_ID,
-                Vec3::new(0.5, 1.0, 5.5),
+                Vec3::new(0.0, 1.0, 5.5),
                 Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
             ),
         ],
@@ -918,10 +920,10 @@ mod tests {
         }
     }
 
-    /// The line warship's intake sits where four top-deck cells were, door
+    /// The line warship's intake sits where six top-deck cells were, door
     /// up: no plate is left inside it and its door faces open space.
     #[test]
-    fn the_line_warship_intake_opens_up_over_four_replaced_cells() {
+    fn the_line_warship_intake_opens_up_over_six_replaced_cells() {
         let sections = line_warship().sections();
         let intake = sections
             .iter()

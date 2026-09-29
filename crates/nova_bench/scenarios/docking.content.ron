@@ -139,7 +139,7 @@
                             controller: Player((
                                 input_mapping: {},
                             )),
-                            inventory: (capacity: 40, stacks: {}),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),
@@ -202,7 +202,7 @@
                             )),
                             controller: r#None,
                             allegiance: Some(Neutral),
-                            inventory: (capacity: 40, stacks: {}),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),

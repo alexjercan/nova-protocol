@@ -26,7 +26,10 @@ use bevy::prelude::*;
 use nova_events::{prelude::EntityTypeName, units::prelude::*};
 
 use super::{components::prelude::*, health::prelude::*};
-use crate::damage::prelude::{apply_damage, DamageType};
+use crate::{
+    damage::prelude::{apply_damage, DamageType},
+    prelude::SectionMarker,
+};
 
 /// `IntegrityCorePlugin` and `IntegritySystems`.
 pub mod prelude {
@@ -355,8 +358,20 @@ pub fn impact_damage(impulse: f32, energy: f32, absorbed_energy: f32) -> f32 {
     impulse * IMPULSE_DAMAGE_MODIFIER + (energy - absorbed_energy).max(0.0) * ENERGY_DAMAGE_MODIFIER
 }
 
-/// Disable a node the moment its health reaches zero.
-fn on_health_depleted_insert_disabled(add: On<Add, HealthZeroMarker>, mut commands: Commands) {
+/// Disable a structure node or section the moment its health reaches zero. A
+/// section outside the graph, such as a launched torpedo, still needs the
+/// marker for its destroy and explosion. Any other body, such as a cargo
+/// canister, is left to its owner: its owner may despawn it in the same flush,
+/// and a queued insert would then panic.
+fn on_health_depleted_insert_disabled(
+    add: On<Add, HealthZeroMarker>,
+    mut commands: Commands,
+    q_nodes: Query<(), Or<(With<ConnectedTo>, With<IntegrityRoot>, With<SectionMarker>)>>,
+) {
+    if !q_nodes.contains(add.entity) {
+        return;
+    }
+
     trace!("integrity: entity {:?} depleted, disabling", add.entity);
     commands.entity(add.entity).insert(IntegrityDisabledMarker);
 }
@@ -606,6 +621,49 @@ mod tests {
             app.world().get::<IntegrityDestroyMarker>(inner).is_some(),
             "pruning the outer leaf made the disabled interior node a leaf, so it cascaded"
         );
+    }
+
+    /// Only structure nodes are disabled. A depleted body outside any structure
+    /// belongs to its owner, which may despawn it in the same flush.
+    #[test]
+    fn a_depleted_body_outside_a_structure_is_not_disabled() {
+        let mut app = integrity_core_app();
+        let body = app.world_mut().spawn(Health::new(20.0)).id();
+        app.update();
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: body,
+            source: None,
+            amount: 20.0,
+        });
+        app.world_mut().flush();
+
+        assert!(app.world().get::<HealthZeroMarker>(body).is_some());
+        assert!(app.world().get::<IntegrityDisabledMarker>(body).is_none());
+    }
+
+    /// A section outside the graph, such as a launched torpedo, is still
+    /// disabled so its owner can destroy and explode it.
+    #[test]
+    fn a_depleted_section_outside_a_structure_is_disabled() {
+        let mut app = integrity_core_app();
+        let section = app
+            .world_mut()
+            .spawn((Health::new(20.0), SectionMarker))
+            .id();
+        app.update();
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: section,
+            source: None,
+            amount: 20.0,
+        });
+        app.world_mut().flush();
+
+        assert!(app
+            .world()
+            .get::<IntegrityDisabledMarker>(section)
+            .is_some());
     }
 
     /// A disabled root takes the whole structure with it, leaf or not.

@@ -6,6 +6,8 @@
 //! Touch this module when changing what the Inventory pane shows, how a row
 //! is selected or how an action is confirmed.
 
+use std::collections::BTreeMap;
+
 use bevy::{
     ecs::system::SystemParam,
     prelude::*,
@@ -695,7 +697,11 @@ pub(crate) struct InventoryShips<'w, 's> {
     intakes: Query<
         'w,
         's,
-        (Entity, &'static ChildOf, Has<CargoIntakeEjection>),
+        (
+            Entity,
+            &'static ChildOf,
+            Option<&'static CargoIntakeEjection>,
+        ),
         (
             With<CargoIntakeSectionMarker>,
             Without<SectionInactiveMarker>,
@@ -762,13 +768,12 @@ impl InventoryShips<'_, '_> {
     }
 
     /// The live cargo intake a jettison from `ship` leaves through, the lowest
-    /// entity when there are several, and whether it still holds an earlier
-    /// jettison.
-    pub(crate) fn intake(&self, ship: Entity) -> Option<(Entity, bool)> {
+    /// entity when there are several, with its pending ejection.
+    pub(crate) fn intake(&self, ship: Entity) -> Option<(Entity, Option<CargoCanister>)> {
         self.intakes
             .iter()
             .filter(|(_, child_of, _)| child_of.parent() == ship)
-            .map(|(intake, _, busy)| (intake, busy))
+            .map(|(intake, _, pending)| (intake, pending.map(|pending| pending.0.clone())))
             .min_by_key(|(intake, _)| *intake)
     }
 
@@ -1015,13 +1020,12 @@ pub(crate) fn apply_inventory_action_commands(
         actions.clear();
         return;
     };
-    // The ejection insert lands after this run, so a second jettison in the
-    // same run reads the intake as busy from here.
-    let mut jettisoned = false;
+    // Deferred inserts are not visible to the next command in this pass.
+    let mut pending = BTreeMap::new();
     for command in actions.read() {
         let result = match command.action.transfer() {
             Some(transfer) => transfer_items(&mut ships, pair, transfer, *command),
-            None => jettison_items(&mut ships, pair, *command, &mut jettisoned, &mut commands),
+            None => jettison_items(&mut ships, pair, *command, &mut pending, &mut commands),
         };
         let (note, cue, volume) = match result {
             Ok(note) => {
@@ -1066,8 +1070,8 @@ fn transfer_items(
                 ItemTransferRefusalType::Short { held } => {
                     format!("Refused: only {held} {label} in {source_title}")
                 }
-                ItemTransferRefusalType::NoRoom { free } => {
-                    format!("Refused: {target_title} has room for {free} more")
+                ItemTransferRefusalType::NoRoom { free_kg } => {
+                    format!("Refused: {target_title} has room for {free_kg} kg more")
                 }
             }
         })?;
@@ -1084,25 +1088,26 @@ fn transfer_items(
 }
 
 /// Put one command's items on the player's cargo intake as a canister, or say
-/// why not. Both texts are the note line. `jettisoned` is true once an earlier
-/// command in this run has loaded the intake.
+/// why not. Both texts are the note line. `pending` tracks deferred merges.
 fn jettison_items(
     ships: &mut InventoryShips,
     pair: InventoryPair,
     command: InventoryActionCommand,
-    jettisoned: &mut bool,
+    pending: &mut BTreeMap<Entity, CargoCanister>,
     commands: &mut Commands,
 ) -> Result<String, String> {
     let InventoryActionCommand { item, quantity, .. } = command;
     let label = item.label();
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let intake = ships.intake(pair.own);
-    let busy = *jettisoned || intake.is_some_and(|(_, busy)| busy);
+    let queued = intake
+        .as_ref()
+        .and_then(|(entity, existing)| pending.get(entity).or(existing.as_ref()));
     let (_, own, _) = ships.ship(pair.own);
     let count = plan_item_jettison(
         pair.partner.is_some(),
         intake.is_some(),
-        busy,
+        queued,
         item,
         quantity,
         own,
@@ -1110,25 +1115,29 @@ fn jettison_items(
     .map_err(|refusal| match refusal {
         ItemJettisonRefusalType::Docked => "Refused: undock to jettison".to_string(),
         ItemJettisonRefusalType::NoIntake => "Refused: no working cargo intake".to_string(),
-        ItemJettisonRefusalType::IntakeBusy => {
-            "Refused: the cargo intake still holds a canister".to_string()
-        }
+        ItemJettisonRefusalType::Overweight => "Refused: canister exceeds 200 kg".to_string(),
         ItemJettisonRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
         ItemJettisonRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
         ItemJettisonRefusalType::Short { held } => {
             format!("Refused: only {held} {label} in {own_title}")
         }
     })?;
-    let (intake, _) = intake.expect("plan_item_jettison refuses a ship with no intake");
+    let (intake, existing) = intake.expect("plan_item_jettison refuses a ship with no intake");
     let (_, mut own, ..) = ships
         .ships
         .get_mut(pair.own)
         .expect("InventoryShips::pair checked the player ship");
     own.remove(item, count);
+    let canister = if let Some(mut earlier) = pending.remove(&intake).or(existing) {
+        earlier.add(item, count);
+        earlier
+    } else {
+        CargoCanister::new(item, count)
+    };
     commands
         .entity(intake)
-        .insert(CargoIntakeEjection(CargoCanister { item, count }));
-    *jettisoned = true;
+        .insert(CargoIntakeEjection(canister.clone()));
+    pending.insert(intake, canister);
     Ok(format!("Jettisoned {count} {label}"))
 }
 
@@ -1198,9 +1207,9 @@ pub(crate) fn update_inventory_panel(
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let own = SideView {
         heading: format!(
-            "{own_title} {}/{}",
-            own_inventory.total(),
-            own_inventory.capacity()
+            "{own_title} {}/{} kg",
+            own_inventory.used_kg(),
+            own_inventory.capacity_kg()
         ),
         title: own_title,
         stacks: Some(own_inventory.stacks().collect()),

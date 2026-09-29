@@ -72,7 +72,7 @@ PROMOTED_STEMS = (
     "core_wires",
     "railgun_lance",
     "dock_flush",
-    "intake_accordion_2x2x1",
+    "intake_accordion_3x2x1",
     "cargo_canister_cuboid",
 )
 PROMOTED_OUTPUTS = {

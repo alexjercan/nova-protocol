@@ -44,7 +44,8 @@ impl Health {
 }
 
 /// Marks a node whose health has reached zero. Inserted by `on_damage`; the
-/// integrity core turns it into [`IntegrityDisabledMarker`](super::components::IntegrityDisabledMarker).
+/// integrity core turns it into [`IntegrityDisabledMarker`](super::components::IntegrityDisabledMarker)
+/// on structure nodes and sections only.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
 pub struct HealthZeroMarker;

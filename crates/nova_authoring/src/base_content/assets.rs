@@ -48,7 +48,7 @@ pub struct BaseContentAssets {
     /// The sealed-hatch docking port: a 1x1x1 cell whose `dock_tube` node the
     /// `DockTube` track slides 0.5 out along the port face (-Z).
     pub dock_flush: AssetRef<WorldAsset>,
-    /// The cargo intake: a 2x2x1 frame whose twelve `intake_slat_` nodes the
+    /// The cargo intake: a 3x2x1 frame whose twelve `intake_slat_` nodes the
     /// `IntakeDoor` track folds aside from the door face (-Z).
     pub cargo_intake: AssetRef<WorldAsset>,
     /// The cargo canister an intake drops: a 0.94 x 0.58 x 0.58 cell cuboid,
@@ -219,7 +219,7 @@ impl BaseContentAssets {
             railgun_lance: AssetRef::from("self://gltf/railgun_lance.glb#Scene0".to_string()),
             dock_flush: AssetRef::from("self://gltf/dock_flush.glb#Scene0".to_string()),
             cargo_intake: AssetRef::from(
-                "self://gltf/intake_accordion_2x2x1.glb#Scene0".to_string(),
+                "self://gltf/intake_accordion_3x2x1.glb#Scene0".to_string(),
             ),
             cargo_canister: AssetRef::from(
                 "self://gltf/cargo_canister_cuboid.glb#Scene0".to_string(),

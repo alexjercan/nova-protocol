@@ -432,3 +432,24 @@ fn the_base_voice_names_every_cue_at_a_file_that_exists() {
     assert!(!voice.skin, "the voice is not a look");
     assert_eq!(voice.style, None);
 }
+
+/// The hold counts resolved hull sections only: two plates and an engine give
+/// 200 kg, and an empty design gives none.
+#[test]
+fn cargo_capacity_is_100_kg_per_resolved_hull_section() {
+    let designs = designs(
+        "hauler",
+        vec![
+            placed("bow", SectionSource::prototype("plate")),
+            placed("stern", SectionSource::prototype("plate")),
+            placed("engine", SectionSource::prototype("engine")),
+        ],
+    );
+
+    let (resolved, errors) =
+        resolve_ship_design(&ShipDesignSource::prototype("hauler"), &designs, &catalog());
+
+    assert!(errors.is_empty(), "{errors:?}");
+    assert_eq!(resolved.cargo_capacity_kg(), 2 * HULL_SECTION_CARGO_KG);
+    assert_eq!(ResolvedShipDesign::default().cargo_capacity_kg(), 0);
+}

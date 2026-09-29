@@ -15,7 +15,7 @@ use super::*;
 /// The door face plane of the fixture intake, hull-local, in world units.
 const FACE_Z: f32 = -2.5;
 const CAPTURE_GAP: Meters = Meters(1.0);
-const APERTURE_WIDTH: Meters = Meters(14.1);
+const APERTURE_WIDTH: Meters = Meters(22.2);
 
 fn intake_config() -> CargoIntakeSectionConfig {
     CargoIntakeSectionConfig {
@@ -28,7 +28,7 @@ fn intake_config() -> CargoIntakeSectionConfig {
         detection_range: Meters(40.0),
         capture_gap: CAPTURE_GAP,
         aperture_width: APERTURE_WIDTH,
-        aperture_height: Meters(16.0),
+        aperture_height: Meters(15.3),
         maximum_capture_speed: MetersPerSecond(5.0),
         eject_speed: MetersPerSecond(3.0),
     }
@@ -99,7 +99,7 @@ fn record_watched_canister(
     watch.ticks.push(tick);
 }
 
-/// A headless app with one hull carrying `stock` hull plates in a 40-item
+/// A headless app with one hull carrying `stock` hull plates in a 400 kg
 /// hold and one intake. Returns the app, the ship and the intake.
 fn intake_app(stock: u32) -> (App, Entity, Entity) {
     let mut app = unfinished_integrity_physics_app();
@@ -119,7 +119,7 @@ fn intake_app(stock: u32) -> (App, Entity, Entity) {
             SpaceshipRootMarker,
             RigidBody::Dynamic,
             Transform::default(),
-            ShipInventory::new(SHIP_CARGO_CAPACITY, [(ItemType::HullPlate, stock)]),
+            ShipInventory::new(400, [(ItemType::HullPlate, stock)]),
         ))
         .id();
     app.world_mut().spawn((
@@ -129,7 +129,7 @@ fn intake_app(stock: u32) -> (App, Entity, Entity) {
         ColliderDensity(1.0),
     ));
     let collider = SectionCollider::Cuboid {
-        size: Vec3::new(2.0, 2.0, 1.0),
+        size: Vec3::new(3.0, 2.0, 1.0),
     };
     let intake = app
         .world_mut()
@@ -145,7 +145,7 @@ fn intake_app(stock: u32) -> (App, Entity, Entity) {
                 node_prefix: "intake_slat_".to_string(),
                 motion: SectionAnimationMotion::Fold {
                     degrees: 80.0,
-                    slat_width: 0.1458,
+                    slat_width: 0.2292,
                     slat_thickness: 0.02,
                 },
                 open_seconds: 1.2,
@@ -169,10 +169,7 @@ fn drifting_canister(
 ) -> Entity {
     app.world_mut()
         .spawn(cargo_canister(
-            CargoCanister {
-                item: ItemType::HullPlate,
-                count,
-            },
+            CargoCanister::new(ItemType::HullPlate, count),
             Transform::from_translation(at).with_rotation(rotation),
             velocity,
             AssetRef::from("canister.glb#Scene0"),
@@ -245,7 +242,7 @@ fn canisters(app: &mut App) -> Vec<(Entity, CargoCanister, Vec3)> {
     let world = app.world_mut();
     let mut q = world.query::<(Entity, &CargoCanister, &Position)>();
     q.iter(world)
-        .map(|(entity, canister, position)| (entity, *canister, position.0))
+        .map(|(entity, canister, position)| (entity, canister.clone(), position.0))
         .collect()
 }
 
@@ -392,6 +389,12 @@ fn a_canister_whose_footprint_crosses_the_aperture_edge_is_not_taken() {
         "it crossed the gap at an open door for {open_in_gap} ticks"
     );
     assert_eq!(plates(&app, ship), 12);
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.canister == canister && !pair.ready));
 }
 
 #[test]
@@ -408,11 +411,29 @@ fn a_fast_canister_slowed_by_its_impact_is_not_taken_while_it_touches_the_ship()
     watch(&mut app, canister, intake);
 
     let mut frames = 0;
+    let mut fast_in_gap = 0;
     while !ticks(&app).last().is_some_and(|tick| tick.touching) {
         app.update();
         frames += 1;
         assert!(frames < 400, "the canister never met the door");
+        if ticks(&app).last().is_some_and(|tick| {
+            tick.door >= 1.0
+                && tick.gap.is_some_and(|gap| gap <= CAPTURE_GAP.to_engine())
+                && !tick.touching
+        }) {
+            fast_in_gap += 1;
+            assert!(app
+                .world()
+                .resource::<CargoPickupReadiness>()
+                .pairs
+                .iter()
+                .any(|pair| pair.canister == canister && !pair.ready));
+        }
     }
+    assert!(
+        fast_in_gap > 0,
+        "speed was never isolated inside the open gap"
+    );
     // It comes to rest on the door.
     for _ in 0..120 {
         app.update();
@@ -439,6 +460,12 @@ fn a_fast_canister_slowed_by_its_impact_is_not_taken_while_it_touches_the_ship()
         "the impact left it touching the ship under the capture speed"
     );
     assert_eq!(plates(&app, ship), 12);
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.canister == canister && !pair.ready));
 }
 
 #[test]
@@ -491,6 +518,12 @@ fn a_canister_that_hit_the_ship_is_taken_only_after_it_separates_and_closes_agai
         "it never left contact inside the capture gap"
     );
     assert_eq!(plates(&app, ship), 12);
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.canister == canister && !pair.ready));
 
     // Turned back at 3 m/s, it is taken before it touches the door again.
     let velocity = Vec3::new(0.0, 0.0, 0.3);
@@ -511,6 +544,92 @@ fn a_canister_that_hit_the_ship_is_taken_only_after_it_separates_and_closes_agai
 }
 
 #[test]
+fn published_pickup_readiness_matches_the_take_and_refuses_unmet_gates() {
+    let (mut app, ship, intake) = intake_app(12);
+    let canister = drifting_canister(
+        &mut app,
+        4,
+        Vec3::new(0.0, 0.0, in_front(0.06)),
+        Quat::IDENTITY,
+        Vec3::ZERO,
+    );
+    app.update();
+    let pair = app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .find(|pair| pair.intake == intake && pair.canister == canister)
+        .unwrap();
+    assert_eq!(pair.ship, ship);
+    assert!((pair.face - Vec3::new(0.0, 0.0, FACE_Z)).length() < 0.01);
+    assert_eq!(pair.normal, Vec3::NEG_Z);
+    assert!(!pair.ready, "a closed door cannot take cargo");
+    assert!(app.world().get_entity(canister).is_ok());
+
+    // The same stationary candidate becomes ready only on the pass that
+    // takes it. No prediction of when the door will finish counts as ready.
+    let mut frames = 0;
+    while app.world().get_entity(canister).is_ok() {
+        app.update();
+        frames += 1;
+        assert!(frames < 200, "the door never allowed the take");
+        if app.world().get_entity(canister).is_ok() {
+            assert!(app
+                .world()
+                .resource::<CargoPickupReadiness>()
+                .pairs
+                .iter()
+                .all(|pair| pair.canister != canister || !pair.ready));
+        }
+    }
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.canister == canister && pair.ready));
+    assert_eq!(plates(&app, ship), 16);
+
+    // A locked distant candidate still gets a pair, but it is not ready.
+    let far = drifting_canister(
+        &mut app,
+        1,
+        Vec3::new(0.0, 0.0, in_front(8.0)),
+        Quat::IDENTITY,
+        Vec3::ZERO,
+    );
+    app.update();
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.canister == far && !pair.ready));
+}
+
+#[test]
+fn zero_health_destroys_canister_and_loses_its_stock() {
+    let (mut app, ship, _) = intake_app(12);
+    let canister = drifting_canister(
+        &mut app,
+        4,
+        Vec3::new(0.0, 0.0, in_front(4.0)),
+        Quat::IDENTITY,
+        Vec3::ZERO,
+    );
+    assert_eq!(app.world().get::<Health>(canister).unwrap().current, 20.0);
+    app.world_mut().trigger(HealthApplyDamage {
+        entity: canister,
+        source: None,
+        amount: 20.0,
+    });
+    app.update();
+    assert!(app.world().get_entity(canister).is_err());
+    assert_eq!(plates(&app, ship), 12);
+}
+
+#[test]
 fn a_canister_larger_than_the_free_room_is_refused_whole() {
     let (mut app, ship, intake) = intake_app(38);
     let canister = drifting_canister(
@@ -525,10 +644,18 @@ fn a_canister_larger_than_the_free_room_is_refused_whole() {
         app.update();
     }
     assert_eq!(door(&app, intake), 1.0, "the door opened for it");
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.canister == canister && !pair.ready));
     assert_eq!(plates(&app, ship), 38, "no part of it is taken");
     assert_eq!(
-        app.world().get::<CargoCanister>(canister).map(|c| c.count),
-        Some(4)
+        app.world()
+            .get::<CargoCanister>(canister)
+            .map(CargoCanister::total_mass_kg),
+        Some(40)
     );
 
     // Room is the only thing that refused it.
@@ -548,10 +675,10 @@ fn an_ejected_canister_is_taken_back_as_soon_as_it_closes_on_the_open_door() {
     let (mut app, ship, intake) = intake_app(8);
     app.world_mut()
         .entity_mut(intake)
-        .insert(CargoIntakeEjection(CargoCanister {
-            item: ItemType::HullPlate,
-            count: 4,
-        }));
+        .insert(CargoIntakeEjection(CargoCanister::new(
+            ItemType::HullPlate,
+            4,
+        )));
 
     // The ejection waits for the door, then leaves across the face.
     let mut frames = 0;
@@ -559,10 +686,13 @@ fn an_ejected_canister_is_taken_back_as_soon_as_it_closes_on_the_open_door() {
         app.update();
         frames += 1;
         assert!(frames < 200, "the ejection never left");
-        if let Some(&(entity, held, position)) = canisters(&mut app).first() {
+        if let Some((entity, held, position)) = canisters(&mut app).first() {
             assert_eq!(door(&app, intake), 1.0, "it left through an open door");
-            assert_eq!(held.count, 4);
-            break (entity, position);
+            assert_eq!(
+                held.stacks().collect::<Vec<_>>(),
+                [(ItemType::HullPlate, 4)]
+            );
+            break (*entity, *position);
         }
     };
     assert!(app.world().get::<CargoIntakeEjection>(intake).is_none());

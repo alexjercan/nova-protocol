@@ -16,7 +16,8 @@ use crate::prelude::*;
 
 /// Every reference a spawned (or scatter-template) ship makes must resolve:
 /// the design it names, the section prototypes that design is built from, and
-/// the sections its spawn-time patches aim at.
+/// the sections its spawn-time patches aim at. Its inventory stock must also
+/// fit the resolved design's hold.
 ///
 /// A `Prototype` design's own geometry is NOT re-checked here - it is linted
 /// where the design catalog is walked ([`lint_ship_design_config`]), the same
@@ -45,6 +46,22 @@ pub(super) fn check_object_prototypes(
             })
             .unwrap_or_default(),
     );
+    let (resolved, errors) = resolve_ship_design(&ship.design, &catalog, sections.catalog());
+    // The spawn fills the hold from this stock and panics when it does not fit.
+    // An unknown design already reports its own error and has no hold to fit.
+    let known_design = !errors
+        .iter()
+        .any(|error| matches!(error, ShipDesignError::UnknownDesign(_)));
+    let (stock_kg, capacity_kg) = (ship.inventory.mass_kg(), resolved.cargo_capacity_kg());
+    if known_design && stock_kg > u64::from(capacity_kg) {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "ship '{}': inventory stock of {stock_kg} kg passes its {capacity_kg} kg hold",
+                config.base.id
+            ),
+        ));
+    }
     // An INLINE design is authored right here, so it is resolved and its
     // structure linted in one place below. It has no spawn layer to check
     // separately - it IS the design - and resolving it twice would report
@@ -59,7 +76,6 @@ pub(super) fn check_object_prototypes(
     // muzzle is caught here rather than at the first playthrough. The design's
     // OWN section references are dropped: they belong to the design, which the
     // catalog walk lints once however many scenarios spawn it.
-    let (_, errors) = resolve_ship_design(&ship.design, &catalog, sections.catalog());
     for error in errors {
         if matches!(error, ShipDesignError::UnknownSectionPrototype { .. }) {
             continue;

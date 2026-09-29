@@ -65,6 +65,7 @@ pub mod maneuver_instruments;
 pub mod objective_feedback;
 pub mod objective_markers;
 pub mod objective_stack;
+pub mod pickup_sight;
 pub mod readout;
 pub mod screen_indicator;
 pub mod situation;
@@ -89,11 +90,12 @@ pub mod prelude {
         hull_shell::prelude::*, item_highlights::prelude::*, key_glyphs::prelude::*,
         keybind_dock::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
         maneuver_instruments::prelude::*, objective_feedback::prelude::*,
-        objective_markers::prelude::*, objective_stack::prelude::*, readout::prelude::*,
-        screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
-        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, HudContextGate,
-        HudInterfaceExempt, HudSelfDrivenVisibility, HudSituationSensingSystems, HudTier,
-        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        objective_markers::prelude::*, objective_stack::prelude::*, pickup_sight::prelude::*,
+        readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
+        target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
+        velocity::prelude::*, HudContextGate, HudInterfaceExempt, HudSelfDrivenVisibility,
+        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -359,6 +361,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(objective_markers::ObjectiveMarkersHudPlugin);
         app.add_plugins(item_highlights::ItemHighlightsHudPlugin);
         app.add_plugins(cargo_canister_chips::CargoCanisterChipsHudPlugin);
+        app.add_plugins(pickup_sight::PickupSightPlugin);
         app.add_plugins(objective_feedback::ObjectiveFeedbackPlugin);
         // The top-centre objective NOTIFICATION stack: demo 2's objective chip,
         // one per posting, read by its dwell or by opening the interface. The chip IS

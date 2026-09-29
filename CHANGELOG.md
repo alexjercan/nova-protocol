@@ -67,9 +67,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid without `mass` has no gravity well and stays
   dynamic at any size. `mass: Some(..)` makes a static well and must be finite
   and 0 or more.
-- **(breaking)** Spaceships require `inventory: (capacity: 40, stacks:
-  {HullPlate: 12})`. A zero count, a repeated item or stock past capacity
-  fails lint and load.
+- **(breaking)** Spaceships require `inventory: {HullPlate: 12}`. Each hull
+  section gives 100 kg of hold. A zero count or a repeated item fails load;
+  stock past the hold fails lint, then load.
 - New `CargoIntake` section kind with required door, eject and take sounds,
   `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures,
   speeds and a missing door track.
@@ -82,11 +82,14 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** TAB opens a themed interface with Map, Ship and Inventory
   panes; M or pad Y steps through them. GOTO and mates are pane keys; Repair,
   Reload and Rebind are keys and buttons.
-- The Inventory pane lists what your ship and a docked ship carry, 40 items
-  at most. Docked, Give, or Take once neutralized or lootable. Ship pane
+- The Inventory pane lists your ship's and a docked ship's cargo and your
+  load in kg. Docked, Give, or Take once neutralized or lootable. Ship pane
   Repair spends hull plates, 1 per 20 HP, anywhere.
-- Undocked, Jettison drops items in one canister through your cargo intake.
-  Canisters within 100 m carry an amber tag reading what they hold.
+- Undocked, Jettison merges stacks into one pending canister, up to 200 kg.
+  Canisters have 20 HP, lose their contents on destruction, and accept travel
+  but not combat locks.
+- Nearby canisters show an amber cargo tag with mass. A canister within 200 m
+  gets a cyan intake sight with no lock needed; a travel-locked one goes first.
 - The TAB interface blips on open and close like the pause menu, and clicks
   when a tab, filter, item, contact or section pick changes, and on Reframe,
   Fit, Reset, Repair, Reload and Rebind.
