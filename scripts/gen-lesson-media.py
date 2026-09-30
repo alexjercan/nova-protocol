@@ -140,7 +140,7 @@ LESSONS = [
     ("build_generate", "Generate a hull", "loop"),
     ("interface_open", "Opening the interface", "loop"),
     ("interface_map", "The Map pane", "loop"),
-    ("interface_ship_service", "Repair and reload a section", "loop"),
+    ("interface_ship_service", "Repair a section", "loop"),
     ("interface_rebind_section", "Rebinding a section", "loop"),
     ("command_open", "Opening NOVA COMMANDS", "loop"),
     ("command_prompt", "The prompt", "loop"),
