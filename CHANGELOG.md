@@ -102,6 +102,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** The `SalvageCrate` object is removed; content that spawns one
   fails to load. Use a `Beacon` with `area_radius` for a reach-this-location
   trigger. Entering it moves no cargo.
+- An open world pins its ship parts to the loaded mod catalog. It panics at
+  arming if the catalog has a non-finite value, and if the catalog changes
+  under an armed world.
 
 ### Interface & HUD
 

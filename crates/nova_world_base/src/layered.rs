@@ -5,12 +5,16 @@
 //! places are, what they are FILLED with out of shipped content, and how far
 //! apart it stands them. It takes no list from a caller.
 
+use std::sync::Arc;
+
+use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::Meters;
 use nova_world::prelude::*;
 
 use crate::{
     clusters::{plan_sector, validate_cluster_geometry},
     environment::EnvironmentFields,
+    ship_parts::{ShipPartFault, ShipPartPack, ShipPartSnapshot},
 };
 
 /// Extra room this generator keeps between every pair of clearance spheres
@@ -40,12 +44,59 @@ const SECTOR_EDGE_MAX: Meters = Meters(128_000.0);
 /// lattice node or the cell, in a fixed order, so a cell is the same cell in
 /// any visit order.
 ///
-/// No fields. The content it draws from is the shipped content the policy
-/// names - every natural asteroid kind, every `PlanetType`, and the shipped
-/// derelict hulls - so there is no list a caller could leave empty or fill
-/// with an id the game does not ship.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NovaLayeredWorld;
+/// No content list from a caller. The bodies it draws from are the shipped
+/// content the policy names - every natural asteroid kind, every `PlanetType`,
+/// and the shipped derelict hulls - so there is no list a caller could leave
+/// empty or fill with an id the game does not ship. The ship parts it pins are
+/// the snapshot of the loaded catalog it was built from, with that catalog's
+/// digest; nothing draws a ship from them yet.
+#[derive(Clone, Debug)]
+pub struct NovaLayeredWorld {
+    parts: Arc<ShipPartSnapshot>,
+    catalog: ContentCatalogDigest,
+}
+
+/// Equal when both pin one catalog and one ship-part snapshot. Compares two
+/// digests, never the parts, so the arming check stays cheap every frame.
+impl PartialEq for NovaLayeredWorld {
+    fn eq(&self, other: &Self) -> bool {
+        self.catalog == other.catalog && self.parts.content_hash() == other.parts.content_hash()
+    }
+}
+
+impl NovaLayeredWorld {
+    /// Pin the ship parts of `loaded` and the digest of the catalog they came
+    /// from. Builds the snapshot once; a clone shares it.
+    ///
+    /// # Errors
+    ///
+    /// Every fault [`ShipPartSnapshot::build`] finds in the loaded sections.
+    pub fn from_loaded(loaded: &LoadedSectionPacks) -> Result<Self, Vec<ShipPartFault>> {
+        let packs: Vec<ShipPartPack> = loaded
+            .packs
+            .iter()
+            .map(|pack| ShipPartPack {
+                id: pack.id.clone(),
+                dependencies: pack.dependencies.clone(),
+                sections: pack.sections.clone(),
+            })
+            .collect();
+        Ok(Self {
+            parts: Arc::new(ShipPartSnapshot::build(&packs)?),
+            catalog: loaded.digest,
+        })
+    }
+
+    /// The ship parts this world was armed with.
+    pub fn parts(&self) -> &ShipPartSnapshot {
+        &self.parts
+    }
+
+    /// The digest of the catalog this world was armed over.
+    pub fn catalog(&self) -> ContentCatalogDigest {
+        self.catalog
+    }
+}
 
 impl SectorGenerator for NovaLayeredWorld {
     /// Refuse an edge wider than the 128 km `SECTOR_EDGE_MAX`, one too narrow
@@ -79,7 +130,7 @@ mod tests {
             seed: 20_260_922,
             sector_edge,
             active_radius: 2,
-            generator: NovaLayeredWorld,
+            generator: crate::tests::fixture_world(),
         }
     }
 

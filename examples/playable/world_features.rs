@@ -60,11 +60,11 @@ use bevy::{color::palettes::tailwind, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
-#[cfg(feature = "debug")]
-use world_fixture::EXAMPLE_ACTIVE_RADIUS;
 use world_fixture::{
     featured_world_config, free_play_scenario, world_observer_plugin, FEATURE_HOME,
 };
+#[cfg(feature = "debug")]
+use world_fixture::{EXAMPLE_ACTIVE_RADIUS, EXAMPLE_SECTOR_EDGE};
 
 #[derive(Parser)]
 #[command(name = "world_features")]
@@ -152,13 +152,17 @@ fn observer_plugin(app: &mut App) {
 /// `OnEnter` rather than `Update`: nova_world requires a `WorldConfig` writer
 /// to land ahead of `NovaWorldSystems::Cleanup`, and a state transition runs
 /// before `Update` at all.
-fn boot_observer(mut commands: Commands, game_assets: Res<GameAssets>) {
+fn boot_observer(
+    mut commands: Commands,
+    game_assets: Res<GameAssets>,
+    loaded: Res<LoadedSectionPacks>,
+) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
         SCENARIO_ID,
         "World Features Observer",
     )));
-    commands.insert_resource(featured_world_config());
+    commands.insert_resource(featured_world_config(&loaded));
 
     commands.spawn((
         Name::new("Observer Key Light"),
@@ -459,7 +463,7 @@ fn desired_cells(radius: i32) -> usize {
 fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let home = FEATURE_HOME;
     let across = home.offset(1, 0, 0);
-    let edge = featured_world_config().sector_edge;
+    let edge = EXAMPLE_SECTOR_EDGE;
 
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("wait for the streamed world")
@@ -623,7 +627,7 @@ struct ShotTargets {
 /// pictures of empty space that read as a successful run.
 #[cfg(feature = "debug")]
 fn pick_shot_targets(world: &mut World) {
-    let edge = featured_world_config().sector_edge;
+    let edge = EXAMPLE_SECTOR_EDGE;
     let home = FEATURE_HOME.centre(edge);
     let mut roots = world.query::<&RootClusters>();
     // Every cell that owns a body of a cluster hands back the same anchor and

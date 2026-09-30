@@ -1393,7 +1393,7 @@ mod tests {
             seed: SEED,
             sector_edge: Meters(32_000.0),
             active_radius: 2,
-            generator: NovaLayeredWorld,
+            generator: crate::tests::fixture_world(),
         }
     }
 

@@ -16,8 +16,11 @@
 //! asks for them. [`CivilizationField`] answers which seeded civilizations
 //! reach a place; only debug diagnostics read it, and the generator does not
 //! select ships from it yet. [`ShipPartSnapshot`] validates and scores the
-//! section prototypes generated ships may use; only the content lint and the
-//! `world_ships` debug example build one yet. [`generate_ship`] lays out one
+//! section prototypes generated ships may use. The open world pins one to its
+//! generator when it arms, built from the loaded catalog, and refuses a
+//! catalog that changes under it; the content lint and the `world_ships`
+//! debug example build their own. Nothing draws a ship from the pinned
+//! snapshot yet. [`generate_ship`] lays out one
 //! ship from a snapshot and [`generate_wreck`] ruins that same ship; only tests
 //! and `world_ships` call them yet.
 //!
@@ -28,6 +31,7 @@
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
+use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::PlayerSpaceshipMarker;
 use nova_scenario::prelude::{CurrentScenario, ScenarioRole};
@@ -155,12 +159,21 @@ impl Plugin for NovaWorldBasePlugin {
 ///   not there. Its roots retire with it.
 /// - Exactly one player ship: put the [`WorldObserver`] on it, and insert the
 ///   config from [`OpenWorldSession`] unless the same config is already armed.
+///   An armed world keeps the generator it armed with; an unarmed one builds
+///   its ship-part snapshot from [`LoadedSectionPacks`], once.
 ///
 /// # Panics
 ///
 /// An open-world scenario with no [`OpenWorldSession`] has no seed. Two or
 /// more player ships give the world no one place to stream around. Both are
 /// assembly faults, not runtime conditions, and there is no world to guess.
+///
+/// With exactly one player ship, it also panics when there are no
+/// [`LoadedSectionPacks`] (the merge logged why), when the loaded ship parts
+/// do not build a snapshot, and when the loaded catalog digest differs from
+/// the armed one. The last check runs before any config is written: a new
+/// config would retire every sector and regenerate the world from content it
+/// was not armed over.
 fn sync_open_world(world: &mut World) {
     let open = world
         .resource::<CurrentScenario>()
@@ -198,14 +211,41 @@ fn sync_open_world(world: &mut World) {
     if !world.entity(player).contains::<WorldObserver>() {
         world.entity_mut(player).insert(WorldObserver);
     }
-    let armed = WorldConfig {
+    let Some(loaded) = world.get_resource::<LoadedSectionPacks>() else {
+        panic!(
+            "nova_world_base: an OpenWorld scenario is live with no LoadedSectionPacks; the \
+             content merge refused the catalog and logged why"
+        );
+    };
+    let armed = world.get_resource::<WorldConfig<NovaLayeredWorld>>();
+    let generator = match armed {
+        Some(armed) if armed.generator.catalog() != loaded.digest => panic!(
+            "nova_world_base: the loaded content changed under an armed open world (catalog \
+             {:#018x} became {:#018x}); the world is generated from the catalog it armed over",
+            armed.generator.catalog().0,
+            loaded.digest.0
+        ),
+        Some(armed) => armed.generator.clone(),
+        None => NovaLayeredWorld::from_loaded(loaded).unwrap_or_else(|faults| {
+            panic!(
+                "nova_world_base: the loaded ship parts do not build a snapshot, so the open \
+                 world cannot arm:\n  {}",
+                faults
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n  ")
+            )
+        }),
+    };
+    let config = WorldConfig {
         seed: session.seed,
         sector_edge: OPEN_WORLD_SECTOR_EDGE,
         active_radius: OPEN_WORLD_ACTIVE_RADIUS,
-        generator: NovaLayeredWorld,
+        generator,
     };
-    if world.get_resource::<WorldConfig<NovaLayeredWorld>>() != Some(&armed) {
-        world.insert_resource(armed);
+    if armed != Some(&config) {
+        world.insert_resource(config);
     }
 }
 

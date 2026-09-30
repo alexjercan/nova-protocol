@@ -59,8 +59,9 @@ pub mod prelude {
             PortalConfig, PortalFetchTimeout, RemoteCatalog, RemoteCatalogState,
             UninstallPortalMod,
         },
-        shadows_shipped, DisabledMod, DownloadedMod, DownloadedMods, EnabledBundle, EnabledMods,
-        FatalAssetFailure, GameAssets, GameAssetsPlugin, GameAssetsStates, ModCatalog, ModInfo,
+        shadows_shipped, ContentCatalogDigest, DisabledMod, DownloadedMod, DownloadedMods,
+        EnabledBundle, EnabledMods, FatalAssetFailure, GameAssets, GameAssetsPlugin,
+        GameAssetsStates, LoadedSectionPack, LoadedSectionPacks, ModCatalog, ModInfo,
         ModQuarantine, OptionalBundle, OptionalBundles, ReloadContent, RELOAD_KEY,
     };
 }

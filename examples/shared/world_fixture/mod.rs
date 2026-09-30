@@ -108,17 +108,27 @@ pub fn uniform_world_config() -> WorldConfig<UniformAsteroids> {
     }
 }
 
-/// The same seed, window and edge, filled by the base game's generator.
+/// The same seed, window and edge, filled by the base game's generator and
+/// pinned to the ship parts of `loaded`.
 ///
 /// Sharing the streaming dials with [`uniform_world_config`] is the point:
 /// what changes between two examples is what a cell CONTAINS, so a difference
 /// in how the window behaves cannot be blamed on a different window.
-pub fn featured_world_config() -> WorldConfig<NovaLayeredWorld> {
+pub fn featured_world_config(loaded: &LoadedSectionPacks) -> WorldConfig<NovaLayeredWorld> {
     WorldConfig {
         seed: EXAMPLE_SEED,
         sector_edge: EXAMPLE_SECTOR_EDGE,
         active_radius: EXAMPLE_ACTIVE_RADIUS,
-        generator: NovaLayeredWorld,
+        generator: NovaLayeredWorld::from_loaded(loaded).unwrap_or_else(|faults| {
+            panic!(
+                "world fixture: the loaded catalog's ship parts do not arm:\n  {}",
+                faults
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n  ")
+            )
+        }),
     }
 }
 

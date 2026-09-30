@@ -2047,7 +2047,7 @@ fn prototype_of(section: &SpaceshipSectionConfig) -> Option<&str> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use nova_events::prelude::MetersPerSecond;
     use nova_ship::prelude::{
         BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, HullSectionConfig,
@@ -2165,7 +2165,7 @@ mod tests {
 
     /// Base content with a weak and a strong part of every family, and a mod
     /// with its own hull, drive and turret.
-    fn packs() -> Vec<ShipPartPack> {
+    pub(crate) fn packs() -> Vec<ShipPartPack> {
         vec![
             pack(
                 "base",

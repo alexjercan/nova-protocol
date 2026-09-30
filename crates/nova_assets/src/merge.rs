@@ -6,13 +6,18 @@
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
 /// public API of this module.
 pub mod prelude {
-    pub use super::{merge_bundles, register_bundles, MergeOutcome};
+    pub use super::{
+        merge_bundles, register_bundles, ContentCatalogDigest, LoadedSectionPack,
+        LoadedSectionPacks, MergeOutcome,
+    };
 }
 
-use std::collections::{HashMap, HashSet};
+mod canonical;
+
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::GameStates;
+use nova_gameplay::prelude::{Fnv64, GameStates};
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
     GameCampaigns, GameScenarios, GameShipDesigns, NewGameStart, ScenarioRole, ShipDesignPrototype,
@@ -36,7 +41,9 @@ use crate::{
 /// order, across its content files), and hands the whole ordered list to
 /// [`merge_bundles`]. A LATER (mod) bundle wins on an id collision with the base
 /// (load-order overlay); a duplicate id WITHIN one bundle is a conflict, logged and
-/// skipped. Both resources are always inserted (empty if nothing enabled/loaded).
+/// skipped. The registries are always inserted (empty if nothing enabled/loaded).
+/// [`LoadedSectionPacks`] is inserted only over a loaded catalog whose content
+/// has a canonical form, and removed otherwise.
 ///
 /// The catalog is part of the `GameAssets` collection, but it visits only its
 /// MANDATORY bundle (the base game's) as a dependency, so what the collection
@@ -318,7 +325,7 @@ pub fn register_bundles(
     // portal generator's and static lint's checks.
     // The topological order guarantees a dependency is flattened before its
     // dependents, so its `resource_base`/`resources` are already loaded here.
-    let mut bundle_items: Vec<Vec<Content>> = Vec::new();
+    let mut bundle_items: Vec<LoadedBundle<'_>> = Vec::new();
     let mut undeclared_ref_issues: Vec<(String, String)> = Vec::new();
     for (mod_id, bundle_handle) in bundle_handles {
         let Some(bundle) = bundles.get(bundle_handle) else {
@@ -397,12 +404,28 @@ pub fn register_bundles(
                 items.push(mod_refs::rewrite_refs(item, &scope));
             }
         }
-        bundle_items.push(items);
+        bundle_items.push((mod_id, bundle, items));
     }
 
-    let outcome = merge_bundles(bundle_items.iter().map(|items| items.iter()));
+    let outcome = merge_bundles(bundle_items.iter().map(|(_, _, items)| items.iter()));
     for conflict in &outcome.conflicts {
         error!("register_bundles: {conflict}");
+    }
+    // No packs rather than empty packs: an open world arms only over a catalog
+    // that really loaded, and refuses to arm without one.
+    let loaded = match catalog {
+        Some(_) => loaded_section_packs(&bundle_items),
+        None => Err("the mods catalog was not loaded".to_string()),
+    };
+    match loaded {
+        Ok(loaded) => commands.insert_resource(loaded),
+        Err(fault) => {
+            error!(
+                "register_bundles: no loaded section packs, so an open world refuses to arm: \
+                 {fault}"
+            );
+            commands.remove_resource::<LoadedSectionPacks>();
+        }
     }
 
     // The New Game start comes from the BASE bundle's manifest and ONLY from
@@ -627,6 +650,121 @@ fn section_errors(
         }
     }
     errors
+}
+
+/// The version of the canonical form [`ContentCatalogDigest`] hashes. Change
+/// it with any change to what the digest covers or how it is written, so an
+/// old pin cannot match a new form.
+const CONTENT_CATALOG_DIGEST_VERSION: u32 = 1;
+
+/// One merged bundle: its mod id, its asset and its rewritten content items,
+/// in merge order.
+type LoadedBundle<'a> = (&'a str, &'a BundleAsset, Vec<Content>);
+
+/// The identity of the whole effective loaded catalog: every merged content
+/// item with the mod it came from, and every merged mod's metadata.
+///
+/// Independent of merge, item and map order; changed by any change to an
+/// effective item, the mod whose definition won, or a mod's metadata. Raw
+/// resource bytes, such as a GLB a section names, are not covered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ContentCatalogDigest(pub u64);
+
+/// One merged bundle's section prototypes, labeled by the mod that loaded
+/// them.
+#[derive(Clone, Debug)]
+pub struct LoadedSectionPack {
+    /// The mod id.
+    pub id: String,
+    /// The mods this one overlays: its declared dependencies and, for every
+    /// mod but the base game, the base game. Sorted, without repeats.
+    pub dependencies: Vec<String>,
+    /// The sections the mod defines, refs rewritten, in authored order. A
+    /// repeated id stays, so a consumer can refuse it.
+    pub sections: Vec<SectionConfig>,
+}
+
+/// The section packs the last merge registered and the digest of the
+/// catalog they came from.
+///
+/// Inserted by [`register_bundles`] with the other registries. Absent when
+/// the catalog did not load or has no canonical form; the merge logs why.
+#[derive(Resource, Clone, Debug)]
+pub struct LoadedSectionPacks {
+    /// Every merged bundle, in merge order.
+    pub packs: Vec<LoadedSectionPack>,
+    /// The digest of the whole effective catalog, not only its sections.
+    pub digest: ContentCatalogDigest,
+}
+
+/// The section packs and catalog digest of `bundles`.
+fn loaded_section_packs(bundles: &[LoadedBundle<'_>]) -> Result<LoadedSectionPacks, String> {
+    let digest = content_catalog_digest(bundles)?;
+    let packs = bundles
+        .iter()
+        .map(|(id, bundle, items)| {
+            let mut dependencies: BTreeSet<String> =
+                bundle.meta.dependencies.iter().cloned().collect();
+            if *id != BASE_MOD_ID {
+                dependencies.insert(BASE_MOD_ID.to_string());
+            }
+            LoadedSectionPack {
+                id: (*id).to_string(),
+                dependencies: dependencies.into_iter().collect(),
+                sections: items
+                    .iter()
+                    .filter_map(|item| match item {
+                        Content::Section(config) => Some(config.as_ref().clone()),
+                        _ => None,
+                    })
+                    .collect(),
+            }
+        })
+        .collect();
+    Ok(LoadedSectionPacks { packs, digest })
+}
+
+/// FNV-1a 64 over the version, then every bundle's metadata in mod id order,
+/// then every effective item in kind and id order with the mod whose
+/// definition won, each in its canonical form.
+///
+/// The effective item follows [`merge_bundles`]: the last bundle wins an id,
+/// and within one bundle the first copy does.
+fn content_catalog_digest(bundles: &[LoadedBundle<'_>]) -> Result<ContentCatalogDigest, String> {
+    let mut effective: BTreeMap<(&str, &str), (&str, &Content)> = BTreeMap::new();
+    for (source, _, items) in bundles {
+        let mut seen = HashSet::new();
+        for item in items {
+            if seen.insert((item.kind(), item.id())) {
+                effective.insert((item.kind(), item.id()), (source, item));
+            }
+        }
+    }
+    let mut packs: Vec<&LoadedBundle<'_>> = bundles.iter().collect();
+    packs.sort_by_key(|(id, _, _)| *id);
+
+    let mut bytes = CONTENT_CATALOG_DIGEST_VERSION.to_le_bytes().to_vec();
+    bytes.extend((packs.len() as u64).to_le_bytes());
+    for (id, bundle, _) in packs {
+        let mut meta = bundle.meta.clone();
+        meta.dependencies.sort();
+        let mut resources: Vec<&str> = bundle.resources.iter().map(String::as_str).collect();
+        resources.sort_unstable();
+        let metadata = (
+            id,
+            &meta,
+            &bundle.new_game_scenario,
+            &bundle.resource_base,
+            &resources,
+        );
+        canonical::write_canonical(&metadata, &mut bytes)
+            .map_err(|fault| format!("mod '{id}' metadata: {fault}"))?;
+    }
+    for ((kind, id), (source, item)) in effective {
+        canonical::write_canonical(&(source, item), &mut bytes)
+            .map_err(|fault| format!("{kind} '{id}' from mod '{source}': {fault}"))?;
+    }
+    Ok(ContentCatalogDigest(Fnv64::new().write(&bytes).finish()))
 }
 
 /// The scenario ids the last merge published, so the next one knows which
@@ -1120,5 +1258,108 @@ mod tests {
             "the conflict names the offending id: {}",
             outcome.conflicts[0]
         );
+    }
+
+    /// A bundle `id` depending on `dependencies`, with no content handles: the
+    /// digest reads the flattened items beside it, never the handles.
+    fn bundle(id: &str, dependencies: &[&str]) -> BundleAsset {
+        BundleAsset {
+            content: Vec::new(),
+            meta: nova_modding::prelude::ModMeta {
+                dependencies: dependencies.iter().map(ToString::to_string).collect(),
+                ..Default::default()
+            },
+            new_game_scenario: None,
+            resources: Vec::new(),
+            resource_base: format!("mods/{id}"),
+        }
+    }
+
+    fn sections(sections: &[(&str, f32)]) -> Vec<Content> {
+        sections
+            .iter()
+            .map(|(id, health)| Content::Section(Box::new(section(id, *health))))
+            .collect()
+    }
+
+    fn digest(bundles: &[LoadedBundle<'_>]) -> ContentCatalogDigest {
+        content_catalog_digest(bundles).expect("the catalog has a canonical form")
+    }
+
+    #[test]
+    fn a_changed_section_under_the_same_mod_ids_changes_the_catalog_digest() {
+        let (base, extra) = (bundle("base", &[]), bundle("extra", &[]));
+        let before = [
+            ("base", &base, sections(&[("hull", 100.0)])),
+            ("extra", &extra, sections(&[("plate", 50.0)])),
+        ];
+        let after = [
+            ("base", &base, sections(&[("hull", 100.0)])),
+            ("extra", &extra, sections(&[("plate", 51.0)])),
+        ];
+
+        assert_ne!(digest(&before), digest(&after));
+    }
+
+    /// Merge order and authored order only decide an overlay. Where no id is
+    /// defined twice, neither moves the digest.
+    #[test]
+    fn the_catalog_digest_ignores_bundle_and_item_order() {
+        let (base, a, b) = (bundle("base", &[]), bundle("a", &[]), bundle("b", &[]));
+        let forward = [
+            (
+                "base",
+                &base,
+                sections(&[("hull", 100.0), ("thruster", 50.0)]),
+            ),
+            ("a", &a, sections(&[("a_hull", 10.0), ("a_plate", 20.0)])),
+            ("b", &b, sections(&[("b_hull", 30.0)])),
+        ];
+        let backward = [
+            (
+                "base",
+                &base,
+                sections(&[("thruster", 50.0), ("hull", 100.0)]),
+            ),
+            ("b", &b, sections(&[("b_hull", 30.0)])),
+            ("a", &a, sections(&[("a_plate", 20.0), ("a_hull", 10.0)])),
+        ];
+
+        assert_eq!(digest(&forward), digest(&backward));
+    }
+
+    /// Two mods that define one id with the same payload: the merge order
+    /// decides whose definition is effective, and the digest names it.
+    #[test]
+    fn the_catalog_digest_follows_the_mod_whose_overlay_wins() {
+        let (base, a, b) = (bundle("base", &[]), bundle("a", &[]), bundle("b", &[]));
+        let merged = |order: [&str; 2]| {
+            let loaded: Vec<LoadedBundle<'_>> = std::iter::once(("base", &base, Vec::new()))
+                .chain(order.map(|id| {
+                    let asset = if id == "a" { &a } else { &b };
+                    (id, asset, sections(&[("hull", 100.0)]))
+                }))
+                .collect();
+            digest(&loaded)
+        };
+
+        assert_eq!(merged(["a", "b"]), merged(["a", "b"]));
+        assert_ne!(merged(["a", "b"]), merged(["b", "a"]));
+    }
+
+    /// A non-finite stat has no canonical form, so the catalog refuses it
+    /// rather than hash it as the same bytes as any other non-finite value.
+    #[test]
+    fn a_non_finite_stat_is_refused_before_the_catalog_is_hashed() {
+        let base = bundle("base", &[]);
+        for health in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let fault = content_catalog_digest(&[("base", &base, sections(&[("hull", health)]))])
+                .expect_err("a non-finite health must be refused");
+            assert!(
+                fault.starts_with("section 'hull' from mod 'base': ")
+                    && fault.contains("Section.base.health is"),
+                "the fault names the item, the mod and the field: {fault}"
+            );
+        }
     }
 }

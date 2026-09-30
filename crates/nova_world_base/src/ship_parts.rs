@@ -19,9 +19,10 @@
 //! fault, as a bad stat is, because a hull built around it fires into
 //! whatever stands in its lane.
 //!
-//! PURE, and read by the content lint and the `world_ships` debug example
-//! only: the live generator does not build ships from it yet, and nothing pins its hash to a session yet. Scoring is
-//! provisional until generated ships are reviewed.
+//! PURE. The open world pins one to its generator when it arms, beside the
+//! digest of the loaded catalog it came from; the content lint and the
+//! `world_ships` debug example build their own. No generator builds ships
+//! from it yet. Scoring is provisional until generated ships are reviewed.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
