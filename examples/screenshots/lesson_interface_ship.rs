@@ -218,7 +218,7 @@ fn the_turret_reads(
     std::sync::Arc::new(move |world: &World| {
         world
             .try_query_filtered::<&Health, With<TurretSectionMarker>>()
-            .is_some_and(|mut turrets| turrets.iter(world).any(|health| test(health)))
+            .is_some_and(|mut turrets| turrets.iter(world).any(&test))
     })
 }
 
