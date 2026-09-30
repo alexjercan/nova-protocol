@@ -57,7 +57,7 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         // joint stays with `D`, so handing the helm over can never undock.
         // Keyboard only, for the reason `dock` gives.
         ActionBinding::new("dock_helm", "FLIGHT", "Helm").keyboard([Keyboard(KeyCode::KeyH)]),
-        // `V` holds the mining beam on the travel-locked rock. Keyboard only,
+        // `V` holds the ship's mining beams on the travel-locked rock. Keyboard only,
         // for the reason `dock` gives.
         ActionBinding::new("mine", "FLIGHT", "Mine (hold)").keyboard([Keyboard(KeyCode::KeyV)]),
         // Hold and tap share the key and the threshold constant so the

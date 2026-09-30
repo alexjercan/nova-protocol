@@ -85,6 +85,7 @@
         "gltf/dock_flush.glb",
         "gltf/intake_accordion_3x2x1.glb",
         "gltf/cargo_canister_cuboid.glb",
+        "gltf/mining_beam_compact.glb",
         // Decoration fixtures for the derived skin, generated from the recipes
         // in `scripts/greeble-recipes/` by `scripts/gen-greebles.py`. Declared
         // here so a style can name one with `self://gltf/greebles/<id>.glb` and

@@ -72,6 +72,8 @@ pub(crate) fn section_mark(
         Some(SectionKind::Docking(_)) => ("\u{25ce}", "DOCKING"),
         // WHITE SQUARE CONTAINING BLACK SMALL SQUARE - a canister in a hold.
         Some(SectionKind::CargoIntake(_)) => ("\u{25a3}", "INTAKE"),
+        // FISHEYE - the emitter lens, seen down the beam.
+        Some(SectionKind::Mining(_)) => ("\u{25c9}", "MINING"),
 
         None => ("?", "PART"),
     }

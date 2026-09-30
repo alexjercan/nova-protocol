@@ -24,11 +24,13 @@ use bevy::{
     asset::{AssetPlugin, RecursiveDependencyLoadState, UntypedAssetId},
     ecs::system::RunSystemOnce,
     prelude::*,
+    state::app::StatesPlugin,
 };
 use nova_assets::{
     mod_cache::{self, InstalledModRecord},
     prelude::*,
 };
+use nova_gameplay::prelude::GameStates;
 use nova_modding::prelude::{BundleAsset, InstalledCatalog, NovaModdingPlugin};
 use nova_scenario::prelude::GameScenarios;
 
@@ -103,6 +105,9 @@ fn app_with_mods_source() -> App {
         },
     ));
     app.add_plugins(NovaModdingPlugin);
+    // The merge reads the game state; this rig is never in a scenario.
+    app.add_plugins(StatesPlugin);
+    app.init_state::<GameStates>();
     // GameAssetsPlugin inits all four; the run conditions and systems under
     // test read them (a condition's Res param must exist even while another
     // condition gates the system off). `OptionalBundles` stays empty here: this
@@ -112,6 +117,8 @@ fn app_with_mods_source() -> App {
     app.init_resource::<DownloadedMods>();
     app.init_resource::<ModCatalog>();
     app.init_resource::<OptionalBundles>();
+    // The merge records a mod it refuses here, as production does.
+    app.init_resource::<ModQuarantine>();
     app
 }
 

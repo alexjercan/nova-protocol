@@ -43,7 +43,7 @@ for responsibilities and the dependency graph.
 | `nova_world_base` | The base game's open world: the `NovaLayeredWorld` generator and its cluster policy over three environment fields, the `OpenWorldSession` seed New Game writes, and the plugin `AppBuilder` adds that streams the world only while an `OpenWorld` scenario runs with one player ship. |
 | `nova_events` | Shared game-event kinds + entity identity components (gameplay <-> scenario). |
 | `nova_events_macros` | The `EventKind` derive behind `nova_events`' engine events. Its only consumer is `nova_events`. |
-| `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal) + prefs. |
+| `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal, except during a scenario) + prefs. |
 | `nova_modding` | Bundle/content/catalog asset loaders and the `Content` routing enum. |
 | `nova_mod_format` | Pure serde types for the mod formats (engine-free); re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`. |
 | `nova_editor` | The ship editor scene (`NovaEditorPlugin`), shown in `GameMode::Sandbox`. |

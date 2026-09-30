@@ -110,10 +110,17 @@ A dash means the action has no binding on that device.
             <td><kbd>H</kbd></td>
             <td>unbound</td>
         </tr>
+        <tr>
+            <td>MINE (hold) - run the mining beams out at the rock you have locked</td>
+            <td><kbd>V</kbd></td>
+            <td>unbound</td>
+        </tr>
     </tbody>
 </table>
 
 DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the `docking_approach` example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. See [Docking port](../sections/docking/).
+
+MINE needs a mining beam section: the line warship carries one at its bow. Hold <kbd>V</kbd> with an ore rock travel-locked and within 100 m; each beam opens, runs its tip out and cuts the rock once a second where it hits. The ore leaves the rock as canisters. Release <kbd>V</kbd> and the beams retract.
 
 RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the training range hands it over for one leg of its pattern. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 

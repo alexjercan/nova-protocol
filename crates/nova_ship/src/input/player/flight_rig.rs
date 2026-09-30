@@ -64,16 +64,16 @@ pub(super) struct DockInput;
 #[action_output(bool)]
 pub(super) struct DockHelmInput;
 
-/// Hold the mining beam on the travel-locked rock (`V`). A plain Down action
+/// Hold the mining beams on the travel-locked rock (`V`). A plain Down action
 /// whose Start and Complete the observers turn into [`MiningHeld`] on the
 /// player ship, as the RCS modifier does with [`RcsActive`].
 #[derive(InputAction)]
 #[action_output(bool)]
 pub(super) struct MineInput;
 
-/// Marks the player ship root while the mine key is held. The mining plugin
-/// pulses the beam while it is present; the input layer alone inserts and
-/// removes it.
+/// Marks the player ship root while the mine key is held. The ship's mining
+/// sections deploy while it is present and retract once it is gone; the input
+/// layer alone inserts and removes it.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct MiningHeld;
@@ -729,7 +729,7 @@ pub(super) fn on_rcs_modifier_start(
         .remove::<Autopilot>();
 }
 
-/// Start holding the mining beam on a fresh `V` press. Frozen or suspended
+/// Start holding the mining beams on a fresh `V` press. Frozen or suspended
 /// control hears nothing, as the RCS modifier does.
 pub(super) fn on_mine_start(
     _: On<Start<MineInput>>,
@@ -744,7 +744,7 @@ pub(super) fn on_mine_start(
     commands.entity(*ship).insert(MiningHeld);
 }
 
-/// Stop the mining beam on `V` release. NOT pause-gated: a release must
+/// Stop the mining beams on `V` release. NOT pause-gated: a release must
 /// always clean up.
 pub(super) fn on_mine_released(
     _: On<Complete<MineInput>>,

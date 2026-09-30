@@ -141,6 +141,7 @@ fn push_section_meshes(config: &SectionConfig, meshes: &mut Vec<AssetRef<WorldAs
             push_mesh(Some(&intake.render_mesh), meshes);
             push_mesh(Some(&intake.canister_mesh), meshes);
         }
+        SectionKind::Mining(mining) => push_mesh(Some(&mining.render_mesh), meshes),
     }
 }
 

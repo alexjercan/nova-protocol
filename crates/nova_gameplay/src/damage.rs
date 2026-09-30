@@ -137,6 +137,8 @@ pub enum SectionClass {
     Docking,
     /// Cargo intake section: the accordion-doored mouth canisters enter by.
     CargoIntake,
+    /// Mining section: the emitter that cuts ore out of a locked rock.
+    Mining,
 }
 
 impl SectionClass {

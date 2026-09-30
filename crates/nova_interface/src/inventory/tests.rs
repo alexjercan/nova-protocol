@@ -6,8 +6,8 @@ use std::collections::VecDeque;
 
 use bevy::{
     ecs::system::RunSystemOnce,
-    ui::{ComputedNode, UiGlobalTransform},
-    ui_widgets::ValueChange,
+    ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
+    ui_widgets::{Activate, ValueChange},
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{
@@ -673,6 +673,117 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
         refused("Refused: Trader does not trade")
     );
     assert_eq!(state(&app), (11, 110, 9, 990));
+}
+
+/// Confirm follows the live plan: disabled on each refusal the summary shows,
+/// so neither a click nor a triggered `Activate` sends it, and enabled again
+/// once the quantity, room or credits allow the trade. A Buy that fills the
+/// hold and spends every credit exactly is allowed.
+#[test]
+fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_credits() {
+    let (mut rig, player) = inventory_rig();
+    // 380 of 400 kg: room for two 10 kg plates; 80 cr buys two at 40 cr.
+    rig.app
+        .world_mut()
+        .entity_mut(player)
+        .insert((hold(38), ShipCredits(80)));
+    let partner = dock_partner(rig.app.world_mut(), player, "Trader", 8);
+    rig.app
+        .world_mut()
+        .entity_mut(partner)
+        .insert(ShipCredits(1_000));
+    settle(&mut rig.app);
+    let state = |app: &App| {
+        let credits = |ship| app.world().get::<ShipCredits>(ship).unwrap().0;
+        (
+            plates(app.world(), player),
+            credits(player),
+            plates(app.world(), partner),
+            credits(partner),
+        )
+    };
+    let confirm = only::<InventoryDraftConfirm>(rig.app.world_mut());
+    let field = only::<InventoryDraftField>(rig.app.world_mut());
+    let form = |app: &mut App| {
+        let world = app.world_mut();
+        let summary = world
+            .query::<(&InventoryInspectorField, &Text)>()
+            .iter(world)
+            .find(|(each, _)| **each == InventoryInspectorField::DraftSummary)
+            .map(|(_, text)| text.0.clone())
+            .expect("the form has a summary");
+        (summary, world.get::<InteractionDisabled>(confirm).is_none())
+    };
+    let set_field = |app: &mut App, text: &str| {
+        app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = text.to_string();
+        settle(app);
+    };
+
+    let partner_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
+        row.side == InventorySideType::Partner
+    });
+    click_at(&mut rig, partner_row);
+    assert_eq!(
+        form(&mut rig.app),
+        ("Price 40 cr, you after: 40 cr".to_string(), true)
+    );
+
+    // Three plates overfill the hold: disabled, and neither a click nor a
+    // triggered Activate moves anything or says anything.
+    set_field(&mut rig.app, "3");
+    assert_eq!(
+        form(&mut rig.app),
+        ("Refused: NOVA has room for 20 kg more".to_string(), false)
+    );
+    take_cues(&mut rig.app);
+    let confirm_at = centre_of::<InventoryDraftConfirm>(rig.app.world_mut(), |_| true);
+    click_at(&mut rig, confirm_at);
+    rig.app.world_mut().trigger(Activate { entity: confirm });
+    settle(&mut rig.app);
+    assert_eq!(state(&rig.app), (38, 80, 8, 1_000));
+    assert_eq!(note(&rig.app), None);
+    assert!(take_cues(&mut rig.app).is_empty());
+    assert_eq!(draft_quantity(&rig.app), Some(3));
+
+    set_field(&mut rig.app, "2x");
+    assert_eq!(
+        form(&mut rig.app),
+        ("Type a whole number".to_string(), false)
+    );
+
+    // Two plates fill the hold and spend every credit exactly: allowed.
+    set_field(&mut rig.app, "2");
+    assert_eq!(
+        form(&mut rig.app),
+        ("Price 80 cr, you after: 0 cr".to_string(), true)
+    );
+
+    // A credit short disables it; the credit back enables it.
+    rig.app
+        .world_mut()
+        .entity_mut(player)
+        .insert(ShipCredits(79));
+    settle(&mut rig.app);
+    assert_eq!(
+        form(&mut rig.app),
+        ("Refused: NOVA has only 79 cr".to_string(), false)
+    );
+    rig.app
+        .world_mut()
+        .entity_mut(player)
+        .insert(ShipCredits(80));
+    settle(&mut rig.app);
+    assert!(form(&mut rig.app).1);
+
+    // The shorter summary reflows the form, so aim at Confirm again.
+    let confirm_at = centre_of::<InventoryDraftConfirm>(rig.app.world_mut(), |_| true);
+    click_at(&mut rig, confirm_at);
+    assert_eq!(state(&rig.app), (40, 0, 6, 1_080));
+    assert_eq!(rig.app.world().resource::<InventoryRuntime>().draft, None);
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Bought 2 Hull plate from Trader for 80 cr")
+    );
 }
 
 #[test]

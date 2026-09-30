@@ -151,7 +151,8 @@ fn empty_magazine(kind: &SectionKind) -> Option<SectionKindPatch> {
         | SectionKind::Thruster(_)
         | SectionKind::Controller(_)
         | SectionKind::Docking(_)
-        | SectionKind::CargoIntake(_) => None,
+        | SectionKind::CargoIntake(_)
+        | SectionKind::Mining(_) => None,
     }
 }
 

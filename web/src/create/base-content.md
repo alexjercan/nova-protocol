@@ -58,11 +58,12 @@ part serves every hull. Section kinds are `Hull`, `Thruster`, `Controller`,
 | `railgun_lance_section` | Railgun | Railgun Lance | 180 | the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; a slug at 15,000 m/s for 1.2 s, rake radius 10 m, recoil 45 at the muzzle, one round reloading over 12 s |
 | `docking_port_section` | Docking | Docking Port Section | 90 | the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. The workship, both frame tenders and the line warship carry one |
 | `cargo_intake_section` | Cargo intake | Cargo Intake Section | 90 | a 3x2x1 hold mouth behind an accordion door on its -Z face: the door opens for a canister within 40 m, and the intake takes one moving under 5 m/s and not away from the door, whole, within 1 m of the door and before it touches, if it fits the 22.2 x 15.3 m opening and the hold has room. It never takes one that touches the ship. One jettison may queue several canisters; each drops out at 3 m/s. The line warship carries one on its top deck |
+| `mining_beam_section` | Mining | Mining Beam Section | 90 | a 1x1x1 emitter behind sliding doors on its -Z face: while the mine key is held the doors part, the tip runs out, and once a second the beam cuts a 1.5-cell sphere from the locked rock where it hits within 100 m. The line warship carries one at its bow |
 
 Every shipped prototype authors its [damage
 effects](../sections/#damage-effects) by kind, and the whole catalog follows one
 rule: Hull wears `([Cracks])` (the default, so it is omitted), Controller,
-Turret, Torpedo, Railgun, Docking and Cargo intake wear `([Cracks, Sparks])`, and Thruster wears
+Turret, Torpedo, Railgun, Docking, Cargo intake and Mining wear `([Cracks, Sparks])`, and Thruster wears
 `([Cracks, Sparks, Plume])`.
 No shipped mod authors the field at all, so base is the worked example.
 
@@ -192,7 +193,7 @@ from memory.
 
 The declared list, complete:
 
-### Meshes (41 glb)
+### Meshes (25 glb)
 
 Named meshes (all use label `#Scene0`). First the thruster bells:
 
@@ -217,6 +218,12 @@ Then the generated section parts the catalog renders
   `charge_bolt` node
 - `gltf/dock_flush.glb` - the docking port, with its animatable `dock_tube`
   sleeve
+- `gltf/intake_accordion_3x2x1.glb` - the cargo intake, with its animatable
+  `intake_slat_*` door nodes
+- `gltf/cargo_canister_cuboid.glb` - the cargo canister an intake drops and a
+  mined rock sheds
+- `gltf/mining_beam_compact.glb` - the mining beam, with its animatable
+  `stow_lid_*` doors and `beam_tip`
 
 The retired first-pass art stays in the bundle so old refs resolve, but no
 base section renders it: `gltf/hull-01.glb`, `gltf/turret-yaw-01.glb`,

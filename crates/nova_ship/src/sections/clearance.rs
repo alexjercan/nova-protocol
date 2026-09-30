@@ -81,6 +81,9 @@ pub fn exit_normal(kind: &SectionKind) -> Option<Vec3> {
         // The door folds open on -Z, canisters leave and enter through it,
         // and the skin must not clad it shut.
         SectionKind::CargoIntake(_) => Some(Vec3::NEG_Z),
+        // The doors part on -Z and the beam leaves through it: a plate or a
+        // skin panel there would stand in front of the emitter.
+        SectionKind::Mining(_) => Some(Vec3::NEG_Z),
         SectionKind::Hull(_) | SectionKind::Controller(_) => None,
     }
 }

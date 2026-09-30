@@ -54,6 +54,10 @@ pub struct BaseContentAssets {
     /// The cargo canister an intake drops: a 0.94 x 0.58 x 0.58 cell cuboid,
     /// long axis X.
     pub cargo_canister: AssetRef<WorldAsset>,
+    /// The mining emitter: a 1x1x1 casing whose `stow_lid_` doors the
+    /// `StowDoors` track slides shut and whose `beam_tip` the `StowLift`
+    /// track retracts behind them. The emitter face is -Z.
+    pub mining_beam: AssetRef<WorldAsset>,
 
     /// The turret fire sound, authored the same `self:/` way as the meshes.
     /// Serialized into the section config's `fire_sound` field so base turrets
@@ -224,6 +228,7 @@ impl BaseContentAssets {
             cargo_canister: AssetRef::from(
                 "self://gltf/cargo_canister_cuboid.glb#Scene0".to_string(),
             ),
+            mining_beam: AssetRef::from("self://gltf/mining_beam_compact.glb#Scene0".to_string()),
 
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
             turret_twin_fire_sound: AssetRef::from("self://sounds/pdc_twin_fire.wav".to_string()),

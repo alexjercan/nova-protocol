@@ -914,6 +914,58 @@ mod transfer_tests {
                 price_cr: 30
             })
         );
+        // Exact funds and exact room are valid; both balances may reach zero.
+        let mut exact = ShipInventory::new(50_000, []);
+        let mut seller = ore(5);
+        let (mut buyer_cr, mut seller_cr) = (20, 0);
+        assert_eq!(
+            plan(Buy, true, Some(5), &exact, buyer_cr, &seller, seller_cr),
+            Ok(ItemTrade {
+                count: 5,
+                price_cr: 20
+            })
+        );
+        assert_eq!(
+            plan(
+                Buy,
+                true,
+                Some(5),
+                &ShipInventory::new(49_999, []),
+                20,
+                &seller,
+                0
+            ),
+            Err(NoRoom { free_g: 49_999 })
+        );
+        assert_eq!(
+            plan(Buy, true, Some(5), &exact, 19, &seller, 0),
+            Err(NoCredits { credits: 19 })
+        );
+        seller.remove(ItemType::StoneOre, 5);
+        exact.add(ItemType::StoneOre, 5);
+        buyer_cr -= 20;
+        seller_cr += 20;
+        assert_eq!((buyer_cr, seller_cr, exact.free_g()), (0, 20, 0));
+        assert_eq!(
+            exact.count(ItemType::StoneOre) + seller.count(ItemType::StoneOre),
+            5
+        );
+        assert_eq!(
+            plan(Buy, true, Some(1), &exact, buyer_cr, &ore(1), seller_cr),
+            Err(NoRoom { free_g: 0 })
+        );
+        assert_eq!(
+            plan(
+                Buy,
+                true,
+                Some(1),
+                &ShipInventory::new(400_000, []),
+                buyer_cr,
+                &ore(1),
+                seller_cr,
+            ),
+            Err(NoCredits { credits: 0 })
+        );
         // A derelict trades nothing, whatever else is wrong.
         assert_eq!(plan(Buy, false, None, &own, 0, &partner, 0), Err(NotTrader));
         assert_eq!(

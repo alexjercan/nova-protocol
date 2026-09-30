@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, VecDeque};
 use bevy::{
     ecs::system::SystemParam,
     prelude::*,
+    ui::InteractionDisabled,
     ui_widgets::{
         Activate, Button, Slider, SliderPrecision, SliderRange, SliderStep, SliderValue,
         TrackClick, ValueChange,
@@ -141,6 +142,10 @@ pub(crate) struct InventoryDraftSlider;
 /// The draft's typed quantity.
 #[derive(Component)]
 pub(crate) struct InventoryDraftField;
+
+/// The draft's Confirm, disabled while the draft's summary is a refusal.
+#[derive(Component)]
+pub(crate) struct InventoryDraftConfirm;
 
 /// The selected item's category icon in the inspector.
 #[derive(Component)]
@@ -536,7 +541,8 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
 
 /// The action form: the draft's direction; the Give and Sell switch; the
 /// typed quantity, the source stock and All on a row the wheel steps; the
-/// quantity slider; the result of the move or why it is refused; and Confirm.
+/// quantity slider; the result of the move or why it is refused; and Confirm,
+/// disabled while the form shows a refusal.
 fn draft_form(form: &mut ChildSpawnerCommands) {
     form.spawn((
         InventoryInspectorField::DraftTitle,
@@ -638,6 +644,7 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
         .with_children(|row| {
             row.spawn((
                 Name::new("InventoryDraftConfirm"),
+                InventoryDraftConfirm,
                 compact_button(ButtonSpec::new("Confirm").fit().primary()),
             ))
             .observe(confirm_inventory_draft);
@@ -970,9 +977,9 @@ fn play_cue(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>, cue: UiSfx
 }
 
 /// Set the open draft's quantity, or do nothing if it already holds it. A new
-/// number ticks; text that is not a number is silent until Confirm refuses
-/// it. Every quantity control but All goes through here, so one change makes
-/// at most one tick.
+/// number ticks; text that is not a number is silent, and the form refuses it
+/// with Confirm disabled. Every quantity control but All goes through here, so
+/// one change makes at most one tick.
 fn set_draft_quantity(
     runtime: &mut InventoryRuntime,
     quantity: Option<u32>,
@@ -1044,12 +1051,18 @@ fn fill_inventory_draft(
 }
 
 /// Send the open draft to [`apply_inventory_action_commands`]. With none
-/// open, as on the second click of a double click, nothing happens.
+/// open, as on the second click of a double click, or with Confirm disabled,
+/// nothing happens. The button widget drops a pointer or key press on a
+/// disabled Confirm; this guard also drops an `Activate` triggered directly.
 fn confirm_inventory_draft(
-    _: On<Activate>,
+    activate: On<Activate>,
+    q_disabled: Query<(), With<InteractionDisabled>>,
     runtime: Res<InventoryRuntime>,
     mut actions: MessageWriter<InventoryActionCommand>,
 ) {
+    if q_disabled.contains(activate.entity) {
+        return;
+    }
     if let Some(draft) = runtime.draft {
         actions.write(InventoryActionCommand {
             action: draft.action,
@@ -1437,8 +1450,11 @@ impl SideView {
 /// docked. With no player ship, or more than one as the HUD treats it, the
 /// pane is left as it is. A broken ship record panics through
 /// [`InventoryShips`]. A draft its selected row no longer offers, after an
-/// undock or a filter, is closed. The note line counts down in real time,
-/// since the interface pauses virtual time.
+/// undock or a filter, is closed. Confirm is disabled while no draft is open
+/// or the draft's summary is a refusal: no whole number, or a transfer or
+/// trade its plan refuses against the live stock, room and credits. A numbered
+/// jettison stays enabled; Confirm plans it. The note line counts down in real
+/// time, since the interface pauses virtual time.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading both inventories and writing every pane part"
@@ -1468,6 +1484,7 @@ pub(crate) fn update_inventory_panel(
     mut q_part: Query<(&InspectorPart, &mut Node)>,
     mut q_field: Query<(&InventoryInspectorField, &mut Text, &mut ThemedText)>,
     mut q_icon: Query<(&mut ImageNode, &mut ThemedImageTint), With<InventoryInspectorIcon>>,
+    q_confirm: Query<(Entity, Has<InteractionDisabled>), With<InventoryDraftConfirm>>,
 ) {
     if q_column.is_empty() {
         return;
@@ -1683,18 +1700,19 @@ pub(crate) fn update_inventory_panel(
         };
         let have = source.count(draft.item).unwrap_or(0);
         let summary = match (draft.quantity, pair.partner) {
-            (None, _) => ("Type a whole number".to_string(), UiColor::Danger),
+            (None, _) => Err("Type a whole number".to_string()),
             // A jettison leaves the player's own stack.
-            (Some(quantity), None) => (
-                format!("{} after: x{}", own.title, have.saturating_sub(quantity)),
-                UiColor::Body,
-            ),
+            (Some(quantity), None) => Ok(format!(
+                "{} after: x{}",
+                own.title,
+                have.saturating_sub(quantity)
+            )),
             // A transfer or trade runs its own plan, so the form shows the
-            // refusal Confirm would meet.
+            // refusal Confirm would meet and Confirm is disabled on it.
             (Some(quantity), Some(other)) => {
                 let (_, own_stock, _, _) = ships.ship(pair.own);
                 let (_, their_stock, lootable, their_cr) = ships.ship(other);
-                let planned = match (draft.action.transfer(), draft.action.trade()) {
+                match (draft.action.transfer(), draft.action.trade()) {
                     (Some(transfer), _) => plan_item_transfer(
                         transfer,
                         lootable,
@@ -1747,10 +1765,6 @@ pub(crate) fn update_inventory_panel(
                         trade_refusal_text(refusal, draft.item, seller, buyer, &partner.title)
                     }),
                     (None, None) => Err("Refused: undock to jettison".to_string()),
-                };
-                match planned {
-                    Ok(text) => (text, UiColor::Body),
-                    Err(text) => (text, UiColor::Danger),
                 }
             }
         };
@@ -1784,7 +1798,10 @@ pub(crate) fn update_inventory_panel(
             (InventoryInspectorField::DraftStock, _, Some((_, have, _))) => {
                 (have.clone(), UiColor::Primary)
             }
-            (InventoryInspectorField::DraftSummary, _, Some((.., summary))) => summary.clone(),
+            (InventoryInspectorField::DraftSummary, _, Some((.., summary))) => match summary {
+                Ok(text) => (text.clone(), UiColor::Body),
+                Err(text) => (text.clone(), UiColor::Danger),
+            },
             _ => continue,
         };
         if text.0 != value {
@@ -1792,6 +1809,16 @@ pub(crate) fn update_inventory_panel(
         }
         if themed.color != color {
             themed.color = color;
+        }
+    }
+    let enabled = form.as_ref().is_some_and(|(.., summary)| summary.is_ok());
+    for (confirm, disabled) in &q_confirm {
+        // Runs every frame the pane is up, so only a change in the enabled
+        // state touches the button.
+        if enabled && disabled {
+            commands.entity(confirm).remove::<InteractionDisabled>();
+        } else if !enabled && !disabled {
+            commands.entity(confirm).insert(InteractionDisabled);
         }
     }
     let Some((item, _)) = picked else {

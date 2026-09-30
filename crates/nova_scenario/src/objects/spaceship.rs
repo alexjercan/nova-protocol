@@ -688,6 +688,11 @@ fn insert_spaceship_sections(
                 SectionKind::CargoIntake(intake_config) => {
                     section_entity.insert(cargo_intake_section(intake_config.clone()));
                 }
+                // No bound key either: every emitter on the ship deploys while
+                // the ship holds the mine key.
+                SectionKind::Mining(mining_config) => {
+                    section_entity.insert(mining_section(mining_config.clone()));
+                }
                 SectionKind::Railgun(railgun_config) => {
                     has_weapon = true;
                     let railgun_config = railgun_config.clone();

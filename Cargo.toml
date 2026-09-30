@@ -81,6 +81,22 @@ path = "examples/playable/carve_asteroids.rs"
 name = "docking_approach"
 path = "examples/playable/docking_approach.rs"
 
+# The trade a docked player runs through the Inventory pane: the same ported
+# pair, berthed inside capture, with the spar as a Neutral trader. The walk
+# buys, sells and gets refused through the pane's named widgets and checks both
+# holds and both balances after each Confirm.
+[[example]]
+name = "trade_loop"
+path = "examples/playable/trade_loop.rs"
+
+# The ore loop in one session: the line warship's beam mines a rock, its
+# intake takes one canister, and that ore is sold to a docked demo trader
+# through the Inventory pane. The walk checks the ore and credit ledger at
+# each hand-off.
+[[example]]
+name = "mine_and_sell"
+path = "examples/playable/mine_and_sell.rs"
+
 # The same generator `wfc_ships` poses in a row (shared/wfc.rs) with the safety
 # off: a `--ship` roster of collapsed hulls on two allegiances under the
 # campaign's AI pilot, in a dressed arena, fighting with all four weapon
@@ -631,6 +647,12 @@ path = "examples/screenshots/screenshot_section_drives.rs"
 [[example]]
 name = "screenshot_railgun"
 path = "examples/screenshots/screenshot_railgun.rs"
+
+# The line warship's bow mining beam: stowed, deploying, cutting a locked rock
+# on the real mine key, and retracted again.
+[[example]]
+name = "screenshot_mining_beam"
+path = "examples/screenshots/screenshot_mining_beam.rs"
 
 # The `:` command modal on the CRT, then the TAB interface's Map and Ship panes.
 [[example]]

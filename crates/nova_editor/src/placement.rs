@@ -170,7 +170,8 @@ pub(crate) fn default_binds(kind: &SectionKind) -> Vec<InputSource> {
         SectionKind::Hull(_)
         | SectionKind::Controller(_)
         | SectionKind::Docking(_)
-        | SectionKind::CargoIntake(_) => vec![],
+        | SectionKind::CargoIntake(_)
+        | SectionKind::Mining(_) => vec![],
         SectionKind::Thruster(_) => vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
         SectionKind::Turret(_) => vec![
             MouseButton::Left.into(),

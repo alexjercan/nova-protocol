@@ -42,9 +42,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Ships & Sections
 
-- New `block_line_warship` Line Warship: six PDC mounts on the trigger, a bow
-  railgun on R, two torpedo bays on F, a docking collar on each shoulder and a
-  dorsal cargo intake.
+- New `block_line_warship` Line Warship: six PDCs on the trigger, a bow railgun
+  on R, two torpedo bays on F, a collar per shoulder, a dorsal cargo intake and
+  a bow mining beam on V.
+- New `mining_beam_section`: hold V with a rock travel-locked and each deployed
+  emitter within 100 m cuts it where its beam hits, once a second. The ore
+  leaves the rock as canisters.
 - New `cargo_intake_section`: its door opens for a canister within 40 m and
   takes one under 5 m/s whole, never while it touches the ship or moves away,
   if it fits and has room.
@@ -81,6 +84,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `CargoIntake` section kind with required door, eject and take sounds,
   `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures,
   speeds and a missing door track.
+- New `Mining` section kind with `reach`, `pulse_interval_seconds`,
+  `carve_radius_cells` and `StowDoors` and `StowLift` tracks. Lint and load
+  reject bad stats, collider or tracks; invalid live mods end the run.
 - **(breaking)** Spaceships require `lootable: true` or `false`; a ship without
   it fails lint and load. A docked player may Take from a `lootable: true`
   ship that was never neutralized.
@@ -99,6 +105,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked with a live ship, Buy at a fixed ask or Sell at a fixed bid. Items and
   credits move together from real stock and balances, or a refusal moves
   nothing. Columns show credits.
+- Inventory Confirm is disabled when a draft has no valid quantity or its
+  transfer or trade preflight refuses against live stock, room or credits.
 - Undocked, Jettison queues canisters of up to 200 kg that the intake drops in
   order. Canisters have 20 HP, lose their contents on destruction, and accept
   travel but not combat locks.
@@ -158,6 +166,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
+- New `trade_loop` playable example docks with a demo-only trader and checks Buy, Sell and refusal through the Inventory pane, with rendered checkpoints.
+- New `mine_and_sell` playable example mines ore, takes a canister through the intake and sells its ore to a docked demo trader, checking the ore and credit ledger.
 - World streaming logs per-cell work at TRACE and summarizes retirements and live windows at DEBUG. PDC mount ownership logs each transition at TRACE and summarizes changes per ship at DEBUG.
 - **(breaking)** Crates `nova_os` and `nova_os_ui` are now `nova_command` and
   `nova_interface`.
