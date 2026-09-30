@@ -8,10 +8,12 @@
 //! stock into a `ShipInventory` whose capacity its design derives. A Ship pane
 //! repair spends [`ItemType::HullPlate`] by the [`plan_plate_repair`] rule, an
 //! Inventory pane transfer moves items between two docked ships by the
-//! [`plan_item_transfer`] rule, and a jettison drops a [`CargoCanister`] by the
-//! [`plan_item_jettison`] rule. Stock is not saved: it returns to its authored
+//! [`plan_item_transfer`] rule, and a jettison queues [`CargoCanister`]s by the
+//! [`plan_item_jettison`] rule, and a weapon's idle reload moves its ammunition
+//! item into the magazine. Stock is not saved: it returns to its authored
 //! counts when the scenario loads again. A stack exists only while its count is
-//! above zero, and the mass of all stacks never passes the capacity.
+//! above zero, and the mass of all stacks never passes the capacity. Mass is
+//! counted in grams; [`kg_text`] shows it in kilograms.
 
 use std::collections::BTreeMap;
 
@@ -22,10 +24,10 @@ use crate::integrity::prelude::Health;
 /// The whole module.
 pub mod prelude {
     pub use super::{
-        plan_item_jettison, plan_item_transfer, plan_plate_repair, CargoCanister, ItemCategoryType,
-        ItemJettisonRefusalType, ItemTransferRefusalType, ItemTransferType, ItemType,
-        LootableShipMarker, PlateRepair, PlateRepairRefusalType, ShipInventory, ShipInventoryStock,
-        CARGO_CANISTER_MAX_MASS_KG, HULL_PLATE_HEALTH,
+        kg_text, plan_item_jettison, plan_item_transfer, plan_plate_repair, CargoCanister,
+        ItemCategoryType, ItemJettison, ItemJettisonRefusalType, ItemTransferRefusalType,
+        ItemTransferType, ItemType, LootableShipMarker, PlateRepair, PlateRepairRefusalType,
+        ShipInventory, ShipInventoryStock, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
     };
 }
 
@@ -35,26 +37,40 @@ pub mod prelude {
 pub enum ItemType {
     /// Hull plating stock, counted in plates.
     HullPlate,
+    /// One point-defense round. Kinetic and Pierce mounts load the same round;
+    /// the mount decides its damage type.
+    PdcRound,
+    /// One railgun slug.
+    RailSlug,
+    /// One torpedo. Every bay type loads the same torpedo; the bay decides its
+    /// flight.
+    Torpedo,
 }
 
 impl ItemType {
-    /// Fixed mass of one item in kilograms.
-    pub fn mass_kg(self) -> u32 {
+    /// Fixed mass of one item in grams. Grams keep capacity and conservation
+    /// arithmetic exact for items lighter than a kilogram.
+    pub fn mass_g(self) -> u32 {
         match self {
-            Self::HullPlate => 10,
+            Self::HullPlate => 10_000,
+            Self::PdcRound => 200,
+            Self::RailSlug => 20_000,
+            Self::Torpedo => 150_000,
         }
     }
 
-    /// Mass of `count` of this item in kilograms. Wide so a count read from
-    /// content cannot overflow before a capacity check refuses it.
-    fn stack_mass_kg(self, count: u32) -> u64 {
-        u64::from(count) * u64::from(self.mass_kg())
+    /// Mass of `count` of this item in grams. Wide so a count read from
+    /// content or typed at the Command shell cannot overflow before a
+    /// capacity check refuses it.
+    pub fn stack_mass_g(self, count: u32) -> u64 {
+        u64::from(count) * u64::from(self.mass_g())
     }
 
     /// The category the item is filed under.
     pub fn category(self) -> ItemCategoryType {
         match self {
             Self::HullPlate => ItemCategoryType::Repair,
+            Self::PdcRound | Self::RailSlug | Self::Torpedo => ItemCategoryType::Ammo,
         }
     }
 
@@ -63,7 +79,22 @@ impl ItemType {
     pub fn label(self) -> &'static str {
         match self {
             Self::HullPlate => "Hull plate",
+            Self::PdcRound => "PDC round",
+            Self::RailSlug => "Rail slug",
+            Self::Torpedo => "Torpedo",
         }
+    }
+}
+
+/// `grams` as display kilograms: whole kilograms print bare (`10 kg`), a
+/// fraction prints without trailing zeros (`0.2 kg`, `3520.05 kg`).
+pub fn kg_text(grams: u64) -> String {
+    let (kg, rest) = (grams / 1000, grams % 1000);
+    if rest == 0 {
+        format!("{kg} kg")
+    } else {
+        let fraction = format!("{rest:03}");
+        format!("{kg}.{} kg", fraction.trim_end_matches('0'))
     }
 }
 
@@ -132,11 +163,11 @@ impl ShipInventoryStock {
         self.stacks.iter().map(|(item, count)| (*item, *count))
     }
 
-    /// Mass of every stack in kilograms. Wide because authored stock has no
+    /// Mass of every stack in grams. Wide because authored stock has no
     /// capacity bound until the spawn applies one.
-    pub fn mass_kg(&self) -> u64 {
+    pub fn mass_g(&self) -> u64 {
         self.stacks()
-            .map(|(item, count)| item.stack_mass_kg(count))
+            .map(|(item, count)| item.stack_mass_g(count))
             .sum()
     }
 }
@@ -149,47 +180,49 @@ impl ShipInventoryStock {
 /// for a ship that no config states, and such a ship can take nothing.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub struct ShipInventory {
-    capacity_kg: u32,
+    capacity_g: u32,
     stacks: BTreeMap<ItemType, u32>,
 }
 
 impl ShipInventory {
-    /// An inventory with room for `capacity_kg` kilograms, holding `stacks`.
+    /// An inventory with room for `capacity_g` grams, holding `stacks`.
     ///
     /// # Panics
     ///
     /// On a zero quantity, a repeated item, or stacks heavier than
-    /// `capacity_kg`. Content lint refuses authored stock past a design's
+    /// `capacity_g`. Content lint refuses authored stock past a design's
     /// hold, so a spawn that reaches this panic loaded unlinted content.
-    pub fn new(capacity_kg: u32, stacks: impl IntoIterator<Item = (ItemType, u32)>) -> Self {
+    pub fn new(capacity_g: u32, stacks: impl IntoIterator<Item = (ItemType, u32)>) -> Self {
         let stock = ShipInventoryStock::new(stacks);
-        let mass_kg = stock.mass_kg();
+        let mass_g = stock.mass_g();
         assert!(
-            mass_kg <= u64::from(capacity_kg),
-            "ShipInventory holds {mass_kg} kg but has capacity {capacity_kg} kg"
+            mass_g <= u64::from(capacity_g),
+            "ShipInventory holds {} but has capacity {}",
+            kg_text(mass_g),
+            kg_text(u64::from(capacity_g)),
         );
         Self {
-            capacity_kg,
+            capacity_g,
             stacks: stock.stacks,
         }
     }
 
-    /// How many kilograms the ship has room for across all stacks.
-    pub fn capacity_kg(&self) -> u32 {
-        self.capacity_kg
+    /// How many grams the ship has room for across all stacks.
+    pub fn capacity_g(&self) -> u32 {
+        self.capacity_g
     }
 
-    /// How many kilograms the ship carries across all stacks.
-    pub fn used_kg(&self) -> u32 {
+    /// How many grams the ship carries across all stacks.
+    pub fn used_g(&self) -> u32 {
         // The capacity bounds the sum, so each product and the sum fit.
         self.stacks()
-            .map(|(item, count)| item.mass_kg() * count)
+            .map(|(item, count)| item.mass_g() * count)
             .sum()
     }
 
-    /// How many more kilograms the ship has room for.
-    pub fn free_kg(&self) -> u32 {
-        self.capacity_kg - self.used_kg()
+    /// How many more grams the ship has room for.
+    pub fn free_g(&self) -> u32 {
+        self.capacity_g - self.used_g()
     }
 
     /// How many of `item` the ship carries; zero when it has no stack.
@@ -212,14 +245,15 @@ impl ShipInventory {
     ///
     /// # Panics
     ///
-    /// On `count == 0` or a mass past [`free_kg`](Self::free_kg): the caller
+    /// On `count == 0` or a mass past [`free_g`](Self::free_g): the caller
     /// has a bug and must plan the add first, as [`plan_item_transfer`] does.
     pub fn add(&mut self, item: ItemType, count: u32) {
         assert!(count > 0, "ShipInventory adds 0 of {item:?}");
-        let free_kg = self.free_kg();
+        let free_g = self.free_g();
         assert!(
-            item.stack_mass_kg(count) <= u64::from(free_kg),
-            "ShipInventory adds {count} of {item:?} but has room for {free_kg} kg"
+            item.stack_mass_g(count) <= u64::from(free_g),
+            "ShipInventory adds {count} of {item:?} but has room for {}",
+            kg_text(u64::from(free_g)),
         );
         self.stacks.insert(item, self.count(item) + count);
     }
@@ -275,8 +309,8 @@ pub enum ItemTransferRefusalType {
     },
     /// The target ship has room for less than the quantity's mass.
     NoRoom {
-        /// How many more kilograms the target ship has room for.
-        free_kg: u32,
+        /// How many more grams the target ship has room for.
+        free_g: u32,
     },
 }
 
@@ -313,18 +347,18 @@ pub fn plan_item_transfer(
     if quantity > held {
         return Err(ItemTransferRefusalType::Short { held });
     }
-    let free_kg = target.free_kg();
-    if item.stack_mass_kg(quantity) > u64::from(free_kg) {
-        return Err(ItemTransferRefusalType::NoRoom { free_kg });
+    let free_g = target.free_g();
+    if item.stack_mass_g(quantity) > u64::from(free_g) {
+        return Err(ItemTransferRefusalType::NoRoom { free_g });
     }
     Ok(quantity)
 }
 
-/// Maximum mass of a drifting canister, in kilograms.
-pub const CARGO_CANISTER_MAX_MASS_KG: u32 = 200;
+/// Maximum mass of a drifting canister, in grams.
+pub const CARGO_CANISTER_MAX_MASS_G: u32 = 200_000;
 
 /// Item stacks drifting free in a canister. Every count is above zero and the
-/// total mass is at most [`CARGO_CANISTER_MAX_MASS_KG`].
+/// total mass is at most [`CARGO_CANISTER_MAX_MASS_G`].
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 pub struct CargoCanister {
     stacks: BTreeMap<ItemType, u32>,
@@ -335,8 +369,8 @@ impl CargoCanister {
     pub fn new(item: ItemType, count: u32) -> Self {
         assert!(
             count > 0
-                && u64::from(count) * u64::from(item.mass_kg())
-                    <= u64::from(CARGO_CANISTER_MAX_MASS_KG),
+                && u64::from(count) * u64::from(item.mass_g())
+                    <= u64::from(CARGO_CANISTER_MAX_MASS_G),
             "invalid canister stack"
         );
         Self {
@@ -349,10 +383,10 @@ impl CargoCanister {
         self.stacks.iter().map(|(&item, &count)| (item, count))
     }
 
-    /// Total mass in kilograms.
-    pub fn total_mass_kg(&self) -> u32 {
+    /// Total mass in grams.
+    pub fn total_mass_g(&self) -> u32 {
         self.stacks()
-            .map(|(item, count)| item.mass_kg() * count)
+            .map(|(item, count)| item.mass_g() * count)
             .sum()
     }
 
@@ -360,8 +394,8 @@ impl CargoCanister {
     pub fn add(&mut self, item: ItemType, count: u32) {
         assert!(
             count > 0
-                && u64::from(self.total_mass_kg()) + u64::from(count) * u64::from(item.mass_kg())
-                    <= u64::from(CARGO_CANISTER_MAX_MASS_KG),
+                && u64::from(self.total_mass_g()) + u64::from(count) * u64::from(item.mass_g())
+                    <= u64::from(CARGO_CANISTER_MAX_MASS_G),
             "canister mass exceeded"
         );
         *self.stacks.entry(item).or_default() += count;
@@ -375,8 +409,6 @@ pub enum ItemJettisonRefusalType {
     Docked,
     /// The ship has no live cargo intake to drop the canister through.
     NoIntake,
-    /// The requested stack would exceed the canister mass limit.
-    Overweight,
     /// The quantity text is not a whole number.
     NoQuantity,
     /// A quantity of zero.
@@ -386,24 +418,39 @@ pub enum ItemJettisonRefusalType {
         /// What the ship carries.
         held: u32,
     },
+    /// One item is heavier than a canister holds. No current item is.
+    Overweight,
+}
+
+/// A planned jettison. The whole count leaves the ship: `merged` joins the
+/// intake's last waiting canister, and `canisters` queue after it in order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ItemJettison {
+    /// The count to remove from the ship: the whole quantity.
+    pub count: u32,
+    /// The count to add to the last waiting canister; zero with no waiting
+    /// canister or no room in it.
+    pub merged: u32,
+    /// New canisters, each filled to the last whole item under
+    /// [`CARGO_CANISTER_MAX_MASS_G`] except the last.
+    pub canisters: Vec<CargoCanister>,
 }
 
 /// Plan a jettison of `quantity` of `item` from the player ship's `own`
-/// inventory as one canister.
+/// inventory.
 ///
-/// Returns the count to remove and put in the canister. `docked` is true while
-/// the ship is docked, `has_intake` while it has a live cargo intake, and
-/// `pending` when that intake holds an earlier jettison. Checks run
-/// in [`ItemJettisonRefusalType`] order. `quantity` is `None` when the typed
-/// text is not a whole number.
+/// `docked` is true while the ship is docked, `has_intake` while it has a live
+/// cargo intake, and `tail` is the last canister waiting on that intake.
+/// Checks run in [`ItemJettisonRefusalType`] order. `quantity` is `None` when
+/// the typed text is not a whole number.
 pub fn plan_item_jettison(
     docked: bool,
     has_intake: bool,
-    pending: Option<&CargoCanister>,
+    tail: Option<&CargoCanister>,
     item: ItemType,
     quantity: Option<u32>,
     own: &ShipInventory,
-) -> Result<u32, ItemJettisonRefusalType> {
+) -> Result<ItemJettison, ItemJettisonRefusalType> {
     if docked {
         return Err(ItemJettisonRefusalType::Docked);
     }
@@ -418,13 +465,26 @@ pub fn plan_item_jettison(
     if quantity > held {
         return Err(ItemJettisonRefusalType::Short { held });
     }
-    let mass = pending.map_or(0, CargoCanister::total_mass_kg);
-    if u64::from(mass) + u64::from(quantity) * u64::from(item.mass_kg())
-        > u64::from(CARGO_CANISTER_MAX_MASS_KG)
-    {
+    let per_canister = CARGO_CANISTER_MAX_MASS_G / item.mass_g();
+    if per_canister == 0 {
         return Err(ItemJettisonRefusalType::Overweight);
     }
-    Ok(quantity)
+    let tail_room = tail.map_or(0, |tail| {
+        (CARGO_CANISTER_MAX_MASS_G - tail.total_mass_g()) / item.mass_g()
+    });
+    let merged = quantity.min(tail_room);
+    let mut rest = quantity - merged;
+    let mut canisters = Vec::new();
+    while rest > 0 {
+        let count = rest.min(per_canister);
+        canisters.push(CargoCanister::new(item, count));
+        rest -= count;
+    }
+    Ok(ItemJettison {
+        count: quantity,
+        merged,
+        canisters,
+    })
 }
 
 /// Health one hull plate restores. Restore capacity a repair does not use is
@@ -532,6 +592,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn kg_text_shows_grams_as_kilograms_without_trailing_zeros() {
+        assert_eq!(kg_text(0), "0 kg");
+        assert_eq!(kg_text(u64::from(ItemType::PdcRound.mass_g())), "0.2 kg");
+        assert_eq!(kg_text(u64::from(ItemType::HullPlate.mass_g())), "10 kg");
+        assert_eq!(kg_text(1_050), "1.05 kg");
+        assert_eq!(kg_text(3_520_001), "3520.001 kg");
+        // 6000 PDC rounds weigh exactly 1200 kg: no float drift in the sum.
+        let rounds = ShipInventory::new(1_200_000, [(ItemType::PdcRound, 6000)]);
+        assert_eq!(rounds.used_g(), 1_200_000);
+        assert_eq!(rounds.free_g(), 0);
+    }
+
+    #[test]
     fn plate_repair_spends_one_plate_per_20_missing_health_within_stock() {
         let plan = |current: f32, max: f32, disabled: bool, plates: u32| {
             plan_plate_repair(Some(&Health { current, max }), disabled, plates)
@@ -567,7 +640,7 @@ mod transfer_tests {
         use ItemTransferRefusalType::*;
         use ItemTransferType::*;
         // 400 kg holds 40 plates of 10 kg.
-        let plates = |count: u32| ShipInventory::new(400, [(ItemType::HullPlate, count)]);
+        let plates = |count: u32| ShipInventory::new(400_000, [(ItemType::HullPlate, count)]);
         let plan = |transfer, lootable, quantity, own: &ShipInventory, partner: &ShipInventory| {
             plan_item_transfer(
                 transfer,
@@ -604,7 +677,7 @@ mod transfer_tests {
         let nearly_full = plates(35);
         assert_eq!(
             plan(Take, true, Some(6), &nearly_full, &partner),
-            Err(NoRoom { free_kg: 50 })
+            Err(NoRoom { free_g: 50_000 })
         );
         assert_eq!(plan(Take, true, Some(5), &nearly_full, &partner), Ok(5));
         assert_eq!(
@@ -613,7 +686,7 @@ mod transfer_tests {
         );
         assert_eq!(
             plan(Give, false, Some(1), &own, &ShipInventory::default()),
-            Err(NoRoom { free_kg: 0 })
+            Err(NoRoom { free_g: 0 })
         );
 
         // A planned move conserves the total and empties a drained stack.
@@ -622,37 +695,104 @@ mod transfer_tests {
         partner.remove(ItemType::HullPlate, moved);
         own.add(ItemType::HullPlate, moved);
         assert_eq!(own.count(ItemType::HullPlate), 20);
-        assert_eq!(own.used_kg(), 200);
-        assert_eq!(own.free_kg(), 200);
+        assert_eq!(own.used_g(), 200_000);
+        assert_eq!(own.free_g(), 200_000);
         assert!(partner.is_empty());
     }
 
     #[test]
     fn item_jettison_plans_refuse_in_order() {
         use ItemJettisonRefusalType::*;
-        let own = ShipInventory::new(400, [(ItemType::HullPlate, 12)]);
-        let pending = CargoCanister::new(ItemType::HullPlate, 9);
-        let plan = |docked, has_intake, pending: Option<&CargoCanister>, quantity| {
+        let own = ShipInventory::new(400_000, [(ItemType::HullPlate, 12)]);
+        let tail = CargoCanister::new(ItemType::HullPlate, 9);
+        let plan = |docked, has_intake, tail: Option<&CargoCanister>, quantity| {
             plan_item_jettison(
                 docked,
                 has_intake,
-                pending,
+                tail,
                 ItemType::HullPlate,
                 quantity,
                 &own,
             )
         };
 
-        assert_eq!(plan(false, true, None, Some(4)), Ok(4));
-        assert_eq!(plan(false, true, None, Some(12)), Ok(12));
-        assert_eq!(plan(false, true, Some(&pending), Some(11)), Ok(11));
+        assert!(plan(false, true, None, Some(12)).is_ok());
         // Each check wins over every later one.
-        assert_eq!(plan(true, false, Some(&pending), None), Err(Docked));
-        assert_eq!(plan(false, false, Some(&pending), None), Err(NoIntake));
-        assert_eq!(plan(false, true, Some(&pending), None), Err(NoQuantity));
+        assert_eq!(plan(true, false, Some(&tail), None), Err(Docked));
+        assert_eq!(plan(false, false, Some(&tail), None), Err(NoIntake));
+        assert_eq!(plan(false, true, Some(&tail), None), Err(NoQuantity));
         assert_eq!(plan(false, true, None, Some(0)), Err(ZeroQuantity));
         assert_eq!(plan(false, true, None, Some(13)), Err(Short { held: 12 }));
-        assert_eq!(plan(false, true, Some(&pending), Some(12)), Err(Overweight));
+    }
+
+    #[test]
+    fn item_jettison_fills_the_waiting_tail_then_splits_the_rest_by_whole_items() {
+        let own = ShipInventory::new(
+            10_000_000,
+            [
+                (ItemType::HullPlate, 12),
+                (ItemType::PdcRound, 2_500),
+                (ItemType::RailSlug, 25),
+                (ItemType::Torpedo, 3),
+            ],
+        );
+        let plan = |tail: Option<&CargoCanister>, item, quantity| {
+            plan_item_jettison(false, true, tail, item, Some(quantity), &own)
+                .expect("the ship holds the quantity")
+        };
+        let split = |jettison: &ItemJettison| {
+            jettison
+                .canisters
+                .iter()
+                .map(|canister| canister.stacks().collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        };
+
+        // One 150 kg torpedo per canister; 10 slugs and 1000 rounds fill one.
+        let torpedoes = plan(None, ItemType::Torpedo, 3);
+        assert_eq!((torpedoes.count, torpedoes.merged), (3, 0));
+        assert_eq!(split(&torpedoes), vec![vec![(ItemType::Torpedo, 1)]; 3]);
+        let slugs = plan(None, ItemType::RailSlug, 25);
+        assert_eq!(
+            split(&slugs),
+            [
+                vec![(ItemType::RailSlug, 10)],
+                vec![(ItemType::RailSlug, 10)],
+                vec![(ItemType::RailSlug, 5)],
+            ]
+        );
+        let rounds = plan(None, ItemType::PdcRound, 2_500);
+        assert_eq!(
+            split(&rounds),
+            [
+                vec![(ItemType::PdcRound, 1_000)],
+                vec![(ItemType::PdcRound, 1_000)],
+                vec![(ItemType::PdcRound, 500)],
+            ]
+        );
+
+        // A waiting 90 kg tail has 110 kg of room: 5 slugs merge ...
+        let tail = CargoCanister::new(ItemType::HullPlate, 9);
+        let into_tail = plan(Some(&tail), ItemType::RailSlug, 7);
+        assert_eq!((into_tail.count, into_tail.merged), (7, 5));
+        assert_eq!(split(&into_tail), [vec![(ItemType::RailSlug, 2)]]);
+        // ... and no torpedo, which starts a new canister.
+        let past_tail = plan(Some(&tail), ItemType::Torpedo, 1);
+        assert_eq!(past_tail.merged, 0);
+        assert_eq!(split(&past_tail), [vec![(ItemType::Torpedo, 1)]]);
+        let fits = plan(Some(&tail), ItemType::HullPlate, 11);
+        assert_eq!((fits.merged, fits.canisters.len()), (11, 0));
+
+        // Every planned count is conserved across the tail and the canisters.
+        for jettison in [&torpedoes, &slugs, &rounds, &into_tail, &past_tail, &fits] {
+            let queued: u32 = jettison
+                .canisters
+                .iter()
+                .flat_map(CargoCanister::stacks)
+                .map(|(_, count)| count)
+                .sum();
+            assert_eq!(jettison.merged + queued, jettison.count);
+        }
     }
 }
 
@@ -664,12 +804,12 @@ mod serde_tests {
     fn authored_stock_rejects_a_zero_stack_and_a_repeated_item() {
         let ok: ShipInventoryStock = ron::from_str("{HullPlate: 12}").expect("valid stock parses");
         assert_eq!(ok.stacks().collect::<Vec<_>>(), [(ItemType::HullPlate, 12)]);
-        assert_eq!(ok.mass_kg(), 120);
+        assert_eq!(ok.mass_g(), 120_000);
         let round_trip: ShipInventoryStock =
             ron::from_str(&ron::to_string(&ok).expect("serializes")).expect("parses back");
         assert_eq!(round_trip, ok);
         let empty: ShipInventoryStock = ron::from_str("{}").expect("empty stock parses");
-        assert_eq!(empty.mass_kg(), 0);
+        assert_eq!(empty.mass_g(), 0);
 
         let zero = ron::from_str::<ShipInventoryStock>("{HullPlate: 0}")
             .expect_err("a zero-quantity stack must fail");
@@ -682,6 +822,6 @@ mod serde_tests {
         // The largest count still weighs without overflow, for lint to refuse.
         let huge: ShipInventoryStock =
             ron::from_str("{HullPlate: 4294967295}").expect("a huge count parses");
-        assert_eq!(huge.mass_kg(), 42_949_672_950);
+        assert_eq!(huge.mass_g(), 42_949_672_950_000);
     }
 }

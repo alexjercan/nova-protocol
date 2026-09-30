@@ -920,13 +920,21 @@ mod tests {
         app.add_systems(Update, crate::sections::ammo::tick_section_reload);
         let turret = spawn_firing_turret(&mut app, Some(3));
         // Idle batch reload; 0.2s is under the clock's 0.25s per-tick clamp so
-        // a spent magazine refills shortly after the final shot.
+        // a spent magazine refills shortly after the final shot, from rounds
+        // the ship carries.
         app.world_mut()
             .entity_mut(turret)
-            .insert(SectionReload::from_config(SectionReloadConfig {
-                delay: 0.2,
-                amount: 3,
-            }));
+            .insert(SectionReload::from_config(
+                SectionReloadConfig {
+                    delay: 0.2,
+                    amount: 3,
+                },
+                ItemType::PdcRound,
+            ));
+        let ship = app.world().get::<ChildOf>(turret).unwrap().parent();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(ShipInventory::new(10_000, [(ItemType::PdcRound, 30)]));
 
         for _ in 0..20 {
             app.update();

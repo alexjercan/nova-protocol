@@ -1,4 +1,4 @@
-//! Live-tree tests for the Ship pane: section codes, the reload/repair message
+//! Live-tree tests for the Ship pane: section codes, the repair message
 //! path, the scene's local-space placement and orbit input, and window-space
 //! picking.
 
@@ -119,31 +119,6 @@ fn section_codes_assigned_and_resolve() {
 }
 
 #[test]
-fn ship_action_keys_mutate_through_message_handler() {
-    // The Ship pane's L key raises a ShipSectionCommand; the handler applies it.
-    // Pins the message path at its own boundary (deleting
-    // apply_ship_section_commands must fail this).
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.init_resource::<ShipRuntime>();
-    app.add_message::<ShipSectionCommand>();
-    let (_ship, _hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
-    app.world_mut()
-        .run_system_once(assign_section_codes)
-        .unwrap();
-
-    // Reload the turret through the message handler.
-    app.world_mut().write_message(ShipSectionCommand {
-        target: turret,
-        action: ShipAction::Reload,
-    });
-    app.world_mut()
-        .run_system_once(apply_ship_section_commands)
-        .unwrap();
-    assert_eq!(app.world().get::<SectionAmmo>(turret).unwrap().rounds, 6);
-}
-
-#[test]
 fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
     // Repair spends the player ship's hull plates, one per 20 missing HP up to
     // the stock, with the Health change. Every refusal leaves Health, markers
@@ -151,7 +126,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.init_resource::<ShipRuntime>();
-    app.add_message::<ShipSectionCommand>();
+    app.add_message::<SectionRepairCommand>();
     // A scheduled system keeps one reader cursor, so each frame reads only its
     // own commands; a `run_system_once` reader would replay older ones.
     app.add_systems(Update, apply_ship_section_commands);
@@ -161,10 +136,8 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
         .unwrap();
     let repair = |app: &mut App, targets: &[Entity]| {
         for &target in targets {
-            app.world_mut().write_message(ShipSectionCommand {
-                target,
-                action: ShipAction::Repair,
-            });
+            app.world_mut()
+                .write_message(SectionRepairCommand { target });
         }
         app.update();
     };
@@ -182,7 +155,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
             .clone()
             .map(|(text, _)| text)
     };
-    let stock = |count| ShipInventory::new(400, [(ItemType::HullPlate, count)]);
+    let stock = |count| ShipInventory::new(400_000, [(ItemType::HullPlate, count)]);
 
     // No plates: the P key still sends, and the hull stays at 80/100.
     repair(&mut app, &[hull]);
@@ -383,7 +356,7 @@ fn ship_pane_renders_blocks_and_selects_section() {
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
-    app.add_message::<ShipSectionCommand>();
+    app.add_message::<SectionRepairCommand>();
 
     let (_ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
@@ -469,7 +442,7 @@ fn ship_orbit_drag_is_rmb_only() {
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
-    app.add_message::<ShipSectionCommand>();
+    app.add_message::<SectionRepairCommand>();
 
     spawn_scripted_ship(app.world_mut());
     app.world_mut()
@@ -611,7 +584,7 @@ fn offset_ship_app() -> (App, Entity, Entity, Entity) {
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
-    app.add_message::<ShipSectionCommand>();
+    app.add_message::<SectionRepairCommand>();
 
     let (hull, turret, thruster) = spawn_offset_ship(app.world_mut());
     app.world_mut()
@@ -1007,7 +980,7 @@ fn unknown_health_reads_nominal() {
 }
 
 #[test]
-fn panel_action_state_gates_repair_and_reload() {
+fn panel_action_state_gates_repair() {
     let hp = |current, max| Some(Health { current, max });
     let ammo = Some(SectionAmmo {
         rounds: 2,
@@ -1015,34 +988,36 @@ fn panel_action_state_gates_repair_and_reload() {
     });
     let reason = |a: &PanelActions| a.reason.clone().unwrap_or_default();
 
-    // Damaged hull with plates: repairable, no ammo feed -> the reload reason.
+    // Damaged hull with plates: repairable, no reason.
     let hull = view_fixture(SectionClass::Hull, hp(80.0, 100.0), None);
     let a = panel_action_state(&hull, 12);
     assert!(a.repair_enabled, "a damaged hull with plates is repairable");
-    assert!(!a.reload_enabled, "a hull has no ammo feed");
-    assert!(reason(&a).contains("no ammo feed"), "{:?}", a.reason);
+    assert!(a.reason.is_none(), "no disabled reason: {:?}", a.reason);
 
-    // No plates: the repair reason wins over the reload reason.
+    // No plates: refused with a reason.
     let a = panel_action_state(&hull, 0);
     assert!(!a.repair_enabled);
     assert_eq!(reason(&a), "repair: no hull plates");
 
-    // The section's state comes before the stock: a full hull with 0 plates.
+    // Full integrity refuses regardless of stock.
     let full = view_fixture(SectionClass::Hull, hp(100.0, 100.0), None);
     let a = panel_action_state(&full, 0);
     assert!(!a.repair_enabled);
     assert_eq!(reason(&a), "repair: PDC-1 is at full integrity");
 
-    // Armed turret with ammo + HP + plates: both enabled, no reason.
+    // Damaged turret with plates: repairable, no reason.
     let turret = view_fixture(SectionClass::Turret, hp(12.0, 60.0), ammo);
     let a = panel_action_state(&turret, 12);
-    assert!(a.repair_enabled && a.reload_enabled, "armed turret: both");
+    assert!(
+        a.repair_enabled,
+        "a damaged turret with plates is repairable"
+    );
     assert!(a.reason.is_none(), "no disabled reason: {:?}", a.reason);
 
     // Destroyed at 0 HP, or disabled by a collapse with HP left.
     let dead = view_fixture(SectionClass::Turret, hp(0.0, 60.0), ammo);
     let a = panel_action_state(&dead, 12);
-    assert!(!a.repair_enabled && a.reload_enabled);
+    assert!(!a.repair_enabled);
     assert_eq!(reason(&a), "repair: PDC-1 is destroyed");
     let mut collapsed = view_fixture(SectionClass::Turret, hp(30.0, 60.0), ammo);
     collapsed.disabled = true;
@@ -1051,10 +1026,10 @@ fn panel_action_state_gates_repair_and_reload() {
         "repair: PDC-1 is destroyed"
     );
 
-    // Weapon with ammo but NO health: reload enabled, repair disabled w/ reason.
+    // A section with no health at all refuses with a reason.
     let ghost = view_fixture(SectionClass::Turret, None, ammo);
     let a = panel_action_state(&ghost, 12);
-    assert!(a.reload_enabled && !a.repair_enabled);
+    assert!(!a.repair_enabled);
     assert_eq!(reason(&a), "repair: PDC-1 has no integrity to restore");
 }
 
@@ -1088,8 +1063,8 @@ fn panel_detail_text_covers_live_fields() {
 }
 
 #[test]
-fn panel_buttons_raise_ship_section_command() {
-    // Each button's `Activate` observer routes a ShipSectionCommand for the
+fn panel_buttons_raise_section_repair_command() {
+    // Each button's `Activate` observer routes a SectionRepairCommand for the
     // selected section, or arms a rebind, and clicks once - but only when the
     // panel marked that action enabled. A disabled or modal-blocked press stays
     // silent. Pins every button entry point at its own boundary
@@ -1100,7 +1075,7 @@ fn panel_buttons_raise_ship_section_command() {
     app.add_plugins((MinimalPlugins, StatesPlugin, AssetPlugin::default()));
     app.insert_state(PauseStates::Interface);
     app.init_resource::<ShipRuntime>();
-    app.add_message::<ShipSectionCommand>();
+    app.add_message::<SectionRepairCommand>();
     // A scheduled handler keeps one reader cursor, so a spent repair is never
     // replayed by a later step.
     app.add_systems(Update, apply_ship_section_commands);
@@ -1110,71 +1085,10 @@ fn panel_buttons_raise_ship_section_command() {
         .run_system_once(assign_section_codes)
         .unwrap();
 
-    // --- Reload button on the turret (starts at 2/6). ---
-    let reload = app
-        .world_mut()
-        .spawn(ShipPanelButton::Reload)
-        .observe(on_ship_reload_button)
-        .id();
-    app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
-
-    // Disabled: activating the button is a no-op (ammo unchanged at 2).
-    app.world_mut()
-        .resource_mut::<ShipRuntime>()
-        .panel_reload_enabled = false;
-    app.world_mut().trigger(Activate { entity: reload });
-    app.update();
-    assert_eq!(
-        app.world().get::<SectionAmmo>(turret).unwrap().rounds,
-        2,
-        "a disabled reload button writes no command",
-    );
-    app.world_mut().flush();
-    assert!(
-        take_cues(&mut app).is_empty(),
-        "a disabled reload stays silent"
-    );
-
-    // Enabled, but under the command modal over the pane: still a no-op.
-    app.world_mut()
-        .resource_mut::<ShipRuntime>()
-        .panel_reload_enabled = true;
-    app.world_mut()
-        .resource_mut::<NextState<PauseStates>>()
-        .set(PauseStates::Commands);
-    app.update();
-    app.world_mut().trigger(Activate { entity: reload });
-    app.update();
-    assert_eq!(
-        app.world().get::<SectionAmmo>(turret).unwrap().rounds,
-        2,
-        "the modal over the pane takes no panel action",
-    );
-    app.world_mut().flush();
-    assert!(
-        take_cues(&mut app).is_empty(),
-        "a blocked reload stays silent"
-    );
-    app.world_mut()
-        .resource_mut::<NextState<PauseStates>>()
-        .set(PauseStates::Interface);
-    app.update();
-
-    // Enabled: activating routes the command and refills ammo to capacity.
-    app.world_mut().trigger(Activate { entity: reload });
-    app.update();
-    assert_eq!(
-        app.world().get::<SectionAmmo>(turret).unwrap().rounds,
-        6,
-        "an enabled reload button routes through the ShipSectionCommand seam",
-    );
-    app.world_mut().flush();
-    assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
-
-    // --- Repair button on the hull (starts at 80/100), the other caller. ---
+    // --- Repair button on the hull (starts at 80/100). ---
     app.world_mut()
         .entity_mut(ship)
-        .insert(ShipInventory::new(400, [(ItemType::HullPlate, 1)]));
+        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 1)]));
     let repair = app
         .world_mut()
         .spawn(ShipPanelButton::Repair)
@@ -1206,7 +1120,7 @@ fn panel_buttons_raise_ship_section_command() {
     assert_eq!(
         app.world().get::<Health>(hull).unwrap().current,
         100.0,
-        "an enabled repair button routes through the ShipSectionCommand seam",
+        "an enabled repair button routes through the SectionRepairCommand seam",
     );
     app.world_mut().flush();
     assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
@@ -1258,7 +1172,7 @@ fn update_ship_panel_reflects_selection() {
     let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .entity_mut(ship)
-        .insert(ShipInventory::new(400, [(ItemType::HullPlate, 1)]));
+        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 1)]));
     app.world_mut()
         .run_system_once(assign_section_codes)
         .unwrap();
@@ -1296,12 +1210,8 @@ fn update_ship_panel_reflects_selection() {
     let title = field_text(&mut app, ShipPanelField::Title);
     assert!(title.contains("HULL-1"), "title reflects the code: {title}");
 
-    // A hull caches reload DISABLED and repair ENABLED for the observers.
+    // A damaged hull with plates caches repair ENABLED for the observer.
     let runtime = app.world().resource::<ShipRuntime>();
-    assert!(
-        !runtime.panel_reload_enabled,
-        "a hull has no ammo feed -> reload disabled",
-    );
     assert!(
         runtime.panel_repair_enabled,
         "a damaged hull with plates is repairable -> repair enabled",

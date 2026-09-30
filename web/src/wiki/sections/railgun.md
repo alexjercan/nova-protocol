@@ -21,7 +21,7 @@ A railgun is a **spinal gun**: three cells of rails and capacitor bank with no t
 
 It is the opposite weapon to a turret in every way that matters. A turret is a mount you assign and forget; a railgun is a shot you set up. It fires once every thirteen seconds or so, the trigger cannot call it back once it is pulled, and it shoves the ship that fired it.
 
-<!-- Values from crates/nova_authoring/src/base_content/sections/railgun.rs: charge_seconds 1.5, slug_speed 15,000 m/s, slug_damage 300, slug_power 1800, rake_radius 10 m, slug_lifetime 1.2 (18 km of reach), recoil_impulse 45, ammo_capacity 1, reload delay 12. -->
+<!-- Values from crates/nova_authoring/src/base_content/sections/railgun.rs: charge_seconds 1.5, slug_speed 15,000 m/s, slug_damage 300, slug_power 1800, rake_radius 10 m, slug_lifetime 1.2 (18 km of reach), recoil_impulse 45, ammunition Limited(1), reload delay 12 drawing RailSlug from crates/nova_ship/src/sections/ammo.rs. -->
 
 | The railgun at a glance | |
 |---|---|

@@ -647,7 +647,7 @@ fn a_scripted_railgun_order_waits_for_an_empty_gun_to_reload() {
         FixedUpdate,
         tick_section_reload.after(charge_and_fire_railgun),
     );
-    let (_ship, lance) = spawn_lance_ship(
+    let (ship, lance) = spawn_lance_ship(
         &mut app,
         RailgunSectionConfig {
             ammunition: AmmoCapacity::Limited(1),
@@ -659,6 +659,9 @@ fn a_scripted_railgun_order_waits_for_an_empty_gun_to_reload() {
         },
         Vec3::NEG_Z * 2.0,
     );
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(ShipInventory::new(20_000, [(ItemType::RailSlug, 1)]));
 
     // Empty the magazine before the order lands.
     app.world_mut()

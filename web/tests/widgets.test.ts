@@ -86,6 +86,7 @@ import {
     SPATIAL_EMITTER_RADIUS,
     TARGETING_CONE_HALF_ANGLE_DEG,
     V0110_PIERCE_LAYER_CAP,
+    V0130_COMMAND_ROWS,
     zoneAllows,
     ZONE_PARTS,
     zonePlacements,
@@ -959,15 +960,15 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.equal(park.oldGap, -550, "the old rule parked inside the planetoid");
 }
 
-// Commands: 27 rows, four classes, and one gate.
+// Commands: 28 rows now, 27 in the v0.13.0 snapshot, four classes, one gate.
 {
     assert.equal(COMMAND_CLASSES.length, 4);
-    assert.equal(COMMAND_ROWS.length, 27);
+    assert.equal(COMMAND_ROWS.length, 28);
     const count = (cls: string): number =>
         COMMAND_ROWS.filter((row) => row.cls === cls).length;
     assert.deepEqual(
         [count("Utility"), count("ReadOnly"), count("Setting"), count("Cheat")],
-        [5, 13, 5, 4]
+        [5, 13, 5, 5]
     );
     assert.ok(commandAllowed("status", "ReadOnly", false));
     assert.ok(commandAllowed("graphics", "Setting", false));
@@ -980,6 +981,25 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         "except the one that arms"
     );
     assert.ok(commandAllowed("ammo refill", "Cheat", true));
+    const itemGive = COMMAND_ROWS.find((row) => row.name === "item give");
+    assert.ok(itemGive, "item give is a catalog row");
+    assert.equal(itemGive.usage, "item give <ship-id> <item-id> <quantity>");
+    assert.ok(
+        !commandAllowed(itemGive.name, itemGive.cls, false),
+        "item give is refused unarmed"
+    );
+    assert.ok(commandAllowed(itemGive.name, itemGive.cls, true));
+    assert.equal(V0130_COMMAND_ROWS.length, 27);
+    assert.deepEqual(
+        ["Utility", "ReadOnly", "Setting", "Cheat"].map(
+            (cls) => V0130_COMMAND_ROWS.filter((row) => row.cls === cls).length
+        ),
+        [5, 13, 5, 4]
+    );
+    assert.ok(
+        V0130_COMMAND_ROWS.every((row) => row.name !== "item give"),
+        "v0.13.0 did not ship item give"
+    );
 }
 
 // Ceilings: the walk once, 64 craters chipped, 24 pieces a frame.

@@ -57,7 +57,9 @@
                                 lock_enabled: false,
                                 rcs_enabled: false,
                             ),
-                            inventory: {},
+                            inventory: {
+                                PdcRound: 2000,
+                            },
                             lootable: false,
                         )),
                     )),

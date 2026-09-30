@@ -34,15 +34,19 @@
 //!
 //! A take moves the whole canister into the ship's [`ShipInventory`] or does
 //! nothing: a canister heavier than the hold's free mass stays out.
-//! A jettison waits on the intake as a [`CargoIntakeEjection`] until the door
-//! is fully open and no canister is near the birth point. The canister is
-//! born through `Commands`, so the tick that drops it cannot see it, and with
-//! its near side past the capture gap, moving away. From the next tick any
-//! intake takes it back the moment it closes on an open door.
+//! A jettison waits on the intake in a [`CargoIntakeEjectionQueue`]. The
+//! intake drops the front canister once its door is fully open and no
+//! canister is near the birth point, so the next waits until the last drifts
+//! clear. The canister is born through `Commands`, so the tick that drops it
+//! cannot see it, and with its near side past the capture gap, moving away.
+//! From the next tick any intake takes it back the moment it closes on an
+//! open door.
 //!
 //! The door, the drop and the take each trigger an event
 //! ([`CargoIntakeDoorMoved`], [`CargoCanisterEjected`],
 //! [`CargoCanisterTaken`]) that the ship's audio voices.
+
+use std::collections::VecDeque;
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -54,12 +58,12 @@ use super::local_pose_in_root;
 use crate::{physics::prelude::rigid_body_point_velocity, prelude::*};
 
 /// The `cargo_intake_section` spawners, its face helper, config, marker,
-/// pending ejection, events, the canister bundle and
+/// ejection queue, events, the canister bundle and
 /// `CargoIntakeSectionPlugin` with `CargoIntakeSystems`.
 pub mod prelude {
     pub use super::{
         cargo_canister, cargo_intake_face, cargo_intake_section, preview_cargo_intake_section,
-        CargoCanisterEjected, CargoCanisterTaken, CargoIntakeDoorMoved, CargoIntakeEjection,
+        CargoCanisterEjected, CargoCanisterTaken, CargoIntakeDoorMoved, CargoIntakeEjectionQueue,
         CargoIntakeSectionConfig, CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker,
         CargoIntakeSectionPlugin, CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness,
         CARGO_APERTURE_MARGIN, CARGO_CANISTER_SIZE,
@@ -141,12 +145,13 @@ pub struct CargoIntakeSectionMarker;
 #[derive(Component, Clone, Debug, Deref, Reflect)]
 pub struct CargoIntakeSectionConfigHelper(CargoIntakeSectionConfig);
 
-/// A jettisoned stack that waits on the intake for the door. Already removed
-/// from the ship's inventory: it shares the intake's fate, as the inventory
-/// shares the ship's. One per intake.
+/// Jettisoned canisters that wait on the intake for the door, dropped front
+/// first. Already removed from the ship's inventory: they share the intake's
+/// fate, as the inventory shares the ship's. Never empty: the intake removes
+/// the queue as it drops the last canister.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
-pub struct CargoIntakeEjection(pub CargoCanister);
+pub struct CargoIntakeEjectionQueue(pub VecDeque<CargoCanister>);
 
 /// An intake's door started to move: the change of its target, not of its
 /// progress, as the torpedo bay's iris reports.
@@ -336,8 +341,8 @@ struct CanisterRead {
 
 /// Run every live intake on a spaceship root: steer its door, take slow,
 /// closing canisters that do not touch the ship through a fully open door,
-/// and drop a pending ejection once the door is open and no canister is near
-/// the birth point.
+/// and drop the front of its ejection queue once the door is open and no
+/// canister is near the birth point.
 ///
 /// A missing `IntakeDoor` track counts as an open door, as a doorless torpedo
 /// bay launches at once: content lint requires the track, so only a
@@ -362,7 +367,7 @@ fn run_cargo_intakes(
             &CargoIntakeSectionConfigHelper,
             &SectionCollider,
             &mut SectionAnimations,
-            Option<&CargoIntakeEjection>,
+            Option<&mut CargoIntakeEjectionQueue>,
         ),
         (
             With<CargoIntakeSectionMarker>,
@@ -404,7 +409,7 @@ fn run_cargo_intakes(
     let mut intakes: Vec<Entity> = q_intakes.iter().map(|(entity, ..)| entity).collect();
     intakes.sort();
     for intake in intakes {
-        let Ok((_, &ChildOf(ship), config, collider, mut animations, ejection)) =
+        let Ok((_, &ChildOf(ship), config, collider, mut animations, mut ejections)) =
             q_intakes.get_mut(intake)
         else {
             continue;
@@ -453,7 +458,7 @@ fn run_cargo_intakes(
             })
             .collect();
 
-        let wanted = ejection.is_some()
+        let wanted = ejections.is_some()
             || zones
                 .iter()
                 .any(|zone| *zone != CargoIntakeZoneType::Outside);
@@ -487,7 +492,7 @@ fn run_cargo_intakes(
                 !touching_ship
                     && relative.length() <= maximum_speed
                     && relative.dot(normal) <= 0.0
-                    && inventory.free_kg() >= read.canister.total_mass_kg()
+                    && inventory.free_g() >= read.canister.total_mass_g()
             };
             readiness.pairs.push(CargoPickupPair {
                 ship,
@@ -512,10 +517,15 @@ fn run_cargo_intakes(
         let birth_clear = canisters.iter().all(|read| {
             read.taken || read.position.distance(birth) >= CARGO_CANISTER_SIZE.length()
         });
-        let pending = ejection.map(|ejection| ejection.0.clone());
-        if let Some(canister) = pending.filter(|_| open && birth_clear) {
+        if let Some(queue) = ejections.as_mut().filter(|_| open && birth_clear) {
+            let canister = queue
+                .0
+                .pop_front()
+                .expect("a CargoIntakeEjectionQueue is never empty");
+            if queue.0.is_empty() {
+                commands.entity(intake).remove::<CargoIntakeEjectionQueue>();
+            }
             let velocity = point_velocity(birth) + normal * config.eject_speed.to_engine();
-            commands.entity(intake).remove::<CargoIntakeEjection>();
             commands.spawn(cargo_canister(
                 canister,
                 Transform::from_translation(birth).with_rotation(intake_rotation),
@@ -596,7 +606,7 @@ impl Plugin for CargoIntakeSectionPlugin {
         trace!("CargoIntakeSectionPlugin: build");
 
         app.register_type::<CargoIntakeSectionMarker>();
-        app.register_type::<CargoIntakeEjection>();
+        app.register_type::<CargoIntakeEjectionQueue>();
         app.register_type::<CargoCanister>();
         app.init_resource::<CargoPickupReadiness>();
         app.add_observer(despawn_destroyed_canister);

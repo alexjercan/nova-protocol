@@ -148,7 +148,7 @@
                                     "pdc_ventral": [Keyboard(KeyS)],
                                 },
                             )),
-                            inventory: {},
+                            inventory: {PdcRound: 1000, RailSlug: 10, Torpedo: 2},
                             lootable: false,
                         )),
                     )),

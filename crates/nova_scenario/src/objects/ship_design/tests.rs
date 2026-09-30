@@ -450,6 +450,6 @@ fn cargo_capacity_is_100_kg_per_resolved_hull_section() {
         resolve_ship_design(&ShipDesignSource::prototype("hauler"), &designs, &catalog());
 
     assert!(errors.is_empty(), "{errors:?}");
-    assert_eq!(resolved.cargo_capacity_kg(), 2 * HULL_SECTION_CARGO_KG);
-    assert_eq!(ResolvedShipDesign::default().cargo_capacity_kg(), 0);
+    assert_eq!(resolved.cargo_capacity_g(), 2 * HULL_SECTION_CARGO_G);
+    assert_eq!(ResolvedShipDesign::default().cargo_capacity_g(), 0);
 }

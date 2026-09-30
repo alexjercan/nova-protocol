@@ -31,7 +31,7 @@ pub(super) fn insert_railgun_section(
     if let Some(reload) = config.reload.batch() {
         commands
             .entity(entity)
-            .insert(SectionReload::from_config(reload));
+            .insert(SectionReload::from_config(reload, ItemType::RailSlug));
     }
 }
 

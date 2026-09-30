@@ -32,6 +32,14 @@ does NOT get an entry. Another page that states a different rule is wrong.
   let go; ten violet pips under the speed chip show it. This replaces the
   100 m/s RCS cap.
 
+### Combat & Weapons
+
+- Idle reload loads each batch from matching inventory ammo: PDC rounds, rail
+  slugs or torpedoes. A short reserve loads part of a batch; none loads nothing.
+  The free Reload Section key (L) is gone.
+- AI raiders and tutorial drones carry no reserve: once their magazines are
+  spent they stay dry. The ammo gauge previews only what the reserve can load.
+
 ### Ships & Sections
 
 - New `block_line_warship` Line Warship: six PDC mounts on the trigger, a bow
@@ -46,9 +54,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New Game opens a world setup modal with a seed field. Create flies a line
   warship into an open world generated from the seed and streamed around it.
   Retry keeps the seed.
-- The open-world warship starts with 12 hull plates and a lootable Derelict
-  Tender carrying 8, moored 140 m ahead of its port collar. Stock resets when
-  the scenario loads.
+- The open-world warship starts with 12 hull plates, 6000 PDC rounds, 20 rail
+  slugs and 12 torpedoes beside a lootable Derelict Tender with 8 plates. Stock
+  resets when the scenario loads.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.
@@ -67,9 +75,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid without `mass` has no gravity well and stays
   dynamic at any size. `mass: Some(..)` makes a static well and must be finite
   and 0 or more.
-- **(breaking)** Spaceships require `inventory: {HullPlate: 12}`. Each hull
-  section gives 100 kg of hold. A zero count or a repeated item fails load;
-  stock past the hold fails lint, then load.
+- **(breaking)** Spaceships require `inventory: {HullPlate: 12, PdcRound: 500}`
+  of `HullPlate`, `PdcRound`, `RailSlug`, `Torpedo`. Each hull section holds
+  100 kg; overstock fails lint, then load.
 - New `CargoIntake` section kind with required door, eject and take sounds,
   `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures,
   speeds and a missing door track.
@@ -80,24 +88,27 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Interface & HUD
 
 - **(breaking)** TAB opens a themed interface with Map, Ship and Inventory
-  panes; M or pad Y steps through them. GOTO and mates are pane keys; Repair,
-  Reload and Rebind are keys and buttons.
-- The Inventory pane lists your ship's and a docked ship's cargo and your
-  load in kg. Docked, Give, or Take once neutralized or lootable. Ship pane
-  Repair spends hull plates, 1 per 20 HP, anywhere.
-- Undocked, Jettison merges stacks into one pending canister, up to 200 kg.
-  Canisters have 20 HP, lose their contents on destruction, and accept travel
-  but not combat locks.
+  panes; M or pad Y steps through them. GOTO and mates are pane keys; Repair
+  and Rebind are keys and buttons.
+- The Inventory pane lists your and a docked ship's cargo, load, item weight
+  and transfer weight. Docked, Give, or Take once neutralized or lootable.
+  Repair spends 1 hull plate per 20 HP, anywhere.
+- Undocked, Jettison queues canisters of up to 200 kg that the intake drops in
+  order. Canisters have 20 HP, lose their contents on destruction, and accept
+  travel but not combat locks.
 - Nearby canisters show an amber cargo tag with mass. A canister within 200 m
   gets a cyan intake sight with no lock needed; a travel-locked one goes first.
 - The TAB interface blips on open and close like the pause menu, and clicks
   when a tab, filter, item, contact or section pick changes, and on Reframe,
-  Fit, Reset, Repair, Reload and Rebind.
+  Fit, Reset, Repair and Rebind.
 - **(breaking)** `:` opens NOVA COMMANDS on the CRT over any screen; Escape
   returns there. The `nova>` prompt and app verbs are gone. New `log` prints
   comms, objectives and lock drops.
+- New armed cheat `item give <ship-id> <item-id> <quantity>` adds HullPlate,
+  PdcRound, RailSlug or Torpedo stock to one ship when the whole quantity fits
+  its hold.
 - Keybinds saved under `novaos_*` IDs load onto `interface_toggle` and
-  `viewer_*`. Pad Y now switches panes, so Reload Section keeps only L.
+  `viewer_*`.
 - The Map labels an asteroid only while it is selected, so a belt of rocks no
   longer buries ship and planet labels. Every blip stays clickable.
 - Objective notification rebuilding now survives same-frame ship teardown.

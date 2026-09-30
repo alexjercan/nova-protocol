@@ -297,11 +297,11 @@ mod ammunition_tests {
             + joint.children.iter().map(tree_fire_rate).sum::<f32>()
     }
 
-    /// Ammunition here is a RATE LIMIT, not a budget. A weapon that carries a
-    /// magazine and no way to refill it leaves a ship alive with nothing to
-    /// fight with, which strands an engagement rather than resolving it.
-    /// Unlimited (`ammunition: AmmoCapacity::Unlimited`) is a separate, deliberate authoring
-    /// choice and is not what this grades.
+    /// Every magazine needs a reload batch: the batch is the only way the
+    /// ship's inventory reserve reaches the magazine, so a magazine with no
+    /// reload cannot use the ammunition its ship carries. Unlimited
+    /// (`ammunition: AmmoCapacity::Unlimited`) is a separate, deliberate
+    /// authoring choice and is not what this grades.
     #[test]
     fn every_authored_magazine_refills() {
         let assets = BaseContentAssets::from_paths();
@@ -319,8 +319,8 @@ mod ammunition_tests {
             graded += 1;
             assert!(
                 reload.batch().is_some(),
-                "'{}' carries {capacity} rounds and no reload - once they are \
-                 gone the section is dead weight that still flies",
+                "'{}' carries {capacity} rounds and no reload - its ship's \
+                 ammunition reserve can never refill it",
                 section.base.id
             );
         }

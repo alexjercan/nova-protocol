@@ -163,10 +163,12 @@ pub(super) fn insert_torpedo_section(
     if let Some(capacity) = config.ammunition.rounds() {
         commands.entity(entity).insert(SectionAmmo::new(capacity));
         // Auto-reload rides on the magazine: only a finite bay can rearm.
+        // Every bay type loads the same torpedo: the bay, not the item,
+        // decides its flight.
         if let Some(reload) = config.reload.batch() {
             commands
                 .entity(entity)
-                .insert(SectionReload::from_config(reload));
+                .insert(SectionReload::from_config(reload, ItemType::Torpedo));
         }
     }
 }
@@ -1168,13 +1170,21 @@ mod tests {
         let mut app = firing_app(2.0);
         app.add_systems(Update, crate::sections::ammo::tick_section_reload);
         let section = spawn_firing_bay(&mut app, Some(2));
-        // Regen one round per ~0.2s cycle (under the 0.25s per-tick clamp).
+        // Regen one round per ~0.2s cycle (under the 0.25s per-tick clamp),
+        // drawn from torpedoes the ship carries.
         app.world_mut()
             .entity_mut(section)
-            .insert(SectionReload::from_config(SectionReloadConfig {
-                delay: 0.2,
-                amount: 1,
-            }));
+            .insert(SectionReload::from_config(
+                SectionReloadConfig {
+                    delay: 0.2,
+                    amount: 1,
+                },
+                ItemType::Torpedo,
+            ));
+        let ship = app.world().get::<ChildOf>(section).unwrap().parent();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(ShipInventory::new(10_000_000, [(ItemType::Torpedo, 10)]));
 
         for _ in 0..12 {
             app.update();

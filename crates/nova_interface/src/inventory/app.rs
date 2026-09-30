@@ -6,7 +6,7 @@
 //! Touch this module when changing what the Inventory pane shows, how a row
 //! is selected or how an action is confirmed.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use bevy::{
     ecs::system::SystemParam,
@@ -18,7 +18,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{
-    CargoIntakeEjection, CargoIntakeSectionMarker, DockedShip, DockingConnection,
+    CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedShip, DockingConnection,
 };
 use nova_ui::{
     theme::UiColor,
@@ -91,6 +91,8 @@ pub(crate) enum InspectorPart {
     Item,
     /// The transfer form, while a draft is open.
     Form,
+    /// The draft quantity's total weight, while the quantity is a whole number.
+    TotalWeight,
 }
 
 /// A text of the inspector that [`update_inventory_panel`] fills.
@@ -104,6 +106,10 @@ pub(crate) enum InventoryInspectorField {
     About,
     /// How many the selected side carries, and which ship that is.
     Stock,
+    /// The mass of one item.
+    Weight,
+    /// The mass of the draft's quantity.
+    TotalWeight,
     /// What moving items takes where the player ship is now.
     Context,
     /// The last transfer result.
@@ -146,6 +152,9 @@ struct ColumnDraw {
 fn item_about(item: ItemType) -> &'static str {
     match item {
         ItemType::HullPlate => "Structural plating for hull sections.",
+        ItemType::PdcRound => "Point-defense round. Kinetic and Pierce mounts reload from it.",
+        ItemType::RailSlug => "Railgun slug. Railgun mounts reload from it.",
+        ItemType::Torpedo => "Torpedo. Every torpedo bay reloads from it.",
     }
 }
 
@@ -455,6 +464,27 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                                 TextLayout::new(Justify::Right, LineBreak::WordBoundary),
                             ));
                         });
+                    item.spawn(control_row(JustifyContent::SpaceBetween))
+                        .with_children(|fact| {
+                            fact.spawn(themed_label("Weight", 12.0, UiColor::Label));
+                            fact.spawn((
+                                InventoryInspectorField::Weight,
+                                themed_label("", 13.0, UiColor::Body),
+                                TextLayout::new(Justify::Right, LineBreak::WordBoundary),
+                            ));
+                        });
+                    item.spawn((
+                        InspectorPart::TotalWeight,
+                        control_row(JustifyContent::SpaceBetween),
+                    ))
+                    .with_children(|fact| {
+                        fact.spawn(themed_label("Total weight", 12.0, UiColor::Label));
+                        fact.spawn((
+                            InventoryInspectorField::TotalWeight,
+                            themed_label("", 13.0, UiColor::Body),
+                            TextLayout::new(Justify::Right, LineBreak::WordBoundary),
+                        ));
+                    });
                     item.spawn((
                         InspectorPart::Form,
                         Node {
@@ -485,35 +515,45 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
         InventoryInspectorField::DraftTitle,
         themed_label("", 13.0, UiColor::Accent),
     ));
-    form.spawn((InventoryDraftWheel, control_row(JustifyContent::FlexStart)))
-        .observe(wheel_inventory_draft)
-        .with_children(|row| {
-            row.spawn(Node {
-                width: px(72),
-                flex_shrink: 0.0,
-                ..default()
-            })
-            .with_children(|cell| {
-                cell.spawn((
-                    InventoryDraftField,
-                    text_field(TextFieldSpec::new("1").max_chars(5).dense()),
-                ));
-            });
-            row.spawn((
-                InventoryInspectorField::DraftStock,
-                themed_label("", 15.0, UiColor::Primary),
-                Node {
-                    flex_grow: 1.0,
-                    ..default()
-                },
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+    form.spawn((
+        InventoryDraftWheel,
+        // A four-digit stock at the 1024 px default window leaves no room for
+        // All beside the field and the count; it wraps under them instead of
+        // running past the inspector's edge.
+        Node {
+            flex_wrap: FlexWrap::Wrap,
+            row_gap: px(6),
+            ..control_row(JustifyContent::FlexStart)
+        },
+    ))
+    .observe(wheel_inventory_draft)
+    .with_children(|row| {
+        row.spawn(Node {
+            width: px(72),
+            flex_shrink: 0.0,
+            ..default()
+        })
+        .with_children(|cell| {
+            cell.spawn((
+                InventoryDraftField,
+                text_field(TextFieldSpec::new("1").max_chars(5).dense()),
             ));
-            row.spawn((
-                Name::new("InventoryDraftAll"),
-                compact_button(ButtonSpec::new("All").fit().ghost()),
-            ))
-            .observe(fill_inventory_draft);
         });
+        row.spawn((
+            InventoryInspectorField::DraftStock,
+            themed_label("", 15.0, UiColor::Primary),
+            Node {
+                flex_grow: 1.0,
+                ..default()
+            },
+            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+        ));
+        row.spawn((
+            Name::new("InventoryDraftAll"),
+            compact_button(ButtonSpec::new("All").fit().ghost()),
+        ))
+        .observe(fill_inventory_draft);
+    });
     form.spawn((
         InventoryDraftSlider,
         Slider {
@@ -700,7 +740,7 @@ pub(crate) struct InventoryShips<'w, 's> {
         (
             Entity,
             &'static ChildOf,
-            Option<&'static CargoIntakeEjection>,
+            Option<&'static CargoIntakeEjectionQueue>,
         ),
         (
             With<CargoIntakeSectionMarker>,
@@ -768,12 +808,18 @@ impl InventoryShips<'_, '_> {
     }
 
     /// The live cargo intake a jettison from `ship` leaves through, the lowest
-    /// entity when there are several, with its pending ejection.
-    pub(crate) fn intake(&self, ship: Entity) -> Option<(Entity, Option<CargoCanister>)> {
+    /// entity when there are several, with its waiting canisters, empty when
+    /// none wait.
+    pub(crate) fn intake(&self, ship: Entity) -> Option<(Entity, VecDeque<CargoCanister>)> {
         self.intakes
             .iter()
             .filter(|(_, child_of, _)| child_of.parent() == ship)
-            .map(|(intake, _, pending)| (intake, pending.map(|pending| pending.0.clone())))
+            .map(|(intake, _, waiting)| {
+                (
+                    intake,
+                    waiting.map_or_else(VecDeque::new, |waiting| waiting.0.clone()),
+                )
+            })
             .min_by_key(|(intake, _)| *intake)
     }
 
@@ -1003,10 +1049,11 @@ pub(crate) fn sync_inventory_draft_controls(
 /// rule. Flash the result on the note line.
 ///
 /// A move removes from the source and adds to the target in this one run. A
-/// jettison removes from the player ship and puts the canister on the intake
-/// as a [`CargoIntakeEjection`] in this one run; the intake drops it when its
-/// door is open. Either closes the draft and clicks. A refusal changes no
-/// inventory, keeps the draft open so the quantity can change, and buzzes.
+/// jettison removes the whole quantity from the player ship and queues its
+/// canisters on the intake's [`CargoIntakeEjectionQueue`] in this one run; the
+/// intake drops them one at a time once gameplay runs and its door is open.
+/// Either closes the draft and clicks. A refusal changes no inventory, keeps
+/// the draft open so the quantity can change, and buzzes.
 /// Each command reads the state the previous one left. With no player ship, or
 /// more than one, the commands are dropped, as the panel draws nothing then.
 pub(crate) fn apply_inventory_action_commands(
@@ -1070,8 +1117,11 @@ fn transfer_items(
                 ItemTransferRefusalType::Short { held } => {
                     format!("Refused: only {held} {label} in {source_title}")
                 }
-                ItemTransferRefusalType::NoRoom { free_kg } => {
-                    format!("Refused: {target_title} has room for {free_kg} kg more")
+                ItemTransferRefusalType::NoRoom { free_g } => {
+                    format!(
+                        "Refused: {target_title} has room for {} more",
+                        kg_text(u64::from(free_g))
+                    )
                 }
             }
         })?;
@@ -1087,27 +1137,27 @@ fn transfer_items(
     })
 }
 
-/// Put one command's items on the player's cargo intake as a canister, or say
-/// why not. Both texts are the note line. `pending` tracks deferred merges.
+/// Queue one command's items on the player's cargo intake as canisters, or say
+/// why not. Both texts are the note line. `pending` tracks deferred queues.
 fn jettison_items(
     ships: &mut InventoryShips,
     pair: InventoryPair,
     command: InventoryActionCommand,
-    pending: &mut BTreeMap<Entity, CargoCanister>,
+    pending: &mut BTreeMap<Entity, VecDeque<CargoCanister>>,
     commands: &mut Commands,
 ) -> Result<String, String> {
     let InventoryActionCommand { item, quantity, .. } = command;
     let label = item.label();
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let intake = ships.intake(pair.own);
-    let queued = intake
+    let tail = intake
         .as_ref()
-        .and_then(|(entity, existing)| pending.get(entity).or(existing.as_ref()));
+        .and_then(|(entity, waiting)| pending.get(entity).unwrap_or(waiting).back());
     let (_, own, _) = ships.ship(pair.own);
-    let count = plan_item_jettison(
+    let jettison = plan_item_jettison(
         pair.partner.is_some(),
         intake.is_some(),
-        queued,
+        tail,
         item,
         quantity,
         own,
@@ -1115,30 +1165,44 @@ fn jettison_items(
     .map_err(|refusal| match refusal {
         ItemJettisonRefusalType::Docked => "Refused: undock to jettison".to_string(),
         ItemJettisonRefusalType::NoIntake => "Refused: no working cargo intake".to_string(),
-        ItemJettisonRefusalType::Overweight => "Refused: canister exceeds 200 kg".to_string(),
         ItemJettisonRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
         ItemJettisonRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
         ItemJettisonRefusalType::Short { held } => {
             format!("Refused: only {held} {label} in {own_title}")
         }
+        ItemJettisonRefusalType::Overweight => format!(
+            "Refused: one {label} exceeds a {} canister",
+            kg_text(u64::from(CARGO_CANISTER_MAX_MASS_G))
+        ),
     })?;
-    let (intake, existing) = intake.expect("plan_item_jettison refuses a ship with no intake");
+    let (intake, waiting) = intake.expect("plan_item_jettison refuses a ship with no intake");
     let (_, mut own, ..) = ships
         .ships
         .get_mut(pair.own)
         .expect("InventoryShips::pair checked the player ship");
-    own.remove(item, count);
-    let canister = if let Some(mut earlier) = pending.remove(&intake).or(existing) {
-        earlier.add(item, count);
-        earlier
-    } else {
-        CargoCanister::new(item, count)
-    };
+    own.remove(item, jettison.count);
+    let mut queue = pending.remove(&intake).unwrap_or(waiting);
+    if jettison.merged > 0 {
+        queue
+            .back_mut()
+            .expect("plan_item_jettison merges only into a waiting canister")
+            .add(item, jettison.merged);
+    }
+    queue.extend(jettison.canisters);
+    let waiting = queue.len();
     commands
         .entity(intake)
-        .insert(CargoIntakeEjection(canister.clone()));
-    pending.insert(intake, canister);
-    Ok(format!("Jettisoned {count} {label}"))
+        .insert(CargoIntakeEjectionQueue(queue.clone()));
+    pending.insert(intake, queue);
+    let noun = if waiting == 1 {
+        "canister"
+    } else {
+        "canisters"
+    };
+    Ok(format!(
+        "Jettisoned {} {label}: {waiting} {noun} queued",
+        jettison.count
+    ))
 }
 
 /// One side as the pane draws it: the heading and its stacks, or `None` for a
@@ -1207,9 +1271,9 @@ pub(crate) fn update_inventory_panel(
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let own = SideView {
         heading: format!(
-            "{own_title} {}/{} kg",
-            own_inventory.used_kg(),
-            own_inventory.capacity_kg()
+            "{own_title} {} / {}",
+            kg_text(u64::from(own_inventory.used_g())),
+            kg_text(u64::from(own_inventory.capacity_g()))
         ),
         title: own_title,
         stacks: Some(own_inventory.stacks().collect()),
@@ -1338,6 +1402,7 @@ pub(crate) fn update_inventory_panel(
             InspectorPart::Hint => selected.is_none(),
             InspectorPart::Item => selected.is_some(),
             InspectorPart::Form => draft.is_some(),
+            InspectorPart::TotalWeight => draft.is_some_and(|draft| draft.quantity.is_some()),
         };
         let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
@@ -1361,6 +1426,11 @@ pub(crate) fn update_inventory_panel(
             .count(item)
             .expect("the selection was cleared above unless its side carries the item");
         (item, format!("x{count} in {}", view.title))
+    });
+    let total_weight = draft.and_then(|draft| {
+        draft
+            .quantity
+            .map(|quantity| kg_text(u64::from(draft.item.mass_g()) * u64::from(quantity)))
     });
     let form = draft.map(|draft| {
         let (source, title) = match draft.action {
@@ -1408,6 +1478,13 @@ pub(crate) fn update_inventory_panel(
                 (item_about(*item).to_string(), UiColor::Body)
             }
             (InventoryInspectorField::Stock, Some((_, stock)), _) => (stock.clone(), UiColor::Body),
+            (InventoryInspectorField::Weight, Some((item, _)), _) => {
+                (kg_text(u64::from(item.mass_g())), UiColor::Body)
+            }
+            (InventoryInspectorField::TotalWeight, ..) => match &total_weight {
+                Some(total) => (total.clone(), UiColor::Body),
+                None => continue,
+            },
             (InventoryInspectorField::DraftTitle, _, Some((title, ..))) => {
                 (title.clone(), UiColor::Accent)
             }

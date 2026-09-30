@@ -76,10 +76,7 @@ pub use self::{
     crt::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
     sound::play_nova_os_cue,
 };
-pub(crate) use self::{
-    content::{section_kind_from_markers, section_kind_label},
-    input::NovaOsAppInput,
-};
+pub(crate) use self::{content::section_kind_from_markers, input::NovaOsAppInput};
 use self::{
     crt::{
         animate_nova_os_crt, forward_nova_os_pointer, mirror_nova_os_hover,

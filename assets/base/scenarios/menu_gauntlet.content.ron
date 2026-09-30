@@ -607,6 +607,10 @@
                     )),
                 ],
                 actions: [
+                    SetInfiniteAmmo((
+                        id: "gauntlet_battery_w1",
+                        enabled: true,
+                    )),
                     ForceTorpedoFire((
                         ship: "gauntlet_battery_w1",
                         section: "bay",
@@ -626,6 +630,10 @@
                     )),
                 ],
                 actions: [
+                    SetInfiniteAmmo((
+                        id: "gauntlet_battery_w2",
+                        enabled: true,
+                    )),
                     ForceTorpedoFire((
                         ship: "gauntlet_battery_w2",
                         section: "bay",
@@ -645,6 +653,10 @@
                     )),
                 ],
                 actions: [
+                    SetInfiniteAmmo((
+                        id: "gauntlet_battery_e1",
+                        enabled: true,
+                    )),
                     ForceTorpedoFire((
                         ship: "gauntlet_battery_e1",
                         section: "bay",
@@ -664,6 +676,10 @@
                     )),
                 ],
                 actions: [
+                    SetInfiniteAmmo((
+                        id: "gauntlet_battery_e2",
+                        enabled: true,
+                    )),
                     ForceTorpedoFire((
                         ship: "gauntlet_battery_e2",
                         section: "bay",

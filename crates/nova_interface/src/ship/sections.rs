@@ -15,10 +15,7 @@ use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
 use nova_ui::theme::UiColor;
 
-use crate::{
-    icons::SectionIconType,
-    terminal::{section_kind_from_markers, section_kind_label},
-};
+use crate::{icons::SectionIconType, terminal::section_kind_from_markers};
 
 /// A short, stable, human-readable handle for a ship section (`HULL-3`, `PDC-1`),
 /// the label identity the Ship pane uses.
@@ -401,14 +398,11 @@ pub(crate) fn panel_detail_text(view: &ShipSectionView) -> String {
     text
 }
 
-/// Whether Repair / Reload are valid for a section, plus a reason for a disabled
-/// action. Repair uses the same [`plan_plate_repair`] check as
-/// [`repair_section`], and Reload the same conditions as [`reload_section`]
-/// (a `Turret`/`Torpedo` with an ammo feed), so the panel buttons never
-/// disagree with the handler.
+/// Whether Repair is valid for a section, plus a reason for a disabled
+/// action. Uses the same [`plan_plate_repair`] check as [`repair_section`], so
+/// the panel button never disagrees with the handler.
 pub(crate) struct PanelActions {
     pub(crate) repair_enabled: bool,
-    pub(crate) reload_enabled: bool,
     pub(crate) reason: Option<String>,
 }
 
@@ -417,59 +411,28 @@ impl PanelActions {
     pub(crate) fn none() -> Self {
         Self {
             repair_enabled: false,
-            reload_enabled: false,
             reason: None,
         }
     }
 }
 
-/// The panel state for `view` with `plates` hull plates on the player ship. A
-/// repair reason wins over a reload reason.
+/// The panel state for `view` with `plates` hull plates on the player ship.
 pub(crate) fn panel_action_state(view: &ShipSectionView, plates: u32) -> PanelActions {
-    let is_weapon = view.kind.is_weapon();
-
     let repair = plan_plate_repair(view.health.as_ref(), view.disabled, plates);
-    let reload_enabled = is_weapon && view.ammo.is_some();
-
-    // Surface why a disabled action is unavailable, mirroring the handler's text.
-    let reason = if let Err(refusal) = repair {
-        Some(repair_refusal_text(&view.code, refusal))
-    } else if !is_weapon {
-        Some(format!(
-            "reload: {} is a {} section, no ammo feed",
-            view.code,
-            section_kind_label(view.kind).to_lowercase()
-        ))
-    } else if view.ammo.is_none() {
-        Some(format!("reload: {} has unlimited ammo", view.code))
-    } else {
-        None
-    };
-
     PanelActions {
         repair_enabled: repair.is_ok(),
-        reload_enabled,
-        reason,
+        reason: repair
+            .err()
+            .map(|refusal| repair_refusal_text(&view.code, refusal)),
     }
 }
 
-/// A mutating action on a section, applied at once.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ShipAction {
-    /// Refill a weapon section's ammo to capacity.
-    Reload,
-    /// Spend hull plates to restore a section's integrity.
-    Repair,
-}
-
-/// A request to apply a [`ShipAction`] to a player-ship section, raised by the
-/// pane's action keys and panel buttons.
+/// A request to repair a player-ship section from hull plates, raised by the
+/// pane's repair key and panel button.
 #[derive(Message, Clone, Copy, Debug)]
-pub struct ShipSectionCommand {
+pub struct SectionRepairCommand {
     /// The target section entity.
     pub target: Entity,
-    /// What to do to it.
-    pub action: ShipAction,
 }
 
 /// The note line for a refused repair; the panel and the handler share it.
@@ -519,36 +482,5 @@ pub(crate) fn repair_section(
             }
         }
         Err(refusal) => refused(refusal),
-    }
-}
-
-/// Refill a weapon section's ammo to capacity, returning the result row.
-pub(crate) fn reload_section(
-    code: &str,
-    kind: SectionClass,
-    is_weapon: bool,
-    ammo: Option<&mut SectionAmmo>,
-) -> TerminalRow {
-    if !is_weapon {
-        return TerminalRow {
-            kind: TerminalRowKind::Error,
-            text: format!(
-                "reload: {code} is a {} section, no ammo feed",
-                section_kind_label(kind).to_lowercase()
-            ),
-        };
-    }
-    match ammo {
-        Some(ammo) => {
-            ammo.rounds = ammo.capacity;
-            TerminalRow {
-                kind: TerminalRowKind::Info,
-                text: format!("reloaded {code}: ammo {}/{}", ammo.rounds, ammo.capacity),
-            }
-        }
-        None => TerminalRow {
-            kind: TerminalRowKind::Dim,
-            text: format!("reload: {code} has unlimited ammo"),
-        },
     }
 }

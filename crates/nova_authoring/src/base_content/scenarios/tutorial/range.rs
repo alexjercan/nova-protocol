@@ -135,7 +135,8 @@ pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConf
                     ships::on_section(TRAINER_GUN, ships::section_health(TRAINER_GUN_HEALTH)),
                 ],
             ),
-            inventory: ShipInventoryStock::new([]),
+            // The gun's idle reload draws on this finite reserve.
+            inventory: ShipInventoryStock::new([(ItemType::PdcRound, 2000)]),
             lootable: false,
         }),
     }

@@ -511,7 +511,9 @@
                                 arrival_standoff: Some(100.0),
                             )),
                             allegiance: Some(Player),
-                            inventory: {},
+                            inventory: {
+                                PdcRound: 2000,
+                            },
                             lootable: false,
                         )),
                     )),
@@ -1173,7 +1175,9 @@
                                 engage_delay: Some(6.0),
                                 arrival_standoff: Some(100.0),
                             )),
-                            inventory: {},
+                            inventory: {
+                                PdcRound: 2000,
+                            },
                             lootable: false,
                         )),
                     )),

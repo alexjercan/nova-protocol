@@ -167,10 +167,12 @@ pub(super) fn insert_turret_section(
         // Auto-reload rides on the magazine: only a finite turret can reload,
         // so an `Unlimited` one with an authored batch gets none (and the
         // content lint refuses that pairing).
+        // Kinetic and Pierce mounts load the same round: the mount, not
+        // the item, decides the damage type.
         if let Some(reload) = config.reload.batch() {
             commands
                 .entity(turret)
-                .insert(SectionReload::from_config(reload));
+                .insert(SectionReload::from_config(reload, ItemType::PdcRound));
         }
     }
 }

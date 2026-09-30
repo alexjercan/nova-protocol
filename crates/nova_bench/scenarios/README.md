@@ -42,6 +42,11 @@ appear in the scenario.
   of an inert damaged frame tender, 12 degrees out of square. Use it for
   captures between real multi-section hulls. It has no goal in the deck.
 
+Guns reload from the player ship's inventory. The gunship players carry 2000
+PDC rounds. The arsenal hull carries 1000 PDC rounds, 10 rail slugs and 2
+torpedoes, a full 700 kg hold. The Line Warship carries 6000 PDC rounds, 20
+rail slugs and 12 torpedoes. Other ships carry nothing.
+
 ## Goal deck
 
 Every goal these fixtures are played with lives in `scripts/bench-plays.sh`,

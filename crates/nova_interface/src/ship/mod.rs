@@ -16,19 +16,20 @@
 //! The section panel beside the view shows the selection's condition bar,
 //! detail and actions. Orbit the camera with the `viewer_orbit_*` actions +
 //! drag + wheel; `[`/`]` or Prev/Next cycle the selection; Fit frames the whole
-//! ship at the current angles, and Reset also restores the opening angles; `G` toggles structural mates; `L` reloads, `P` repairs,
-//! and `B` replaces the selected bindable section's input.
+//! ship at the current angles, and Reset also restores the opening angles;
+//! `G` toggles structural mates; `P` repairs, and `B` replaces the selected
+//! bindable section's input.
 //!
-//! Actions apply at once through a single `ShipSectionCommand` seam (pane key
-//! or panel button -> message). Repair spends hull plates from the player
-//! ship's `ShipInventory`; Reload is free.
+//! Repair applies at once through a single `SectionRepairCommand` seam (pane
+//! key or panel button -> message), spending hull plates from the player
+//! ship's `ShipInventory`.
 //!
 //! # Module layout
 //!
 //! | Module | Concern |
 //! | --- | --- |
-//! | `sections` | Section codes, the live section view and the action seam. |
-//! | `app` | The side panel layout and the section action handler. |
+//! | `sections` | Section codes, the live section view and the repair seam. |
+//! | `app` | The side panel layout and the repair action handler. |
 //! | `scene` | The schematic 3D scene, its camera, the projected badges, the button observers and the panel refresh. |
 
 mod app;
@@ -85,7 +86,7 @@ pub(crate) struct ShipPanePlugin;
 impl Plugin for ShipPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ShipRuntime>();
-        app.add_message::<ShipSectionCommand>();
+        app.add_message::<SectionRepairCommand>();
         app.add_systems(
             Update,
             (

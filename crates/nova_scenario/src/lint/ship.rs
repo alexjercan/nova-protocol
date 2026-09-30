@@ -2,6 +2,7 @@
 
 use bevy::prelude::Vec3;
 use nova_events::units::prelude::*;
+use nova_gameplay::prelude::kg_text;
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
     section_colliders_overlap, AmmoCapacity, CargoIntakeSectionConfig, ControllerSectionConfig,
@@ -52,13 +53,15 @@ pub(super) fn check_object_prototypes(
     let known_design = !errors
         .iter()
         .any(|error| matches!(error, ShipDesignError::UnknownDesign(_)));
-    let (stock_kg, capacity_kg) = (ship.inventory.mass_kg(), resolved.cargo_capacity_kg());
-    if known_design && stock_kg > u64::from(capacity_kg) {
+    let (stock_g, capacity_g) = (ship.inventory.mass_g(), resolved.cargo_capacity_g());
+    if known_design && stock_g > u64::from(capacity_g) {
         issues.push(LintIssue::error(
             scenario,
             format!(
-                "ship '{}': inventory stock of {stock_kg} kg exceeds its {capacity_kg} kg hold",
-                config.base.id
+                "ship '{}': inventory stock of {} exceeds its {} hold",
+                config.base.id,
+                kg_text(stock_g),
+                kg_text(u64::from(capacity_g)),
             ),
         ));
     }

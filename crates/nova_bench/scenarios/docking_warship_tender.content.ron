@@ -59,7 +59,7 @@
                             controller: Player((
                                 input_mapping: {},
                             )),
-                            inventory: {},
+                            inventory: {PdcRound: 6000, RailSlug: 20, Torpedo: 12},
                             lootable: false,
                         )),
                     )),

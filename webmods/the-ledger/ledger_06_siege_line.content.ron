@@ -34,7 +34,7 @@
                                 input_mapping: {"turret_port": [Mouse(Left), Gamepad(RightTrigger2)], "turret_starboard": [Mouse(Left), Gamepad(RightTrigger2)], "pod_port": [Keyboard(KeyR), Gamepad(LeftTrigger2)], "pod_starboard": [Keyboard(KeyR), Gamepad(LeftTrigger2)]},
                             )),
                             allegiance: Some(Player),
-                            inventory: {},
+                            inventory: {PdcRound: 1000},
                             lootable: false,
                         )),
                     )),

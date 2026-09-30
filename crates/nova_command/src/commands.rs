@@ -133,6 +133,11 @@ pub mod live {
     pub const UNNAMED: &str = "a value the world knows";
 }
 
+/// The item ids `item give` accepts: the `ItemType` names content writes.
+/// This crate has no gameplay dependency; a `nova_console` cheats test pins
+/// the dispatcher's parse against this list and `ItemType`.
+const ITEM_WORDS: &[&str] = &["HullPlate", "PdcRound", "RailSlug", "Torpedo"];
+
 /// The class words `commands [class]` accepts. Pinned against
 /// [`CommandClass::ALL`] by test, so a new class cannot go uncompleted.
 const CLASS_WORDS: &[&str] = &["utility", "readonly", "setting", "cheat"];
@@ -458,6 +463,20 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
             CommandArg::Live(live::SECTION),
         ],
         examples: &["ammo refill section player_spaceship turret_port"],
+    },
+    CommandSpec {
+        name: "item give",
+        usage: "item give <ship-id> <item-id> <quantity>",
+        summary: "Add items to one ship's inventory",
+        class: CommandClass::Cheat,
+        arity: CommandArity::Between(3, 3),
+        arg_hint: Some("<ship-id> <item-id> <quantity>"),
+        args: &[
+            CommandArg::Live(live::SHIP),
+            CommandArg::Words(ITEM_WORDS),
+            CommandArg::Free,
+        ],
+        examples: &["item give player_spaceship HullPlate 12"],
     },
 ];
 

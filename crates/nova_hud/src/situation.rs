@@ -88,8 +88,10 @@ pub fn sense_hud_situations(
         ),
         With<PlayerSpaceshipMarker>,
     >,
+    q_inventory: Query<&ShipInventory>,
     q_sections: Query<
         (
+            NameOrEntity,
             &ChildOf,
             Option<&SectionAmmo>,
             Option<&SectionReload>,
@@ -104,7 +106,7 @@ pub fn sense_hud_situations(
             let mut firing = false;
             let mut low_ammo = false;
             let mut reloading = false;
-            for (&ChildOf(parent), ammo, reload, trigger) in &q_sections {
+            for (name, &ChildOf(parent), ammo, reload, trigger) in &q_sections {
                 if parent != ship {
                     continue;
                 }
@@ -113,9 +115,12 @@ pub fn sense_hud_situations(
                 // reticle would be a lie.
                 firing |= weapons_hot && trigger.is_some_and(|trigger| trigger.0);
                 low_ammo |= ammo.is_some_and(super::ammo_readout::is_low_ammo);
-                reloading |= ammo
-                    .zip(reload)
-                    .is_some_and(|(ammo, reload)| reload.is_reloading(ammo));
+                reloading |= ammo.zip(reload).is_some_and(|(ammo, reload)| {
+                    let reserve = q_inventory.get(ship).unwrap_or_else(|_| {
+                        panic!("weapon section {name} reloads from a ship with no ShipInventory")
+                    });
+                    reload.is_reloading(ammo, reserve.count(reload.item))
+                });
             }
             HudSituations {
                 maneuver: autopilot.and_then(maneuver_chip),
@@ -254,18 +259,27 @@ mod tests {
     }
 
     #[test]
-    fn reload_reads_the_players_incomplete_magazine() {
+    fn reload_reads_the_players_incomplete_magazine_with_reserve() {
         let mut app = sense_app();
-        let ship = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        let ship = app
+            .world_mut()
+            .spawn((
+                PlayerSpaceshipMarker,
+                ShipInventory::new(10_000, [(ItemType::PdcRound, 4)]),
+            ))
+            .id();
         let section = app
             .world_mut()
             .spawn((
                 SectionMarker,
                 SectionAmmo::new(10),
-                SectionReload::from_config(SectionReloadConfig {
-                    delay: 3.0,
-                    amount: 4,
-                }),
+                SectionReload::from_config(
+                    SectionReloadConfig {
+                        delay: 3.0,
+                        amount: 4,
+                    },
+                    ItemType::PdcRound,
+                ),
                 ChildOf(ship),
             ))
             .id();
@@ -281,6 +295,15 @@ mod tests {
         assert!(
             situations(&app).reloading,
             "missing ammo keeps the gauge up"
+        );
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(ShipInventory::new(10_000, []));
+        app.update();
+        assert!(
+            !situations(&app).reloading,
+            "an empty reserve reloads nothing"
         );
     }
 }

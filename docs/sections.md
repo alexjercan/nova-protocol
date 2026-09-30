@@ -25,11 +25,11 @@ readings](#damage-is-two-readings)).
 | `Hull`       | Passive structure/armor. Just a `render_mesh`. |
 | `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
 | `Controller` | Attitude controller (`steering_lag`, `max_torque`); lag derives the internal PD gains, torque feeds the hull's attitude envelope (see below). Attitude hardware only - what a ship is PERMITTED to do is `ShipCapabilities` on its root. A ship needs one to be steerable; several SHARE one attitude loop. |
-| `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
-| `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
-| `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds it, optional `rake_radius` spends that budget on a wider corridor instead of unused depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammo_capacity: 1` with a long `reload`. |
+| `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammunition: Limited(n)` drawing `PdcRound` on reload. |
+| `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammunition: Limited(n)` drawing `Torpedo` on reload. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
+| `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds it, optional `rake_radius` spends that budget on a wider corridor instead of unused depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammunition: Limited(1)` with a long `reload` drawing `RailSlug`. |
 | `Docking`    | Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. `capture_distance`, `capture_angle` and the two relative-speed ceilings are the envelope a `DOCK` is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see [below](#docking-ports-and-what-holds-a-pair-together)). |
-| `CargoIntake` | Cargo intake. Takes a slow `CargoCanister` whole into the ship's `ShipInventory` and drops the Inventory pane's jettisons. Its volumes are geometry off the `Cuboid` collider's -Z face, not sensors: the workspace has no collision layers, so a sensor would join the ship's compound. `detection_range` opens the door; `capture_gap`, the rotated canister footprint against `aperture_width`/`aperture_height` less `CARGO_APERTURE_MARGIN`, and `maximum_capture_speed` bound a take, which lands before a slow canister can touch the face; a canister in an avian touching pair with the ship's body, or moving away from the face, is refused; `eject_speed` sets a drop; the `IntakeDoor` track gates both. The door, drop and take trigger events that `ship_audio/machinery.rs` voices (`cargo_intake_section.rs`). |
+| `CargoIntake` | Cargo intake. Takes a slow `CargoCanister` whole into the ship's `ShipInventory` and drops the Inventory pane's jettisons from a `CargoIntakeEjectionQueue`, front first, one at a time while the door is open and the birth point is clear. Its volumes are geometry off the `Cuboid` collider's -Z face, not sensors: the workspace has no collision layers, so a sensor would join the ship's compound. `detection_range` opens the door; `capture_gap`, the rotated canister footprint against `aperture_width`/`aperture_height` less `CARGO_APERTURE_MARGIN`, and `maximum_capture_speed` bound a take, which lands before a slow canister can touch the face; a canister in an avian touching pair with the ship's body, or moving away from the face, is refused; `eject_speed` sets a drop; the `IntakeDoor` track gates both. The door, drop and take trigger events that `ship_audio/machinery.rs` voices (`cargo_intake_section.rs`). |
 
 `run_cargo_intakes` publishes `CargoPickupReadiness` for each live intake/canister pair on the fixed clock, including out-of-range canisters. A pair names only the ship, intake, canister and `ready`; it carries no pose. The HUD draws its live pickup sight for one published pair from rendered `GlobalTransform` poses, with the face from `cargo_intake_face`, the helper the fixed pass also uses. The canister must be within `CARGO_PICKUP_SIGHT_RANGE` (200 m) of the player's ship, with no lock needed: a travel-locked canister first, else the nearest intake face, then the lower entity IDs (`pickup_sight.rs`). No pair in range draws no sight. A take despawns the canister in the same pass, so the sight clears with it and `CargoCanisterTaken` voices the take.
 
@@ -1245,18 +1245,30 @@ per contact. A symmetric rule - ram damage - wants both.
 ## Ammo
 
 - `SectionAmmo` (`sections/ammo.rs`): optional magazine on a weapon section.
-  Absent = unlimited fire; `ammo_capacity` in the turret/torpedo/railgun config
-  opts in.
-  Unlimited fire is authored on the GUN, never granted ship-wide: a config with
-  no `ammo_capacity` (see `SectionConfig::without_magazine`) is the authoring
-  route, and the armed `ammo infinite` command is the runtime one.
+  Absent = unlimited fire; the turret/torpedo/railgun config's
+  `ammunition: AmmoCapacity::Limited(n)` opts in (`Unlimited` is the default).
+  Unlimited fire is authored on the GUN, never granted ship-wide: a config
+  left `Unlimited` (see `SectionConfig::without_magazine`) is the authoring
+  route, and the armed `ammo infinite` command / `SetInfiniteAmmo` action are
+  the runtime ones (they strip `SectionAmmo` and `SectionReload`, recording
+  them in `SuspendedSectionAmmo` to restore full on the way back off).
 - `SectionReload` (`sections/ammo.rs`): optional idle batch reload on a
-  magazine, from the turret/torpedo/railgun config
-  `reload: Some((delay, amount))`.
-  Every successful shot resets progress; every completed quiet delay restores
-  one batch until full. Fire runs before `tick_section_reload` in FixedUpdate so
-  a shot wins an exact completion tick. Unlimited weapons never reload. The HUD
-  reads `progress()` and `incoming_rounds()` to pulse only the next batch.
+  magazine, from the turret/torpedo/railgun config's
+  `reload: ReloadConfig::Batch(SectionReloadConfig { delay, amount })`
+  (`Disabled` is the default). Seeded with the weapon's ammunition `ItemType`
+  (`PdcRound` for a turret regardless of mount damage type, `RailSlug` for a
+  railgun, `Torpedo` for a torpedo bay regardless of bay type). Every
+  successful shot resets progress; every completed quiet delay moves
+  `min(missing, amount, parent ShipInventory's count of that item)` from the
+  parent ship's `ShipInventory` into the magazine - rounds and items change
+  together, so the pair is conserved, and with none of the item in stock the
+  delay does not advance. A full magazine reads no inventory, so the ship
+  editor's preview sections, full under a view entity, tick safely. A section
+  below capacity must have a parent carrying a `ShipInventory` (every ship root
+  requires one) or `tick_section_reload` panics. Fire runs before `tick_section_reload` in FixedUpdate so a shot wins
+  an exact completion tick. Unlimited weapons never reload. The HUD reads
+  `progress()` and `incoming_rounds()` to pulse only the next batch, and
+  `is_reloading()` folds the reserve check in so a dry ship shows no reload.
 - `LoadedBullet` (`sections/turret_section/mod.rs`): the turret's loaded-round slot
   (damage type + amount), seeded from the config. Fired bullets and the HUD ammo
   readout colors read this slot, so swapping ammo types is one component write.

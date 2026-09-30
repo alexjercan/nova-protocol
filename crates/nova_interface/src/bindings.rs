@@ -39,8 +39,8 @@ use nova_input::prelude::*;
 ///
 /// A pad runs out before the pane verbs do. `InterfacePane` overlaps `Viewer`, so
 /// only the two face buttons the camera does not use are left: Y switches the
-/// pane, and A goes to what each pane does MOST. `ship_reload`, `ship_repair`
-/// and `ship_rebind` stay keyboard-only rather than take a camera verb's button
+/// pane, and A goes to what each pane does MOST. `ship_repair` and
+/// `ship_rebind` stay keyboard-only rather than take a camera verb's button
 /// away.
 pub fn interface_bindings() -> Vec<ActionBinding> {
     use InputSource::{Gamepad, Keyboard};
@@ -110,9 +110,6 @@ pub fn interface_bindings() -> Vec<ActionBinding> {
             .context(ActionContext::InterfacePane("ship"))
             .keyboard([Keyboard(KeyCode::KeyG)])
             .gamepad([Gamepad(GamepadButton::South)]),
-        ActionBinding::new("ship_reload", "SHIP", "Reload Section")
-            .context(ActionContext::InterfacePane("ship"))
-            .keyboard([Keyboard(KeyCode::KeyL)]),
         ActionBinding::new("ship_repair", "SHIP", "Repair Section")
             .context(ActionContext::InterfacePane("ship"))
             .keyboard([Keyboard(KeyCode::KeyP)]),

@@ -2100,10 +2100,12 @@ mod tests {
     }
 
     /// Stock must fit the resolved design's hold: the armed ship's one hull
-    /// section takes 100 kg, so 10 plates fit and 11 fail lint.
+    /// section takes 100 kg, so 10 plates or 500 PDC rounds fit and one more
+    /// fails lint, to the gram.
     #[test]
     fn inventory_stock_heavier_than_the_hold_fails_lint() {
-        let overstock = |plates| {
+        use nova_gameplay::prelude::ItemType;
+        let overstock = |item, count| {
             let mut spawn = spawn_armed_ship(
                 "warship",
                 SpaceshipController::AI(AIControllerConfig::default()),
@@ -2115,10 +2117,7 @@ mod tests {
             else {
                 unreachable!("spawn_armed_ship spawns a spaceship");
             };
-            ship.inventory = nova_gameplay::prelude::ShipInventoryStock::new([(
-                nova_gameplay::prelude::ItemType::HullPlate,
-                plates,
-            )]);
+            ship.inventory = nova_gameplay::prelude::ShipInventoryStock::new([(item, count)]);
             let s = scenario(vec![spawn], vec![]);
             let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
             errors(&issues)
@@ -2128,10 +2127,18 @@ mod tests {
                 .collect::<Vec<_>>()
         };
 
-        assert!(overstock(10).is_empty(), "100 kg fits a 100 kg hold");
+        assert!(
+            overstock(ItemType::HullPlate, 10).is_empty(),
+            "100 kg fits a 100 kg hold"
+        );
         assert_eq!(
-            overstock(11),
+            overstock(ItemType::HullPlate, 11),
             ["ship 'warship': inventory stock of 110 kg exceeds its 100 kg hold"]
+        );
+        assert!(overstock(ItemType::PdcRound, 500).is_empty());
+        assert_eq!(
+            overstock(ItemType::PdcRound, 501),
+            ["ship 'warship': inventory stock of 100.2 kg exceeds its 100 kg hold"]
         );
     }
 

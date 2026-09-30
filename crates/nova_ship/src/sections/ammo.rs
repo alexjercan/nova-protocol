@@ -12,19 +12,23 @@
 //! every headless firing test that never asked for ammo firing forever.
 //!
 //! A section may also carry a [`SectionReload`] (seeded from a
-//! [`SectionReloadConfig`] on the weapon config). Every successful shot resets
-//! its timer; each uninterrupted delay restores one authored batch until the
-//! magazine is full. Reload rides on the magazine, so a weapon with no
-//! [`SectionAmmo`] never reloads and stays unlimited. Multiple
-//! ammo/bullet types (Kinetic, Pierce) landed as the `LoadedBullet` slot; a
-//! future per-type magazine would replace the scalar pool while keeping the
-//! same consume-one-to-fire contract the weapon systems rely on.
+//! [`SectionReloadConfig`] on the weapon config and the weapon's ammunition
+//! [`ItemType`]). Every successful shot resets its timer; each uninterrupted
+//! delay moves one batch of that item from the parent ship's [`ShipInventory`]
+//! into the magazine, never more than the magazine is missing or the ship
+//! carries. A ship with no matching item makes no reload progress. An
+//! installed magazine starts full without drawing on the inventory. Reload
+//! rides on the magazine, so a weapon with no [`SectionAmmo`] never reloads and
+//! stays unlimited. Multiple ammo/bullet types (Kinetic, Pierce) landed as the
+//! `LoadedBullet` slot; a future per-type magazine would replace the scalar
+//! pool while keeping the same consume-one-to-fire contract the weapon systems
+//! rely on.
 //!
 //! [`TurretSectionConfig`]: super::turret_section::TurretSectionConfig
 //! [`TorpedoSectionConfig`]: super::torpedo_section::TorpedoSectionConfig
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::SectionInactiveMarker;
+use nova_gameplay::prelude::{ItemType, SectionInactiveMarker, ShipInventory};
 
 /// `SectionAmmo`, `SectionReload` and `SectionReloadConfig`.
 pub mod prelude {
@@ -98,8 +102,9 @@ impl SectionAmmo {
 pub struct SuspendedSectionAmmo {
     /// The authored magazine size to restore, full.
     pub capacity: u32,
-    /// The reload cycle to restore with it.
-    pub reload: ReloadConfig,
+    /// The reload to restore with it, with its ammunition item; `None` for a
+    /// magazine that never reloaded.
+    pub reload: Option<SectionReload>,
 }
 
 /// How much a weapon section can hold.
@@ -176,11 +181,14 @@ pub struct SectionReloadConfig {
 
 /// Runtime reload state for a weapon section, seeded from a
 /// [`SectionReloadConfig`]. Lives on the same SECTION entity as [`SectionAmmo`];
-/// [`tick_section_reload`] advances it and refills the magazine. Carries the
-/// authored parameters plus the in-flight cycle progress so the HUD ammo readout
-/// can render a reload/recharge state without a second source of truth.
+/// [`tick_section_reload`] advances it and refills the magazine from the parent
+/// ship's [`ShipInventory`]. Carries the authored parameters plus the in-flight
+/// cycle progress so the HUD ammo readout can render a reload/recharge state
+/// without a second source of truth.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 pub struct SectionReload {
+    /// The inventory item one round of this magazine consumes.
+    pub item: ItemType,
     /// Seconds without a shot before one batch returns.
     pub delay: f32,
     /// Rounds restored by one completed delay.
@@ -193,8 +201,9 @@ pub struct SectionReload {
 }
 
 impl SectionReload {
-    /// Seed runtime reload state from authored parameters.
-    pub fn from_config(config: SectionReloadConfig) -> Self {
+    /// Seed runtime reload state from authored parameters and the weapon's
+    /// ammunition `item`.
+    pub fn from_config(config: SectionReloadConfig, item: ItemType) -> Self {
         debug_assert!(
             config.delay > 0.0 && config.delay.is_finite(),
             "SectionReloadConfig.delay must be positive and finite (got {})",
@@ -205,6 +214,7 @@ impl SectionReload {
             "SectionReloadConfig.amount must be positive"
         );
         Self {
+            item,
             delay: config.delay,
             amount: config.amount,
             elapsed: 0.0,
@@ -227,21 +237,35 @@ impl SectionReload {
         }
     }
 
-    /// True while this section is below capacity and accumulating a batch.
-    pub fn is_reloading(&self, ammo: &SectionAmmo) -> bool {
-        ammo.rounds < ammo.capacity
+    /// True while this section is below capacity and `reserve`, the parent
+    /// ship's count of [`item`](Self::item), can supply a batch.
+    pub fn is_reloading(&self, ammo: &SectionAmmo, reserve: u32) -> bool {
+        ammo.rounds < ammo.capacity && reserve > 0
     }
 
-    /// Ammunition after the next batch, clamped to magazine capacity.
-    pub fn incoming_rounds(&self, ammo: &SectionAmmo) -> u32 {
-        ammo.rounds.saturating_add(self.amount).min(ammo.capacity)
+    /// Ammunition after the next batch: the batch is the least of what the
+    /// magazine is missing, the authored amount and `reserve`.
+    pub fn incoming_rounds(&self, ammo: &SectionAmmo, reserve: u32) -> u32 {
+        ammo.rounds + self.batch_rounds(ammo, reserve)
     }
 
-    /// Advance by `dt` seconds and restore each complete batch. A successful
-    /// shot earlier in this tick wins the boundary and starts a fresh delay.
-    pub fn advance(&mut self, ammo: &mut SectionAmmo, dt: f32) {
-        if !self.is_reloading(ammo) {
-            self.elapsed = 0.0;
+    /// Rounds the next batch moves from `reserve` into the magazine.
+    fn batch_rounds(&self, ammo: &SectionAmmo, reserve: u32) -> u32 {
+        (ammo.capacity - ammo.rounds).min(self.amount).min(reserve)
+    }
+
+    /// Advance by `dt` seconds and move each complete batch of
+    /// [`item`](Self::item) from `inventory` into the magazine. Rounds and items
+    /// change together, so the pair is conserved. With no matching item the
+    /// delay does not advance. A successful shot earlier in this tick wins the
+    /// boundary and starts a fresh delay.
+    pub fn advance(&mut self, ammo: &mut SectionAmmo, inventory: &mut ShipInventory, dt: f32) {
+        if !self.is_reloading(ammo, inventory.count(self.item)) {
+            // Full, or nothing to load: a delay never runs toward a batch
+            // that cannot move.
+            if ammo.rounds >= ammo.capacity {
+                self.elapsed = 0.0;
+            }
             self.interrupted = false;
             return;
         }
@@ -252,8 +276,10 @@ impl SectionReload {
         self.elapsed += dt;
         while self.delay > 0.0 && self.elapsed >= self.delay {
             self.elapsed -= self.delay;
-            ammo.rounds = self.incoming_rounds(ammo);
-            if ammo.rounds >= ammo.capacity {
+            let rounds = self.batch_rounds(ammo, inventory.count(self.item));
+            inventory.remove(self.item, rounds);
+            ammo.rounds += rounds;
+            if !self.is_reloading(ammo, inventory.count(self.item)) {
                 self.elapsed = 0.0;
                 break;
             }
@@ -261,9 +287,10 @@ impl SectionReload {
     }
 }
 
-/// Advance every section's reload cycle and refill its magazine. Fire systems
-/// run first and call [`SectionReload::on_shot`], so a shot on the completion
-/// boundary resets the timer instead of receiving a simultaneous batch.
+/// Advance every section's reload cycle and refill its magazine from its
+/// parent ship's [`ShipInventory`]. Fire systems run first and call
+/// [`SectionReload::on_shot`], so a shot on the completion boundary resets the
+/// timer instead of receiving a simultaneous batch.
 ///
 /// A section with no [`SectionReload`] (or no [`SectionAmmo`]) never reloads,
 /// preserving the unlimited-ammo default. `Res<Time>` here is the fixed clock.
@@ -271,18 +298,46 @@ impl SectionReload {
 /// Reports [`SectionReloadComplete`] on the batch that brings a magazine back
 /// to CAPACITY - see that event for why full, and not each batch, is the thing
 /// worth telling anyone about.
+///
+/// A full magazine moves nothing, so its parent's inventory is not read: an
+/// editor preview section starts full under a view entity with no
+/// [`ShipInventory`].
+///
+/// # Panics
+///
+/// When a section below capacity has a parent with no [`ShipInventory`]:
+/// every ship root requires one, so the section is not on a ship.
 pub fn tick_section_reload(
     time: Res<Time>,
     mut commands: Commands,
     // A disabled section neither refills nor reports: the gun can never fire
     // again, and the breech clunk would arrive from a piece of wreckage.
-    mut q: Query<(Entity, &mut SectionAmmo, &mut SectionReload), Without<SectionInactiveMarker>>,
+    mut q: Query<
+        (
+            Entity,
+            NameOrEntity,
+            Option<&ChildOf>,
+            &mut SectionAmmo,
+            &mut SectionReload,
+        ),
+        Without<SectionInactiveMarker>,
+    >,
+    mut q_inventory: Query<&mut ShipInventory>,
 ) {
     let dt = time.delta_secs();
-    for (section, mut ammo, mut reload) in &mut q {
-        let was_full = ammo.rounds >= ammo.capacity;
-        reload.advance(&mut ammo, dt);
-        if !was_full && ammo.rounds >= ammo.capacity {
+    for (section, name, parent, mut ammo, mut reload) in &mut q {
+        if ammo.rounds >= ammo.capacity {
+            reload.elapsed = 0.0;
+            reload.interrupted = false;
+            continue;
+        }
+        let mut inventory = parent
+            .and_then(|parent| q_inventory.get_mut(parent.parent()).ok())
+            .unwrap_or_else(|| {
+                panic!("weapon section {name} reloads from a parent with no ShipInventory")
+            });
+        reload.advance(&mut ammo, &mut inventory, dt);
+        if ammo.rounds >= ammo.capacity {
             commands.trigger(SectionReloadComplete { entity: section });
         }
     }
@@ -339,7 +394,15 @@ mod tests {
     }
 
     fn reload_cfg(delay: f32, amount: u32) -> SectionReload {
-        SectionReload::from_config(SectionReloadConfig { delay, amount })
+        SectionReload::from_config(SectionReloadConfig { delay, amount }, ItemType::PdcRound)
+    }
+
+    /// A hold of `rounds` PDC rounds with room to spare.
+    fn reserve(rounds: u32) -> ShipInventory {
+        if rounds == 0 {
+            return ShipInventory::new(1_000_000, []);
+        }
+        ShipInventory::new(1_000_000, [(ItemType::PdcRound, rounds)])
     }
 
     #[test]
@@ -347,16 +410,68 @@ mod tests {
         let mut ammo = SectionAmmo::new(500);
         ammo.rounds = 0;
         let mut reload = reload_cfg(3.0, 200);
+        let mut inventory = reserve(1000);
 
-        reload.advance(&mut ammo, 2.0);
+        reload.advance(&mut ammo, &mut inventory, 2.0);
         assert_eq!(ammo.rounds, 0);
         assert!((reload.progress() - 2.0 / 3.0).abs() < 1e-6);
-        reload.advance(&mut ammo, 1.0);
+        reload.advance(&mut ammo, &mut inventory, 1.0);
         assert_eq!(ammo.rounds, 200);
+        assert_eq!(inventory.count(ItemType::PdcRound), 800);
         assert_eq!(reload.progress(), 0.0);
-        reload.advance(&mut ammo, 6.0);
+        reload.advance(&mut ammo, &mut inventory, 6.0);
         assert_eq!(ammo.rounds, 500, "the final batch clamps to capacity");
+        assert_eq!(
+            inventory.count(ItemType::PdcRound),
+            500,
+            "the clamped batch takes only the 100 rounds it loads"
+        );
         assert_eq!(reload.progress(), 0.0);
+    }
+
+    #[test]
+    fn a_short_reserve_loads_a_partial_batch_and_an_empty_one_nothing() {
+        let mut ammo = SectionAmmo::new(500);
+        ammo.rounds = 100;
+        let mut reload = reload_cfg(3.0, 200);
+        let mut inventory = reserve(50);
+        assert_eq!(reload.incoming_rounds(&ammo, 50), 150);
+
+        reload.advance(&mut ammo, &mut inventory, 3.0);
+        assert_eq!(ammo.rounds, 150, "the batch is cut to the 50 in reserve");
+        assert!(inventory.is_empty(), "the drained stack is gone");
+
+        // No reserve: not reloading, and the delay does not run.
+        assert!(!reload.is_reloading(&ammo, 0));
+        assert_eq!(reload.incoming_rounds(&ammo, 0), 150);
+        reload.advance(&mut ammo, &mut inventory, 30.0);
+        assert_eq!(ammo.rounds, 150);
+        assert_eq!(reload.progress(), 0.0);
+
+        // Stock that arrives later starts a fresh delay, not an owed batch.
+        inventory.add(ItemType::PdcRound, 10);
+        reload.advance(&mut ammo, &mut inventory, 1.0);
+        assert_eq!(ammo.rounds, 150);
+        reload.advance(&mut ammo, &mut inventory, 2.0);
+        assert_eq!(ammo.rounds, 160);
+        assert!(inventory.is_empty());
+    }
+
+    #[test]
+    fn a_reload_draws_only_its_own_item() {
+        let mut ammo = SectionAmmo::new(4);
+        ammo.rounds = 0;
+        let mut reload = SectionReload::from_config(
+            SectionReloadConfig {
+                delay: 1.0,
+                amount: 1,
+            },
+            ItemType::Torpedo,
+        );
+        let mut inventory = reserve(1000);
+        reload.advance(&mut ammo, &mut inventory, 5.0);
+        assert_eq!(ammo.rounds, 0, "PDC rounds do not load a torpedo bay");
+        assert_eq!(inventory.count(ItemType::PdcRound), 1000);
     }
 
     #[test]
@@ -364,15 +479,16 @@ mod tests {
         let mut ammo = SectionAmmo::new(6);
         ammo.rounds = 5;
         let mut reload = reload_cfg(10.0, 1);
-        reload.advance(&mut ammo, 9.5);
+        let mut inventory = reserve(10);
+        reload.advance(&mut ammo, &mut inventory, 9.5);
         assert!((reload.progress() - 0.95).abs() < 1e-6);
 
         assert!(ammo.try_consume());
         reload.on_shot();
-        reload.advance(&mut ammo, 1.0);
+        reload.advance(&mut ammo, &mut inventory, 1.0);
         assert_eq!(ammo.rounds, 4, "the shot tick receives no reload batch");
         assert_eq!(reload.progress(), 0.0);
-        reload.advance(&mut ammo, 10.0);
+        reload.advance(&mut ammo, &mut inventory, 10.0);
         assert_eq!(ammo.rounds, 5);
     }
 
@@ -381,9 +497,10 @@ mod tests {
         let mut ammo = SectionAmmo::new(1);
         ammo.rounds = 0;
         let mut reload = reload_cfg(2.0, 1);
-        reload.advance(&mut ammo, 1.0);
+        let mut inventory = reserve(10);
+        reload.advance(&mut ammo, &mut inventory, 1.0);
         assert!(!ammo.try_consume());
-        reload.advance(&mut ammo, 1.0);
+        reload.advance(&mut ammo, &mut inventory, 1.0);
         assert_eq!(ammo.rounds, 1);
     }
 
@@ -392,18 +509,20 @@ mod tests {
         let mut ammo = SectionAmmo::new(500);
         ammo.rounds = 100;
         let reload = reload_cfg(3.0, 200);
-        assert_eq!(reload.incoming_rounds(&ammo), 300);
+        assert_eq!(reload.incoming_rounds(&ammo, 1000), 300);
         ammo.rounds = 450;
-        assert_eq!(reload.incoming_rounds(&ammo), 500);
+        assert_eq!(reload.incoming_rounds(&ammo, 1000), 500);
     }
 
     #[test]
     fn a_full_magazine_stays_at_rest() {
         let mut ammo = SectionAmmo::new(4);
         let mut reload = reload_cfg(0.5, 2);
-        assert!(!reload.is_reloading(&ammo));
-        reload.advance(&mut ammo, 100.0);
+        let mut inventory = reserve(10);
+        assert!(!reload.is_reloading(&ammo, 10));
+        reload.advance(&mut ammo, &mut inventory, 100.0);
         assert_eq!(ammo.rounds, 4);
+        assert_eq!(inventory.count(ItemType::PdcRound), 10);
         assert_eq!(reload.progress(), 0.0);
     }
 
@@ -416,8 +535,8 @@ mod tests {
         assert_eq!(reload.progress(), 1.0);
     }
 
-    #[test]
-    fn scheduled_reload_restores_one_batch_after_the_delay() {
+    /// A headless app ticking [`tick_section_reload`] once a second.
+    fn reload_app() -> App {
         use bevy::time::{TimeUpdateStrategy, Virtual};
 
         let mut app = App::new();
@@ -429,9 +548,19 @@ mod tests {
             std::time::Duration::from_secs_f32(1.0),
         ));
         app.add_systems(Update, tick_section_reload);
+        app
+    }
+
+    #[test]
+    fn scheduled_reload_restores_one_batch_after_the_delay() {
+        let mut app = reload_app();
+        let ship = app.world_mut().spawn(reserve(1000)).id();
         let mut ammo = SectionAmmo::new(500);
         ammo.rounds = 0;
-        let section = app.world_mut().spawn((ammo, reload_cfg(2.0, 200))).id();
+        let section = app
+            .world_mut()
+            .spawn((ammo, reload_cfg(2.0, 200), ChildOf(ship)))
+            .id();
 
         app.update();
         assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 0);
@@ -441,33 +570,83 @@ mod tests {
         assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 200);
     }
 
+    /// The ship editor's preview sections start full under a view entity with
+    /// no `ShipInventory`; ticking them crashed the editor.
+    #[test]
+    fn a_full_magazine_under_no_ship_ticks_without_an_inventory() {
+        let mut app = reload_app();
+        let view = app.world_mut().spawn_empty().id();
+        let section = app
+            .world_mut()
+            .spawn((SectionAmmo::new(500), reload_cfg(2.0, 200), ChildOf(view)))
+            .id();
+
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 500);
+    }
+
+    /// Two mounts on one ship draw on one reserve: every round a magazine
+    /// gains is an item the ship loses, and a short reserve stops both.
+    #[test]
+    fn mounts_sharing_a_reserve_conserve_rounds_plus_items() {
+        let mut app = reload_app();
+        let ship = app.world_mut().spawn(reserve(300)).id();
+        let mounts: Vec<Entity> = (0..2)
+            .map(|_| {
+                let mut ammo = SectionAmmo::new(500);
+                ammo.rounds = 0;
+                app.world_mut()
+                    .spawn((ammo, reload_cfg(1.0, 200), ChildOf(ship)))
+                    .id()
+            })
+            .collect();
+        let total = |app: &App| {
+            let loaded: u32 = mounts
+                .iter()
+                .map(|&mount| app.world().get::<SectionAmmo>(mount).unwrap().rounds)
+                .sum();
+            let held = app
+                .world()
+                .get::<ShipInventory>(ship)
+                .unwrap()
+                .count(ItemType::PdcRound);
+            (loaded, held)
+        };
+
+        app.update(); // warm-up, dt 0
+        assert_eq!(total(&app), (0, 300));
+        app.update();
+        assert_eq!(total(&app), (300, 0), "200 then the last 100");
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(total(&app), (300, 0), "an empty reserve loads nothing");
+        assert!(app.world().get::<ShipInventory>(ship).unwrap().is_empty());
+    }
+
     /// FULL is the boundary that is reported, and it is reported once. A
     /// magazine that refills in several batches must stay quiet through the
     /// ones that do not finish it, and a magazine already full must not report
     /// every tick it spends sitting there.
     #[test]
     fn a_magazine_reports_the_tick_it_comes_back_to_capacity_and_not_before_or_after() {
-        use bevy::time::{TimeUpdateStrategy, Virtual};
-
         #[derive(Resource, Default)]
         struct Filled(usize);
 
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
+        let mut app = reload_app();
         app.init_resource::<Filled>();
-        let mut virtual_time = Time::<Virtual>::default();
-        virtual_time.set_max_delta(std::time::Duration::from_secs(3600));
-        app.insert_resource(virtual_time);
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(
-            std::time::Duration::from_secs_f32(1.0),
-        ));
-        app.add_systems(Update, tick_section_reload);
         app.add_observer(|_: On<SectionReloadComplete>, mut filled: ResMut<Filled>| filled.0 += 1);
 
         // Two batches to fill: the first must be silent.
+        let ship = app.world_mut().spawn(reserve(10)).id();
         let mut ammo = SectionAmmo::new(2);
         ammo.rounds = 0;
-        let section = app.world_mut().spawn((ammo, reload_cfg(1.0, 1))).id();
+        let section = app
+            .world_mut()
+            .spawn((ammo, reload_cfg(1.0, 1), ChildOf(ship)))
+            .id();
 
         app.update(); // warm-up, dt 0
         app.update(); // first batch: one of two rounds back

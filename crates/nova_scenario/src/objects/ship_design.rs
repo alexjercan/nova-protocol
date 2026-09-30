@@ -30,7 +30,7 @@ pub mod prelude {
     pub use super::{
         resolve_ship_design, GameShipDesigns, ResolvedSection, ResolvedShipDesign, ShipDesign,
         ShipDesignError, ShipDesignId, ShipDesignPrototype, ShipDesignSource, ShipIntegrityConfig,
-        ShipPresentationConfig, HULL_SECTION_CARGO_KG,
+        ShipPresentationConfig, HULL_SECTION_CARGO_G,
     };
 }
 
@@ -389,17 +389,17 @@ pub struct ResolvedShipDesign {
     pub presentation: ShipPresentationConfig,
 }
 
-/// Cargo mass one hull section gives a ship's hold, in kilograms.
-pub const HULL_SECTION_CARGO_KG: u32 = 100;
+/// Cargo mass one hull section gives a ship's hold, in grams.
+pub const HULL_SECTION_CARGO_G: u32 = 100_000;
 
 impl ResolvedShipDesign {
-    /// The mass the ship's hold takes, in kilograms:
-    /// [`HULL_SECTION_CARGO_KG`] per hull section.
+    /// The mass the ship's hold takes, in grams:
+    /// [`HULL_SECTION_CARGO_G`] per hull section.
     ///
     /// # Panics
     ///
-    /// When the hull count times [`HULL_SECTION_CARGO_KG`] overflows a `u32`.
-    pub fn cargo_capacity_kg(&self) -> u32 {
+    /// When the hull count times [`HULL_SECTION_CARGO_G`] overflows a `u32`.
+    pub fn cargo_capacity_g(&self) -> u32 {
         let hulls = self
             .sections
             .iter()
@@ -407,7 +407,7 @@ impl ResolvedShipDesign {
             .count();
         u32::try_from(hulls)
             .ok()
-            .and_then(|hulls| hulls.checked_mul(HULL_SECTION_CARGO_KG))
+            .and_then(|hulls| hulls.checked_mul(HULL_SECTION_CARGO_G))
             .unwrap_or_else(|| panic!("{hulls} hull sections overflow a u32 cargo capacity"))
     }
 }

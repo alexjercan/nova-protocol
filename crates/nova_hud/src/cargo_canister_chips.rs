@@ -81,7 +81,7 @@ fn cargo_canister_chip_text(canister: &CargoCanister) -> (String, String) {
         (Some((item, count)), None) => format!("{count} {}", item.label()),
         _ => "Mixed cargo".to_string(),
     };
-    (label, format!("{} kg", canister.total_mass_kg()))
+    (label, kg_text(u64::from(canister.total_mass_g())))
 }
 
 /// UI bundle for one canister's chip layer, spawned hidden: the range pass

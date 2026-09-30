@@ -1,7 +1,7 @@
 //! lesson_interface_ship: the two TAB interface demonstrations that are about
-//! the SHIP pane's inspector - `interface_ship_service` (repair and reload
-//! acting on the selected section) and `interface_rebind_section` (arming the
-//! rebind and giving the section a new trigger).
+//! the SHIP pane's inspector - `interface_ship_service` (repairing the
+//! selected section) and `interface_rebind_section` (arming the rebind and
+//! giving the section a new trigger).
 //!
 //! One producer, two sheets, because they are one session at one keyboard: the
 //! interface comes up once, M switches to the Ship pane, and both
@@ -21,16 +21,16 @@
 //! here at all: the interface freezes the game (`PauseStates::Interface` stops
 //! `Time<Virtual>` and `Time<Physics>`) and hands the window to a themed pane
 //! that does not care where the world camera stands. What moves in the cell is
-//! the PANEL - the meter filling, the ammo count refilling, the amber prompt
-//! arriving and the binding line taking a new key.
+//! the PANEL - the meter filling, the amber prompt arriving and the binding
+//! line taking a new key.
 //!
 //! ## Why the turret is the section both sheets sit on
 //!
-//! `PDC-1` is the only section on the range that can take all three verbs: it
-//! carries integrity to restore, a magazine to refill, and a trigger to
-//! rebind. Repairing the hull and reloading the turret would have cost the
-//! sheet a reselection in the middle of its twenty cells, and the lesson's own
-//! sentence puts both verbs on ONE selected section.
+//! `PDC-1` is the only section on the range that can take both verbs: it
+//! carries integrity to restore and a trigger to rebind. Repairing the hull
+//! and rebinding a different section would have cost the sheet a reselection
+//! in the middle of its twenty cells, and the lesson's own sentence puts both
+//! verbs on ONE selected section.
 //!
 //! The selection is reached with two `viewer_next` presses, because
 //! `ShipSections::collect()` sorts by code and the pane opens with the first
@@ -43,21 +43,20 @@
 //!
 //! ## Why the damage is written in
 //!
-//! Nothing on the range shoots, so the turret is hurt and its magazine spent
-//! by writing `Health` and `SectionAmmo` directly before the sheet opens. That
-//! is staging, the same kind as posing a camera: the lesson claims what REPAIR
-//! does, not how the damage arrived. The range ship carries no stock, so the
-//! same step gives it the open world's 12 hull plates for the repair to spend.
-//! The range's turret also carries the trigger a player ship's turret carries
-//! (`shared/computer.rs`), because a section with no binding cannot be rebound
-//! - the pane disables the button.
+//! Nothing on the range shoots, so the turret is hurt by writing `Health`
+//! directly before the sheet opens. That is staging, the same kind as posing a
+//! camera: the lesson claims what REPAIR does, not how the damage arrived. The
+//! range ship carries no stock, so the same step fills its one-section hold
+//! with hull plates for the repair to spend. The range's turret also carries the
+//! trigger a player ship's turret carries (`shared/computer.rs`), because a
+//! section with no binding cannot be rebound - the pane disables the button.
 //!
 //! ## Why the interface is closed and reopened between the two sheets
 //!
 //! The panel's note line is a transient (`ShipRuntime.note`), and it counts
 //! down on real time. An armed capture pins that clock at one cell per frame,
 //! so a 2.5 s note outlives a twenty-cell sheet, and the rebind sheet would
-//! have opened with `reloaded PDC-1: ammo 8/8` still sitting under the
+//! have opened with the repair's own note line still sitting under the
 //! buttons. Leaving the pane clears the note, the selection and any armed
 //! rebind (`manage_ship_scene`'s teardown), so the walk closes the interface
 //! with TAB, reopens it - TAB reopens the last pane, which is Ship - and
@@ -110,7 +109,7 @@ use nova_protocol::prelude::*;
 #[command(about = "Record the handbook's Ship pane demonstrations", long_about = None)]
 struct Cli;
 
-/// The sheet for "Repair and reload a section".
+/// The sheet for "Repair a section".
 #[cfg(feature = "debug")]
 const SERVICE_LESSON: &str = "interface_ship_service";
 /// The sheet for "Rebinding a section".
@@ -125,7 +124,7 @@ const REBIND_LESSON: &str = "interface_rebind_section";
 #[cfg(feature = "debug")]
 const LEAD_CELLS: u32 = 3;
 
-/// Cells the repaired panel holds before the reload key goes down.
+/// Cells the repaired panel holds before the interface closes.
 #[cfg(feature = "debug")]
 const REPAIR_CELLS: u32 = 4;
 
@@ -146,11 +145,11 @@ const ARMED_CELLS: u32 = 5;
 #[cfg(feature = "debug")]
 const HURT_INTEGRITY: f32 = 0.35;
 
-/// Rounds left in the turret's magazine before the sheet opens. Not zero: a
-/// spent magazine and an empty one read the same in the panel, and one round
-/// left is the honest state of a gun that has been firing.
+/// Hull plates the staging step stocks: 10 at 10 kg fill the range ship's
+/// 100 kg hold, one hull section, and cover the repair of the knocked-down
+/// turret.
 #[cfg(feature = "debug")]
-const SPENT_ROUNDS: u32 = 1;
+const STOCKED_PLATES: u32 = 10;
 
 /// The key the rebind sheet gives the turret.
 ///
@@ -194,31 +193,47 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
     commands.trigger(LoadScenario(interface_range(&game_assets, &sections)));
 }
 
-/// Knock the turret's integrity down, spend its magazine, and stock the hull
-/// plates the repair spends.
+/// Knock the turret's integrity down and stock the hull plates the repair
+/// spends.
 #[cfg(feature = "debug")]
 fn hurt_the_turret(world: &mut World) {
-    let mut turrets =
-        world.query_filtered::<(&mut Health, &mut SectionAmmo), With<TurretSectionMarker>>();
-    for (mut health, mut ammo) in turrets.iter_mut(world) {
+    let mut turrets = world.query_filtered::<&mut Health, With<TurretSectionMarker>>();
+    for mut health in turrets.iter_mut(world) {
         health.current = health.max * HURT_INTEGRITY;
-        ammo.rounds = SPENT_ROUNDS.min(ammo.capacity);
     }
     let mut ships = world.query_filtered::<&mut ShipInventory, With<PlayerSpaceshipMarker>>();
     for mut inventory in ships.iter_mut(world) {
-        *inventory = ShipInventory::new(inventory.capacity_kg(), [(ItemType::HullPlate, 12)]);
+        *inventory = ShipInventory::new(
+            inventory.capacity_g(),
+            [(ItemType::HullPlate, STOCKED_PLATES)],
+        );
     }
 }
 
 /// A predicate over the range's one turret section.
 #[cfg(feature = "debug")]
 fn the_turret_reads(
-    test: fn(&Health, &SectionAmmo) -> bool,
+    test: fn(&Health) -> bool,
 ) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(move |world: &World| {
         world
-            .try_query_filtered::<(&Health, &SectionAmmo), With<TurretSectionMarker>>()
-            .is_some_and(|mut turrets| turrets.iter(world).any(|(health, ammo)| test(health, ammo)))
+            .try_query_filtered::<&Health, With<TurretSectionMarker>>()
+            .is_some_and(|mut turrets| turrets.iter(world).any(&test))
+    })
+}
+
+/// Advance once the player ship's hull-plate stock has dropped below what the
+/// repair started with.
+#[cfg(feature = "debug")]
+fn the_ship_spent_hull_plates() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&ShipInventory, With<PlayerSpaceshipMarker>>()
+            .is_some_and(|mut ships| {
+                ships
+                    .iter(world)
+                    .any(|inventory| inventory.count(ItemType::HullPlate) < STOCKED_PLATES)
+            })
     })
 }
 
@@ -370,15 +385,11 @@ fn ship_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
     let script = open_the_ship_pane(script, true);
 
     let script = script
-        // REPAIR AND RELOAD. The damage goes in with the pane already up, so
-        // the panel shows it arrive rather than opening on it - and so nothing
-        // in the scenario's own two seconds of flight can have refilled the
-        // magazine before the sheet starts.
-        .step("spend the turret's magazine and knock its integrity down")
+        // REPAIR. The damage goes in with the pane already up, so the panel
+        // shows it arrive rather than opening on it.
+        .step("knock the turret's integrity down")
         .on_enter(hurt_the_turret)
-        .until(the_turret_reads(|health, ammo| {
-            health.current < health.max && ammo.rounds < ammo.capacity
-        }))
+        .until(the_turret_reads(|health| health.current < health.max))
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("open the service sheet on the damaged panel")
@@ -389,28 +400,23 @@ fn ship_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .on_enter(press_action("ship_repair"))
         .until(frames(1))
         .add()
-        // The honest end of "repair restores its integrity": the section's own
-        // health, not a frame count that would have passed either way.
+        // The honest end of "repair spends hull plates and fills the
+        // integrity meter": the section's own health and the ship's own
+        // stock, not a frame count that would have passed either way.
         .step("let the key up and watch the meter fill")
         .on_enter(release_action("ship_repair"))
         .until(and(
-            the_turret_reads(|health, _| health.current >= health.max),
+            and(
+                the_turret_reads(|health| health.current >= health.max),
+                the_ship_spent_hull_plates(),
+            ),
             frames(REPAIR_CELLS),
         ))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("press reload")
-        .on_enter(press_action("ship_reload"))
-        .until(frames(1))
-        .add()
-        .step("let the key up and hold the refilled magazine")
-        .on_enter(release_action("ship_reload"))
+        .step("hold the repaired panel until the sheet finishes recording")
         .until(sheet_written(SERVICE_LESSON))
         .deadline(60.0)
-        .add()
-        .step("the magazine came back full")
-        .until(the_turret_reads(|_, ammo| ammo.rounds == ammo.capacity))
-        .deadline(STEP_DEADLINE_SECS)
         .add()
         // REBINDING. Out of the interface and back into it, which is what
         // clears the note line the service sheet left under the buttons.

@@ -1209,6 +1209,11 @@ Turning it on twice is idempotent, and turning it off on a ship that never had
 it on does nothing. A weapon authored with no magazine at all was already
 unlimited and is untouched in both directions.
 
+This is an authoring bypass, not the ordinary reload: the ordinary idle reload
+(see [Turret `reload`](../sections/#turret)) spends matching ammunition from
+the ship's own [inventory](../objects/#inventory); this action never touches
+it, in either direction.
+
 </details>
 
 ### RefillAmmo
@@ -1231,6 +1236,10 @@ RefillAmmo((id: "player_spaceship", section: Some("turret_dorsal"))), // just on
 Each magazine returns to its authored capacity and any reload in flight is
 cleared. Weapons with no finite magazine - and any whose magazine is
 currently suspended by [`SetInfiniteAmmo`](#setinfiniteammo) - are skipped.
+
+An authoring bypass, not the ordinary reload: it fills the magazine directly
+and spends nothing from the ship's [inventory](../objects/#inventory), unlike
+the ordinary idle reload.
 
 </details>
 
