@@ -6,7 +6,9 @@
 //! and varies the cross-section station by station. The spine mixes up to
 //! [`STRUCTURAL_PALETTE`] structural cube types in mirror image. Then it mounts
 //! the drive bank, copies of one drive around a centred single or in mirrored
-//! pairs, the flight computers, and the role's weapons or side cargo intakes.
+//! pairs, the flight computers, the role's weapons or side cargo intakes, and
+//! the docking ports: a mirrored pair out of the hull's sides where one fits,
+//! else one port alone.
 //! Every part stands on the cell grid through [`oriented_part`], so a mod part
 //! joins by its type, footprint and sockets.
 //!
@@ -20,9 +22,10 @@
 //! sources. Each source weighs the same, whatever its part count.
 //!
 //! Every layout is checked after it is built: unique section ids, usable and
-//! eligible prototypes, the role's families, mated contacts, mirror symmetry,
-//! intakes that open sideways with structural cubes across their backs, one
-//! connected socket graph, clear exit lanes, the advancement's size ceiling,
+//! eligible prototypes, the role's families, mated contacts, mirror symmetry
+//! but for a lone docking port, intakes and docking ports that open sideways
+//! with structural cubes across their backs, one connected socket graph, clear
+//! exit and docking lanes, the advancement's size ceiling,
 //! the thrust floor and the flight computer count. A seeded layout that fails
 //! is redrawn a fixed number of times, then the request fails with its seed,
 //! civilization, role and the last failed constraint. Nothing substitutes an
@@ -31,7 +34,8 @@
 //! WRECKS. [`generate_wreck`] ruins the intact ship of the same request: it
 //! keeps the role, source, advancement, fittings and cell bounds, and omits
 //! seeded breaches of structural cubes, each growing inward from the outer
-//! hull, while the rest stays one connected ship. A wreck digs toward a
+//! hull, while the rest stays one connected ship. The cubes across a docking
+//! port's back never go, so a wreck keeps a backed port. A wreck digs toward a
 //! fifth of its cubes off its mirror image, so it cannot read as a sparse
 //! intact hull. A thin hull that cannot give that many settles for as many
 //! outer cubes as it can lose one at a time, down to one. A hull that cannot
@@ -230,6 +234,9 @@ pub enum ShipLayoutConstraintType {
     /// A cargo intake does not open sideways with a structural cube behind
     /// every cell of its back.
     UnbackedIntake(String),
+    /// A docking port does not open sideways with a structural cube behind
+    /// every cell of its back.
+    UnbackedDock(String),
     /// The drives push less than the ship's mass needs.
     Underpowered {
         /// The drives' summed thrust.
@@ -308,6 +315,10 @@ impl fmt::Display for ShipLayoutConstraintType {
             Self::UnbackedIntake(id) => write!(
                 f,
                 "intake '{id}' does not open sideways with structural cubes across its back"
+            ),
+            Self::UnbackedDock(id) => write!(
+                f,
+                "docking port '{id}' does not open sideways with structural cubes across its back"
             ),
             Self::Underpowered { thrust, needed } => write!(
                 f,
@@ -412,7 +423,8 @@ pub fn generate_ship(
 ///
 /// Every omission plan digs toward a fifth of the hull's structural cubes
 /// (at least [`MIN_WRECK_OMISSIONS`]) off its mirror image, and the first
-/// that gets there is the wreck. When none does, the plan with the most wins
+/// that gets there is the wreck. No plan omits a cube across a docking port's
+/// back. When none does, the plan with the most wins
 /// if it reaches the hull's floor, see [`wreck_floor`].
 ///
 /// Fails as the intact ship fails, with
@@ -425,6 +437,8 @@ pub fn generate_wreck(
     let intact = generate_ship(snapshot, request)?;
     let (cells, cubes) = filled_cells(snapshot, &intact.design);
     let target = wreck_omissions(cubes.len());
+    let backing = dock_backing(snapshot, &intact.design);
+    let cubes: BTreeSet<[i32; 3]> = cubes.difference(&backing).copied().collect();
     let floor = wreck_floor(&cells, &cubes, target);
     let mut best: Option<(ShipDesign, usize)> = None;
     let mut most_short = None;
@@ -493,6 +507,27 @@ fn filled_cells(
         }
     }
     (cells, cubes)
+}
+
+/// The cells of the structural cubes across the back of every docking port
+/// of `design`.
+fn dock_backing(snapshot: &ShipPartSnapshot, design: &ShipDesign) -> BTreeSet<[i32; 3]> {
+    let parts: HashMap<&str, &ShipPart> = snapshot
+        .parts()
+        .iter()
+        .map(|part| (part.id(), part))
+        .collect();
+    design
+        .sections
+        .iter()
+        .map(|section| {
+            let part = parts[prototype_of(section).expect("a generated section names a prototype")];
+            (section, part)
+        })
+        .filter(|(_, part)| part.family == ShipPartFamilyType::Docking)
+        .flat_map(|(section, part)| side_back(part, section).unwrap_or_default())
+        .map(|cell| cell.to_array())
+        .collect()
 }
 
 /// The minimum and maximum cells of `cells`.
@@ -936,8 +971,8 @@ fn weapon_aim(kind: &SectionKind, aims: Option<usize>) -> Option<u32> {
     }
 }
 
-/// How an intake may point: out of the hull's side, as a mirrored pair.
-fn intake_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
+/// How an intake or a docking port may point: out of the hull's side.
+fn flank_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
     matches!(aims?, STARBOARD | PORT).then_some(1)
 }
 
@@ -1457,7 +1492,7 @@ impl<'a> Draw<'a> {
                 &parts,
                 &slot,
                 controller_aim,
-                false,
+                MountType::Mirrored,
                 aspect.as_bytes(),
             ) {
                 return Err(ShipLayoutConstraintType::Unplaced(
@@ -1492,7 +1527,7 @@ impl<'a> Draw<'a> {
                 &weapons,
                 &aspect,
                 weapon_aim,
-                false,
+                MountType::Mirrored,
                 format!("{aspect}_slot").as_bytes(),
             );
             if placed {
@@ -1514,14 +1549,27 @@ impl<'a> Draw<'a> {
                 &mut grid,
                 &intakes,
                 "intake",
-                intake_aim,
-                true,
+                flank_aim,
+                MountType::BackedMirrored,
                 b"intake_slot",
             ) {
                 return Err(ShipLayoutConstraintType::Unplaced(
                     ShipPartFamilyType::CargoIntake,
                 ));
             }
+        }
+
+        // Every ship docks: a mirrored pair of flank ports where one fits,
+        // else one port alone, each with its lane clear and cubes across its
+        // back.
+        let docks = self.ranked(ShipPartFamilyType::Docking, Some(source), b"dock", |_| true);
+        let docked = [MountType::BackedMirrored, MountType::BackedLone]
+            .into_iter()
+            .any(|mount| self.fit(&mut grid, &docks, "dock", flank_aim, mount, b"dock_slot"));
+        if !docked {
+            return Err(ShipLayoutConstraintType::Unplaced(
+                ShipPartFamilyType::Docking,
+            ));
         }
 
         // Centre the ship on its bounds along y and z; x is already the
@@ -1680,21 +1728,35 @@ fn is_structural_cube(part: &ShipPart) -> bool {
         })
 }
 
+/// How [`Draw::fit`] may mount a part.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MountType {
+    /// On the centreline or as a mirrored pair.
+    Mirrored,
+    /// On the centreline or as a mirrored pair, with a structural cube behind
+    /// every cell of each part's back.
+    BackedMirrored,
+    /// One part with no twin, on the centreline or the starboard half, with a
+    /// structural cube behind every cell of its back.
+    BackedLone,
+}
+
 impl Draw<'_> {
-    /// Mount the first of `parts` that fits on the hull's surface, on the
-    /// centreline or as a mirrored pair, where `aim` scores it best and no
-    /// exit lane is blocked. A `backed` part also needs a structural cube
-    /// behind every cell of its back. Candidates of one score are tried in a
-    /// seeded order. Returns whether a part was mounted.
+    /// Mount the first of `parts` that fits on the hull's surface as `mount`
+    /// allows, where `aim` scores it best and no exit lane is blocked.
+    /// Candidates of one score are tried in a seeded order. Returns whether a
+    /// part was mounted.
     fn fit<'a>(
         &self,
         grid: &mut Grid<'a>,
         parts: &[&'a ShipPart],
         slot: &str,
         aim: fn(&SectionKind, Option<usize>) -> Option<u32>,
-        backed: bool,
+        mount: MountType,
         aspect: &[u8],
     ) -> bool {
+        let backed = mount != MountType::Mirrored;
+        let lone = mount == MountType::BackedLone;
         let surface = grid.surface();
         for part in parts {
             let mut candidates = Vec::new();
@@ -1716,7 +1778,12 @@ impl Draw<'_> {
                         let anchor = IVec3::from_array(*cell) - own.cell.as_ivec3();
                         let on_centreline = anchor.x == -(anchor.x + span.x - 1);
                         let starboard = anchor.x >= 1;
-                        if (on_centreline && centred) || (starboard && port.is_some()) {
+                        let admitted = if lone {
+                            anchor.x >= 0
+                        } else {
+                            (on_centreline && centred) || (starboard && port.is_some())
+                        };
+                        if admitted {
                             anchors.insert(anchor.to_array());
                         }
                     }
@@ -1734,7 +1801,7 @@ impl Draw<'_> {
 
             for (_, oriented, port, anchor) in candidates {
                 let span = oriented.span.as_ivec3();
-                if anchor.x >= 1 {
+                if anchor.x >= 1 && !lone {
                     let port = port.expect("a starboard candidate pairs");
                     let port_anchor = IVec3::new(-(anchor.x + span.x - 1), anchor.y, anchor.z);
                     grid.insert(format!("{slot}_starboard"), part, oriented, anchor, false);
@@ -1778,7 +1845,15 @@ fn check(
     use ShipLayoutConstraintType as Constraint;
 
     let (resolved, bounds) = resolve_and_mate(snapshot, request, design)?;
+    let docks = resolved
+        .iter()
+        .filter(|part| part.family == ShipPartFamilyType::Docking)
+        .count();
     for (section, part) in design.sections.iter().zip(&resolved) {
+        // A ship with one docking port carries it with no mirror image.
+        if part.family == ShipPartFamilyType::Docking && docks == 1 {
+            continue;
+        }
         let image = section.position * Vec3::new(-1.0, 1.0, 1.0);
         let oriented = oriented_part(&part.config, section.rotation)
             .expect("a snapshot part at a generated rotation stands on the grid");
@@ -1802,6 +1877,9 @@ fn check(
         if part.family == ShipPartFamilyType::CargoIntake && !side_backed(&cubes, part, section) {
             return Err(Constraint::UnbackedIntake(section.id.clone()));
         }
+        if part.family == ShipPartFamilyType::Docking && !side_backed(&cubes, part, section) {
+            return Err(Constraint::UnbackedDock(section.id.clone()));
+        }
     }
 
     connected_and_clear(request, design, &resolved, bounds)?;
@@ -1818,10 +1896,17 @@ fn side_backed(
     part: &ShipPart,
     section: &SpaceshipSectionConfig,
 ) -> bool {
+    side_back(part, section)
+        .is_some_and(|back| back.iter().all(|cell| cubes.contains(&cell.to_array())))
+}
+
+/// The cells behind the back of `section`, a `part`, outside its own cells,
+/// or `None` when it does not open out of the hull's side.
+fn side_back(part: &ShipPart, section: &SpaceshipSectionConfig) -> Option<Vec<IVec3>> {
     let oriented = oriented_part(&part.config, section.rotation)
         .expect("a snapshot part at a generated rotation stands on the grid");
-    let Some(exit @ (STARBOARD | PORT)) = oriented.aims else {
-        return false;
+    let exit @ (STARBOARD | PORT) = oriented.aims? else {
+        return None;
     };
     let anchor = (section.position - oriented.origin).round().as_ivec3();
     let own: HashSet<IVec3> = oriented
@@ -1829,16 +1914,19 @@ fn side_backed(
         .iter()
         .map(|cell| anchor + cell.cell.as_ivec3())
         .collect();
-    own.iter().all(|cell| {
-        let behind = *cell + STEPS[exit ^ 1];
-        own.contains(&behind) || cubes.contains(&behind.to_array())
-    })
+    Some(
+        own.iter()
+            .map(|cell| *cell + STEPS[exit ^ 1])
+            .filter(|behind| !own.contains(behind))
+            .collect(),
+    )
 }
 
 /// Every constraint a wreck of `intact` must hold: an intact ship's, but for
 /// its mirror symmetry, plus `needed` omissions off its mirror image. Its
-/// omissions keep the intact cell bounds and remove structural cubes only;
-/// either failing is a generator fault, not a failed layout.
+/// omissions keep the intact cell bounds and every docking port's backing,
+/// and remove structural cubes only; any of those failing is a generator
+/// fault, not a failed layout.
 fn check_wreck(
     snapshot: &ShipPartSnapshot,
     request: ShipLayoutRequest,
@@ -1876,6 +1964,14 @@ fn check_wreck(
                 .sections
                 .iter()
                 .any(|other| other.position.abs_diff_eq(image, GRID_EPSILON)),
+        );
+    }
+    let (_, cubes) = filled_cells(snapshot, design);
+    for (section, part) in design.sections.iter().zip(&resolved) {
+        assert!(
+            part.family != ShipPartFamilyType::Docking || side_backed(&cubes, part, section),
+            "a wreck keeps the cubes across docking port '{}'",
+            section.id
         );
     }
     if omitted < needed {
@@ -2050,9 +2146,9 @@ fn prototype_of(section: &SpaceshipSectionConfig) -> Option<&str> {
 pub(crate) mod tests {
     use nova_events::prelude::MetersPerSecond;
     use nova_ship::prelude::{
-        BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, HullSectionConfig,
-        LinkPoint, MuzzleConfig, SectionCollider, ThrusterSectionConfig, TurretSectionConfig,
-        CELL_FACES,
+        BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, DockingSectionConfig,
+        HullSectionConfig, LinkPoint, MuzzleConfig, SectionCollider, ThrusterSectionConfig,
+        TurretSectionConfig, CELL_FACES,
     };
 
     use super::*;
@@ -2155,6 +2251,15 @@ pub(crate) mod tests {
         block(id, 100.0, kind, UVec3::new(3, 2, 1), &faces)
     }
 
+    /// A port with a socket on each of `faces`; it docks through -Z.
+    fn dock(id: &str, faces: &[Vec3]) -> SectionConfig {
+        let kind = SectionKind::Docking(DockingSectionConfig::default());
+        block(id, 90.0, kind, UVec3::ONE, faces)
+    }
+
+    /// Every face but the mouth, so the port is its own mirror image.
+    const DOCK_FACES: [Vec3; 5] = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z];
+
     fn pack(id: &str, dependencies: &[&str], sections: Vec<SectionConfig>) -> ShipPartPack {
         ShipPartPack {
             id: id.to_string(),
@@ -2179,6 +2284,7 @@ pub(crate) mod tests {
                     turret("turret", 1.0),
                     turret("fast_turret", 4.0),
                     intake("intake"),
+                    dock("dock", &DOCK_FACES),
                 ],
             ),
             pack(
@@ -2300,6 +2406,7 @@ pub(crate) mod tests {
                 controller("controller"),
                 drive("huge_drive", 1.0, UVec3::new(15, 15, 1)),
                 intake("intake"),
+                dock("dock", &DOCK_FACES),
             ],
         )])
         .expect("the packs build");
@@ -2415,6 +2522,25 @@ pub(crate) mod tests {
                         wreck_floor(&cells, &cubes, target)
                     };
                     assert!(unmirrored >= needed, "{context}: {unmirrored} < {needed}");
+                    let (_, wreck_cubes) = filled_cells(&snapshot, &wreck.design);
+                    let docks: Vec<&SpaceshipSectionConfig> = wreck
+                        .design
+                        .sections
+                        .iter()
+                        .filter(|section| {
+                            parts[prototype_of(section).expect("a prototype")].family
+                                == ShipPartFamilyType::Docking
+                        })
+                        .collect();
+                    assert_eq!(docks.len(), 2, "{context}: the intact pair of ports");
+                    for dock in docks {
+                        let part = parts[prototype_of(dock).expect("a prototype")];
+                        assert!(
+                            side_backed(&wreck_cubes, part, dock),
+                            "{context}: {}",
+                            dock.id
+                        );
+                    }
                     let links: Vec<PlacedSectionLinkPoints> = wreck
                         .design
                         .sections
@@ -2441,8 +2567,9 @@ pub(crate) mod tests {
 
     #[test]
     fn a_hull_with_no_removable_outer_cube_fails_as_unruined() {
-        // A drive six cells deep shrinks the hull to its three stations, whose
-        // every cube holds a bound or the drive, so not even one breach fits.
+        // A drive six cells deep shrinks the hull to its three stations. On
+        // this seed its ports dock off the body's flanks, so every cube holds
+        // a bound, the drive or a port's back, and not even one breach fits.
         let short = ShipPartSnapshot::build(&[pack(
             "base",
             &[],
@@ -2451,11 +2578,12 @@ pub(crate) mod tests {
                 controller("controller"),
                 drive("deep_drive", 1.0, UVec3::new(1, 1, 6)),
                 intake("intake"),
+                dock("dock", &DOCK_FACES),
             ],
         )])
         .expect("the packs build");
 
-        let request = request(3, ShipRoleType::Civilian, 0.0);
+        let request = request(2, ShipRoleType::Civilian, 0.0);
         generate_ship(&short, request).expect("the intact ship generates");
         let failure = generate_wreck(&short, request).expect_err("no ruin fits the hull");
 
@@ -2471,7 +2599,7 @@ pub(crate) mod tests {
             "{failure}"
         );
         let message = failure.to_string();
-        for named in ["ship seed 3", "civ_1_n2_0@7", "civilian", "visible ruin"] {
+        for named in ["ship seed 2", "civ_1_n2_0@7", "civilian", "visible ruin"] {
             assert!(message.contains(named), "{message}");
         }
     }
@@ -2658,5 +2786,126 @@ pub(crate) mod tests {
             }
         }
         assert_eq!(widest, STRUCTURAL_PALETTE, "no hull mixed a full palette");
+    }
+
+    /// The docking sections of `design`, with their section index.
+    fn docks<'s>(
+        parts: &HashMap<&str, &ShipPart>,
+        design: &'s ShipDesign,
+    ) -> Vec<(usize, &'s SpaceshipSectionConfig)> {
+        design
+            .sections
+            .iter()
+            .enumerate()
+            .filter(|(_, section)| {
+                parts[prototype_of(section).expect("a prototype")].family
+                    == ShipPartFamilyType::Docking
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_generated_ship_docks_through_a_backed_flank_pair_down_a_clear_lane() {
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let parts: HashMap<&str, &ShipPart> = snapshot
+            .parts()
+            .iter()
+            .map(|part| (part.id(), part))
+            .collect();
+        for advancement in [0.0, 1.0] {
+            for seed in 0..8 {
+                for role in ShipRoleType::ALL {
+                    let request = request(seed, role, advancement);
+                    let context = format!("seed {seed}, {role:?}, advancement {advancement}");
+                    let layout = generate_ship(&snapshot, request).expect("the ship generates");
+                    let (_, cubes) = filled_cells(&snapshot, &layout.design);
+                    let docks = docks(&parts, &layout.design);
+                    let ids: Vec<&str> = docks.iter().map(|(_, dock)| dock.id.as_str()).collect();
+                    assert_eq!(ids, ["dock_starboard", "dock_port"], "{context}");
+
+                    // Each port docks out of the hull's side down a lane the
+                    // exit rule reads, and nothing stands in it.
+                    let placed: Vec<PlacedPart> = layout
+                        .design
+                        .sections
+                        .iter()
+                        .map(|section| {
+                            let part = parts[prototype_of(section).expect("a prototype")];
+                            placed_part(&part.config, section.position, section.rotation)
+                        })
+                        .collect();
+                    let (structure, _, occupied) = read_structure(&placed);
+                    let exits = ship_exits(&placed, &occupied);
+                    assert!(blocked_exits(&structure, &exits).is_empty(), "{context}");
+                    for (index, dock) in &docks {
+                        let part = parts[prototype_of(dock).expect("a prototype")];
+                        assert!(side_backed(&cubes, part, dock), "{context}: {}", dock.id);
+                        assert!(
+                            exits.iter().any(|exit| {
+                                occupied[*index].contains(&exit.cell)
+                                    && matches!(exit.out, STARBOARD | PORT)
+                            }),
+                            "{context}: {} has no flank lane",
+                            dock.id
+                        );
+                    }
+
+                    // Without the cubes behind them the same ports are
+                    // refused.
+                    let behind: HashSet<IVec3> = docks
+                        .iter()
+                        .flat_map(|(_, dock)| {
+                            let part = parts[prototype_of(dock).expect("a prototype")];
+                            side_back(part, dock).expect("a port opens sideways")
+                        })
+                        .collect();
+                    let mut bare = layout.design.clone();
+                    bare.sections
+                        .retain(|section| !behind.contains(&section.position.round().as_ivec3()));
+                    assert_eq!(
+                        check(&snapshot, request, &bare),
+                        Err(ShipLayoutConstraintType::UnbackedDock(
+                            "dock_starboard".to_string()
+                        )),
+                        "{context}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_docking_port_with_no_mirrored_twin_mounts_alone() {
+        // Sockets on the back and one side only: no rotation reflects the
+        // port, so it cannot pair.
+        let mut packs = packs();
+        for section in &mut packs[0].sections {
+            if section.base.id == "dock" {
+                *section = dock("dock", &[Vec3::Z, Vec3::X]);
+            }
+        }
+        let snapshot = ShipPartSnapshot::build(&packs).expect("the packs build");
+        let parts: HashMap<&str, &ShipPart> = snapshot
+            .parts()
+            .iter()
+            .map(|part| (part.id(), part))
+            .collect();
+        for advancement in [0.0, 1.0] {
+            for seed in 0..8 {
+                for role in ShipRoleType::ALL {
+                    let context = format!("seed {seed}, {role:?}, advancement {advancement}");
+                    let layout = generate_ship(&snapshot, request(seed, role, advancement))
+                        .unwrap_or_else(|failure| panic!("{context}: {failure}"));
+                    let (_, cubes) = filled_cells(&snapshot, &layout.design);
+                    let docks = docks(&parts, &layout.design);
+                    let [(_, dock)] = docks.as_slice() else {
+                        panic!("{context}: {} ports", docks.len());
+                    };
+                    assert_eq!(dock.id, "dock", "{context}");
+                    let part = parts[prototype_of(dock).expect("a prototype")];
+                    assert!(side_backed(&cubes, part, dock), "{context}");
+                }
+            }
+        }
     }
 }

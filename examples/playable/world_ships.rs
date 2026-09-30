@@ -27,8 +27,8 @@
 //! - WFC: four hulls of the current `wfc_ships` generator on the standard
 //!   plan, at the same spacing rule.
 //! - Wrecks: one DERELICT per role, same column order. Every active
-//!   section (drive, flight computer, weapons, intake) is disabled in place as
-//!   it spawns; the ships have no controller, Neutral allegiance and every
+//!   section (drive, flight computer, weapons, intake, docking port) is
+//!   disabled in place as it spawns; the ships have no controller, Neutral allegiance and every
 //!   ship capability off, and keep their physics.
 //! - Pilot: one matrix ship under the player's own controller. An industrial
 //!   ship is offered a canister that drifts into its intake; a fighter's
@@ -1055,9 +1055,9 @@ fn view_ships(stage: &Stage, view: ViewType) -> Vec<(String, ShipDesign, f32)> {
     }
 }
 
-/// Disable every active section of a wreck as it spawns. The section's kind
-/// marker lands in the spawn's own command flush, after its `ChildOf` and the
-/// root's `EntityId`, so no tick sees the section live.
+/// Disable a wreck's drives, controllers, weapons and intake at spawn while
+/// keeping its docking ports usable. The kind marker lands in the spawn's own
+/// command flush, after its `ChildOf` and the root's `EntityId`.
 fn disable_wreck_systems(
     add: On<
         Add,
@@ -1068,7 +1068,6 @@ fn disable_wreck_systems(
             TorpedoSectionMarker,
             RailgunSectionMarker,
             CargoIntakeSectionMarker,
-            DockingSectionMarker,
         ),
     >,
     mut commands: Commands,
