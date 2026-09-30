@@ -118,9 +118,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `:` opens NOVA COMMANDS on the CRT over any screen; Escape
   returns there. The `nova>` prompt and app verbs are gone. New `log` prints
   comms, objectives and lock drops.
-- New armed cheat `item give <ship-id> <item-id> <quantity>` adds HullPlate,
-  PdcRound, RailSlug or Torpedo stock to one ship when the whole quantity fits
-  its hold.
+- New armed cheat `item give <ship-id> <item-id> <quantity>` adds any known
+  item to one ship when the whole quantity fits its hold.
 - Keybinds saved under `novaos_*` IDs load onto `interface_toggle` and
   `viewer_*`.
 - The Map labels an asteroid only while it is selected, so a belt of rocks no
@@ -129,6 +128,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A HELM chip reads TAKE HELM, RELEASE HELM or HELM FAULT while docked. Off a
   measured helm, blocked verbs stay on the dock dark. The mode chip reads
   NEUTRAL or HELM FAULT.
+- The Ship pane gives mining beams their own icon and legend entry instead of
+  marking them as hull. Docking and mining remain visible in the section key.
 - The target inset shows the travel lock when no combat lock is held. Its
   caption adds range and signed closing speed. A combat kill cam plays before
   the travel view.

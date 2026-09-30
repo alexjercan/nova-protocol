@@ -202,6 +202,12 @@ fn item_type(id: &str) -> Option<ItemType> {
         "PdcRound" => Some(ItemType::PdcRound),
         "RailSlug" => Some(ItemType::RailSlug),
         "Torpedo" => Some(ItemType::Torpedo),
+        "StoneOre" => Some(ItemType::StoneOre),
+        "IronOre" => Some(ItemType::IronOre),
+        "WaterIce" => Some(ItemType::WaterIce),
+        "CarbonOre" => Some(ItemType::CarbonOre),
+        "Rations" => Some(ItemType::Rations),
+        "SalvagedParts" => Some(ItemType::SalvagedParts),
         _ => None,
     }
 }
@@ -365,6 +371,12 @@ mod tests {
             ItemType::PdcRound => "PdcRound",
             ItemType::RailSlug => "RailSlug",
             ItemType::Torpedo => "Torpedo",
+            ItemType::StoneOre => "StoneOre",
+            ItemType::IronOre => "IronOre",
+            ItemType::WaterIce => "WaterIce",
+            ItemType::CarbonOre => "CarbonOre",
+            ItemType::Rations => "Rations",
+            ItemType::SalvagedParts => "SalvagedParts",
         };
         let words = command_spec("item give").expect("catalog row").args[1].words();
         let parsed: Vec<&str> = words
@@ -423,7 +435,7 @@ mod tests {
             (
                 ["player_spaceship", "hullplate", "1"],
                 CommandStatus::Error,
-                "no item named 'hullplate' (HullPlate, PdcRound, RailSlug, Torpedo)",
+                "no item named 'hullplate' (HullPlate, PdcRound, RailSlug, Torpedo, StoneOre, IronOre, WaterIce, CarbonOre, Rations, SalvagedParts)",
             ),
             (
                 ["player_spaceship", "HullPlate", "0"],

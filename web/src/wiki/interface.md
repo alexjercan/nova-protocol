@@ -134,6 +134,9 @@ The Ship pane is a schematic 3D viewer of your own hull: one block per section, 
 | `TRB-1` | Torpedo bay | Weapon |
 | `RAIL-1` | Railgun | Weapon |
 | `DOCK-1` | Docking clamp | Docking |
+| `MNG-1` | Mining beam | Mining |
+
+The footer shows separate Docking and Mining icons. The Mine (hold), Dock and Helm keys are in **Settings > Controls > FLIGHT**; their defaults are <kbd>V</kbd>, <kbd>D</kbd> and <kbd>H</kbd>. You can rebind each key there.
 
 Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or with **Prev** / **Next** in the panel. The panel shows its family icon, a condition bar, its status, what it does, its HP, ammunition and current bindings.
 

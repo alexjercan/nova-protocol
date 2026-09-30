@@ -626,6 +626,50 @@ fn a_rebind_takes_the_next_key_and_the_table_follows() {
     );
 }
 
+#[test]
+fn mine_and_docking_controls_show_defaults_and_mine_rebinds_in_settings() {
+    let mut app = mods_app();
+    open_tab(&mut app, SettingsTabKind::Controls);
+    let texts = all_texts(&mut app);
+    for label in ["Dock", "Helm", "Mine (hold)"] {
+        assert!(
+            texts.iter().any(|text| text == label),
+            "missing {label} row"
+        );
+    }
+    for (action, key) in [
+        ("dock", KeyCode::KeyD),
+        ("dock_helm", KeyCode::KeyH),
+        ("mine", KeyCode::KeyV),
+    ] {
+        assert_eq!(
+            app.world()
+                .resource::<InputBindings>()
+                .get(action)
+                .expect("registered flight action")
+                .keyboard,
+            vec![InputSource::Keyboard(key)],
+            "{action} uses its documented default"
+        );
+        assert!(
+            entity_by_name(&mut app, &format!("Rebind: {action} Desk")).is_some(),
+            "{action} is rebindable in Settings"
+        );
+    }
+
+    arm_chip(&mut app, "Rebind: mine Desk");
+    tap_key(&mut app, KeyCode::KeyJ);
+    assert_eq!(
+        app.world()
+            .resource::<InputBindings>()
+            .get("mine")
+            .expect("mine action")
+            .keyboard,
+        vec![InputSource::Keyboard(KeyCode::KeyJ)]
+    );
+    assert!(all_texts(&mut app).iter().any(|text| text == "J"));
+}
+
 /// A pad button the shipped table leaves free, ASKED FOR rather than pinned: the
 /// table keeps growing, and a hard-coded button turns every future binding into
 /// a confusing failure in a test that is not about conflicts.

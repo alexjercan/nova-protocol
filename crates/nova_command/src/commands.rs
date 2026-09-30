@@ -136,7 +136,18 @@ pub mod live {
 /// The item ids `item give` accepts: the `ItemType` names content writes.
 /// This crate has no gameplay dependency; a `nova_console` cheats test pins
 /// the dispatcher's parse against this list and `ItemType`.
-const ITEM_WORDS: &[&str] = &["HullPlate", "PdcRound", "RailSlug", "Torpedo"];
+const ITEM_WORDS: &[&str] = &[
+    "HullPlate",
+    "PdcRound",
+    "RailSlug",
+    "Torpedo",
+    "StoneOre",
+    "IronOre",
+    "WaterIce",
+    "CarbonOre",
+    "Rations",
+    "SalvagedParts",
+];
 
 /// The class words `commands [class]` accepts. Pinned against
 /// [`CommandClass::ALL`] by test, so a new class cannot go uncompleted.

@@ -20,7 +20,7 @@ use nova_ui::{
 
 use super::{app::*, scene::*, sections::*, *};
 use crate::{
-    icons::InterfaceIcons,
+    icons::{InterfaceIcons, SectionIconType},
     pane::InterfacePaneType,
     pointer_rig::{click_at, hear_ui_cues, pane_pointer_rig, settle, take_cues, PanePointerRig},
     terminal::NovaOsCloseTransition,
@@ -967,6 +967,18 @@ fn badge_shows_family_icon_status_pip_and_code() {
         vec!["PDC-1".to_string()],
         "the label carries only the code"
     );
+}
+
+#[test]
+fn docking_and_mining_sections_have_distinct_legend_icons() {
+    let docking = SectionIconType::of(SectionClass::Docking);
+    let mining = SectionIconType::of(SectionClass::Mining);
+    assert_ne!(docking, mining);
+    assert_ne!(mining, SectionIconType::of(SectionClass::Hull));
+    assert_eq!(docking.label(), "Docking");
+    assert_eq!(mining.label(), "Mining");
+    assert!(SectionIconType::ALL.contains(&docking));
+    assert!(SectionIconType::ALL.contains(&mining));
 }
 
 #[test]
