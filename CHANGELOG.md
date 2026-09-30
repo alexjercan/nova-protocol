@@ -104,6 +104,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `:` opens NOVA COMMANDS on the CRT over any screen; Escape
   returns there. The `nova>` prompt and app verbs are gone. New `log` prints
   comms, objectives and lock drops.
+- New armed cheat `item give <ship-id> <item-id> <quantity>` adds HullPlate,
+  PdcRound, RailSlug or Torpedo stock to one ship when the whole quantity fits
+  its hold.
 - Keybinds saved under `novaos_*` IDs load onto `interface_toggle` and
   `viewer_*`.
 - The Map labels an asteroid only while it is selected, so a belt of rocks no
