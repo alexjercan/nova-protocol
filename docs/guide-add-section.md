@@ -98,9 +98,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
    The interface's Ship pane labels sections by this enum: add an arm to the
    exhaustive matches `code_prefix`, `kind_description` and `kind_index` in
-   `crates/nova_interface/src/ship/sections.rs`, to `SectionIconType::of` in
-   `crates/nova_interface/src/icons.rs`, and to `section_kind_label` in
-   `crates/nova_interface/src/terminal/content.rs`.
+   `crates/nova_interface/src/ship/sections.rs`, and to `SectionIconType::of`
+   in `crates/nova_interface/src/icons.rs`.
 
 4. **Wire the section plugin.**
    In `crates/nova_ship/src/sections/mod.rs`, add your plugin to the

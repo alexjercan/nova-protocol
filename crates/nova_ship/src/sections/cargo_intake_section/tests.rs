@@ -755,7 +755,7 @@ fn queued_and_drifting(app: &mut App, intake: Entity) -> BTreeMap<ItemType, u32>
 }
 
 #[test]
-fn queued_canisters_leave_one_per_opening_in_order_once_the_clock_resumes() {
+fn queued_canisters_leave_in_order_through_an_open_door_once_each_birth_point_clears() {
     let (mut app, ship, intake) = intake_app(8);
     let queued = [
         CargoCanister::new(ItemType::Torpedo, 1),
@@ -776,8 +776,8 @@ fn queued_canisters_leave_one_per_opening_in_order_once_the_clock_resumes() {
     assert_eq!(door(&app, intake), 0.0);
     app.world_mut().resource_mut::<Time<Virtual>>().unpause();
 
-    // Each canister leaves on its own opening, front first, once the last
-    // has drifted clear of the birth point.
+    // Each canister leaves front first while the door stays open, once the
+    // last has drifted clear of the birth point.
     let mut left: Vec<(Entity, CargoCanister)> = Vec::new();
     let mut frames = 0;
     while left.len() < queued.len() {

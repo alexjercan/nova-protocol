@@ -5245,16 +5245,21 @@ const AMMO_WEAPONS: AmmoWeapon[] = [
 
 // A magazine as a RATE LIMIT rather than a budget: hold a trigger pattern
 // against the reload rule and watch the level. The point the plot makes that
-// prose cannot is that the batch is all-or-nothing on a whole quiet interval,
-// so a pause one tick short of the delay returns absolutely nothing.
+// prose cannot is that a batch arrives only after a whole quiet interval,
+// so a pause one tick short of the delay returns nothing. The plot
+// assumes the ship's hold keeps enough matching reserve for full batches and does
+// not model it: crates/nova_ship/src/sections/ammo.rs `batch_rounds` caps a
+// batch at that reserve, and an empty reserve stops the reload.
 function initAmmoRhythm(host: HTMLElement): void {
     header(
         host,
         "Trigger discipline: what a magazine is worth",
-        "A weapon is never left with nothing - it refills. What it imposes " +
-            "is a RHYTHM: a batch only lands after a whole quiet interval, " +
-            "and every shot that lands restarts that interval. Set a burst " +
-            "and a pause and read what the weapon actually holds."
+        "While the hold keeps matching ammunition, a weapon is never left " +
+            "with nothing - it refills. What it imposes is a RHYTHM: a " +
+            "batch only lands after a whole quiet interval, and every shot " +
+            "that lands restarts that interval. Set a burst and a pause and " +
+            "read what the weapon holds, assuming that reserve never runs " +
+            "short."
     );
 
     const X0 = 46;
@@ -5408,8 +5413,8 @@ function initAmmoRhythm(host: HTMLElement): void {
                 `${quiet.toFixed(2)} quiet seconds buy ${batches} batch` +
                 `${batches === 1 ? "" : "es"} - ${back} ${w.unit} against ` +
                 `the ${spent.toFixed(0)} the burst spends. The weapon holds ` +
-                "this pattern forever; the magazine is never the thing you " +
-                "run out of.";
+                "this pattern while the hold keeps a matching reserve; the " +
+                "magazine is never the thing you run out of.";
         } else {
             readout.classList.add("is-warn");
             readout.textContent =
@@ -5456,8 +5461,9 @@ function initAmmoRhythm(host: HTMLElement): void {
     const note = el(
         "p",
         "widget__note",
-        "Sustained is the rate a weapon holds forever by firing each batch " +
-            "the moment it lands. An EMPTY trigger pull does not restart " +
+        "Sustained is the rate a weapon holds, while the hold keeps a " +
+            "matching reserve, by firing each batch the moment it lands. " +
+            "An EMPTY trigger pull does not restart " +
             "the interval, so a dry weapon reloads while you are still " +
             "holding the trigger down - the shaded stretches keep running " +
             "the clock once the level hits zero."
@@ -10842,7 +10848,7 @@ function initArrivalStandoff(host: HTMLElement): void {
     update();
 }
 
-// ---- v0.13.0: 27 commands in four classes --------------------------------
+// ---- command-catalog: 28 commands in four classes ------------------------
 
 // The four classes (nova_command/src/commands.rs, `CommandClass`) and what each may do
 // (`CommandClass::summary`, :64-71). The arming gate is one check in the dispatcher
@@ -11028,7 +11034,18 @@ export const COMMAND_ROWS: CommandRow[] = [
         cls: "Cheat",
         what: "top up one magazine",
     },
+    {
+        name: "item give",
+        usage: "item give <ship-id> <item-id> <quantity>",
+        cls: "Cheat",
+        what: "add items to one ship's inventory",
+    },
 ];
+
+// v0.13.0 shipped every row above except `item give`.
+export const V0130_COMMAND_ROWS: CommandRow[] = COMMAND_ROWS.filter(
+    (row) => row.name !== "item give"
+);
 
 // Whether the dispatcher runs the command: every class but Cheat always,
 // `cheats enable` always, any other cheat only once armed (dispatch.rs:21-25).
@@ -11040,11 +11057,21 @@ export function commandAllowed(
     return cls !== "Cheat" || name === "cheats enable" || armed;
 }
 
+// data-release="0.13.0" shows the catalog that release shipped; without it the
+// widget shows the current catalog.
 function initCommandCatalog(host: HTMLElement): void {
+    const release = host.dataset.release;
+    if (release !== undefined && release !== "0.13.0") {
+        host.appendChild(
+            el("p", "widget__note", `No command release named "${release}".`)
+        );
+        return;
+    }
+    const rows = release === "0.13.0" ? V0130_COMMAND_ROWS : COMMAND_ROWS;
     header(
         host,
         "Command shell: the catalog",
-        `${COMMAND_ROWS.length} commands in four classes. Filter by class, ` +
+        `${rows.length} commands in four classes. Filter by class, ` +
             "then arm cheats and see what changes: the refused rows, the " +
             "header, and the mark on the run."
     );
@@ -11089,7 +11116,7 @@ function initCommandCatalog(host: HTMLElement): void {
     actions.appendChild(fresh);
 
     const list = el("div", "widget__cmds");
-    const rowNodes = COMMAND_ROWS.map((row) => {
+    const rowNodes = rows.map((row) => {
         const node = el("div", "widget__cmd");
         if (row.cls === "Cheat") node.classList.add("is-cheat");
         node.appendChild(el("code", undefined, row.usage));
@@ -11117,7 +11144,7 @@ function initCommandCatalog(host: HTMLElement): void {
         enable.setAttribute("aria-pressed", String(armed));
         let shown = 0;
         let refused = 0;
-        for (const [index, row] of COMMAND_ROWS.entries()) {
+        for (const [index, row] of rows.entries()) {
             const visible = filter === null || row.cls === filter;
             const allowed = commandAllowed(row.name, row.cls, armed);
             rowNodes[index].hidden = !visible;
@@ -11131,7 +11158,7 @@ function initCommandCatalog(host: HTMLElement): void {
         refusedStat.textContent = String(refused);
         markStat.textContent = armed ? "MARKED" : "clean";
         readout.classList.remove("is-warn", "is-fault");
-        const cheats = COMMAND_ROWS.filter((row) => row.cls === "Cheat").length;
+        const cheats = rows.filter((row) => row.cls === "Cheat").length;
         if (!armed) {
             if (last === "cleared") {
                 readout.textContent =
