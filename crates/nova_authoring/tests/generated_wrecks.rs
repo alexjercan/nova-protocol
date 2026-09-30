@@ -6,17 +6,16 @@ use bevy::math::Vec3;
 use nova_authoring::lint_walk::repo_ship_part_packs;
 use nova_ship::prelude::GRID_EPSILON;
 use nova_world_base::prelude::{
-    generate_wreck, CivilizationId, ShipLayoutConstraintType, ShipLayoutRequest, ShipPartSnapshot,
+    generate_ship, generate_wreck, CivilizationId, ShipLayoutRequest, ShipPartSnapshot,
+    ShipRoleType,
 };
 
 #[test]
-fn a_base_wreck_at_advancement_zero_breaks_its_mirror_or_fails_as_unruinable() {
+fn every_base_wreck_at_advancement_zero_breaks_its_mirror() {
     let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
-    let roles = snapshot.eligible_roles(0.0);
-    let mut ruined = Vec::new();
     for seed in 0..12 {
-        for role in roles.iter().copied() {
+        for role in snapshot.eligible_roles(0.0) {
             let request = ShipLayoutRequest {
                 seed,
                 civilization: CivilizationId {
@@ -26,35 +25,50 @@ fn a_base_wreck_at_advancement_zero_breaks_its_mirror_or_fails_as_unruinable() {
                 role,
                 advancement: 0.0,
             };
-            match generate_wreck(&snapshot, request) {
-                Ok(wreck) => {
-                    let sections = &wreck.design.sections;
-                    let unmirrored = sections
+            let wreck = generate_wreck(&snapshot, request)
+                .unwrap_or_else(|failure| panic!("seed {seed}, {role:?}: {failure}"));
+            let sections = &wreck.design.sections;
+            let unmirrored = sections
+                .iter()
+                .filter(|section| {
+                    let image = section.position * Vec3::new(-1.0, 1.0, 1.0);
+                    !sections
                         .iter()
-                        .filter(|section| {
-                            let image = section.position * Vec3::new(-1.0, 1.0, 1.0);
-                            !sections
-                                .iter()
-                                .any(|other| other.position.abs_diff_eq(image, GRID_EPSILON))
-                        })
-                        .count();
-                    assert!(unmirrored >= 1, "seed {seed}, {role:?}");
-                    ruined.push(role);
-                }
-                // Only a hull that cannot lose one off-centre outer cube
-                // fails.
-                Err(failure) => assert_eq!(
-                    failure.constraint,
-                    ShipLayoutConstraintType::Unruined {
-                        omitted: 0,
-                        needed: 1
-                    },
-                    "{failure}"
-                ),
-            }
+                        .any(|other| other.position.abs_diff_eq(image, GRID_EPSILON))
+                })
+                .count();
+            assert!(unmirrored >= 1, "seed {seed}, {role:?}");
         }
     }
-    for role in roles {
-        assert!(ruined.contains(&role), "no {role:?} wreck at advancement 0");
+}
+
+#[test]
+fn base_industrial_spines_that_fit_no_intake_carry_an_intake_pair_and_a_dock() {
+    // These world-seed-1 requests failed to fit an intake on a short spine.
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+    for seed in [92, 471, 1451] {
+        let request = ShipLayoutRequest {
+            seed,
+            civilization: CivilizationId {
+                world_seed: 1,
+                node: [0, 0, 0],
+            },
+            role: ShipRoleType::Industrial,
+            advancement: 0.0,
+        };
+        let ship = generate_ship(&snapshot, request)
+            .unwrap_or_else(|failure| panic!("seed {seed}: {failure}"));
+        let fitted = |slot: &str| {
+            ship.design
+                .sections
+                .iter()
+                .filter(|section| section.id.starts_with(slot))
+                .count()
+        };
+        assert_eq!(fitted("intake_"), 2, "seed {seed}");
+        assert!(fitted("dock") >= 1, "seed {seed}");
+        generate_wreck(&snapshot, request)
+            .unwrap_or_else(|failure| panic!("seed {seed}: {failure}"));
     }
 }

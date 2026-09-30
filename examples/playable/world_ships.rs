@@ -27,9 +27,10 @@
 //! - WFC: four hulls of the current `wfc_ships` generator on the standard
 //!   plan, at the same spacing rule.
 //! - Wrecks: one DERELICT per role, same column order. Every active
-//!   section (drive, flight computer, weapons, intake, docking port) is
-//!   disabled in place as it spawns; the ships have no controller, Neutral allegiance and every
-//!   ship capability off, and keep their physics.
+//!   system (drive, flight computer, weapons, intake) is disabled in place as
+//!   it spawns. Hull and docking ports stay active for damage and Take/Give;
+//!   the ships have no controller, Neutral allegiance, and every ship capability
+//!   off, and keep their physics.
 //! - Pilot: one matrix ship under the player's own controller. An industrial
 //!   ship is offered a canister that drifts into its intake; a fighter's
 //!   turrets fire on the left mouse button, its bays on `F` and its rails on
@@ -1637,8 +1638,8 @@ fn root_sections(world: &mut World, root: Entity) -> Vec<Entity> {
 
 /// Every wreck is off from its first frame: each section of its design
 /// stands under its root, joined through the integrity graph, at full health
-/// and with a collider; each hull section is live and every other section is
-/// disabled in place; nothing drives it, it sides with nobody and every ship
+/// and with a collider; hull and docking sections stay active, while other
+/// sections are disabled; nothing drives it, it sides with nobody and every ship
 /// capability is off.
 #[cfg(feature = "debug")]
 fn check_wrecks_off(world: &mut World) {
@@ -1690,6 +1691,7 @@ fn check_wrecks_off(world: &mut World) {
             sections.len()
         );
         let mut hulls = 0;
+        let mut docks = 0;
         for section in &sections {
             let entity = world.entity(*section);
             let id = entity
@@ -1697,16 +1699,13 @@ fn check_wrecks_off(world: &mut World) {
                 .map(|id| id.0.clone())
                 .unwrap_or_default();
             let hull = entity.contains::<HullSectionMarker>();
+            let docking = entity.contains::<DockingSectionMarker>();
             hulls += usize::from(hull);
+            docks += usize::from(docking);
             assert_eq!(
                 entity.contains::<SectionInactiveMarker>(),
-                !hull,
-                "world_ships: {name} section '{id}' is {}",
-                if hull {
-                    "a disabled hull"
-                } else {
-                    "a live active section"
-                }
+                !(hull || docking),
+                "world_ships: {name} section '{id}' has the wrong active state (hull={hull}, docking={docking})"
             );
             let health = entity.get::<Health>().expect("a live section has health");
             assert!(
@@ -1742,10 +1741,10 @@ fn check_wrecks_off(world: &mut World) {
             world,
             format!(
                 "{name}: {} sections joined under one root at full health with colliders; {hulls} \
-                 hull live, {} active disabled; no controller, Neutral, every capability off, \
+                 hull live, {docks} docking live, {} systems disabled; no controller, Neutral, every capability off, \
                  no radar",
                 sections.len(),
-                sections.len() - hulls
+                sections.len() - hulls - docks
             ),
         );
     }

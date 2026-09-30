@@ -14,15 +14,15 @@
 //! sector owns bodies of and what it placed and skipped, with the same numbers
 //! the generator used. Nothing puts them on a streamed entity; a debug view
 //! asks for them. [`CivilizationField`] answers which seeded civilizations
-//! reach a place; only debug diagnostics read it, and the generator does not
-//! select ships from it yet. [`ShipPartSnapshot`] validates and scores the
-//! section prototypes generated ships may use. The open world pins one to its
+//! reach a place. [`ShipPartSnapshot`] validates and scores the section
+//! prototypes generated ships may use. The open world pins one to its
 //! generator when it arms, built from the loaded catalog, and refuses a
 //! catalog that changes under it; the content lint and the `world_ships`
-//! debug example build their own. Nothing draws a ship from the pinned
-//! snapshot yet. [`generate_ship`] lays out one
-//! ship from a snapshot and [`generate_wreck`] ruins that same ship; only tests
-//! and `world_ships` call them yet.
+//! debug example build their own. [`generate_ship`] lays out one ship from a
+//! snapshot and [`generate_wreck`] ruins that same ship. [`plan_ship`] picks
+//! the civilization and role of one planned hull, lays it out from the pinned
+//! snapshot, and poses it: every ship a sector holds comes from it, and the
+//! example-owned clustered world lays its hulls out through it too.
 //!
 //! The one promise a world seed makes: the same build on the same platform
 //! generates the same pristine sectors from it, in any exploration order.
@@ -41,6 +41,7 @@ mod civilizations;
 mod clusters;
 mod environment;
 mod layered;
+mod sector_ships;
 mod ship_layout;
 mod ship_parts;
 
@@ -55,6 +56,9 @@ pub use crate::{
     clusters::{sector_clusters, ClusterSummary, ClusterType, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
     layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
+    sector_ships::{
+        plan_ship, wreck_stock, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE, WRECK_PLATES,
+    },
     ship_layout::{
         generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
         ShipLayoutFailure, ShipLayoutRequest,
@@ -67,19 +71,18 @@ pub use crate::{
 
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
 /// the session, the generator, its clearance margin, the environment, cluster
-/// and civilization diagnostics, the ship-part snapshot, the ship layout and
-/// the base-world ids into scope.
+/// and civilization diagnostics, the ship-part snapshot, the ship layout, the
+/// ship planner and the base-world ids into scope.
 pub mod prelude {
     pub use super::{
-        generate_ship, generate_wreck, sector_clusters, AdvancementCurveType, Civilization,
-        CivilizationField, CivilizationId, CivilizationReach, CivilizationStatusType,
-        ClusterSummary, ClusterType, Environment, EnvironmentFieldType, EnvironmentFields,
-        NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession, SectorClusters,
-        ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
-        ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
-        ShipPartPack, ShipPartSnapshot, ShipRoleType, BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
-        BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID, CLEARANCE_MARGIN,
-        OPEN_WORLD_SCENARIO_ID,
+        generate_ship, generate_wreck, plan_ship, sector_clusters, wreck_stock,
+        AdvancementCurveType, Civilization, CivilizationField, CivilizationId, CivilizationReach,
+        CivilizationStatusType, ClusterSummary, ClusterType, Environment, EnvironmentFieldType,
+        EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession,
+        PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
+        ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
+        ShipPartFault, ShipPartPack, ShipPartSnapshot, ShipRoleType, BLOCK_LINE_WARSHIP_SHIP_ID,
+        CLEARANCE_MARGIN, OPEN_WORLD_SCENARIO_ID, SHIP_ADVANCEMENT_CURVE, WRECK_PLATES,
     };
 }
 
@@ -91,15 +94,6 @@ pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
 /// hull, with six point-defense mounts, one spinal railgun and two torpedo
 /// bays.
 pub const BLOCK_LINE_WARSHIP_SHIP_ID: &str = "block_line_warship";
-
-/// The id the damaged frame tender is spawned by: the frame tender with its
-/// stern and its main drive gone. One of the two hulls a cluster's derelicts
-/// are drawn from.
-pub const BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID: &str = "block_frame_tender_damaged";
-
-/// The id loose debris plating is spawned by: no computer, drive or gun. One
-/// of the two hulls a cluster's derelicts are drawn from.
-pub const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
 
 /// The open world's cell edge.
 ///

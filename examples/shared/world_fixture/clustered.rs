@@ -49,6 +49,8 @@
 //! volatiles favour worlds and turn rocks and worlds to ice and carbon, and
 //! thin quiet space grows low-rock scatters or nothing.
 
+use std::sync::Arc;
+
 use bevy::prelude::Vec3;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
@@ -137,19 +139,25 @@ const ROUNDING_SLACK: Meters = Meters(1.0);
 /// Every natural asteroid kind. `plain` is the rendering control.
 const ROCK_KINDS: [&str; 4] = [KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON];
 
-/// The shipped hulls a group's derelicts are drawn from: the damaged frame
-/// tender and loose wreck plating.
-const DERELICT_DESIGNS: [&str; 2] = [
-    BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
-    BLOCK_WRECK_PLATE_SHIP_ID,
-];
-
 /// The clustered world's sector generator.
 ///
-/// No fields. Its content is the shipped content named in this module, so
+/// Its rocks and worlds are the shipped content named in this module, so
 /// there is no list a caller could leave empty or fill with an unknown id.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ClusteredWorld;
+/// Its hulls are laid out by the base game's [`plan_ship`] from `parts`, the
+/// ship parts of the loaded catalog.
+#[derive(Clone, Debug)]
+pub struct ClusteredWorld {
+    /// The ship parts every hull is laid out from.
+    pub parts: Arc<ShipPartSnapshot>,
+}
+
+/// Equal when both pin one ship-part snapshot. Compares the digest, never the
+/// parts, so a config comparison stays cheap.
+impl PartialEq for ClusteredWorld {
+    fn eq(&self, other: &Self) -> bool {
+        self.parts.content_hash() == other.parts.content_hash()
+    }
+}
 
 impl SectorGenerator for ClusteredWorld {
     /// Refuse an edge too narrow to hold the widest pair of worlds inside
@@ -164,7 +172,7 @@ impl SectorGenerator for ClusteredWorld {
     }
 
     fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
-        Ok(plan_cell(&EnvironmentFields::new(input.seed), input)?.manifest())
+        Ok(plan_cell(&EnvironmentFields::new(input.seed), &self.parts, input)?.manifest())
     }
 }
 
@@ -237,22 +245,29 @@ pub enum ClusterBody {
     },
     /// A world.
     Planetoid(PlanetConfig),
-    /// An inert hull with nobody aboard.
+    /// A hull as its group plans it: where it stands and its draws, not yet
+    /// laid out.
     Hull {
-        /// Its catalog design id.
-        design: &'static str,
-        /// Which way it points. Yaw only.
+        /// Its seeded yaw, in radians.
         yaw: f32,
+        /// Its draw for a secondary civilization, in `[0, 1)`.
+        lineage: f32,
     },
+    /// A hull the cell owns, laid out by [`plan_ship`]. Only a cell's own
+    /// bodies carry one.
+    Ship(Box<PlannedShip>),
 }
 
 impl ClusterBody {
-    /// The clearance sphere `validate_manifest` measures the body by.
+    /// The clearance sphere `validate_manifest` measures the body by. A
+    /// planned hull reserves the most any hull may declare, so a group's
+    /// extent and halo hold whatever ship it turns into.
     pub fn clearance(&self) -> Meters {
         match self {
             Self::Rock { radius, .. } => Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
             Self::Planetoid(config) => config.body_radius(),
-            Self::Hull { .. } => SECTOR_SHIP_CLEARANCE,
+            Self::Hull { .. } => SECTOR_SHIP_CLEARANCE_MAX,
+            Self::Ship(ship) => ship.clearance,
         }
     }
 }
@@ -441,12 +456,18 @@ impl CellPlan {
                     position,
                     config: config.clone(),
                 }),
-                ClusterBody::Hull { design, yaw } => manifest.ships.push(SectorShip {
+                ClusterBody::Ship(ship) => manifest.ships.push(SectorShip {
                     id,
                     position,
-                    yaw: *yaw,
-                    design: (*design).into(),
+                    rotation: ship.rotation,
+                    clearance: ship.clearance,
+                    design: ship.design.clone(),
+                    condition: ship.condition,
+                    stock: ship.stock.clone(),
                 }),
+                ClusterBody::Hull { .. } => {
+                    unreachable!("a cell lays out every hull it owns before it resolves them")
+                }
             }
         }
         manifest
@@ -580,19 +601,6 @@ fn planet_type(environment: Environment, draw: f32) -> PlanetType {
     )
 }
 
-/// A derelict hull's design: tenders where traffic was, plating where it
-/// worked material.
-fn derelict_design(environment: Environment, draw: f32) -> &'static str {
-    let [tender, plate] = DERELICT_DESIGNS;
-    pick(
-        &[
-            (tender, 0.2 + 0.8 * environment.human_activity),
-            (plate, 0.2 + 0.6 * environment.material_density),
-        ],
-        draw,
-    )
-}
-
 /// How many of a `band` a group places when `richness` reads in `[0, 1]`: a
 /// richer anchor widens the draw toward the top of the band.
 fn member_count(band: (usize, usize), richness: f32, draw: f32) -> usize {
@@ -613,11 +621,11 @@ fn rock(environment: Environment, stream: &mut SeedStream) -> ClusterBody {
     }
 }
 
-fn hull(environment: Environment, stream: &mut SeedStream) -> ClusterBody {
+fn hull(stream: &mut SeedStream) -> ClusterBody {
     let yaw = stream.unit() * std::f32::consts::TAU;
     ClusterBody::Hull {
-        design: derelict_design(environment, stream.unit()),
         yaw,
+        lineage: stream.unit(),
     }
 }
 
@@ -761,7 +769,7 @@ pub fn group_at(
             return Err(invalid());
         }
         let body = if index < hulls {
-            hull(environment, &mut stream)
+            hull(&mut stream)
         } else {
             rock(environment, &mut stream)
         };
@@ -785,7 +793,7 @@ pub fn group_at(
 
 /// The widest clearance a member can have: a hull's, or the widest rock's.
 fn member_clearance_max() -> Meters {
-    Meters(ROCK_RADIUS.1.get() * ASTEROID_GEOMETRIC_FACTOR_MAX).max(SECTOR_SHIP_CLEARANCE)
+    Meters(ROCK_RADIUS.1.get() * ASTEROID_GEOMETRIC_FACTOR_MAX).max(SECTOR_SHIP_CLEARANCE_MAX)
 }
 
 /// The widest planetoid clearance this generator can draw: the OUTER radius
@@ -849,22 +857,30 @@ fn halo_nodes(coord: SectorCoord, edge: Meters) -> Vec<[i32; 3]> {
 }
 
 /// Plan one cell: replay every group in its halo, keep the bodies it owns,
-/// add its background rock, and resolve them all.
+/// lay out the hulls it owns from `parts`, add its background rock, and
+/// resolve them all.
 ///
-/// PURE: the same fields and input give the same plan, on any call, in any
-/// order.
+/// Every owned hull is laid out BEFORE the cell checks where it fits: the
+/// check needs the hull's own clearance, and a hull whose layout fails fails
+/// the cell even where it would have been skipped.
+///
+/// PURE: the same fields, parts and input give the same plan, on any call,
+/// in any order.
 ///
 /// # Errors
 ///
 /// Whatever the environment refuses, [`SectorFault::InvalidGeometry`] for a
-/// body with no finite position, and [`SectorFault::Generation`] for a parent
-/// that could not be placed.
+/// body with no finite position, [`SectorFault::Generation`] for a parent
+/// that could not be placed, and whatever [`plan_ship`] refuses for an owned
+/// hull.
 pub fn plan_cell(
     fields: &EnvironmentFields,
+    parts: &ShipPartSnapshot,
     input: SectorGenerationInput,
 ) -> Result<CellPlan, SectorFault> {
     let coord = input.coord;
     let edge = input.geometry.sector_edge;
+    let civilizations = CivilizationField::new(input.seed, SHIP_ADVANCEMENT_CURVE);
     let mut groups = Vec::new();
     let mut parents = Vec::new();
     let mut members = Vec::new();
@@ -891,15 +907,37 @@ pub fn plan_cell(
                     own("parent", index, BodySource::Parent(group.id, index), body)
                 }),
         );
-        members.extend(
-            group
-                .members
-                .iter()
-                .enumerate()
-                .filter_map(|(index, body)| {
-                    own("member", index, BodySource::Member(group.id, index), body)
-                }),
-        );
+        let planetoids: Vec<Meters3> = group.parents.iter().map(|parent| parent.position).collect();
+        for (index, body) in group.members.iter().enumerate() {
+            let Some(mut member) = own("member", index, BodySource::Member(group.id, index), body)
+            else {
+                continue;
+            };
+            if let ClusterBody::Hull { yaw, lineage } = member.body {
+                let ship = plan_ship(
+                    parts,
+                    &civilizations,
+                    input.seed,
+                    HullSlot {
+                        id: &member.id,
+                        node: group.id.0,
+                        slot: index,
+                        anchor: group.anchor,
+                        environment: nova_protocol::nova_world_base::Environment {
+                            material_density: group.environment.material_density,
+                            volatiles: group.environment.volatiles,
+                            human_activity: group.environment.human_activity,
+                        },
+                        planetoids: &planetoids,
+                        position: member.position,
+                        yaw,
+                        lineage,
+                    },
+                )?;
+                member.body = ClusterBody::Ship(Box::new(ship));
+            }
+            members.push(member);
+        }
         if parents.len() + members.len() > before {
             groups.push(group);
         }
@@ -1012,13 +1050,26 @@ mod tests {
         *,
     };
 
+    /// The clustered config pinned to the base game's section catalog, as
+    /// the merge registers it for a run with no mods.
+    fn config() -> WorldConfig<ClusteredWorld> {
+        clustered_world_config(&LoadedSectionPacks {
+            packs: vec![LoadedSectionPack {
+                id: "nova_protocol".to_string(),
+                dependencies: Vec::new(),
+                sections: nova_authoring::generation::build_section_catalog(),
+            }],
+            digest: ContentCatalogDigest(0),
+        })
+    }
+
     fn window_plans() -> BTreeMap<SectorCoord, CellPlan> {
-        let config = clustered_world_config();
+        let config = config();
         let fields = EnvironmentFields::new(config.seed);
         desired_sectors(CLUSTER_HOME, EXAMPLE_ACTIVE_RADIUS)
             .into_iter()
             .map(|coord| {
-                let plan = plan_cell(&fields, config.input(coord))
+                let plan = plan_cell(&fields, &config.generator.parts, config.input(coord))
                     .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
                 (coord, plan)
             })
@@ -1028,7 +1079,7 @@ mod tests {
     /// Every group decided at the nodes of an 8-node cube around the home
     /// cell: about 400 groups, every kind many times over.
     fn scanned_groups() -> Vec<ClusterGroup> {
-        let config = clustered_world_config();
+        let config = config();
         let fields = EnvironmentFields::new(config.seed);
         let mut groups = Vec::new();
         for x in -4..4 {
@@ -1047,7 +1098,7 @@ mod tests {
     /// body, and the same group a direct call at the node gets.
     #[test]
     fn a_group_is_the_same_group_from_every_cell_that_replays_it() {
-        let config = clustered_world_config();
+        let config = config();
         let fields = EnvironmentFields::new(config.seed);
         let mut seen: BTreeMap<GroupId, (String, usize)> = BTreeMap::new();
         for plan in window_plans().values() {
@@ -1081,7 +1132,7 @@ mod tests {
     /// description holds each of those bodies where the group put it.
     #[test]
     fn world_and_hull_groups_in_the_home_window_place_bodies_on_both_sides_of_a_face() {
-        let config = clustered_world_config();
+        let config = config();
         let plans = window_plans();
         let mut cells: BTreeMap<GroupId, BTreeSet<SectorCoord>> = BTreeMap::new();
         let mut holds: BTreeMap<GroupId, (bool, bool)> = BTreeMap::new();
@@ -1093,7 +1144,7 @@ mod tests {
                 cells.entry(group).or_default().insert(plan.coord);
                 let (world, hull) = holds.entry(group).or_default();
                 *world |= matches!(body.body, ClusterBody::Planetoid(_));
-                *hull |= matches!(body.body, ClusterBody::Hull { .. });
+                *hull |= matches!(body.body, ClusterBody::Ship(_));
             }
         }
         let wants: [(&str, fn((bool, bool)) -> bool); 2] = [
@@ -1134,7 +1185,7 @@ mod tests {
 
     #[test]
     fn a_window_generated_in_reverse_order_is_the_same_window() {
-        let config = clustered_world_config();
+        let config = config();
         let cells: Vec<SectorCoord> = desired_sectors(CLUSTER_HOME, EXAMPLE_ACTIVE_RADIUS)
             .into_iter()
             .collect();
@@ -1153,7 +1204,7 @@ mod tests {
     /// count is what it streams, however many that is.
     #[test]
     fn every_planned_body_has_one_owner_that_places_or_skips_it() {
-        let config = clustered_world_config();
+        let config = config();
         let plans = window_plans();
         let mut owners: BTreeMap<BodySource, Vec<SectorCoord>> = BTreeMap::new();
         let mut groups = BTreeMap::new();
@@ -1204,14 +1255,14 @@ mod tests {
     /// counted - and a parent that would be skipped is a fault, never a skip.
     #[test]
     fn a_crowded_member_is_skipped_but_a_crowded_parent_is_refused() {
-        let input = clustered_world_config().input(SectorCoord::ORIGIN);
+        let input = config().input(SectorCoord::ORIGIN);
         let group = GroupId([0, 0, 0]);
         let hull = |id: &str, source: BodySource| Candidate {
             id: id.to_string(),
             source,
             body: ClusterBody::Hull {
-                design: BLOCK_WRECK_PLATE_SHIP_ID,
                 yaw: 0.0,
+                lineage: 0.0,
             },
             position: Meters3::new(0.0, 0.0, 12_000.0),
         };
@@ -1245,7 +1296,7 @@ mod tests {
     #[test]
     fn an_edge_too_narrow_to_hold_a_pair_of_worlds_is_refused() {
         let validate = |edge: f32| {
-            ClusteredWorld.validate(WorldGeometry {
+            config().generator.validate(WorldGeometry {
                 sector_edge: Meters(edge),
             })
         };
@@ -1265,7 +1316,7 @@ mod tests {
     /// inside its anchor's cell; and the scan grows every kind.
     #[test]
     fn each_kind_places_only_its_own_bodies() {
-        let edge = clustered_world_config().sector_edge;
+        let edge = config().sector_edge;
         let mut grown = BTreeSet::new();
         for group in scanned_groups() {
             grown.insert(group.kind);
@@ -1395,7 +1446,7 @@ mod tests {
     /// the cell's halo: a group the halo missed would be a body no cell plans.
     #[test]
     fn the_halo_holds_every_node_that_places_a_body_in_the_cell() {
-        let edge = clustered_world_config().sector_edge;
+        let edge = config().sector_edge;
         let reach = group_reach().get();
         let mut owned: BTreeMap<SectorCoord, BTreeSet<[i32; 3]>> = BTreeMap::new();
         for group in scanned_groups() {

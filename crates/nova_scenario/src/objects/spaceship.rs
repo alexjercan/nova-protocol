@@ -539,6 +539,7 @@ fn insert_spaceship_sections(
             &SpaceshipController,
             &Transform,
             &ShipInventoryStock,
+            Has<DerelictShipMarker>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -546,7 +547,9 @@ fn insert_spaceship_sections(
     let entity = add.entity;
     trace!("insert_spaceship_sections: entity {:?}", entity);
 
-    let Ok((design_source, controller_config, transform, stock)) = q_spaceship.get(entity) else {
+    let Ok((design_source, controller_config, transform, stock, derelict)) =
+        q_spaceship.get(entity)
+    else {
         // NOT an error: a root with no [`SpaceshipDesign`] is a hull somebody
         // built by hand rather than one a scenario authored, and an example or
         // a test is entitled to spawn one. This observer only owns the AUTHORED
@@ -621,6 +624,14 @@ fn insert_spaceship_sections(
             // part fires through to leave that one cell of it bare.
             if let Some(exit) = SectionExit::of(config) {
                 section_entity.insert(exit);
+            }
+
+            // A derelict keeps its structure and its docking ports live, so
+            // it can be hit, carved and docked with; every system it could
+            // run spawns inactive, before any tick can fire or thrust it.
+            let passive = matches!(config.kind, SectionKind::Hull(_) | SectionKind::Docking(_));
+            if derelict && !passive {
+                section_entity.insert(SectionInactiveMarker);
             }
 
             match &config.kind {
@@ -1220,6 +1231,88 @@ mod tests {
         assert!(
             world.entity(escort).contains::<AISpaceshipMarker>(),
             "and it is still an AI ship: it flies its own routine"
+        );
+    }
+
+    /// A derelict keeps its hull and docking ports live and spawns every
+    /// other section inactive; the same design spawned intact keeps every
+    /// section live.
+    #[test]
+    fn a_derelict_spawns_every_section_but_hull_and_docking_inactive() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShipDesigns>();
+        world.add_observer(insert_spaceship_sections);
+
+        let kinds = [
+            ("hull", SectionKind::Hull(HullSectionConfig::default())),
+            (
+                "turret",
+                SectionKind::Turret(TurretSectionConfig::default()),
+            ),
+            (
+                "thruster",
+                SectionKind::Thruster(ThrusterSectionConfig::default()),
+            ),
+            (
+                "controller",
+                SectionKind::Controller(ControllerSectionConfig::default()),
+            ),
+            (
+                "dock",
+                SectionKind::Docking(DockingSectionConfig::default()),
+            ),
+        ];
+        let design = ShipDesign {
+            sections: kinds
+                .into_iter()
+                .enumerate()
+                .map(|(index, (id, kind))| SpaceshipSectionConfig {
+                    id: id.to_string(),
+                    position: Vec3::new(0.0, 0.0, index as f32),
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Inline(SectionConfig {
+                        base: BaseSectionConfig {
+                            id: id.to_string(),
+                            ..default()
+                        },
+                        kind,
+                    }),
+                })
+                .collect(),
+            ..default()
+        };
+        let ship = || {
+            (
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    design: ShipDesignSource::Inline(design.clone()),
+                    ..default()
+                }),
+            )
+        };
+        let derelict = world.spawn((ship(), DerelictShipMarker)).id();
+        let intact = world.spawn(ship()).id();
+        world.flush();
+
+        let mut inactive = |root: Entity| {
+            let mut ids: Vec<String> = world
+                .query::<(&EntityId, &ChildOf, Has<SectionInactiveMarker>)>()
+                .iter(&world)
+                .filter(|(_, child_of, inactive)| child_of.parent() == root && *inactive)
+                .map(|(id, ..)| id.0.clone())
+                .collect();
+            ids.sort();
+            ids
+        };
+        assert_eq!(
+            inactive(derelict),
+            ["controller", "thruster", "turret"],
+            "a derelict must spawn every section but hull and docking inactive"
+        );
+        assert!(
+            inactive(intact).is_empty(),
+            "an intact ship must spawn every section live"
         );
     }
 

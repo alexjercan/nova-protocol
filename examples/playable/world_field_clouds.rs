@@ -425,7 +425,7 @@ fn sample_volume(config: &WorldConfig<NovaLayeredWorld>) -> CloudField {
     let mut rings = Vec::new();
     let mut anchored = [0_usize; ClusterType::ALL.len()];
     for coord in desired_sectors(FEATURE_HOME, EXAMPLE_ACTIVE_RADIUS) {
-        let plan = sector_clusters(config.input(coord))
+        let plan = sector_clusters(&config.generator, config.input(coord))
             .unwrap_or_else(|fault| panic!("world field clouds: {coord}: {fault}"));
         // Several cells can own bodies of one cluster; only the cell its
         // anchor stands in counts it, so a ring is one cluster.

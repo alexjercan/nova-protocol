@@ -26,8 +26,8 @@ use nova_events::prelude::{CommandsGameEventExt, *};
 
 use super::core::prelude::*;
 use crate::prelude::{
-    ControllerSectionMarker, RailgunSectionMarker, SectionInactiveMarker, SpaceshipRootMarker,
-    TorpedoSectionMarker, TurretSectionMarker,
+    ControllerSectionMarker, DerelictShipMarker, RailgunSectionMarker, SectionInactiveMarker,
+    SpaceshipRootMarker, TorpedoSectionMarker, TurretSectionMarker,
 };
 
 /// Defeat and neutralization state markers.
@@ -92,9 +92,11 @@ impl Plugin for NeutralizePlugin {
 
 /// Per-frame predicate: for every armed ship root not already neutralized,
 /// count its working weapon and flight-computer sections; no working weapon -
-/// or a lost computer the ship once had - neutralizes it. Thrusters play no
-/// part (owner direction, 2026-08-14): a disarmed runner is beaten, and a
-/// computer-less hulk with live guns cannot aim them.
+/// or a lost computer the ship once had - neutralizes it. A
+/// [`DerelictShipMarker`] root is skipped: its sections spawned inactive, and
+/// a wreck was never in the fight. Thrusters play no part (owner direction,
+/// 2026-08-14): a disarmed runner is beaten, and a computer-less hulk with
+/// live guns cannot aim them.
 fn detect_neutralized(
     mut commands: Commands,
     q_root: Query<
@@ -106,7 +108,11 @@ fn detect_neutralized(
             Has<WasArmedCombatant>,
             Has<HadFlightComputer>,
         ),
-        (With<SpaceshipRootMarker>, Without<NeutralizedMarker>),
+        (
+            With<SpaceshipRootMarker>,
+            Without<NeutralizedMarker>,
+            Without<DerelictShipMarker>,
+        ),
     >,
     // A weapon section: turret, torpedo or railgun. `Has<SectionInactiveMarker>`
     // reports whether it is disabled (destroyed non-leaf); a destroyed leaf
@@ -406,6 +412,46 @@ mod tests {
         app.update();
         app.update();
         assert_eq!(fired(&app).len(), 2, "neutralization does not re-fire");
+    }
+
+    /// A derelict spawns with its weapons and flight computer already
+    /// inactive. It was never in the fight, so it is never neutralized and
+    /// fires no defeat edge, while a normal armed ship beside it that loses
+    /// its weapon still is.
+    #[test]
+    fn a_derelict_with_inactive_weapons_is_never_neutralized() {
+        let mut app = neutralize_app();
+        let (derelict, weapons, thrusters, controllers, _hull) = spawn_ship(&mut app, 1, 1, 1);
+        app.world_mut()
+            .entity_mut(derelict)
+            .insert(DerelictShipMarker);
+        for section in weapons.into_iter().chain(thrusters).chain(controllers) {
+            disable(&mut app, section);
+        }
+        let (armed, armed_weapons, ..) = spawn_ship(&mut app, 1, 1, 1);
+
+        app.update();
+        disable(&mut app, armed_weapons[0]);
+        app.update();
+        app.update();
+
+        assert!(
+            !is_neutralized(&app, derelict),
+            "a derelict must not be neutralized"
+        );
+        assert!(
+            !app.world().entity(derelict).contains::<DefeatedMarker>(),
+            "a derelict must not be defeated"
+        );
+        assert!(
+            is_neutralized(&app, armed),
+            "an armed ship that loses its weapon must still be neutralized"
+        );
+        assert_eq!(
+            fired(&app),
+            [OnDefeatedEvent::name(), OnNeutralizedEvent::name()],
+            "only the armed ship fires the defeat and neutralization edges"
+        );
     }
 
     #[test]

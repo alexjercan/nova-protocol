@@ -268,7 +268,7 @@ fn describe_root_clusters(
         return;
     };
     for (entity, root) in &roots {
-        let clusters = sector_clusters(config.input(root.0))
+        let clusters = sector_clusters(&config.generator, config.input(root.0))
             .unwrap_or_else(|fault| panic!("world features: {}: {fault}", root.0));
         // A scenario swap can despawn the root on this frame.
         commands.entity(entity).try_insert(RootClusters(clusters));

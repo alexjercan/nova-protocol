@@ -13,10 +13,13 @@ use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{Allegiance, GravitySettings, GravityWell};
 #[cfg(doc)]
 use nova_hud::prelude::COMMS_DWELL_SECS;
-use nova_world_base::prelude::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID};
 
 use super::*;
-use crate::base_content::{scenarios::marks::Mark, ships};
+use crate::base_content::{
+    scenarios::marks::Mark,
+    ships,
+    ships::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID},
+};
 
 fn config() -> ScenarioConfig {
     chapter_one(AssetRef::default(), AssetRef::default())

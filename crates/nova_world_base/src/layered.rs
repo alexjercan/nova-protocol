@@ -44,12 +44,12 @@ const SECTOR_EDGE_MAX: Meters = Meters(128_000.0);
 /// lattice node or the cell, in a fixed order, so a cell is the same cell in
 /// any visit order.
 ///
-/// No content list from a caller. The bodies it draws from are the shipped
-/// content the policy names - every natural asteroid kind, every `PlanetType`,
-/// and the shipped derelict hulls - so there is no list a caller could leave
-/// empty or fill with an id the game does not ship. The ship parts it pins are
-/// the snapshot of the loaded catalog it was built from, with that catalog's
-/// digest; nothing draws a ship from them yet.
+/// No content list from a caller. The rocks and worlds it draws from are the
+/// shipped content the policy names - every natural asteroid kind and every
+/// `PlanetType` - so there is no list a caller could leave empty or fill with
+/// an id the game does not ship. The ship parts it pins are the snapshot of
+/// the loaded catalog it was built from, with that catalog's digest; every
+/// ship it plans is laid out from them.
 #[derive(Clone, Debug)]
 pub struct NovaLayeredWorld {
     parts: Arc<ShipPartSnapshot>,
@@ -117,7 +117,7 @@ impl SectorGenerator for NovaLayeredWorld {
     }
 
     fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
-        Ok(plan_sector(&EnvironmentFields::new(input.seed), input)?.manifest())
+        Ok(plan_sector(&EnvironmentFields::new(input.seed), &self.parts, input)?.manifest())
     }
 }
 

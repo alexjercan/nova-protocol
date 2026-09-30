@@ -68,7 +68,7 @@ use world_fixture::{
     clustered_world_config, free_play_scenario, group_at, group_chances, plan_cell,
     world_observer_plugin, BodySource, CellPlan, ClusterBody, ClusterGroup, ClusteredWorld,
     EnvironmentField, EnvironmentFields, GroupId, GroupKind, Outcome, SkipReason, CLUSTER_HOME,
-    EXAMPLE_ACTIVE_RADIUS, GROUP_LATTICE,
+    EXAMPLE_ACTIVE_RADIUS, EXAMPLE_SECTOR_EDGE, EXAMPLE_SEED, GROUP_LATTICE,
 };
 
 #[derive(Parser)]
@@ -227,9 +227,7 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn clusters_plugin(app: &mut App) {
-    app.insert_resource(ObserverFields(EnvironmentFields::new(
-        clustered_world_config().seed,
-    )));
+    app.insert_resource(ObserverFields(EnvironmentFields::new(EXAMPLE_SEED)));
     app.add_systems(OnEnter(GameAssetsStates::Loaded), boot_clusters);
     app.add_systems(
         Update,
@@ -275,13 +273,14 @@ fn boot_clusters(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     game_assets: Res<GameAssets>,
+    loaded: Res<LoadedSectionPacks>,
 ) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
         SCENARIO_ID,
         "World Clusters Observer",
     )));
-    commands.insert_resource(clustered_world_config());
+    commands.insert_resource(clustered_world_config(&loaded));
 
     commands.spawn((
         Name::new("Observer Key Light"),
@@ -473,7 +472,7 @@ fn plan_new_roots(
         return;
     };
     for (entity, root) in &roots {
-        let plan = plan_cell(&fields.0, config.input(root.0))
+        let plan = plan_cell(&fields.0, &config.generator.parts, config.input(root.0))
             .unwrap_or_else(|fault| panic!("world clusters: {}: {fault}", root.0));
         // A scenario swap can despawn the root on this frame.
         commands.entity(entity).try_insert(RootPlan(plan));
@@ -653,9 +652,8 @@ fn heatmap_texel(centre: Meters3, point: Meters3) -> Option<(i32, i32)> {
 /// On a [`SectorFault`] from the fields or a group. A heatmap that painted a
 /// refused reading as some colour would be a picture of a bug.
 fn paint_heatmap(centre: SectorCoord) -> HeatmapPixels {
-    let config = clustered_world_config();
-    let edge = config.sector_edge;
-    let fields = EnvironmentFields::new(config.seed);
+    let edge = EXAMPLE_SECTOR_EDGE;
+    let fields = EnvironmentFields::new(EXAMPLE_SEED);
     let middle = centre.centre(edge);
     let size = HEATMAP_PIXELS as usize;
     let per_texel = HEATMAP_EXTENT.get() / HEATMAP_PIXELS as f32;
@@ -706,7 +704,7 @@ fn paint_heatmap(centre: SectorCoord) -> HeatmapPixels {
     for nx in span(middle.x().get() - half, middle.x().get() + half) {
         for ny in span(middle.y().get() - edge.get(), middle.y().get() + edge.get()) {
             for nz in span(middle.z().get() - half, middle.z().get() + half) {
-                let group = group_at(&fields, config.seed, edge, [nx, ny, nz])
+                let group = group_at(&fields, EXAMPLE_SEED, edge, [nx, ny, nz])
                     .unwrap_or_else(|fault| panic!("world clusters: heatmap: {fault}"));
                 let Some(group) = group else {
                     continue;
@@ -900,7 +898,10 @@ fn tally<'a>(plans: impl Iterator<Item = &'a CellPlan>, split: &str) -> String {
             match (body.outcome, &body.body) {
                 (Outcome::Placed, ClusterBody::Rock { .. }) => rocks += 1,
                 (Outcome::Placed, ClusterBody::Planetoid(_)) => worlds += 1,
-                (Outcome::Placed, ClusterBody::Hull { .. }) => hulls += 1,
+                (Outcome::Placed, ClusterBody::Ship(_)) => hulls += 1,
+                (Outcome::Placed, ClusterBody::Hull { .. }) => {
+                    unreachable!("a cell lays out every hull it owns before it resolves them")
+                }
                 (Outcome::Skipped(reason), _) => skipped[reason as usize] += 1,
             }
         }
@@ -1061,7 +1062,7 @@ struct SeamTargets {
 fn check_seam_groups(world: &mut World) {
     use std::collections::BTreeSet;
 
-    let edge = clustered_world_config().sector_edge;
+    let edge = EXAMPLE_SECTOR_EDGE;
     let home = CLUSTER_HOME.centre(edge);
     let mut plans = world.query::<&RootPlan>();
     let plans: Vec<CellPlan> = plans.iter(world).map(|plan| plan.0.clone()).collect();
@@ -1165,7 +1166,7 @@ fn check_seam_groups(world: &mut World) {
         matches!(body, ClusterBody::Planetoid(_))
     });
     let (derelict, derelict_reach, derelict_lead) =
-        pick("hull", |body| matches!(body, ClusterBody::Hull { .. }));
+        pick("hull", |body| matches!(body, ClusterBody::Ship(_)));
     let targets = SeamTargets {
         planetoid,
         planetoid_reach,

@@ -9,10 +9,12 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
-use nova_world_base::prelude::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID};
 
 use super::super::{marks::Mark, SCATTER_SEED};
-use crate::base_content::ships;
+use crate::base_content::{
+    ships,
+    ships::{BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID},
+};
 
 // --- the two ships -----------------------------------------------------------
 

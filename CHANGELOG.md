@@ -60,8 +60,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   warship into an open world generated from the seed and streamed around it.
   Retry keeps the seed.
 - The open-world warship starts with 12 hull plates, 6000 PDC rounds, 20 rail
-  slugs, 12 torpedoes and 2000 cr beside a lootable Derelict Tender with 8
-  plates and 0 cr. Stock resets on load.
+  slugs, 12 torpedoes and 2000 cr. Stock resets when the scenario loads.
+- Open-world ships come from the civilizations in reach: unpiloted intact
+  ships, and lootable derelicts with only hull and docks live and 1 to 8 hull
+  plates to Take. An unloaded sector restocks.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.

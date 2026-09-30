@@ -16,9 +16,7 @@ use nova_scenario::prelude::{
 use nova_ship::prelude::{
     AmmoCapacity, SectionConfigPatch, SectionKindPatch, TurretSectionConfigPatch,
 };
-use nova_world_base::prelude::{
-    BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID,
-};
+use nova_world_base::prelude::BLOCK_LINE_WARSHIP_SHIP_ID;
 
 use super::assets::BaseContentAssets;
 
@@ -43,6 +41,11 @@ pub const BLOCK_WORKSHIP_SHIP_ID: &str = "block_workship";
 /// The id the block-built frame tender is spawned by: a cargo body under two
 /// open gantry arches, carrying the same collar the workship docks on.
 pub const BLOCK_FRAME_TENDER_SHIP_ID: &str = "block_frame_tender";
+/// The id the damaged frame tender is spawned by: the frame tender with its
+/// stern and its main drive gone.
+pub const BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID: &str = "block_frame_tender_damaged";
+/// The id loose debris plating is spawned by: no computer, drive or gun.
+pub const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
 
 /// The id the block-built patrol gunship is spawned by: armoured, with six
 /// point-defense mounts.

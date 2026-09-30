@@ -21,6 +21,8 @@
 //! and an `expect` would go unfulfilled in the targets that do use every item.
 //! Anything genuinely private in here is still linted.
 
+use std::sync::Arc;
+
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
 use nova_world::prelude::*;
@@ -144,13 +146,26 @@ pub const FEATURE_HOME: SectorCoord = SectorCoord::ORIGIN;
 /// The same seed, window and edge, filled by the example-owned clustered
 /// generator: asteroid-rich, rock-only, planet-heavy, derelict-only and
 /// low-rock groups on a global lattice, and one background rock at most per
-/// cell, all read off three environment fields.
-pub fn clustered_world_config() -> WorldConfig<ClusteredWorld> {
+/// cell, all read off three environment fields. Its hulls are laid out from
+/// the ship parts of `loaded`.
+pub fn clustered_world_config(loaded: &LoadedSectionPacks) -> WorldConfig<ClusteredWorld> {
+    let world = NovaLayeredWorld::from_loaded(loaded).unwrap_or_else(|faults| {
+        panic!(
+            "world fixture: the loaded catalog's ship parts do not arm:\n  {}",
+            faults
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n  ")
+        )
+    });
     WorldConfig {
         seed: EXAMPLE_SEED,
         sector_edge: EXAMPLE_SECTOR_EDGE,
         active_radius: EXAMPLE_ACTIVE_RADIUS,
-        generator: ClusteredWorld,
+        generator: ClusteredWorld {
+            parts: Arc::new(world.parts().clone()),
+        },
     }
 }
 

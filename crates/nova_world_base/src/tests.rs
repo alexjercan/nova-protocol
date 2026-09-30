@@ -2,8 +2,12 @@ use std::{collections::BTreeMap, panic::AssertUnwindSafe};
 
 use bevy::ecs::system::RunSystemOnce;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
-use nova_gameplay::prelude::Fnv64;
-use nova_scenario::prelude::ScenarioConfig;
+use nova_gameplay::prelude::{Fnv64, ItemType};
+use nova_scenario::prelude::{
+    resolve_ship_design, GameShipDesigns, ScenarioConfig, SectionSource, ShipDesign,
+    ShipDesignSource, SpaceshipSectionConfig,
+};
+use nova_ship::prelude::GameSections;
 
 use super::*;
 
@@ -98,8 +102,91 @@ fn the_open_world_describes_the_same_sectors_in_any_visit_order() {
     );
 
     assert_eq!(forward.len(), 125, "radius 2 keeps a 5x5x5 window live");
+    assert!(
+        forward.values().any(|text| text.contains("\n  section ")),
+        "the window must hold a generated ship"
+    );
     assert_eq!(forward, reverse, "a reverse walk changed a sector");
     assert_eq!(forward, strided, "a strided walk changed a sector");
+}
+
+/// A wreck is a loot source: every derelict in the live window carries 1 to 8
+/// hull plates that fit the hold its resolved design gives it, and an intact
+/// ship carries nothing. A wreck with no hull section left holds no plate, so
+/// it gets no stock rather than an empty lootable hold.
+#[test]
+fn every_planned_wreck_carries_one_to_eight_plates_its_hull_holds_and_an_intact_ship_none() {
+    let config = session_config();
+    let parts = config.generator.parts();
+    let sections = GameSections(
+        parts
+            .parts()
+            .iter()
+            .map(|part| part.config.clone())
+            .collect(),
+    );
+    let mut wrecks = 0;
+    for coord in desired_sectors(SectorCoord::ORIGIN, config.active_radius) {
+        let description = generate_sector(&config, coord)
+            .unwrap_or_else(|fault| panic!("sector {coord:?}: {fault}"));
+        for ship in description.ships() {
+            let stacks: Vec<(ItemType, u32)> = ship.stock.stacks().collect();
+            match ship.condition {
+                SectorShipConditionType::Intact => {
+                    assert!(
+                        stacks.is_empty(),
+                        "intact ship {} carries {stacks:?}",
+                        ship.id
+                    );
+                }
+                SectorShipConditionType::Derelict => {
+                    wrecks += 1;
+                    let [(ItemType::HullPlate, plates)] = stacks[..] else {
+                        panic!("wreck {} carries {stacks:?}, not one plate stack", ship.id);
+                    };
+                    assert!(
+                        WRECK_PLATES.contains(&plates),
+                        "wreck {}: {plates}",
+                        ship.id
+                    );
+                    let (resolved, errors) = resolve_ship_design(
+                        &ShipDesignSource::Inline(ship.design.clone()),
+                        &GameShipDesigns::default(),
+                        &sections,
+                    );
+                    assert!(errors.is_empty(), "wreck {}: {errors:?}", ship.id);
+                    assert!(
+                        ship.stock.mass_g() <= u64::from(resolved.cargo_capacity_g()),
+                        "wreck {} overfills its hold",
+                        ship.id
+                    );
+                }
+            }
+        }
+    }
+    assert!(wrecks > 0, "the window must hold a wreck");
+
+    let docks_only = ShipDesign {
+        sections: parts
+            .parts()
+            .iter()
+            .filter(|part| part.family == ShipPartFamilyType::Docking)
+            .take(1)
+            .map(|part| SpaceshipSectionConfig {
+                id: "dock".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                source: SectionSource::prototype(part.id()),
+            })
+            .collect(),
+        ..default()
+    };
+    assert_eq!(
+        docks_only.sections.len(),
+        1,
+        "the fixture has a docking port"
+    );
+    assert_eq!(wreck_stock(parts, &docks_only, 0), None);
 }
 
 /// A pinned window generates the bodies it was recorded with: every rock,
@@ -130,7 +217,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0x577f_fba4_7b43_1a28,
+        0xed7e_d8f2_b5b5_92fd,
         "the pinned window's bodies changed"
     );
 }

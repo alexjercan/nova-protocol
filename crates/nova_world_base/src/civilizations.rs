@@ -8,9 +8,9 @@
 //! smoothly with 3D distance and reaches zero only at [`INFLUENCE_REACH`];
 //! there is no territory border and no unclaimed pool.
 //!
-//! PURE, and read by debug diagnostics only: the live generator does not
-//! select ships from it yet. Every constant here is provisional until the
-//! diagnostic maps are reviewed.
+//! PURE. The open world's ship planner reads it to pick each generated ship's
+//! civilization and role, and debug diagnostics read it too. Every constant
+//! here is provisional until the diagnostic maps are reviewed.
 
 use std::fmt;
 

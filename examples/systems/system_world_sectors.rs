@@ -807,7 +807,7 @@ fn report_cluster_plan(world: &mut World) {
     let mut escorts = 0;
     let mut scatter_cells = 0;
     for coord in desired_sectors(FEATURE_HOME, config.active_radius) {
-        let plan = sector_clusters(config.input(coord))
+        let plan = sector_clusters(&config.generator, config.input(coord))
             .unwrap_or_else(|fault| panic!("world sectors: {coord}: {fault}"));
         let objects = describe(coord, &config).object_count();
         assert_eq!(
@@ -999,7 +999,7 @@ fn report_clearance(world: &mut World) {
                 description
                     .ships()
                     .iter()
-                    .map(|ship| (ship.id.clone(), ship.position, SECTOR_SHIP_CLEARANCE)),
+                    .map(|ship| (ship.id.clone(), ship.position, ship.clearance)),
             )
             .collect();
         objects += placed.len();

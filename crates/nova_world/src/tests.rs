@@ -7,27 +7,39 @@
 //! cell is not moved, and an unshipped kind id is not skipped. Each of those
 //! would put a world nobody authored in front of a player.
 //!
-//! One test materializes a sector: the validator checks a rock's manifest mass
-//! but not that `materialize_sector` hands it on to the spawned rock.
+//! Two tests materialize a sector: the validator checks a rock's manifest mass
+//! but not that `materialize_sector` hands it on to the spawned rock, and a
+//! ship the observer overlaps is held rather than spawned. One more proves a
+//! ship design the loaded sections do not resolve is refused at spawn.
 //!
 //! The generators here are test-local. The shipped policies live outside this
 //! crate - the base game's in `nova_world_base`, the uniform baseline with the
 //! examples - and are proved where they live.
 
-use bevy::prelude::*;
+use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::{AssetRef, GravityWell};
+use nova_gameplay::prelude::{
+    AssetRef, DerelictShipMarker, GravityWell, IntegrityEnvelope, ItemType, LootableShipMarker,
+    ShipInventoryStock,
+};
 use nova_scenario::prelude::{
-    AsteroidMass, AsteroidPlugin, GameShipDesigns, PlanetConfig, PlanetType,
-    ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
+    AsteroidMass, AsteroidPlugin, PlanetConfig, PlanetType, SectionSource, ShipDesign,
+    SpaceshipSectionConfig, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
+};
+use nova_ship::prelude::{
+    BaseSectionConfig, GameSections, HullSectionConfig, SectionConfig, SectionKind,
 };
 
 use crate::{
-    generate_sector, materialize_sector, prepare_sector, sector_id, validate_manifest,
-    NovaWorldPlugin, SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput,
-    SectorGenerator, SectorManifest, SectorPlanet, SectorShip, WorldConfig, WorldGeometry,
-    ACTIVE_WINDOW_SECTORS_MAX,
+    generate_sector, materialize_pending_ships, materialize_sector, prepare_sector, sector_id,
+    validate_manifest, NovaWorldPlugin, ObserverBody, PendingSectorShip, SectorAsteroid,
+    SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet,
+    SectorShip, SectorShipConditionType, WorldConfig, WorldGeometry, WorldObserver,
+    ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
 };
+
+/// The section prototype every test ship is built from.
+const TEST_HULL_SECTION_ID: &str = "test_hull";
 
 /// The fixture generator's placement inset: its rocks stand at a quarter
 /// edge from the centre, well inside it.
@@ -95,6 +107,50 @@ fn empty(coord: SectorCoord, asteroids: Vec<SectorAsteroid>) -> SectorManifest {
     }
 }
 
+/// A one-section intact ship at `position`, built from the section prototype
+/// `prototype`, with a 20 m clearance.
+fn ship(id: String, position: Meters3, prototype: &str) -> SectorShip {
+    SectorShip {
+        id,
+        position,
+        rotation: Quat::IDENTITY,
+        clearance: Meters(20.0),
+        design: ShipDesign {
+            sections: vec![SpaceshipSectionConfig {
+                id: "hull".into(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                source: SectionSource::prototype(prototype),
+            }],
+            ..default()
+        },
+        condition: SectorShipConditionType::Intact,
+        stock: ShipInventoryStock::default(),
+    }
+}
+
+/// A manifest of `input`'s cell holding one [`ship`] at its centre.
+fn one_ship(input: SectorGenerationInput) -> SectorManifest {
+    let mut manifest = empty(input.coord, Vec::new());
+    manifest.ships.push(ship(
+        sector_id(input.coord, "ship", 0),
+        input.coord.centre(input.geometry.sector_edge),
+        TEST_HULL_SECTION_ID,
+    ));
+    manifest
+}
+
+/// The loaded sections [`ship`] resolves against: one hull prototype.
+fn test_sections() -> GameSections {
+    GameSections(vec![SectionConfig {
+        base: BaseSectionConfig {
+            id: TEST_HULL_SECTION_ID.to_string(),
+            ..default()
+        },
+        kind: SectionKind::Hull(HullSectionConfig::default()),
+    }])
+}
+
 /// A config that describes a sector, and the base every refusal below breaks
 /// exactly one field of.
 fn rocks() -> WorldConfig<Rocks> {
@@ -156,7 +212,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 11] = [
+    ); 14] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
@@ -263,15 +319,10 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             |fault| matches!(fault, SectorFault::InvalidGeometry { id } if id.ends_with("body_0")),
         ),
         (
-            "a ship with a blank design",
+            "a ship with no sections",
             |input| {
-                let mut manifest = empty(input.coord, Vec::new());
-                manifest.ships.push(SectorShip {
-                    id: format!("{}_ship_0", input.coord.slug()),
-                    position: input.coord.centre(input.geometry.sector_edge),
-                    yaw: 0.0,
-                    design: " ".into(),
-                });
+                let mut manifest = one_ship(input);
+                manifest.ships[0].design.sections.clear();
                 manifest
             },
             |fault| {
@@ -279,6 +330,41 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                     fault,
                     SectorFault::Manifest {
                         field: "design",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "a ship with a non-finite rotation",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0].rotation = Quat::from_xyzw(f32::NAN, 0.0, 0.0, 1.0);
+                manifest
+            },
+            |fault| matches!(fault, SectorFault::InvalidGeometry { id } if id.ends_with("ship_0")),
+        ),
+        (
+            "a ship whose rotation is not a unit quaternion",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0].rotation = Quat::from_xyzw(0.0, 0.0, 0.0, 1.01);
+                manifest
+            },
+            |fault| matches!(fault, SectorFault::InvalidGeometry { id } if id.ends_with("ship_0")),
+        ),
+        (
+            "a ship whose clearance is above the maximum",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0].clearance = SECTOR_SHIP_CLEARANCE_MAX + Meters(1.0);
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "clearance",
                         ..
                     }
                 )
@@ -351,10 +437,12 @@ fn populated(input: SectorGenerationInput, rocks: usize, count: usize) -> Sector
     });
     manifest.ships = (rocks + 1..count)
         .map(|index| SectorShip {
-            id: sector_id(coord, "ship", index),
-            position: point(index),
-            yaw: 0.0,
-            design: "block_wreck_plate".into(),
+            clearance: SECTOR_SHIP_CLEARANCE_MAX,
+            ..ship(
+                sector_id(coord, "ship", index),
+                point(index),
+                TEST_HULL_SECTION_ID,
+            )
         })
         .collect();
     manifest
@@ -500,7 +588,11 @@ fn a_materialized_rock_is_a_well_only_when_its_manifest_gives_it_mass() {
         &mut world.commands(),
         prepared,
         &AssetRef::default(),
-        &GameShipDesigns::default(),
+        &GameSections::default(),
+        ObserverBody {
+            position: Meters3::new(0.0, 0.0, 0.0),
+            reach: Meters::ZERO,
+        },
     );
     world.flush();
     app.update();
@@ -524,6 +616,250 @@ fn a_materialized_rock_is_a_well_only_when_its_manifest_gives_it_mass() {
             (sector_id(SectorCoord::ORIGIN, "body", 1), None, None),
         ],
         "each rock must carry its manifest mass, and only the massed one a well"
+    );
+}
+
+/// `q` and `-q` are one rotation, so they describe one sector; a different
+/// rotation describes a different one.
+#[test]
+fn canonical_text_describes_a_rotation_and_its_negation_alike() {
+    let input = rocks().input(SectorCoord::ORIGIN);
+    let turned = Quat::from_euler(EulerRot::YXZ, 0.7, -0.3, 1.9);
+    let described: Vec<String> = [turned, -turned, Quat::from_rotation_y(0.7)]
+        .into_iter()
+        .map(|rotation| {
+            let mut manifest = one_ship(input);
+            manifest.ships[0].rotation = rotation;
+            validate_manifest(input, manifest)
+                .expect("a valid ship must describe")
+                .canonical()
+        })
+        .collect();
+
+    assert_eq!(described[0], described[1], "q and -q must describe alike");
+    assert_ne!(
+        described[0], described[2],
+        "two different rotations described the same"
+    );
+}
+
+/// The observer's body where it overlaps [`one_ship`]'s clearance, and where
+/// it is clear of it.
+fn observer_at(input: SectorGenerationInput, offset: f32) -> ObserverBody {
+    ObserverBody {
+        position: input.coord.centre(input.geometry.sector_edge) + Meters3::new(offset, 0.0, 0.0),
+        reach: Meters(15.0),
+    }
+}
+
+/// Materialize [`one_ship`]'s cell into `world` with the observer's body at
+/// `offset` from the ship. Returns the root.
+fn materialize_one_ship(world: &mut World, offset: f32) -> Entity {
+    let config = answering(one_ship);
+    let prepared =
+        prepare_sector(config.clone(), SectorCoord::ORIGIN).expect("one valid ship must prepare");
+    let root = materialize_sector(
+        &mut world.commands(),
+        prepared,
+        &AssetRef::default(),
+        &test_sections(),
+        observer_at(config.input(SectorCoord::ORIGIN), offset),
+    );
+    world.flush();
+    root
+}
+
+/// The ids of the spawned ships under `root`, and of the held ones.
+fn ships_under(world: &mut World, root: Entity) -> (Vec<String>, Vec<String>) {
+    let spawned = world
+        .query_filtered::<(&Name, &ChildOf), Without<PendingSectorShip>>()
+        .iter(world)
+        .filter(|(_, child_of)| child_of.parent() == root)
+        .map(|(name, _)| name.to_string())
+        .collect();
+    let held = world
+        .query::<(&PendingSectorShip, &ChildOf)>()
+        .iter(world)
+        .filter(|(_, child_of)| child_of.parent() == root)
+        .map(|(held, _)| held.ship().id.clone())
+        .collect();
+    (spawned, held)
+}
+
+/// A ship whose clearance the observer's body overlaps is held under its
+/// cell's root, stays held while the overlap lasts, and spawns as its
+/// manifest entry once the observer is clear.
+#[test]
+fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
+    let mut world = World::new();
+    // 20 m of ship clearance and 15 m of observer reach overlap at 30 m.
+    let root = materialize_one_ship(&mut world, 30.0);
+    let id = sector_id(SectorCoord::ORIGIN, "ship", 0);
+    assert_eq!(
+        ships_under(&mut world, root),
+        (Vec::new(), vec![id.clone()]),
+        "an overlapped ship must be held, not spawned"
+    );
+
+    let input = answering(one_ship).input(SectorCoord::ORIGIN);
+    let observer = world
+        .spawn((
+            WorldObserver,
+            GlobalTransform::from_translation(observer_at(input, 30.0).position.to_engine()),
+            IntegrityEnvelope(observer_at(input, 30.0).reach.to_engine()),
+        ))
+        .id();
+    world
+        .run_system_once(materialize_pending_ships)
+        .expect("materialize_pending_ships runs");
+    world.flush();
+    assert_eq!(
+        ships_under(&mut world, root),
+        (Vec::new(), vec![id.clone()]),
+        "a ship must stay held while the observer overlaps it"
+    );
+
+    // 20 m + 15 m clear at 40 m.
+    world
+        .entity_mut(observer)
+        .insert(GlobalTransform::from_translation(
+            observer_at(input, 40.0).position.to_engine(),
+        ));
+    world
+        .run_system_once(materialize_pending_ships)
+        .expect("materialize_pending_ships runs");
+    world.flush();
+    assert_eq!(
+        ships_under(&mut world, root),
+        (vec![id], Vec::new()),
+        "a cleared ship must spawn under its root and stop being held"
+    );
+}
+
+/// A manifest of `input`'s cell holding an intact [`ship`] at its centre and a
+/// derelict one 1 km off carrying five hull plates.
+fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
+    let centre = input.coord.centre(input.geometry.sector_edge);
+    let mut manifest = one_ship(input);
+    manifest.ships.push(SectorShip {
+        condition: SectorShipConditionType::Derelict,
+        stock: ShipInventoryStock::new([(ItemType::HullPlate, 5)]),
+        ..ship(
+            sector_id(input.coord, "ship", 1),
+            centre + Meters3::new(1_000.0, 0.0, 0.0),
+            TEST_HULL_SECTION_ID,
+        )
+    });
+    manifest
+}
+
+/// A derelict spawns lootable with its manifest stock, so a docked ship may
+/// Take it; an intact ship spawns neither lootable nor stocked.
+#[test]
+fn a_materialized_derelict_is_lootable_with_its_manifest_stock_and_an_intact_ship_is_not() {
+    let config = answering(intact_and_derelict);
+    let prepared =
+        prepare_sector(config.clone(), SectorCoord::ORIGIN).expect("two valid ships must prepare");
+    let mut world = World::new();
+    materialize_sector(
+        &mut world.commands(),
+        prepared,
+        &AssetRef::default(),
+        &test_sections(),
+        observer_at(config.input(SectorCoord::ORIGIN), 5_000.0),
+    );
+    world.flush();
+
+    let mut spawned: Vec<(String, bool, bool, Vec<(ItemType, u32)>)> = world
+        .query::<(
+            &Name,
+            Has<DerelictShipMarker>,
+            Has<LootableShipMarker>,
+            &ShipInventoryStock,
+        )>()
+        .iter(&world)
+        .map(|(name, derelict, lootable, stock)| {
+            (
+                name.to_string(),
+                derelict,
+                lootable,
+                stock.stacks().collect(),
+            )
+        })
+        .collect();
+    spawned.sort();
+    assert_eq!(
+        spawned,
+        vec![
+            (
+                sector_id(SectorCoord::ORIGIN, "ship", 0),
+                false,
+                false,
+                vec![]
+            ),
+            (
+                sector_id(SectorCoord::ORIGIN, "ship", 1),
+                true,
+                true,
+                vec![(ItemType::HullPlate, 5)]
+            ),
+        ]
+    );
+}
+
+/// A held ship is part of its cell: retiring the root takes it too.
+#[test]
+fn a_held_ship_retires_with_its_cell() {
+    let mut world = World::new();
+    let root = materialize_one_ship(&mut world, 0.0);
+    assert_eq!(
+        world.query::<&PendingSectorShip>().iter(&world).count(),
+        1,
+        "the ship must be held"
+    );
+
+    world.entity_mut(root).despawn();
+    assert_eq!(
+        world.query::<&PendingSectorShip>().iter(&world).count(),
+        0,
+        "retiring the cell must take its held ship"
+    );
+}
+
+/// The spawn's resolver skips a section it cannot resolve and flies the
+/// rest, so `materialize_sector` resolves every design strictly first: a
+/// section prototype the loaded catalog does not hold is refused before the
+/// cell exists.
+#[test]
+#[should_panic(expected = "has a design the loaded sections do not resolve")]
+fn a_ship_design_the_loaded_sections_do_not_resolve_is_refused_at_spawn() {
+    let prepared = prepare_sector(
+        answering(|input| {
+            let mut manifest = one_ship(input);
+            manifest.ships[0]
+                .design
+                .sections
+                .push(SpaceshipSectionConfig {
+                    id: "missing".into(),
+                    position: Vec3::X,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::prototype("not_in_the_catalog"),
+                });
+            manifest
+        }),
+        SectorCoord::ORIGIN,
+    )
+    .expect("the worker cannot see the catalog, so the ship must prepare");
+    let mut world = World::new();
+    materialize_sector(
+        &mut world.commands(),
+        prepared,
+        &AssetRef::default(),
+        &test_sections(),
+        ObserverBody {
+            position: Meters3::new(0.0, 0.0, 0.0),
+            reach: Meters::ZERO,
+        },
     );
 }
 

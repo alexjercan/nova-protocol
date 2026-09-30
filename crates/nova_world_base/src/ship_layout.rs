@@ -25,8 +25,9 @@
 //! eligible prototypes, the role's families, mated contacts, mirror symmetry
 //! but for a lone docking port, intakes and docking ports that open sideways
 //! with structural cubes across their backs, one connected socket graph, clear
-//! exit and docking lanes, the advancement's size ceiling,
-//! the thrust floor and the flight computer count. A seeded layout that fails
+//! exit and docking lanes, the advancement's size ceiling, the thrust floor,
+//! the flight computer count and one off-centre outer cube a wreck could lose
+//! alone, so every intact ship can be ruined. A seeded layout that fails
 //! is redrawn a fixed number of times, then the request fails with its seed,
 //! civilization, role and the last failed constraint. Nothing substitutes an
 //! authored hull.
@@ -37,16 +38,18 @@
 //! hull, while the rest stays one connected ship. The cubes across a docking
 //! port's back never go, so a wreck keeps a backed port. A wreck digs toward a
 //! fifth of its cubes off its mirror image, so it cannot read as a sparse
-//! intact hull. A thin hull that cannot give that many settles for as many
-//! outer cubes as it can lose one at a time, down to one. A hull that cannot
-//! lose even one off-centre outer cube fails the request; nothing rerolls or
-//! skips it.
+//! intact hull. A thin hull that cannot give that many settles for a floor:
+//! as many outer cubes as it can lose one at a time, and no more than one
+//! deterministic pass can lose together, down to one. When every seeded plan
+//! falls short of that floor, the wreck is that pass. A pass that fails a
+//! wreck constraint fails the request, and so fails the sector that planned
+//! it; nothing rerolls or skips it.
 //! The generator has no weathered or damaged part to add; holes are its only
 //! ruin cue.
 //!
-//! PURE, and read by tests and the `world_ships` debug example only: the open
-//! world does not spawn generated ships or wrecks yet, and every size, share
-//! and weight here is provisional until generated ships are reviewed.
+//! PURE. The open world lays out every ship it spawns through
+//! [`generate_ship`] and [`generate_wreck`], and every size, share and weight
+//! here is provisional until generated ships are reviewed.
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -63,6 +66,7 @@ use nova_ship::prelude::{
     LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints, SectionCollider,
     SectionConfig, SectionFootprint, SectionKind, GRID_EPSILON,
 };
+use nova_world::prelude::SECTOR_SHIP_CLEARANCE_MAX;
 
 use crate::{
     civilizations::{CivilizationId, ShipRoleType},
@@ -76,9 +80,9 @@ const MAX_LAYOUT_ATTEMPTS: u32 = 8;
 /// flyable civilian and industrial ship.
 const MIN_HULL_CLEARANCE: Meters = Meters(80.0);
 
-/// The largest hull clearance radius at advancement 1, the open world's fixed
-/// ship reservation.
-const MAX_HULL_CLEARANCE: Meters = Meters(400.0);
+/// The largest hull clearance radius at advancement 1: the most a sector
+/// manifest accepts.
+const MAX_HULL_CLEARANCE: Meters = SECTOR_SHIP_CLEARANCE_MAX;
 
 /// Cells a spine plan keeps free on every side for the fittings mounted on
 /// it, so a planned spine rarely fails the size ceiling once fitted.
@@ -169,7 +173,9 @@ pub struct ShipLayout {
     pub drive: ShipDriveLayoutType,
     /// The source the hull preferred.
     pub source: String,
-    /// The hull clearance radius: half the diagonal of its cell bounds.
+    /// The hull clearance radius: the distance from the design origin to the
+    /// farthest corner of its cell bounds, so a sphere of it around the ship
+    /// root holds the hull in any orientation.
     pub clearance: Meters,
     /// The attempt that built the intact design, from 0. A wreck keeps its
     /// intact ship's.
@@ -251,12 +257,15 @@ pub enum ShipLayoutConstraintType {
         /// How many its mass needs.
         needed: usize,
     },
+    /// The hull has no off-centre outer structural cube, outside the cubes
+    /// across a docking port's back, that its wreck could omit alone and keep
+    /// its cell bounds and one socket graph. Every generated ship can be
+    /// ruined, so an intact ship and its wreck share one layout.
+    Unruinable,
     /// A wreck omits too few hull sections off its mirror image to read as a
-    /// ruin: fewer than the hull's outer off-centre cubes allow, and never
-    /// fewer than one.
+    /// ruin: fewer than its hull's floor, see [`generate_wreck`].
     Unruined {
-        /// The most omitted hull sections whose mirror image remains, over
-        /// every omission plan.
+        /// The omitted hull sections whose mirror image remains.
         omitted: usize,
         /// How many a visible ruin of this hull needs.
         needed: usize,
@@ -331,6 +340,10 @@ impl fmt::Display for ShipLayoutConstraintType {
                 f,
                 "the ship carries {controllers} flight computers where its mass needs {needed}"
             ),
+            Self::Unruinable => write!(
+                f,
+                "the hull has no off-centre outer cube its wreck could omit alone"
+            ),
             Self::Unruined { omitted, needed } => write!(
                 f,
                 "the wreck omits {omitted} hull sections off its mirror image where a visible \
@@ -353,9 +366,7 @@ pub struct ShipLayoutFailure {
     /// How many layouts were drawn: 0 when the snapshot cannot serve the
     /// role at all.
     pub attempts: u32,
-    /// The constraint the last layout failed, or for a wreck whose every
-    /// plan held but fell short, [`ShipLayoutConstraintType::Unruined`] with
-    /// the most any plan omitted.
+    /// The constraint the last layout failed.
     pub constraint: ShipLayoutConstraintType,
 }
 
@@ -424,12 +435,13 @@ pub fn generate_ship(
 /// Every omission plan digs toward a fifth of the hull's structural cubes
 /// (at least [`MIN_WRECK_OMISSIONS`]) off its mirror image, and the first
 /// that gets there is the wreck. No plan omits a cube across a docking port's
-/// back. When none does, the plan with the most wins
-/// if it reaches the hull's floor, see [`wreck_floor`].
+/// back. When none does, the plan with the most wins if it reaches the hull's
+/// floor, see [`wreck_floor`] and `cumulative_ruin`. When no seeded plan
+/// reaches the floor, the wreck is the one plan `cumulative_ruin` proves the
+/// floor with.
 ///
-/// Fails as the intact ship fails, with
-/// [`ShipLayoutConstraintType::Unruined`] when no plan within the bound
-/// reaches the floor, or with the last failed constraint when no plan holds.
+/// Fails as the intact ship fails, or with the constraint that proof plan
+/// fails.
 pub fn generate_wreck(
     snapshot: &ShipPartSnapshot,
     request: ShipLayoutRequest,
@@ -439,40 +451,33 @@ pub fn generate_wreck(
     let target = wreck_omissions(cubes.len());
     let backing = dock_backing(snapshot, &intact.design);
     let cubes: BTreeSet<[i32; 3]> = cubes.difference(&backing).copied().collect();
-    let floor = wreck_floor(&cells, &cubes, target);
+    let witness = cumulative_ruin(&cells, &cubes, target);
+    let floor = wreck_floor(&cells, &cubes, target).min(witness.len());
     let mut best: Option<(ShipDesign, usize)> = None;
-    let mut most_short = None;
-    let mut last = None;
     for attempt in 0..MAX_WRECK_ATTEMPTS {
         let (design, omitted) = ruin(&cells, &cubes, request, &intact.design, attempt, target);
-        match check_wreck(snapshot, request, &intact.design, &design, floor) {
-            Ok(()) if omitted >= target => return Ok(ShipLayout { design, ..intact }),
-            Ok(()) => {
-                if best.as_ref().is_none_or(|(_, most)| omitted > *most) {
-                    best = Some((design, omitted));
-                }
-            }
-            Err(ShipLayoutConstraintType::Unruined { omitted, .. }) => {
-                most_short = most_short.max(Some(omitted));
-            }
-            Err(constraint) => last = Some(constraint),
+        if check_wreck(snapshot, request, &intact.design, &design, floor).is_err() {
+            continue;
+        }
+        if omitted >= target {
+            return Ok(ShipLayout { design, ..intact });
+        }
+        if best.as_ref().is_none_or(|(_, most)| omitted > *most) {
+            best = Some((design, omitted));
         }
     }
     if let Some((design, _)) = best {
         return Ok(ShipLayout { design, ..intact });
     }
-    let constraint = match most_short {
-        Some(omitted) => ShipLayoutConstraintType::Unruined {
-            omitted,
-            needed: floor,
-        },
-        None => last.expect("at least one wreck attempt runs"),
-    };
-    Err(ShipLayoutFailure {
-        request,
-        attempts: MAX_WRECK_ATTEMPTS,
-        constraint,
-    })
+    let design = omit(&intact.design, &witness);
+    check_wreck(snapshot, request, &intact.design, &design, floor).map_err(|constraint| {
+        ShipLayoutFailure {
+            request,
+            attempts: MAX_WRECK_ATTEMPTS + 1,
+            constraint,
+        }
+    })?;
+    Ok(ShipLayout { design, ..intact })
 }
 
 /// How many structural cubes off its mirror image a wreck of a hull with
@@ -539,12 +544,14 @@ fn cell_bounds(cells: &HashMap<IVec3, (usize, [bool; 6])>) -> (IVec3, IVec3) {
         })
 }
 
-/// The fewest omissions off its mirror image a wreck of the hull filling
-/// `cells` must reach: `target`, or fewer on a hull with fewer mirror pairs of
-/// off-centre outer cubes, one of which can go alone with the cell bounds and
-/// one socket graph kept; never fewer than one. A hull with at least `target`
-/// such pairs keeps its full target, so it cannot settle for a trivial
-/// breach.
+/// How many mirror pairs of off-centre outer cubes of the hull filling
+/// `cells` have one cube that can go alone with the cell bounds and one socket
+/// graph kept, capped at `target`. A wreck's floor is this count or
+/// [`cumulative_ruin`]'s, whichever is fewer. A hull with at least `target`
+/// such pairs that one pass can lose together keeps its full target, so it
+/// cannot settle for a trivial breach. A hull with none is
+/// [`ShipLayoutConstraintType::Unruinable`], so a generated ship's floor is
+/// at least one.
 fn wreck_floor(
     cells: &HashMap<IVec3, (usize, [bool; 6])>,
     cubes: &BTreeSet<[i32; 3]>,
@@ -571,7 +578,47 @@ fn wreck_floor(
         }
         open.insert(cell, held);
     }
-    pairs.len().clamp(1, target)
+    pairs.len().min(target)
+}
+
+/// The deterministic omission plan that proves a floor for the wreck of the
+/// hull filling `cells`: one pass over `cubes` in order, omitting each
+/// off-centre cube that is outer in the hull left so far, whose mirror image
+/// it has not omitted, and whose omission keeps the cell bounds and one
+/// socket graph. It stops at `target`. Returns the omitted cubes, each off
+/// its mirror image.
+///
+/// [`wreck_floor`] counts cubes that can each go alone; together, an earlier
+/// omission can make a later cube hold the bounds or the socket graph, so no
+/// seeded plan may reach that count. This plan's count caps the floor, so the
+/// plan itself always reaches it. An [`ShipLayoutConstraintType::Unruinable`]
+/// hull is refused first, so it omits at least one cube.
+fn cumulative_ruin(
+    cells: &HashMap<IVec3, (usize, [bool; 6])>,
+    cubes: &BTreeSet<[i32; 3]>,
+    target: usize,
+) -> BTreeSet<[i32; 3]> {
+    let intact_bounds = cell_bounds(cells);
+    let mut open = cells.clone();
+    let mut omitted = BTreeSet::new();
+    for cube in cubes {
+        if omitted.len() >= target {
+            break;
+        }
+        let cell = IVec3::from_array(*cube);
+        let image = [-cell.x, cell.y, cell.z];
+        let outer = STEPS.iter().any(|step| !open.contains_key(&(cell + *step)));
+        if cell.x == 0 || !outer || omitted.contains(&image) {
+            continue;
+        }
+        let held = open.remove(&cell).expect("a cube is filled");
+        if cell_bounds(&open) == intact_bounds && joined(&open) {
+            omitted.insert(*cube);
+        } else {
+            open.insert(cell, held);
+        }
+    }
+    omitted
 }
 
 /// One seeded omission plan for the wreck of the intact design filling
@@ -649,6 +696,11 @@ fn ruin(
         off_mirror += usize::from(open.contains_key(&image));
     }
 
+    (omit(intact, &omitted), off_mirror)
+}
+
+/// `intact` without the structural cubes at `omitted`.
+fn omit(intact: &ShipDesign, omitted: &BTreeSet<[i32; 3]>) -> ShipDesign {
     let gone: HashSet<usize> = omitted
         .iter()
         .map(|cell| {
@@ -659,7 +711,7 @@ fn ruin(
                 .expect("an omitted cube is a section")
         })
         .collect();
-    let design = ShipDesign {
+    ShipDesign {
         sections: intact
             .sections
             .iter()
@@ -668,8 +720,7 @@ fn ruin(
             .map(|(_, section)| section.clone())
             .collect(),
         ..intact.clone()
-    };
-    (design, off_mirror)
+    }
 }
 
 /// Whether the sections filling `cells` join into one ship through sockets
@@ -706,9 +757,25 @@ fn ceiling(advancement: f32) -> Meters {
     Meters(MIN_HULL_CLEARANCE.0 + span * advancement.clamp(0.0, 1.0))
 }
 
-/// The clearance radius of the cells from `low` to `high`, both included.
+/// The clearance radius around the design origin of the cells from `low` to
+/// `high`, both included: the distance to the farthest corner. A cell is
+/// centred on its integer coordinate.
 fn clearance(low: IVec3, high: IVec3) -> Meters {
-    Meters::from_engine(((high - low + IVec3::ONE).as_vec3() * 0.5).length())
+    let reach = (low.as_vec3() - Vec3::splat(0.5))
+        .abs()
+        .max((high.as_vec3() + Vec3::splat(0.5)).abs());
+    Meters::from_engine(reach.length())
+}
+
+/// The [`clearance`] the cells from `low` to `high` have once the ship is
+/// centred on its bounds. Centring moves the origin by whole cells, so along
+/// an axis with an even cell count it stands half a cell off the bounds'
+/// centre. The x axis is the mirror plane and always has an odd count.
+fn centred_clearance(low: IVec3, high: IVec3) -> Meters {
+    let cells = high - low + IVec3::ONE;
+    let even = (cells % 2).cmpeq(IVec3::ZERO);
+    let half = cells.as_vec3() * 0.5 + Vec3::select(even, Vec3::splat(0.5), Vec3::ZERO);
+    Meters::from_engine(half.length())
 }
 
 /// The draw stream for one aspect of one layout attempt.
@@ -1379,7 +1446,25 @@ impl<'a> Draw<'a> {
         let span = drive.starboard.span.as_ivec3();
         let stern = bank.stern(drive.layout, span);
 
-        let stations = self.plan(stern, span.z)?;
+        let intake = ShipPartFamilyType::CargoIntake.required_by(request.role);
+        let intakes = if intake {
+            self.ranked(
+                ShipPartFamilyType::CargoIntake,
+                Some(source),
+                b"intake",
+                |_| true,
+            )
+        } else {
+            Vec::new()
+        };
+        let docks = self.ranked(ShipPartFamilyType::Docking, Some(source), b"dock", |_| true);
+        let flank = if intake {
+            Some(flank_run(&intakes, &docks)?)
+        } else {
+            None
+        };
+
+        let stations = self.plan(stern, span.z, flank)?;
         let length = stations.len() as i32;
         let pattern = PalettePatternType::draw(&mut self.stream(b"palette"));
         let cube_at = |cell: IVec3| palette[pattern.cube(&stations, cell, palette.len())];
@@ -1538,13 +1623,7 @@ impl<'a> Draw<'a> {
                 ));
             }
         }
-        if ShipPartFamilyType::CargoIntake.required_by(request.role) {
-            let intakes = self.ranked(
-                ShipPartFamilyType::CargoIntake,
-                Some(source),
-                b"intake",
-                |_| true,
-            );
+        if intake {
             if !self.fit(
                 &mut grid,
                 &intakes,
@@ -1562,7 +1641,6 @@ impl<'a> Draw<'a> {
         // Every ship docks: a mirrored pair of flank ports where one fits,
         // else one port alone, each with its lane clear and cubes across its
         // back.
-        let docks = self.ranked(ShipPartFamilyType::Docking, Some(source), b"dock", |_| true);
         let docked = [MountType::BackedMirrored, MountType::BackedLone]
             .into_iter()
             .any(|mount| self.fit(&mut grid, &docks, "dock", flank_aim, mount, b"dock_slot"));
@@ -1600,7 +1678,7 @@ impl<'a> Draw<'a> {
                 },
                 drive: drive.layout,
                 source: source.to_string(),
-                clearance: clearance(low, high),
+                clearance: clearance(low + shift, high + shift),
                 attempt: self.attempt,
             },
             measure,
@@ -1609,13 +1687,14 @@ impl<'a> Draw<'a> {
 
     /// The spine's stations, bow first, ending in `stern`: a nose that widens
     /// from one cell, a body whose cross-section changes along its length,
-    /// and the stern the drive bank mates to. Shrunk until the spine and a
-    /// bank `drive_depth` cells deep fit the advancement's size ceiling with room
-    /// for fittings.
+    /// and the stern the drive bank mates to. A `flank` run holds its flat
+    /// stations at every size. Shrunk until the spine and a bank `drive_depth`
+    /// cells deep fit the advancement's size ceiling with room for fittings.
     fn plan(
         &self,
         stern: Section,
         drive_depth: i32,
+        flank: Option<FlankRun>,
     ) -> Result<Vec<Section>, ShipLayoutConstraintType> {
         let request = self.request;
         let mut stream = self.stream(b"shape");
@@ -1632,7 +1711,12 @@ impl<'a> Draw<'a> {
         } else {
             (length * scale * 0.85, 1, 1)
         };
-        let mut length = (length.round() as i32).max(MIN_STATIONS);
+        // The fewest stations whose body, between the nose and the stern,
+        // holds the flank run.
+        let shortest = (MIN_STATIONS..)
+            .find(|length| flank.is_none_or(|run| length - nose_length(*length) - 1 >= run.length))
+            .expect("a long enough spine holds any run");
+        let mut length = (length.round() as i32).max(shortest);
         let mut width = (width.round() as i32).max(1) + widen;
         let mut height = (height.round() as i32).max(0) + heighten;
         // The body's change along its length: a waist or shoulder at the
@@ -1642,7 +1726,10 @@ impl<'a> Draw<'a> {
 
         let ceiling = ceiling(request.advancement);
         loop {
-            let stations = stations(length, width, height, stern, middle, aft);
+            let mut stations = stations(length, width, height, stern, middle, aft);
+            if let Some(run) = flank {
+                hold_flank(&mut stations, nose_length(length), run);
+            }
             let (low, high) = stations.iter().enumerate().fold(
                 (IVec3::MAX, IVec3::MIN),
                 |(low, high), (z, section)| {
@@ -1655,11 +1742,11 @@ impl<'a> Draw<'a> {
             );
             let high = high.max(IVec3::new(high.x, high.y, length + drive_depth - 1));
             let reach = IVec3::splat(FITTING_REACH);
-            let planned = clearance(low - reach, high + reach);
+            let planned = centred_clearance(low - reach, high + reach);
             if planned.0 <= ceiling.0 {
                 return Ok(stations);
             }
-            if length > MIN_STATIONS {
+            if length > shortest {
                 length -= 1;
             } else if width > 1 {
                 width -= 1;
@@ -1715,6 +1802,77 @@ fn stations(
             }
         })
         .collect()
+}
+
+/// The flat flank an intake-carrying spine holds so its mirrored intake pair
+/// and one docking port fit side by side along it: `length` body stations of
+/// one cross-section, at least one cell wide and `half_height` cells above and
+/// below the centre.
+#[derive(Clone, Copy, Debug)]
+struct FlankRun {
+    length: i32,
+    half_height: i32,
+}
+
+/// The flank run the first of `intakes` that mounts as a mirrored pair and the
+/// first of `docks` that mounts on the flank need, in the flank rotation of
+/// each with the fewest cells above and below the centre, then the fewest
+/// stations.
+fn flank_run(
+    intakes: &[&ShipPart],
+    docks: &[&ShipPart],
+) -> Result<FlankRun, ShipLayoutConstraintType> {
+    let footprint = |part: &ShipPart, mirrored: bool| {
+        cube_rotations()
+            .into_iter()
+            .filter_map(|rotation| {
+                let oriented = oriented_part(&part.config, rotation).ok()?;
+                let twin = oriented_part(&part.config, mirror_rotation(rotation))
+                    .is_ok_and(|port| reflects(&oriented, &port));
+                (oriented.aims == Some(STARBOARD) && (twin || !mirrored)).then(|| {
+                    let span = oriented.span.as_ivec3();
+                    (span.y / 2, span.z)
+                })
+            })
+            .min()
+    };
+    let (intake_height, intake_length) = intakes
+        .iter()
+        .find_map(|part| footprint(part, true))
+        .ok_or(ShipLayoutConstraintType::Unplaced(
+            ShipPartFamilyType::CargoIntake,
+        ))?;
+    let (dock_height, dock_length) = docks.iter().find_map(|part| footprint(part, false)).ok_or(
+        ShipLayoutConstraintType::Unplaced(ShipPartFamilyType::Docking),
+    )?;
+    Ok(FlankRun {
+        length: intake_length + dock_length,
+        half_height: intake_height.max(dock_height),
+    })
+}
+
+/// Keep `run` on the body of `stations`, whose nose is `nose` stations long:
+/// a body that already holds the run is left as drawn; otherwise the first
+/// body stations are flattened to the first one's cross-section, widened and
+/// raised to the run's.
+fn hold_flank(stations: &mut [Section], nose: i32, run: FlankRun) {
+    let (nose, length) = (nose as usize, run.length as usize);
+    let body = &stations[nose..stations.len() - 1];
+    let held = body.windows(length).any(|window| {
+        window.iter().all(|section| *section == window[0])
+            && window[0].half_width >= 1
+            && window[0].high >= run.half_height
+    });
+    if held {
+        return;
+    }
+    let first = stations[nose];
+    let half_height = first.high.max(run.half_height);
+    stations[nose..nose + length].fill(Section {
+        half_width: first.half_width.max(1),
+        low: -half_height,
+        high: half_height,
+    });
 }
 
 /// Whether a part can be the spine's structural cube: one cell, filled, with
@@ -1872,7 +2030,7 @@ fn check(
         }
     }
 
-    let (_, cubes) = filled_cells(snapshot, design);
+    let (cells, cubes) = filled_cells(snapshot, design);
     for (section, part) in design.sections.iter().zip(&resolved) {
         if part.family == ShipPartFamilyType::CargoIntake && !side_backed(&cubes, part, section) {
             return Err(Constraint::UnbackedIntake(section.id.clone()));
@@ -1883,10 +2041,17 @@ fn check(
     }
 
     connected_and_clear(request, design, &resolved, bounds)?;
-    match ShipMeasure::of(resolved).shortfall() {
-        Some(shortfall) => Err(shortfall),
-        None => Ok(()),
+    if let Some(shortfall) = ShipMeasure::of(resolved).shortfall() {
+        return Err(shortfall);
     }
+    let loose: BTreeSet<[i32; 3]> = cubes
+        .difference(&dock_backing(snapshot, design))
+        .copied()
+        .collect();
+    if wreck_floor(&cells, &loose, 1) == 0 {
+        return Err(Constraint::Unruinable);
+    }
+    Ok(())
 }
 
 /// Whether `section`, a `part`, opens out of the hull's side with a
@@ -2196,17 +2361,17 @@ pub(crate) mod tests {
 
     const ALL_FACES: [Vec3; 6] = CELL_FACES;
 
-    fn cube(id: &str, health: f32) -> SectionConfig {
+    pub(crate) fn cube(id: &str, health: f32) -> SectionConfig {
         let kind = SectionKind::Hull(HullSectionConfig::default());
         block(id, health, kind, UVec3::ONE, &ALL_FACES)
     }
 
-    fn controller(id: &str) -> SectionConfig {
+    pub(crate) fn controller(id: &str) -> SectionConfig {
         let kind = SectionKind::Controller(ControllerSectionConfig::default());
         block(id, 100.0, kind, UVec3::ONE, &ALL_FACES)
     }
 
-    fn drive(id: &str, magnitude: f32, size: UVec3) -> SectionConfig {
+    pub(crate) fn drive(id: &str, magnitude: f32, size: UVec3) -> SectionConfig {
         let kind = SectionKind::Thruster(ThrusterSectionConfig {
             magnitude,
             ..default()
@@ -2214,7 +2379,7 @@ pub(crate) mod tests {
         block(id, 100.0, kind, size, &[Vec3::NEG_Z])
     }
 
-    fn turret(id: &str, fire_rate: f32) -> SectionConfig {
+    pub(crate) fn turret(id: &str, fire_rate: f32) -> SectionConfig {
         let mut turret = TurretSectionConfig {
             bullet_damage: 10.0,
             ..default()
@@ -2233,7 +2398,7 @@ pub(crate) mod tests {
         )
     }
 
-    fn intake(id: &str) -> SectionConfig {
+    pub(crate) fn intake(id: &str) -> SectionConfig {
         let kind = SectionKind::CargoIntake(CargoIntakeSectionConfig {
             render_mesh: "intake.glb#Scene0".into(),
             render_mesh_transform: None,
@@ -2252,15 +2417,19 @@ pub(crate) mod tests {
     }
 
     /// A port with a socket on each of `faces`; it docks through -Z.
-    fn dock(id: &str, faces: &[Vec3]) -> SectionConfig {
+    pub(crate) fn dock(id: &str, faces: &[Vec3]) -> SectionConfig {
         let kind = SectionKind::Docking(DockingSectionConfig::default());
         block(id, 90.0, kind, UVec3::ONE, faces)
     }
 
     /// Every face but the mouth, so the port is its own mirror image.
-    const DOCK_FACES: [Vec3; 5] = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z];
+    pub(crate) const DOCK_FACES: [Vec3; 5] = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z];
 
-    fn pack(id: &str, dependencies: &[&str], sections: Vec<SectionConfig>) -> ShipPartPack {
+    pub(crate) fn pack(
+        id: &str,
+        dependencies: &[&str],
+        sections: Vec<SectionConfig>,
+    ) -> ShipPartPack {
         ShipPartPack {
             id: id.to_string(),
             dependencies: dependencies.iter().map(|id| id.to_string()).collect(),
@@ -2455,22 +2624,7 @@ pub(crate) mod tests {
                         format!("{:?}", generate_wreck(&backward, request)),
                         "{context}"
                     );
-                    // A thin low-advancement hull that cannot lose one
-                    // off-centre outer cube fails, and only that one.
-                    let wreck = match result {
-                        Err(failure) if advancement == 0.0 => {
-                            assert_eq!(
-                                failure.constraint,
-                                ShipLayoutConstraintType::Unruined {
-                                    omitted: 0,
-                                    needed: 1
-                                },
-                                "{context}"
-                            );
-                            continue;
-                        }
-                        result => result.unwrap_or_else(|failure| panic!("{context}: {failure}")),
-                    };
+                    let wreck = result.unwrap_or_else(|failure| panic!("{context}: {failure}"));
                     ruined.insert(role.label());
                     assert_eq!(
                         (wreck.drive, &wreck.source, wreck.clearance, wreck.attempt),
@@ -2516,10 +2670,15 @@ pub(crate) mod tests {
                     // breaks its mirror.
                     let (cells, cubes) = filled_cells(&snapshot, &intact.design);
                     let target = wreck_omissions(cubes.len());
+                    let loose: BTreeSet<[i32; 3]> = cubes
+                        .difference(&dock_backing(&snapshot, &intact.design))
+                        .copied()
+                        .collect();
                     let needed = if advancement == 1.0 {
                         target
                     } else {
-                        wreck_floor(&cells, &cubes, target)
+                        wreck_floor(&cells, &loose, target)
+                            .min(cumulative_ruin(&cells, &loose, target).len())
                     };
                     assert!(unmirrored >= needed, "{context}: {unmirrored} < {needed}");
                     let (_, wreck_cubes) = filled_cells(&snapshot, &wreck.design);
@@ -2566,10 +2725,11 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_hull_with_no_removable_outer_cube_fails_as_unruined() {
+    fn a_layout_with_no_removable_outer_cube_is_refused_as_unruinable() {
         // A drive six cells deep shrinks the hull to its three stations. On
-        // this seed its ports dock off the body's flanks, so every cube holds
-        // a bound, the drive or a port's back, and not even one breach fits.
+        // this seed one layout docks its ports off the body's flanks, so every
+        // cube holds a bound, the drive or a port's back, and its wreck could
+        // not lose even one. The ship is drawn again instead.
         let short = ShipPartSnapshot::build(&[pack(
             "base",
             &[],
@@ -2584,24 +2744,18 @@ pub(crate) mod tests {
         .expect("the packs build");
 
         let request = request(2, ShipRoleType::Civilian, 0.0);
-        generate_ship(&short, request).expect("the intact ship generates");
-        let failure = generate_wreck(&short, request).expect_err("no ruin fits the hull");
+        let refused = (0..MAX_LAYOUT_ATTEMPTS)
+            .find(|attempt| {
+                Draw::new(&short, request, *attempt)
+                    .layout()
+                    .and_then(|layout| check(&short, request, &layout.design))
+                    == Err(ShipLayoutConstraintType::Unruinable)
+            })
+            .expect("one layout cannot be ruined");
+        let intact = generate_ship(&short, request).expect("a later layout generates");
 
-        assert_eq!(failure.attempts, MAX_WRECK_ATTEMPTS);
-        assert!(
-            matches!(
-                failure.constraint,
-                ShipLayoutConstraintType::Unruined {
-                    omitted: 0,
-                    needed: 1
-                }
-            ),
-            "{failure}"
-        );
-        let message = failure.to_string();
-        for named in ["ship seed 2", "civ_1_n2_0@7", "civilian", "visible ruin"] {
-            assert!(message.contains(named), "{message}");
-        }
+        assert!(intact.attempt > refused, "{} <= {refused}", intact.attempt);
+        generate_wreck(&short, request).expect("the generated ship can be ruined");
     }
 
     #[test]
@@ -2875,6 +3029,64 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_short_industrial_spine_holds_a_flat_flank_for_its_intake_pair_and_a_dock() {
+        // A clusters scan at world seed 17 failed this request with no intake
+        // fitting: no body run was long enough for the pair and a port.
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let parts: HashMap<&str, &ShipPart> = snapshot
+            .parts()
+            .iter()
+            .map(|part| (part.id(), part))
+            .collect();
+        let request = ShipLayoutRequest {
+            seed: 1_049_378_793,
+            civilization: CivilizationId {
+                world_seed: 17,
+                node: [0, 0, 0],
+            },
+            role: ShipRoleType::Industrial,
+            advancement: 0.0,
+        };
+        let layout =
+            generate_ship(&snapshot, request).unwrap_or_else(|failure| panic!("{failure}"));
+
+        // Every intake and port opens out of the hull's side, backed, down a
+        // lane nothing stands in.
+        let (_, cubes) = filled_cells(&snapshot, &layout.design);
+        let placed: Vec<PlacedPart> = layout
+            .design
+            .sections
+            .iter()
+            .map(|section| {
+                let part = parts[prototype_of(section).expect("a prototype")];
+                placed_part(&part.config, section.position, section.rotation)
+            })
+            .collect();
+        let (structure, _, occupied) = read_structure(&placed);
+        let exits = ship_exits(&placed, &occupied);
+        assert!(blocked_exits(&structure, &exits).is_empty());
+        let mut fitted = HashMap::new();
+        for (index, section) in layout.design.sections.iter().enumerate() {
+            let part = parts[prototype_of(section).expect("a prototype")];
+            if matches!(
+                part.family,
+                ShipPartFamilyType::CargoIntake | ShipPartFamilyType::Docking
+            ) {
+                *fitted.entry(part.family).or_insert(0) += 1;
+                assert!(side_backed(&cubes, part, section), "{}", section.id);
+                assert!(
+                    exits.iter().any(|exit| occupied[index].contains(&exit.cell)
+                        && matches!(exit.out, STARBOARD | PORT)),
+                    "{} has no flank lane",
+                    section.id
+                );
+            }
+        }
+        assert_eq!(fitted[&ShipPartFamilyType::CargoIntake], 2);
+        assert!(fitted[&ShipPartFamilyType::Docking] >= 1);
+    }
+
+    #[test]
     fn a_docking_port_with_no_mirrored_twin_mounts_alone() {
         // Sockets on the back and one side only: no rotation reflects the
         // port, so it cannot pair.
@@ -2907,5 +3119,50 @@ pub(crate) mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_wreck_whose_seeded_plans_all_fall_short_is_its_cumulative_pass() {
+        // A sector fault: 4 outer cubes of this hull can each go alone and one
+        // pass loses 4 together, but every seeded plan's earlier omissions
+        // leave the rest holding its bounds or its socket graph.
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let request = ShipLayoutRequest {
+            seed: 245_496_831,
+            civilization: CivilizationId {
+                world_seed: 4,
+                node: [0, 0, 0],
+            },
+            role: ShipRoleType::Scavenger,
+            advancement: 0.1,
+        };
+        let intact = generate_ship(&snapshot, request).expect("the ship generates");
+        let (cells, cubes) = filled_cells(&snapshot, &intact.design);
+        let target = wreck_omissions(cubes.len());
+        let loose: BTreeSet<[i32; 3]> = cubes
+            .difference(&dock_backing(&snapshot, &intact.design))
+            .copied()
+            .collect();
+        let witness = cumulative_ruin(&cells, &loose, target);
+        let floor = wreck_floor(&cells, &loose, target).min(witness.len());
+        assert_eq!((floor, target), (4, 4));
+        for attempt in 0..MAX_WRECK_ATTEMPTS {
+            let (design, omitted) = ruin(&cells, &loose, request, &intact.design, attempt, target);
+            assert_eq!(
+                check_wreck(&snapshot, request, &intact.design, &design, floor),
+                Err(ShipLayoutConstraintType::Unruined {
+                    omitted,
+                    needed: floor
+                }),
+                "attempt {attempt}"
+            );
+        }
+
+        let wreck = generate_wreck(&snapshot, request).expect("the cumulative pass is the wreck");
+
+        assert_eq!(
+            format!("{:?}", wreck.design),
+            format!("{:?}", omit(&intact.design, &witness))
+        );
     }
 }

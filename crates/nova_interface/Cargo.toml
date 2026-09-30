@@ -18,6 +18,17 @@ nova_events = { path = "../nova_events" }
 nova_command = { path = "../nova_command" }
 nova_ui = { path = "../nova_ui" }
 
+[dev-dependencies]
+ron = { version = "0.12" }
+serde = { version = "1", features = ["derive"] }
+# The docked generated-wreck test: the real physics app, the scenario ship
+# spawn and catalog parsing, and the world's own wreck generation and
+# materialization.
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
+nova_scenario = { path = "../nova_scenario", features = ["serde"] }
+nova_world = { path = "../nova_world" }
+nova_world_base = { path = "../nova_world_base" }
+
 [lints]
 workspace = true
 

@@ -32,7 +32,7 @@
 //! # A hull never floats alone
 //!
 //! A cell places a hull only beside a rock or planetoid of the hull's OWN
-//! cluster placed in the SAME cell, so every streamed wreck is part of a
+//! cluster placed in the SAME cell, so every streamed ship is part of a
 //! place and never an orphan across a face from its field. Hulls resolve after
 //! every rock for that reason. A hull whose cluster placed nothing else in the
 //! cell tries its escorts - rocks its cluster planned around that hull, on the
@@ -43,12 +43,20 @@
 //! body, so they count toward the cluster's extent, the halo and the gap
 //! between clusters, and a cell never looks past its own faces for one.
 //!
+//! # Every hull is a generated ship
+//!
+//! A cell lays out every hull it owns with [`plan_ship`] BEFORE it checks
+//! where the hull fits: the checks measure the ship's own clearance, and a
+//! planned hull reserves [`SECTOR_SHIP_CLEARANCE_MAX`] in the cluster's
+//! extent and halo. A layout or content fault fails the cell; only the
+//! spatial checks above skip a hull.
+//!
 //! # The environment decides
 //!
-//! The type, its body counts and the rock, world and hull mixes read the
+//! The type, its body counts and the rock and world mixes read the
 //! three [`crate::EnvironmentFields`] at the cluster's drawn anchor, TOGETHER
 //! and continuously: dense material grows asteroid-rich, rock-only and
-//! planet-heavy clusters, traffic takes the worlds and grows wreck fields,
+//! planet-heavy clusters, traffic takes the worlds and grows derelict fields,
 //! volatiles favour worlds and turn rocks and worlds to ice and carbon, and
 //! thin quiet space grows nothing. A cell that owns no cluster body may draw a
 //! small background scatter instead, so open space is not always empty.
@@ -63,8 +71,11 @@ use nova_scenario::prelude::{
 use nova_world::prelude::*;
 
 use crate::{
+    civilizations::CivilizationField,
     environment::{Environment, EnvironmentFields},
-    BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID, CLEARANCE_MARGIN,
+    sector_ships::{plan_ship, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
+    ship_parts::ShipPartSnapshot,
+    NovaLayeredWorld, CLEARANCE_MARGIN,
 };
 
 /// The spacing of the cluster lattice: at most one cluster per node.
@@ -231,14 +242,6 @@ const ROUNDING_SLACK: Meters = Meters(1.0);
 /// world would contain.
 const ROCK_KINDS: [&str; 4] = [KIND_ROCK, KIND_METAL, KIND_ICE, KIND_CARBON];
 
-/// The shipped hulls a cluster's derelicts are drawn from: the damaged frame
-/// tender and loose wreck plating, the two base hulls that are already
-/// wrecks.
-const DERELICT_DESIGNS: [&str; 2] = [
-    BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
-    BLOCK_WRECK_PLATE_SHIP_ID,
-];
-
 /// What a cluster is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ClusterType {
@@ -351,13 +354,16 @@ pub struct SectorClusters {
     pub escorts: usize,
 }
 
-/// What one sector's plan did, from the same plan the generator streams.
+/// What one sector's plan did, from the same plan `world` streams.
 ///
 /// # Errors
 ///
-/// Whatever [`crate::NovaLayeredWorld`] would refuse the sector for.
-pub fn sector_clusters(input: SectorGenerationInput) -> Result<SectorClusters, SectorFault> {
-    Ok(plan_sector(&EnvironmentFields::new(input.seed), input)?.summary())
+/// Whatever `world` would refuse the sector for.
+pub fn sector_clusters(
+    world: &NovaLayeredWorld,
+    input: SectorGenerationInput,
+) -> Result<SectorClusters, SectorFault> {
+    Ok(plan_sector(&EnvironmentFields::new(input.seed), world.parts(), input)?.summary())
 }
 
 /// Refuse a geometry this policy cannot fill.
@@ -391,7 +397,7 @@ pub(crate) fn validate_cluster_geometry(geometry: WorldGeometry) -> Result<(), S
             ),
         });
     }
-    let escort = SECTOR_SHIP_CLEARANCE + rock_clearance_max() + CLEARANCE_MARGIN;
+    let escort = SECTOR_SHIP_CLEARANCE_MAX + rock_clearance_max() + CLEARANCE_MARGIN;
     if ESCORT_DISTANCE.0 < escort {
         return Err(SectorFault::Config {
             field: "generator.escort_distance",
@@ -429,19 +435,36 @@ pub(crate) fn validate_cluster_geometry(geometry: WorldGeometry) -> Result<(), S
 /// One body the policy plans, before a cell decides whether it fits.
 #[derive(Clone, Debug)]
 enum ClusterBody {
-    Rock { radius: Meters, kind: &'static str },
+    Rock {
+        radius: Meters,
+        kind: &'static str,
+    },
     Planetoid(PlanetConfig),
-    Hull { design: &'static str, yaw: f32 },
+    /// A hull as its cluster plans it: where it stands and its draws, not
+    /// yet laid out.
+    Hull {
+        yaw: f32,
+        lineage: f32,
+    },
+    /// A hull the cell owns, laid out. Only a cell's own bodies carry one.
+    Ship(Box<PlannedShip>),
 }
 
 impl ClusterBody {
-    /// The clearance sphere `validate_manifest` measures the body by.
+    /// The clearance sphere `validate_manifest` measures the body by. A
+    /// planned hull reserves the most any hull may declare, so a cluster's
+    /// extent and halo hold whatever ship it turns into.
     fn clearance(&self) -> Meters {
         match self {
             Self::Rock { radius, .. } => Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
             Self::Planetoid(config) => config.body_radius(),
-            Self::Hull { .. } => SECTOR_SHIP_CLEARANCE,
+            Self::Hull { .. } => SECTOR_SHIP_CLEARANCE_MAX,
+            Self::Ship(ship) => ship.clearance,
         }
+    }
+
+    fn is_hull(&self) -> bool {
+        matches!(self, Self::Hull { .. } | Self::Ship(_))
     }
 }
 
@@ -467,6 +490,8 @@ struct ClusterHull {
 struct Cluster {
     node: [i32; 3],
     cluster_type: ClusterType,
+    /// The fields at its drawn anchor, which decided it.
+    environment: Environment,
     anchor: Meters3,
     home: SectorCoord,
     /// Its planetoids, none to four. Each one must be placed.
@@ -600,12 +625,18 @@ impl SectorPlan {
                     position,
                     config: config.clone(),
                 }),
-                ClusterBody::Hull { design, yaw } => manifest.ships.push(SectorShip {
+                ClusterBody::Ship(ship) => manifest.ships.push(SectorShip {
                     id,
                     position,
-                    yaw: *yaw,
-                    design: (*design).into(),
+                    rotation: ship.rotation,
+                    clearance: ship.clearance,
+                    design: ship.design.clone(),
+                    condition: ship.condition,
+                    stock: ship.stock.clone(),
                 }),
+                ClusterBody::Hull { .. } => {
+                    unreachable!("a cell lays out every hull it owns before it resolves them")
+                }
             }
         }
         manifest
@@ -700,7 +731,7 @@ pub(crate) fn ramp(value: f32, low: f32, high: f32) -> f32 {
 /// Pick one of `choices` by weight with a draw in `[0, 1)`.
 ///
 /// The total weight is positive by construction at every caller.
-fn pick<T: Copy>(choices: &[(T, f32)], draw: f32) -> T {
+pub(crate) fn pick<T: Copy>(choices: &[(T, f32)], draw: f32) -> T {
     let total: f32 = choices.iter().map(|(_, weight)| weight).sum();
     let mut target = draw * total;
     for &(choice, weight) in choices {
@@ -756,19 +787,6 @@ fn planet_type(environment: Environment, draw: f32) -> PlanetType {
     )
 }
 
-/// A derelict hull's design: tenders where traffic was, plating where it
-/// worked material.
-fn derelict_design(environment: Environment, draw: f32) -> &'static str {
-    let [tender, plate] = DERELICT_DESIGNS;
-    pick(
-        &[
-            (tender, 0.2 + 0.8 * environment.human_activity),
-            (plate, 0.2 + 0.6 * environment.material_density),
-        ],
-        draw,
-    )
-}
-
 /// How many of a `band` a cluster places when `richness` reads in `[0, 1]`: a
 /// richer anchor widens the draw toward the top of the band.
 fn member_count(band: (usize, usize), richness: f32, draw: f32) -> usize {
@@ -795,11 +813,11 @@ fn rock_mass(radius: Meters) -> Option<f32> {
     (radius >= ROCK_WELL_RADIUS).then_some(ROCK_WELL_MASS)
 }
 
-fn hull(environment: Environment, stream: &mut SeedStream) -> ClusterBody {
+fn hull(stream: &mut SeedStream) -> ClusterBody {
     let yaw = stream.unit() * std::f32::consts::TAU;
     ClusterBody::Hull {
-        design: derelict_design(environment, stream.unit()),
         yaw,
+        lineage: stream.unit(),
     }
 }
 
@@ -963,7 +981,7 @@ fn cluster_at(
             rock_members.push(member(position, rock(environment, &mut stream))?);
             continue;
         }
-        let hull = member(position, hull(environment, &mut stream))?;
+        let hull = member(position, hull(&mut stream))?;
         let outward = hull.position.get() - anchor.get();
         let escorts = (0..HULL_ESCORTS)
             .map(|_| {
@@ -985,6 +1003,7 @@ fn cluster_at(
     Ok(Some(Cluster {
         node,
         cluster_type,
+        environment,
         anchor,
         home,
         parents,
@@ -1002,7 +1021,7 @@ fn planetoid_mass(body_radius: Meters) -> f32 {
 
 /// The widest clearance a member can have: a hull's, or the widest rock's.
 fn member_clearance_max() -> Meters {
-    rock_clearance_max().max(SECTOR_SHIP_CLEARANCE)
+    rock_clearance_max().max(SECTOR_SHIP_CLEARANCE_MAX)
 }
 
 fn rock_clearance_max() -> Meters {
@@ -1133,22 +1152,30 @@ fn halo_nodes(coord: SectorCoord, edge: Meters) -> Vec<[i32; 3]> {
 }
 
 /// Plan one cell: replay every cluster in its halo, keep the bodies it owns,
-/// draw a background scatter if it owns none, and resolve them all.
+/// lay out the hulls it owns from `parts`, draw a background scatter if it
+/// owns none, and resolve them all.
 ///
-/// PURE: the same fields and input give the same plan, on any call, in any
-/// order.
+/// Every owned hull is laid out BEFORE the cell checks where it fits: the
+/// check needs the hull's own clearance, and a hull whose layout fails fails
+/// the cell even where it would have been skipped.
+///
+/// PURE: the same fields, parts and input give the same plan, on any call,
+/// in any order.
 ///
 /// # Errors
 ///
 /// Whatever the environment refuses, [`SectorFault::InvalidGeometry`] for a
-/// body with no finite position, and [`SectorFault::Generation`] for a parent
-/// that could not be placed.
+/// body with no finite position, [`SectorFault::Generation`] for a parent
+/// that could not be placed, and whatever [`plan_ship`] refuses for an owned
+/// hull.
 pub(crate) fn plan_sector(
     fields: &EnvironmentFields,
+    parts: &ShipPartSnapshot,
     input: SectorGenerationInput,
 ) -> Result<SectorPlan, SectorFault> {
     let coord = input.coord;
     let edge = input.geometry.sector_edge;
+    let civilizations = CivilizationField::new(input.seed, SHIP_ADVANCEMENT_CURVE);
     let mut clusters = Vec::new();
     let mut parents = Vec::new();
     let mut rocks = Vec::new();
@@ -1187,29 +1214,51 @@ pub(crate) fn plan_sector(
                     candidate("rock", index, BodySource::Rock(node, index), member)
                 }),
         );
-        hulls.extend(
-            cluster
-                .hulls
+        let planetoids: Vec<Meters3> = cluster
+            .parents
+            .iter()
+            .map(|parent| parent.position)
+            .collect();
+        for (index, hull) in cluster.hulls.iter().enumerate() {
+            if hull.hull.owner != coord {
+                continue;
+            }
+            let ClusterBody::Hull { yaw, lineage } = hull.hull.body else {
+                unreachable!("a cluster plans its hulls as hulls");
+            };
+            let mut planned = candidate("hull", index, BodySource::Hull(node, index), &hull.hull);
+            let ship = plan_ship(
+                parts,
+                &civilizations,
+                input.seed,
+                HullSlot {
+                    id: &planned.id,
+                    node,
+                    slot: index,
+                    anchor: cluster.anchor,
+                    environment: cluster.environment,
+                    planetoids: &planetoids,
+                    position: hull.hull.position,
+                    yaw,
+                    lineage,
+                },
+            )?;
+            planned.body = ClusterBody::Ship(Box::new(ship));
+            planned.escorts = hull
+                .escorts
                 .iter()
                 .enumerate()
-                .filter(|(_, hull)| hull.hull.owner == coord)
-                .map(|(index, hull)| Candidate {
-                    escorts: hull
-                        .escorts
-                        .iter()
-                        .enumerate()
-                        .map(|(escort, member)| {
-                            candidate(
-                                &format!("hull_{index}_escort"),
-                                escort,
-                                BodySource::Escort(node, index, escort),
-                                member,
-                            )
-                        })
-                        .collect(),
-                    ..candidate("hull", index, BodySource::Hull(node, index), &hull.hull)
-                }),
-        );
+                .map(|(escort, member)| {
+                    candidate(
+                        &format!("hull_{index}_escort"),
+                        escort,
+                        BodySource::Escort(node, index, escort),
+                        member,
+                    )
+                })
+                .collect();
+            hulls.push(planned);
+        }
         if parents.len() + rocks.len() + hulls.len() > before {
             clusters.push(cluster);
         }
@@ -1335,7 +1384,7 @@ fn resolve(
             let accompanied = planned.iter().any(|other| {
                 other.skipped.is_none()
                     && other.source.node() == Some(node)
-                    && !matches!(other.body, ClusterBody::Hull { .. })
+                    && !other.body.is_hull()
             });
             if !accompanied {
                 skipped = Some(SkipType::Companion);
@@ -1404,7 +1453,7 @@ mod tests {
         desired_sectors(SectorCoord::ORIGIN, config.active_radius)
             .into_iter()
             .map(|coord| {
-                let plan = plan_sector(&fields, config.input(coord))
+                let plan = plan_sector(&fields, config.generator.parts(), config.input(coord))
                     .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
                 (coord, plan)
             })
@@ -1427,6 +1476,48 @@ mod tests {
             }
         }
         clusters
+    }
+
+    /// Only a cell's spatial checks may skip a hull. A hull the cell owns
+    /// whose ship its catalog cannot build fails the whole cell, before the
+    /// cell checks where it fits.
+    #[test]
+    fn a_hull_whose_layout_fails_fails_its_cell_rather_than_being_skipped() {
+        use crate::ship_layout::tests::{
+            controller, cube, dock, drive, intake, pack, turret, DOCK_FACES,
+        };
+
+        // Its only drive is 500 m deep: no hull fits under any ceiling.
+        let unbuildable = ShipPartSnapshot::build(&[pack(
+            "base",
+            &[],
+            vec![
+                cube("cube", 100.0),
+                controller("controller"),
+                drive("deep_drive", 1.0, bevy::math::UVec3::new(1, 1, 50)),
+                turret("turret", 1.0),
+                intake("intake"),
+                dock("dock", &DOCK_FACES),
+            ],
+        )])
+        .expect("the packs build");
+        let owner = scanned_clusters()
+            .into_iter()
+            .flat_map(|cluster| cluster.hulls)
+            .map(|hull| hull.hull.owner)
+            .next()
+            .expect("the scan plans a hull");
+
+        let fault = plan_sector(
+            &EnvironmentFields::new(SEED),
+            &unbuildable,
+            config().input(owner),
+        )
+        .expect_err("a hull no layout fits must fail its cell");
+        assert!(
+            matches!(&fault, SectorFault::Generation { id, field: "layout", .. } if id.contains("_hull_")),
+            "got {fault}"
+        );
     }
 
     /// Every cell that replays a node gets the same cluster, down to the last
@@ -1621,8 +1712,8 @@ mod tests {
             id: "hull".to_string(),
             source: BodySource::Hull(node, 0),
             body: ClusterBody::Hull {
-                design: BLOCK_WRECK_PLATE_SHIP_ID,
                 yaw: 0.0,
+                lineage: 0.0,
             },
             position: Meters3::new(0.0, 0.0, z),
             escorts: escorts
@@ -1721,7 +1812,7 @@ mod tests {
                 }
             }
             for coord in coords {
-                let plan = plan_sector(&fields, config.input(coord))
+                let plan = plan_sector(&fields, config.generator.parts(), config.input(coord))
                     .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"));
                 alone += (plan.bodies.iter())
                     .filter(|body| body.skipped == Some(SkipType::Companion))
@@ -1732,10 +1823,7 @@ mod tests {
                         continue;
                     };
                     let companions: Vec<BodySource> = placed()
-                        .filter(|other| {
-                            other.source.node() == Some(node)
-                                && !matches!(other.body, ClusterBody::Hull { .. })
-                        })
+                        .filter(|other| other.source.node() == Some(node) && !other.body.is_hull())
                         .map(|other| other.source)
                         .collect();
                     assert!(
@@ -1966,8 +2054,12 @@ mod tests {
         let (mut scatters, mut empty) = (0, 0);
         for x in -6..6 {
             for z in -6..6 {
-                let plan = plan_sector(&fields, config.input(SectorCoord::new(x, 0, z)))
-                    .unwrap_or_else(|fault| panic!("[{x}, 0, {z}]: {fault}"));
+                let plan = plan_sector(
+                    &fields,
+                    config.generator.parts(),
+                    config.input(SectorCoord::new(x, 0, z)),
+                )
+                .unwrap_or_else(|fault| panic!("[{x}, 0, {z}]: {fault}"));
                 let background: Vec<&PlannedBody> = plan
                     .bodies
                     .iter()
