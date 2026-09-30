@@ -209,8 +209,9 @@ pub enum ShipPartFault {
     /// No usable part of a family every minimum-advancement civilian or
     /// industrial ship needs.
     MissingFamily(ShipPartFamilyType),
-    /// A weapon or thruster fires down a lane the grid cannot keep clear, or
-    /// through a face that carries one of its own sockets.
+    /// A weapon or thruster fires down a lane the grid cannot keep clear, or a
+    /// weapon, thruster or cargo intake fires or opens through a face that
+    /// carries one of its own sockets.
     UnlanedExit {
         /// The pack whose definition is effective.
         pack: String,

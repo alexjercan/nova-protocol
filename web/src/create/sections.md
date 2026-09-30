@@ -103,8 +103,9 @@ use a docking port, a part without link points, a railgun with no charge time,
 or a part that cannot stand on the one-part-per-cell build grid. Such a part
 still loads and still works on authored ships. A weapon or thruster that
 otherwise stands on the grid must fire straight out of one of its own faces and
-carry no socket on that face. Content lint rejects one that does not, and the
-editor's Generate refuses a plan that names it.
+carry no socket on that face. A cargo intake's door face is its `-Z` face, and
+it must carry no socket either. Content lint rejects a part that breaks either
+rule, and the editor's Generate refuses a plan that names it.
 
 ### Damage effects
 

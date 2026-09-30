@@ -706,13 +706,14 @@ fn build_report(
     // so a `--target` lint names base for a base stat. An unordered duplicate
     // goes to the first of its two packs a report covers. A missing family
     // belongs to base when base's own catalog misses it too, else to the
-    // catalog that raises it. Each fault is reported once.
+    // catalog that raises it. Each fault is reported once per owner, so two
+    // mods that each lose the same family are both named.
     let base_id = BASE_MOD_ID.to_string();
     let base_ship_part_faults = by_id
         .get(BASE_MOD_ID)
         .and_then(|base| ShipPartSnapshot::build(&ship_part_packs(base, &by_id)).err())
         .unwrap_or_default();
-    let mut ship_part_faults: BTreeMap<(String, String), String> = BTreeMap::new();
+    let mut ship_part_faults: BTreeSet<(String, String, String)> = BTreeSet::new();
     for bundle in all.iter().filter(|b| report_ids.contains(&b.id)) {
         let Err(faults) = ShipPartSnapshot::build(&ship_part_packs(bundle, &by_id)) else {
             continue;
@@ -737,16 +738,9 @@ fn build_report(
                 }
                 ShipPartFault::MissingFamily(_) => (&bundle.id, "ship parts"),
             };
-            ship_part_faults
-                .entry((element.to_string(), fault.to_string()))
-                .or_insert_with(|| owner.clone());
+            ship_part_faults.insert((owner.clone(), element.to_string(), fault.to_string()));
         }
     }
-    let mut ship_part_faults: Vec<(String, String, String)> = ship_part_faults
-        .into_iter()
-        .map(|((element, message), bundle)| (bundle, element, message))
-        .collect();
-    ship_part_faults.sort();
     for (bundle, element, message) in ship_part_faults {
         findings.push(Finding {
             file: file_of(&bundle, &element),

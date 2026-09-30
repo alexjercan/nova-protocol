@@ -535,10 +535,11 @@ cargo run content lint --target <mod> --report r.md     # + write a per-mod repo
     and its transitive dependencies, must build one
     `nova_world_base::ShipPartSnapshot`: positive finite part stats, a section
     id overlaid only along a dependency chain, a usable hull, controller,
-    thruster and cargo intake, and a weapon or thruster that fires straight out
-    of one of its own faces with no socket on that face. Each fault is
-    reported once, against the bundle that owns it or else the first bundle
-    whose catalog raises it;
+    thruster and cargo intake, a weapon or thruster that fires straight out
+    of one of its own faces, and no socket on the face a weapon, thruster or
+    cargo intake fires or opens through. Each fault is reported once per
+    owner: the bundle that authors it, or else each bundle whose catalog
+    raises it;
   - the combat balance/fairness audit - every combat scenario's derived sheet,
     graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; a bundle
     acknowledges its OWN deliberate imbalances in a `balance_acks.ron` beside

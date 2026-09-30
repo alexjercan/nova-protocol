@@ -352,7 +352,7 @@ pub fn oriented_part(
     let aims = exit_normal(&config.kind).map(|exit| {
         let local = cell_face(exit).expect("the fit found a multi-cell exit cardinal");
         let axis = local / 2;
-        let outer = if local % 2 == 0 {
+        let outer = if local.is_multiple_of(2) {
             footprint[axis] - 1
         } else {
             0

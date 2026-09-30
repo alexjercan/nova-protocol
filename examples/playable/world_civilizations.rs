@@ -145,6 +145,10 @@ const LIVING_COLOUR: Srgba = Srgba::rgb(0.098, 0.620, 0.439);
 /// The role colours, in `ShipRoleType::ALL` order. Four hues cannot all stay
 /// apart under colour blindness, so the two fighter roles are also hatched in
 /// opposite directions.
+#[expect(
+    clippy::approx_constant,
+    reason = "0.318 is the scavenger hue's green channel, not 1/pi"
+)]
 const ROLE_COLOURS: [Srgba; 4] = [
     Srgba::rgb(0.224, 0.529, 0.898),
     Srgba::rgb(0.788, 0.522, 0.0),
@@ -707,8 +711,8 @@ fn panel_colour(
             let strength = ((share - 0.25) / 0.75).clamp(0.0, 1.0);
             let colour = lerp_srgba(SURFACE, ROLE_COLOURS[role], 0.35 + 0.65 * strength);
             let hatch = match ShipRoleType::ALL[role] {
-                ShipRoleType::Scavenger => (row + column) % 6 == 0,
-                ShipRoleType::Armored => (row + PANEL_PIXELS as usize - column) % 6 == 0,
+                ShipRoleType::Scavenger => (row + column).is_multiple_of(6),
+                ShipRoleType::Armored => (row + PANEL_PIXELS as usize - column).is_multiple_of(6),
                 ShipRoleType::Civilian | ShipRoleType::Industrial => false,
             };
             if hatch {
