@@ -1,0 +1,1499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nova item loop design report - task 20260926-174806</title>
+<style>
+:root {
+  --bg: #f6f5f1;
+  --paper: #ffffff;
+  --ink: #1d1f22;
+  --muted: #5b6068;
+  --rule: #d8d6cf;
+  --code-bg: #efeee8;
+  --accent: #1f5f8b;
+  --current: #22704a;
+  --current-bg: #e3f2ea;
+  --decided: #2553a0;
+  --decided-bg: #e4ecf8;
+  --proposal: #8a5a00;
+  --proposal-bg: #fbf0d9;
+  --open: #8e2a63;
+  --open-bg: #f7e4ef;
+  --refuse: #a3312a;
+  --refuse-bg: #f9e5e3;
+  --node: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --paper: #1c1f24;
+    --ink: #e6e4de;
+    --muted: #a3a8b0;
+    --rule: #353a42;
+    --code-bg: #262a31;
+    --accent: #7db4dc;
+    --current: #6fce9b;
+    --current-bg: #1c3328;
+    --decided: #8fb2ee;
+    --decided-bg: #1e2a40;
+    --proposal: #e9b85a;
+    --proposal-bg: #3a2e14;
+    --open: #e58bbd;
+    --open-bg: #3b1f30;
+    --refuse: #f08a82;
+    --refuse-bg: #3e201e;
+    --node: #23272d;
+  }
+}
+* { box-sizing: border-box; }
+html { font-size: 16px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 1rem/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.wrap { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2rem; max-width: 84rem; margin: 0 auto; padding: 1.5rem; }
+nav.toc { position: sticky; top: 1rem; align-self: start; font-size: 0.86rem; max-height: calc(100vh - 2rem); overflow: auto; }
+nav.toc h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 0.5rem; }
+nav.toc ol { margin: 0; padding-left: 1.9rem; }
+nav.toc li { margin: 0.2rem 0; }
+main { min-width: 0; }
+header.hero, section { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+h1 { font-size: 1.7rem; line-height: 1.2; margin: 0 0 0.5rem; }
+h2 { font-size: 1.3rem; margin: 0 0 0.75rem; border-bottom: 1px solid var(--rule); padding-bottom: 0.35rem; }
+h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; }
+h4 { font-size: 0.95rem; margin: 1rem 0 0.35rem; }
+p, li { max-width: 72ch; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; font-size: 0.86em; background: var(--code-bg); padding: 0.05em 0.3em; border-radius: 3px; }
+a code { background: transparent; padding: 0; }
+.meta { color: var(--muted); font-size: 0.9rem; margin: 0.25rem 0; }
+.banner { border-left: 5px solid var(--proposal); background: var(--proposal-bg); padding: 0.75rem 1rem; border-radius: 4px; margin: 0.75rem 0; }
+.banner strong { color: var(--proposal); }
+.tag { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 0.05rem 0.45rem; border-radius: 3px; border: 1px solid; white-space: nowrap; vertical-align: 0.1em; }
+.t-current { color: var(--current); background: var(--current-bg); border-color: var(--current); }
+.t-decided { color: var(--decided); background: var(--decided-bg); border-color: var(--decided); }
+.t-direction { color: var(--decided); background: transparent; border-color: var(--decided); border-style: dashed; }
+.t-proposal { color: var(--proposal); background: var(--proposal-bg); border-color: var(--proposal); }
+.t-open { color: var(--open); background: var(--open-bg); border-color: var(--open); }
+.t-refuse { color: var(--refuse); background: var(--refuse-bg); border-color: var(--refuse); }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.6rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.legend li { border: 1px solid var(--rule); border-radius: 6px; padding: 0.5rem 0.65rem; font-size: 0.9rem; }
+.table-scroll { overflow-x: auto; margin: 0.6rem 0 1rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+caption { text-align: left; font-weight: 600; padding: 0 0 0.4rem; color: var(--muted); font-size: 0.85rem; }
+th, td { border: 1px solid var(--rule); padding: 0.4rem 0.55rem; text-align: left; vertical-align: top; }
+thead th { background: var(--code-bg); position: sticky; top: 0; }
+tbody th { font-weight: 600; background: color-mix(in srgb, var(--code-bg) 45%, transparent); }
+td.c { text-align: center; }
+figure { margin: 0.8rem 0 1.2rem; }
+figure svg { width: 100%; height: auto; display: block; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem; }
+.card { border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem 0.9rem; }
+.card h4 { margin-top: 0; }
+.decision { border: 1px solid var(--rule); border-left: 5px solid var(--open); border-radius: 6px; padding: 0.6rem 0.9rem; margin: 0.8rem 0; }
+.decision h3 { margin-top: 0.2rem; }
+.decision ol { margin: 0.3rem 0; }
+.rec { font-weight: 600; }
+.q { font-weight: 700; color: var(--open); }
+.note { font-size: 0.88rem; color: var(--muted); }
+ol.steps > li { margin-bottom: 0.3rem; }
+/* SVG styling uses theme variables so diagrams follow light and dark modes. */
+svg text { fill: var(--ink); font-family: system-ui, sans-serif; font-size: 13px; }
+svg .small { font-size: 11px; fill: var(--muted); }
+svg .title { font-weight: 700; font-size: 14px; }
+svg .edge { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+svg .edge-dash { stroke: var(--muted); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; }
+svg .edge-refuse { stroke: var(--refuse); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; }
+svg .n-current { fill: var(--current-bg); stroke: var(--current); stroke-width: 1.6; }
+svg .n-decided { fill: var(--decided-bg); stroke: var(--decided); stroke-width: 1.6; }
+svg .n-direction { fill: var(--paper); stroke: var(--decided); stroke-width: 1.6; stroke-dasharray: 6 3; }
+svg .n-proposal { fill: var(--proposal-bg); stroke: var(--proposal); stroke-width: 1.6; stroke-dasharray: 6 3; }
+svg .n-open { fill: var(--open-bg); stroke: var(--open); stroke-width: 1.6; stroke-dasharray: 2 3; }
+svg .n-refuse { fill: var(--refuse-bg); stroke: var(--refuse); stroke-width: 1.6; }
+svg .n-plain { fill: var(--node); stroke: var(--muted); stroke-width: 1.2; }
+svg .arrowhead { fill: var(--muted); }
+svg .arrowhead-r { fill: var(--refuse); }
+svg .k-current { fill: var(--current); font-weight: 700; font-size: 11px; }
+svg .k-decided { fill: var(--decided); font-weight: 700; font-size: 11px; }
+svg .k-direction { fill: var(--decided); font-weight: 700; font-size: 11px; }
+svg .k-proposal { fill: var(--proposal); font-weight: 700; font-size: 11px; }
+svg .k-open { fill: var(--open); font-weight: 700; font-size: 11px; }
+svg .k-refuse { fill: var(--refuse); font-weight: 700; font-size: 11px; }
+footer { color: var(--muted); font-size: 0.85rem; padding: 0.5rem 0 2rem; }
+@media (max-width: 60rem) {
+  .wrap { grid-template-columns: 1fr; }
+  nav.toc { position: static; max-height: none; }
+}
+@media print {
+  body { background: #fff; }
+  nav.toc { display: none; }
+  .wrap { display: block; }
+  section, header.hero { break-inside: avoid-page; }
+}
+/* Review comments. The script at the end of the body owns this UI; comments live in browser localStorage only. */
+.rv-panel { background: var(--paper); border: 1px solid var(--rule); border-left: 5px solid var(--accent); border-radius: 8px; padding: 0.9rem 1.2rem; margin-bottom: 1.25rem; font-size: 0.9rem; }
+.rv-panel h2 { font-size: 1rem; border: 0; padding: 0; margin: 0 0 0.4rem; }
+.rv-panel h3 { font-size: 0.95rem; margin: 0.8rem 0 0.3rem; }
+.rv-panel p, .rv-panel li { margin: 0.3rem 0; }
+.rv-panel details { margin: 0.4rem 0 0; }
+.rv-panel summary { cursor: pointer; color: var(--accent); }
+.rv-storage[data-state="ok"] { color: var(--current); }
+.rv-storage[data-state="error"] { color: var(--refuse); font-weight: 700; }
+.rv-tools { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+.rv-panel button, .rv-thread button, .rv-dialog button, .rv-toast button { font: inherit; font-size: 0.85rem; color: var(--ink); background: var(--code-bg); border: 1px solid var(--rule); border-radius: 4px; padding: 0.25rem 0.65rem; min-height: 1.75rem; cursor: pointer; }
+.rv-panel button:hover, .rv-thread button:hover, .rv-dialog button:hover { border-color: var(--accent); }
+.rv-panel button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+button.rv-danger { color: var(--refuse); border-color: var(--refuse); }
+.rv-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
+.rv-add { font: 600 0.72rem/1 system-ui, sans-serif; color: var(--muted); background: transparent; border: 1px solid var(--rule); border-radius: 999px; min-width: 1.5rem; min-height: 1.5rem; padding: 0.2rem 0.45rem; margin-left: 0.35rem; vertical-align: middle; cursor: pointer; }
+.rv-add[data-count] { color: var(--accent); border-color: var(--accent); }
+.rv-add:hover { border-color: var(--accent); color: var(--accent); }
+:is(.rv-add, .rv-panel button, .rv-thread button, .rv-dialog button, .rv-toast button, .rv-editor textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body.rv-hide-add .rv-add { display: none; }
+.rv-hwrap { display: flex; align-items: baseline; gap: 0.5rem; }
+.rv-hwrap > :is(h1, h2, h3, h4) { flex: 1 1 auto; min-width: 0; margin: 0 !important; }
+.rv-sbar { margin-top: 1rem; padding-top: 0.5rem; border-top: 1px dashed var(--rule); font-size: 0.85rem; }
+.rv-sbar > .rv-add { margin-left: 0; font-size: 0.78rem; }
+.rv-fbar { text-align: right; margin: -0.9rem 0 0.8rem; }
+.rv-thread { margin: 0.4rem 0 0.8rem; max-width: 72ch; }
+li > .rv-thread { margin: 0.3rem 0; }
+tr.rv-thread-row > td { background: color-mix(in srgb, var(--accent) 5%, var(--paper)); }
+tr.rv-thread-row .rv-thread { margin: 0; }
+.rv-list { list-style: none; margin: 0; padding: 0; }
+.rv-list > li.rv-item { border: 1px solid var(--rule); border-left: 4px solid var(--accent); border-radius: 4px; padding: 0.4rem 0.65rem; margin: 0.35rem 0; background: color-mix(in srgb, var(--accent) 7%, var(--paper)); font-size: 0.88rem; max-width: none; }
+.rv-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 0.3rem; max-width: none; }
+.rv-quote { color: var(--muted); font-size: 0.82rem; border-left: 3px solid var(--rule); padding-left: 0.5rem; margin: 0 0 0.35rem; overflow-wrap: anywhere; max-width: none; }
+.rv-meta { color: var(--muted); font-size: 0.78rem; display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.rv-meta button { font-size: 0.78rem !important; padding: 0.1rem 0.5rem !important; }
+.rv-editor label { display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 0.2rem; }
+.rv-editor textarea { width: 100%; min-height: 5.5rem; font: inherit; font-size: 0.9rem; color: var(--ink); background: var(--paper); border: 1px solid var(--muted); border-radius: 4px; padding: 0.4rem; resize: vertical; }
+.rv-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.35rem; }
+.rv-hint { color: var(--muted); font-size: 0.78rem; }
+.rv-toast { position: fixed; right: 1rem; bottom: 1rem; z-index: 20; max-width: min(30rem, calc(100vw - 2rem)); display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-end; }
+.rv-toast p { margin: 0; padding: 0.55rem 0.8rem; background: var(--paper); color: var(--ink); border: 1px solid var(--rule); border-left: 5px solid var(--current); border-radius: 6px; box-shadow: 0 2px 10px rgb(0 0 0 / 0.25); font-size: 0.88rem; overflow-wrap: anywhere; }
+.rv-toast p#rv-alert { border-left-color: var(--refuse); color: var(--refuse); font-weight: 600; background: var(--refuse-bg); }
+.rv-toast p:empty { display: none; }
+.rv-dialog { color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.2rem; width: min(36rem, calc(100vw - 2rem)); font-size: 0.9rem; }
+.rv-dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+.rv-dialog h2 { font-size: 1.1rem; }
+.rv-dialog ul { padding-left: 1.2rem; }
+.rv-dialog .rv-err { color: var(--refuse); }
+@media (max-width: 60rem) {
+  .rv-toast { left: 1rem; right: 1rem; max-width: none; align-items: stretch; }
+}
+@media print {
+  .rv-add, .rv-panel, .rv-toast, .rv-editor, .rv-meta button { display: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#read">How to read this report</a></li>
+    <li><a href="#summary">Summary</a></li>
+    <li><a href="#current">Current behavior</a></li>
+    <li><a href="#decided">Owner decisions already made</a></li>
+    <li><a href="#loop">Proposed item loop</a></li>
+    <li><a href="#acquire">Acquisition options</a></li>
+    <li><a href="#spend">Spending and removal</a></li>
+    <li><a href="#catalog">Candidate catalog</a></li>
+    <li><a href="#matrix">Source and sink matrix</a></li>
+    <li><a href="#tx">Transactions: success and refusal</a></li>
+    <li><a href="#proofs">Proofs to design</a></li>
+    <li><a href="#examples">Worked examples</a></li>
+    <li><a href="#flow">Recommended first playable flow</a></li>
+    <li><a href="#milestones">Staged milestones</a></li>
+    <li><a href="#decisions">Owner decisions</a></li>
+    <li><a href="#ownership">Cross-task ownership</a></li>
+    <li><a href="#evidence">Evidence index</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <h1>Item loop design: mining, salvage, cargo, repair, ammo and refit</h1>
+  <p class="meta">Task <code>20260926-174806</code> (status OPEN). Design report only. Code read at <code>a61d8fbcc</code> on branch <code>item-loop-design</code>. Written 2026-09-27. Reconciled with the owner decisions of 2026-09-28.</p>
+  <div class="banner" role="note">
+    <strong>DESIGN REPORT, NOT IMPLEMENTATION.</strong> This page adds no runtime code, content or test. Only items tagged <span class="tag t-current">Current</span> exist in the game. Items tagged <span class="tag t-decided">Decided</span> are owner-approved scope: today that is M0, plate repair anywhere. Items tagged <span class="tag t-direction">Direction</span> are owner-approved direction for M1-M5; each still needs its own code-backed gate before any code. Other quantities in worked examples are illustrative unless they cite a source line.
+  </div>
+</header>
+
+<aside class="rv-panel" id="review" aria-labelledby="rv-title">
+  <h2 id="rv-title">Review comments</h2>
+  <p class="rv-storage" id="rv-storage" data-state="error">Comments need JavaScript. The comment script did not run, so this page cannot save comments.</p>
+  <div class="rv-tools">
+    <button type="button" id="rv-toggle" aria-pressed="true" disabled>Show comment buttons</button>
+    <button type="button" id="rv-export" disabled>Export JSON</button>
+    <button type="button" id="rv-import" disabled>Import JSON</button>
+    <input type="file" id="rv-file" accept="application/json,.json" hidden>
+  </div>
+  <details>
+    <summary>How comments work</summary>
+    <ul>
+      <li>Select <strong>+</strong> after a paragraph, heading, list item, table row or figure, or <strong>Comment on section</strong> at the end of a section. Type the comment, then select <strong>Save comment</strong> or press Ctrl+Enter. Escape cancels.</li>
+      <li>A saved comment shows below its element with <strong>Edit</strong> and <strong>Delete</strong>. A <strong>+</strong> with a number shows how many comments an element has.</li>
+      <li>Comments stay in this browser only (localStorage), for this page address. A private window, a different browser, or clearing site data does not keep them. Use <strong>Export JSON</strong> to keep or share a copy.</li>
+      <li>The page reports "Saved" only after it reads the comment back from storage. If storage is full or blocked, the page shows "NOT saved" in red and keeps your draft open.</li>
+      <li>Each comment records its section and the exact text of its element. If that text changes, the comment moves to <strong>Detached comments</strong> below, with its original text. It never moves to a different element.</li>
+      <li><strong>Import JSON</strong> checks the whole file first and refuses it on any error. A preview shows the new, identical and conflicting comments. <strong>Merge</strong> adds new comments and keeps your local text on a conflict. <strong>Replace all</strong> discards every local comment, after a confirmation.</li>
+    </ul>
+  </details>
+  <div id="rv-detached" hidden>
+    <h3 id="rv-detached-h">Detached comments</h3>
+    <p class="note">The saved text of these elements no longer matches the page. They are kept, exported and editable here.</p>
+  </div>
+</aside>
+
+<section id="read" aria-labelledby="read-h">
+  <h2 id="read-h">How to read this report</h2>
+  <p>Each claim carries one status tag. Colors repeat the tag text, so the page does not depend on color.</p>
+  <ul class="legend">
+    <li><span class="tag t-current">Current</span> Verified in code at <code>a61d8fbcc</code>, with a <code>path:line</code> link.</li>
+    <li><span class="tag t-decided">Decided</span> Owner-approved scope in a task contract. Cited as <code>TASK.md:line</code>, separate from code.</li>
+    <li><span class="tag t-direction">Direction</span> Owner-approved direction for a later milestone. It does not authorize code; its gate decides names, numbers and proofs.</li>
+    <li><span class="tag t-proposal">Proposal</span> This report recommends it. The owner has not approved it.</li>
+    <li><span class="tag t-open">Open</span> An owner decision is required. Options and one consequence each are in <a href="#decisions">Owner decisions</a>.</li>
+  </ul>
+  <p class="note">Source links are relative to this file (<code>../../</code> is the repository root). Line numbers are from <code>a61d8fbcc</code>. Diagrams have text titles and descriptions for screen readers; each diagram is also stated in a table or list.</p>
+</section>
+
+<section id="summary" aria-labelledby="summary-h">
+  <h2 id="summary-h">Summary</h2>
+  <ul>
+    <li><span class="tag t-current">Current</span> Every ship root carries a <code>ShipInventory</code>. The open-world player ship starts with 12 authored <code>HullPlate</code>. Nothing adds or spends items. The Inventory pane is read-only.</li>
+    <li><span class="tag t-current">Current</span> Ship pane Repair and Reload are free and instant anywhere. Weapon magazines also refill by idle batches with no stock. Salvage crates set scenario state, not inventory. Carving removes geometry but yields no material. The streamed world keeps no mutation.</li>
+    <li><span class="tag t-decided">Decided</span> M0 is plate repair anywhere. Ship pane Repair on a damaged, non-destroyed section of the player's own ship spends <code>HullPlate</code> from that ship's inventory: one plate restores up to 20 HP, partial stock repairs partially, and the change is instant. No dock, partner or station is read. Zero HP, full HP and no plates refuse with no change. The free full heal dies.</li>
+    <li><span class="tag t-direction">Direction</span> Later milestones, in order: M1 dock Take/Give, M2 intake pickup and jettison, M3 ammo reserve, M4 station refit, M5 trade plus mining. Each needs its own code-backed gate.</li>
+    <li><span class="tag t-proposal">Proposal</span> All item changes go through one validate-then-commit step per transaction. A refusal mutates nothing. A success changes inventory and world state in the same system run. M0 decides this for repair; later transactions still need their gates.</li>
+    <li><span class="tag t-proposal">Proposal</span> A station repair service is a possible later idea only. It is not part of M0 and is not approved.</li>
+    <li><span class="tag t-open">Open</span> The M0 gate still decides the mutation API, the rule owner, the ownership check, the disabled-reason precedence and the refusal text (<a href="TASK.md"><code>TASK.md:48, 113-121</code></a>).</li>
+  </ul>
+</section>
+
+<section id="current" aria-labelledby="current-h">
+  <h2 id="current-h">Current behavior at <code>a61d8fbcc</code></h2>
+  <p>This section states only what the code does. Nothing here is a proposal.</p>
+  <div class="table-scroll">
+  <table>
+    <caption>Verified current behavior, with source lines</caption>
+    <thead><tr><th scope="col">Area</th><th scope="col">What the code does</th><th scope="col">Source</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Item types</th><td>Closed enum <code>ItemType</code> with one variant, <code>HullPlate</code>, filed under <code>Repair</code>. Categories are Raw, Repair, Ammo, Food, Parts. There is no Fuel category.</td><td><a href="../../crates/nova_gameplay/src/inventory.rs"><code>crates/nova_gameplay/src/inventory.rs:19-50</code></a></td></tr>
+      <tr><th scope="row">Inventory owner</th><td><code>ShipInventory</code> holds private stacks. Its API reads only: <code>count</code>, <code>stacks</code>, <code>is_empty</code>. No add, remove or transfer function exists. The module doc says nothing spends or adds items at runtime.</td><td><a href="../../crates/nova_gameplay/src/inventory.rs"><code>inventory.rs:4-8</code></a>, <a href="../../crates/nova_gameplay/src/inventory.rs"><code>inventory.rs:52-75</code></a></td></tr>
+      <tr><th scope="row">Every ship has one</th><td><code>SpaceshipRootMarker</code> requires <code>ShipInventory</code>, empty by default.</td><td><a href="../../crates/nova_gameplay/src/markers.rs"><code>crates/nova_gameplay/src/markers.rs:45-48</code></a></td></tr>
+      <tr><th scope="row">Authoring</th><td><code>SpaceshipConfig::inventory</code> is omittable in RON (omitted means empty). A zero stack or a repeated item fails the parse.</td><td><a href="../../crates/nova_scenario/src/objects/spaceship.rs"><code>crates/nova_scenario/src/objects/spaceship.rs:461-468</code></a>, <a href="../../crates/nova_gameplay/src/inventory.rs"><code>inventory.rs:113-148</code></a></td></tr>
+      <tr><th scope="row">Open-world stock</th><td>The open-world player ship has <code>HullPlate: 12</code> in generated base RON, from the Rust builder. Season-one and tutorial ships author empty inventories.</td><td><a href="../../assets/base/scenarios/open_world.content.ron"><code>assets/base/scenarios/open_world.content.ron:70-71</code></a>, <a href="../../crates/nova_authoring/src/base_content/scenarios/open_world.rs"><code>crates/nova_authoring/src/base_content/scenarios/open_world.rs:70</code></a>, <a href="../../crates/nova_authoring/src/base_content/scenarios/season_one/stage.rs"><code>season_one/stage.rs:76,107,156</code></a>, <a href="../../crates/nova_authoring/src/base_content/scenarios/tutorial/range.rs"><code>tutorial/range.rs:138</code></a></td></tr>
+      <tr><th scope="row">Inventory pane</th><td>Reads the player inventory and, while docked, the partner that <code>DockedShip</code> -&gt; <code>DockingConnection</code> names. Moves no items. Hides the partner column while undocked. Draws "Inventory empty." for an empty side. Panics on a missing required component.</td><td><a href="../../crates/nova_interface/src/inventory/mod.rs"><code>crates/nova_interface/src/inventory/mod.rs:1-8</code></a>, <a href="../../crates/nova_interface/src/inventory/app.rs"><code>crates/nova_interface/src/inventory/app.rs:536-620</code></a>, <a href="../../crates/nova_interface/src/inventory/app.rs"><code>app.rs:650-651</code></a></td></tr>
+      <tr><th scope="row">Free Repair</th><td><code>ShipAction::Repair</code> sets <code>health.current = health.max</code>. No dock check, no partner check, no item cost.</td><td><a href="../../crates/nova_interface/src/ship/sections.rs"><code>crates/nova_interface/src/ship/sections.rs:443-451</code></a>, <a href="../../crates/nova_interface/src/ship/sections.rs"><code>sections.rs:499-509</code></a></td></tr>
+      <tr><th scope="row">Free Reload</th><td><code>ShipAction::Reload</code> sets <code>ammo.rounds = ammo.capacity</code> on a weapon section with a magazine.</td><td><a href="../../crates/nova_interface/src/ship/sections.rs"><code>sections.rs:475-497</code></a></td></tr>
+      <tr><th scope="row">Command path</th><td><code>apply_ship_section_commands</code> reads <code>ShipSectionCommand</code> and calls <code>apply_action_to_section</code>. It queries no inventory and no docking state. The panel enables Repair when <code>Health.max &gt; 0</code>.</td><td><a href="../../crates/nova_interface/src/ship/app.rs"><code>crates/nova_interface/src/ship/app.rs:141-182</code></a>, <a href="../../crates/nova_interface/src/ship/sections.rs"><code>sections.rs:415-441</code></a></td></tr>
+      <tr><th scope="row">Idle ammo refill</th><td>Independent of the Reload button. Each uninterrupted idle delay restores one authored batch until the magazine is full. A catalog test requires every authored magazine to refill: ammunition is a rate limit, not a budget.</td><td><a href="../../crates/nova_ship/src/sections/ammo.rs"><code>crates/nova_ship/src/sections/ammo.rs:14-18</code></a>, <a href="../../crates/nova_ship/src/sections/ammo.rs"><code>ammo.rs:240-289</code></a>, <a href="../../crates/nova_authoring/src/base_content/sections/mod.rs"><code>crates/nova_authoring/src/base_content/sections/mod.rs:297-325</code></a></td></tr>
+      <tr><th scope="row">Salvage crate</th><td>A static sensor. Flying through it fires <code>OnEnter</code>; the scenario script decides what "collected" means. No inventory. One ship fires several <code>CollisionStart</code> per crate, one per section collider.</td><td><a href="../../crates/nova_scenario/src/objects/salvage.rs"><code>crates/nova_scenario/src/objects/salvage.rs:1-6</code></a>, <a href="../../crates/nova_scenario/src/objects/salvage.rs"><code>salvage.rs:41-45</code></a>, <a href="../../crates/nova_scenario/src/objects/salvage.rs"><code>salvage.rs:148-153</code></a></td></tr>
+      <tr><th scope="row">Carving</th><td>A paid carve writes a <code>DamageMark</code> and triggers <code>CarveSpew</code> (body, position, radius, damage type). No material or item is produced. Spew dust is decoration only; a real body leaves only when a carve severs a piece.</td><td><a href="../../crates/nova_gameplay/src/integrity/carve.rs"><code>crates/nova_gameplay/src/integrity/carve.rs:338-346</code></a>, <a href="../../crates/nova_gameplay/src/integrity/carve.rs"><code>carve.rs:452-471</code></a>, <a href="../../crates/nova_gameplay/src/integrity/spew.rs"><code>crates/nova_gameplay/src/integrity/spew.rs:26-37</code></a></td></tr>
+      <tr><th scope="row">Severed chunks</th><td>A severed piece is a real body with mass. It despawns after <code>CHUNK_LIFETIME_SECS</code> = 30 s.</td><td><a href="../../crates/nova_gameplay/src/integrity/chunk.rs"><code>crates/nova_gameplay/src/integrity/chunk.rs:1-8</code></a>, <a href="../../crates/nova_gameplay/src/integrity/chunk.rs"><code>chunk.rs:126-132</code></a></td></tr>
+      <tr><th scope="row">Asteroid kinds</th><td>Rock, metal (nickel-iron), ice (water ice), carbon, plus the plain control.</td><td><a href="../../crates/nova_scenario/src/objects/asteroid_kind.rs"><code>crates/nova_scenario/src/objects/asteroid_kind.rs:49-71</code></a></td></tr>
+      <tr><th scope="row">Docking</th><td><code>DockingConnection</code> records two ships, two ports, the helm and a fault flag. It has no service, capability or station field. A lost port or ship releases the pair; <code>OnUndocked</code> fires for every ending.</td><td><a href="../../crates/nova_ship/src/sections/docking_section/connection.rs"><code>crates/nova_ship/src/sections/docking_section/connection.rs:55-88</code></a>, <a href="../../crates/nova_ship/src/sections/docking_section/connection.rs"><code>connection.rs:246-291</code></a>, <a href="../../crates/nova_events/src/lib.rs"><code>crates/nova_events/src/lib.rs:436-461</code></a></td></tr>
+      <tr><th scope="row">Streamed world</th><td><code>OpenWorldSession</code> stores only a seed. A retired sector regenerates pristine, so a destroyed derelict comes back. Streamed entities are scoped but not authored-addressable. Derelict fields draw from two wreck hull designs.</td><td><a href="../../crates/nova_world_base/src/lib.rs"><code>crates/nova_world_base/src/lib.rs:18-21</code></a>, <a href="../../crates/nova_world_base/src/lib.rs"><code>lib.rs:85-94</code></a>, <a href="../../crates/nova_world/src/streaming.rs"><code>crates/nova_world/src/streaming.rs:111-122</code></a>, <a href="../../crates/nova_world_base/src/clusters.rs"><code>crates/nova_world_base/src/clusters.rs:234-253</code></a></td></tr>
+      <tr><th scope="row">Section health</th><td><code>Health { current, max }</code> in <code>f32</code>, current clamped to <code>[0, max]</code>.</td><td><a href="../../crates/nova_gameplay/src/integrity/health.rs"><code>crates/nova_gameplay/src/integrity/health.rs:29-37</code></a></td></tr>
+      <tr><th scope="row">Destroyed section</th><td>At 0 HP, <code>on_damage</code> inserts <code>HealthZeroMarker</code>; the integrity core then inserts <code>IntegrityDisabledMarker</code>. Today's free Repair raises such a section's <code>Health</code> but removes neither marker.</td><td><a href="../../crates/nova_gameplay/src/integrity/health.rs"><code>health.rs:148-151</code></a>, <a href="../../crates/nova_gameplay/src/integrity/core.rs"><code>crates/nova_gameplay/src/integrity/core.rs:361</code></a></td></tr>
+      <tr><th scope="row">Repair key</th><td>The <code>ship_repair</code> key writes the Repair command for the selected section with no panel gate. The panel button writes the same message only when Repair is enabled.</td><td><a href="../../crates/nova_interface/src/ship/scene.rs"><code>crates/nova_interface/src/ship/scene.rs:546-551</code></a>, <a href="../../crates/nova_interface/src/ship/scene.rs"><code>scene.rs:914-932</code></a></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>Not present in code</strong> (searched at <code>a61d8fbcc</code>): a station object or service capability, a cargo intake or bay section, a tractor, an interact verb, jettison, credits, prices, capacity, and any inventory mutation. A docked partner is only a ship; nothing marks it as a repair station. M0 does not need one: it reads no docking state.</p>
+</section>
+
+<section id="decided" aria-labelledby="decided-h">
+  <h2 id="decided-h">Owner decisions already made</h2>
+  <p>These are task decisions, not code facts. Cited from <a href="TASK.md"><code>tasks/20260926-174806/TASK.md</code></a>.</p>
+  <div class="table-scroll">
+  <table>
+    <caption>Decided constraints this report must respect</caption>
+    <thead><tr><th scope="col">Decision</th><th scope="col">Task line</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tag t-decided">Decided</span> 2026-09-28: repair your own ship anywhere if the inventory holds plates. No dock, partner or repair service gates M0. This replaces the earlier docked-repair decision.</td><td><code>TASK.md:11</code></td></tr>
+      <tr><td><span class="tag t-decided">Decided</span> M0 scope: Ship pane Repair on a damaged, non-destroyed section of the player-owned ship spends <code>HullPlate</code> from that ship's <code>ShipInventory</code> and raises that section's <code>Health</code>. Docking state is not read. Destroyed (0 HP) sections are excluded; their disabled markers stay.</td><td><code>TASK.md:22</code></td></tr>
+      <tr><td><span class="tag t-decided">Decided</span> Stock: the 12 authored plates on the open-world player ship are the only source in M0. Season-one and tutorial ships stay empty.</td><td><code>TASK.md:23</code></td></tr>
+      <tr><td><span class="tag t-decided">Decided</span> Rule: one plate restores up to 20 HP. Spend <code>min(available, ceil(missing / 20))</code> plates and set <code>current = min(max, current + 20 * spent)</code>. Partial stock repairs partially. Leftover capacity of the last plate is lost.</td><td><code>TASK.md:24</code></td></tr>
+      <tr><td><span class="tag t-decided">Decided</span> Instant, in one system run: plate spend and <code>Health</code> change commit together or not at all. No timed job, interruption or refund. The free full-heal branch dies.</td><td><code>TASK.md:25-26</code></td></tr>
+      <tr><td><span class="tag t-decided">Decided</span> Refusal: the Repair button is disabled with a reason at full HP, at 0 HP, or with no plates. A command that still arrives (key without the panel gate, stale selection, other ship, non-section entity) refuses and mutates nothing.</td><td><code>TASK.md:27</code></td></tr>
+      <tr><td><span class="tag t-decided">Decided</span> Out of M0: repair of any other ship, dock or station service, partner checks, Reload, ammo, credits, capacity, pickup, transfer, jettison and persistence. Spent plates are session-only.</td><td><code>TASK.md:28-29</code></td></tr>
+      <tr><td><span class="tag t-decided">Decided</span> One PDC ammo good for Kinetic and Pierce mounts; rail slugs; one torpedo good for Lance and Serpent bays. No fuel of any kind. Food has no survival use. Parts are scavenged story, objective or trade objects; service parts are Repair.</td><td><code>TASK.md:16</code></td></tr>
+      <tr><td><span class="tag t-decided">Decided</span> Do not name the owner or module <code>Hold</code> or <code>ShipHold</code> (conflicts with the hold-key input action). No interface claims a transaction before real state exists.</td><td><code>TASK.md:17</code></td></tr>
+      <tr><td><span class="tag t-direction">Direction</span> M1-M5 order and choices from the owner comments on this page (D4-D13). Each needs its own code-backed gate. See <a href="#milestones">Staged milestones</a> and <a href="#decisions">Owner decisions</a>.</td><td><code>TASK.md:31-45</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Superseded: the docked-repair decision of 2026-09-27 (repair only at a repair-capable dock partner). No part of this page still depends on it.</p>
+</section>
+
+<section id="loop" aria-labelledby="loop-h">
+  <h2 id="loop-h">Proposed item loop</h2>
+  <p>One inventory owner. Several sources put items in. Several sinks take items out. Each arrow is a transaction with its own gate.</p>
+  <figure>
+    <svg viewBox="0 0 960 425" role="img" aria-labelledby="d1-t d1-d">
+      <title id="d1-t">Item loop overview: sources, ShipInventory, sinks</title>
+      <desc id="d1-d">Five sources on the left feed ShipInventory in the middle. Scenario seed is current. Dock transfer, intake pickup and mining are owner direction for later milestones. Station stock is open. Five sinks on the right take items out: plate repair anywhere is decided for M0; ammo reserve, station refit, jettison and trade sale are owner direction for later milestones.</desc>
+      <defs>
+        <marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
+      </defs>
+      <text x="130" y="22" text-anchor="middle" class="title">Sources</text>
+      <text x="830" y="22" text-anchor="middle" class="title">Sinks</text>
+      <g>
+        <rect x="20" y="36" width="220" height="54" rx="6" class="n-current"/>
+        <text x="32" y="58">Scenario seed</text><text x="32" y="78" class="k-current">CURRENT: open world 12 plates</text>
+        <rect x="20" y="102" width="220" height="54" rx="6" class="n-direction"/>
+        <text x="32" y="124">Dock transfer (take / give)</text><text x="32" y="144" class="k-direction">DIRECTION: M1</text>
+        <rect x="20" y="168" width="220" height="54" rx="6" class="n-direction"/>
+        <text x="32" y="190">Cargo intake pickup</text><text x="32" y="210" class="k-direction">DIRECTION: M2 salvage</text>
+        <rect x="20" y="234" width="220" height="54" rx="6" class="n-direction"/>
+        <text x="32" y="256">Mining yield</text><text x="32" y="276" class="k-direction">DIRECTION: M5, after trade</text>
+        <rect x="20" y="300" width="220" height="54" rx="6" class="n-open"/>
+        <text x="32" y="322">Station stock / purchase</text><text x="32" y="342" class="k-open">OPEN: credits later</text>
+      </g>
+      <g>
+        <rect x="370" y="140" width="220" height="100" rx="8" class="n-current"/>
+        <text x="480" y="170" text-anchor="middle" class="title">ShipInventory</text>
+        <text x="480" y="192" text-anchor="middle" class="k-current">CURRENT: on every ship root</text>
+        <text x="480" y="210" text-anchor="middle" class="small">read-only API today</text>
+        <text x="480" y="226" text-anchor="middle" class="small">no capacity, no mutation</text>
+      </g>
+      <g>
+        <rect x="720" y="36" width="220" height="54" rx="6" class="n-decided"/>
+        <text x="732" y="58">Plate repair anywhere</text><text x="732" y="78" class="k-decided">DECIDED: M0, no dock</text>
+        <rect x="720" y="102" width="220" height="54" rx="6" class="n-direction"/>
+        <text x="732" y="124">Ammo reserve refill</text><text x="732" y="144" class="k-direction">DIRECTION: M3, balance gate</text>
+        <rect x="720" y="168" width="220" height="54" rx="6" class="n-direction"/>
+        <text x="732" y="190">Station refit</text><text x="732" y="210" class="k-direction">DIRECTION: M4, task 190219</text>
+        <rect x="720" y="234" width="220" height="54" rx="6" class="n-direction"/>
+        <text x="732" y="256">Jettison as canister</text><text x="732" y="276" class="k-direction">DIRECTION: M2</text>
+        <rect x="720" y="300" width="220" height="54" rx="6" class="n-direction"/>
+        <text x="732" y="322">Trade sale (Raw/Food/Parts)</text><text x="732" y="342" class="k-direction">DIRECTION: M5</text>
+      </g>
+      <path d="M240,63 C300,63 310,170 368,172" class="edge" marker-end="url(#ah1)"/>
+      <path d="M240,129 C300,129 310,180 368,182" class="edge-dash" marker-end="url(#ah1)"/>
+      <path d="M240,195 C300,195 310,190 368,190" class="edge-dash" marker-end="url(#ah1)"/>
+      <path d="M240,261 C300,261 310,200 368,200" class="edge-dash" marker-end="url(#ah1)"/>
+      <path d="M240,327 C300,327 310,210 368,210" class="edge-dash" marker-end="url(#ah1)"/>
+      <path d="M590,172 C650,170 660,63 718,63" class="edge" marker-end="url(#ah1)"/>
+      <path d="M590,182 C650,180 660,129 718,129" class="edge-dash" marker-end="url(#ah1)"/>
+      <path d="M590,190 C650,190 660,195 718,195" class="edge-dash" marker-end="url(#ah1)"/>
+      <path d="M590,200 C650,200 660,261 718,261" class="edge-dash" marker-end="url(#ah1)"/>
+      <path d="M590,210 C650,212 660,327 718,327" class="edge-dash" marker-end="url(#ah1)"/>
+      <path d="M940,261 L952,261 L952,392 L8,392 L8,195 L16,195" class="edge-dash" marker-end="url(#ah1)"/>
+      <text x="480" y="412" text-anchor="middle" class="small">a jettisoned canister is a pickup source again (conserves items)</text>
+    </svg>
+    <figcaption>Figure 1. Solid edges exist today or are decided M0 scope. Dashed edges are owner direction for a later milestone or open. The bottom loop shows that jettison feeds pickup.</figcaption>
+  </figure>
+</section>
+
+<section id="acquire" aria-labelledby="acquire-h">
+  <h2 id="acquire-h">Acquisition options</h2>
+
+  <h3>Deliberate physical pickup (replaces proximity collection for cargo)</h3>
+  <p><span class="tag t-current">Current</span> A salvage crate "collects" when any collider enters its sensor (<a href="../../crates/nova_scenario/src/objects/salvage.rs"><code>salvage.rs:1-6</code></a>). <span class="tag t-proposal">Proposal</span> Cargo enters an inventory only through a player-chosen act. Three candidate verbs:</p>
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-labelledby="d3-t d3-d">
+      <title id="d3-t">Three pickup verbs compared</title>
+      <desc id="d3-d">Panel A, cargo intake: the player opens an intake on the hull and flies slowly so the cargo body enters it. Panel B, tractor: the player locks a cargo body and a pull beam draws it to the intake. Panel C, explicit interact: within a range the player presses an interact key and the item moves to inventory with no flight.</desc>
+      <defs>
+        <marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
+      </defs>
+      <g>
+        <rect x="10" y="10" width="300" height="230" rx="6" class="n-plain"/>
+        <text x="24" y="34" class="title">A. Cargo intake (recommended)</text>
+        <rect x="40" y="110" width="150" height="60" rx="4" class="n-current"/>
+        <text x="115" y="145" text-anchor="middle">ship</text>
+        <rect x="190" y="125" width="22" height="30" class="n-proposal"/>
+        <text x="201" y="190" text-anchor="middle" class="small">intake open</text>
+        <rect x="262" y="128" width="24" height="24" rx="3" class="n-proposal"/>
+        <path d="M260,140 L216,140" class="edge" marker-end="url(#ah3)"/>
+        <text x="24" y="222" class="small">match speed, fly cargo into the open intake</text>
+      </g>
+      <g>
+        <rect x="330" y="10" width="300" height="230" rx="6" class="n-plain"/>
+        <text x="344" y="34" class="title">B. Tractor pull</text>
+        <rect x="360" y="110" width="150" height="60" rx="4" class="n-current"/>
+        <text x="435" y="145" text-anchor="middle">ship</text>
+        <rect x="510" y="125" width="22" height="30" class="n-proposal"/>
+        <rect x="590" y="70" width="24" height="24" rx="3" class="n-proposal"/>
+        <path d="M588,86 C560,100 545,125 536,136" class="edge-dash" marker-end="url(#ah3)"/>
+        <text x="344" y="200" class="small">lock cargo, keep the pull key down;</text>
+        <text x="344" y="216" class="small">a force draws it to the intake</text>
+      </g>
+      <g>
+        <rect x="650" y="10" width="300" height="230" rx="6" class="n-plain"/>
+        <text x="664" y="34" class="title">C. Explicit interact</text>
+        <rect x="680" y="110" width="150" height="60" rx="4" class="n-current"/>
+        <text x="755" y="145" text-anchor="middle">ship</text>
+        <circle cx="755" cy="140" r="82" class="edge-dash" fill="none"/>
+        <rect x="790" y="76" width="24" height="24" rx="3" class="n-proposal"/>
+        <text x="664" y="234" class="small">in range, press interact: item moves, no flight</text>
+      </g>
+    </svg>
+    <figcaption>Figure 2. Candidate pickup verbs as first proposed. No verb exists in code today. The owner chose A, with an intake that opens by itself (see the Direction note below the table). The dashed circle in C is an illustrative interact range, not a number.</figcaption>
+  </figure>
+  <div class="table-scroll">
+  <table>
+    <caption>Pickup verbs: player act, physical read, and main consequence</caption>
+    <thead><tr><th scope="col">Option</th><th scope="col">Player act</th><th scope="col">Physical read</th><th scope="col">Consequence</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">A. Cargo intake</th><td>Open the intake, match speed, fly the body in.</td><td>Strong: the cargo body touches the hull.</td><td>Needs an intake section and an open state on the hull; a ship without one cannot collect.</td></tr>
+      <tr><th scope="row">B. Tractor</th><td>Lock a body and pull it in.</td><td>Medium: a visible force moves a real body.</td><td>Adds a force system and a target rule, and still needs an intake to finish.</td></tr>
+      <tr><th scope="row">C. Interact</th><td>Press interact within range.</td><td>Weak: no motion is needed.</td><td>Cheapest; it is proximity collection with one key press, close to what the user wants to remove.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><span class="tag t-proposal">Proposal</span> Choose A. Add B later only if play shows A is too hard. The intake must also refuse a body above a relative speed limit (value open), so a collision is not a pickup.</p>
+  <p><span class="tag t-direction">Direction</span> Owner chose A (D5) with a change to the player act: the intake opens by itself. A cargo intake component has a two-stage front sensor. A larger detection volume opens the intake with no player action; a smaller capture volume takes a canister that crosses it slowly. Other hull collisions never collect cargo. Sizes, the speed limit and hull placement are <span class="tag t-open">Open</span> for the M2 gate (<a href="TASK.md"><code>TASK.md:36, 49</code></a>).</p>
+
+  <h3>Mining yield</h3>
+  <p><span class="tag t-current">Current</span> Any weapon that carves a rock removes geometry and fires <code>CarveSpew</code>; the spew doc states that dust is decoration and that no body stands for removed material (<a href="../../crates/nova_gameplay/src/integrity/spew.rs"><code>spew.rs:26-37</code></a>). A severed piece is a real body that despawns after 30 s (<a href="../../crates/nova_gameplay/src/integrity/chunk.rs"><code>chunk.rs:126-132</code></a>).</p>
+  <div class="table-scroll">
+  <table>
+    <caption>Mining tool options</caption>
+    <thead><tr><th scope="col">Option</th><th scope="col">How yield appears</th><th scope="col">Reuses</th><th scope="col">Consequence</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">M-a. Drill</th><td>A contact tool section cuts while it touches rock; yield per cut.</td><td>Carve marks.</td><td>Demands sustained contact with a trimesh shell collider, which is hard to fly and to tune.</td></tr>
+      <tr><th scope="row">M-b. Mining beam</th><td>A ranged tool section carves; each carve on a mineable kind creates an ore canister body at the crater.</td><td>Carve field, <code>CarveSpew</code> position and kind, intake pickup.</td><td>The ore canister is a new item body, not carve debris, so the spew "dust only" rule stays true; it adds one tool section and one spawn observer.</td></tr>
+      <tr><th scope="row">M-c. Fragment yield</th><td>Severed chunks become collectable ore.</td><td>Existing chunk bodies.</td><td>Yield depends on severing a neck, which is rare and warhead-driven, and the 30 s chunk lifetime must change for ore.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><span class="tag t-proposal">Proposal</span> Choose M-b. Only the mining tool yields ore; combat carving yields nothing. This keeps fights near rocks from producing loot. Map asteroid kind to Raw good in content (for example metal to Iron ore or Nickel ore, ice to Water ice, carbon to Carbon); the map is illustrative until the owner approves goods. Mining ships only after trade (M5), because Raw is trading-only and has no other sink.</p>
+  <p><span class="tag t-direction">Direction</span> Owner chose M-b (D6) and tool-only yield (D7) for M5. The mining beam is short-range, is not usable as a melee weapon and only yields ore canisters. One generic canister model carries every good; a tooltip or lock detail names the contents. Yield, range and the kind-to-good map are <span class="tag t-open">Open</span> (<a href="TASK.md"><code>TASK.md:38, 43, 50</code></a>).</p>
+
+  <h3>Dock transfer</h3>
+  <p><span class="tag t-current">Current</span> The Inventory pane already reads both sides of a docked pair (<a href="../../crates/nova_interface/src/inventory/app.rs"><code>app.rs:590-620</code></a>). <span class="tag t-proposal">Proposal</span> Add Take and Give for a selected stack while docked. Who may take from whom is a partner policy (<a href="#d4">D4</a>): for example a derelict allows Take only, a station allows what its services allow, and a live AI ship allows nothing. Never infer permission from the fact of docking.</p>
+  <p><span class="tag t-direction">Direction</span> Owner amended D4 for M1: Take only from a docked partner that is neutralized or explicitly labelled derelict or lootable. Never Take from a live healthy ship; getting goods from a live ship is trade for credits (M5). Give works to any valid docked ship, for example a quest delivery. The label name and quantity UI are <span class="tag t-open">Open</span> (<a href="TASK.md"><code>TASK.md:34, 51</code></a>).</p>
+
+  <h3>Salvage sources</h3>
+  <p><span class="tag t-direction">Direction</span> Salvage reaches the inventory by two paths: dock with a neutralized or derelict ship and Take its stock (M1), or take a loose canister through the intake (M2). An authored loot table seeds a ship's inventory before destruction; destroying it drops only the cargo it still carries, as canisters, with no bonus roll. Ammo can also come from salvage. Streamed derelicts regenerate on revisit (<a href="../../crates/nova_world_base/src/lib.rs"><code>nova_world_base/src/lib.rs:18-21</code></a>), so the owner chose D11 (a): loot only on authored scenario objects until task <code>20260925-190156</code> decides claim-once (<a href="TASK.md"><code>TASK.md:35, 41, 44</code></a>).</p>
+</section>
+
+<section id="spend" aria-labelledby="spend-h">
+  <h2 id="spend-h">Spending and removal</h2>
+
+  <h3>Plate repair anywhere (M0)</h3>
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-labelledby="d2-t d2-d">
+      <title id="d2-t">Repair call graph, current and proposed</title>
+      <desc id="d2-d">Current: the Repair key or button sends ShipSectionCommand, apply_ship_section_commands calls apply_action_to_section, which sets health to max with no dock and no cost. Decided M0: the same command goes to a validate step that checks the target is a live section of the player-owned ship, above 0 HP and below full HP, and that the player ship holds at least one plate. It reads no docking state. On success one commit spends min(stock, ceil(missing / 20)) plates and raises Health by up to 20 per plate, clamped to max. On failure nothing changes.</desc>
+      <defs>
+        <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
+        <marker id="ah2r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrowhead-r"/></marker>
+      </defs>
+      <text x="16" y="26" class="title">Current (a61d8fbcc)</text>
+      <rect x="16" y="40" width="170" height="52" rx="6" class="n-current"/><text x="26" y="62">Repair key / button</text><text x="26" y="80" class="small">Ship pane</text>
+      <rect x="226" y="40" width="190" height="52" rx="6" class="n-current"/><text x="236" y="62">ShipSectionCommand</text><text x="236" y="80" class="small">sections.rs:453-461</text>
+      <rect x="456" y="40" width="220" height="52" rx="6" class="n-current"/><text x="466" y="62">apply_ship_section_commands</text><text x="466" y="80" class="small">ship/app.rs:143-182</text>
+      <rect x="716" y="40" width="228" height="52" rx="6" class="n-current"/><text x="726" y="62">health.current = max</text><text x="726" y="80" class="small">sections.rs:499-509, free, anywhere</text>
+      <path d="M186,66 L224,66" class="edge" marker-end="url(#ah2)"/>
+      <path d="M416,66 L454,66" class="edge" marker-end="url(#ah2)"/>
+      <path d="M676,66 L714,66" class="edge" marker-end="url(#ah2)"/>
+      <text x="16" y="136" class="title">Decided M0 (not yet code)</text>
+      <rect x="16" y="150" width="170" height="52" rx="6" class="n-current"/><text x="26" y="172">Repair key / button</text><text x="26" y="190" class="small">same input</text>
+      <rect x="226" y="150" width="190" height="52" rx="6" class="n-current"/><text x="236" y="172">ShipSectionCommand</text><text x="236" y="190" class="small">same message</text>
+      <rect x="456" y="140" width="220" height="82" rx="6" class="n-decided"/><text x="466" y="160">validate (no mutation)</text><text x="466" y="178" class="small">player-owned live section?</text><text x="466" y="194" class="small">0 &lt; HP &lt; max? plates &gt;= 1?</text><text x="466" y="210" class="small">docking state is not read</text>
+      <rect x="716" y="118" width="228" height="72" rx="6" class="n-decided"/><text x="726" y="140">commit in one system run</text><text x="726" y="160" class="small">plates -= min(n, ceil(missing / 20))</text><text x="726" y="176" class="small">HP += 20 per plate, clamped to max</text>
+      <rect x="716" y="200" width="228" height="56" rx="6" class="n-refuse"/><text x="726" y="222">refuse</text><text x="726" y="242" class="small">inventory and Health unchanged</text>
+      <path d="M186,176 L224,176" class="edge" marker-end="url(#ah2)"/>
+      <path d="M416,176 L454,176" class="edge" marker-end="url(#ah2)"/>
+      <path d="M676,165 L714,158" class="edge-dash" marker-end="url(#ah2)"/>
+      <path d="M676,190 L714,226" class="edge-refuse" marker-end="url(#ah2r)"/>
+      <text x="16" y="286" class="small">Dies: the free full-heal branch and a Repair button enabled only by Health.max &gt; 0 (sections.rs:415-441). Decided at TASK.md:22-27.</text>
+    </svg>
+    <figcaption>Figure 3. Repair before and after. Line references point at current code; the decided M0 boxes are not code yet. Function names and signatures are chosen at the M0 gate.</figcaption>
+  </figure>
+  <p><span class="tag t-decided">Decided</span> Repair works undocked and docked alike on the player's own ship. A section above 0 HP and below full HP costs <code>min(available, ceil(missing / 20))</code> plates, and <code>Health</code> becomes <code>min(max, current + 20 * spent)</code>. Partial stock repairs partially. A 0 HP section, a full section and an empty plate stock refuse with no change. The owner answered <a href="#d1">D1</a> (no partner), <a href="#d2">D2</a> (partial, ratio 20) and <a href="#d3">D3</a> (instant) on 2026-09-28 (<a href="TASK.md"><code>TASK.md:20-29</code></a>).</p>
+  <p><span class="tag t-open">Open</span> For the M0 gate: the inventory spend API, the rule owner, how a section resolves to its ship root, the disabled-reason text and its precedence against the reload reason, and whether a refused stale command writes a note line (<a href="TASK.md"><code>TASK.md:48, 113-121</code></a>).</p>
+  <p class="note">Two owner comments were on text that this reconciliation replaced: the old heading of this subsection and the rule paragraph of Example 1. Both comments are kept in browser storage and show under <a href="#review">Detached comments</a> with their original text. Their content is recorded in <a href="TASK.md"><code>TASK.md:21</code></a>.</p>
+
+  <h3>Reserve-backed ammunition (M3)</h3>
+  <p><span class="tag t-current">Current</span> Magazines refill for free on idle batches, and the catalog test <code>every_authored_magazine_refills</code> states that ammunition is a rate limit, not a budget (<a href="../../crates/nova_authoring/src/base_content/sections/mod.rs"><code>sections/mod.rs:297-325</code></a>). <span class="tag t-proposal">Proposal</span> Keep the idle batch as the rate limit, and draw each batch from an Ammo stack in the ship inventory. With an empty reserve the magazine stops refilling; the ship still flies. Kinetic and Pierce mounts draw the same PDC ammo good and keep their authored damage type (<a href="TASK.md"><code>TASK.md:16</code></a>). This rewrites the rate-limit stance and the torpedo-versus-PDC saturation balance, so it needs its own balance gate. The fate of the free Reload button is part of <a href="#d9">D9</a>.</p>
+  <p><span class="tag t-direction">Direction</span> Owner chose D9 (b) for M3: idle batch refill draws from an inventory reserve and free Reload dies. Reserve ammo can come from station stock or from salvage of destroyed or neutralized ships. Rates and balance are <span class="tag t-open">Open</span> for the M3 balance gate (<a href="TASK.md"><code>TASK.md:41, 52</code></a>).</p>
+
+  <h3>Jettison (M2)</h3>
+  <p><span class="tag t-proposal">Proposal</span> Jettison removes a chosen quantity from one stack and spawns one cargo canister body at the intake that carries exactly those items. The canister is a normal pickup target, so jettison then pickup conserves the total. Without capacity (<a href="#d8">D8</a>), jettison serves deliberate drops: leaving supplies for an ally, a decoy, or an objective delivery.</p>
+  <p><span class="tag t-direction">Direction</span> Owner chose D10 (a) for M2: a chosen quantity leaves as one canister that carries exactly those items. Count-based capacity (D8 option b) arrives with jettison at M2; there is no capacity through M1 (<a href="TASK.md"><code>TASK.md:37, 40</code></a>).</p>
+
+  <h3>Station refit (M4)</h3>
+  <p><span class="tag t-direction">Direction</span> M4 comes after M3 in the owner order. <span class="tag t-open">Open</span> Refit form is owned by task <code>20260925-190219</code>. Its proposal text still weighs costed dock repair and undocked refusal (<a href="../20260925-190219/TASK.md"><code>tasks/20260925-190219/TASK.md:14-18</code></a>); the M0 decision here supersedes that for repair. This report only proposes that a refit spends Repair components and produces a visible hull change with the same validate-then-commit rule. It does not choose whole-design swap versus one-section refit.</p>
+  <p><span class="tag t-proposal">Proposal</span> A station repair service, if it ever exists, is a later idea of its own. It would add to plate repair anywhere, never gate it. It has no milestone and no owner approval.</p>
+
+  <h3>Trade (M5)</h3>
+  <p><span class="tag t-direction">Direction</span> Food, Raw and Parts are trading-only and enter live content only when trade exists at M5. <span class="tag t-open">Open</span> Credits, prices, market stock and its persistence (<a href="TASK.md"><code>TASK.md:43, 53</code></a>).</p>
+</section>
+
+<section id="catalog" aria-labelledby="catalog-h">
+  <h2 id="catalog-h">Candidate catalog</h2>
+  <p>The candidate list is the task's research proposal (<a href="TASK.md"><code>TASK.md:55-89</code></a>). Only <code>HullPlate</code> exists in code. Sources and sinks below are proposals; no mass, price, unit size or capacity is proposed.</p>
+  <div class="table-scroll">
+  <table>
+    <caption>Candidate goods with proposed sources, sinks and milestone</caption>
+    <thead><tr><th scope="col">Category</th><th scope="col">Item</th><th scope="col">Status</th><th scope="col">Proposed sources</th><th scope="col">Proposed sinks</th><th scope="col">Earliest milestone</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Repair</th><td>Hull plates</td><td><span class="tag t-current">Current</span> <code>ItemType::HullPlate</code></td><td>Scenario seed (current, the only M0 source); later dock Take, salvage pickup, station stock</td><td>Plate repair anywhere (M0, decided); jettison (M2)</td><td>M0</td></tr>
+      <tr><th scope="row">Repair</th><td>Sealant, Wiring bundles, Coolant, Actuator kits</td><td><span class="tag t-proposal">Proposal</span></td><td>Station stock; salvage</td><td>Section repair by kind (not decided; M0 uses plates only)</td><td>After M0</td></tr>
+      <tr><th scope="row">Repair</th><td>Controller cores, Thruster assemblies, Turret mechanisms, Docking seals</td><td><span class="tag t-proposal">Proposal</span></td><td>Station stock; salvage</td><td>Kind-specific repair; refit (M4)</td><td>M4</td></tr>
+      <tr><th scope="row">Repair</th><td>Reactor fuel cells</td><td><span class="tag t-open">Open</span> name/fit review</td><td>Station stock</td><td>Thruster repair component only, never engine fuel</td><td>M4</td></tr>
+      <tr><th scope="row">Ammo</th><td>PDC ammo</td><td><span class="tag t-proposal">Proposal</span></td><td>Station stock; dock Take</td><td>Idle batch refill of Kinetic and Pierce PDC mounts</td><td>M3</td></tr>
+      <tr><th scope="row">Ammo</th><td>Rail slugs</td><td><span class="tag t-proposal">Proposal</span></td><td>Station stock; dock Take</td><td>Railgun batch refill</td><td>M3</td></tr>
+      <tr><th scope="row">Ammo</th><td>Torpedoes</td><td><span class="tag t-proposal">Proposal</span></td><td>Station stock; dock Take</td><td>Lance and Serpent bay refill; bay decides flight</td><td>M3</td></tr>
+      <tr><th scope="row">Raw</th><td>Scrap metal</td><td><span class="tag t-proposal">Proposal</span></td><td>Salvage pickup; dock Take from derelict</td><td>Trade sale; jettison</td><td>M5</td></tr>
+      <tr><th scope="row">Raw</th><td>Iron, Nickel, Copper, Titanium ore; Silica; Carbon; Water ice</td><td><span class="tag t-proposal">Proposal</span></td><td>Mining tool on a mapped asteroid kind</td><td>Trade sale; jettison</td><td>M5</td></tr>
+      <tr><th scope="row">Food</th><td>Water, Rations, Medical supplies, Oxygen canisters</td><td><span class="tag t-proposal">Proposal</span></td><td>Station stock; salvage</td><td>Trade sale only; no survival use</td><td>M5</td></tr>
+      <tr><th scope="row">Parts</th><td>Pumps, Sensors, Batteries, Torpedo guidance units</td><td><span class="tag t-proposal">Proposal</span></td><td>Salvage; scenario reward</td><td>Trade sale; scenario objective delivery</td><td>M5 (objective use may come earlier with scenario work)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><span class="tag t-direction">Direction</span> Ammo rows: besides station stock and dock Take, ammo also comes from salvage of destroyed or neutralized ships. Raw rows: an authored loot table may also seed ore as ship cargo (<a href="TASK.md"><code>TASK.md:35, 41</code></a>). The table rows above keep their first-proposal text so owner comments stay attached.</p>
+  <p class="note">Before any good ships: authored ID, unit, source, sink and lint policy (<a href="TASK.md"><code>TASK.md:57</code></a>). Per AGENTS.md, a closed Rust set stays <code>ItemType</code>; an open, mod-extensible registry would need an <code>ItemKindId</code> and is an open decision (<a href="#d12">D12</a>).</p>
+</section>
+
+<section id="matrix" aria-labelledby="matrix-h">
+  <h2 id="matrix-h">Source and sink matrix</h2>
+  <div class="table-scroll">
+  <table>
+    <caption>Which transaction moves which category. C = current, D = decided M0 scope, P = proposal or later direction, O = open decision, - = none</caption>
+    <thead>
+      <tr><th scope="col">Transaction</th><th scope="col">Direction</th><th scope="col">Raw</th><th scope="col">Repair</th><th scope="col">Ammo</th><th scope="col">Food</th><th scope="col">Parts</th><th scope="col">Gate</th></tr>
+    </thead>
+    <tbody>
+      <tr><th scope="row">Scenario seed</th><td>in</td><td class="c">P</td><td class="c">C</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td>content lint, then load</td></tr>
+      <tr><th scope="row">Dock Take / Give</th><td>in / out</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td>docked; Take only from neutralized or derelict partner, Give to any (D4, M1)</td></tr>
+      <tr><th scope="row">Intake pickup</th><td>in</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td>two-stage intake sensor; slow crossing (D5, M2)</td></tr>
+      <tr><th scope="row">Mining tool</th><td>in (via canister)</td><td class="c">P</td><td class="c">-</td><td class="c">-</td><td class="c">-</td><td class="c">-</td><td>tool carve on mapped kind (D6)</td></tr>
+      <tr><th scope="row">Station purchase</th><td>in</td><td class="c">-</td><td class="c">O</td><td class="c">O</td><td class="c">O</td><td class="c">O</td><td>credits (M5)</td></tr>
+      <tr><th scope="row">Plate repair anywhere</th><td>out</td><td class="c">-</td><td class="c">D (plates only)</td><td class="c">-</td><td class="c">-</td><td class="c">-</td><td>player-owned section, 0 &lt; HP &lt; max, plates &gt;= 1; no dock (M0)</td></tr>
+      <tr><th scope="row">Ammo refill</th><td>out</td><td class="c">-</td><td class="c">-</td><td class="c">O</td><td class="c">-</td><td class="c">-</td><td>reserve policy (D9)</td></tr>
+      <tr><th scope="row">Refit</th><td>out</td><td class="c">-</td><td class="c">O</td><td class="c">-</td><td class="c">-</td><td class="c">-</td><td>task 190219</td></tr>
+      <tr><th scope="row">Jettison</th><td>out (to canister)</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td class="c">P</td><td>intake present (D10)</td></tr>
+      <tr><th scope="row">Trade sale</th><td>out</td><td class="c">O</td><td class="c">-</td><td class="c">-</td><td class="c">O</td><td class="c">O</td><td>credits (M5)</td></tr>
+      <tr><th scope="row">Objective delivery</th><td>out</td><td class="c">-</td><td class="c">-</td><td class="c">-</td><td class="c">-</td><td class="c">O</td><td>scenario action (not designed here)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Read the matrix by column to check that every category has at least one sink before it ships. Raw, Food and Parts have only trade (and Parts objectives) as sinks, which is why they wait for M5.</p>
+</section>
+
+<section id="tx" aria-labelledby="tx-h">
+  <h2 id="tx-h">Transactions: atomic success and refusal</h2>
+  <p><span class="tag t-proposal">Proposal</span> Every transaction follows one shape. Validation reads only. Commit writes every changed component in the same system run. A refusal writes nothing. <span class="tag t-decided">Decided</span> for M0 repair: instant, atomic, no refund. <span class="tag t-open">Open</span> for M0: whether a refused stale command writes a note line or stays silent.</p>
+  <figure>
+    <svg viewBox="0 0 960 200" role="img" aria-labelledby="d4-t d4-d">
+      <title id="d4-t">Transaction shape</title>
+      <desc id="d4-d">A request enters validate. Validate checks the preconditions in a fixed order and stops at the first failure, which leads to refuse with no mutation. If all pass, commit changes inventory and world together in the same system run, then one result message is shown. A partner check applies only to dock transactions; M0 repair has none.</desc>
+      <defs>
+        <marker id="ah4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
+        <marker id="ah4r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrowhead-r"/></marker>
+      </defs>
+      <rect x="16" y="70" width="150" height="56" rx="6" class="n-plain"/><text x="30" y="94">Request</text><text x="30" y="112" class="small">key, button, contact</text>
+      <rect x="216" y="44" width="260" height="110" rx="6" class="n-proposal"/><text x="230" y="66">Validate in fixed order</text><text x="230" y="86" class="small">1 actor and target exist</text><text x="230" y="102" class="small">2 owner or partner rule</text><text x="230" y="118" class="small">3 target state (damaged, open, ...)</text><text x="230" y="134" class="small">4 stock and quantity</text>
+      <rect x="536" y="20" width="200" height="60" rx="6" class="n-proposal"/><text x="550" y="46">Commit (same run)</text><text x="550" y="66" class="small">inventory + world change</text>
+      <rect x="536" y="120" width="200" height="60" rx="6" class="n-refuse"/><text x="550" y="146">Refuse</text><text x="550" y="166" class="small">first failed check, no write</text>
+      <rect x="786" y="70" width="158" height="56" rx="6" class="n-plain"/><text x="800" y="94">Result note</text><text x="800" y="112" class="small">one line, one reason</text>
+      <path d="M166,98 L214,98" class="edge" marker-end="url(#ah4)"/>
+      <path d="M476,86 L534,56" class="edge" marker-end="url(#ah4)"/>
+      <path d="M476,112 L534,146" class="edge-refuse" marker-end="url(#ah4r)"/>
+      <path d="M736,50 L784,88" class="edge" marker-end="url(#ah4)"/>
+      <path d="M736,150 L784,110" class="edge" marker-end="url(#ah4)"/>
+    </svg>
+    <figcaption>Figure 4. The proposed shape for every inventory transaction. Check order makes the reported reason deterministic.</figcaption>
+  </figure>
+  <div class="table-scroll">
+  <table>
+    <caption>Proposed transactions: trigger, commit and refusal reasons (reason text is illustrative)</caption>
+    <thead><tr><th scope="col">Transaction</th><th scope="col">Trigger</th><th scope="col">Commit writes</th><th scope="col">Refuses when</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Plate repair anywhere (M0, <span class="tag t-decided">Decided</span>)</th><td>Ship pane Repair button or <code>ship_repair</code> key on the selected section; docked or not</td><td>Player ship plates down by <code>min(stock, ceil(missing / 20))</code>; section <code>Health.current</code> up by 20 per plate, clamped to max; empty stack removed</td><td>target is not a live section of the player-owned ship (stale selection, other or docked ship, non-section entity); section at 0 HP (destroyed); section at full HP; no plates. Short stock never refuses: it repairs partially.</td></tr>
+      <tr><th scope="row">Dock Take / Give (M1)</th><td>Inventory pane action on a selected stack</td><td>One stack down on one side, same stack up on the other</td><td>not docked; Take from a live healthy ship (only neutralized or derelict partners allow Take); stack missing or quantity above count</td></tr>
+      <tr><th scope="row">Intake pickup (M2)</th><td>Canister crosses the intake capture volume after the detection volume opened it</td><td>Inventory up by the canister contents; canister despawned</td><td>intake closed; relative speed above limit; body already claimed this frame; capacity full</td></tr>
+      <tr><th scope="row">Jettison (M2)</th><td>Inventory pane Jettison with a quantity</td><td>Stack down; one canister spawned with that content</td><td>no intake; quantity zero or above count; intake obstructed by another body (rule open)</td></tr>
+      <tr><th scope="row">Reserve refill (M3)</th><td>Idle batch timer completes</td><td>Ammo stack down by rounds moved; magazine up</td><td>reserve empty (magazine simply stops refilling; not an error message)</td></tr>
+      <tr><th scope="row">Refit (M4)</th><td>Station refit action</td><td>Components down; section replaced</td><td>owned by task 190219</td></tr>
+      <tr><th scope="row">Trade (M5)</th><td>Station trade action</td><td>Goods and credits exchange</td><td>open; credits not designed</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Interruption</h3>
+  <p><span class="tag t-decided">Decided</span> M0 repair is instant in one system run (<a href="#d3">D3</a> option a), so nothing can interrupt it. It reads no docking state, so an undock cannot affect it. <span class="tag t-current">Current</span> A destroyed port releases its pair in the same frame through an observer, and a sweep releases any pair that lost a ship or port (<a href="../../crates/nova_ship/src/sections/docking_section/connection.rs"><code>connection.rs:246-291</code></a>). <span class="tag t-direction">Direction</span> M1 transfer is also instant (D3). <span class="tag t-proposal">Proposal</span> Order the transfer system after docking release, so an interrupted transfer reduces to "refused because the connection is gone".</p>
+</section>
+
+<section id="proofs" aria-labelledby="proofs-h">
+  <h2 id="proofs-h">Proofs to design</h2>
+  <p><span class="tag t-proposal">Proposal</span> These are the behaviors each gate should prove. None is an approved test; each new test needs approval at its gate. M0 rows follow the candidate list in <a href="TASK.md"><code>TASK.md:123-135</code></a>. Test types follow AGENTS.md: unit tests for pure logic, asserted ECS examples, <code>nova-probe</code> for deterministic flows, <code>nova-bench</code> for player flows.</p>
+  <div class="table-scroll">
+  <table>
+    <caption>Proposed proofs by kind</caption>
+    <thead><tr><th scope="col">Kind</th><th scope="col">Behavior to observe</th><th scope="col">Level</th><th scope="col">Milestone</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Atomic partial repair</th><td>2 plates, section at 40/100: one Repair spends 2, <code>Health</code> is 80/100 and the plate stack is gone, in the same update.</td><td>Unit + ECS example</td><td>M0</td></tr>
+      <tr><th scope="row">Round-up and clamp</th><td>99/100 and 99.5/100 each cost 1 plate and end at 100/100. 3 plates at 55/100 spend 3 and end at exactly 100/100, not 115.</td><td>Unit</td><td>M0</td></tr>
+      <tr><th scope="row">Refusal without change</th><td>Zero plates, full HP, or 0 HP: the button is disabled with a reason, and a forced command leaves plates, <code>Health</code> and the disabled markers unchanged.</td><td>ECS example</td><td>M0</td></tr>
+      <tr><th scope="row">Wrong target</th><td>A section of a docked or other ship, a despawned entity, or a non-section entity: no change on either ship.</td><td>ECS example</td><td>M0</td></tr>
+      <tr><th scope="row">No dock read</th><td>The same damaged section repairs the same way undocked and docked.</td><td>ECS example</td><td>M0</td></tr>
+      <tr><th scope="row">Same-frame repeats</th><td>Two Repair messages for one section in one update validate against committed state; total spend equals the rule once.</td><td>ECS example</td><td>M0</td></tr>
+      <tr><th scope="row">No free path</th><td>No code path raises <code>Health</code> from the Ship pane without a matching plate spend. Proof: the removed branch plus the refusal example.</td><td>ECS example</td><td>M0</td></tr>
+      <tr><th scope="row">Inventory pane</th><td>After a repair, the Hull plates row shows the new count; an emptied last stack reads "Inventory empty.".</td><td>ECS example</td><td>M0</td></tr>
+      <tr><th scope="row">Conservation</th><td>Take then Give leaves the sum of both inventories unchanged; a zero stack never exists.</td><td>Unit</td><td>M1</td></tr>
+      <tr><th scope="row">Duplication: contact burst</th><td>A ship whose several section colliders touch one canister in one frame adds its content once and despawns it once. Today one ship already fires several <code>CollisionStart</code> per crate (<a href="../../crates/nova_scenario/src/objects/salvage.rs"><code>salvage.rs:148-153</code></a>).</td><td>ECS example</td><td>M2</td></tr>
+      <tr><th scope="row">Duplication: two claimants</th><td>Two ships touching the same canister in one frame: exactly one receives it.</td><td>ECS example</td><td>M2</td></tr>
+      <tr><th scope="row">Jettison round trip</th><td>Jettison q then pick up the canister: inventory returns to the start count.</td><td>ECS example</td><td>M2</td></tr>
+      <tr><th scope="row">Reserve gate</th><td>With an empty reserve, a drained magazine stays empty through many idle delays; with reserve r, total rounds gained never exceed r.</td><td>Unit + ECS</td><td>M3</td></tr>
+      <tr><th scope="row">Persistence: current</th><td>Retire and revisit a sector: a looted streamed derelict returns with its stock. This is today's promise (<a href="../../crates/nova_world_base/src/lib.rs"><code>lib.rs:18-21</code></a>) and must be stated, not hidden.</td><td>probe</td><td>M1</td></tr>
+      <tr><th scope="row">Persistence: claim-once</th><td>After task 190156 picks a tier: a claimed body cannot reward twice after retire, revisit, Retry or restart, as the tier promises.</td><td>probe</td><td>after 190156</td></tr>
+      <tr><th scope="row">Changed real ship</th><td>After refit, the hull layout differs in state and in a rendered frame, not only in a UI counter.</td><td>probe + frame</td><td>M4</td></tr>
+      <tr><th scope="row">Player flow</th><td>Open world New Game: take damage, repair undocked with plates; assert plates and <code>Health</code> at each beat. Example or <code>nova-bench</code> flow is chosen at the gate.</td><td>example or nova-bench</td><td>M0</td></tr>
+      <tr><th scope="row">Session-only limit</th><td>Spent plates return when the scenario loads again. Docs state the limit; if Retry restores 12 plates, record it as current behavior.</td><td>docs + example</td><td>M0</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="examples" aria-labelledby="examples-h">
+  <h2 id="examples-h">Worked examples</h2>
+  <p>Example 1 follows the <span class="tag t-decided">Decided</span> M0 rule: the 12 authored plates and the ratio of 20 HP per plate are real; the section and its HP values are illustrative. Examples 2-5 are later flows that follow owner <span class="tag t-direction">Direction</span> where it exists and <span class="tag t-proposal">Proposal</span> elsewhere; their quantities use letters or are marked illustrative.</p>
+
+  <h3 id="ex1">Example 1: plate repair anywhere (M0)</h3>
+  <p><span class="tag t-decided">Decided</span> rule: one plate restores up to 20 HP; spend <code>min(stock, ceil(missing / 20))</code>. Section <code>H-03</code> is a hull section of the player ship with 100 max HP; its HP values are illustrative.</p>
+  <div class="table-scroll">
+  <table>
+    <caption>Plate repair anywhere: success, partial stock and refusals</caption>
+    <thead><tr><th scope="col">Step</th><th scope="col">Player act</th><th scope="col">Check or effect</th><th scope="col">Plates</th><th scope="col">H-03 Health</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Start open world</td><td><span class="tag t-current">Current</span> authored stock</td><td>12</td><td>100/100</td></tr>
+      <tr><td>2</td><td>Take hits in a fight</td><td><span class="tag t-current">Current</span> damage lowers Health</td><td>12</td><td>40/100</td></tr>
+      <tr><td>3</td><td>Press Repair in open space, undocked</td><td>Missing 60; ceil(60 / 20) = 3; stock 12; commit. No dock is read.</td><td>9</td><td>100/100</td></tr>
+      <tr><td>4</td><td>Press Repair again</td><td><span class="tag t-refuse">Refuse</span> section at full HP; button disabled</td><td>9</td><td>100/100</td></tr>
+      <tr><td>5</td><td>Take hits down to 45/100, press Repair</td><td>Missing 55; ceil(55 / 20) = 3; commit; 45 + 60 clamps to 100</td><td>6</td><td>100/100</td></tr>
+      <tr><td>6</td><td>Later, with 2 plates left, section at 30/100, press Repair</td><td>Partial stock: ceil(70 / 20) = 4 needed, 2 held; spend 2; 30 + 40</td><td>0</td><td>70/100</td></tr>
+      <tr><td>7</td><td>Press Repair with no plates</td><td><span class="tag t-refuse">Refuse</span> no plates; button disabled</td><td>0</td><td>70/100</td></tr>
+      <tr><td>8</td><td>Another section is destroyed (0/100), select it, press the key</td><td><span class="tag t-refuse">Refuse</span> destroyed section; no spend, disabled markers stay</td><td>0</td><td>other section 0/100</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Docking changes nothing in this example: the same steps give the same results while docked. Step 6 is the <a href="#d2">D2</a> option (b) the owner chose; under the rejected option (c) it would refuse.</p>
+
+  <h3 id="ex2">Example 2: salvage by intake and dock Take (M1 and M2)</h3>
+  <div class="table-scroll">
+  <table>
+    <caption>Salvage by intake and by dock Take (owner direction for M1 and M2)</caption>
+    <thead><tr><th scope="col">Step</th><th scope="col">Player act</th><th scope="col">Check or effect</th><th scope="col">Player plates</th><th scope="col">World</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Hit a loose plate canister with the hull, away from the intake</td><td>Bump only. Hull collisions never collect.</td><td>9</td><td>canister drifts</td></tr>
+      <tr><td>2</td><td>Approach nose-first; match speed; let the canister cross the intake slowly</td><td>Detection volume opens the intake with no player action; capture volume takes a slow canister; not already claimed</td><td>9 + q</td><td>canister despawned</td></tr>
+      <tr><td>3</td><td>Several section colliders touch in that frame</td><td>Claimed once; later contacts ignored</td><td>9 + q</td><td>-</td></tr>
+      <tr><td>4</td><td>Dock with an authored derelict (or a neutralized ship) holding p plates</td><td>Inventory pane shows both sides (<span class="tag t-current">Current</span> read)</td><td>9 + q</td><td>derelict: p</td></tr>
+      <tr><td>5</td><td>Take p plates</td><td>Derelict or neutralized partner allows Take; a live healthy ship would refuse; commit both sides</td><td>9 + q + p</td><td>derelict: 0</td></tr>
+      <tr><td>6</td><td>Leave and return to a streamed derelict sector</td><td><span class="tag t-current">Current</span> sector regenerates pristine</td><td>unchanged</td><td>stock returns (until 190156)</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 id="ex3">Example 3: mining to load (M5)</h3>
+  <div class="table-scroll">
+  <table>
+    <caption>Mining beam, ore canister, intake</caption>
+    <thead><tr><th scope="col">Step</th><th scope="col">Player act</th><th scope="col">Check or effect</th><th scope="col">Iron ore</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Aim the mining tool at a metal rock</td><td><span class="tag t-current">Current</span> kind <code>metal</code> exists; carving exists</td><td>0</td></tr>
+      <tr><td>2</td><td>Fire the tool</td><td>Paid carve on a mapped kind spawns one ore canister (content k, illustrative) at the crater</td><td>0</td></tr>
+      <tr><td>3</td><td>Fire a PDC at the same rock</td><td>Carves, spews dust, no canister (tool-only yield)</td><td>0</td></tr>
+      <tr><td>4</td><td>Open intake, collect the canister</td><td>Pickup commit</td><td>k</td></tr>
+      <tr><td>5</td><td>Dock at a trade station</td><td>Sell or keep; trade is open</td><td>k or 0</td></tr>
+      <tr><td>6</td><td>Retire the sector and return</td><td><span class="tag t-current">Current</span> rock regenerates pristine; farmable until 190156</td><td>-</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 id="ex4">Example 4: reserve-backed ammunition (M3)</h3>
+  <p>Illustrative: PDC magazine capacity C, idle batch b, reserve R of PDC ammo. All three are letters; no value is proposed.</p>
+  <div class="table-scroll">
+  <table>
+    <caption>Idle batch refill drawing from the reserve</caption>
+    <thead><tr><th scope="col">Step</th><th scope="col">Event</th><th scope="col">Magazine</th><th scope="col">Reserve</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Start</td><td>C</td><td>R</td></tr>
+      <tr><td>2</td><td>Kinetic and Pierce mounts fire until empty</td><td>0</td><td>R</td></tr>
+      <tr><td>3</td><td>One idle delay completes</td><td>min(b, C, R)</td><td>R - min(b, C, R)</td></tr>
+      <tr><td>4</td><td>Repeat until reserve is 0</td><td>stops rising</td><td>0</td></tr>
+      <tr><td>5</td><td>Idle delay completes again</td><td>unchanged; no error</td><td>0</td></tr>
+      <tr><td>6</td><td>Dock with a neutralized ship and Take its PDC ammo</td><td>unchanged</td><td>R'</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Changes the stance at <a href="../../crates/nova_authoring/src/base_content/sections/mod.rs"><code>sections/mod.rs:297-301</code></a> that a magazine is a rate limit, not a budget. That test and the saturation balance test after it would need a new, owner-approved statement.</p>
+
+  <h3 id="ex5">Example 5: jettison, then station refit (M2 and M4)</h3>
+  <div class="table-scroll">
+  <table>
+    <caption>Jettison round trip and a refit hand-off</caption>
+    <thead><tr><th scope="col">Step</th><th scope="col">Player act</th><th scope="col">Check or effect</th><th scope="col">Plates</th><th scope="col">World</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Carrying 9 plates</td><td>-</td><td>9</td><td>-</td></tr>
+      <tr><td>2</td><td>Jettison 4 plates for an ally</td><td>Stack 9 &gt;= 4; commit</td><td>5</td><td>one canister {HullPlate: 4} at the intake</td></tr>
+      <tr><td>3</td><td>Ally collects through its intake</td><td>Pickup commit on the ally</td><td>5</td><td>ally +4; canister gone</td></tr>
+      <tr><td>4</td><td>Jettison 0 or 6 plates</td><td><span class="tag t-refuse">Refuse</span> quantity zero or above count</td><td>5</td><td>-</td></tr>
+      <tr><td>5</td><td>Dock at a refit station</td><td><span class="tag t-open">Open</span> task 190219 decides refit form and cost</td><td>5</td><td>hull visibly changes on success</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="flow" aria-labelledby="flow-h">
+  <h2 id="flow-h">Recommended first playable flow</h2>
+  <div class="banner" role="note"><strong>DECIDED M0, NOT YET CODE.</strong> The owner approved this flow on 2026-09-28. It does not exist in the game until the M0 gate lands.</div>
+  <ol class="steps">
+    <li><span class="tag t-current">Current</span> New Game starts the open world with 12 hull plates in the player inventory.</li>
+    <li><span class="tag t-current">Current</span> Damage lowers section <code>Health</code> (<a href="../../crates/nova_gameplay/src/integrity/health.rs"><code>health.rs:117-149</code></a>).</li>
+    <li><span class="tag t-decided">Decided</span> The player selects a damaged, non-destroyed section in the Ship pane and presses Repair, anywhere. No dock and no partner are needed.</li>
+    <li><span class="tag t-decided">Decided</span> Repair spends <code>min(stock, ceil(missing / 20))</code> plates and restores up to 20 HP per plate in the same system run; the Inventory pane shows the new count.</li>
+    <li><span class="tag t-decided">Decided</span> Full HP, 0 HP or no plates: the button is disabled with a reason, and a forced command changes nothing. No free heal remains.</li>
+    <li><span class="tag t-decided">Decided</span> Spent plates are session-only; the authored stock returns when the scenario loads again.</li>
+    <li><span class="tag t-direction">Direction</span> Next gate: dock Take from a neutralized or derelict ship and Give to any docked ship (M1), then canisters through the intake (M2).</li>
+  </ol>
+  <p>Why this order: it proves the loop with one inventory write (spend) on stock that already exists, and with no new world object. It avoids docking, persistence, trade and physics pickup in the first gate.</p>
+</section>
+
+<section id="milestones" aria-labelledby="milestones-h">
+  <h2 id="milestones-h">Staged milestones</h2>
+  <figure>
+    <svg viewBox="0 0 960 150" role="img" aria-labelledby="d5-t d5-d">
+      <title id="d5-t">Milestone sequence M0 to M5</title>
+      <desc id="d5-d">Six milestones in order: M0 plate repair anywhere, M1 dock transfer, M2 intake pickup and jettison, M3 ammo reserve, M4 station refit, M5 trade and mining. M0 is decided scope. M1 to M5 are owner direction; each needs its own gate. Persistence task 190156 gates claim-once rewards from M1 onward.</desc>
+      <defs>
+        <marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
+      </defs>
+      <g>
+        <rect x="10" y="30" width="140" height="60" rx="6" class="n-decided"/><text x="20" y="54" class="title">M0</text><text x="20" y="74" class="small">plate repair anywhere</text>
+        <rect x="170" y="30" width="140" height="60" rx="6" class="n-direction"/><text x="180" y="54" class="title">M1</text><text x="180" y="74" class="small">dock Take / Give</text>
+        <rect x="330" y="30" width="140" height="60" rx="6" class="n-direction"/><text x="340" y="54" class="title">M2</text><text x="340" y="74" class="small">intake + jettison</text>
+        <rect x="490" y="30" width="140" height="60" rx="6" class="n-direction"/><text x="500" y="54" class="title">M3</text><text x="500" y="74" class="small">ammo reserve</text>
+        <rect x="650" y="30" width="140" height="60" rx="6" class="n-direction"/><text x="660" y="54" class="title">M4</text><text x="660" y="74" class="small">station refit (190219)</text>
+        <rect x="810" y="30" width="140" height="60" rx="6" class="n-direction"/><text x="820" y="54" class="title">M5</text><text x="820" y="74" class="small">trade + mining</text>
+      </g>
+      <path d="M150,60 L168,60" class="edge" marker-end="url(#ah5)"/>
+      <path d="M310,60 L328,60" class="edge" marker-end="url(#ah5)"/>
+      <path d="M470,60 L488,60" class="edge" marker-end="url(#ah5)"/>
+      <path d="M630,60 L648,60" class="edge" marker-end="url(#ah5)"/>
+      <path d="M790,60 L808,60" class="edge" marker-end="url(#ah5)"/>
+      <line x1="170" y1="112" x2="950" y2="112" class="edge-dash"/>
+      <text x="170" y="134" class="small">task 20260925-190156 (claim-once, save tier) gates rewards from streamed bodies from M1 onward</text>
+    </svg>
+    <figcaption>Figure 5. Owner-approved order (comment on this section). M0 is decided scope; M1-M5 are direction. Each milestone needs its own code-backed implementation gate.</figcaption>
+  </figure>
+  <div class="table-scroll">
+  <table>
+    <caption>Milestones: scope, what dies, blocking decisions, dependency</caption>
+    <thead><tr><th scope="col">Milestone</th><th scope="col">Scope</th><th scope="col">What dies</th><th scope="col">Blocking decisions</th><th scope="col">Depends on</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">M0 Plate repair anywhere <span class="tag t-decided">Decided</span></th><td>Ship pane Repair on the player's own damaged, non-destroyed section spends plates atomically, anywhere. Partial stock repairs partially.</td><td>Free full-heal branch; Health-only enable rule; stale queued-job doc comments; wiki line "instant and free today".</td><td>None open in scope. Gate details open: spend API, rule owner, ownership check, reason text and precedence.</td><td>Inventory slice (landed)</td></tr>
+      <tr><th scope="row">M1 Dock transfer <span class="tag t-direction">Direction</span></th><td>Take from a neutralized or derelict partner; Give to any valid docked ship.</td><td>"Moves no items" pane contract (<a href="../../crates/nova_interface/src/inventory/mod.rs"><code>inventory/mod.rs:7-8</code></a>).</td><td>Answered D4 (amended), D11 (a). Open: label name, quantity UI, loot tables.</td><td>M0; 190156 for streamed partners</td></tr>
+      <tr><th scope="row">M2 Intake and jettison <span class="tag t-direction">Direction</span></th><td>Intake component with two-stage sensor, one generic canister, pickup, jettison, count capacity.</td><td>Original <code>SalvageCrate</code>, replaced by the canister (D13 option b).</td><td>Answered D5 (a), D8 (b at M2), D10 (a), D13 (b). Open: sensor sizes, speed limit, placement, capacity count.</td><td>M1</td></tr>
+      <tr><th scope="row">M3 Ammo reserve <span class="tag t-direction">Direction</span></th><td>Idle batch draws from an Ammo stack; ammo from station stock or salvage.</td><td>Free Reload; "rate limit, not budget" stance.</td><td>Answered D9 (b). Open: rates and balance.</td><td>M1 (restock path); balance gate</td></tr>
+      <tr><th scope="row">M4 Station refit <span class="tag t-direction">Direction</span></th><td>Physical hull change for components.</td><td>Owned by 190219.</td><td>190219 decisions</td><td>M0-M2; 190156</td></tr>
+      <tr><th scope="row">M5 Trade and mining <span class="tag t-direction">Direction</span></th><td>Credits, market stock, Raw/Food/Parts, short-range mining beam.</td><td>-</td><td>Answered D6 (b), D7 (a), D12 (a, revisit). Open: credits, prices, yield, range.</td><td>M2; 190156 for depleted rocks and market stock</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="decisions" aria-labelledby="decisions-h">
+  <h2 id="decisions-h">Owner decisions</h2>
+  <p>Each decision lists the options as first proposed, one consequence each, and the recommendation. The owner answered all thirteen in comments on 2026-09-28. The answer follows each block: <span class="tag t-decided">Decided</span> for M0 scope, <span class="tag t-direction">Direction</span> for later milestones. Remaining open details are in <a href="TASK.md"><code>TASK.md:47-53</code></a>.</p>
+
+  <div class="decision" id="d1"><h3>D1. What makes a dock partner a repair service?</h3>
+    <ol type="a">
+      <li>A service capability component on an authored ship root (a station is a ship design with a docking port and an addressable id). Consequence: reuses docking unchanged; adds one component and one content field.</li>
+      <li>A new station object kind. Consequence: clear semantics, but it duplicates docking and ship wiring.</li>
+      <li>Any docked partner. Consequence: every derelict becomes a repair shop.</li>
+    </ol>
+    <p class="rec">First recommendation: (a), authored only (not streamed) for M0. Superseded.</p>
+    <p><span class="tag t-decided">Decided</span> None of (a)-(c). M0 needs no repair partner: the player repairs their own ship anywhere with plates. No partner, service or station feature exists yet. <span class="tag t-proposal">Proposal</span> A station repair service may be proposed later as its own idea; it would never gate plate repair.</p></div>
+
+  <div class="decision" id="d2"><h3>D2. Repair quantity rule</h3>
+    <ol type="a">
+      <li>Fixed plates per Repair action. Consequence: simple, but a scratch costs as much as a near-kill.</li>
+      <li>Plates per HP restored, spend what you have (partial). Consequence: a Repair never refuses for shortage while one plate remains.</li>
+      <li>Plates per HP restored, full-or-refuse. Consequence: a player short by one plate cannot repair at all.</li>
+    </ol>
+    <p class="rec">Recommend (b). The ratio value is a separate balance decision.</p>
+    <p><span class="tag t-decided">Decided</span> (b), partial repair. Ratio: one plate restores up to 20 HP; missing HP rounds up to whole plates; leftover capacity of the last plate is lost.</p></div>
+
+  <div class="decision" id="d3"><h3>D3. Interruption policy</h3>
+    <ol type="a">
+      <li>Instant transaction in one system run. Consequence: cannot straddle an undock; no refund logic.</li>
+      <li>Timed job, refund on undock. Consequence: needs job state and a refund proof.</li>
+      <li>Timed job, progressive spend. Consequence: partial results on undock; hardest to prove.</li>
+    </ol>
+    <p class="rec">Recommend (a) for M0 and M1.</p>
+    <p><span class="tag t-decided">Decided</span> (a), instant in one system run, for M0 and later transactions; never a timed job.</p></div>
+
+  <div class="decision" id="d4"><h3>D4. Dock transfer authorization</h3>
+    <ol type="a">
+      <li>Any docked partner, both directions. Consequence: live AI ships can be emptied by docking.</li>
+      <li>Per-partner policy (derelict Take only; station by service; AI ship none). Consequence: needs a policy owner; since D1 adds no partner component, the M1 gate names one.</li>
+      <li>No transfer; services only. Consequence: derelict salvage needs another path.</li>
+    </ol>
+    <p class="rec">Recommend (b).</p>
+    <p><span class="tag t-direction">Direction</span> (b), amended for M1: Take only from a neutralized partner or one labelled derelict or lootable; never from a live healthy ship. Give to any valid docked ship. Buying from a live ship is trade (M5).</p></div>
+
+  <div class="decision" id="d5"><h3>D5. Pickup verb</h3>
+    <ol type="a">
+      <li>Cargo intake. Consequence: most physical; needs an intake section.</li>
+      <li>Tractor. Consequence: more forgiving; adds a force system.</li>
+      <li>Explicit interact. Consequence: cheapest; nearly proximity collection.</li>
+    </ol>
+    <p class="rec">Recommend (a); revisit (b) after play.</p>
+    <p><span class="tag t-direction">Direction</span> (a) for M2, never another verb. The intake opens by itself when a canister enters a larger detection volume; a smaller capture volume takes a canister that crosses it slowly.</p></div>
+
+  <div class="decision" id="d6"><h3>D6. Mining tool</h3>
+    <ol type="a">
+      <li>Drill. Consequence: hard contact flying.</li>
+      <li>Mining beam that spawns ore canisters. Consequence: one tool section plus one spawn observer; spew stays decorative.</li>
+      <li>Severed fragment yield. Consequence: rare, warhead-driven, 30 s lifetime.</li>
+    </ol>
+    <p class="rec">Recommend (b).</p>
+    <p><span class="tag t-direction">Direction</span> (b) for M5: a short-range beam, not usable as a melee weapon, that only yields ore canisters.</p></div>
+
+  <div class="decision" id="d7"><h3>D7. Which carving yields ore?</h3>
+    <ol type="a">
+      <li>Mining tool only. Consequence: combat near rocks yields nothing.</li>
+      <li>Any weapon carve. Consequence: every fight near rocks spawns loot and bodies.</li>
+    </ol>
+    <p class="rec">Recommend (a).</p>
+    <p><span class="tag t-direction">Direction</span> (a): combat carving yields nothing.</p></div>
+
+  <div class="decision" id="d8"><h3>D8. Capacity</h3>
+    <ol type="a">
+      <li>None. Consequence: jettison has no pressure reason.</li>
+      <li>By stack or unit count. Consequence: simple, ignores item size.</li>
+      <li>By mass or volume per hull. Consequence: needs authored mass per good and per hull.</li>
+    </ol>
+    <p class="rec">Recommend (a) through M1; decide (b) or (c) with M2.</p>
+    <p><span class="tag t-direction">Direction</span> (a) through M1; (b), count-based capacity, at M2 when jettison exists. The count is open.</p></div>
+
+  <div class="decision" id="d9"><h3>D9. Ammo policy and free Reload</h3>
+    <ol type="a">
+      <li>Keep free idle refill; no Ammo goods. Consequence: Ammo category stays empty.</li>
+      <li>Idle refill draws from a reserve; free Reload dies. Consequence: ammo becomes a budget; balance tests change.</li>
+      <li>Dock-only restock of magazines. Consequence: a ship out of ammo fights with nothing until it docks.</li>
+    </ol>
+    <p class="rec">Recommend (b) at M3 with a balance gate.</p>
+    <p><span class="tag t-direction">Direction</span> (b) at M3; free Reload dies then. Ammo also comes from salvage. Rates are open for the balance gate.</p></div>
+
+  <div class="decision" id="d10"><h3>D10. Jettison form</h3>
+    <ol type="a">
+      <li>Spawn a cargo canister with the items. Consequence: conserves items; adds world bodies to persist.</li>
+      <li>Destroy the items. Consequence: simple; loses the ally-drop play.</li>
+    </ol>
+    <p class="rec">Recommend (a).</p>
+    <p><span class="tag t-direction">Direction</span> (a) for M2.</p></div>
+
+  <div class="decision" id="d11"><h3>D11. Salvage persistence before task 190156</h3>
+    <ol type="a">
+      <li>Loot only on authored scenario objects until 190156 lands. Consequence: no streamed loot yet.</li>
+      <li>Allow streamed loot, accept regeneration. Consequence: sectors are farmable by retire and revisit.</li>
+    </ol>
+    <p class="rec">Recommend (a). Owned jointly with 190156.</p>
+    <p><span class="tag t-direction">Direction</span> (a) until task <code>20260925-190156</code> lands.</p></div>
+
+  <div class="decision" id="d12"><h3>D12. Item identity for new goods</h3>
+    <ol type="a">
+      <li>Extend closed <code>ItemType</code>. Consequence: mods cannot add goods.</li>
+      <li>Open registry with <code>ItemKindId</code> and authored catalog. Consequence: lint and load must reject unknown ids; more content surface.</li>
+    </ol>
+    <p class="rec">Recommend (a) until trade; revisit with M5.</p>
+    <p><span class="tag t-direction">Direction</span> (a) until trade; revisit at M5, possibly moddable.</p></div>
+
+  <div class="decision" id="d13"><h3>D13. Salvage crate object</h3>
+    <ol type="a">
+      <li>Keep <code>SalvageCrate</code> as a scenario trigger; add a separate cargo canister. Consequence: two similar-looking objects with different rules.</li>
+      <li>Replace it with the cargo canister; scenario counting moves to a pickup event. Consequence: breaking for mods and <code>examples/playable/first_shift_map.rs</code>; changelog marks it <strong>(breaking)</strong>.</li>
+    </ol>
+    <p class="rec">Recommend (b) at M2.</p>
+    <p><span class="tag t-direction">Direction</span> (b) at M2, as a follow-up once the loop works.</p></div>
+</section>
+
+<section id="ownership" aria-labelledby="ownership-h">
+  <h2 id="ownership-h">Cross-task ownership</h2>
+  <div class="table-scroll">
+  <table>
+    <caption>Which task owns which decision</caption>
+    <thead><tr><th scope="col">Task</th><th scope="col">Owns</th><th scope="col">This report</th></tr></thead>
+    <tbody>
+      <tr><th scope="row"><a href="TASK.md"><code>20260926-174806</code></a></th><td>Station and inventory mechanics contract; M0 scope; M1-M5 direction.</td><td>Home of this report. Records the decided M0 and the owner direction for M1-M3 and M5.</td></tr>
+      <tr><th scope="row"><a href="../20260925-190219/TASK.md"><code>20260925-190219</code></a></th><td>Dock-salvage-to-physical-refit loop, station identity and dock-partner authorization (TASK.md:14-18).</td><td>Proposes only that refit uses the same transaction shape. Does not choose refit form. Its costed dock repair and undocked refusal are superseded for repair by M0 here.</td></tr>
+      <tr><th scope="row"><a href="../20260925-190156/TASK.md"><code>20260925-190156</code></a></th><td>Streamed-world mutation, claim-once and save contract (TASK.md:16-21).</td><td>Names where claim-once blocks rewards. Proposes no schema.</td></tr>
+      <tr><th scope="row"><a href="../20260926-174836/TASK.md"><code>20260926-174836</code></a></th><td>Themed TAB interface migration.</td><td>M0 changes its Ship pane Repair action and reason line; later actions (Take, Give, Jettison) land on its panes. No UI claims a transaction before state exists.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="evidence" aria-labelledby="evidence-h">
+  <h2 id="evidence-h">Evidence index</h2>
+  <p>Code claims, verified by reading each file at <code>a61d8fbcc</code>:</p>
+  <ul>
+    <li><a href="../../crates/nova_gameplay/src/inventory.rs"><code>crates/nova_gameplay/src/inventory.rs:4-8, 19-50, 52-75, 77-93, 113-148</code></a></li>
+    <li><a href="../../crates/nova_gameplay/src/markers.rs"><code>crates/nova_gameplay/src/markers.rs:45-48</code></a></li>
+    <li><a href="../../crates/nova_scenario/src/objects/spaceship.rs"><code>crates/nova_scenario/src/objects/spaceship.rs:461-468, 489</code></a></li>
+    <li><a href="../../assets/base/scenarios/open_world.content.ron"><code>assets/base/scenarios/open_world.content.ron:70-71</code></a> (generated) and <a href="../../crates/nova_authoring/src/base_content/scenarios/open_world.rs"><code>crates/nova_authoring/src/base_content/scenarios/open_world.rs:70</code></a> (builder)</li>
+    <li><a href="../../crates/nova_interface/src/inventory/mod.rs"><code>crates/nova_interface/src/inventory/mod.rs:1-8</code></a>, <a href="../../crates/nova_interface/src/inventory/app.rs"><code>crates/nova_interface/src/inventory/app.rs:536-620, 650-651</code></a></li>
+    <li><a href="../../crates/nova_interface/src/ship/sections.rs"><code>crates/nova_interface/src/ship/sections.rs:415-441, 443-461, 463-516</code></a>, <a href="../../crates/nova_interface/src/ship/app.rs"><code>crates/nova_interface/src/ship/app.rs:141-182</code></a></li>
+    <li><a href="../../crates/nova_ship/src/sections/ammo.rs"><code>crates/nova_ship/src/sections/ammo.rs:14-18, 240-289</code></a>, <a href="../../crates/nova_authoring/src/base_content/sections/mod.rs"><code>crates/nova_authoring/src/base_content/sections/mod.rs:297-325</code></a></li>
+    <li><a href="../../crates/nova_scenario/src/objects/salvage.rs"><code>crates/nova_scenario/src/objects/salvage.rs:1-6, 41-45, 148-153</code></a>; object kind <a href="../../crates/nova_scenario/src/actions/spawn.rs"><code>crates/nova_scenario/src/actions/spawn.rs:138</code></a></li>
+    <li><a href="../../crates/nova_gameplay/src/integrity/carve.rs"><code>crates/nova_gameplay/src/integrity/carve.rs:338-346, 452-471</code></a>, <a href="../../crates/nova_gameplay/src/integrity/spew.rs"><code>crates/nova_gameplay/src/integrity/spew.rs:26-37</code></a>, <a href="../../crates/nova_gameplay/src/integrity/chunk.rs"><code>crates/nova_gameplay/src/integrity/chunk.rs:1-8, 126-132</code></a></li>
+    <li><a href="../../crates/nova_scenario/src/objects/asteroid_kind.rs"><code>crates/nova_scenario/src/objects/asteroid_kind.rs:49-71</code></a></li>
+    <li><a href="../../crates/nova_ship/src/sections/docking_section/connection.rs"><code>crates/nova_ship/src/sections/docking_section/connection.rs:55-88, 246-291</code></a>, <a href="../../crates/nova_events/src/lib.rs"><code>crates/nova_events/src/lib.rs:436-461</code></a></li>
+    <li><a href="../../crates/nova_world_base/src/lib.rs"><code>crates/nova_world_base/src/lib.rs:18-21, 85-94</code></a>, <a href="../../crates/nova_world/src/streaming.rs"><code>crates/nova_world/src/streaming.rs:111-122</code></a>, <a href="../../crates/nova_world_base/src/clusters.rs"><code>crates/nova_world_base/src/clusters.rs:234-253</code></a></li>
+    <li><a href="../../crates/nova_gameplay/src/integrity/health.rs"><code>crates/nova_gameplay/src/integrity/health.rs:29-37, 117-151</code></a>, <a href="../../crates/nova_gameplay/src/integrity/core.rs"><code>crates/nova_gameplay/src/integrity/core.rs:361</code></a></li>
+    <li><a href="../../crates/nova_interface/src/ship/scene.rs"><code>crates/nova_interface/src/ship/scene.rs:546-551, 914-932</code></a></li>
+  </ul>
+  <p>Task decisions (not code): <a href="TASK.md"><code>tasks/20260926-174806/TASK.md:11, 15-53</code></a>; owner comment export of 2026-09-28 (24 comments, listed by id in <code>TASK.md:21, 32-45</code>); <a href="../20260925-190219/TASK.md"><code>tasks/20260925-190219/TASK.md:14-18</code></a>; <a href="../20260925-190156/TASK.md"><code>tasks/20260925-190156/TASK.md:16-21</code></a>.</p>
+  <p class="note">Docs that M0 invalidates, to change with the M0 code: <code>web/src/wiki/interface.md:139</code> (Repair row) and <code>:151</code> ("instant and free today") and <code>CHANGELOG.md:66-68</code> ("nothing adds or spends items yet").</p>
+  <p class="note">Observation, not changed here: the wiki Inventory figure note at <code>web/src/wiki/interface.md:188-190</code> describes "your ship's empty store", while the open-world player ship starts with 12 plates. It may describe another scenario; recheck when the capture is taken.</p>
+</section>
+
+<footer>
+  <p>Design report for task 20260926-174806. The owner-approved M0 scope and later direction live in TASK.md; this page adds no runtime code, content or test.</p>
+</footer>
+</main>
+</div>
+<div class="rv-toast" id="rv-toast">
+  <p id="rv-live" role="status"></p>
+  <p id="rv-alert" role="alert"></p>
+  <button type="button" id="rv-dismiss" hidden>Dismiss error</button>
+</div>
+<script>
+// Review comments for this report. Storage is browser localStorage only; there is no server.
+// An anchor is (section, kind, text hash, ordinal, duplicate count) plus the full normalized text.
+// A comment attaches only when all of them match, so edited text detaches it instead of moving it.
+// All user and file text enters the DOM through textContent, never as HTML.
+(() => {
+  'use strict';
+  const FORMAT = 'nova-review-comments';
+  const VERSION = 1;
+  const PAGE = 'tasks/20260926-174806/item-loop-design.html';
+  const KEY = 'nova-review:v1:' + PAGE;
+  const MAX_TEXT = 10000;
+  const MAX_QUOTE = 20000;
+  const MAX_COMMENTS = 5000;
+  const MAX_FILE_BYTES = 5 * 1024 * 1024;
+  const KINDS = { section: 'section', heading: 'heading', p: 'paragraph', li: 'list item', figure: 'figure', tr: 'table row' };
+  const ID_RE = /^c-[0-9a-f]{16}$/;
+  const SECTION_RE = /^[a-z0-9-]{1,64}$/;
+  const HASH_RE = /^[0-9a-f]{8}$/;
+  const TIME_RE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,9})?Z$/;
+
+  const $ = (id) => document.getElementById(id);
+  const ui = {
+    storage: $('rv-storage'), toggle: $('rv-toggle'), exportBtn: $('rv-export'), importBtn: $('rv-import'),
+    file: $('rv-file'), detached: $('rv-detached'), live: $('rv-live'), alert: $('rv-alert'), dismiss: $('rv-dismiss'),
+  };
+
+  function h(tag, props, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(props || {})) {
+      if (k === 'text') node.textContent = v;
+      else if (k === 'class') node.className = v;
+      else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+      else node.setAttribute(k, v);
+    }
+    for (const c of children) if (c) node.append(c);
+    return node;
+  }
+  const norm = (s) => s.replace(/\s+/g, ' ').trim();
+  const clip = (s, n) => (s.length > n ? s.slice(0, n - 3) + '...' : s);
+  function fnv1a(s) {
+    let x = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 0x01000193) >>> 0;
+    return x.toString(16).padStart(8, '0');
+  }
+  const anchorKey = (a) => [a.section, a.kind, a.hash, a.ordinal, a.dupCount].join('/');
+  const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
+  const isTime = (v) => typeof v === 'string' && TIME_RE.test(v) && !Number.isNaN(Date.parse(v));
+  const isCount = (v, min) => Number.isInteger(v) && v >= min && v <= MAX_COMMENTS * 10;
+  const when = (t) => new Date(t).toLocaleString();
+
+  // ---- Targets: every commentable element, anchored before any UI is injected. ----
+  const targets = new Map();
+  const targetList = [];
+
+  function addButton(t) {
+    const b = h('button', { type: 'button', class: 'rv-add', title: 'Add comment', onclick: () => openAdd(t) });
+    t.button = b;
+    return b;
+  }
+
+  function decorate() {
+    const roots = [...document.querySelectorAll('main > header.hero, main > section[id]')];
+    const bare = roots.find((r) => !r.querySelector('h1, h2'));
+    if (bare) throw new Error(`section "${bare.id || 'hero'}" has no h1 or h2 to anchor section comments`);
+    for (const root of roots) {
+      const section = root.id || 'hero';
+      const found = [{ kind: 'section', node: root, quote: norm(root.querySelector('h1, h2').textContent) }];
+      for (const node of root.querySelectorAll('h1, h2, h3, h4, p, li, figure, tr')) {
+        if (node.tagName !== 'FIGURE' && node.closest('figure')) continue;
+        if (node.tagName === 'TR' && node.parentElement.tagName !== 'TBODY') continue;
+        const kind = /^H[1-4]$/.test(node.tagName) ? 'heading' : node.tagName.toLowerCase();
+        const quote = norm(node.textContent);
+        if (quote) found.push({ kind, node, quote });
+      }
+      const seen = new Map();
+      for (const f of found) {
+        const k = f.kind + '\n' + f.quote;
+        f.ordinal = seen.get(k) || 0;
+        seen.set(k, f.ordinal + 1);
+      }
+      for (const f of found) {
+        const t = { section, kind: f.kind, node: f.node, quote: f.quote, hash: fnv1a(f.quote), ordinal: f.ordinal, dupCount: seen.get(f.kind + '\n' + f.quote), hostEl: null };
+        t.key = anchorKey(t);
+        injectControls(t);
+        targets.set(t.key, t);
+        targetList.push(t);
+      }
+    }
+  }
+
+  // Each kind places its button and comment list where the markup stays valid:
+  // headings get a flex wrapper so the button stays out of the heading's accessible name,
+  // table rows get a following row, list items keep the list inside the <li>.
+  function injectControls(t) {
+    const n = t.node;
+    if (t.kind === 'section') {
+      const bar = h('div', { class: 'rv-sbar' }, addButton(t));
+      n.append(bar);
+      t.makeHost = () => bar.appendChild(h('div', { class: 'rv-thread' }));
+    } else if (t.kind === 'heading') {
+      const cs = getComputedStyle(n);
+      const wrap = h('div', { class: 'rv-hwrap' });
+      wrap.style.margin = `${cs.marginTop} 0 ${cs.marginBottom}`;
+      n.replaceWith(wrap);
+      wrap.append(n, addButton(t));
+      t.makeHost = () => { const d = h('div', { class: 'rv-thread' }); wrap.after(d); return d; };
+    } else if (t.kind === 'p') {
+      n.append(addButton(t));
+      t.makeHost = () => { const d = h('div', { class: 'rv-thread' }); n.after(d); return d; };
+    } else if (t.kind === 'li') {
+      n.append(addButton(t));
+      t.makeHost = () => n.appendChild(h('div', { class: 'rv-thread' }));
+    } else if (t.kind === 'figure') {
+      // After the figure, so <figcaption> stays its last child.
+      const bar = h('div', { class: 'rv-fbar' }, addButton(t));
+      n.after(bar);
+      t.makeHost = () => { const d = h('div', { class: 'rv-thread' }); bar.after(d); return d; };
+    } else if (t.kind === 'tr') {
+      n.cells[n.cells.length - 1].append(addButton(t));
+      const span = [...n.cells].reduce((s, c) => s + c.colSpan, 0);
+      t.makeHost = () => {
+        const d = h('div', { class: 'rv-thread' });
+        n.after(h('tr', { class: 'rv-thread-row' }, h('td', { colspan: String(span) }, d)));
+        return d;
+      };
+    }
+  }
+  function host(t) {
+    if (!t.hostEl) t.hostEl = t.makeHost();
+    return t.hostEl;
+  }
+  function dropHost(t) {
+    if (!t.hostEl) return;
+    (t.kind === 'tr' ? t.hostEl.closest('tr') : t.hostEl).remove();
+    t.hostEl = null;
+  }
+  function matchTarget(a) {
+    const t = targets.get(anchorKey(a));
+    return t && t.quote === a.quote ? t : null;
+  }
+
+  // ---- Validation, shared by stored data and imported files. Any error refuses the whole document. ----
+  function validateDoc(data) {
+    const errs = [];
+    const add = (m) => { if (errs.length < 12) errs.push(m); };
+    if (!isObj(data)) return ['The top level is not a JSON object.'];
+    for (const k of Object.keys(data)) if (!['format', 'version', 'page', 'exportedAt', 'comments'].includes(k)) add(`Unknown top-level field "${clip(k, 40)}".`);
+    if (data.format !== FORMAT) add(`"format" must be "${FORMAT}".`);
+    if (data.version !== VERSION) add(`"version" must be ${VERSION}.`);
+    if (data.page !== PAGE) add(`"page" must be "${PAGE}". This file is for ${clip(JSON.stringify(data.page) ?? 'nothing', 80)}.`);
+    if ('exportedAt' in data && !isTime(data.exportedAt)) add('"exportedAt" is not a UTC ISO time.');
+    if (!Array.isArray(data.comments)) { add('"comments" must be an array.'); return errs; }
+    if (data.comments.length > MAX_COMMENTS) add(`More than ${MAX_COMMENTS} comments.`);
+    const ids = new Set();
+    data.comments.slice(0, MAX_COMMENTS).forEach((c, i) => {
+      const at = `comments[${i}]`;
+      if (!isObj(c)) return add(`${at} is not an object.`);
+      for (const k of Object.keys(c)) if (!['id', 'anchor', 'text', 'created', 'updated'].includes(k)) add(`${at} has unknown field "${clip(k, 40)}".`);
+      if (typeof c.id !== 'string' || !ID_RE.test(c.id)) add(`${at}.id must be "c-" and 16 lowercase hex digits.`);
+      else if (ids.has(c.id)) add(`${at}.id repeats ${c.id}.`);
+      else ids.add(c.id);
+      if (typeof c.text !== 'string' || !c.text.trim() || c.text.length > MAX_TEXT) add(`${at}.text must be 1 to ${MAX_TEXT} characters and not blank.`);
+      if (!isTime(c.created)) add(`${at}.created is not a UTC ISO time.`);
+      if (!isTime(c.updated)) add(`${at}.updated is not a UTC ISO time.`);
+      const a = c.anchor;
+      if (!isObj(a)) return add(`${at}.anchor is not an object.`);
+      for (const k of Object.keys(a)) if (!['section', 'kind', 'hash', 'ordinal', 'dupCount', 'quote'].includes(k)) add(`${at}.anchor has unknown field "${clip(k, 40)}".`);
+      if (typeof a.section !== 'string' || !SECTION_RE.test(a.section)) add(`${at}.anchor.section is not a section id.`);
+      if (typeof a.kind !== 'string' || !Object.hasOwn(KINDS, a.kind)) add(`${at}.anchor.kind must be one of ${Object.keys(KINDS).join(', ')}.`);
+      if (!isCount(a.ordinal, 0) || !isCount(a.dupCount, 1) || a.ordinal >= a.dupCount) add(`${at}.anchor.ordinal and dupCount must be integers with 0 <= ordinal < dupCount.`);
+      if (typeof a.quote !== 'string' || !a.quote || a.quote.length > MAX_QUOTE || a.quote !== norm(a.quote)) add(`${at}.anchor.quote must be 1 to ${MAX_QUOTE} characters of normalized text.`);
+      else if (typeof a.hash !== 'string' || !HASH_RE.test(a.hash) || a.hash !== fnv1a(a.quote)) add(`${at}.anchor.hash does not match anchor.quote.`);
+    });
+    return errs;
+  }
+
+  // ---- Storage. A write counts as saved only after a read-back matches. ----
+  let comments = [];
+  let storeState = 'ok'; // ok | unavailable | corrupt
+  let storeMsg = '';
+  let corruptRaw = null;
+  let lastSave = null;
+
+  function reason(e) {
+    if (e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014)) return 'browser storage is full (quota exceeded)';
+    return e && e.message ? `${e.name || 'Error'}: ${e.message}` : String(e);
+  }
+  function store() {
+    const s = window.localStorage;
+    if (!s) throw new Error('localStorage is not available');
+    return s;
+  }
+  function load() {
+    let raw;
+    try { raw = store().getItem(KEY); } catch (e) {
+      storeState = 'unavailable'; storeMsg = reason(e); comments = []; return;
+    }
+    if (raw === null) { storeState = 'ok'; comments = []; corruptRaw = null; return; }
+    let data;
+    try { data = JSON.parse(raw); } catch (e) { data = undefined; }
+    const errs = data === undefined ? ['The stored value is not JSON.'] : validateDoc(data);
+    if (errs.length) { storeState = 'corrupt'; storeMsg = errs[0]; corruptRaw = raw; comments = []; return; }
+    storeState = 'ok'; corruptRaw = null; comments = data.comments;
+  }
+  // Re-reads storage first so a write from another tab is not lost, then applies mutate.
+  function commit(mutate, opts) {
+    load();
+    if (storeState === 'unavailable') { fail(`NOT saved: browser storage is not available (${storeMsg}).`); return false; }
+    if (storeState === 'corrupt' && !(opts && opts.overwriteCorrupt)) { fail(`NOT saved: the stored comments are unreadable (${storeMsg}). Use Export JSON to download the raw data, or Import JSON with Replace all.`); return false; }
+    let next;
+    try { next = mutate(comments.slice()); } catch (e) { fail(`NOT saved: ${e.message}`); return false; }
+    const text = JSON.stringify({ format: FORMAT, version: VERSION, page: PAGE, comments: next });
+    try {
+      const s = store();
+      s.setItem(KEY, text);
+      if (s.getItem(KEY) !== text) throw new Error('storage read-back did not match the written data');
+    } catch (e) {
+      lastSave = { ok: false, at: new Date(), msg: reason(e) };
+      load();
+      render();
+      fail(`NOT saved: ${reason(e)}. Nothing changed in storage.`);
+      return false;
+    }
+    comments = next; storeState = 'ok'; corruptRaw = null;
+    lastSave = { ok: true, at: new Date() };
+    return true;
+  }
+
+  // ---- Messages ----
+  let liveTimer = 0;
+  function notify(msg) {
+    clearTimeout(liveTimer);
+    ui.live.textContent = msg;
+    liveTimer = setTimeout(() => { ui.live.textContent = ''; }, 6000);
+  }
+  function fail(msg) {
+    ui.alert.textContent = msg;
+    ui.dismiss.hidden = false;
+    updateStatus();
+  }
+  function clearFail() { ui.alert.textContent = ''; ui.dismiss.hidden = true; }
+  function updateStatus() {
+    const s = ui.storage;
+    if (storeState === 'unavailable') { s.dataset.state = 'error'; s.textContent = `Browser storage is not available (${storeMsg}). Comments cannot be saved in this browser.`; return; }
+    if (storeState === 'corrupt') { s.dataset.state = 'error'; s.textContent = `Stored comments are unreadable (${storeMsg}). Saving is off to keep the stored data. Export JSON downloads it raw.`; return; }
+    if (lastSave && !lastSave.ok) { s.dataset.state = 'error'; s.textContent = `Last save FAILED at ${lastSave.at.toLocaleTimeString()}: ${lastSave.msg}. ${comments.length} comments are in storage.`; return; }
+    const detached = comments.filter((c) => !matchTarget(c.anchor)).length;
+    s.dataset.state = 'ok';
+    s.textContent = comments.length
+      ? `${comments.length} comment${comments.length === 1 ? '' : 's'} saved in this browser${detached ? `, ${detached} detached` : ''}.${lastSave ? ` Last save ${lastSave.at.toLocaleTimeString()}.` : ''}`
+      : 'No comments saved in this browser yet.';
+  }
+
+  // ---- Editor: one open at a time; re-render keeps its draft and focus. ----
+  let editor = null; // { mode: 'add' | 'edit', key, id, original, draft, ta, focus, returnTo }
+  const editButtons = new Map(); // comment id -> Edit button of the last render
+
+  const dirty = () => editor && editor.draft !== editor.original && editor.draft.trim() !== '';
+  function confirmDiscard() {
+    return !dirty() || window.confirm('Discard the unsaved comment draft?');
+  }
+  function openAdd(t) {
+    if (!confirmDiscard()) return;
+    editor = { mode: 'add', key: t.key, original: '', draft: '', focus: true, returnTo: t.button };
+    render();
+  }
+  function openEdit(c) {
+    if (!confirmDiscard()) return;
+    editor = { mode: 'edit', id: c.id, original: c.text, draft: c.text, focus: true };
+    render();
+  }
+  // The edit form replaces the comment's Edit button, so focus returns to the rebuilt one.
+  function closeEditor() {
+    const closed = editor;
+    editor = null;
+    render();
+    const back = closed && (closed.mode === 'edit' ? editButtons.get(closed.id) : closed.returnTo);
+    (back && back.isConnected ? back : ui.importBtn).focus();
+  }
+  function cancelEditor() { if (confirmDiscard()) closeEditor(); }
+  function saveEditor() {
+    const text = editor.ta.value;
+    editor.draft = text;
+    if (!text.trim()) { fail('NOT saved: the comment is empty. Type text or select Cancel.'); editor.ta.focus(); return; }
+    if (text.length > MAX_TEXT) { fail(`NOT saved: the comment is longer than ${MAX_TEXT} characters.`); editor.ta.focus(); return; }
+    const now = new Date().toISOString();
+    let ok, msg;
+    if (editor.mode === 'add') {
+      const t = targets.get(editor.key);
+      const ids = new Set(comments.map((c) => c.id));
+      let id;
+      do { const b = new Uint8Array(8); crypto.getRandomValues(b); id = 'c-' + [...b].map((x) => x.toString(16).padStart(2, '0')).join(''); } while (ids.has(id));
+      const c = { id, anchor: { section: t.section, kind: t.kind, hash: t.hash, ordinal: t.ordinal, dupCount: t.dupCount, quote: t.quote }, text, created: now, updated: now };
+      ok = commit((list) => {
+        if (list.length >= MAX_COMMENTS) throw new Error(`this page already has ${MAX_COMMENTS} comments`);
+        return [...list, c];
+      });
+      msg = `Saved comment on ${KINDS[t.kind]}.`;
+    } else {
+      const id = editor.id;
+      ok = commit((list) => {
+        if (!list.some((c) => c.id === id)) throw new Error('the comment no longer exists (another tab deleted it). Copy your draft before you cancel');
+        return list.map((c) => (c.id === id ? { ...c, text, updated: now } : c));
+      });
+      msg = 'Saved comment changes.';
+    }
+    if (!ok) { render(); return; }
+    clearFail();
+    notify(msg);
+    closeEditor();
+  }
+  function remove(c, returnTo) {
+    if (!window.confirm(`Delete this comment? This cannot be undone.\n\n"${clip(c.text, 200)}"`)) return;
+    if (editor && editor.id === c.id) editor = null;
+    const t = matchTarget(c.anchor);
+    if (!commit((list) => list.filter((x) => x.id !== c.id))) { render(); return; }
+    clearFail();
+    notify('Deleted comment.');
+    render();
+    const back = t ? t.button : returnTo;
+    (back && back.isConnected ? back : ui.importBtn).focus();
+  }
+
+  function buildEditor(label) {
+    const ta = h('textarea', { id: 'rv-editor-text', maxlength: String(MAX_TEXT), rows: '4' });
+    ta.value = editor.draft;
+    ta.addEventListener('input', () => { editor.draft = ta.value; });
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveEditor(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancelEditor(); }
+    });
+    editor.ta = ta;
+    return h('div', { class: 'rv-editor' },
+      h('label', { for: 'rv-editor-text', text: label }), ta,
+      h('div', { class: 'rv-row' },
+        h('button', { type: 'button', text: editor.mode === 'add' ? 'Save comment' : 'Save changes', onclick: saveEditor }),
+        h('button', { type: 'button', text: 'Cancel', onclick: cancelEditor }),
+        h('span', { class: 'rv-hint', text: 'Ctrl+Enter saves. Escape cancels.' })));
+  }
+  function buildItem(c, detached) {
+    const li = h('li', { class: 'rv-item' });
+    if (editor && editor.mode === 'edit' && editor.id === c.id) {
+      li.append(buildEditor('Edit comment'));
+      return li;
+    }
+    const a = c.anchor;
+    if (detached) li.append(h('p', { class: 'rv-quote', text: `Was on ${KINDS[a.kind]} in section "${a.section}": ${clip(a.quote, 300)}` }));
+    li.append(h('p', { class: 'rv-text', text: c.text }));
+    const stamp = `Saved ${when(c.created)}${c.updated !== c.created ? `, edited ${when(c.updated)}` : ''}`;
+    const edit = h('button', { type: 'button', text: 'Edit', 'aria-label': `Edit comment: ${clip(c.text, 60)}` });
+    const del = h('button', { type: 'button', text: 'Delete', class: 'rv-danger', 'aria-label': `Delete comment: ${clip(c.text, 60)}` });
+    edit.addEventListener('click', () => openEdit(c));
+    editButtons.set(c.id, edit);
+    del.addEventListener('click', () => remove(c, del));
+    li.append(h('div', { class: 'rv-meta' }, h('span', { text: stamp }), edit, del));
+    return li;
+  }
+
+  function render() {
+    editButtons.clear();
+    let refocus = false;
+    if (editor && editor.ta) {
+      editor.draft = editor.ta.value;
+      refocus = document.activeElement === editor.ta;
+    }
+    if (editor && editor.mode === 'edit' && !comments.some((c) => c.id === editor.id)) {
+      fail(`Your edit was closed: another tab deleted that comment. Draft text: ${clip(editor.draft, 300)}`);
+      editor = null;
+    }
+    const byKey = new Map();
+    const detached = [];
+    const sorted = comments.slice().sort((x, y) => x.created.localeCompare(y.created));
+    for (const c of sorted) {
+      const t = matchTarget(c.anchor);
+      if (!t) detached.push(c);
+      else (byKey.get(t.key) || byKey.set(t.key, []).get(t.key)).push(c);
+    }
+    for (const t of targetList) {
+      const list = byKey.get(t.key) || [];
+      const adding = editor && editor.mode === 'add' && editor.key === t.key;
+      const b = t.button;
+      const what = t.kind === 'section' ? `section: ${t.quote}` : `${KINDS[t.kind]}: ${clip(t.quote, 60)}`;
+      b.textContent = t.kind === 'section' ? `Comment on section${list.length ? ` (${list.length})` : ''}` : `+${list.length ? ' ' + list.length : ''}`;
+      b.setAttribute('aria-label', `Add comment on ${what}${list.length ? ` (${list.length} saved)` : ''}`);
+      if (list.length) b.dataset.count = String(list.length); else delete b.dataset.count;
+      if (!list.length && !adding) { dropHost(t); continue; }
+      const box = host(t);
+      box.replaceChildren();
+      if (list.length) box.append(h('ul', { class: 'rv-list', 'aria-label': `Comments on this ${KINDS[t.kind]}` }, ...list.map((c) => buildItem(c, false))));
+      if (adding) box.append(buildEditor(`New comment on this ${KINDS[t.kind]}`));
+    }
+    ui.detached.hidden = detached.length === 0;
+    ui.detached.querySelector('ul')?.remove();
+    ui.detached.querySelector('h3').textContent = `Detached comments (${detached.length})`;
+    if (detached.length) ui.detached.append(h('ul', { class: 'rv-list', 'aria-labelledby': 'rv-detached-h' }, ...detached.map((c) => buildItem(c, true))));
+    if (editor && editor.ta && (editor.focus || refocus)) {
+      editor.ta.focus();
+      if (editor.focus) editor.ta.scrollIntoView({ block: 'nearest' });
+      editor.focus = false;
+    }
+    ui.exportBtn.textContent = storeState === 'corrupt' ? 'Export raw stored data' : 'Export JSON';
+    updateStatus();
+  }
+
+  // ---- Export and import ----
+  function download(name, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = h('a', { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+  function exportAll() {
+    load();
+    render();
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    if (storeState === 'corrupt') {
+      download(`item-loop-design-comments-raw-${stamp}.json`, corruptRaw);
+      notify('Download started: raw stored data (unreadable as comments).');
+      return;
+    }
+    const text = JSON.stringify({ format: FORMAT, version: VERSION, page: PAGE, exportedAt: new Date().toISOString(), comments }, null, 2) + '\n';
+    const name = `item-loop-design-comments-${stamp}.json`;
+    download(name, text);
+    notify(`Download started: ${name} with ${comments.length} comment${comments.length === 1 ? '' : 's'}.`);
+  }
+
+  const same = (x, y) => JSON.stringify([x.text, x.created, x.updated, x.anchor.section, x.anchor.kind, x.anchor.hash, x.anchor.ordinal, x.anchor.dupCount, x.anchor.quote])
+    === JSON.stringify([y.text, y.created, y.updated, y.anchor.section, y.anchor.kind, y.anchor.hash, y.anchor.ordinal, y.anchor.dupCount, y.anchor.quote]);
+
+  function dialog(title, ...body) {
+    const d = h('dialog', { class: 'rv-dialog', 'aria-labelledby': 'rv-dialog-h' }, h('h2', { id: 'rv-dialog-h', text: title }), ...body);
+    d.addEventListener('close', () => { d.remove(); if (ui.importBtn.isConnected) ui.importBtn.focus(); });
+    document.body.append(d);
+    d.showModal();
+    return d;
+  }
+  function refuse(name, errs) {
+    fail(`Import refused: ${name}. Nothing changed.`);
+    const d = dialog('Import refused',
+      h('p', { text: `The file "${clip(name, 80)}" was not imported. Nothing changed. Errors:` }),
+      h('ul', {}, ...errs.map((e) => h('li', { class: 'rv-err', text: e }))),
+      h('div', { class: 'rv-row' }, h('button', { type: 'button', text: 'Close', onclick: () => d.close() })));
+  }
+  async function importFile(file) {
+    const name = file.name;
+    if (file.size > MAX_FILE_BYTES) return refuse(name, [`The file is larger than ${MAX_FILE_BYTES / 1024 / 1024} MB.`]);
+    let data;
+    try { data = JSON.parse(await file.text()); } catch (e) { return refuse(name, [`The file is not valid JSON (${e.message}).`]); }
+    const errs = validateDoc(data);
+    if (errs.length) return refuse(name, errs);
+    load();
+    render();
+    const incoming = data.comments;
+    const local = new Map(comments.map((c) => [c.id, c]));
+    const fresh = incoming.filter((c) => !local.has(c.id));
+    const identical = incoming.filter((c) => local.has(c.id) && same(c, local.get(c.id)));
+    const conflicts = incoming.filter((c) => local.has(c.id) && !same(c, local.get(c.id)));
+    const detachedHere = incoming.filter((c) => !matchTarget(c.anchor)).length;
+    const conflictList = conflicts.length ? h('ul', {}, ...conflicts.slice(0, 8).map((c) => h('li', { text: `${c.id}: local "${clip(local.get(c.id).text, 60)}" / file "${clip(c.text, 60)}"` }))) : null;
+    const d = dialog('Import comments',
+      h('p', { text: `File "${clip(name, 80)}" has ${incoming.length} valid comment${incoming.length === 1 ? '' : 's'}. This browser has ${comments.length}.` }),
+      h('ul', {},
+        h('li', { text: `New: ${fresh.length} (Merge adds them).` }),
+        h('li', { text: `Identical: ${identical.length} (no change).` }),
+        h('li', { text: `Conflicting: ${conflicts.length} (same id, different content; Merge keeps the local version).` }),
+        h('li', { text: `Detached on this page: ${detachedHere} (their text does not match this page).` })),
+      conflictList,
+      storeState === 'corrupt' ? h('p', { class: 'rv-err', text: 'Stored comments are unreadable. Only Replace all can write.' }) : null,
+      h('div', { class: 'rv-row' },
+        h('button', { type: 'button', text: 'Merge', onclick: () => {
+          let added = 0;
+          const ok = commit((list) => {
+            const ids = new Set(list.map((c) => c.id));
+            const add = incoming.filter((c) => !ids.has(c.id));
+            if (list.length + add.length > MAX_COMMENTS) throw new Error(`the merge would exceed ${MAX_COMMENTS} comments`);
+            added = add.length;
+            return [...list, ...add];
+          });
+          d.close();
+          render();
+          if (ok) { clearFail(); notify(`Merged: added ${added}, kept local text for ${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'}.`); }
+        } }),
+        h('button', { type: 'button', class: 'rv-danger', text: 'Replace all...', onclick: () => {
+          if (!window.confirm(`Replace all local comments?\n\nThis discards all ${comments.length} local comments in this browser and keeps only the ${incoming.length} comments in the file. It cannot be undone. Export JSON first to keep a copy.`)) return;
+          const ok = commit(() => incoming.slice(), { overwriteCorrupt: true });
+          d.close();
+          render();
+          if (ok) { clearFail(); notify(`Replaced local comments with ${incoming.length} from the file.`); }
+        } }),
+        h('button', { type: 'button', text: 'Cancel', onclick: () => d.close() })));
+  }
+
+  // ---- Start ----
+  try { decorate(); } catch (e) {
+    ui.storage.textContent = `The comment script failed to start: ${e.message}. Comments are off on this page.`;
+    return;
+  }
+  load();
+  if (storeState === 'unavailable') fail(`Browser storage is not available (${storeMsg}). Comments cannot be saved.`);
+  if (storeState === 'corrupt') fail(`Stored comments are unreadable (${storeMsg}). Saving is off.`);
+  render();
+  for (const b of [ui.toggle, ui.exportBtn, ui.importBtn]) b.disabled = false;
+  ui.toggle.addEventListener('click', () => {
+    const on = ui.toggle.getAttribute('aria-pressed') !== 'true';
+    ui.toggle.setAttribute('aria-pressed', String(on));
+    document.body.classList.toggle('rv-hide-add', !on);
+  });
+  ui.exportBtn.addEventListener('click', exportAll);
+  ui.importBtn.addEventListener('click', () => { ui.file.value = ''; ui.file.click(); });
+  ui.file.addEventListener('change', () => { if (ui.file.files[0]) importFile(ui.file.files[0]); });
+  ui.dismiss.addEventListener('click', () => { clearFail(); ui.importBtn.focus(); });
+  window.addEventListener('storage', (e) => {
+    if (e.key !== KEY && e.key !== null) return;
+    load();
+    render();
+    notify('Comments changed in another tab. This page reloaded them.');
+  });
+})();
+</script>
+</body>
+</html>
