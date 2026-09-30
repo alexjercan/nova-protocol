@@ -93,9 +93,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Inventory pane lists your and a docked ship's cargo, load, item weight
   and transfer weight. Docked, Give, or Take once neutralized or lootable.
   Repair spends 1 hull plate per 20 HP, anywhere.
-- Undocked, Jettison merges stacks into one pending canister, up to 200 kg.
-  Canisters have 20 HP, lose their contents on destruction, and accept travel
-  but not combat locks.
+- Undocked, Jettison queues canisters of up to 200 kg that the intake drops in
+  order. Canisters have 20 HP, lose their contents on destruction, and accept
+  travel but not combat locks.
 - Nearby canisters show an amber cargo tag with mass. A canister within 200 m
   gets a cyan intake sight with no lock needed; a travel-locked one goes first.
 - The TAB interface blips on open and close like the pause menu, and clicks

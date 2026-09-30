@@ -88,8 +88,7 @@ pub(crate) enum InventoryActionType {
     Take,
     /// Move items from the player ship to the docked partner.
     Give,
-    /// Drop items from the player ship as one canister through its cargo
-    /// intake.
+    /// Queue items from the player ship as canisters on its cargo intake.
     Jettison,
 }
 

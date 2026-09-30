@@ -272,7 +272,7 @@ and every weapon's idle reload draws its matching round from this same stock
 - see [Turret `reload`](../sections/#turret). A docked player can
 Give items to any ship and Take them from a neutralized or `lootable: true`
 one, never past the receiving ship's hold. An undocked player with a
-[cargo intake](../sections/#cargo-intake) can Jettison items in a canister and
+[cargo intake](../sections/#cargo-intake) can Jettison items in canisters and
 take canisters back in. Nothing is saved: stock returns to its authored counts
 when the scenario loads again.
 
