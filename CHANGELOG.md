@@ -42,6 +42,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Ships & Sections
 
+- Generated ship prototypes gain side-backed industrial intakes, varied hull sections, drive banks sized for thrust, and more flight computers and high-tier combat weapons.
 - New `block_line_warship` Line Warship: six PDCs on the trigger, a bow railgun
   on R, two torpedo bays on F, a collar per shoulder, a dorsal cargo intake and
   a bow mining beam on V.

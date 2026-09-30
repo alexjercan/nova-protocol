@@ -22,11 +22,11 @@
 //! # Views
 //!
 //! - Low and high advancement: one column per role (civilian, industrial,
-//!   scavenger, armored, left to right), the centred-single drive in the front
-//!   row and the mirrored pair behind it, bare as the generator emits them.
+//!   scavenger, armored, left to right), the centred-single drive bank in the
+//!   front row and the mirrored-pair bank behind it.
 //! - WFC: four hulls of the current `wfc_ships` generator on the standard
-//!   plan, also bare, at the same spacing rule.
-//! - Wrecks: one DERELICT per role, same column order, bare. Every active
+//!   plan, at the same spacing rule.
+//! - Wrecks: one DERELICT per role, same column order. Every active
 //!   section (drive, flight computer, weapons, intake) is disabled in place as
 //!   it spawns; the ships have no controller, Neutral allegiance and every
 //!   ship capability off, and keep their physics.
@@ -35,17 +35,23 @@
 //!   turrets fire on the left mouse button, its bays on `F` and its rails on
 //!   `R` once weapons are raised.
 //!
+//! Every ship stands bare, as the generator emits it, until `C` or `--skin`
+//! clads it in the derived skin with the catalog's first style. The skin is a
+//! prototype look only: nothing the world generates asks for it yet.
+//!
 //! # Hand-run
 //!
 //! ```text
 //! cargo run --example world_ships --features debug
 //! cargo run --example world_ships --features debug -- --mods example
 //! cargo run --example world_ships --features debug -- --pilot armored-high-paired
+//! cargo run --example world_ships --features debug -- --skin
 //! ```
 //!
 //! | key | what it does |
 //! | - | - |
 //! | 1 / 2 / 3 / 4 | low advancement / high advancement / WFC / wrecks view |
+//! | C | clad or strip every ship |
 //! | P | pilot the first matrix ship |
 //! | N | pilot the next matrix ship |
 //! | B | back to the matrix views |
@@ -57,13 +63,15 @@
 //! yours.
 //!
 //! Harnessed mode:
-//! - `NOVA_AUTOPILOT=1`: shoot the four views; command every wreck to burn,
+//! - `NOVA_AUTOPILOT=1`: shoot the four views bare and the low and high views
+//!   clad; command every wreck to burn,
 //!   turn, fire and take a canister, and fail the run when one answers, when
 //!   an active section of one is live, or when a hit does not damage it; then
 //!   fly every matrix ship: take a canister through each industrial intake,
 //!   fire each fighter, burn the main drive and turn, and fail the run when a
 //!   ship does not answer.
 //! - `NOVA_CAPTURE=1`: also writes `world-ships-<view>.png`,
+//!   `world-ships-<low|high>-clad.png`,
 //!   `world-ships-wrecks-commanded.png` with every wreck drive at full input, one
 //!   `world-ships-pilot-<ship>.png` per matrix ship and
 //!   `world-ships-report.md` under `NOVA_CAPTURE_DIR`.
@@ -74,6 +82,7 @@
 
 use std::{fmt::Write as _, time::Instant};
 
+use avian3d::dynamics::rigid_body::mass_properties::bevy_heavy::ComputeMassProperties3d;
 #[cfg(feature = "debug")]
 use avian3d::prelude::{Collider, LinearVelocity, Sleeping};
 use bevy::{input::mouse::MouseMotion, prelude::*};
@@ -99,6 +108,9 @@ struct Cli {
     /// Start by piloting one matrix ship, named `<role>-<low|high>-<single|paired>`.
     #[arg(long)]
     pilot: Option<String>,
+    /// Start with every ship clad in its derived skin.
+    #[arg(long)]
+    skin: bool,
 }
 
 /// The world seed of the pinned civilization every request names.
@@ -262,9 +274,14 @@ fn main() -> bevy::app::AppExit {
         Some(index) => SceneType::Pilot(index),
         None => SceneType::View(ViewType::Low),
     };
+    let skin = if cli.skin {
+        SkinType::Clad
+    } else {
+        SkinType::Bare
+    };
 
     let mut app = AppBuilder::new()
-        .with_game_plugins(move |app: &mut App| stage_plugin(app, stage.clone(), scene))
+        .with_game_plugins(move |app: &mut App| stage_plugin(app, stage.clone(), scene, skin))
         .build();
 
     #[cfg(feature = "debug")]
@@ -336,6 +353,15 @@ struct MatrixShip {
     families: Vec<(ShipPartFamilyType, usize)>,
     /// Sections whose part a mod pack authored.
     mod_sections: usize,
+    /// Mass at the density 1 every section spawns with, recounted from the
+    /// colliders avian builds.
+    mass: f32,
+    /// Summed drive thrust.
+    thrust: f32,
+    /// The distinct hull parts, by id.
+    hulls: Vec<String>,
+    /// The distinct weapon parts, by id.
+    weapons: Vec<String>,
     seed: u32,
 }
 
@@ -529,13 +555,44 @@ fn first_seed_with(
             .iter()
             .filter(|section| part(section).source != "base")
             .count();
+        let parts: Vec<&ShipPart> = layout.design.sections.iter().map(part).collect();
+        let mass = parts
+            .iter()
+            .map(|part| {
+                part.config
+                    .base
+                    .collider
+                    .unwrap_or_default()
+                    .to_collider()
+                    .mass(1.0)
+            })
+            .sum();
+        let thrust = parts
+            .iter()
+            .filter_map(|part| match &part.config.kind {
+                SectionKind::Thruster(thruster) => Some(thruster.magnitude),
+                _ => None,
+            })
+            .sum();
+        let distinct = |family: ShipPartFamilyType| -> Vec<String> {
+            let ids: std::collections::BTreeSet<&str> = parts
+                .iter()
+                .filter(|part| part.family == family)
+                .map(|part| part.id())
+                .collect();
+            ids.into_iter().map(str::to_string).collect()
+        };
         return Ok(MatrixShip {
             role,
             tier,
             advancement,
-            layout,
             families,
             mod_sections,
+            mass,
+            thrust,
+            hulls: distinct(ShipPartFamilyType::Hull),
+            weapons: distinct(ShipPartFamilyType::Weapon),
+            layout,
             seed,
         });
     }
@@ -647,9 +704,9 @@ impl Report<'_> {
         let _ = writeln!(
             out,
             "| ship | advancement | seed | source | attempt | sections | clearance | \
-             families | mod sections |"
+             families | mod sections | mass | thrust per cell | hull parts | weapon parts |"
         );
-        let _ = writeln!(out, "| - | - | - | - | - | - | - | - | - |");
+        let _ = writeln!(out, "| - | - | - | - | - | - | - | - | - | - | - | - | - |");
         for cell in &self.matrix.cells {
             match &cell.ship {
                 Ok(ship) => {
@@ -662,7 +719,8 @@ impl Report<'_> {
                         .join(", ");
                     let _ = writeln!(
                         out,
-                        "| {} | {:.2} | {} | {} | {} | {} | {:.0} m | {families} | {} |",
+                        "| {} | {:.2} | {} | {} | {} | {} | {:.0} m | {families} | {} | {:.1} | \
+                         {:.3} | {} | {} |",
                         ship.name(),
                         ship.advancement,
                         ship.seed,
@@ -671,12 +729,16 @@ impl Report<'_> {
                         ship.layout.design.sections.len(),
                         ship.layout.clearance.0,
                         ship.mod_sections,
+                        ship.mass,
+                        ship.thrust / ship.mass,
+                        ship.hulls.join(", "),
+                        ship.weapons.join(", "),
                     );
                 }
                 Err(gap) => {
                     let _ = writeln!(
                         out,
-                        "| {}-{}-{} | - | - | - | - | - | - | gap: {gap} | - |",
+                        "| {}-{}-{} | - | - | - | - | - | - | gap: {gap} | - | - | - | - | - |",
                         cell.role.label(),
                         cell.tier.label(),
                         drive_label(cell.drive),
@@ -795,13 +857,38 @@ struct Stage {
     pilot_log: Vec<String>,
 }
 
+/// Whether the ships wear their derived skin: the skin the scene was loaded
+/// with, or the one asked for while a scene is pending.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+enum SkinType {
+    Bare,
+    Clad,
+}
+
+impl SkinType {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Bare => "bare",
+            Self::Clad => "clad",
+        }
+    }
+
+    fn toggled(self) -> Self {
+        match self {
+            Self::Bare => Self::Clad,
+            Self::Clad => Self::Bare,
+        }
+    }
+}
+
 /// The scene asked for and not yet loaded.
 #[derive(Resource)]
 struct PendingScene(SceneType);
 
-fn stage_plugin(app: &mut App, stage: Stage, scene: SceneType) {
+fn stage_plugin(app: &mut App, stage: Stage, scene: SceneType, skin: SkinType) {
     app.insert_resource(stage);
     app.insert_resource(scene);
+    app.insert_resource(skin);
     app.insert_resource(PendingScene(scene));
     app.add_systems(OnEnter(GameAssetsStates::Loaded), enable_snapshot_mods);
     app.add_systems(
@@ -832,8 +919,10 @@ fn load_pending_scene(
     mut commands: Commands,
     pending: Option<Res<PendingScene>>,
     stage: Res<Stage>,
+    skin: Res<SkinType>,
     enabled: Res<EnabledMods>,
     sections: Res<GameSections>,
+    styles: Res<GameStyles>,
     game_assets: Res<GameAssets>,
 ) {
     let Some(pending) = pending else {
@@ -851,23 +940,33 @@ fn load_pending_scene(
     let scene = pending.0;
     commands.remove_resource::<PendingScene>();
     commands.insert_resource(scene);
+    let style = match *skin {
+        SkinType::Bare => None,
+        SkinType::Clad => style_at(&styles, 0),
+    };
     commands.trigger(LoadScenario(scenario(
         &game_assets,
         &sections,
         &stage,
         scene,
+        *skin,
+        style,
     )));
 }
 
-/// Switch views and pilots in a hand-run.
+/// Switch views, pilots and the skin in a hand-run.
 fn switch_scene_on_key(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
     scene: Res<SceneType>,
+    mut skin: ResMut<SkinType>,
     stage: Res<Stage>,
 ) {
     let flown = stage.matrix.flown().count();
-    let next = if keyboard.just_pressed(KeyCode::Digit1) {
+    let next = if keyboard.just_pressed(KeyCode::KeyC) {
+        *skin = skin.toggled();
+        *scene
+    } else if keyboard.just_pressed(KeyCode::Digit1) {
         SceneType::View(ViewType::Low)
     } else if keyboard.just_pressed(KeyCode::Digit2) {
         SceneType::View(ViewType::High)
@@ -1000,26 +1099,44 @@ fn design_clearance(design: &ShipDesign) -> f32 {
     (high - low + Vec3::ONE).length() * 0.5
 }
 
+/// The id of the scenario `scene` loads in `skin`.
+fn scenario_id(scene: SceneType, skin: SkinType) -> String {
+    let scene = match scene {
+        SceneType::View(view) => view.label(),
+        SceneType::Pilot(_) => "pilot",
+    };
+    format!("world_ships_{scene}_{}", skin.label())
+}
+
+/// `design` bare, or clad in its derived skin with `style`.
+fn dressed(mut design: ShipDesign, skin: SkinType, style: StyleId) -> ShipDesign {
+    design.presentation.skin = skin == SkinType::Clad;
+    design.presentation.style = style.map(str::to_string);
+    design
+}
+
 /// The scenario a scene loads.
 fn scenario(
     game_assets: &GameAssets,
     sections: &GameSections,
     stage: &Stage,
     scene: SceneType,
+    skin: SkinType,
+    style: StyleId,
 ) -> ScenarioConfig {
-    let (id, actions) = match scene {
+    let actions = match scene {
         SceneType::View(view) => {
             let ships = view_ships(stage, view);
             let clearances: Vec<f32> = ships.iter().map(|ship| ship.2).collect();
             let positions = stand_positions(&clearances, ShipRoleType::ALL.len());
             let scale = clearances.iter().copied().fold(1.0, f32::max) * 0.5;
-            let actions = ships
+            ships
                 .into_iter()
                 .zip(positions)
                 .map(|((name, design, _), position)| {
                     let ship = SpaceshipConfig {
                         controller: SpaceshipController::None,
-                        design: ShipDesignSource::Inline(design),
+                        design: ShipDesignSource::Inline(dressed(design, skin, style)),
                         ..default()
                     };
                     // A wreck states what it lacks rather than lean on the
@@ -1044,8 +1161,7 @@ fn scenario(
                     ship_action(&name, position, Quat::from_rotation_y(SHIP_YAW), ship)
                 })
                 .chain(ThreePointRig::around("stand", Meters3::ZERO, scale).actions())
-                .collect();
-            (format!("world_ships_{}", view.label()), actions)
+                .collect()
         }
         SceneType::Pilot(index) => {
             let ship = stage
@@ -1055,7 +1171,7 @@ fn scenario(
                 .expect("a pilot scene names a matrix ship");
             let bindings = weapon_bindings(&ship.layout.design, sections);
             let scale = ship.layout.clearance.to_engine() * 0.5;
-            let actions = std::iter::once(ship_action(
+            std::iter::once(ship_action(
                 &ship.name(),
                 Vec3::ZERO,
                 Quat::IDENTITY,
@@ -1063,13 +1179,16 @@ fn scenario(
                     controller: SpaceshipController::Player(PlayerControllerConfig {
                         input_mapping: bindings,
                     }),
-                    design: ShipDesignSource::Inline(ship.layout.design.clone()),
+                    design: ShipDesignSource::Inline(dressed(
+                        ship.layout.design.clone(),
+                        skin,
+                        style,
+                    )),
                     ..default()
                 },
             ))
             .chain(ThreePointRig::around("pilot", Meters3::ZERO, scale).actions())
-            .collect();
-            ("world_ships_pilot".to_string(), actions)
+            .collect()
         }
     };
     let scenario = ScenarioConfig {
@@ -1082,7 +1201,7 @@ fn scenario(
             actions,
         }],
         ..ScenarioConfig::new(
-            id,
+            scenario_id(scene, skin),
             "World Ships".to_string(),
             game_assets.cubemap.clone().into(),
         )
@@ -1198,27 +1317,30 @@ fn spawn_readout(mut commands: Commands) {
 fn update_readout(
     scene: Res<SceneType>,
     stage: Res<Stage>,
+    skin: Res<SkinType>,
     pending: Option<Res<PendingScene>>,
     mut q_readout: Query<&mut Text, With<Readout>>,
 ) {
+    let skin = skin.label();
     let body = match *scene {
         SceneType::View(ViewType::Wfc) => {
-            "WFC standard plan, bare, seeds 20260815..20260818".to_string()
+            format!("WFC standard plan, {skin}, seeds 20260815..20260818")
         }
-        SceneType::View(ViewType::Wrecks) => "DERELICT wrecks, bare, systems disabled\n\
+        SceneType::View(ViewType::Wrecks) => format!(
+            "DERELICT wrecks, {skin}, systems disabled\n\
              former role by column: civilian, industrial, scavenger, armored\n\
              weathered/damaged section art: none in the snapshot (missing)"
-            .to_string(),
+        ),
         SceneType::View(view) => format!(
-            "generated ships, {} advancement, bare\n\
+            "generated ships, {} advancement, {skin}\n\
              columns: civilian, industrial, scavenger, armored\n\
-             front row: centred single drive; back row: mirrored pair",
+             front row: centred single drive bank; back row: mirrored pairs",
             view.label()
         ),
         SceneType::Pilot(index) => {
             let ship = stage.matrix.flown().nth(index);
             format!(
-                "pilot {} seed {}\n[W] main drive  mouse turns  hold raise weapons: \
+                "pilot {} seed {}, {skin}\n[W] main drive  mouse turns  hold raise weapons: \
                  [LMB] turrets [F] bays [R] rails",
                 ship.map(MatrixShip::name).unwrap_or_default(),
                 ship.map(|ship| ship.seed).unwrap_or_default(),
@@ -1232,7 +1354,7 @@ fn update_readout(
     };
     let line = format!(
         "WORLD SHIPS  sources: {}\n{body}{waiting}\n\
-         [1] low [2] high [3] WFC [4] wrecks  [P] pilot [N] next [B] back",
+         [1] low [2] high [3] WFC [4] wrecks  [P] pilot [N] next [B] back  [C] skin",
         stage.mods.join(", ")
     );
     for mut text in &mut q_readout {
@@ -1932,15 +2054,24 @@ fn canister_taken() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     })
 }
 
-/// Advance once `scene` is up: nothing pending, the game playing and the
-/// scene's first ship spawned. Every scene's first ship id is its own, so the
-/// ship of the scene before cannot stand in for it.
+/// Advance once `scene` is up in the asked skin: nothing pending, the game
+/// playing, the scenario of that scene and skin loaded and the scene's first
+/// ship spawned. Every scene's first ship id is its own, so the ship of the
+/// scene before cannot stand in for it.
 #[cfg(feature = "debug")]
 fn scene_standing(scene: SceneType) -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sync> {
     std::sync::Arc::new(move |world: &World| {
         if world.contains_resource::<PendingScene>()
             || world.get_resource::<State<GameStates>>().map(State::get)
                 != Some(&GameStates::Playing)
+        {
+            return false;
+        }
+        let wanted = scenario_id(scene, *world.resource::<SkinType>());
+        if world
+            .get_resource::<CurrentScenario>()
+            .and_then(|current| current.0.as_ref())
+            .is_none_or(|current| current.id != wanted)
         {
             return false;
         }
@@ -1977,6 +2108,13 @@ fn ask_scene(world: &mut World, scene: SceneType) {
     }
 }
 
+/// Ask for `scene` again in `skin`.
+#[cfg(feature = "debug")]
+fn ask_skin(world: &mut World, scene: SceneType, skin: SkinType) {
+    world.insert_resource(skin);
+    world.insert_resource(PendingScene(scene));
+}
+
 /// Write the report under the capture dir, on the capture path only.
 ///
 /// # Panics
@@ -2007,7 +2145,8 @@ fn write_report(world: &mut World) {
     info!("nova capture: {}", path.display());
 }
 
-/// The run gate: shoot the four views, check and command the wrecks, fly
+/// The run gate: shoot the four views bare and the low and high views clad,
+/// check and command the wrecks, fly
 /// every matrix ship in `flown` (name and role, in `Matrix::flown` order),
 /// write the report.
 #[cfg(feature = "debug")]
@@ -2025,12 +2164,19 @@ fn world_ships_script(
         }))
         .deadline(STEP_DEADLINE_SECS)
         .add();
-    for view in ViewType::ALL {
-        let shot = format!("world-ships-{}.png", view.label());
+    let shots = ViewType::ALL.into_iter().flat_map(|view| {
+        let clad = matches!(view, ViewType::Low | ViewType::High);
+        std::iter::once((view, SkinType::Bare)).chain(clad.then_some((view, SkinType::Clad)))
+    });
+    for (view, skin) in shots {
+        let shot = match skin {
+            SkinType::Bare => format!("world-ships-{}.png", view.label()),
+            SkinType::Clad => format!("world-ships-{}-clad.png", view.label()),
+        };
         script = script
-            .step(format!("stand the {} view", view.label()))
+            .step(format!("stand the {} view {}", view.label(), skin.label()))
             .on_enter(move |world: &mut World| {
-                ask_scene(world, SceneType::View(view));
+                ask_skin(world, SceneType::View(view), skin);
             })
             .until(and(
                 scene_standing(SceneType::View(view)),

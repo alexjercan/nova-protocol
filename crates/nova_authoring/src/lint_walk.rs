@@ -945,6 +945,7 @@ mod tests {
     use nova_mod_format::{BundleManifest, ModMeta};
     use nova_modding::prelude::Content;
     use nova_scenario::prelude::ScenarioConfig;
+    use nova_world_base::prelude::{ShipPartFamilyType, ShipPartFault};
 
     use super::{build_report, lint_bundle, scenario_input_overlaps, ReportSeverity, WalkedBundle};
 
@@ -1114,6 +1115,89 @@ mod tests {
         assert!(
             !missing.is_empty() && missing.iter().all(|bundle| bundle == "base"),
             "base's missing families are reported against base: {missing:?}"
+        );
+    }
+
+    /// Two mods that do not depend on each other can each overlay base's only
+    /// cargo intake with an unusable one. Each catalog then lacks the family,
+    /// and the whole-tree report names both mods and never base.
+    #[test]
+    fn two_unrelated_mods_missing_same_ship_part_family_are_each_reported() {
+        let socketed = |id: &str, sockets: &[[f32; 3]], kind: &str| -> Content {
+            let links: Vec<String> = sockets
+                .iter()
+                .enumerate()
+                .map(|(index, [x, y, z])| {
+                    format!(
+                        "(id: \"link_{index}\", position: ({:?}, {:?}, {:?}), normal: ({x:?}, {y:?}, {z:?}))",
+                        x * 0.5,
+                        y * 0.5,
+                        z * 0.5
+                    )
+                })
+                .collect();
+            let ron = format!(
+                r#"Section((base: (id: "{id}", name: "{id}", description: "", health: 100.0, link_points: [{}]), kind: {kind}))"#,
+                links.join(", ")
+            );
+            ron::from_str(&ron).expect("section parses")
+        };
+        let intake = |sockets: &[[f32; 3]]| {
+            socketed(
+                "intake",
+                sockets,
+                r#"CargoIntake((render_mesh: "self://intake.glb#Scene0", canister_mesh: "self://canister.glb#Scene0", door_sound: "self://door.wav", eject_sound: "self://eject.wav", take_sound: "self://take.wav", detection_range: 40.0, capture_gap: 1.0, aperture_width: 8.0, aperture_height: 8.0, maximum_capture_speed: 5.0, eject_speed: 3.0))"#,
+            )
+        };
+        let base = vec![
+            socketed(
+                "hull",
+                &[
+                    [1.0, 0.0, 0.0],
+                    [-1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [0.0, -1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [0.0, 0.0, -1.0],
+                ],
+                "Hull((render_mesh: None))",
+            ),
+            socketed(
+                "controller",
+                &[[0.0, 0.0, -1.0]],
+                "Controller((steering_lag: 0.5, max_torque: 100.0))",
+            ),
+            socketed(
+                "thruster",
+                &[[0.0, 0.0, -1.0]],
+                "Thruster((magnitude: 1.0))",
+            ),
+            intake(&[[0.0, 0.0, 1.0]]),
+        ];
+        let all = vec![
+            walked("base", &[], &[], base),
+            walked("left", &["base"], &[], vec![intake(&[])]),
+            walked("right", &["base"], &[], vec![intake(&[])]),
+        ];
+        let report_ids = ["base", "left", "right"]
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+
+        let mut missing: Vec<(String, String)> = build_report(&all, &report_ids, None)
+            .findings
+            .into_iter()
+            .filter(|finding| finding.message.starts_with("no usable"))
+            .map(|finding| (finding.bundle, finding.message))
+            .collect();
+        missing.sort();
+        let message = ShipPartFault::MissingFamily(ShipPartFamilyType::CargoIntake).to_string();
+        assert_eq!(
+            missing,
+            [
+                ("left".to_string(), message.clone()),
+                ("right".to_string(), message),
+            ]
         );
     }
 

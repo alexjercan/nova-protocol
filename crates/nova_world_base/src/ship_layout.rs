@@ -2,11 +2,18 @@
 //! [`ShipPartSnapshot`], a role, an advancement and a stable hull seed.
 //!
 //! SHAPE FIRST. A layout plans a symmetric spine of structural cubes along the
-//! ship's length, from a one-cell nose to a stern that matches its drive, and
-//! varies the cross-section station by station. Then it mounts the drive, a
-//! centred single or a mirrored pair, the flight computer, and the role's
-//! weapons or cargo intake. Every part stands on the cell grid through
-//! [`oriented_part`], so a mod part joins by its type, footprint and sockets.
+//! ship's length, from a one-cell nose to a stern that matches its drive bank,
+//! and varies the cross-section station by station. The spine mixes up to
+//! [`STRUCTURAL_PALETTE`] structural cube types in mirror image. Then it mounts
+//! the drive bank, copies of one drive around a centred single or in mirrored
+//! pairs, the flight computers, and the role's weapons or side cargo intakes.
+//! Every part stands on the cell grid through [`oriented_part`], so a mod part
+//! joins by its type, footprint and sockets.
+//!
+//! MASS. A section's mass is its collider volume at density 1, so a structural
+//! cube weighs one cell. The drive bank grows until it pushes
+//! [`MIN_THRUST_PER_CELL`] per cell of the whole ship, and the ship carries one
+//! flight computer per [`CELLS_PER_CONTROLLER`] cells.
 //!
 //! A layout draws a preferred source per hull and keeps civilian, industrial
 //! and armored ships to it where that source has a usable part; scavengers mix
@@ -14,10 +21,12 @@
 //!
 //! Every layout is checked after it is built: unique section ids, usable and
 //! eligible prototypes, the role's families, mated contacts, mirror symmetry,
-//! one connected socket graph, clear exit lanes and the advancement's size
-//! ceiling. A seeded layout that fails is redrawn a fixed number of times,
-//! then the request fails with its seed, civilization, role and the last
-//! failed constraint. Nothing substitutes an authored hull.
+//! intakes that open sideways with structural cubes across their backs, one
+//! connected socket graph, clear exit lanes, the advancement's size ceiling,
+//! the thrust floor and the flight computer count. A seeded layout that fails
+//! is redrawn a fixed number of times, then the request fails with its seed,
+//! civilization, role and the last failed constraint. Nothing substitutes an
+//! authored hull.
 //!
 //! WRECKS. [`generate_wreck`] ruins the intact ship of the same request: it
 //! keeps the role, source, advancement, fittings and cell bounds, and omits
@@ -47,8 +56,8 @@ use nova_scenario::prelude::{SectionSource, ShipDesign, SpaceshipSectionConfig};
 use nova_ship::prelude::{
     blocked_exits, cube_rotations, derive_link_point_graph, exit_normal, mirror_face,
     mirror_rotation, oriented_part, placement_blocks_an_exit, read_structure, ship_exits,
-    LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints, SectionConfig,
-    SectionFootprint, SectionKind, GRID_EPSILON,
+    LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints, SectionCollider,
+    SectionConfig, SectionFootprint, SectionKind, GRID_EPSILON,
 };
 
 use crate::{
@@ -70,6 +79,19 @@ const MAX_HULL_CLEARANCE: Meters = Meters(400.0);
 /// Cells a spine plan keeps free on every side for the fittings mounted on
 /// it, so a planned spine rarely fails the size ceiling once fitted.
 const FITTING_REACH: i32 = 2;
+
+/// The least drive thrust a ship carries per cell of its mass.
+const MIN_THRUST_PER_CELL: f32 = 0.06;
+
+/// The most cells of mass one flight computer turns.
+const CELLS_PER_CONTROLLER: f32 = 50.0;
+
+/// The most structural cube types one hull mixes.
+const STRUCTURAL_PALETTE: usize = 3;
+
+/// How far below a request's advancement a drive or weapon may score and still
+/// be drawn before the weaker parts of its source.
+const TIER_BAND: f32 = 0.5;
 
 /// The fewest stations a spine has: a nose, a body and a stern.
 const MIN_STATIONS: i32 = 3;
@@ -121,12 +143,15 @@ pub struct ShipLayoutRequest {
     pub advancement: f32,
 }
 
-/// How a generated ship carries its drive.
+/// How a generated ship's drive bank stands behind its stern. A bank is
+/// copies of one drive, in as many columns and rows as its thrust floor
+/// needs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ShipDriveLayoutType {
-    /// One drive on the centreline.
+    /// A column of drives on the centreline, with any mirrored pairs beside
+    /// it.
     CenteredSingle,
-    /// Two drives mirrored across the centreline.
+    /// Mirrored pairs only, with the centre column open.
     MirroredPair,
 }
 
@@ -202,6 +227,23 @@ pub enum ShipLayoutConstraintType {
     /// Something stands in, or asks for cladding across, a section's exit
     /// lane.
     BlockedExit(String),
+    /// A cargo intake does not open sideways with a structural cube behind
+    /// every cell of its back.
+    UnbackedIntake(String),
+    /// The drives push less than the ship's mass needs.
+    Underpowered {
+        /// The drives' summed thrust.
+        thrust: f32,
+        /// The thrust the ship's mass needs.
+        needed: f32,
+    },
+    /// The ship carries fewer flight computers than its mass needs.
+    Undercontrolled {
+        /// The flight computers it carries.
+        controllers: usize,
+        /// How many its mass needs.
+        needed: usize,
+    },
     /// A wreck omits too few hull sections off its mirror image to read as a
     /// ruin: fewer than the hull's outer off-centre cubes allow, and never
     /// fewer than one.
@@ -263,6 +305,21 @@ impl fmt::Display for ShipLayoutConstraintType {
             }
             Self::InvalidSockets => write!(f, "the socket graph is invalid or ambiguous"),
             Self::BlockedExit(id) => write!(f, "section '{id}' cannot fire down a clear lane"),
+            Self::UnbackedIntake(id) => write!(
+                f,
+                "intake '{id}' does not open sideways with structural cubes across its back"
+            ),
+            Self::Underpowered { thrust, needed } => write!(
+                f,
+                "the drives push {thrust:.2} where the ship's mass needs {needed:.2}"
+            ),
+            Self::Undercontrolled {
+                controllers,
+                needed,
+            } => write!(
+                f,
+                "the ship carries {controllers} flight computers where its mass needs {needed}"
+            ),
             Self::Unruined { omitted, needed } => write!(
                 f,
                 "the wreck omits {omitted} hull sections off its mirror image where a visible \
@@ -707,6 +764,8 @@ fn placed_part(config: &SectionConfig, position: Vec3, rotation: Quat) -> Placed
 struct Filled {
     faces: [bool; 6],
     exit: Option<usize>,
+    /// Whether a structural cube fills it.
+    structural: bool,
 }
 
 /// A layout's cells while it is built.
@@ -752,13 +811,44 @@ impl<'a> Grid<'a> {
         mates > 0
     }
 
-    fn insert(&mut self, id: String, part: &'a ShipPart, oriented: OrientedPart, anchor: IVec3) {
+    /// Whether `oriented` at `anchor` has a structural cube behind every
+    /// cell of its back, the face opposite its exit.
+    fn backed(&self, oriented: &OrientedPart, anchor: IVec3) -> bool {
+        let Some(exit) = oriented.aims else {
+            return false;
+        };
+        let own: HashSet<IVec3> = oriented
+            .cells
+            .iter()
+            .map(|cell| anchor + cell.cell.as_ivec3())
+            .collect();
+        own.iter().all(|cell| {
+            let behind = *cell + STEPS[exit ^ 1];
+            own.contains(&behind)
+                || self
+                    .filled
+                    .get(&behind)
+                    .is_some_and(|filled| filled.structural)
+        })
+    }
+
+    /// Put `part` at `anchor`. `structural` marks a structural cube, which a
+    /// backed part may stand against.
+    fn insert(
+        &mut self,
+        id: String,
+        part: &'a ShipPart,
+        oriented: OrientedPart,
+        anchor: IVec3,
+        structural: bool,
+    ) {
         for cell in &oriented.cells {
             self.filled.insert(
                 anchor + cell.cell.as_ivec3(),
                 Filled {
                     faces: cell.faces,
                     exit: cell.exit,
+                    structural,
                 },
             );
         }
@@ -846,14 +936,231 @@ fn weapon_aim(kind: &SectionKind, aims: Option<usize>) -> Option<u32> {
     }
 }
 
-/// How an intake may point: under the hull first, never into the plume.
+/// How an intake may point: out of the hull's side, as a mirrored pair.
 fn intake_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
-    match aims? {
-        VENTRAL => Some(3),
-        STARBOARD | PORT => Some(2),
-        FORWARD | DORSAL => Some(1),
-        _ => None,
+    matches!(aims?, STARBOARD | PORT).then_some(1)
+}
+
+/// How many weapon slots a role fills at `advancement`. The first is
+/// required; a later slot that finds no room is left out.
+fn weapon_slots(role: ShipRoleType, advancement: f32) -> u32 {
+    let advancement = advancement.clamp(0.0, 1.0);
+    match role {
+        ShipRoleType::Civilian | ShipRoleType::Industrial => 0,
+        ShipRoleType::Scavenger => 1 + (advancement * 2.0).round() as u32,
+        ShipRoleType::Armored => 1 + (advancement * 4.0).round() as u32,
     }
+}
+
+/// A section's mass: its collider's volume, at the density 1 every section
+/// spawns with.
+fn mass(config: &SectionConfig) -> f32 {
+    use std::f32::consts::PI;
+    match config.base.collider.unwrap_or_default() {
+        SectionCollider::Cuboid { size } => size.x * size.y * size.z,
+        SectionCollider::Sphere { radius } => 4.0 / 3.0 * PI * radius.powi(3),
+        SectionCollider::Capsule { radius, length } => {
+            PI * radius * radius * (length + 4.0 / 3.0 * radius)
+        }
+        SectionCollider::Cylinder { radius, height } => PI * radius * radius * height,
+    }
+}
+
+/// What a ship's parts add up to.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ShipMeasure {
+    /// Mass, in cells.
+    mass: f32,
+    /// Summed drive thrust.
+    thrust: f32,
+    /// Flight computers.
+    controllers: usize,
+}
+
+impl ShipMeasure {
+    fn of<'p>(parts: impl IntoIterator<Item = &'p ShipPart>) -> Self {
+        let mut measure = Self {
+            mass: 0.0,
+            thrust: 0.0,
+            controllers: 0,
+        };
+        for part in parts {
+            measure.mass += mass(&part.config);
+            match &part.config.kind {
+                SectionKind::Thruster(thruster) => measure.thrust += thruster.magnitude,
+                SectionKind::Controller(_) => measure.controllers += 1,
+                _ => {}
+            }
+        }
+        measure
+    }
+
+    fn needed_thrust(self) -> f32 {
+        MIN_THRUST_PER_CELL * self.mass
+    }
+
+    fn needed_controllers(self) -> usize {
+        ((self.mass / CELLS_PER_CONTROLLER).ceil() as usize).max(1)
+    }
+
+    /// The first floor the ship falls short of.
+    fn shortfall(self) -> Option<ShipLayoutConstraintType> {
+        if self.thrust < self.needed_thrust() {
+            return Some(ShipLayoutConstraintType::Underpowered {
+                thrust: self.thrust,
+                needed: self.needed_thrust(),
+            });
+        }
+        (self.controllers < self.needed_controllers()).then(|| {
+            ShipLayoutConstraintType::Undercontrolled {
+                controllers: self.controllers,
+                needed: self.needed_controllers(),
+            }
+        })
+    }
+}
+
+/// How many stations of a spine `length` long the nose takes.
+fn nose_length(length: i32) -> i32 {
+    1 + length / 5
+}
+
+/// How a hull lays its second palette cube over the spine. The third, when
+/// the palette has one, trims the nose and the stern.
+#[derive(Clone, Copy, Debug)]
+enum PalettePatternType {
+    /// Rings of `width` stations along the length, every other ring.
+    Rings { width: i32, offset: i32 },
+    /// Everything above the keel.
+    Deck,
+    /// The outer shell of every cross-section.
+    Shell,
+}
+
+impl PalettePatternType {
+    fn draw(stream: &mut SeedStream) -> Self {
+        let pick = stream.unit();
+        let width = 2 + (stream.unit() * 3.0) as i32;
+        let offset = (stream.unit() * width as f32) as i32;
+        if pick < 0.4 {
+            Self::Rings { width, offset }
+        } else if pick < 0.7 {
+            Self::Deck
+        } else {
+            Self::Shell
+        }
+    }
+
+    /// The palette index of the spine cell `cell` of `stations`, for a
+    /// palette of `size` cubes. A function of `|x|`, so the spine stays its
+    /// own mirror image.
+    fn cube(self, stations: &[Section], cell: IVec3, size: usize) -> usize {
+        let length = stations.len() as i32;
+        if size >= 3 && (cell.z < nose_length(length) || cell.z == length - 1) {
+            return 2;
+        }
+        let station = stations[cell.z as usize];
+        let second = match self {
+            Self::Rings { width, offset } => ((cell.z + offset) / width) % 2 == 1,
+            Self::Deck => cell.y > 0,
+            Self::Shell => {
+                cell.x.abs() == station.half_width
+                    || cell.y == station.low
+                    || cell.y == station.high
+            }
+        };
+        usize::from(size >= 2 && second)
+    }
+}
+
+/// One bank of copies of one drive behind the stern: `columns` across, an
+/// odd count around a centre column or an even count of mirrored pairs, and
+/// `rows` stacked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DriveBank {
+    columns: i32,
+    rows: i32,
+}
+
+impl DriveBank {
+    /// The one drive or the one pair a layout starts from.
+    fn first(layout: ShipDriveLayoutType) -> Self {
+        let columns = match layout {
+            ShipDriveLayoutType::CenteredSingle => 1,
+            ShipDriveLayoutType::MirroredPair => 2,
+        };
+        Self { columns, rows: 1 }
+    }
+
+    fn drives(self) -> i32 {
+        self.columns * self.rows
+    }
+
+    /// The smallest bank at least this large that holds `drives` drives of
+    /// `span` cells: widened by a pair or raised by a row, whichever keeps it
+    /// squarer. A drive with no mirrored twin only stacks.
+    fn holding(mut self, drives: i32, span: IVec3, pairs: bool) -> Self {
+        while self.drives() < drives {
+            if pairs && self.columns * span.x <= self.rows * span.y {
+                self.columns += 2;
+            } else {
+                self.rows += 1;
+            }
+        }
+        self
+    }
+
+    /// The stern station the bank mates to.
+    fn stern(self, layout: ShipDriveLayoutType, span: IVec3) -> Section {
+        let height = self.rows * span.y;
+        let low = -(height - 1) / 2;
+        Section {
+            half_width: match layout {
+                ShipDriveLayoutType::CenteredSingle => (self.columns * span.x - 1) / 2,
+                ShipDriveLayoutType::MirroredPair => self.columns / 2 * span.x,
+            },
+            low,
+            high: low + height - 1,
+        }
+    }
+}
+
+/// The drive a layout draws, turned to fire aft.
+struct DrivePlan<'a> {
+    part: &'a ShipPart,
+    /// The drive on the centreline or the starboard side.
+    starboard: OrientedPart,
+    /// Its mirrored twin, when the drive has one.
+    port: Option<OrientedPart>,
+    layout: ShipDriveLayoutType,
+}
+
+/// Centreline cells inside the spine for `count` flight computers: the first
+/// a quarter back from the bow, the rest spread along the keel, then above
+/// and below it. Fewer when the spine has too few. The nose and the stern
+/// hold none.
+fn bridges(stations: &[Section], count: usize) -> Vec<IVec3> {
+    let length = stations.len() as i32;
+    let first = IVec3::new(0, 0, (length / 4).max(1));
+    let keel: Vec<IVec3> = (1..length - 1)
+        .map(|z| IVec3::new(0, 0, z))
+        .filter(|cell| *cell != first)
+        .collect();
+    let beside: Vec<IVec3> = (1..length - 1)
+        .flat_map(|z| {
+            let station = stations[z as usize];
+            (station.low..=station.high)
+                .filter(|y| *y != 0)
+                .map(move |y| IVec3::new(0, y, z))
+        })
+        .collect();
+    let mut cells = vec![first];
+    for pool in [keel, beside] {
+        let wanted = count.saturating_sub(cells.len()).min(pool.len());
+        cells.extend((0..wanted).map(|index| pool[(2 * index + 1) * pool.len() / (2 * wanted)]));
+    }
+    cells.truncate(count);
+    cells
 }
 
 /// A flight computer fires nowhere and may stand anywhere it mates.
@@ -883,7 +1190,9 @@ impl<'a> Draw<'a> {
 
     /// The eligible parts of `family` that pass `usable`, in the order this
     /// attempt tries them: the preferred source first for a coherent role,
-    /// then the other sources, each source's parts shuffled.
+    /// then the other sources, each source's parts shuffled. A drive or weapon
+    /// within [`TIER_BAND`] of the request's advancement comes before its
+    /// source's weaker parts.
     fn ranked(
         &self,
         family: ShipPartFamilyType,
@@ -909,6 +1218,11 @@ impl<'a> Draw<'a> {
             .filter(|(_, parts)| !parts.is_empty())
             .collect();
         let mut sources = shuffled(sources, &mut stream);
+        let banded = matches!(
+            family,
+            ShipPartFamilyType::Thruster | ShipPartFamilyType::Weapon
+        );
+        let floor = self.request.advancement - TIER_BAND;
         if coherent {
             if let Some(index) = sources
                 .iter()
@@ -920,189 +1234,270 @@ impl<'a> Draw<'a> {
         }
         sources
             .into_iter()
-            .flat_map(|(_, parts)| shuffled(parts, &mut stream))
+            .flat_map(|(_, parts)| {
+                let (tier, weaker): (Vec<_>, Vec<_>) = shuffled(parts, &mut stream)
+                    .into_iter()
+                    .partition(|part| !banded || part.advancement >= floor);
+                tier.into_iter().chain(weaker)
+            })
             .collect()
     }
 
+    /// Build the ship, growing its drive bank and its flight computers until
+    /// they meet its mass's floors.
     fn layout(&self) -> Result<ShipLayout, ShipLayoutConstraintType> {
-        let request = self.request;
+        let palette = self.palette()?;
+        let drive = self.drive(palette[0].source.as_str())?;
+        let span = drive.starboard.span.as_ivec3();
+        let SectionKind::Thruster(thruster) = &drive.part.config.kind else {
+            unreachable!("a thruster part is a thruster section");
+        };
+        let mut bank = DriveBank::first(drive.layout);
+        let mut controllers = 1;
+        let mut short = None;
+        loop {
+            let (layout, measure) = match self.build(&palette, &drive, bank, controllers) {
+                Ok(built) => built,
+                // A bank grown past the size ceiling failed on thrust.
+                Err(ShipLayoutConstraintType::TooLarge { .. }) if short.is_some() => {
+                    return Err(short.expect("a shortfall"));
+                }
+                Err(constraint) => return Err(constraint),
+            };
+            let Some(shortfall) = measure.shortfall() else {
+                return Ok(layout);
+            };
+            let drives = (measure.needed_thrust() / thruster.magnitude).ceil() as i32;
+            let grown = bank.holding(drives, span, drive.port.is_some());
+            let needed = controllers.max(measure.needed_controllers());
+            if (grown, needed) == (bank, controllers) {
+                return Err(shortfall);
+            }
+            (bank, controllers, short) = (grown, needed, Some(shortfall));
+        }
+    }
 
-        // The structural cube every station is built from, and with it the
-        // hull's preferred source.
-        let cube = *self
-            .ranked(ShipPartFamilyType::Hull, None, b"hull", is_structural_cube)
+    /// The structural cubes the spine mixes, main cube first: up to
+    /// [`STRUCTURAL_PALETTE`] parts in this attempt's order, all from the main
+    /// cube's source but on a scavenger.
+    fn palette(&self) -> Result<Vec<&'a ShipPart>, ShipLayoutConstraintType> {
+        let ranked = self.ranked(ShipPartFamilyType::Hull, None, b"hull", is_structural_cube);
+        let main = *ranked
             .first()
             .ok_or(ShipLayoutConstraintType::Unplaced(ShipPartFamilyType::Hull))?;
-        let source = cube.source.as_str();
-        let cube_cell = oriented_part(&cube.config, Quat::IDENTITY)
-            .expect("a structural cube stands on the grid");
-
-        // The drive, turned to fire aft, and whether it is one or a pair. An
-        // even-width drive has no centre column, so it only pairs.
-        let mut drive_stream = self.stream(b"drive_layout");
-        let (drive, drive_cells, layout) = self
-            .ranked(ShipPartFamilyType::Thruster, Some(source), b"drive", |_| {
-                true
-            })
+        let mixed = self.request.role == ShipRoleType::Scavenger;
+        Ok(ranked
             .into_iter()
-            .find_map(|part| {
-                let oriented = cube_rotations()
-                    .into_iter()
-                    .filter_map(|rotation| oriented_part(&part.config, rotation).ok())
-                    .find(|oriented| oriented.aims == Some(AFT))?;
-                let port = oriented_part(&part.config, mirror_rotation(oriented.rotation)).ok()?;
-                let pairs = reflects(&oriented, &port);
-                let single = oriented.span.x % 2 == 1 && reflects(&oriented, &oriented);
-                let layout = match (single, pairs) {
-                    (true, true) if drive_stream.unit() < 0.5 => ShipDriveLayoutType::MirroredPair,
-                    (true, _) => ShipDriveLayoutType::CenteredSingle,
-                    (false, true) => ShipDriveLayoutType::MirroredPair,
-                    (false, false) => return None,
-                };
-                Some((part, oriented, layout))
+            .filter(|part| mixed || part.source == main.source)
+            .take(STRUCTURAL_PALETTE)
+            .collect())
+    }
+
+    /// The drive, turned to fire aft, and whether its bank centres a column
+    /// or pairs. An even-width drive has no centre column, so it only pairs.
+    fn drive(&self, source: &str) -> Result<DrivePlan<'a>, ShipLayoutConstraintType> {
+        let mut drive_stream = self.stream(b"drive_layout");
+        self.ranked(ShipPartFamilyType::Thruster, Some(source), b"drive", |_| {
+            true
+        })
+        .into_iter()
+        .find_map(|part| {
+            let starboard = cube_rotations()
+                .into_iter()
+                .filter_map(|rotation| oriented_part(&part.config, rotation).ok())
+                .find(|oriented| oriented.aims == Some(AFT))?;
+            let port = oriented_part(&part.config, mirror_rotation(starboard.rotation))
+                .ok()
+                .filter(|port| reflects(&starboard, port));
+            let single = starboard.span.x % 2 == 1 && reflects(&starboard, &starboard);
+            let layout = match (single, port.is_some()) {
+                (true, true) if drive_stream.unit() < 0.5 => ShipDriveLayoutType::MirroredPair,
+                (true, _) => ShipDriveLayoutType::CenteredSingle,
+                (false, true) => ShipDriveLayoutType::MirroredPair,
+                (false, false) => return None,
+            };
+            Some(DrivePlan {
+                part,
+                starboard,
+                port,
+                layout,
             })
-            .ok_or(ShipLayoutConstraintType::Unplaced(
-                ShipPartFamilyType::Thruster,
-            ))?;
-        let span = drive_cells.span.as_ivec3();
-        let stern = Section {
-            half_width: match layout {
-                ShipDriveLayoutType::CenteredSingle => (span.x - 1) / 2,
-                ShipDriveLayoutType::MirroredPair => span.x,
-            },
-            low: -(span.y - 1) / 2,
-            high: -(span.y - 1) / 2 + span.y - 1,
-        };
+        })
+        .ok_or(ShipLayoutConstraintType::Unplaced(
+            ShipPartFamilyType::Thruster,
+        ))
+    }
+
+    /// Build the ship with `bank` behind its stern and `controllers` flight
+    /// computers.
+    fn build(
+        &self,
+        palette: &[&'a ShipPart],
+        drive: &DrivePlan<'a>,
+        bank: DriveBank,
+        controllers: usize,
+    ) -> Result<(ShipLayout, ShipMeasure), ShipLayoutConstraintType> {
+        let request = self.request;
+        let source = palette[0].source.as_str();
+        let cube_cell = oriented_part(&palette[0].config, Quat::IDENTITY)
+            .expect("a structural cube stands on the grid");
+        let span = drive.starboard.span.as_ivec3();
+        let stern = bank.stern(drive.layout, span);
 
         let stations = self.plan(stern, span.z)?;
         let length = stations.len() as i32;
+        let pattern = PalettePatternType::draw(&mut self.stream(b"palette"));
+        let cube_at = |cell: IVec3| palette[pattern.cube(&stations, cell, palette.len())];
 
-        // The spine, bow at station 0. The bridge cell is left for the flight
-        // computer.
-        let bridge = IVec3::new(0, 0, (length / 4).max(1));
+        // The spine, bow at station 0. The bridge cells are left for the
+        // flight computers.
+        let bridges = bridges(&stations, controllers);
         let mut grid = Grid::default();
         for (z, section) in stations.iter().enumerate() {
             let z = z as i32;
             for x in -section.half_width..=section.half_width {
                 for y in section.low..=section.high {
                     let cell = IVec3::new(x, y, z);
-                    if cell != bridge {
+                    if !bridges.contains(&cell) {
                         grid.insert(
                             format!("hull_z{z}_x{}_y{}", signed(x), signed(y)),
-                            cube,
+                            cube_at(cell),
                             cube_cell.clone(),
                             cell,
+                            true,
                         );
                     }
                 }
             }
         }
 
-        // The drive behind the stern, its mount face against the stern
-        // station. A pair leaves the centre column between its twins empty.
-        let drive_anchor = IVec3::new(0, stern.low, length);
-        let mounts = match layout {
-            ShipDriveLayoutType::CenteredSingle => vec![(
-                "drive".to_string(),
-                drive_cells,
-                drive_anchor - IVec3::X * ((span.x - 1) / 2),
-            )],
-            ShipDriveLayoutType::MirroredPair => {
-                let port = oriented_part(&drive.config, mirror_rotation(drive_cells.rotation))
-                    .expect("a paired drive stands on the grid mirrored");
-                vec![
-                    (
-                        "drive_starboard".to_string(),
-                        drive_cells,
-                        drive_anchor + IVec3::X,
-                    ),
-                    (
-                        "drive_port".to_string(),
-                        port,
-                        drive_anchor - IVec3::X * span.x,
-                    ),
-                ]
+        // The bank behind the stern, row by row, each drive's mount face
+        // against the stern station. A centred bank starts from its centre
+        // column; a paired one leaves that column open.
+        for row in 0..bank.rows {
+            let y = stern.low + row * span.y;
+            let mut mounts = Vec::new();
+            let pairs_from = match drive.layout {
+                ShipDriveLayoutType::CenteredSingle => {
+                    mounts.push((IVec3::new(-(span.x - 1) / 2, y, length), &drive.starboard));
+                    (span.x - 1) / 2 + 1
+                }
+                ShipDriveLayoutType::MirroredPair => 1,
+            };
+            for pair in 0..bank.columns / 2 {
+                let port = drive
+                    .port
+                    .as_ref()
+                    .expect("a bank with pairs has a mirrored drive");
+                let x = pairs_from + pair * span.x;
+                mounts.push((IVec3::new(x, y, length), &drive.starboard));
+                mounts.push((IVec3::new(-(x + span.x - 1), y, length), port));
             }
-        };
-        for (id, oriented, anchor) in mounts {
-            if !grid.fits(&oriented, anchor) {
-                return Err(ShipLayoutConstraintType::Unplaced(
-                    ShipPartFamilyType::Thruster,
-                ));
-            }
-            grid.insert(id, drive, oriented, anchor);
-            if grid.last_blocks_an_exit() {
-                let id = grid.placements.last().expect("the drive").id.clone();
-                return Err(ShipLayoutConstraintType::BlockedExit(id));
+            for (anchor, oriented) in mounts {
+                if !grid.fits(oriented, anchor) {
+                    return Err(ShipLayoutConstraintType::Unplaced(
+                        ShipPartFamilyType::Thruster,
+                    ));
+                }
+                grid.insert(
+                    format!("drive_x{}_y{}", signed(anchor.x), signed(anchor.y)),
+                    drive.part,
+                    oriented.clone(),
+                    anchor,
+                    false,
+                );
+                if grid.last_blocks_an_exit() {
+                    let id = grid.placements.last().expect("the drive").id.clone();
+                    return Err(ShipLayoutConstraintType::BlockedExit(id));
+                }
             }
         }
 
-        // The flight computer: in the bridge cell when it fits there,
+        // The flight computers: in the bridge cells where they fit there,
         // otherwise on the hull's surface like any fitting.
-        let controllers = self.ranked(
+        let parts = self.ranked(
             ShipPartFamilyType::Controller,
             Some(source),
             b"controller",
             |_| true,
         );
-        let inside = controllers.iter().find_map(|part| {
-            cube_rotations()
-                .into_iter()
-                .filter_map(|rotation| oriented_part(&part.config, rotation).ok())
-                .find(|oriented| {
-                    oriented.span == UVec3::ONE
-                        && reflects(oriented, oriented)
-                        && oriented.origin.abs_diff_eq(Vec3::ZERO, GRID_EPSILON)
-                        && grid.fits(oriented, bridge)
+        for index in 0..controllers {
+            let slot = format!("controller_{index}");
+            let bridge = bridges.get(index).copied();
+            let inside = bridge.and_then(|bridge| {
+                parts.iter().find_map(|part| {
+                    cube_rotations()
+                        .into_iter()
+                        .filter_map(|rotation| oriented_part(&part.config, rotation).ok())
+                        .find(|oriented| {
+                            oriented.span == UVec3::ONE
+                                && reflects(oriented, oriented)
+                                && oriented.origin.abs_diff_eq(Vec3::ZERO, GRID_EPSILON)
+                                && grid.fits(oriented, bridge)
+                        })
+                        .map(|oriented| (*part, oriented, bridge))
                 })
-                .map(|oriented| (*part, oriented))
-        });
-        match inside {
-            Some((part, oriented)) => grid.insert("controller".to_string(), part, oriented, bridge),
-            None => {
+            });
+            if let Some((part, oriented, bridge)) = inside {
+                grid.insert(slot, part, oriented, bridge, false);
+                continue;
+            }
+            if let Some(bridge) = bridge {
                 grid.insert(
-                    format!("hull_z{}_x0_y0", bridge.z),
-                    cube,
+                    format!("hull_z{}_x0_y{}", bridge.z, signed(bridge.y)),
+                    cube_at(bridge),
                     cube_cell.clone(),
                     bridge,
+                    true,
                 );
-                if !self.fit(
-                    &mut grid,
-                    &controllers,
-                    "controller",
-                    controller_aim,
-                    b"controller_slot",
-                ) {
-                    return Err(ShipLayoutConstraintType::Unplaced(
-                        ShipPartFamilyType::Controller,
-                    ));
-                }
+            }
+            let aspect = format!("{slot}_slot");
+            if !self.fit(
+                &mut grid,
+                &parts,
+                &slot,
+                controller_aim,
+                false,
+                aspect.as_bytes(),
+            ) {
+                return Err(ShipLayoutConstraintType::Unplaced(
+                    ShipPartFamilyType::Controller,
+                ));
             }
         }
 
-        // Role equipment. The first weapon and the intake are required; a
-        // later weapon slot that finds no room is left out.
-        let weapon_slots = match request.role {
-            ShipRoleType::Civilian | ShipRoleType::Industrial => 0,
-            ShipRoleType::Scavenger => 1,
-            ShipRoleType::Armored => 1 + (request.advancement.clamp(0.0, 1.0) * 2.0).round() as u32,
-        };
-        for slot in 0..weapon_slots {
+        // Role equipment. Each weapon slot tries the hull's source first on a
+        // coherent role, then its tier's parts and, within a tier, the parts
+        // no earlier slot mounted.
+        let mut mounted: HashSet<&str> = HashSet::new();
+        let floor = request.advancement - TIER_BAND;
+        let coherent = request.role != ShipRoleType::Scavenger;
+        for slot in 0..weapon_slots(request.role, request.advancement) {
             let aspect = format!("weapon_{slot}");
-            let weapons = self.ranked(
+            let mut weapons = self.ranked(
                 ShipPartFamilyType::Weapon,
                 Some(source),
                 aspect.as_bytes(),
                 |_| true,
             );
+            weapons.sort_by_key(|part| {
+                (
+                    coherent && part.source != source,
+                    part.advancement < floor,
+                    mounted.contains(part.id()),
+                )
+            });
             let placed = self.fit(
                 &mut grid,
                 &weapons,
-                &format!("weapon_{slot}"),
+                &aspect,
                 weapon_aim,
+                false,
                 format!("{aspect}_slot").as_bytes(),
             );
-            if !placed && slot == 0 {
+            if placed {
+                mounted.insert(grid.placements.last().expect("a weapon").part.id());
+            } else if slot == 0 {
                 return Err(ShipLayoutConstraintType::Unplaced(
                     ShipPartFamilyType::Weapon,
                 ));
@@ -1115,7 +1510,14 @@ impl<'a> Draw<'a> {
                 b"intake",
                 |_| true,
             );
-            if !self.fit(&mut grid, &intakes, "intake", intake_aim, b"intake_slot") {
+            if !self.fit(
+                &mut grid,
+                &intakes,
+                "intake",
+                intake_aim,
+                true,
+                b"intake_slot",
+            ) {
                 return Err(ShipLayoutConstraintType::Unplaced(
                     ShipPartFamilyType::CargoIntake,
                 ));
@@ -1141,22 +1543,26 @@ impl<'a> Draw<'a> {
             })
             .collect();
 
-        Ok(ShipLayout {
-            design: ShipDesign {
-                sections,
-                ..default()
+        let measure = ShipMeasure::of(grid.placements.iter().map(|placement| placement.part));
+        Ok((
+            ShipLayout {
+                design: ShipDesign {
+                    sections,
+                    ..default()
+                },
+                drive: drive.layout,
+                source: source.to_string(),
+                clearance: clearance(low, high),
+                attempt: self.attempt,
             },
-            drive: layout,
-            source: source.to_string(),
-            clearance: clearance(low, high),
-            attempt: self.attempt,
-        })
+            measure,
+        ))
     }
 
     /// The spine's stations, bow first, ending in `stern`: a nose that widens
     /// from one cell, a body whose cross-section changes along its length,
-    /// and the stern the drive mates to. Shrunk until the spine and a drive
-    /// `drive_depth` cells deep fit the advancement's size ceiling with room
+    /// and the stern the drive bank mates to. Shrunk until the spine and a
+    /// bank `drive_depth` cells deep fit the advancement's size ceiling with room
     /// for fittings.
     fn plan(
         &self,
@@ -1232,7 +1638,7 @@ fn stations(
     middle: [f32; 2],
     aft: [f32; 2],
 ) -> Vec<Section> {
-    let nose = 1 + length / 5;
+    let nose = nose_length(length);
     let body = length - 1;
     let stern_half = [stern.half_width, (stern.high - stern.low) / 2];
     (0..length)
@@ -1277,14 +1683,16 @@ fn is_structural_cube(part: &ShipPart) -> bool {
 impl Draw<'_> {
     /// Mount the first of `parts` that fits on the hull's surface, on the
     /// centreline or as a mirrored pair, where `aim` scores it best and no
-    /// exit lane is blocked. Candidates of one score are tried in a seeded
-    /// order. Returns whether a part was mounted.
+    /// exit lane is blocked. A `backed` part also needs a structural cube
+    /// behind every cell of its back. Candidates of one score are tried in a
+    /// seeded order. Returns whether a part was mounted.
     fn fit<'a>(
         &self,
         grid: &mut Grid<'a>,
         parts: &[&'a ShipPart],
         slot: &str,
         aim: fn(&SectionKind, Option<usize>) -> Option<u32>,
+        backed: bool,
         aspect: &[u8],
     ) -> bool {
         let surface = grid.surface();
@@ -1315,7 +1723,7 @@ impl Draw<'_> {
                 }
                 for anchor in anchors {
                     let anchor = IVec3::from_array(anchor);
-                    if grid.fits(&oriented, anchor) {
+                    if grid.fits(&oriented, anchor) && (!backed || grid.backed(&oriented, anchor)) {
                         candidates.push((score, oriented.clone(), port.clone(), anchor));
                     }
                 }
@@ -1329,23 +1737,25 @@ impl Draw<'_> {
                 if anchor.x >= 1 {
                     let port = port.expect("a starboard candidate pairs");
                     let port_anchor = IVec3::new(-(anchor.x + span.x - 1), anchor.y, anchor.z);
-                    grid.insert(format!("{slot}_starboard"), part, oriented, anchor);
+                    grid.insert(format!("{slot}_starboard"), part, oriented, anchor, false);
                     if grid.last_blocks_an_exit() {
                         grid.pop();
                         continue;
                     }
-                    if !grid.fits(&port, port_anchor) {
+                    if !grid.fits(&port, port_anchor)
+                        || (backed && !grid.backed(&port, port_anchor))
+                    {
                         grid.pop();
                         continue;
                     }
-                    grid.insert(format!("{slot}_port"), part, port, port_anchor);
+                    grid.insert(format!("{slot}_port"), part, port, port_anchor, false);
                     if grid.last_blocks_an_exit() {
                         grid.pop();
                         grid.pop();
                         continue;
                     }
                 } else {
-                    grid.insert(slot.to_string(), part, oriented, anchor);
+                    grid.insert(slot.to_string(), part, oriented, anchor, false);
                     if grid.last_blocks_an_exit() {
                         grid.pop();
                         continue;
@@ -1387,7 +1797,42 @@ fn check(
         }
     }
 
-    connected_and_clear(request, design, &resolved, bounds)
+    let (_, cubes) = filled_cells(snapshot, design);
+    for (section, part) in design.sections.iter().zip(&resolved) {
+        if part.family == ShipPartFamilyType::CargoIntake && !side_backed(&cubes, part, section) {
+            return Err(Constraint::UnbackedIntake(section.id.clone()));
+        }
+    }
+
+    connected_and_clear(request, design, &resolved, bounds)?;
+    match ShipMeasure::of(resolved).shortfall() {
+        Some(shortfall) => Err(shortfall),
+        None => Ok(()),
+    }
+}
+
+/// Whether `section`, a `part`, opens out of the hull's side with a
+/// structural cube of `cubes` behind every cell of its back.
+fn side_backed(
+    cubes: &BTreeSet<[i32; 3]>,
+    part: &ShipPart,
+    section: &SpaceshipSectionConfig,
+) -> bool {
+    let oriented = oriented_part(&part.config, section.rotation)
+        .expect("a snapshot part at a generated rotation stands on the grid");
+    let Some(exit @ (STARBOARD | PORT)) = oriented.aims else {
+        return false;
+    };
+    let anchor = (section.position - oriented.origin).round().as_ivec3();
+    let own: HashSet<IVec3> = oriented
+        .cells
+        .iter()
+        .map(|cell| anchor + cell.cell.as_ivec3())
+        .collect();
+    own.iter().all(|cell| {
+        let behind = *cell + STEPS[exit ^ 1];
+        own.contains(&behind) || cubes.contains(&behind.to_array())
+    })
 }
 
 /// Every constraint a wreck of `intact` must hold: an intact ship's, but for
@@ -2030,5 +2475,189 @@ mod tests {
         for named in ["ship seed 3", "civ_1_n2_0@7", "civilian", "visible ruin"] {
             assert!(message.contains(named), "{message}");
         }
+    }
+
+    #[test]
+    fn a_generated_ship_has_the_thrust_and_flight_computers_its_mass_needs() {
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let parts: HashMap<&str, &ShipPart> = snapshot
+            .parts()
+            .iter()
+            .map(|part| (part.id(), part))
+            .collect();
+        let (mut most_drives, mut most_controllers) = (0, 0);
+        for advancement in [0.0, 1.0] {
+            for seed in 0..8 {
+                for role in ShipRoleType::ALL {
+                    let layout = generate_ship(&snapshot, request(seed, role, advancement))
+                        .expect("the ship generates");
+                    let carried: Vec<&ShipPart> = layout
+                        .design
+                        .sections
+                        .iter()
+                        .map(|section| parts[prototype_of(section).expect("a prototype")])
+                        .collect();
+                    let measure = ShipMeasure::of(carried.iter().copied());
+                    let context = format!("seed {seed}, {role:?}, advancement {advancement}");
+                    assert!(
+                        measure.thrust >= MIN_THRUST_PER_CELL * measure.mass,
+                        "{context}: {measure:?}"
+                    );
+                    assert!(
+                        measure.controllers as f32 * CELLS_PER_CONTROLLER >= measure.mass,
+                        "{context}: {measure:?}"
+                    );
+                    let drives = carried
+                        .iter()
+                        .filter(|part| part.family == ShipPartFamilyType::Thruster)
+                        .count();
+                    most_drives = most_drives.max(drives);
+                    most_controllers = most_controllers.max(measure.controllers);
+                }
+            }
+        }
+        assert!(most_drives > 2, "no hull needed more than a pair of drives");
+        assert!(
+            most_controllers > 1,
+            "no hull needed a second flight computer"
+        );
+    }
+
+    #[test]
+    fn an_industrial_intake_opens_sideways_with_structural_cubes_across_its_back() {
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let parts: HashMap<&str, &ShipPart> = snapshot
+            .parts()
+            .iter()
+            .map(|part| (part.id(), part))
+            .collect();
+        let intakes = |design: &ShipDesign| -> Vec<SpaceshipSectionConfig> {
+            design
+                .sections
+                .iter()
+                .filter(|section| {
+                    parts[prototype_of(section).expect("a prototype")].family
+                        == ShipPartFamilyType::CargoIntake
+                })
+                .cloned()
+                .collect()
+        };
+        for advancement in [0.0, 1.0] {
+            for seed in 0..8 {
+                let request = request(seed, ShipRoleType::Industrial, advancement);
+                let context = format!("seed {seed}, advancement {advancement}");
+                let layout = generate_ship(&snapshot, request).expect("the ship generates");
+                let (_, cubes) = filled_cells(&snapshot, &layout.design);
+                let fitted = intakes(&layout.design);
+                assert_eq!(fitted.len(), 2, "{context}: a mirrored pair");
+                for intake in &fitted {
+                    let part = parts[prototype_of(intake).expect("a prototype")];
+                    assert!(
+                        side_backed(&cubes, part, intake),
+                        "{context}: {}",
+                        intake.id
+                    );
+                }
+
+                // Without the cubes behind them the same intakes are refused.
+                let mut behind = HashSet::new();
+                for intake in &fitted {
+                    let part = parts[prototype_of(intake).expect("a prototype")];
+                    let oriented = oriented_part(&part.config, intake.rotation)
+                        .expect("the intake stands on the grid");
+                    let back = STEPS[oriented.aims.expect("an intake opens") ^ 1];
+                    let anchor = (intake.position - oriented.origin).round().as_ivec3();
+                    for cell in &oriented.cells {
+                        behind.insert(anchor + cell.cell.as_ivec3() + back);
+                    }
+                }
+                let mut bare = layout.design.clone();
+                bare.sections
+                    .retain(|section| !behind.contains(&section.position.round().as_ivec3()));
+                assert_eq!(
+                    check(&snapshot, request, &bare),
+                    Err(ShipLayoutConstraintType::UnbackedIntake(
+                        fitted[0].id.clone()
+                    )),
+                    "{context}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_high_advancement_ship_draws_its_drives_and_weapons_from_its_tier() {
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let parts: HashMap<&str, &ShipPart> = snapshot
+            .parts()
+            .iter()
+            .map(|part| (part.id(), part))
+            .collect();
+        let mut drives = BTreeSet::new();
+        for seed in 0..12 {
+            for role in ShipRoleType::ALL {
+                let layout =
+                    generate_ship(&snapshot, request(seed, role, 1.0)).expect("the ship generates");
+                for section in &layout.design.sections {
+                    let part = parts[prototype_of(section).expect("a prototype")];
+                    assert!(
+                        !matches!(part.id(), "small_drive" | "turret"),
+                        "seed {seed}, {role:?}: {} mounts {}",
+                        section.id,
+                        part.id()
+                    );
+                    if part.family == ShipPartFamilyType::Thruster {
+                        drives.insert(part.id());
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            drives,
+            BTreeSet::from(["mod_drive", "wide_drive"]),
+            "the seeds vary the drive"
+        );
+    }
+
+    #[test]
+    fn a_generated_hull_mixes_at_most_three_structural_cubes_from_its_source() {
+        let mut packs = packs();
+        packs[0].sections.push(cube("plate_cube", 150.0));
+        packs[0].sections.push(cube("rib_cube", 300.0));
+        let snapshot = ShipPartSnapshot::build(&packs).expect("the packs build");
+        let parts: HashMap<&str, &ShipPart> = snapshot
+            .parts()
+            .iter()
+            .map(|part| (part.id(), part))
+            .collect();
+        let mut widest = 0;
+        for advancement in [0.0, 1.0] {
+            for seed in 0..16 {
+                for role in ShipRoleType::ALL {
+                    let layout = generate_ship(&snapshot, request(seed, role, advancement))
+                        .expect("the ship generates");
+                    let cubes: BTreeSet<&str> = layout
+                        .design
+                        .sections
+                        .iter()
+                        .map(|section| parts[prototype_of(section).expect("a prototype")])
+                        .filter(|part| is_structural_cube(part))
+                        .map(|part| {
+                            if role != ShipRoleType::Scavenger {
+                                assert_eq!(part.source, layout.source, "seed {seed}, {role:?}");
+                            }
+                            part.id()
+                        })
+                        .collect();
+                    let context = format!("seed {seed}, {role:?}, advancement {advancement}");
+                    if advancement == 0.0 {
+                        assert_eq!(cubes, BTreeSet::from(["cube"]), "{context}");
+                    }
+                    assert!(cubes.len() <= STRUCTURAL_PALETTE, "{context}: {cubes:?}");
+                    widest = widest.max(cubes.len());
+                }
+            }
+        }
+        assert_eq!(widest, STRUCTURAL_PALETTE, "no hull mixed a full palette");
     }
 }
