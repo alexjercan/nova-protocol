@@ -989,6 +989,7 @@ pub(crate) fn update_ship_panel(
     q_button: Query<(Entity, &ShipPanelButton, Has<InteractionDisabled>)>,
     mut q_preview: Query<(&mut ImageNode, &mut ThemedImageTint), With<ShipPreviewIcon>>,
     mut q_bar: Query<(&mut Node, &mut ThemedFill), With<ShipConditionFill>>,
+    q_inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
 ) {
     if !runtime.active {
         return;
@@ -1003,7 +1004,13 @@ pub(crate) fn update_ship_panel(
             panel_status_text(view),
             panel_detail_text(view),
             UiColor::Body,
-            panel_action_state(view),
+            panel_action_state(
+                view,
+                q_inventory
+                    .single()
+                    .expect("the player ship carries a ShipInventory")
+                    .count(ItemType::HullPlate),
+            ),
         ),
         None => (
             "No section".to_string(),

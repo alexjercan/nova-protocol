@@ -175,6 +175,7 @@ pub struct ShipSectionView {
     pub(crate) bindings: Option<Vec<InputSource>>,
     pub(crate) inactive: bool,
     pub(crate) zero_health: bool,
+    pub(crate) disabled: bool,
 }
 
 impl ShipSectionView {
@@ -268,7 +269,11 @@ pub struct ShipSections<'w, 's> {
             // Nested so the whole row stays under the 15-item query-tuple cap.
             SectionKindQuery,
             SectionBindingQuery,
-            (Has<SectionInactiveMarker>, Has<HealthZeroMarker>),
+            (
+                Has<SectionInactiveMarker>,
+                Has<HealthZeroMarker>,
+                Has<IntegrityDisabledMarker>,
+            ),
         ),
         With<SectionMarker>,
     >,
@@ -322,7 +327,7 @@ impl ShipSections<'_, '_> {
                     ammo,
                     (class, hull, controller, thruster, turret, torpedo),
                     (thruster_bindings, turret_bindings, torpedo_bindings, railgun_bindings),
-                    (inactive, zero_health),
+                    (inactive, zero_health, disabled),
                 )| {
                     let kind = section_kind_from_markers(
                         class, hull, controller, thruster, turret, torpedo,
@@ -348,6 +353,7 @@ impl ShipSections<'_, '_> {
                             .or_else(|| railgun_bindings.map(|bindings| bindings.0.clone())),
                         inactive,
                         zero_health,
+                        disabled,
                     })
                 },
             )
@@ -392,9 +398,10 @@ pub(crate) fn panel_detail_text(view: &ShipSectionView) -> String {
 }
 
 /// Whether Repair / Reload are valid for a section, plus a reason for a disabled
-/// action. Derived from the SAME conditions [`apply_action_to_section`] enforces
-/// (Reload = a `Turret`/`Torpedo` with an ammo feed; Repair = `Health` with a
-/// positive max), so the panel buttons never disagree with the handler.
+/// action. Repair uses the same [`plan_plate_repair`] check as
+/// [`repair_section`], and Reload the same conditions as [`reload_section`]
+/// (a `Turret`/`Torpedo` with an ammo feed), so the panel buttons never
+/// disagree with the handler.
 pub(crate) struct PanelActions {
     pub(crate) repair_enabled: bool,
     pub(crate) reload_enabled: bool,
@@ -412,14 +419,18 @@ impl PanelActions {
     }
 }
 
-pub(crate) fn panel_action_state(view: &ShipSectionView) -> PanelActions {
+/// The panel state for `view` with `plates` hull plates on the player ship. A
+/// repair reason wins over a reload reason.
+pub(crate) fn panel_action_state(view: &ShipSectionView, plates: u32) -> PanelActions {
     let is_weapon = view.kind.is_weapon();
 
-    let repair_enabled = view.health.as_ref().map(|h| h.max > 0.0).unwrap_or(false);
+    let repair = plan_plate_repair(view.health.as_ref(), view.disabled, plates);
     let reload_enabled = is_weapon && view.ammo.is_some();
 
     // Surface why a disabled action is unavailable, mirroring the handler's text.
-    let reason = if !is_weapon {
+    let reason = if let Err(refusal) = repair {
+        Some(repair_refusal_text(&view.code, refusal))
+    } else if !is_weapon {
         Some(format!(
             "reload: {} is a {} section, no ammo feed",
             view.code,
@@ -427,31 +438,28 @@ pub(crate) fn panel_action_state(view: &ShipSectionView) -> PanelActions {
         ))
     } else if view.ammo.is_none() {
         Some(format!("reload: {} has unlimited ammo", view.code))
-    } else if !repair_enabled {
-        Some(format!("repair: {} has no integrity to restore", view.code))
     } else {
         None
     };
 
     PanelActions {
-        repair_enabled,
+        repair_enabled: repair.is_ok(),
         reload_enabled,
         reason,
     }
 }
 
-/// A mutating action on a section. Instant/free today; the [`ShipSectionCommand`]
-/// seam is where a future queued, resource-costed job model plugs in.
+/// A mutating action on a section, applied at once.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShipAction {
     /// Refill a weapon section's ammo to capacity.
     Reload,
-    /// Restore a section's integrity to full.
+    /// Spend hull plates to restore a section's integrity.
     Repair,
 }
 
-/// A request to apply a [`ShipAction`] to a section, raised by the pane's
-/// action keys and panel buttons.
+/// A request to apply a [`ShipAction`] to a player-ship section, raised by the
+/// pane's action keys and panel buttons.
 #[derive(Message, Clone, Copy, Debug)]
 pub struct ShipSectionCommand {
     /// The target section entity.
@@ -460,57 +468,83 @@ pub struct ShipSectionCommand {
     pub action: ShipAction,
 }
 
-/// Apply an action to a section's live `Health` / `SectionAmmo`, returning the
-/// result row. This is the single mutation point (arcade-instant today); a queued
-/// model would enqueue a job here instead of mutating in place.
-pub(crate) fn apply_action_to_section(
-    action: ShipAction,
+/// The note line for a refused repair; the panel and the handler share it.
+fn repair_refusal_text(code: &str, refusal: PlateRepairRefusalType) -> String {
+    match refusal {
+        PlateRepairRefusalType::NoIntegrity => {
+            format!("repair: {code} has no integrity to restore")
+        }
+        PlateRepairRefusalType::Destroyed => format!("repair: {code} is destroyed"),
+        PlateRepairRefusalType::Full => format!("repair: {code} is at full integrity"),
+        PlateRepairRefusalType::NoPlates => "repair: no hull plates".to_string(),
+    }
+}
+
+/// Repair a section from the player ship's hull plates by the
+/// [`plan_plate_repair`] rule: spend the plates and set Health together, or
+/// change nothing. `disabled` is true when the section carries
+/// `IntegrityDisabledMarker`.
+pub(crate) fn repair_section(
+    code: &str,
+    health: Option<&mut Health>,
+    disabled: bool,
+    inventory: &mut ShipInventory,
+) -> TerminalRow {
+    let refused = |refusal| TerminalRow {
+        kind: TerminalRowKind::Error,
+        text: repair_refusal_text(code, refusal),
+    };
+    let Some(health) = health else {
+        return refused(PlateRepairRefusalType::NoIntegrity);
+    };
+    match plan_plate_repair(Some(health), disabled, inventory.count(ItemType::HullPlate)) {
+        Ok(repair) => {
+            inventory.remove(ItemType::HullPlate, repair.plates);
+            health.current = repair.current;
+            let noun = if repair.plates == 1 {
+                "plate"
+            } else {
+                "plates"
+            };
+            TerminalRow {
+                kind: TerminalRowKind::Info,
+                text: format!(
+                    "repaired {code}: {} hull {noun}, {:.0}/{:.0} HP",
+                    repair.plates, health.current, health.max
+                ),
+            }
+        }
+        Err(refusal) => refused(refusal),
+    }
+}
+
+/// Refill a weapon section's ammo to capacity, returning the result row.
+pub(crate) fn reload_section(
     code: &str,
     kind: SectionClass,
     is_weapon: bool,
-    health: Option<&mut Health>,
     ammo: Option<&mut SectionAmmo>,
 ) -> TerminalRow {
-    match action {
-        ShipAction::Reload => {
-            if !is_weapon {
-                return TerminalRow {
-                    kind: TerminalRowKind::Error,
-                    text: format!(
-                        "reload: {code} is a {} section, no ammo feed",
-                        section_kind_label(kind).to_lowercase()
-                    ),
-                };
-            }
-            match ammo {
-                Some(ammo) => {
-                    ammo.rounds = ammo.capacity;
-                    TerminalRow {
-                        kind: TerminalRowKind::Info,
-                        text: format!("reloaded {code}: ammo {}/{}", ammo.rounds, ammo.capacity),
-                    }
-                }
-                None => TerminalRow {
-                    kind: TerminalRowKind::Dim,
-                    text: format!("reload: {code} has unlimited ammo"),
-                },
+    if !is_weapon {
+        return TerminalRow {
+            kind: TerminalRowKind::Error,
+            text: format!(
+                "reload: {code} is a {} section, no ammo feed",
+                section_kind_label(kind).to_lowercase()
+            ),
+        };
+    }
+    match ammo {
+        Some(ammo) => {
+            ammo.rounds = ammo.capacity;
+            TerminalRow {
+                kind: TerminalRowKind::Info,
+                text: format!("reloaded {code}: ammo {}/{}", ammo.rounds, ammo.capacity),
             }
         }
-        ShipAction::Repair => match health {
-            Some(health) if health.max > 0.0 => {
-                health.current = health.max;
-                TerminalRow {
-                    kind: TerminalRowKind::Info,
-                    text: format!(
-                        "repaired {code}: integrity restored to {:.0} HP",
-                        health.max
-                    ),
-                }
-            }
-            _ => TerminalRow {
-                kind: TerminalRowKind::Error,
-                text: format!("repair: {code} has no integrity to restore"),
-            },
+        None => TerminalRow {
+            kind: TerminalRowKind::Dim,
+            text: format!("reload: {code} has unlimited ammo"),
         },
     }
 }

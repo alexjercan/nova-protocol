@@ -46,9 +46,11 @@
 //! Nothing on the range shoots, so the turret is hurt and its magazine spent
 //! by writing `Health` and `SectionAmmo` directly before the sheet opens. That
 //! is staging, the same kind as posing a camera: the lesson claims what REPAIR
-//! does, not how the damage arrived. The range's turret also carries the
-//! trigger a player ship's turret carries (`shared/computer.rs`), because a
-//! section with no binding cannot be rebound - the pane disables the button.
+//! does, not how the damage arrived. The range ship carries no stock, so the
+//! same step gives it the open world's 12 hull plates for the repair to spend.
+//! The range's turret also carries the trigger a player ship's turret carries
+//! (`shared/computer.rs`), because a section with no binding cannot be rebound
+//! - the pane disables the button.
 //!
 //! ## Why the interface is closed and reopened between the two sheets
 //!
@@ -192,7 +194,8 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
     commands.trigger(LoadScenario(interface_range(&game_assets, &sections)));
 }
 
-/// Knock the turret's integrity down and spend its magazine.
+/// Knock the turret's integrity down, spend its magazine, and stock the hull
+/// plates the repair spends.
 #[cfg(feature = "debug")]
 fn hurt_the_turret(world: &mut World) {
     let mut turrets =
@@ -200,6 +203,10 @@ fn hurt_the_turret(world: &mut World) {
     for (mut health, mut ammo) in turrets.iter_mut(world) {
         health.current = health.max * HURT_INTEGRITY;
         ammo.rounds = SPENT_ROUNDS.min(ammo.capacity);
+    }
+    let mut ships = world.query_filtered::<&mut ShipInventory, With<PlayerSpaceshipMarker>>();
+    for mut inventory in ships.iter_mut(world) {
+        *inventory = ShipInventory::from_iter([(ItemType::HullPlate, 12)]);
     }
 }
 
