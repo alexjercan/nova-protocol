@@ -136,6 +136,7 @@
                             design: Prototype(id: "block_cutter"),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     // --- Gates: START, six threaded gates, FINISH ---

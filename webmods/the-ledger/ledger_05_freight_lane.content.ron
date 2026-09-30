@@ -37,6 +37,7 @@
                             allegiance: Some(Player),
                             inventory: {PdcRound: 2000},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     VariableSet((key: "stage", expression: Term(Factor(Literal(Number(0.0)))))),
@@ -216,6 +217,7 @@
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -238,6 +240,7 @@
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -253,6 +256,7 @@
                             allegiance: Some(Player),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -275,6 +279,7 @@
                             allegiance: Some(Player),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -290,6 +295,7 @@
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -315,6 +321,7 @@
                             allegiance: Some(Player),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     Objective((
@@ -413,6 +420,7 @@
                                             allegiance: Some(Enemy),
                                             inventory: {},
                                             lootable: false,
+                                            credits: 2_000,
                                         )),
                                     )),
                                     SpawnScenarioObject((
@@ -432,6 +440,7 @@
                                             allegiance: Some(Enemy),
                                             inventory: {},
                                             lootable: false,
+                                            credits: 2_000,
                                         )),
                                     )),
                                 ],

@@ -107,6 +107,7 @@ fn player() -> ScenarioObjectConfig {
                 (ItemType::Torpedo, 12),
             ]),
             lootable: false,
+            credits: 2_000,
         }),
     }
 }
@@ -128,6 +129,7 @@ fn derelict() -> ScenarioObjectConfig {
             design: ships::design(BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID),
             inventory: ShipInventoryStock::new([(ItemType::HullPlate, 8)]),
             lootable: true,
+            credits: 0,
         }),
     }
 }

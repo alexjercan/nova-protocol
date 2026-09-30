@@ -46,6 +46,7 @@
                             allegiance: Some(Player),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -79,6 +80,7 @@
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -105,6 +107,7 @@
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -131,6 +134,7 @@
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -157,6 +161,7 @@
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((

@@ -19,7 +19,7 @@ use bevy::{
 };
 use nova_assets::prelude::GameAssets;
 use nova_events::prelude::Meters3;
-use nova_gameplay::prelude::{Allegiance, AssetRef, ShipInventoryStock};
+use nova_gameplay::prelude::{Allegiance, AssetRef, LootableShipMarker, ShipInventoryStock};
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     spaceship_scenario_object, AsteroidConfig, BaseScenarioObjectConfig, GameShipDesigns,
@@ -240,8 +240,16 @@ pub fn materialize_sector(
                 controller: SpaceshipController::None,
                 allegiance: Some(Allegiance::Neutral),
                 inventory: ShipInventoryStock::new([]),
+                // A wreck: nobody aboard to trade with, so a docked ship may
+                // Take from it and nothing pays or is paid.
+                lootable: true,
+                credits: 0,
                 ..default()
             }),
+            // Beside the bundle for the reason the allegiance is: the scenario
+            // loader inserts it from `lootable`, and this spawn is not that
+            // loader.
+            LootableShipMarker,
             Allegiance::Neutral,
             ChildOf(root),
         ));

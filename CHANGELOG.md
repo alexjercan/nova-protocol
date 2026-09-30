@@ -55,8 +55,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   warship into an open world generated from the seed and streamed around it.
   Retry keeps the seed.
 - The open-world warship starts with 12 hull plates, 6000 PDC rounds, 20 rail
-  slugs and 12 torpedoes beside a lootable Derelict Tender with 8 plates. Stock
-  resets when the scenario loads.
+  slugs, 12 torpedoes and 2000 cr beside a lootable Derelict Tender with 8
+  plates and 0 cr. Stock resets on load.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.
@@ -84,6 +84,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Spaceships require `lootable: true` or `false`; a ship without
   it fails lint and load. A docked player may Take from a `lootable: true`
   ship that was never neutralized.
+- **(breaking)** Spaceships require `credits`, the balance Buy and Sell pay
+  from; a ship without it fails lint and load. Base live ships hold 2000 and
+  the derelict 0.
 
 ### Interface & HUD
 
@@ -93,6 +96,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Inventory pane lists your and a docked ship's cargo, load, item weight
   and transfer weight. Docked, Give, or Take once neutralized or lootable.
   Repair spends 1 hull plate per 20 HP, anywhere.
+- Docked with a live ship, Buy at a fixed ask or Sell at a fixed bid. Items and
+  credits move together from real stock and balances, or a refusal moves
+  nothing. Columns show credits.
 - Undocked, Jettison queues canisters of up to 200 kg that the intake drops in
   order. Canisters have 20 HP, lose their contents on destruction, and accept
   travel but not combat locks.

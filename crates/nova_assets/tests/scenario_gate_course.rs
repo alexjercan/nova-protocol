@@ -55,6 +55,7 @@ const SCENARIO_RON: &str = r#"[
                             design: Inline((sections: [])),
                             inventory: {},
                             lootable: false,
+                            credits: 0,
                         )),
                     )),
                     SpawnScenarioObject((

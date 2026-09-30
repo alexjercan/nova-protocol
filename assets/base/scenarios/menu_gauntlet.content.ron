@@ -217,6 +217,7 @@
                             allegiance: Some(Enemy),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -263,6 +264,7 @@
                             allegiance: Some(Enemy),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -309,6 +311,7 @@
                             allegiance: Some(Enemy),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -355,6 +358,7 @@
                             allegiance: Some(Enemy),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SetCamera((
@@ -531,6 +535,7 @@
                             allegiance: Some(Player),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     TimerStart((

@@ -74,6 +74,7 @@
                                 Torpedo: 12,
                             },
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -102,6 +103,7 @@
                                 HullPlate: 8,
                             },
                             lootable: true,
+                            credits: 0,
                         )),
                     )),
                     SpawnScenarioObject((

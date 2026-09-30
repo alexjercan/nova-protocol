@@ -65,6 +65,7 @@
                             )),
                             inventory: {PdcRound: 2000},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -136,6 +137,7 @@
                             allegiance: Some(Enemy),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                 ],

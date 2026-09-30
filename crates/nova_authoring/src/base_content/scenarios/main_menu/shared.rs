@@ -102,6 +102,7 @@ pub(super) fn backdrop_orbiter(
             design: ships::design(hull),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
+            credits: 2_000,
             ..Default::default()
         }),
     }

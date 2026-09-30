@@ -138,6 +138,7 @@ pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConf
             // The gun's idle reload draws on this finite reserve.
             inventory: ShipInventoryStock::new([(ItemType::PdcRound, 2000)]),
             lootable: false,
+            credits: 2_000,
         }),
     }
 }
@@ -218,6 +219,7 @@ pub(crate) fn target_hulk(nth: usize) -> ScenarioObjectConfig {
             ]),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
+            credits: 2_000,
             ..Default::default()
         }),
     }
@@ -301,6 +303,7 @@ pub(crate) fn drone(id: &str, name: &str, position: Meters3) -> ScenarioObjectCo
             design: ships::patched_design(ships::BLOCK_PICKET_SHIP_ID, section_patches),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
+            credits: 2_000,
             ..Default::default()
         }),
     }

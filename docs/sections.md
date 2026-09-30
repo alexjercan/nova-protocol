@@ -390,9 +390,14 @@ the unit-cube defaults:
 
 A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
 `controller` (`None`, `Player`, or `AI`), an `allegiance`, a `capabilities` set
-(what this spawn is permitted to do) and a `design`: a `ShipDesignSource`, which
-is either an `Inline` `ShipDesign` or a `Prototype` naming a catalog design by
-id with this spawn's own `section_patches` over it. The design carries the
+(what this spawn is permitted to do), a required `inventory` stock, a required
+`lootable` flag and a required `credits` balance. Stock must fit the resolved
+hull's hold at 100 kg per hull section; lint rejects heavier stock and load
+fails if it escapes lint. `lootable: true` permits Take while docked even when
+the ship was not neutralized; `credits` funds Buy and Sell against real stock.
+A `design` is a `ShipDesignSource`, either an `Inline` `ShipDesign` or a
+`Prototype` naming a catalog design by id with this spawn's own
+`section_patches` over it. The design carries the
 `integrity` (the optional `collapse_threshold`, below), the `presentation` (the
 [derived cladding](#the-derived-skin), the style and the cockpit voice) and a
 list of `SpaceshipSectionConfig`, each placing one section at a `position` +

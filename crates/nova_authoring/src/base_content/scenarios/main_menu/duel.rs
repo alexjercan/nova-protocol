@@ -260,6 +260,7 @@ fn duelist(
             // Equal reserves keep the duel even: each magazine refills from
             // its own hold, and a dry duelist fights on with what is loaded.
             inventory: ShipInventoryStock::new([(ItemType::PdcRound, 2_000)]),
+            credits: 2_000,
             ..Default::default()
         }),
     }
@@ -320,6 +321,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             }]),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
+            credits: 2_000,
             ..Default::default()
         }),
     });

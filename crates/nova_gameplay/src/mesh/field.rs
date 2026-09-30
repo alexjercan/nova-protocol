@@ -126,14 +126,16 @@ impl SignedField {
     /// Monotone by construction: a max can only raise a value, and raising a
     /// value can only remove material. A carve can never grow a body back.
     ///
-    /// Returns how much material this call actually took, in the grid's own
-    /// cubic units: one cell's worth per corner that changed from inside to
-    /// outside. That is the number a caller needs to tell a graze from a bite,
-    /// and it is not the sphere's own volume - a hit into an existing crater
-    /// flips nothing and removes nothing, however big the sphere was.
-    pub fn subtract_sphere(&mut self, centre: Vec3, radius: f32) -> f32 {
+    /// Returns how many corners this call changed from inside to outside:
+    /// the material it actually took, one cell's worth per corner, the same
+    /// measure [`solid_volume`](Self::solid_volume) counts. That is the number
+    /// a caller needs to tell a graze from a bite, and it is not the sphere's
+    /// own volume - a hit into an existing crater flips nothing and removes
+    /// nothing, however big the sphere was. A count rather than a volume, so a
+    /// miner can pay one item per corner exactly.
+    pub fn subtract_sphere(&mut self, centre: Vec3, radius: f32) -> u32 {
         if radius <= 0.0 {
-            return 0.0;
+            return 0;
         }
         let stride = self.resolution + 1;
         // One cell of slop, so the corners just outside the sphere - the ones
@@ -158,8 +160,7 @@ impl SignedField {
             }
         }
 
-        let cell = self.cell_size();
-        flipped as f32 * cell * cell * cell
+        flipped
     }
 
     /// Take every piece of the solid that is no longer joined to the biggest
@@ -713,9 +714,9 @@ mod tests {
         let mut field = SignedField::sample(24, 4.0, ball(2.0));
 
         let first = field.subtract_sphere(Vec3::new(2.0, 0.0, 0.0), 1.0);
-        assert!(first > 0.0, "a fresh crater takes material");
+        assert!(first > 0, "a fresh crater takes material");
         let again = field.subtract_sphere(Vec3::new(2.0, 0.0, 0.0), 1.0);
-        assert_eq!(again, 0.0, "the same crater again takes none");
+        assert_eq!(again, 0, "the same crater again takes none");
 
         let bigger =
             SignedField::sample(24, 4.0, ball(2.0)).subtract_sphere(Vec3::new(2.0, 0.0, 0.0), 1.5);

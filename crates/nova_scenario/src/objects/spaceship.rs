@@ -468,6 +468,9 @@ pub struct SpaceshipConfig {
     /// was never neutralized: a derelict. Required in RON, so every authored
     /// ship states it; `true` inserts [`LootableShipMarker`] at spawn.
     pub lootable: bool,
+    /// The credits the ship holds at spawn, as [`ShipCredits`]. Required in
+    /// RON, so every authored ship states its balance; a derelict states 0.
+    pub credits: u32,
 }
 
 /// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type
@@ -489,6 +492,7 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
         SpaceshipDesign(config.design),
         config.capabilities,
         config.inventory,
+        ShipCredits(config.credits),
         RigidBody::Dynamic,
         // Physics advances Transform only on fixed ticks (64 Hz by default);
         // everything watched by the render-rate camera must interpolate between
@@ -1317,7 +1321,7 @@ mod tests {
     #[test]
     fn collapse_threshold_ron_parses_defaults_and_stays_unserialized() {
         let authored: SpaceshipConfig = ron::from_str(
-            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))), inventory: {}, lootable: false)"#,
+            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))), inventory: {}, lootable: false, credits: 0)"#,
         )
         .expect("the documented syntax parses");
         let ShipDesignSource::Inline(design) = &authored.design else {
@@ -1326,7 +1330,7 @@ mod tests {
         assert_eq!(design.integrity.collapse_threshold, Some(0.1));
 
         let omitted: SpaceshipConfig = ron::from_str(
-            r#"(controller: None, design: Inline(()), inventory: {}, lootable: false)"#,
+            r#"(controller: None, design: Inline(()), inventory: {}, lootable: false, credits: 0)"#,
         )
         .expect("omitted field parses");
         let ShipDesignSource::Inline(design) = &omitted.design else {

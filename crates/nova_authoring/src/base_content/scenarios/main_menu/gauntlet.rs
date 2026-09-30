@@ -124,6 +124,7 @@ fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
             }]),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
+            credits: 2_000,
             ..Default::default()
         }),
     }
@@ -255,6 +256,7 @@ pub(crate) fn menu_gauntlet(
             ),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
+            credits: 2_000,
             ..Default::default()
         }),
     });

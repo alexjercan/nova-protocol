@@ -154,6 +154,13 @@ path = "examples/playable/greeble_catalog.rs"
 name = "parts_viewer"
 path = "examples/playable/parts_viewer.rs"
 
+# The two mining-beam art candidates under art/part-candidates/sections on one
+# bench: select either, toggle the reversible stow cycle, front and side views.
+# Review only: no section, no mining, no gameplay timing.
+[[example]]
+name = "mining_beam_gallery"
+path = "examples/playable/mining_beam_gallery.rs"
+
 # The widget gallery: every `nova_ui::widget` factory, live and interactive, in
 # both skins. Every control here really works - that is the point of it - and
 # the pair of captured frames is the second driver, not the reason.

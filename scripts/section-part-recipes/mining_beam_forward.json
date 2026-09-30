@@ -1,0 +1,177 @@
+{
+  "_comment": "MINING BEAM FORWARD, review-only candidate: the compact head's closed casing stretched over two cells, with two proud girth bands behind the lip ring and the face frame recessed 0.2 deep so the deployed emitter reads as reaching out of a hood. The same door pair as the compact head (`stow_lid_right`/`stow_lid_left`, rest parted in frame-hidden flank pockets, inward 0.22 to shut, left door rotate [0,0,180] so one signed local-X Translate closes both). The `beam_tip` node (lens, taper nose, green emitter band, barrel) RESTS DEPLOYED with its nose and band 0.18 past the frame inside the hood, and slides +Z 0.30 into the collar bore, fully behind the shut doors. Nothing stands outside the casing in any pose. Forward bay, review-only.",
+  "frame": "bay",
+  "cells": [1, 1, 2],
+  "materials": {
+    "part_amber": { "color": [0.85, 0.55, 0.12], "metallic": 0.4, "roughness": 0.5 },
+    "part_beam": { "color": [0.15, 0.85, 0.5], "metallic": 0.1, "roughness": 0.2 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 }
+  },
+  "material": "part_steel",
+  "parts": [
+    { "primitive": "box", "size": [1.0, 0.06, 0.04], "at": [0.0, 0.47, -0.98] },
+    { "primitive": "box", "size": [1.0, 0.06, 0.04], "at": [0.0, -0.47, -0.98] },
+    { "primitive": "box", "size": [0.06, 0.88, 0.04], "at": [0.47, 0.0, -0.98] },
+    { "primitive": "box", "size": [0.06, 0.88, 0.04], "at": [-0.47, 0.0, -0.98] },
+    { "primitive": "box", "size": [0.04, 0.88, 1.92], "at": [0.46, 0.0, 0.0] },
+    { "primitive": "box", "size": [0.04, 0.88, 1.92], "at": [-0.46, 0.0, 0.0] },
+    { "primitive": "box", "size": [0.96, 0.04, 1.92], "at": [0.0, 0.46, 0.0] },
+    { "primitive": "box", "size": [0.96, 0.04, 1.92], "at": [0.0, -0.46, 0.0] },
+    { "primitive": "box", "size": [1.0, 1.0, 0.04], "at": [0.0, 0.0, 0.98] },
+    {
+      "primitive": "box",
+      "size": [1.0, 0.06, 0.06],
+      "at": [0.0, 0.47, -0.2],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [1.0, 0.06, 0.06],
+      "at": [0.0, -0.47, -0.2],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 0.88, 0.06],
+      "at": [0.47, 0.0, -0.2],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 0.88, 0.06],
+      "at": [-0.47, 0.0, -0.2],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [1.0, 0.06, 0.06],
+      "at": [0.0, 0.47, 0.45],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [1.0, 0.06, 0.06],
+      "at": [0.0, -0.47, 0.45],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 0.88, 0.06],
+      "at": [0.47, 0.0, 0.45],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 0.88, 0.06],
+      "at": [-0.47, 0.0, 0.45],
+      "material": "part_gunmetal"
+    },
+    { "primitive": "box", "size": [0.88, 0.24, 0.04], "at": [0.0, 0.32, -0.78] },
+    { "primitive": "box", "size": [0.88, 0.24, 0.04], "at": [0.0, -0.32, -0.78] },
+    { "primitive": "box", "size": [0.24, 0.4, 0.04], "at": [0.32, 0.0, -0.78] },
+    { "primitive": "box", "size": [0.24, 0.4, 0.04], "at": [-0.32, 0.0, -0.78] },
+    {
+      "primitive": "box",
+      "size": [0.3, 0.02, 0.01],
+      "at": [0.0, 0.23, -0.805],
+      "material": "part_beam"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.02, 0.01],
+      "at": [0.12, -0.23, -0.805],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.02, 0.01],
+      "at": [-0.12, -0.23, -0.805],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "sleeve",
+      "radius": 0.3,
+      "bore": 0.14,
+      "height": 1.66,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.13],
+      "material": "part_gunmetal"
+    }
+  ],
+  "nodes": [
+    {
+      "name": "stow_lid_right",
+      "at": [0.325, 0.0, -0.735],
+      "rotate": [0.0, 0.0, 0.0],
+      "parts": [
+        { "primitive": "box", "size": [0.21, 0.44, 0.03], "at": [0.0, 0.0, 0.0] },
+        {
+          "primitive": "box",
+          "size": [0.03, 0.4, 0.005],
+          "at": [-0.075, 0.0, -0.0175],
+          "material": "part_amber"
+        }
+      ]
+    },
+    {
+      "name": "stow_lid_left",
+      "at": [-0.325, 0.0, -0.735],
+      "rotate": [0.0, 0.0, 180.0],
+      "parts": [
+        { "primitive": "box", "size": [0.21, 0.44, 0.03], "at": [0.0, 0.0, 0.0] },
+        {
+          "primitive": "box",
+          "size": [0.03, 0.4, 0.005],
+          "at": [-0.075, 0.0, -0.0175],
+          "material": "part_amber"
+        }
+      ]
+    },
+    {
+      "name": "beam_tip",
+      "at": [0.0, 0.0, 0.0],
+      "rotate": [0.0, 0.0, 0.0],
+      "parts": [
+        {
+          "primitive": "disc",
+          "radius": 0.075,
+          "thickness": 0.02,
+          "sides": 12,
+          "rotate": [90.0, 0.0, 0.0],
+          "at": [0.0, 0.0, -0.97],
+          "material": "part_beam"
+        },
+        {
+          "primitive": "taper",
+          "radius_bottom": 0.1,
+          "radius_top": 0.13,
+          "height": 0.1,
+          "sides": 12,
+          "rotate": [90.0, 0.0, 0.0],
+          "at": [0.0, 0.0, -0.91],
+          "material": "part_gunmetal"
+        },
+        {
+          "primitive": "cylinder",
+          "radius": 0.13,
+          "height": 0.04,
+          "sides": 12,
+          "rotate": [90.0, 0.0, 0.0],
+          "at": [0.0, 0.0, -0.84],
+          "material": "part_beam"
+        },
+        {
+          "primitive": "cylinder",
+          "radius": 0.13,
+          "height": 0.36,
+          "sides": 12,
+          "rotate": [90.0, 0.0, 0.0],
+          "at": [0.0, 0.0, -0.64],
+          "material": "part_gunmetal"
+        }
+      ]
+    }
+  ]
+}

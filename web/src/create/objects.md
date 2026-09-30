@@ -220,6 +220,7 @@ id or authored inline.
 | `capabilities` | capability set | all on | what this spawn is PERMITTED to do (below). Omit it for a ship that can do everything |
 | `inventory` | stock | required | what the ship carries at spawn (below) |
 | `lootable` | bool | required | `true` lets a ship docked to this one Take from its inventory although it was never neutralized: a derelict. `false` allows Take only once it is neutralized. Give is always allowed |
+| `credits` | whole number | required | the credits the ship holds at spawn. A docked player Buys from and Sells to any ship that is neither neutralized nor lootable, paid from these real credits. Base content gives a live ship `2000` and a derelict `0` |
 
 `design: Inline((..))` carries the same fields a [ship design](../ships/) does
 - `sections`, `integrity`, `presentation`. Author one for a genuine one-off (a
@@ -271,17 +272,28 @@ in the TAB interface's Inventory pane. A Ship pane repair spends hull plates,
 and every weapon's idle reload draws its matching round from this same stock
 - see [Turret `reload`](../sections/#turret). A docked player can
 Give items to any ship and Take them from a neutralized or `lootable: true`
-one, never past the receiving ship's hold. An undocked player with a
+one, never past the receiving ship's hold. The player can also Buy items from
+any other docked ship at the item's ask and Sell to it at the item's bid,
+moving `credits` between the two ships at once. A trade takes only stock the
+seller carries and credits the buyer holds; nothing restocks. An undocked player with a
 [cargo intake](../sections/#cargo-intake) can Jettison items in canisters and
-take canisters back in. Nothing is saved: stock returns to its authored counts
-when the scenario loads again.
+take canisters back in. Nothing is saved: stock and credits return to their
+authored values when the scenario loads again.
 
-| Item | Mass | Category |
-| --- | --- | --- |
-| `HullPlate` | 10 kg | Repair |
-| `PdcRound` | 0.2 kg | Ammo |
-| `RailSlug` | 20 kg | Ammo |
-| `Torpedo` | 150 kg | Ammo |
+| Item | Mass | Category | Ask | Bid |
+| --- | --- | --- | --- | --- |
+| `HullPlate` | 10 kg | Repair | 40 | 30 |
+| `PdcRound` | 0.2 kg | Ammo | 4 | 3 |
+| `RailSlug` | 20 kg | Ammo | 40 | 30 |
+| `Torpedo` | 150 kg | Ammo | 400 | 300 |
+| `StoneOre` | 10 kg | Raw | 4 | 3 |
+| `IronOre` | 10 kg | Raw | 16 | 12 |
+| `WaterIce` | 10 kg | Raw | 12 | 9 |
+| `CarbonOre` | 10 kg | Raw | 8 | 6 |
+| `Rations` | 2 kg | Food | 8 | 6 |
+| `SalvagedParts` | 25 kg | Parts | 120 | 90 |
+
+Ask and Bid are credits for one item, the same on every ship.
 
 `PdcRound` feeds both Kinetic and Pierce turret mounts - the mount decides the
 round's damage type, not the item. `Torpedo` feeds every torpedo bay type,
@@ -295,18 +307,21 @@ inventory: {
     HullPlate: 8,
 },
 lootable: true,
+credits: 0,
 ```
 
 <!-- Fields: crates/nova_scenario/src/objects/spaceship.rs (`SpaceshipConfig::inventory`,
      `SpaceshipConfig::lootable`, which inserts `LootableShipMarker` at spawn in
-     crates/nova_scenario/src/actions/spawn.rs).
+     crates/nova_scenario/src/actions/spawn.rs, and `SpaceshipConfig::credits`,
+     which `spaceship_scenario_object` inserts as `ShipCredits`).
+     Trade: crates/nova_gameplay/src/inventory.rs `plan_item_trade`.
      Parse: crates/nova_gameplay/src/inventory.rs (`ShipInventoryStock` Deserialize).
      Hold: crates/nova_scenario/src/objects/ship_design.rs
      (`ResolvedShipDesign::cargo_capacity_g` :402, `HULL_SECTION_CARGO_G` :393);
      overstock lint in crates/nova_scenario/src/lint/ship.rs
      `check_object_prototypes`. Item catalog, masses and categories:
      crates/nova_gameplay/src/inventory.rs `ItemType::mass_g`,
-     `ItemType::category`. -->
+     `ItemType::category`, `ItemType::ask_cr`, `ItemType::bid_cr`. -->
 
 ### Section patches
 
@@ -344,7 +359,9 @@ SpawnScenarioObject((
                 "bridge": (config: (health: Some(500.0))),
             },
         ),
+        inventory: {},
         lootable: false,
+        credits: 2000,
     )),
 )),
 ```
@@ -364,7 +381,9 @@ kind: Spaceship((
             ),
         ],
     )),
+    inventory: {},
     lootable: false,
+    credits: 2000,
 )),
 ```
 
@@ -384,7 +403,9 @@ SpawnScenarioObject((
             engage_delay: Some(8.0),
         )),
         design: Prototype(id: "block_picket"),
+        inventory: {},
         lootable: false,
+        credits: 2000,
     )),
 )),
 ```

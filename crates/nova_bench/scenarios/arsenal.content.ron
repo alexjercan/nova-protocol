@@ -150,6 +150,7 @@
                             )),
                             inventory: {PdcRound: 1000, RailSlug: 10, Torpedo: 2},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -180,6 +181,7 @@
                             allegiance: Some(Enemy),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -195,6 +197,7 @@
                             allegiance: Some(Enemy),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -212,6 +215,7 @@
                             )),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((

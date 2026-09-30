@@ -356,6 +356,7 @@
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SetCamera((
@@ -515,6 +516,7 @@
                                 PdcRound: 2000,
                             },
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -1179,6 +1181,7 @@
                                 PdcRound: 2000,
                             },
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     PatrolShip((
