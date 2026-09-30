@@ -15,7 +15,11 @@
 //! the generator used. Nothing puts them on a streamed entity; a debug view
 //! asks for them. [`CivilizationField`] answers which seeded civilizations
 //! reach a place; only debug diagnostics read it, and the generator does not
-//! select ships from it yet.
+//! select ships from it yet. [`ShipPartSnapshot`] validates and scores the
+//! section prototypes generated ships may use; only the content lint and the
+//! `world_ships` debug example build one yet. [`generate_ship`] lays out one
+//! ship from a snapshot and [`generate_wreck`] ruins that same ship; only tests
+//! and `world_ships` call them yet.
 //!
 //! The one promise a world seed makes: the same build on the same platform
 //! generates the same pristine sectors from it, in any exploration order.
@@ -33,6 +37,8 @@ mod civilizations;
 mod clusters;
 mod environment;
 mod layered;
+mod ship_layout;
+mod ship_parts;
 
 #[cfg(test)]
 mod tests;
@@ -45,17 +51,29 @@ pub use crate::{
     clusters::{sector_clusters, ClusterSummary, ClusterType, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
     layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
+    ship_layout::{
+        generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
+        ShipLayoutFailure, ShipLayoutRequest,
+    },
+    ship_parts::{
+        ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack,
+        ShipPartSnapshot,
+    },
 };
 
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
 /// the session, the generator, its clearance margin, the environment, cluster
-/// and civilization diagnostics and the base-world ids into scope.
+/// and civilization diagnostics, the ship-part snapshot, the ship layout and
+/// the base-world ids into scope.
 pub mod prelude {
     pub use super::{
-        sector_clusters, AdvancementCurveType, Civilization, CivilizationField, CivilizationId,
-        CivilizationReach, CivilizationStatusType, ClusterSummary, ClusterType, Environment,
-        EnvironmentFieldType, EnvironmentFields, NovaLayeredWorld, NovaWorldBasePlugin,
-        OpenWorldSession, SectorClusters, ShipRoleType, BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
+        generate_ship, generate_wreck, sector_clusters, AdvancementCurveType, Civilization,
+        CivilizationField, CivilizationId, CivilizationReach, CivilizationStatusType,
+        ClusterSummary, ClusterType, Environment, EnvironmentFieldType, EnvironmentFields,
+        NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession, SectorClusters,
+        ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
+        ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
+        ShipPartPack, ShipPartSnapshot, ShipRoleType, BLOCK_FRAME_TENDER_DAMAGED_SHIP_ID,
         BLOCK_LINE_WARSHIP_SHIP_ID, BLOCK_WRECK_PLATE_SHIP_ID, CLEARANCE_MARGIN,
         OPEN_WORLD_SCENARIO_ID,
     };

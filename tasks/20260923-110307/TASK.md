@@ -64,6 +64,8 @@ The first PR is a reusable diagnostic/prototype; it does not change open-world s
 
 **PR A exit:** reviewed maps, rendered matrix, playable examples and focused deterministic/content-failure proofs justify an explicit solver and balance choice. No world-spawn replacement, loot or AI ships ship in PR A.
 
+**PR A limitation (gate for PR B):** `generate_wreck` fails loudly with `Unruined` (0 of 1) on a hull that cannot lose one off-centre outer cube. On base content at advancement 0, seeds 0-11, this is 2 of 48 requests (scavenger seeds 0 and 6); advancement 0.25 and 1 fail none. PR B must decide how a sector treats such a request before runtime integration; PR A adds no reroll, skip or fallback.
+
 ### PR B - runtime integration, after item-loop loot glue is ready
 
 7. [ ] **Gate the world contract and dependency.** Map the hardcoded `DERELICT_DESIGNS`/authored Derelict Tender, sector descriptions, spawn owner, ship inspection and inventory/loot consumers. Agree on generated wreck cargo and Take/Give source with the item-loop stack in the same delivery boundary. Do not delete the old source early or ship a Take/Give gap. Define inline validated `ShipDesign` plus structured ship identity, prototype references, catalog pinning and ownership before code edits.

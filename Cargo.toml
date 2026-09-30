@@ -268,6 +268,17 @@ path = "examples/playable/world_field_clouds.rs"
 name = "world_civilizations"
 path = "examples/playable/world_civilizations.rs"
 
+# The open world's generated ships, laid out by the world's own
+# `generate_ship` from the content lint's part snapshot: every role at its
+# lowest and full advancement with a single and a paired drive, posed bare
+# beside four current WFC hulls, then flown one at a time (burn, turn, fighter
+# fire, industrial cargo intake). One `generate_wreck` derelict per role stands
+# with every active section disabled and is checked inert under commands.
+# `--mods` picks the repo bundles the snapshot reads.
+[[example]]
+name = "world_ships"
+path = "examples/playable/world_ships.rs"
+
 # The same streaming loop over a world whose bodies come in GROUPS: asteroid-rich,
 # rock-only, planet-heavy, derelict-only and low-rock, decided on a global
 # lattice from three environment fields and owned body by body by the cell each

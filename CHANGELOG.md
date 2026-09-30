@@ -87,6 +87,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `Mining` section kind: pulse and door sounds, reach, interval, carve
   radius and stow tracks. Lint/load reject bad stats, collider or tracks;
   invalid live mods end the run.
+- Content lint rejects bad section health/collider/thrust/torque/damage, a
+  duplicate section id across unrelated mods, a missing family part, and an
+  oblique or self-blocked weapon/thruster exit.
+- Editor Generate names and refuses a plan part that fires between two axes,
+  instead of leaving it off the hull or placing it with no clear firing lane.
 - **(breaking)** Spaceships require `lootable: true` or `false`; a ship without
   it fails lint and load. A docked player may Take from a `lootable: true`
   ship that was never neutralized.

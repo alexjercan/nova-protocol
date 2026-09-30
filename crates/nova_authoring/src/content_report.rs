@@ -129,7 +129,8 @@ pub struct CreativeMap {
 pub struct ContentReport {
     /// The `--target` mod id, or `None` for a whole-tree lint.
     pub target: Option<String>,
-    /// Every mod the report covers, in walk order.
+    /// Every mod the report covers or a finding names, in walk order. A
+    /// `--target` report names base when a base fault breaks the target.
     pub bundles: Vec<String>,
     /// How many combat scenarios the balance audit graded.
     pub scenarios_audited: usize,

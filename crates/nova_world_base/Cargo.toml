@@ -22,6 +22,11 @@ nova_gameplay = { path = "../nova_gameplay" }
 # The planet and asteroid tables the generator draws from, and the live
 # scenario whose role arms the world.
 nova_scenario = { path = "../nova_scenario" }
+# The section prototypes a ship-part snapshot validates, and the one
+# cell-grid fit it shares with the WFC. `serde` for the canonical RON form the
+# snapshot hash reads.
+nova_ship = { path = "../nova_ship", features = ["serde"] }
+ron = { version = "0.12" }
 # The mechanism: `SectorGenerator`, `WorldConfig`, `NovaWorldPlugin`.
 nova_world = { path = "../nova_world" }
 

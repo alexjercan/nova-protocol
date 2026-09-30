@@ -5,15 +5,14 @@
 //! exactly when the sockets they turn to each other agree. Nothing in this
 //! module authors a rule; it reads one off content that already exists.
 
-use std::collections::HashSet;
-
 use bevy::prelude::*;
 use nova_ship::prelude::{
-    exit_normal, GameSections, SectionCollider, SectionConfig, SectionFootprint,
+    cell_grid_fit, cube_rotations, mirror_face, oriented_part, CellGridFault, GameSections,
+    OrientedPart, SectionCollider, SectionConfig, CELL_FACES, GRID_EPSILON,
 };
 
 use crate::{
-    grid::{face_index, mirror_face, snapped, FACES, GRID_EPSILON},
+    grid::{face_index, snapped},
     plan::{WfcPart, WfcPlan, WfcZone},
 };
 
@@ -27,7 +26,7 @@ pub(crate) struct Family {
     /// Draw weight for the PART, spent across whatever orientations of it are
     /// legal in a given cell.
     pub(crate) weight: f32,
-    /// The only face this part may fire through, in [`FACES`] order, or `None`
+    /// The only face this part may fire through, in [`CELL_FACES`] order, or `None`
     /// for a part that may point any way the mating rule allows.
     pub(crate) aim: Option<usize>,
     /// The only region of the hull this part may stand in, or `None` for a part
@@ -43,12 +42,12 @@ pub(crate) struct Tile {
     /// Draw weights are authored per PART, so the draw needs to know which
     /// tiles are the same part wearing different rotations.
     pub(crate) family: Option<usize>,
-    /// Per-face sockets this tile presents to its neighbours, in [`FACES`]
-    /// order, read off the rotated link points.
+    /// Per-face sockets this tile presents to its neighbours, in
+    /// [`CELL_FACES`] order, read off the rotated link points.
     pub(crate) faces: [bool; 6],
-    /// The face this CELL fires, launches or exhausts through, in [`FACES`]
-    /// order, or `None` for a cell that does none of those. It is the cell's
-    /// clearance: nothing may stand in front of it.
+    /// The face this CELL fires, launches or exhausts through, in
+    /// [`CELL_FACES`] order, or `None` for a cell that does none of those. It
+    /// is the cell's clearance: nothing may stand in front of it.
     ///
     /// A big drive's nozzle is as wide as the drive, so every cell of its
     /// exhaust face carries this and every cell of the layers in front of it
@@ -128,9 +127,8 @@ fn vacuum_tile() -> Tile {
 /// ORIENTATION each drawn prototype can stand at, with the families the draw
 /// prices them by.
 ///
-/// Rotations are swept coarsely (three quarter-turn axes, 64 combinations) and
-/// deduplicated by where they send the part's own axes, which leaves the 24
-/// ways a cube can sit.
+/// Every ORIENTATION is one of the 24 [`cube_rotations`], read as grid cells
+/// by [`oriented_part`].
 ///
 /// Deduplicating by SOCKET PATTERN instead would be tempting - it is all the
 /// collapse can tell apart - and it was wrong. Sockets do not determine a
@@ -141,12 +139,12 @@ fn vacuum_tile() -> Tile {
 /// even where the rule cannot, so they are kept apart.
 ///
 /// `Err` carries the line the caller shows: a plan naming a part the
-/// catalog does not hold, or one whose geometry cannot be mirrored.
+/// catalog does not hold, one whose geometry cannot be mirrored, or one whose
+/// exit lane the grid cannot keep clear.
 pub(crate) fn build(
     sections: &GameSections,
     plan: &WfcPlan,
 ) -> Result<(Vec<Tile>, Vec<Family>), String> {
-    let quarter = std::f32::consts::FRAC_PI_2;
     let mut tiles = vec![vacuum_tile()];
     let mut families = Vec::new();
 
@@ -169,36 +167,31 @@ pub(crate) fn build(
 
         let family = families.len();
         families.push(resolved(part)?);
+        // A part off the grid keeps its family and simply has no tiles, so the
+        // seed can name it. A part whose lane the grid cannot keep clear is a
+        // fault: drawing it silently would drop a weapon or drive the plan names.
+        match cell_grid_fit(config) {
+            Ok(()) => {}
+            Err(fault @ (CellGridFault::ObliqueExit | CellGridFault::SocketOnExitFace)) => {
+                return Err(format!("'{}' {fault}", part.prototype));
+            }
+            Err(_) => continue,
+        }
 
-        let single = SectionFootprint::from_collider(config.base.collider.unwrap_or_default()).0
-            == UVec3::ONE;
-        let mut seen = HashSet::new();
-        for x in 0..4 {
-            for y in 0..4 {
-                for z in 0..4 {
-                    let rotation = (Quat::from_rotation_x(x as f32 * quarter)
-                        * Quat::from_rotation_y(y as f32 * quarter)
-                        * Quat::from_rotation_z(z as f32 * quarter))
-                    .normalize();
-                    let Some(basis) = rotated_basis(rotation) else {
-                        continue;
-                    };
-                    if !seen.insert(basis) {
-                        continue;
-                    }
-                    let group = if single {
-                        tile(family, config, rotation)?.into_iter().collect()
-                    } else {
-                        segment_tiles(family, config, rotation)?.unwrap_or_default()
-                    };
-                    let base = tiles.len();
-                    for mut tile in group {
-                        for joint in &mut tile.joints {
-                            *joint = joint.map(|local| base + local);
-                        }
-                        tiles.push(tile);
-                    }
+        for rotation in cube_rotations() {
+            let oriented = oriented_part(config, rotation)
+                .expect("cell_grid_fit above already accepted this prototype");
+            let group = if oriented.cells.len() == 1 {
+                vec![tile(family, config, &oriented)]
+            } else {
+                segment_tiles(family, &config.base.id, &oriented)
+            };
+            let base = tiles.len();
+            for mut tile in group {
+                for joint in &mut tile.joints {
+                    *joint = joint.map(|local| base + local);
                 }
+                tiles.push(tile);
             }
         }
     }
@@ -239,7 +232,7 @@ fn drawn_and_seeded(plan: &WfcPlan) -> Vec<WfcPart> {
     parts
 }
 
-/// One authored draw entry with its aim resolved to a [`FACES`] index.
+/// One authored draw entry with its aim resolved to a [`CELL_FACES`] index.
 fn resolved(part: &WfcPart) -> Result<Family, String> {
     let aim = match part.aim {
         Some(aim) => Some(face_index(aim.normal()).ok_or_else(|| {
@@ -258,205 +251,72 @@ fn resolved(part: &WfcPart) -> Result<Family, String> {
     })
 }
 
-/// Read one prototype at one rotation as a grid tile, or reject it.
-///
-/// A prototype earns a place on the grid by its sockets alone: each must point
-/// down a cardinal axis, sit ON that axis, and be inset from its cell face by
-/// the SAME distance as every other socket the part has - because that common
-/// inset is the one placement offset that puts all of them on their cell faces
-/// at once. A part that cannot satisfy that (an oblique socket, two different
-/// insets, a body too big for a cell) is simply not a tile at this rotation,
-/// and the generator never sees it. `Err` is reserved for a part that could
-/// never tile at ANY rotation, which is an authoring fault.
-fn tile(family: usize, config: &SectionConfig, rotation: Quat) -> Result<Option<Tile>, String> {
-    let mut faces = [false; 6];
-    let mut offset: Option<Vec3> = None;
-
-    for point in &config.base.link_points {
-        let Some(face) = face_index(rotation * point.normal) else {
-            return Ok(None);
-        };
-        let axis = FACES[face];
-        let position = rotation * point.position;
-        let inset = position.dot(axis);
-        if !position.abs_diff_eq(axis * inset, GRID_EPSILON) {
-            return Ok(None);
-        }
-        let candidate = axis * (0.5 - inset);
-        match offset {
-            Some(previous) if !previous.abs_diff_eq(candidate, GRID_EPSILON) => return Ok(None),
-            _ => offset = Some(candidate),
-        }
-        faces[face] = true;
-    }
-
-    // A part with no sockets at all can never mate, so it can never be part of
-    // one connected ship.
-    let Some(offset) = offset else {
-        return Ok(None);
-    };
-
-    // The body has to stay inside its own cell. This is what makes the
-    // overlap lint unreachable by construction rather than by luck: two
-    // sections in different cells cannot interpenetrate if neither leaves its
-    // cell, and a cell holds one section.
-    let half = rotated_half_extents(config.base.collider.unwrap_or_default(), rotation);
-    if (offset.abs() + half).max_element() > 0.5 + GRID_EPSILON {
-        return Ok(None);
-    }
-
-    let exit = exit_normal(&config.kind).and_then(|normal| face_index(rotation * normal));
-    if exit.is_some_and(|face| faces[face]) {
-        return Err(format!(
-            "'{}' carries a socket on the face it fires through, so a hull slab could be \
-             bolted across its muzzle",
-            config.base.id
-        ));
-    }
-
-    Ok(Some(Tile {
+/// Read one prototype that [`cell_grid_fit`] accepts, at one rotation, as a
+/// grid tile, from the single cell [`oriented_part`] reads it as.
+fn tile(family: usize, config: &SectionConfig, part: &OrientedPart) -> Tile {
+    let cell = &part.cells[0];
+    Tile {
         part: Some(TileBody {
             prototype: config.base.id.clone(),
-            rotation,
-            offset: snapped(offset),
+            rotation: part.rotation,
+            offset: part.origin,
         }),
         family: Some(family),
-        faces,
-        exit,
-        aims: exit,
+        faces: cell.faces,
+        exit: cell.exit,
+        aims: part.aims,
         joints: [None; 6],
         emits: true,
         span: UVec3::ONE,
-        seam_flush: offset.x.abs() < GRID_EPSILON,
-    }))
+        seam_flush: part.origin.x.abs() < GRID_EPSILON,
+    }
 }
 
-/// Read one MULTI-CELL prototype at one rotation as a BLOCK of segment tiles,
-/// or reject it. Returned joints are LOCAL segment indices; [`build`] remaps
+/// Read one MULTI-CELL prototype that [`cell_grid_fit`] accepts, at one
+/// rotation, as a BLOCK of segment tiles, from the block [`oriented_part`]
+/// reads it as. Returned joints are LOCAL segment indices; [`build`] remaps
 /// them once the segments' final indices exist.
-///
-/// The bar a segment part has to clear is stricter than [`tile`]'s: every
-/// socket must sit exactly on the face centre of one of the part's own cells,
-/// so each cell presents the face-centre socket a unit part would. A big drive
-/// is authored that way already - one link point per cell of its mount face -
-/// so a 3x3x2 drive mates to nine hull cubes and a 5x5x3 to twenty-five, and
-/// the adjacency rule needs to know nothing about how big a part is.
 ///
 /// The block is held together by [`Tile::joints`], which name the one tile each
 /// face may sit against. A cell that draws a corner segment forces its whole
 /// block through propagation, or the domain empties and the seed is refused.
 ///
-/// One segment emits the placed section: the corner at the part's local
-/// minimum, carrying the offset that puts the part's centre back over the
+/// One segment emits the placed section: the one at the part's own local
+/// origin, carrying the offset that puts the part's centre back over the
 /// block. The rest only occupy their cells.
-fn segment_tiles(
-    family: usize,
-    config: &SectionConfig,
-    rotation: Quat,
-) -> Result<Option<Vec<Tile>>, String> {
-    let footprint = SectionFootprint::from_collider(config.base.collider.unwrap_or_default()).0;
-    let extent = footprint.as_vec3();
-    let turned_span = (rotation * extent).abs().round().as_uvec3();
-    let index = |cell: UVec3| ((cell.x * footprint.y + cell.y) * footprint.z + cell.z) as usize;
-    let cells = move || {
-        (0..footprint.x).flat_map(move |x| {
-            (0..footprint.y).flat_map(move |y| (0..footprint.z).map(move |z| UVec3::new(x, y, z)))
-        })
-    };
-    // Where one of the part's own cells sits in the part's local space.
-    let centre_of = move |cell: UVec3| cell.as_vec3() - (extent - Vec3::ONE) * 0.5;
-
-    let mut segments: Vec<Tile> = cells()
+fn segment_tiles(family: usize, id: &str, part: &OrientedPart) -> Vec<Tile> {
+    let mut segments: Vec<Tile> = part
+        .cells
+        .iter()
         .map(|cell| Tile {
             part: Some(TileBody {
-                prototype: config.base.id.clone(),
-                rotation,
-                offset: snapped(rotation * -centre_of(cell)),
+                prototype: id.to_string(),
+                rotation: part.rotation,
+                offset: snapped(part.origin - cell.cell.as_vec3()),
             }),
             family: Some(family),
-            faces: [false; 6],
-            exit: None,
-            aims: None,
+            faces: cell.faces,
+            exit: cell.exit,
+            aims: part.aims,
             joints: [None; 6],
-            emits: cell == UVec3::ZERO,
-            span: turned_span,
+            emits: cell.local == UVec3::ZERO,
+            span: part.span,
             seam_flush: true,
         })
         .collect();
 
-    for point in &config.base.link_points {
-        let Some(face) = face_index(rotation * point.normal) else {
-            return Ok(None);
-        };
-        let position = rotation * point.position;
-        let found = cells().find(|cell| {
-            (position - rotation * centre_of(*cell)).abs_diff_eq(FACES[face] * 0.5, GRID_EPSILON)
-        });
-        let Some(cell) = found else {
-            return Ok(None);
-        };
-        segments[index(cell)].faces[face] = true;
-    }
-
-    if let Some(exit) = exit_normal(&config.kind) {
-        let Some(out) = face_index(rotation * exit) else {
-            return Ok(None);
-        };
-        let Some(local) = face_index(exit) else {
-            return Err(format!(
-                "'{}' fires down {exit:?}, which is not one of its own cardinal faces",
-                config.base.id
-            ));
-        };
-        // The exit is a whole FACE of the block rather than a cell of it: a big
-        // drive's nozzle is as wide as the drive. Every cell on that face
-        // carries the exit, so every one of them wants its own lane clear.
-        let (axis, outer) = (
-            local / 2,
-            if local % 2 == 0 {
-                extent - Vec3::ONE
-            } else {
-                Vec3::ZERO
-            },
-        );
-        for cell in cells().filter(|cell| cell.as_vec3()[axis] == outer[axis]) {
-            if segments[index(cell)].faces[out] {
-                return Err(format!(
-                    "'{}' carries a socket on the face it fires through, so a hull slab could \
-                     be bolted across its muzzle",
-                    config.base.id
-                ));
-            }
-            segments[index(cell)].exit = Some(out);
-        }
-        for segment in &mut segments {
-            segment.aims = Some(out);
-        }
-    }
-
-    for cell in cells() {
-        for offset in FACES {
-            let next = cell.as_vec3() + offset;
-            if next.cmplt(Vec3::ZERO).any() || next.cmpge(extent).any() {
+    for (index, cell) in part.cells.iter().enumerate() {
+        for (face, offset) in CELL_FACES.into_iter().enumerate() {
+            let neighbor = cell.cell.as_vec3() + offset;
+            if neighbor.cmplt(Vec3::ZERO).any() || neighbor.cmpge(part.span.as_vec3()).any() {
                 continue;
             }
-            let Some(turned) = face_index(rotation * offset) else {
-                return Ok(None);
-            };
-            segments[index(cell)].joints[turned] = Some(index(next.as_uvec3()));
+            let neighbor = neighbor.as_uvec3();
+            segments[index].joints[face] =
+                part.cells.iter().position(|other| other.cell == neighbor);
         }
     }
-    Ok(Some(segments))
-}
-
-/// Where a rotation sends the three axes, as [`FACES`] indices. Two rotations
-/// with the same answer are the same rotation.
-fn rotated_basis(rotation: Quat) -> Option<[usize; 3]> {
-    Some([
-        face_index(rotation * Vec3::X)?,
-        face_index(rotation * Vec3::Y)?,
-        face_index(rotation * Vec3::Z)?,
-    ])
+    segments
 }
 
 /// Whether a prototype's socket set survives the centreline mirror.

@@ -23,7 +23,7 @@ cargo run --example system_scenario_grammar   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
 cargo check && cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
-cargo run content lint   # validate content: refs + balance + input overlaps (also: gen)
+cargo run content lint   # validate content: refs + ship parts + balance + input overlaps (also: gen)
 cargo run --features debug probe run system_player_path          # run-harness check (correctness + perf)
 ```
 
@@ -531,6 +531,14 @@ cargo run content lint --target <mod> --report r.md     # + write a per-mod repo
   - the identifier + geometry + resource checks the load/publish gates cannot
     (dangling `NextScenario` targets, unspawnable filter targets, duplicate ids,
     scenarios with no terminal `Outcome`, resource-ref membership, ...);
+  - the generated-ship part check - each bundle's section catalog, with base
+    and its transitive dependencies, must build one
+    `nova_world_base::ShipPartSnapshot`: positive finite part stats, a section
+    id overlaid only along a dependency chain, a usable hull, controller,
+    thruster and cargo intake, and a weapon or thruster that fires straight out
+    of one of its own faces with no socket on that face. Each fault is
+    reported once, against the bundle that owns it or else the first bundle
+    whose catalog raises it;
   - the combat balance/fairness audit - every combat scenario's derived sheet,
     graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; a bundle
     acknowledges its OWN deliberate imbalances in a `balance_acks.ron` beside

@@ -54,7 +54,7 @@ shared `base` block and one kind-specific block:
 | `base.id` | string | required | Prototype key used by `source: Prototype(id: "<id>")`. A new id adds a part; a matching id replaces the earlier part. Prefix new ids with your mod id. |
 | `base.name` | string | required | Display name in the editor palette and ship UI. |
 | `base.description` | string | required | Editor and tooltip description. |
-| `base.health` | number | required | Hit points before the section is destroyed. |
+| `base.health` | number | required | Hit points before the section is destroyed. Positive and finite. |
 | `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
 | `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
@@ -84,6 +84,27 @@ machine. Skin and clearance read every occupied cell. Put mounting sockets at
 the centres of the cells on each face that can attach; collider contact alone
 never creates structure. Non-integral cuboids and non-cuboid shapes remain
 one-cell footprints.
+
+Every collider size, radius, length and height must be positive and finite.
+
+### Stats that content lint checks
+
+`content lint` checks each mod's full section catalog: base, every mod it
+depends on, and the mod itself. It rejects a section whose `health`, collider
+dimension, thruster `magnitude`, controller `max_torque`, turret
+`bullet_damage` or muzzle `fire_rate`, torpedo `blast_damage` or `fire_rate`,
+railgun `slug_damage`, or intake aperture is not positive and finite, and a
+railgun `charge_seconds` that is negative or not finite. It also rejects one
+section id defined by two mods in that catalog when neither depends on the
+other; replace a section only from a mod that depends on the one you replace.
+The catalog must also keep at least one hull, controller, thruster and cargo
+intake that a procedurally generated ship can use. A generated ship does not
+use a docking port, a part without link points, a railgun with no charge time,
+or a part that cannot stand on the one-part-per-cell build grid. Such a part
+still loads and still works on authored ships. A weapon or thruster that
+otherwise stands on the grid must fire straight out of one of its own faces and
+carry no socket on that face. Content lint rejects one that does not, and the
+editor's Generate refuses a plan that names it.
 
 ### Damage effects
 

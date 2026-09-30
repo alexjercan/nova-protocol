@@ -14,10 +14,6 @@ pub(crate) const FACES: [Vec3; 6] = [
     Vec3::NEG_Z,
 ];
 
-/// Slack for the socket geometry the grid reads: positions and normals come
-/// out of a quaternion multiply, so nothing lands exactly on 0.5.
-pub const GRID_EPSILON: f32 = 1e-4;
-
 /// Reciprocal of the quantum a derived placement is snapped onto - a power of
 /// two, so the snap itself is exact.
 ///
@@ -105,21 +101,4 @@ pub(crate) fn snapped(value: Vec3) -> Vec3 {
 /// or `None` if it points somewhere between two of them.
 pub(crate) fn face_index(direction: Vec3) -> Option<usize> {
     FACES.iter().position(|face| face.dot(direction) > 0.999)
-}
-
-/// The face index a reflection through `x = 0` sends `face` to.
-pub(crate) fn mirror_face(face: usize) -> usize {
-    match face / 2 {
-        0 => face ^ 1,
-        _ => face,
-    }
-}
-
-/// The rotation a part reflected through `x = 0` wears.
-///
-/// A reflection flips handedness, so it is not a rotation - but conjugating a
-/// rotation by one is (the axis reflects, the angle negates), which for a
-/// quaternion is just negating y and z.
-pub(crate) fn mirrored(rotation: Quat) -> Quat {
-    Quat::from_xyzw(rotation.x, -rotation.y, -rotation.z, rotation.w)
 }

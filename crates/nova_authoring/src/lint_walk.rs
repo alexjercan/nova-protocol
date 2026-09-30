@@ -5,7 +5,7 @@
 //! `content lint` CLI and the CI gate test; not part of the game runtime.
 
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -22,6 +22,7 @@ use nova_training::prelude::{
     lint_lessons, unused_practice_ranges, Lesson, LessonIssue, LessonSeverity,
 };
 use nova_ui::theme::{lint_theme, UiThemeConfig};
+use nova_world_base::prelude::{ShipPartFault, ShipPartPack, ShipPartSnapshot};
 
 use crate::{
     balance::{BalanceAck, BALANCE_ACKS_FILE},
@@ -31,11 +32,12 @@ use crate::{
 };
 
 /// The two report walks (`collect_*`), the two issue-only walks (`lint_*`),
-/// the target resolver, and the balance-input view of a walked tree.
+/// the target resolver, the balance-input view of a walked tree and the
+/// generated-ship part packs of repo bundles.
 pub mod prelude {
     pub use super::{
         audit_bundles, collect_target, collect_tree, lint_content_tree, lint_target,
-        resolve_target, tree_acks, AuditBundle,
+        repo_ship_part_packs, resolve_target, tree_acks, AuditBundle,
     };
 }
 
@@ -536,6 +538,67 @@ pub fn lint_target(dir: &Path) -> Vec<(String, LintIssue)> {
     lint_bundle(&target, &repo)
 }
 
+/// The effective section catalog of the repo bundles `ids` as ship-part
+/// snapshot packs: each bundle, base and every bundle it depends on, once
+/// each, in id order. The content lint builds its generated-ship snapshot from
+/// the same packs, so a caller hashes and draws from what the lint checked.
+///
+/// # Panics
+///
+/// If the repo tree holds no bundle with one of the ids.
+pub fn repo_ship_part_packs(ids: &[&str]) -> Vec<ShipPartPack> {
+    let all = walk_repo_bundles();
+    let by_id: HashMap<&str, &WalkedBundle> = all.iter().map(|b| (b.id.as_str(), b)).collect();
+    let mut packs = BTreeMap::new();
+    for id in ids {
+        let bundle = by_id
+            .get(id)
+            .unwrap_or_else(|| panic!("the repo tree holds no bundle '{id}'"));
+        for pack in ship_part_packs(bundle, &by_id) {
+            packs.entry(pack.id.clone()).or_insert(pack);
+        }
+    }
+    packs.into_values().collect()
+}
+
+/// `bundle`'s effective section catalog as snapshot packs: base, every bundle
+/// it depends on directly or through another, and itself. `base` is every
+/// mod's implicit dependency. A dependency missing from the walk is left for
+/// the snapshot to name.
+fn ship_part_packs(
+    bundle: &WalkedBundle,
+    by_id: &HashMap<&str, &WalkedBundle>,
+) -> Vec<ShipPartPack> {
+    let dependencies = |walked: &WalkedBundle| -> Vec<String> {
+        let mut dependencies: BTreeSet<String> =
+            walked.manifest.meta.dependencies.iter().cloned().collect();
+        if walked.id != BASE_MOD_ID {
+            dependencies.insert(BASE_MOD_ID.to_string());
+        }
+        dependencies.into_iter().collect()
+    };
+    let mut packs = Vec::new();
+    let mut seen = HashSet::new();
+    let mut pending = vec![bundle];
+    while let Some(walked) = pending.pop() {
+        if !seen.insert(walked.id.as_str()) {
+            continue;
+        }
+        let dependencies = dependencies(walked);
+        pending.extend(
+            dependencies
+                .iter()
+                .filter_map(|dependency| by_id.get(dependency.as_str()).copied()),
+        );
+        packs.push(ShipPartPack {
+            id: walked.id.clone(),
+            dependencies,
+            sections: walked.sections.clone(),
+        });
+    }
+    packs
+}
+
 /// The flight-rig input overlaps in one scenario: every player
 /// `input_mapping` binding whose physical source the always-on flight rig
 /// already reserves (`consume_input: false`, so both fire). Returns
@@ -635,6 +698,65 @@ fn build_report(
                 suggestion: None,
             });
         }
+    }
+
+    // 1b. Generated-ship parts: each reported bundle's effective catalog, base
+    // and its transitive dependencies included, must build one snapshot. A
+    // fault that names a pack is reported against that pack, reported or not,
+    // so a `--target` lint names base for a base stat. An unordered duplicate
+    // goes to the first of its two packs a report covers. A missing family
+    // belongs to base when base's own catalog misses it too, else to the
+    // catalog that raises it. Each fault is reported once.
+    let base_id = BASE_MOD_ID.to_string();
+    let base_ship_part_faults = by_id
+        .get(BASE_MOD_ID)
+        .and_then(|base| ShipPartSnapshot::build(&ship_part_packs(base, &by_id)).err())
+        .unwrap_or_default();
+    let mut ship_part_faults: BTreeMap<(String, String), String> = BTreeMap::new();
+    for bundle in all.iter().filter(|b| report_ids.contains(&b.id)) {
+        let Err(faults) = ShipPartSnapshot::build(&ship_part_packs(bundle, &by_id)) else {
+            continue;
+        };
+        for fault in faults {
+            let (owner, element) = match &fault {
+                ShipPartFault::InvalidStat { pack, id, .. }
+                | ShipPartFault::DuplicateInPack { pack, id }
+                | ShipPartFault::UnlanedExit { pack, id, .. } => (pack, id.as_str()),
+                ShipPartFault::DuplicatePack { pack }
+                | ShipPartFault::UnknownDependency { pack, .. } => (pack, "ship parts"),
+                ShipPartFault::UnorderedDuplicate { id, first, second } => {
+                    let owner = if !report_ids.contains(first) && report_ids.contains(second) {
+                        second
+                    } else {
+                        first
+                    };
+                    (owner, id.as_str())
+                }
+                ShipPartFault::MissingFamily(_) if base_ship_part_faults.contains(&fault) => {
+                    (&base_id, "ship parts")
+                }
+                ShipPartFault::MissingFamily(_) => (&bundle.id, "ship parts"),
+            };
+            ship_part_faults
+                .entry((element.to_string(), fault.to_string()))
+                .or_insert_with(|| owner.clone());
+        }
+    }
+    let mut ship_part_faults: Vec<(String, String, String)> = ship_part_faults
+        .into_iter()
+        .map(|((element, message), bundle)| (bundle, element, message))
+        .collect();
+    ship_part_faults.sort();
+    for (bundle, element, message) in ship_part_faults {
+        findings.push(Finding {
+            file: file_of(&bundle, &element),
+            bundle,
+            severity: ReportSeverity::Error,
+            category: Category::Reference,
+            element,
+            message,
+            suggestion: None,
+        });
     }
 
     // 2. Balance / fairness audit (nova_authoring::balance), acks applied.
@@ -774,10 +896,12 @@ fn build_report(
         }
     }
 
+    // A finding may name a bundle outside the report, such as a base
+    // ship-part fault under `--target`; the report groups by this list.
     let bundles: Vec<String> = all
         .iter()
         .map(|b| b.id.clone())
-        .filter(|id| report_ids.contains(id))
+        .filter(|id| report_ids.contains(id) || findings.iter().any(|f| &f.bundle == id))
         .collect();
 
     ContentReport {
@@ -828,7 +952,7 @@ mod tests {
     use nova_modding::prelude::Content;
     use nova_scenario::prelude::ScenarioConfig;
 
-    use super::{lint_bundle, scenario_input_overlaps, WalkedBundle};
+    use super::{build_report, lint_bundle, scenario_input_overlaps, ReportSeverity, WalkedBundle};
 
     fn scenario(id: &str, cubemap: &str) -> Content {
         Content::Scenario(ScenarioConfig {
@@ -932,6 +1056,130 @@ mod tests {
 
     fn count_containing(msgs: &[String], needle: &str) -> usize {
         msgs.iter().filter(|m| m.contains(needle)).count()
+    }
+
+    /// A generated-ship part fault belongs to the pack that authored the bad
+    /// definition. A `--target` lint must not blame the target for a base
+    /// stat, and a whole-tree lint must not repeat the base fault per mod.
+    #[test]
+    fn a_ship_part_stat_fault_is_reported_once_against_its_authoring_bundle() {
+        let hull = |id: &str, health: f32| -> Content {
+            let ron = format!(
+                r#"Section((base: (id: "{id}", name: "{id}", description: "", health: {health:?}), kind: Hull((render_mesh: None))))"#
+            );
+            ron::from_str(&ron).expect("section parses")
+        };
+        let all = vec![
+            walked("base", &[], &[], vec![hull("base_hull", -1.0)]),
+            walked("mod", &[], &[], vec![hull("mod_hull", -2.0)]),
+        ];
+        let located = |report_ids: &[&str]| -> Vec<(String, String, Option<String>)> {
+            let report_ids = report_ids.iter().map(|id| id.to_string()).collect();
+            let mut located: Vec<_> = build_report(&all, &report_ids, None)
+                .findings
+                .into_iter()
+                .filter(|finding| finding.message.contains("generated ship part"))
+                .map(|finding| (finding.bundle, finding.element, finding.file))
+                .collect();
+            located.sort();
+            located
+        };
+        let expected = vec![
+            (
+                "base".to_string(),
+                "base_hull".to_string(),
+                Some("content.ron".to_string()),
+            ),
+            (
+                "mod".to_string(),
+                "mod_hull".to_string(),
+                Some("content.ron".to_string()),
+            ),
+        ];
+
+        assert_eq!(located(&["mod"]), expected, "target lint");
+        assert_eq!(located(&["base", "mod"]), expected, "whole-tree lint");
+        let target_ids = std::iter::once("mod".to_string()).collect();
+        let markdown = build_report(&all, &target_ids, Some("mod".to_string())).to_markdown();
+        assert!(
+            markdown.contains("## base") && markdown.contains("`base_hull`"),
+            "the target report lists the base fault under base:\n{markdown}"
+        );
+
+        // A family base itself lacks is base's fault, not the target's.
+        let empty = vec![
+            walked("base", &[], &[], Vec::new()),
+            walked("mod", &[], &[], Vec::new()),
+        ];
+        let missing: Vec<String> = build_report(&empty, &target_ids, None)
+            .findings
+            .into_iter()
+            .filter(|finding| finding.message.starts_with("no usable"))
+            .map(|finding| finding.bundle)
+            .collect();
+        assert!(
+            !missing.is_empty() && missing.iter().all(|bundle| bundle == "base"),
+            "base's missing families are reported against base: {missing:?}"
+        );
+    }
+
+    /// The two exit faults ([`CellGridFault::ObliqueExit`],
+    /// [`CellGridFault::SocketOnExitFace`]) are `UnlanedExit` faults, reported
+    /// against the pack that authors them exactly like an `InvalidStat`.
+    #[test]
+    fn an_unlaned_exit_is_reported_once_against_its_authoring_bundle() {
+        let bay = |id: &str| -> Content {
+            let ron = format!(
+                r#"Section((base: (id: "{id}", name: "{id}", description: "", health: 100.0, link_points: [(id: "socket", position: (0.0, 0.0, -0.5), normal: (0.0, 0.0, -1.0))]), kind: Torpedo((spawn_offset: (1.0, 1.0, 0.0), spawn_rotation: (0.0, 0.0, 0.0, 1.0), fire_rate: 1.0, spawner_speed: 80.0, projectile_lifetime: 100.0, arm_time: 0.5, arm_distance: 50.0, nav_constant: 3.0, linear_damping: 0.8, blast_radius: 300.0, blast_damage: 750.0))))"#
+            );
+            ron::from_str(&ron).expect("section parses")
+        };
+        let all = vec![
+            walked("base", &[], &[], vec![bay("base_bay")]),
+            walked("mod", &[], &[], vec![bay("mod_bay")]),
+        ];
+        // The bundles ship no floor parts, so a whole-tree build also raises
+        // `MissingFamily` faults; filter down to the exit fault under test.
+        let located =
+            |report_ids: &[&str]| -> Vec<(String, String, Option<String>, ReportSeverity)> {
+                let report_ids = report_ids.iter().map(|id| id.to_string()).collect();
+                let mut located: Vec<_> = build_report(&all, &report_ids, None)
+                    .findings
+                    .into_iter()
+                    .filter(|finding| {
+                        finding
+                            .message
+                            .contains("fires down a direction that is not cardinal")
+                    })
+                    .map(|finding| {
+                        (
+                            finding.bundle,
+                            finding.element,
+                            finding.file,
+                            finding.severity,
+                        )
+                    })
+                    .collect();
+                located.sort_by_key(|(bundle, element, ..)| (bundle.clone(), element.clone()));
+                located
+            };
+        let expected = vec![
+            (
+                "base".to_string(),
+                "base_bay".to_string(),
+                Some("content.ron".to_string()),
+                ReportSeverity::Error,
+            ),
+            (
+                "mod".to_string(),
+                "mod_bay".to_string(),
+                Some("content.ron".to_string()),
+                ReportSeverity::Error,
+            ),
+        ];
+
+        assert_eq!(located(&["mod"]), expected, "target lint");
+        assert_eq!(located(&["base", "mod"]), expected, "whole-tree lint");
     }
 
     #[test]
