@@ -73,7 +73,7 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
                     ),
                 ],
             ),
-            inventory: ShipInventory::default(),
+            inventory: ShipInventoryStock::new([]),
             lootable: false,
         }),
     }
@@ -105,7 +105,7 @@ pub(crate) fn gantry() -> ScenarioObjectConfig {
                     ships::section_health(GANTRY_COLLAR_HEALTH),
                 )],
             ),
-            inventory: ShipInventory::default(),
+            inventory: ShipInventoryStock::new([]),
             lootable: false,
         }),
     }
@@ -155,7 +155,7 @@ pub(crate) fn wreckage() -> Vec<ScenarioObjectConfig> {
                 controller: SpaceshipController::None,
                 capabilities: ShipCapabilities::default(),
                 design: ships::design(BLOCK_WRECK_PLATE_SHIP_ID),
-                inventory: ShipInventory::default(),
+                inventory: ShipInventoryStock::new([]),
                 lootable: false,
             }),
         })

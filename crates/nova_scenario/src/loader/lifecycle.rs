@@ -502,6 +502,8 @@ pub(super) fn on_load_scenario(
 ///
 /// [`ShipWreckFragmentMarker`] is the persistent counterpart: a severed hull
 /// has no timer but still belongs to the scenario whose ship produced it.
+/// [`CargoCanister`] is another: a jettisoned canister is parented to nothing
+/// and drifts until an intake takes it.
 ///
 /// [`SfxAudioMarker`] is the same rule for the second lifetime class: an audio
 /// one-shot's despawn rides its audio sink (`PlaybackSettings::DESPAWN`),
@@ -516,6 +518,7 @@ pub(crate) fn register_scenario_scoping(app: &mut App) {
     app.add_observer(on_add_entity_with::<TempEntity>);
     app.add_observer(on_add_entity_with::<SfxAudioMarker>);
     app.add_observer(on_add_entity_with::<ShipWreckFragmentMarker>);
+    app.add_observer(on_add_entity_with::<CargoCanister>);
 }
 
 pub(super) fn on_add_entity_with<T: Component>(

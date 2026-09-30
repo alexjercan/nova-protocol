@@ -97,7 +97,7 @@ jobs:
               system_ui_scale system_input_modes system_headless_map_goto
               system_headless_drag
               system_headless_pointer system_headless_rebind
-              system_headless_replay
+              system_headless_replay loop_intake_compare
           # Aiming and holding a target: turrets, the railgun, the lock chain
           # and the AI that flies against it. 828 s.
           - shard: gunnery

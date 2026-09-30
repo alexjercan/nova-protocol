@@ -8,7 +8,9 @@ use bevy::{
     ui_widgets::ValueChange,
 };
 use nova_gameplay::prelude::*;
-use nova_ship::prelude::{DockedHelmType, DockedShip, DockingConnection};
+use nova_ship::prelude::{
+    CargoIntakeEjection, CargoIntakeSectionMarker, DockedHelmType, DockedShip, DockingConnection,
+};
 use nova_ui::widget::{TextFieldError, TextFieldValue};
 
 use super::*;
@@ -34,6 +36,11 @@ fn spawn_inventory_body(app: &mut App, parent: Entity) {
         .expect("building the Inventory pane body");
 }
 
+/// A 400 kg hold carrying `plates` hull plates of 10 kg.
+fn hold(plates: u32) -> ShipInventory {
+    ShipInventory::new(400, [(ItemType::HullPlate, plates)])
+}
+
 /// A player ship carrying `plates` hull plates.
 fn spawn_player(world: &mut World, plates: u32) -> Entity {
     world
@@ -41,9 +48,7 @@ fn spawn_player(world: &mut World, plates: u32) -> Entity {
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
             Name::new("NOVA"),
-            [(ItemType::HullPlate, plates)]
-                .into_iter()
-                .collect::<ShipInventory>(),
+            hold(plates),
         ))
         .id()
 }
@@ -54,9 +59,7 @@ fn dock_partner(world: &mut World, player: Entity, name: &str, plates: u32) -> E
         .spawn((
             SpaceshipRootMarker,
             Name::new(name.to_string()),
-            [(ItemType::HullPlate, plates)]
-                .into_iter()
-                .collect::<ShipInventory>(),
+            hold(plates),
         ))
         .id();
     let connection = world
@@ -136,7 +139,11 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
     // Undocked: the player's own stack, and no partner to read.
     app.update();
     let world = app.world_mut();
-    assert_eq!(column_title(world, InventorySideType::Own), "NOVA");
+    // The player's title carries its load against its capacity.
+    assert_eq!(
+        column_title(world, InventorySideType::Own),
+        "NOVA 120/400 kg"
+    );
     assert_eq!(
         column_texts(world, InventorySideType::Own),
         ["Hull plate", "x12"]
@@ -393,27 +400,27 @@ fn note(app: &App) -> Option<String> {
 
 #[test]
 fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
-    use ItemTransferType::{Give, Take};
+    use InventoryActionType::{Give, Take};
 
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_resource::<InventoryRuntime>();
-    app.add_message::<InventoryTransferCommand>();
-    app.add_systems(Update, apply_inventory_transfer_commands);
+    app.add_message::<InventoryActionCommand>();
+    app.add_systems(Update, apply_inventory_action_commands);
     hear_ui_cues(&mut app);
     let player = spawn_player(app.world_mut(), 12);
     let partner = dock_partner(app.world_mut(), player, "Derelict", 8);
     let total = |app: &App| plates(app.world(), player) + plates(app.world(), partner);
 
     // Write one confirmed command with its draft open, and run it.
-    let confirm = |app: &mut App, transfer, quantity: Option<u32>| {
-        let command = InventoryTransferCommand {
-            transfer,
+    let confirm = |app: &mut App, action, quantity: Option<u32>| {
+        let command = InventoryActionCommand {
+            action,
             item: ItemType::HullPlate,
             quantity,
         };
         app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
-            transfer,
+            action,
             item: ItemType::HullPlate,
             quantity,
         });
@@ -492,17 +499,19 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
         .is_empty());
     assert_eq!(total(&app), 20);
 
-    // A target at the count's limit refuses rather than wrap.
-    app.world_mut().entity_mut(partner).insert(
-        [(ItemType::HullPlate, u32::MAX)]
-            .into_iter()
-            .collect::<ShipInventory>(),
+    // A target without the room refuses the whole move.
+    app.world_mut().entity_mut(partner).insert(hold(39));
+    assert_eq!(
+        confirm(&mut app, Give, Some(2)),
+        refused("Refused: Derelict has room for 10 kg more")
     );
     assert_eq!(
-        confirm(&mut app, Give, Some(1)),
-        refused("Refused: Derelict cannot hold more Hull plate")
+        (plates(app.world(), player), plates(app.world(), partner)),
+        (20, 39)
     );
-    assert_eq!(plates(app.world(), player), 20);
+    app.world_mut()
+        .entity_mut(partner)
+        .insert(ShipInventory::default());
 
     // A command that arrives after the undock moves nothing.
     app.world_mut().entity_mut(player).remove::<DockedShip>();
@@ -511,6 +520,137 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
         refused("Refused: not docked")
     );
     assert_eq!(plates(app.world(), player), 20);
+}
+
+#[test]
+fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_resource::<InventoryRuntime>();
+    app.add_message::<InventoryActionCommand>();
+    app.add_systems(Update, apply_inventory_action_commands);
+    hear_ui_cues(&mut app);
+    let player = spawn_player(app.world_mut(), 12);
+    let command = |quantity: Option<u32>| InventoryActionCommand {
+        action: InventoryActionType::Jettison,
+        item: ItemType::HullPlate,
+        quantity,
+    };
+    // Write confirmed commands with their draft open, and run them.
+    let confirm = |app: &mut App, quantities: &[Option<u32>]| {
+        for &quantity in quantities {
+            app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
+                action: InventoryActionType::Jettison,
+                item: ItemType::HullPlate,
+                quantity,
+            });
+            app.world_mut().write_message(command(quantity));
+        }
+        app.update();
+        let draft_open = app.world().resource::<InventoryRuntime>().draft.is_some();
+        (note(app), take_cues(app), draft_open)
+    };
+    let dropped = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
+    let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
+    let ejection =
+        |app: &App, intake: Entity| app.world().get::<CargoIntakeEjection>(intake).cloned();
+
+    assert_eq!(
+        confirm(&mut app, &[Some(4)]),
+        refused("Refused: no working cargo intake")
+    );
+    assert_eq!(plates(app.world(), player), 12);
+
+    let intake = app
+        .world_mut()
+        .spawn((ChildOf(player), CargoIntakeSectionMarker))
+        .id();
+    assert_eq!(
+        confirm(&mut app, &[None]),
+        refused("Refused: enter a quantity")
+    );
+    assert_eq!(
+        confirm(&mut app, &[Some(0)]),
+        refused("Refused: quantity is zero")
+    );
+    assert_eq!(
+        confirm(&mut app, &[Some(13)]),
+        refused("Refused: only 12 Hull plate in NOVA")
+    );
+    assert_eq!(plates(app.world(), player), 12);
+    assert_eq!(ejection(&app, intake), None);
+
+    // The stack leaves the hold and waits on the intake in the same run; a
+    // second jettison in that run merges into the pending canister.
+    assert_eq!(
+        confirm(&mut app, &[Some(4), Some(1)]),
+        (
+            Some("Jettisoned 1 Hull plate".to_string()),
+            vec![UiSfx::MenuSelect, UiSfx::MenuSelect],
+            false
+        )
+    );
+    assert_eq!(plates(app.world(), player), 7);
+    assert_eq!(
+        ejection(&app, intake),
+        Some(CargoIntakeEjection(CargoCanister::new(
+            ItemType::HullPlate,
+            5
+        )))
+    );
+    assert_eq!(
+        confirm(&mut app, &[Some(1)]),
+        dropped("Jettisoned 1 Hull plate")
+    );
+    assert_eq!(plates(app.world(), player), 6);
+
+    // Once dropped, the intake takes the next one.
+    app.world_mut()
+        .entity_mut(intake)
+        .remove::<CargoIntakeEjection>();
+    assert_eq!(
+        confirm(&mut app, &[Some(6)]),
+        dropped("Jettisoned 6 Hull plate")
+    );
+    assert_eq!(plates(app.world(), player), 0);
+    app.world_mut()
+        .entity_mut(intake)
+        .remove::<CargoIntakeEjection>();
+    app.world_mut().entity_mut(player).insert(hold(12));
+    app.world_mut()
+        .entity_mut(intake)
+        .insert(CargoIntakeEjection(CargoCanister::new(
+            ItemType::HullPlate,
+            19,
+        )));
+    assert_eq!(
+        confirm(&mut app, &[Some(2)]),
+        refused("Refused: canister exceeds 200 kg")
+    );
+    assert_eq!(plates(app.world(), player), 12);
+    assert_eq!(ejection(&app, intake).unwrap().0.total_mass_kg(), 190);
+    app.world_mut()
+        .entity_mut(intake)
+        .remove::<CargoIntakeEjection>();
+
+    // A disabled intake is no intake, and a docked ship drops nothing.
+    app.world_mut()
+        .entity_mut(intake)
+        .insert(SectionInactiveMarker);
+    assert_eq!(
+        confirm(&mut app, &[Some(1)]),
+        refused("Refused: no working cargo intake")
+    );
+    app.world_mut()
+        .entity_mut(intake)
+        .remove::<SectionInactiveMarker>();
+    dock_partner(app.world_mut(), player, "Derelict", 8);
+    assert_eq!(
+        confirm(&mut app, &[Some(1)]),
+        refused("Refused: undock to jettison")
+    );
+    assert_eq!(plates(app.world(), player), 12);
+    assert_eq!(ejection(&app, intake), None);
 }
 
 /// The one entity carrying `C`.
@@ -549,7 +689,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
     assert_eq!(
         rig.app.world().resource::<InventoryRuntime>().draft,
         Some(InventoryDraft {
-            transfer: ItemTransferType::Take,
+            action: InventoryActionType::Take,
             item: ItemType::HullPlate,
             quantity: Some(1),
         })
@@ -679,11 +819,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
     assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
 
     // A source of one hides the slider; the field and All still set it.
-    rig.app.world_mut().entity_mut(player).insert(
-        [(ItemType::HullPlate, 1)]
-            .into_iter()
-            .collect::<ShipInventory>(),
-    );
+    rig.app.world_mut().entity_mut(player).insert(hold(1));
     settle(&mut rig.app);
     let own_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
         row.side == InventorySideType::Own
@@ -694,8 +830,8 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
             .world()
             .resource::<InventoryRuntime>()
             .draft
-            .map(|draft| draft.transfer),
-        Some(ItemTransferType::Give)
+            .map(|draft| draft.action),
+        Some(InventoryActionType::Give)
     );
     assert_eq!(
         rig.app.world().get::<Node>(slider).unwrap().display,

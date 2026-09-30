@@ -218,7 +218,7 @@ id or authored inline.
 | `controller` | controller | required | who flies it (below) |
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
 | `capabilities` | capability set | all on | what this spawn is PERMITTED to do (below). Omit it for a ship that can do everything |
-| `inventory` | item map | empty | what the ship carries at spawn (below). Omit it for a ship that carries nothing |
+| `inventory` | stock | required | what the ship carries at spawn (below) |
 | `lootable` | bool | required | `true` lets a ship docked to this one Take from its inventory although it was never neutralized: a derelict. `false` allows Take only once it is neutralized. Give is always allowed |
 
 `design: Inline((..))` carries the same fields a [ship design](../ships/) does
@@ -263,13 +263,17 @@ spawn only; it has no runtime action yet.
 
 ### Inventory
 
-The items the ship carries at spawn, as a map from item to stack count. Omit
-the field for an empty hold. A count of `0` or the same item listed twice
-fails lint and load. The only item is `HullPlate`, filed under Repair. Stock
-shows in the TAB interface's Inventory pane. A Ship pane repair spends hull
-plates, and a docked player can Give items to any ship and Take them from a
-neutralized or `lootable: true` one. Nothing is saved: stock returns to its
-authored counts when the scenario loads again.
+What the ship carries at spawn: a map from item to stack count. The field is
+required; write `inventory: {}` for an empty hold. A count of `0` or the same
+item listed twice fails lint and load. The design sets the hold: 100 kg per
+hull section. Stock heavier than the hold fails lint, then load. The only item
+is `HullPlate`, 10 kg each, filed under Repair. Stock shows in the TAB interface's Inventory pane. A Ship pane repair
+spends hull plates, and a docked player can Give items to any ship and Take
+them from a neutralized or `lootable: true` one, never past the receiving
+ship's hold. An undocked player with a
+[cargo intake](../sections/#cargo-intake) can Jettison items in a canister and
+take canisters back in. Nothing is saved: stock returns to its authored counts
+when the scenario loads again.
 
 ```ron
 // The open world's derelict: nobody aboard, free to loot.
@@ -284,7 +288,10 @@ lootable: true,
 <!-- Fields: crates/nova_scenario/src/objects/spaceship.rs (`SpaceshipConfig::inventory`,
      `SpaceshipConfig::lootable`, which inserts `LootableShipMarker` at spawn in
      crates/nova_scenario/src/actions/spawn.rs).
-     Parse: crates/nova_gameplay/src/inventory.rs (`ShipInventory` Deserialize). -->
+     Parse: crates/nova_gameplay/src/inventory.rs (`ShipInventoryStock` Deserialize).
+     Hold: crates/nova_scenario/src/objects/ship_design.rs
+     (`ResolvedShipDesign::cargo_capacity_kg`); overstock lint in
+     crates/nova_scenario/src/lint/ship.rs `check_object_prototypes`. -->
 
 ### Section patches
 
@@ -529,8 +536,8 @@ SpawnScenarioObject((
 ## SalvageCrate
 
 A minimal fly-through pickup: a static tumbling prop that is its own
-trigger area. There is no inventory system - "collected" is scenario state
-you author: an `OnEnter` handler under the crate's id, paired with
+trigger area. It puts nothing in a ship's [inventory](#inventory) - "collected"
+is scenario state you author: an `OnEnter` handler under the crate's id, paired with
 [`DespawnScenarioObject`](../actions/#despawnscenarioobject) and a counter
 [`VariableSet`](../actions/#variableset). The HUD brackets it
 automatically.

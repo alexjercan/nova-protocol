@@ -35,7 +35,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Ships & Sections
 
 - New `block_line_warship` Line Warship: six PDC mounts on the trigger, a bow
-  railgun on R, two torpedo bays on F and a docking collar on each shoulder.
+  railgun on R, two torpedo bays on F, a docking collar on each shoulder and a
+  dorsal cargo intake.
+- New `cargo_intake_section`: its door opens for a canister within 40 m and
+  takes one under 5 m/s whole, never while it touches the ship or moves away,
+  if it fits and has room.
 
 ### Scenarios & Objectives
 
@@ -63,9 +67,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** An asteroid without `mass` has no gravity well and stays
   dynamic at any size. `mass: Some(..)` makes a static well and must be finite
   and 0 or more.
-- Spaceships take an `inventory` map of item to count, such as
-  `{HullPlate: 12}`; omitted is empty. A zero count or a repeated item fails
-  lint and load.
+- **(breaking)** Spaceships require `inventory: {HullPlate: 12}`. Each hull
+  section gives 100 kg of hold. A zero count or a repeated item fails load;
+  stock past the hold fails lint, then load.
+- New `CargoIntake` section kind with required door, eject and take sounds,
+  `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures,
+  speeds and a missing door track.
 - **(breaking)** Spaceships require `lootable: true` or `false`; a ship without
   it fails lint and load. A docked player may Take from a `lootable: true`
   ship that was never neutralized.
@@ -75,9 +82,14 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** TAB opens a themed interface with Map, Ship and Inventory
   panes; M or pad Y steps through them. GOTO and mates are pane keys; Repair,
   Reload and Rebind are keys and buttons.
-- The Inventory pane lists what your ship and a docked ship carry. Docked,
-  Give to it, or Take once it is neutralized or lootable. Ship pane Repair
-  spends hull plates, 1 per 20 HP, anywhere.
+- The Inventory pane lists your ship's and a docked ship's cargo and your
+  load in kg. Docked, Give, or Take once neutralized or lootable. Ship pane
+  Repair spends hull plates, 1 per 20 HP, anywhere.
+- Undocked, Jettison merges stacks into one pending canister, up to 200 kg.
+  Canisters have 20 HP, lose their contents on destruction, and accept travel
+  but not combat locks.
+- Nearby canisters show an amber cargo tag with mass. A canister within 200 m
+  gets a cyan intake sight with no lock needed; a travel-locked one goes first.
 - The TAB interface blips on open and close like the pause menu, and clicks
   when a tab, filter, item, contact or section pick changes, and on Reframe,
   Fit, Reset, Repair, Reload and Rebind.

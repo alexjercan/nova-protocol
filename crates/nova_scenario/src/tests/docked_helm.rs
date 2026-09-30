@@ -168,7 +168,7 @@ fn spawn_ship(app: &mut App, design: &str, at: Vec3) -> Entity {
                 controller: SpaceshipController::None,
                 allegiance: None,
                 capabilities: default(),
-                inventory: ShipInventory::default(),
+                inventory: ShipInventoryStock::default(),
                 lootable: false,
             }),
         ))

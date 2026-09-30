@@ -5791,7 +5791,7 @@
                     position: (
                         -1.0,
                         1.0,
-                        5.0,
+                        7.0,
                     ),
                     rotation: (
                         0.0,
@@ -5806,9 +5806,9 @@
                 (
                     id: "plate_28",
                     position: (
-                        -1.0,
-                        1.0,
-                        6.0,
+                        0.0,
+                        0.0,
+                        -7.0,
                     ),
                     rotation: (
                         0.0,
@@ -5823,9 +5823,9 @@
                 (
                     id: "plate_29",
                     position: (
-                        -1.0,
-                        1.0,
-                        7.0,
+                        0.0,
+                        0.0,
+                        -6.0,
                     ),
                     rotation: (
                         0.0,
@@ -5842,7 +5842,7 @@
                     position: (
                         0.0,
                         0.0,
-                        -7.0,
+                        -4.0,
                     ),
                     rotation: (
                         0.0,
@@ -5859,7 +5859,7 @@
                     position: (
                         0.0,
                         0.0,
-                        -6.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -5876,7 +5876,7 @@
                     position: (
                         0.0,
                         0.0,
-                        -4.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -5893,7 +5893,7 @@
                     position: (
                         0.0,
                         0.0,
-                        -3.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -5910,7 +5910,7 @@
                     position: (
                         0.0,
                         0.0,
-                        -2.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -5927,7 +5927,7 @@
                     position: (
                         0.0,
                         0.0,
-                        -1.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -5944,7 +5944,7 @@
                     position: (
                         0.0,
                         0.0,
-                        0.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -5961,7 +5961,7 @@
                     position: (
                         0.0,
                         0.0,
-                        1.0,
+                        3.0,
                     ),
                     rotation: (
                         0.0,
@@ -5978,7 +5978,7 @@
                     position: (
                         0.0,
                         0.0,
-                        2.0,
+                        4.0,
                     ),
                     rotation: (
                         0.0,
@@ -5995,7 +5995,7 @@
                     position: (
                         0.0,
                         0.0,
-                        3.0,
+                        6.0,
                     ),
                     rotation: (
                         0.0,
@@ -6012,7 +6012,7 @@
                     position: (
                         0.0,
                         0.0,
-                        4.0,
+                        7.0,
                     ),
                     rotation: (
                         0.0,
@@ -6028,8 +6028,8 @@
                     id: "plate_41",
                     position: (
                         0.0,
-                        0.0,
-                        6.0,
+                        1.0,
+                        -7.0,
                     ),
                     rotation: (
                         0.0,
@@ -6045,8 +6045,8 @@
                     id: "plate_42",
                     position: (
                         0.0,
-                        0.0,
-                        7.0,
+                        1.0,
+                        -6.0,
                     ),
                     rotation: (
                         0.0,
@@ -6063,7 +6063,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -7.0,
+                        -5.0,
                     ),
                     rotation: (
                         0.0,
@@ -6080,7 +6080,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -6.0,
+                        -4.0,
                     ),
                     rotation: (
                         0.0,
@@ -6097,7 +6097,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -5.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -6114,7 +6114,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -4.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -6131,7 +6131,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -3.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -6148,7 +6148,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -2.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -6165,7 +6165,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -1.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -6182,7 +6182,7 @@
                     position: (
                         0.0,
                         1.0,
-                        0.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -6199,7 +6199,7 @@
                     position: (
                         0.0,
                         1.0,
-                        1.0,
+                        3.0,
                     ),
                     rotation: (
                         0.0,
@@ -6216,7 +6216,7 @@
                     position: (
                         0.0,
                         1.0,
-                        2.0,
+                        4.0,
                     ),
                     rotation: (
                         0.0,
@@ -6233,7 +6233,7 @@
                     position: (
                         0.0,
                         1.0,
-                        3.0,
+                        7.0,
                     ),
                     rotation: (
                         0.0,
@@ -6248,9 +6248,9 @@
                 (
                     id: "plate_54",
                     position: (
-                        0.0,
                         1.0,
-                        4.0,
+                        0.0,
+                        -7.0,
                     ),
                     rotation: (
                         0.0,
@@ -6265,9 +6265,9 @@
                 (
                     id: "plate_55",
                     position: (
-                        0.0,
                         1.0,
-                        5.0,
+                        0.0,
+                        -6.0,
                     ),
                     rotation: (
                         0.0,
@@ -6282,9 +6282,9 @@
                 (
                     id: "plate_56",
                     position: (
-                        0.0,
                         1.0,
-                        6.0,
+                        0.0,
+                        -5.0,
                     ),
                     rotation: (
                         0.0,
@@ -6299,9 +6299,9 @@
                 (
                     id: "plate_57",
                     position: (
-                        0.0,
                         1.0,
-                        7.0,
+                        0.0,
+                        -4.0,
                     ),
                     rotation: (
                         0.0,
@@ -6318,7 +6318,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -7.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -6335,7 +6335,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -6.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -6352,7 +6352,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -5.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -6369,7 +6369,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -4.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -6386,7 +6386,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -3.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -6403,7 +6403,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -2.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -6420,7 +6420,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -1.0,
+                        3.0,
                     ),
                     rotation: (
                         0.0,
@@ -6437,7 +6437,7 @@
                     position: (
                         1.0,
                         0.0,
-                        0.0,
+                        4.0,
                     ),
                     rotation: (
                         0.0,
@@ -6454,7 +6454,7 @@
                     position: (
                         1.0,
                         0.0,
-                        1.0,
+                        5.0,
                     ),
                     rotation: (
                         0.0,
@@ -6471,7 +6471,7 @@
                     position: (
                         1.0,
                         0.0,
-                        2.0,
+                        6.0,
                     ),
                     rotation: (
                         0.0,
@@ -6488,74 +6488,6 @@
                     position: (
                         1.0,
                         0.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_69",
-                    position: (
-                        1.0,
-                        0.0,
-                        4.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_70",
-                    position: (
-                        1.0,
-                        0.0,
-                        5.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_71",
-                    position: (
-                        1.0,
-                        0.0,
-                        6.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_72",
-                    position: (
-                        1.0,
-                        0.0,
                         7.0,
                     ),
                     rotation: (
@@ -6569,7 +6501,7 @@
                     ),
                 ),
                 (
-                    id: "plate_73",
+                    id: "plate_69",
                     position: (
                         1.0,
                         1.0,
@@ -6586,7 +6518,7 @@
                     ),
                 ),
                 (
-                    id: "plate_74",
+                    id: "plate_70",
                     position: (
                         1.0,
                         1.0,
@@ -6603,7 +6535,7 @@
                     ),
                 ),
                 (
-                    id: "plate_75",
+                    id: "plate_71",
                     position: (
                         1.0,
                         1.0,
@@ -6620,11 +6552,79 @@
                     ),
                 ),
                 (
-                    id: "plate_76",
+                    id: "plate_72",
                     position: (
                         1.0,
                         1.0,
                         -4.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "reinforced_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_73",
+                    position: (
+                        1.0,
+                        1.0,
+                        -3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "reinforced_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_74",
+                    position: (
+                        1.0,
+                        1.0,
+                        -2.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "reinforced_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_75",
+                    position: (
+                        1.0,
+                        1.0,
+                        -1.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "reinforced_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_76",
+                    position: (
+                        1.0,
+                        1.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -6641,7 +6641,7 @@
                     position: (
                         1.0,
                         1.0,
-                        -3.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -6658,7 +6658,7 @@
                     position: (
                         1.0,
                         1.0,
-                        -2.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -6675,7 +6675,7 @@
                     position: (
                         1.0,
                         1.0,
-                        -1.0,
+                        3.0,
                     ),
                     rotation: (
                         0.0,
@@ -6692,7 +6692,7 @@
                     position: (
                         1.0,
                         1.0,
-                        0.0,
+                        4.0,
                     ),
                     rotation: (
                         0.0,
@@ -6709,7 +6709,7 @@
                     position: (
                         1.0,
                         1.0,
-                        1.0,
+                        7.0,
                     ),
                     rotation: (
                         0.0,
@@ -6724,9 +6724,9 @@
                 (
                     id: "plate_82",
                     position: (
-                        1.0,
-                        1.0,
-                        2.0,
+                        -1.0,
+                        -1.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -6741,9 +6741,9 @@
                 (
                     id: "plate_83",
                     position: (
-                        1.0,
-                        1.0,
-                        3.0,
+                        -1.0,
+                        -1.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -6758,9 +6758,9 @@
                 (
                     id: "plate_84",
                     position: (
-                        1.0,
-                        1.0,
-                        4.0,
+                        -1.0,
+                        -1.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -6775,9 +6775,9 @@
                 (
                     id: "plate_85",
                     position: (
-                        1.0,
-                        1.0,
-                        5.0,
+                        -1.0,
+                        -1.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -6792,9 +6792,9 @@
                 (
                     id: "plate_86",
                     position: (
+                        -1.0,
+                        -1.0,
                         1.0,
-                        1.0,
-                        6.0,
                     ),
                     rotation: (
                         0.0,
@@ -6809,9 +6809,9 @@
                 (
                     id: "plate_87",
                     position: (
-                        1.0,
-                        1.0,
-                        7.0,
+                        -1.0,
+                        -1.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -6828,7 +6828,7 @@
                     position: (
                         -1.0,
                         -1.0,
-                        -3.0,
+                        3.0,
                     ),
                     rotation: (
                         0.0,
@@ -6845,7 +6845,7 @@
                     position: (
                         -1.0,
                         -1.0,
-                        -2.0,
+                        4.0,
                     ),
                     rotation: (
                         0.0,
@@ -6862,7 +6862,7 @@
                     position: (
                         -1.0,
                         -1.0,
-                        -1.0,
+                        5.0,
                     ),
                     rotation: (
                         0.0,
@@ -6879,7 +6879,7 @@
                     position: (
                         -1.0,
                         -1.0,
-                        0.0,
+                        6.0,
                     ),
                     rotation: (
                         0.0,
@@ -6896,7 +6896,7 @@
                     position: (
                         -1.0,
                         -1.0,
-                        1.0,
+                        7.0,
                     ),
                     rotation: (
                         0.0,
@@ -6911,9 +6911,9 @@
                 (
                     id: "plate_93",
                     position: (
+                        0.0,
                         -1.0,
-                        -1.0,
-                        2.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -6928,9 +6928,9 @@
                 (
                     id: "plate_94",
                     position: (
+                        0.0,
                         -1.0,
-                        -1.0,
-                        3.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -6945,9 +6945,9 @@
                 (
                     id: "plate_95",
                     position: (
+                        0.0,
                         -1.0,
                         -1.0,
-                        4.0,
                     ),
                     rotation: (
                         0.0,
@@ -6962,9 +6962,9 @@
                 (
                     id: "plate_96",
                     position: (
+                        0.0,
                         -1.0,
-                        -1.0,
-                        5.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -6979,9 +6979,9 @@
                 (
                     id: "plate_97",
                     position: (
+                        0.0,
                         -1.0,
-                        -1.0,
-                        6.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -6996,9 +6996,9 @@
                 (
                     id: "plate_98",
                     position: (
+                        0.0,
                         -1.0,
-                        -1.0,
-                        7.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -7015,7 +7015,7 @@
                     position: (
                         0.0,
                         -1.0,
-                        -3.0,
+                        3.0,
                     ),
                     rotation: (
                         0.0,
@@ -7032,7 +7032,7 @@
                     position: (
                         0.0,
                         -1.0,
-                        -2.0,
+                        4.0,
                     ),
                     rotation: (
                         0.0,
@@ -7049,7 +7049,7 @@
                     position: (
                         0.0,
                         -1.0,
-                        -1.0,
+                        5.0,
                     ),
                     rotation: (
                         0.0,
@@ -7066,7 +7066,7 @@
                     position: (
                         0.0,
                         -1.0,
-                        0.0,
+                        6.0,
                     ),
                     rotation: (
                         0.0,
@@ -7083,7 +7083,7 @@
                     position: (
                         0.0,
                         -1.0,
-                        1.0,
+                        7.0,
                     ),
                     rotation: (
                         0.0,
@@ -7098,9 +7098,9 @@
                 (
                     id: "plate_104",
                     position: (
-                        0.0,
+                        1.0,
                         -1.0,
-                        2.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -7115,9 +7115,9 @@
                 (
                     id: "plate_105",
                     position: (
-                        0.0,
+                        1.0,
                         -1.0,
-                        3.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -7132,9 +7132,9 @@
                 (
                     id: "plate_106",
                     position: (
-                        0.0,
+                        1.0,
                         -1.0,
-                        4.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -7149,9 +7149,9 @@
                 (
                     id: "plate_107",
                     position: (
-                        0.0,
+                        1.0,
                         -1.0,
-                        5.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -7166,9 +7166,9 @@
                 (
                     id: "plate_108",
                     position: (
-                        0.0,
+                        1.0,
                         -1.0,
-                        6.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -7183,9 +7183,9 @@
                 (
                     id: "plate_109",
                     position: (
-                        0.0,
+                        1.0,
                         -1.0,
-                        7.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -7202,7 +7202,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        -3.0,
+                        3.0,
                     ),
                     rotation: (
                         0.0,
@@ -7219,7 +7219,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        -2.0,
+                        4.0,
                     ),
                     rotation: (
                         0.0,
@@ -7236,7 +7236,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        -1.0,
+                        5.0,
                     ),
                     rotation: (
                         0.0,
@@ -7253,7 +7253,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        0.0,
+                        6.0,
                     ),
                     rotation: (
                         0.0,
@@ -7270,7 +7270,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        1.0,
+                        7.0,
                     ),
                     rotation: (
                         0.0,
@@ -7285,9 +7285,9 @@
                 (
                     id: "plate_115",
                     position: (
-                        1.0,
-                        -1.0,
-                        2.0,
+                        -2.0,
+                        0.0,
+                        -4.0,
                     ),
                     rotation: (
                         0.0,
@@ -7302,9 +7302,9 @@
                 (
                     id: "plate_116",
                     position: (
-                        1.0,
-                        -1.0,
-                        3.0,
+                        -2.0,
+                        0.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -7319,9 +7319,9 @@
                 (
                     id: "plate_117",
                     position: (
-                        1.0,
-                        -1.0,
-                        4.0,
+                        -2.0,
+                        0.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -7336,9 +7336,9 @@
                 (
                     id: "plate_118",
                     position: (
-                        1.0,
+                        -2.0,
+                        0.0,
                         -1.0,
-                        5.0,
                     ),
                     rotation: (
                         0.0,
@@ -7353,9 +7353,9 @@
                 (
                     id: "plate_119",
                     position: (
+                        -2.0,
+                        0.0,
                         1.0,
-                        -1.0,
-                        6.0,
                     ),
                     rotation: (
                         0.0,
@@ -7370,9 +7370,9 @@
                 (
                     id: "plate_120",
                     position: (
-                        1.0,
-                        -1.0,
-                        7.0,
+                        -2.0,
+                        0.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -7389,7 +7389,7 @@
                     position: (
                         -2.0,
                         0.0,
-                        -4.0,
+                        3.0,
                     ),
                     rotation: (
                         0.0,
@@ -7404,9 +7404,9 @@
                 (
                     id: "plate_122",
                     position: (
-                        -2.0,
+                        2.0,
                         0.0,
-                        -3.0,
+                        -4.0,
                     ),
                     rotation: (
                         0.0,
@@ -7421,9 +7421,9 @@
                 (
                     id: "plate_123",
                     position: (
-                        -2.0,
+                        2.0,
                         0.0,
-                        -2.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -7438,9 +7438,9 @@
                 (
                     id: "plate_124",
                     position: (
-                        -2.0,
+                        2.0,
                         0.0,
-                        -1.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -7455,9 +7455,9 @@
                 (
                     id: "plate_125",
                     position: (
-                        -2.0,
+                        2.0,
                         0.0,
-                        1.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -7472,9 +7472,9 @@
                 (
                     id: "plate_126",
                     position: (
-                        -2.0,
-                        0.0,
                         2.0,
+                        0.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -7489,9 +7489,9 @@
                 (
                     id: "plate_127",
                     position: (
-                        -2.0,
+                        2.0,
                         0.0,
-                        3.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -7508,7 +7508,7 @@
                     position: (
                         2.0,
                         0.0,
-                        -4.0,
+                        3.0,
                     ),
                     rotation: (
                         0.0,
@@ -7523,8 +7523,8 @@
                 (
                     id: "plate_129",
                     position: (
-                        2.0,
                         0.0,
+                        2.0,
                         -3.0,
                     ),
                     rotation: (
@@ -7540,9 +7540,9 @@
                 (
                     id: "plate_130",
                     position: (
-                        2.0,
                         0.0,
-                        -2.0,
+                        2.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -7556,108 +7556,6 @@
                 ),
                 (
                     id: "plate_131",
-                    position: (
-                        2.0,
-                        0.0,
-                        -1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_132",
-                    position: (
-                        2.0,
-                        0.0,
-                        1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_133",
-                    position: (
-                        2.0,
-                        0.0,
-                        2.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_134",
-                    position: (
-                        2.0,
-                        0.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_135",
-                    position: (
-                        0.0,
-                        2.0,
-                        -3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_136",
-                    position: (
-                        0.0,
-                        2.0,
-                        -1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "reinforced_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_137",
                     position: (
                         0.0,
                         2.0,
@@ -7960,6 +7858,23 @@
                     ),
                     source: Prototype(
                         id: "docking_port_section",
+                    ),
+                ),
+                (
+                    id: "cargo_intake",
+                    position: (
+                        0.0,
+                        1.0,
+                        5.5,
+                    ),
+                    rotation: (
+                        0.70710677,
+                        0.0,
+                        0.0,
+                        0.70710677,
+                    ),
+                    source: Prototype(
+                        id: "cargo_intake_section",
                     ),
                 ),
             ],

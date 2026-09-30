@@ -58,7 +58,7 @@ impl GalleryCategory {
     /// The category a prototype of this kind lives under.
     pub(crate) fn of(kind: &SectionKind) -> Self {
         match kind {
-            SectionKind::Hull(_) => Self::Structure,
+            SectionKind::Hull(_) | SectionKind::CargoIntake(_) => Self::Structure,
             SectionKind::Thruster(_) => Self::Propulsion,
             SectionKind::Controller(_) => Self::Control,
             SectionKind::Turret(_) | SectionKind::Railgun(_) => Self::Weapons,
@@ -149,6 +149,20 @@ pub(crate) fn stats(section: &SectionConfig) -> Vec<(String, String)> {
 fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
     match kind {
         SectionKind::Hull(_) => vec![("Role".to_string(), "passive structure".to_string())],
+        SectionKind::CargoIntake(intake) => vec![
+            (
+                "Detect".to_string(),
+                format!("{:.0} m", intake.detection_range.0),
+            ),
+            (
+                "Capture".to_string(),
+                format!("{:.0} m gap", intake.capture_gap.0),
+            ),
+            (
+                "Speed".to_string(),
+                format!("{:.1} m/s", intake.maximum_capture_speed.0),
+            ),
+        ],
         SectionKind::Docking(docking) => vec![
             (
                 "Capture".to_string(),

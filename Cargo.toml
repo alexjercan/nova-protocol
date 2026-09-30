@@ -769,6 +769,13 @@ path = "examples/screenshots/loop_death_compare.rs"
 name = "loop_player_flight"
 path = "examples/screenshots/loop_player_flight.rs"
 
+# Accordion cargo intake candidates (generated glbs under art/part-candidates)
+# and near-only canister content tags beside the shipped cargo cell, for
+# judging a look before any intake mechanic exists. Visual only.
+[[example]]
+name = "loop_intake_compare"
+path = "examples/screenshots/loop_intake_compare.rs"
+
 [[example]]
 name = "lesson_start_welcome"
 path = "examples/screenshots/lesson_start_welcome.rs"

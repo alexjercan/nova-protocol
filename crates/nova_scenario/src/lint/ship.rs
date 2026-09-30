@@ -4,10 +4,11 @@ use bevy::prelude::Vec3;
 use nova_events::units::prelude::*;
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
-    section_colliders_overlap, AmmoCapacity, ControllerSectionConfig, DockingSectionConfig,
-    LinkPointGraphError, LinkPointRef, PlacedSectionCollider, PlacedSectionLinkPoints,
-    RailgunSectionConfig, ReloadConfig, SectionAnimationCue, SectionCollider, SectionConfig,
-    SectionKind, TorpedoSectionConfig, TurretJoint, TurretSectionConfig,
+    section_colliders_overlap, AmmoCapacity, CargoIntakeSectionConfig, ControllerSectionConfig,
+    DockingSectionConfig, LinkPointGraphError, LinkPointRef, PlacedSectionCollider,
+    PlacedSectionLinkPoints, RailgunSectionConfig, ReloadConfig, SectionAnimationCue,
+    SectionCollider, SectionConfig, SectionKind, TorpedoSectionConfig, TurretJoint,
+    TurretSectionConfig, CARGO_APERTURE_MARGIN, CARGO_CANISTER_SIZE,
 };
 
 use super::{KnownSections, KnownShipDesigns, LintIssue};
@@ -15,7 +16,8 @@ use crate::prelude::*;
 
 /// Every reference a spawned (or scatter-template) ship makes must resolve:
 /// the design it names, the section prototypes that design is built from, and
-/// the sections its spawn-time patches aim at.
+/// the sections its spawn-time patches aim at. Its inventory stock must also
+/// fit the resolved design's hold.
 ///
 /// A `Prototype` design's own geometry is NOT re-checked here - it is linted
 /// where the design catalog is walked ([`lint_ship_design_config`]), the same
@@ -44,6 +46,22 @@ pub(super) fn check_object_prototypes(
             })
             .unwrap_or_default(),
     );
+    let (resolved, errors) = resolve_ship_design(&ship.design, &catalog, sections.catalog());
+    // The spawn fills the hold from this stock and panics when it does not fit.
+    // An unknown design already reports its own error and has no hold to fit.
+    let known_design = !errors
+        .iter()
+        .any(|error| matches!(error, ShipDesignError::UnknownDesign(_)));
+    let (stock_kg, capacity_kg) = (ship.inventory.mass_kg(), resolved.cargo_capacity_kg());
+    if known_design && stock_kg > u64::from(capacity_kg) {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "ship '{}': inventory stock of {stock_kg} kg exceeds its {capacity_kg} kg hold",
+                config.base.id
+            ),
+        ));
+    }
     // An INLINE design is authored right here, so it is resolved and its
     // structure linted in one place below. It has no spawn layer to check
     // separately - it IS the design - and resolving it twice would report
@@ -58,7 +76,6 @@ pub(super) fn check_object_prototypes(
     // muzzle is caught here rather than at the first playthrough. The design's
     // OWN section references are dropped: they belong to the design, which the
     // catalog walk lints once however many scenarios spawn it.
-    let (_, errors) = resolve_ship_design(&ship.design, &catalog, sections.catalog());
     for error in errors {
         if matches!(error, ShipDesignError::UnknownSectionPrototype { .. }) {
             continue;
@@ -173,6 +190,9 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
         }
         SectionKind::Docking(docking) => {
             check_docking_config(config, docking, source, &mut issues);
+        }
+        SectionKind::CargoIntake(intake) => {
+            check_cargo_intake_config(config, intake, source, &mut issues);
         }
         _ => {}
     }
@@ -382,6 +402,120 @@ fn check_docking_config(
                  its sleeve never moves"
             ),
         ));
+    }
+}
+
+/// A cargo intake's volumes and speeds, and the two shape facts the runtime
+/// measures them from.
+///
+/// The volumes stand on the local -Z face of the authored box, so an intake
+/// must author a `Cuboid` collider: the unit-cube fallback of an omitted one
+/// would measure from a face the art does not have. A capture gap at or past
+/// the detection range could never open the door for it. The aperture must
+/// fit the face, and must fit the canister's narrowest side with the margin
+/// on both edges, or the intake can never take anything. The runtime takes
+/// only through a fully open door, so an intake without an `IntakeDoor` track
+/// is an error, not a warning: its canisters would enter through shut slats.
+fn check_cargo_intake_config(
+    config: &SectionConfig,
+    intake: &CargoIntakeSectionConfig,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let section_id = config.base.id.as_str();
+    let mut error = |message: String| {
+        issues.push(LintIssue::error(
+            source,
+            format!("section '{section_id}': {message}"),
+        ));
+    };
+    let face = match config.base.collider {
+        Some(SectionCollider::Cuboid { size }) => {
+            Some((Meters::from_engine(size.x), Meters::from_engine(size.y)))
+        }
+        _ => {
+            error(format!(
+                "a cargo intake must author a Cuboid collider - its door is the box's -Z face - got {:?}",
+                config.base.collider
+            ));
+            None
+        }
+    };
+    let detection_range = intake.detection_range;
+    if detection_range <= Meters::ZERO || !detection_range.is_finite() {
+        error(format!(
+            "cargo intake detection_range must be a finite, positive number of meters, got {}",
+            detection_range.get()
+        ));
+    }
+    let capture_gap = intake.capture_gap;
+    if capture_gap <= Meters::ZERO || !capture_gap.is_finite() {
+        error(format!(
+            "cargo intake capture_gap must be a finite, positive number of meters, got {}",
+            capture_gap.get()
+        ));
+    } else if capture_gap >= detection_range {
+        error(format!(
+            "cargo intake capture_gap {} m must be less than detection_range {} m",
+            capture_gap.get(),
+            detection_range.get()
+        ));
+    }
+    let narrowest = Meters::from_engine(CARGO_CANISTER_SIZE.min_element())
+        + CARGO_APERTURE_MARGIN
+        + CARGO_APERTURE_MARGIN;
+    for (field, aperture, face) in [
+        (
+            "aperture_width",
+            intake.aperture_width,
+            face.map(|face| face.0),
+        ),
+        (
+            "aperture_height",
+            intake.aperture_height,
+            face.map(|face| face.1),
+        ),
+    ] {
+        if aperture <= Meters::ZERO || !aperture.is_finite() {
+            error(format!(
+                "cargo intake {field} must be a finite, positive number of meters, got {}",
+                aperture.get()
+            ));
+        } else if aperture < narrowest {
+            error(format!(
+                "cargo intake {field} {} m cannot pass a canister: it needs at least {} m",
+                aperture.get(),
+                narrowest.get()
+            ));
+        } else if let Some(face) = face.filter(|face| aperture > *face) {
+            error(format!(
+                "cargo intake {field} {} m is wider than the collider face's {} m",
+                aperture.get(),
+                face.get()
+            ));
+        }
+    }
+    for (field, speed) in [
+        ("maximum_capture_speed", intake.maximum_capture_speed),
+        ("eject_speed", intake.eject_speed),
+    ] {
+        if speed <= MetersPerSecond::ZERO || !speed.is_finite() {
+            error(format!(
+                "cargo intake {field} must be a finite, positive speed, got {}",
+                speed.get()
+            ));
+        }
+    }
+    if !config
+        .base
+        .animations
+        .iter()
+        .any(|track| track.cue == SectionAnimationCue::IntakeDoor)
+    {
+        error(
+            "cargo intake authors no IntakeDoor animation track, so its door never opens"
+                .to_string(),
+        );
     }
 }
 
@@ -1660,6 +1794,120 @@ mod tests {
             Some(SectionCollider::Cuboid {
                 size: Vec3::splat(2.0)
             })
+        );
+    }
+
+    #[test]
+    fn cargo_intake_lint_rejects_bad_volumes_speeds_and_a_missing_door_track() {
+        use nova_ship::prelude::{BaseSectionConfig, SectionAnimation, SectionAnimationMotion};
+
+        let door = SectionAnimation {
+            cue: SectionAnimationCue::IntakeDoor,
+            node_prefix: "intake_slat_".to_string(),
+            motion: SectionAnimationMotion::Fold {
+                degrees: 80.0,
+                slat_width: 0.1458,
+                slat_thickness: 0.02,
+            },
+            open_seconds: 1.2,
+            close_seconds: 1.2,
+        };
+        let good = CargoIntakeSectionConfig {
+            render_mesh: "intake.glb#Scene0".into(),
+            render_mesh_transform: None,
+            canister_mesh: "canister.glb#Scene0".into(),
+            door_sound: "door.wav".into(),
+            eject_sound: "eject.wav".into(),
+            take_sound: "take.wav".into(),
+            detection_range: Meters(40.0),
+            capture_gap: Meters(1.0),
+            aperture_width: Meters(14.1),
+            aperture_height: Meters(16.0),
+            maximum_capture_speed: MetersPerSecond(5.0),
+            eject_speed: MetersPerSecond(3.0),
+        };
+        let section = |collider, animations: Vec<SectionAnimation>, intake| SectionConfig {
+            base: BaseSectionConfig {
+                id: "intake".to_string(),
+                collider,
+                animations,
+                ..default()
+            },
+            kind: SectionKind::CargoIntake(intake),
+        };
+        let cuboid = Some(SectionCollider::Cuboid {
+            size: Vec3::new(2.0, 2.0, 1.0),
+        });
+        let lint = |collider, animations, intake| {
+            lint_section_config(&section(collider, animations, intake), "s")
+        };
+
+        assert!(lint(cuboid, vec![door.clone()], good.clone()).is_empty());
+
+        let refused = |issues: Vec<LintIssue>, needle: &str| {
+            let errs = errors(&issues);
+            assert_eq!(errs.len(), 1, "{needle}: {issues:?}");
+            assert!(errs[0].message.contains(needle), "{needle}: {issues:?}");
+        };
+        refused(
+            lint(None, vec![door.clone()], good.clone()),
+            "Cuboid collider",
+        );
+        refused(
+            lint(
+                Some(SectionCollider::Sphere { radius: 1.0 }),
+                vec![door.clone()],
+                good.clone(),
+            ),
+            "Cuboid collider",
+        );
+        refused(lint(cuboid, vec![], good.clone()), "IntakeDoor");
+        for bad in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            let mut intake = good.clone();
+            intake.detection_range = Meters(bad);
+            let issues = lint(cuboid, vec![door.clone()], intake);
+            assert!(
+                errors(&issues)
+                    .iter()
+                    .any(|issue| issue.message.contains("detection_range")),
+                "{bad}: {issues:?}"
+            );
+            let mut intake = good.clone();
+            intake.capture_gap = Meters(bad);
+            refused(lint(cuboid, vec![door.clone()], intake), "capture_gap");
+            let mut intake = good.clone();
+            intake.aperture_width = Meters(bad);
+            refused(lint(cuboid, vec![door.clone()], intake), "aperture_width");
+            let mut intake = good.clone();
+            intake.aperture_height = Meters(bad);
+            refused(lint(cuboid, vec![door.clone()], intake), "aperture_height");
+            let mut intake = good.clone();
+            intake.maximum_capture_speed = MetersPerSecond(bad);
+            refused(
+                lint(cuboid, vec![door.clone()], intake),
+                "maximum_capture_speed",
+            );
+            let mut intake = good.clone();
+            intake.eject_speed = MetersPerSecond(bad);
+            refused(lint(cuboid, vec![door.clone()], intake), "eject_speed");
+        }
+        let mut deep = good.clone();
+        deep.capture_gap = Meters(40.0);
+        refused(
+            lint(cuboid, vec![door.clone()], deep),
+            "must be less than detection_range",
+        );
+        let mut narrow = good.clone();
+        narrow.aperture_height = Meters(6.7);
+        refused(
+            lint(cuboid, vec![door.clone()], narrow),
+            "cannot pass a canister",
+        );
+        let mut wide = good;
+        wide.aperture_width = Meters(20.1);
+        refused(
+            lint(cuboid, vec![door], wide),
+            "wider than the collider face",
         );
     }
 }

@@ -1,10 +1,12 @@
 //! The Inventory pane body: the category filters, the player and partner
-//! columns and the inspector with its transfer form; the systems that fill
-//! them from live inventories and apply a confirmed transfer; and the
+//! columns and the inspector with its action form; the systems that fill
+//! them from live inventories and apply a confirmed action; and the
 //! observers of the filter, row and form controls.
 //!
 //! Touch this module when changing what the Inventory pane shows, how a row
-//! is selected or how a transfer is confirmed.
+//! is selected or how an action is confirmed.
+
+use std::collections::BTreeMap;
 
 use bevy::{
     ecs::system::SystemParam,
@@ -15,7 +17,9 @@ use bevy::{
     },
 };
 use nova_gameplay::prelude::*;
-use nova_ship::prelude::{DockedShip, DockingConnection};
+use nova_ship::prelude::{
+    CargoIntakeEjection, CargoIntakeSectionMarker, DockedShip, DockingConnection,
+};
 use nova_ui::{
     theme::UiColor,
     widget::{
@@ -24,7 +28,10 @@ use nova_ui::{
     },
 };
 
-use super::{InventoryDraft, InventoryRuntime, InventorySideType, InventoryTransferCommand};
+use super::{
+    InventoryActionCommand, InventoryActionType, InventoryDraft, InventoryRuntime,
+    InventorySideType,
+};
 use crate::{
     icons::{icon_node, InterfaceIcons},
     pane::{play_menu_select, themed_label},
@@ -133,13 +140,6 @@ struct ColumnDraw {
     /// The filter the rows apply; `None` as well when there are no stacks, so
     /// a filter click does not redraw an absent partner.
     filter: Option<ItemCategoryType>,
-}
-
-/// The item's display name.
-pub(crate) fn item_label(item: ItemType) -> &'static str {
-    match item {
-        ItemType::HullPlate => "Hull plate",
-    }
 }
 
 /// A one-line "what it is" for the inspector.
@@ -585,7 +585,7 @@ fn inventory_row(
     .with_children(|row| {
         row.spawn(icon_node(icons.category(category), tone, 18.0));
         row.spawn((
-            themed_label(item_label(item), 13.0, UiColor::Body),
+            themed_label(item.label(), 13.0, UiColor::Body),
             Node {
                 flex_grow: 1.0,
                 min_width: px(0),
@@ -623,7 +623,7 @@ fn on_inventory_filter_chip(
     }
 }
 
-/// Select the clicked row for the inspector and open the transfer it offers
+/// Select the clicked row for the inspector and open the action it offers
 /// at one unit, with one click if either changes. The selected row again
 /// keeps its open draft and its quantity.
 fn on_inventory_row(
@@ -638,39 +638,47 @@ fn on_inventory_row(
         return;
     };
     let picked = Some((row.side, row.item));
-    let offer = ships
-        .pair()
-        .and_then(|pair| offered_transfer(row.side, ships.partner_lootable(pair)));
-    let open = runtime.draft.map(|draft| (draft.transfer, draft.item));
-    if runtime.selected == picked && open == offer.map(|transfer| (transfer, row.item)) {
+    let offer = ships.pair().and_then(|pair| {
+        offered_action(
+            row.side,
+            ships.partner_lootable(pair),
+            ships.intake(pair.own).is_some(),
+        )
+    });
+    let open = runtime.draft.map(|draft| (draft.action, draft.item));
+    if runtime.selected == picked && open == offer.map(|action| (action, row.item)) {
         return;
     }
     runtime.selected = picked;
-    runtime.draft = offer.map(|transfer| InventoryDraft {
-        transfer,
+    runtime.draft = offer.map(|action| InventoryDraft {
+        action,
         item: row.item,
         quantity: Some(1),
     });
     play_menu_select(&mut commands, bank.as_deref());
 }
 
-/// The transfer a row offers: Give from the player's row while docked, Take
-/// from the partner's row while the partner is neutralized or lootable.
-/// `partner_lootable` is `None` while undocked.
-fn offered_transfer(
+/// The action a row offers: Give from the player's row while docked, Jettison
+/// from it while undocked with a live cargo intake, and Take from the partner's
+/// row while the partner is neutralized or lootable. `partner_lootable` is
+/// `None` while undocked.
+fn offered_action(
     side: InventorySideType,
     partner_lootable: Option<bool>,
-) -> Option<ItemTransferType> {
+    has_intake: bool,
+) -> Option<InventoryActionType> {
     match (side, partner_lootable) {
-        (InventorySideType::Own, Some(_)) => Some(ItemTransferType::Give),
-        (InventorySideType::Partner, Some(true)) => Some(ItemTransferType::Take),
+        (InventorySideType::Own, Some(_)) => Some(InventoryActionType::Give),
+        (InventorySideType::Own, None) if has_intake => Some(InventoryActionType::Jettison),
+        (InventorySideType::Partner, Some(true)) => Some(InventoryActionType::Take),
         _ => None,
     }
 }
 
-/// The player ship and the ship it is docked with, as the Inventory pane reads
-/// and moves them. One resolver for the panel, the row click, the form and
-/// the transfer handler, so all four fail the same way on a broken record.
+/// The player ship, the ship it is docked with and the player's cargo intake,
+/// as the Inventory pane reads and moves them. One resolver for the panel, the
+/// row click, the form and the action handler, so all four fail the same way
+/// on a broken record.
 #[derive(SystemParam)]
 pub(crate) struct InventoryShips<'w, 's> {
     players: Query<'w, 's, (Entity, Option<&'static DockedShip>), With<PlayerSpaceshipMarker>>,
@@ -685,6 +693,19 @@ pub(crate) struct InventoryShips<'w, 's> {
             Has<LootableShipMarker>,
         ),
         With<SpaceshipRootMarker>,
+    >,
+    intakes: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static ChildOf,
+            Option<&'static CargoIntakeEjection>,
+        ),
+        (
+            With<CargoIntakeSectionMarker>,
+            Without<SectionInactiveMarker>,
+        ),
     >,
 }
 
@@ -746,6 +767,16 @@ impl InventoryShips<'_, '_> {
         }
     }
 
+    /// The live cargo intake a jettison from `ship` leaves through, the lowest
+    /// entity when there are several, with its pending ejection.
+    pub(crate) fn intake(&self, ship: Entity) -> Option<(Entity, Option<CargoCanister>)> {
+        self.intakes
+            .iter()
+            .filter(|(_, child_of, _)| child_of.parent() == ship)
+            .map(|(intake, _, pending)| (intake, pending.map(|pending| pending.0.clone())))
+            .min_by_key(|(intake, _)| *intake)
+    }
+
     /// Whether the docked partner may be taken from; `None` while undocked.
     fn partner_lootable(&self, pair: InventoryPair) -> Option<bool> {
         pair.partner.map(|partner| self.ship(partner).2)
@@ -764,9 +795,9 @@ impl InventoryShips<'_, '_> {
     /// What the source ship of `draft` carries of its item, and never less than
     /// one, so the wheel's range is never empty.
     fn draft_stock(&self, draft: InventoryDraft) -> u32 {
-        let source = self.pair().and_then(|pair| match draft.transfer {
-            ItemTransferType::Take => pair.partner,
-            ItemTransferType::Give => Some(pair.own),
+        let source = self.pair().and_then(|pair| match draft.action {
+            InventoryActionType::Take => pair.partner,
+            InventoryActionType::Give | InventoryActionType::Jettison => Some(pair.own),
         });
         source
             .map_or(0, |ship| self.ship(ship).1.count(draft.item))
@@ -855,16 +886,16 @@ fn fill_inventory_draft(
     play_menu_select(&mut commands, bank.as_deref());
 }
 
-/// Send the open draft to [`apply_inventory_transfer_commands`]. With none
+/// Send the open draft to [`apply_inventory_action_commands`]. With none
 /// open, as on the second click of a double click, nothing happens.
 fn confirm_inventory_draft(
     _: On<Activate>,
     runtime: Res<InventoryRuntime>,
-    mut transfers: MessageWriter<InventoryTransferCommand>,
+    mut actions: MessageWriter<InventoryActionCommand>,
 ) {
     if let Some(draft) = runtime.draft {
-        transfers.write(InventoryTransferCommand {
-            transfer: draft.transfer,
+        actions.write(InventoryActionCommand {
+            action: draft.action,
             item: draft.item,
             quantity: draft.quantity,
         });
@@ -966,28 +997,37 @@ pub(crate) fn sync_inventory_draft_controls(
     }
 }
 
-/// Apply each confirmed [`InventoryTransferCommand`] between the player ship
-/// and its docked partner by the [`plan_item_transfer`] rule, and flash the
-/// result on the note line.
+/// Apply each confirmed [`InventoryActionCommand`]: a Take or Give between the
+/// player ship and its docked partner by the [`plan_item_transfer`] rule, a
+/// Jettison through the player's cargo intake by the [`plan_item_jettison`]
+/// rule. Flash the result on the note line.
 ///
-/// A move removes from the source and adds to the target in this one run,
-/// closes the draft and clicks. A refusal changes no inventory, keeps the
-/// draft open so the quantity can change, and buzzes. Each command reads the
-/// state the previous one left. With no player ship, or more than one, the
-/// commands are dropped, as the panel draws nothing then.
-pub(crate) fn apply_inventory_transfer_commands(
-    mut transfers: MessageReader<InventoryTransferCommand>,
+/// A move removes from the source and adds to the target in this one run. A
+/// jettison removes from the player ship and puts the canister on the intake
+/// as a [`CargoIntakeEjection`] in this one run; the intake drops it when its
+/// door is open. Either closes the draft and clicks. A refusal changes no
+/// inventory, keeps the draft open so the quantity can change, and buzzes.
+/// Each command reads the state the previous one left. With no player ship, or
+/// more than one, the commands are dropped, as the panel draws nothing then.
+pub(crate) fn apply_inventory_action_commands(
+    mut actions: MessageReader<InventoryActionCommand>,
     mut ships: InventoryShips,
     mut runtime: ResMut<InventoryRuntime>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
     let Some(pair) = ships.pair() else {
-        transfers.clear();
+        actions.clear();
         return;
     };
-    for command in transfers.read() {
-        let (note, cue, volume) = match transfer_items(&mut ships, pair, *command) {
+    // Deferred inserts are not visible to the next command in this pass.
+    let mut pending = BTreeMap::new();
+    for command in actions.read() {
+        let result = match command.action.transfer() {
+            Some(transfer) => transfer_items(&mut ships, pair, transfer, *command),
+            None => jettison_items(&mut ships, pair, *command, &mut pending, &mut commands),
+        };
+        let (note, cue, volume) = match result {
             Ok(note) => {
                 runtime.draft = None;
                 (note, UiSfx::MenuSelect, MENU_SELECT_VOLUME)
@@ -1003,17 +1043,14 @@ pub(crate) fn apply_inventory_transfer_commands(
 fn transfer_items(
     ships: &mut InventoryShips,
     pair: InventoryPair,
-    command: InventoryTransferCommand,
+    transfer: ItemTransferType,
+    command: InventoryActionCommand,
 ) -> Result<String, String> {
     let Some(partner) = pair.partner else {
         return Err("Refused: not docked".to_string());
     };
-    let InventoryTransferCommand {
-        transfer,
-        item,
-        quantity,
-    } = command;
-    let label = item_label(item);
+    let InventoryActionCommand { item, quantity, .. } = command;
+    let label = item.label();
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let partner_title = ships.title(partner, InventorySideType::Partner);
     let (source, target, source_title, target_title) = match transfer {
@@ -1033,8 +1070,8 @@ fn transfer_items(
                 ItemTransferRefusalType::Short { held } => {
                     format!("Refused: only {held} {label} in {source_title}")
                 }
-                ItemTransferRefusalType::Overflow { .. } => {
-                    format!("Refused: {target_title} cannot hold more {label}")
+                ItemTransferRefusalType::NoRoom { free_kg } => {
+                    format!("Refused: {target_title} has room for {free_kg} kg more")
                 }
             }
         })?;
@@ -1050,10 +1087,66 @@ fn transfer_items(
     })
 }
 
+/// Put one command's items on the player's cargo intake as a canister, or say
+/// why not. Both texts are the note line. `pending` tracks deferred merges.
+fn jettison_items(
+    ships: &mut InventoryShips,
+    pair: InventoryPair,
+    command: InventoryActionCommand,
+    pending: &mut BTreeMap<Entity, CargoCanister>,
+    commands: &mut Commands,
+) -> Result<String, String> {
+    let InventoryActionCommand { item, quantity, .. } = command;
+    let label = item.label();
+    let own_title = ships.title(pair.own, InventorySideType::Own);
+    let intake = ships.intake(pair.own);
+    let queued = intake
+        .as_ref()
+        .and_then(|(entity, existing)| pending.get(entity).or(existing.as_ref()));
+    let (_, own, _) = ships.ship(pair.own);
+    let count = plan_item_jettison(
+        pair.partner.is_some(),
+        intake.is_some(),
+        queued,
+        item,
+        quantity,
+        own,
+    )
+    .map_err(|refusal| match refusal {
+        ItemJettisonRefusalType::Docked => "Refused: undock to jettison".to_string(),
+        ItemJettisonRefusalType::NoIntake => "Refused: no working cargo intake".to_string(),
+        ItemJettisonRefusalType::Overweight => "Refused: canister exceeds 200 kg".to_string(),
+        ItemJettisonRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
+        ItemJettisonRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
+        ItemJettisonRefusalType::Short { held } => {
+            format!("Refused: only {held} {label} in {own_title}")
+        }
+    })?;
+    let (intake, existing) = intake.expect("plan_item_jettison refuses a ship with no intake");
+    let (_, mut own, ..) = ships
+        .ships
+        .get_mut(pair.own)
+        .expect("InventoryShips::pair checked the player ship");
+    own.remove(item, count);
+    let canister = if let Some(mut earlier) = pending.remove(&intake).or(existing) {
+        earlier.add(item, count);
+        earlier
+    } else {
+        CargoCanister::new(item, count)
+    };
+    commands
+        .entity(intake)
+        .insert(CargoIntakeEjection(canister.clone()));
+    pending.insert(intake, canister);
+    Ok(format!("Jettisoned {count} {label}"))
+}
+
 /// One side as the pane draws it: the heading and its stacks, or `None` for a
-/// partner that is not there.
+/// partner that is not there. `heading` is the column title: the player's
+/// adds its load against its capacity.
 struct SideView {
     title: String,
+    heading: String,
     stacks: Option<Vec<(ItemType, u32)>>,
 }
 
@@ -1110,21 +1203,34 @@ pub(crate) fn update_inventory_panel(
             runtime.note = None;
         }
     }
+    let own_inventory = ships.ship(pair.own).1;
+    let own_title = ships.title(pair.own, InventorySideType::Own);
     let own = SideView {
-        title: ships.title(pair.own, InventorySideType::Own),
-        stacks: Some(ships.ship(pair.own).1.stacks().collect()),
+        heading: format!(
+            "{own_title} {}/{} kg",
+            own_inventory.used_kg(),
+            own_inventory.capacity_kg()
+        ),
+        title: own_title,
+        stacks: Some(own_inventory.stacks().collect()),
     };
     let partner = match pair.partner {
-        Some(other) => SideView {
-            title: ships.title(other, InventorySideType::Partner),
-            stacks: Some(ships.ship(other).1.stacks().collect()),
-        },
+        Some(other) => {
+            let title = ships.title(other, InventorySideType::Partner);
+            SideView {
+                heading: title.clone(),
+                title,
+                stacks: Some(ships.ship(other).1.stacks().collect()),
+            }
+        }
         None => SideView {
             title: "Docked ship".to_string(),
+            heading: "Docked ship".to_string(),
             stacks: None,
         },
     };
     let partner_lootable = ships.partner_lootable(pair);
+    let has_intake = ships.intake(pair.own).is_some();
     let side = |which: InventorySideType| match which {
         InventorySideType::Own => &own,
         InventorySideType::Partner => &partner,
@@ -1140,9 +1246,9 @@ pub(crate) fn update_inventory_panel(
     let selected = runtime.selected;
     if let Some(draft) = runtime.draft {
         let offer = selected.and_then(|(which, item)| {
-            offered_transfer(which, partner_lootable).map(|transfer| (transfer, item))
+            offered_action(which, partner_lootable, has_intake).map(|action| (action, item))
         });
-        if offer != Some((draft.transfer, draft.item)) {
+        if offer != Some((draft.action, draft.item)) {
             runtime.draft = None;
         }
     }
@@ -1199,7 +1305,7 @@ pub(crate) fn update_inventory_panel(
     }
 
     for (title, mut text) in &mut q_title {
-        let wanted = &side(title.0).title;
+        let wanted = &side(title.0).heading;
         if text.0 != *wanted {
             text.0.clone_from(wanted);
         }
@@ -1240,6 +1346,7 @@ pub(crate) fn update_inventory_panel(
     }
 
     let context = match partner_lootable {
+        None if has_intake => "Jettison from your ship, or dock with a ship to move items.",
         None => "Dock with a ship to move items.",
         Some(true) => "Take from the docked ship or give from yours.",
         Some(false) => "Give from your ship. Take needs a neutralized or lootable ship.",
@@ -1256,27 +1363,32 @@ pub(crate) fn update_inventory_panel(
         (item, format!("x{count} in {}", view.title))
     });
     let form = draft.map(|draft| {
-        let (source, target) = match draft.transfer {
-            ItemTransferType::Take => (&partner, &own),
-            ItemTransferType::Give => (&own, &partner),
-        };
-        let title = match draft.transfer {
-            ItemTransferType::Take => format!("Take from {}", partner.title),
-            ItemTransferType::Give => format!("Give to {}", partner.title),
+        let (source, title) = match draft.action {
+            InventoryActionType::Take => (&partner, format!("Take from {}", partner.title)),
+            InventoryActionType::Give => (&own, format!("Give to {}", partner.title)),
+            InventoryActionType::Jettison => (&own, "Jettison".to_string()),
         };
         let have = source.count(draft.item).unwrap_or(0);
         let summary = match draft.quantity {
-            Some(quantity) => (
-                format!(
-                    "{} after: x{}",
-                    target.title,
-                    target
-                        .count(draft.item)
-                        .unwrap_or(0)
-                        .saturating_add(quantity)
-                ),
-                UiColor::Body,
-            ),
+            Some(quantity) => {
+                // A jettison leaves the player's own stack; a transfer lands
+                // in the other column.
+                let (after, count) = match draft.action {
+                    InventoryActionType::Take => (
+                        &own,
+                        own.count(draft.item).unwrap_or(0).saturating_add(quantity),
+                    ),
+                    InventoryActionType::Give => (
+                        &partner,
+                        partner
+                            .count(draft.item)
+                            .unwrap_or(0)
+                            .saturating_add(quantity),
+                    ),
+                    InventoryActionType::Jettison => (&own, have.saturating_sub(quantity)),
+                };
+                (format!("{} after: x{count}", after.title), UiColor::Body)
+            }
             None => ("Type a whole number".to_string(), UiColor::Danger),
         };
         (title, format!("of {have}"), summary)
@@ -1286,7 +1398,7 @@ pub(crate) fn update_inventory_panel(
             (InventoryInspectorField::Context, ..) => (context.to_string(), UiColor::Label),
             (InventoryInspectorField::Note, ..) => (note.clone(), UiColor::Accent),
             (InventoryInspectorField::Name, Some((item, _)), _) => {
-                (item_label(*item).to_string(), UiColor::Primary)
+                (item.label().to_string(), UiColor::Primary)
             }
             (InventoryInspectorField::Category, Some((item, _)), _) => (
                 category_label(item.category()).to_string(),

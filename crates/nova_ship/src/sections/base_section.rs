@@ -453,6 +453,9 @@ pub enum SectionKind {
     Railgun(RailgunSectionConfig),
     /// Telescoping docking port; see [`DockingSectionConfig`].
     Docking(DockingSectionConfig),
+    /// Accordion-doored hold mouth for cargo canisters; see
+    /// [`CargoIntakeSectionConfig`].
+    CargoIntake(CargoIntakeSectionConfig),
 }
 
 impl SectionKind {
@@ -472,6 +475,7 @@ impl SectionKind {
             SectionKind::Torpedo(_) => SectionClass::Torpedo,
             SectionKind::Railgun(_) => SectionClass::Railgun,
             SectionKind::Docking(_) => SectionClass::Docking,
+            SectionKind::CargoIntake(_) => SectionClass::CargoIntake,
         }
     }
 }
@@ -515,7 +519,8 @@ impl SectionConfig {
             SectionKind::Hull(_)
             | SectionKind::Thruster(_)
             | SectionKind::Controller(_)
-            | SectionKind::Docking(_) => {}
+            | SectionKind::Docking(_)
+            | SectionKind::CargoIntake(_) => {}
         }
         self
     }

@@ -33,7 +33,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef};
+use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef, ShipInventoryStock};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{
@@ -707,6 +707,7 @@ fn target_hulk(index: usize, position: Vec3) -> ScenarioObjectConfig {
                 ],
                 ..default()
             }),
+            inventory: ShipInventoryStock::new([]),
             ..default()
         }),
     }
@@ -813,6 +814,7 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
                 .collect(),
                 ..default()
             }),
+            inventory: ShipInventoryStock::new([]),
             ..default()
         }),
     }
@@ -904,6 +906,7 @@ fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
             // derived skin over the same structure, so the flown ship must not
             // come up bare (or skinned) against it.
             design: hull_of(player, form),
+            inventory: ShipInventoryStock::new([]),
             ..default()
         }),
     }
@@ -935,6 +938,7 @@ fn standing_ship(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
             allegiance: ship.allegiance,
             controller,
             design: hull_of(ship, form),
+            inventory: ShipInventoryStock::new([]),
             ..default()
         }),
     }

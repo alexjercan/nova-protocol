@@ -2099,6 +2099,42 @@ mod tests {
         );
     }
 
+    /// Stock must fit the resolved design's hold: the armed ship's one hull
+    /// section takes 100 kg, so 10 plates fit and 11 fail lint.
+    #[test]
+    fn inventory_stock_heavier_than_the_hold_fails_lint() {
+        let overstock = |plates| {
+            let mut spawn = spawn_armed_ship(
+                "warship",
+                SpaceshipController::AI(AIControllerConfig::default()),
+            );
+            let EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                kind: ScenarioObjectKind::Spaceship(ship),
+                ..
+            }) = &mut spawn
+            else {
+                unreachable!("spawn_armed_ship spawns a spaceship");
+            };
+            ship.inventory = nova_gameplay::prelude::ShipInventoryStock::new([(
+                nova_gameplay::prelude::ItemType::HullPlate,
+                plates,
+            )]);
+            let s = scenario(vec![spawn], vec![]);
+            let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+            errors(&issues)
+                .into_iter()
+                .filter(|issue| issue.message.contains("inventory stock"))
+                .map(|issue| issue.message.clone())
+                .collect::<Vec<_>>()
+        };
+
+        assert!(overstock(10).is_empty(), "100 kg fits a 100 kg hold");
+        assert_eq!(
+            overstock(11),
+            ["ship 'warship': inventory stock of 110 kg exceeds its 100 kg hold"]
+        );
+    }
+
     /// A forced SHOT is stricter than a helm order and keeps refusing an AI
     /// ship: the shot leaves down whatever line the hull holds, and an AI hull
     /// rewrites its own aim every frame.

@@ -58,6 +58,7 @@ const SCENARIO_RON: &str = r#"[
                         kind: Spaceship((
                             controller: Player(()),
                             design: Inline((sections: [])),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),
@@ -89,6 +90,7 @@ const SCENARIO_RON: &str = r#"[
                         kind: Spaceship((
                             controller: AI((engage_delay: Some(8.0))),
                             design: Inline((sections: [])),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),

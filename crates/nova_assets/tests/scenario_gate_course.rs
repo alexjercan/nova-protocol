@@ -53,6 +53,7 @@ const SCENARIO_RON: &str = r#"[
                         kind: Spaceship((
                             controller: Player(()),
                             design: Inline((sections: [])),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),

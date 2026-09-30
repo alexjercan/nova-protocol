@@ -903,6 +903,31 @@ def salvage_pickup(rng):
     return out
 
 
+def cargo_eject(rng):
+    """A canister leaving the intake: the latch lets go, the ram shoves it out.
+
+    The reverse of the pickup, on the same hardware, so it keeps the pickup's
+    latch register and drops its ring. A shove with no motor behind it is also
+    what keeps it apart from the torpedo launch.
+    """
+    duration = 0.45
+    out = silence(duration)
+
+    latch = white(0.04, rng) * env_exp(0.04, 0.0002, 0.0032)
+    out = place(out, modes(latch, [(1300.0, 0.028, 1.0), (2350.0, 0.016, 0.5)]) * 1.4, 0.0)
+
+    ram = white(0.24, rng) * env_ad(0.24, 0.015, 0.22, curve=1.4)
+    out = place(out, saturate(bandpass(ram, 70.0, 460.0, order=3) * 1.8, 1.8) * 0.9, 0.03)
+    hiss = white(0.20, rng) * env_exp(0.20, 0.0010, 0.050)
+    out = place(out, highpass(hiss, 2800.0, order=2) * 0.30, 0.04)
+
+    # The ram hitting its end stop once the canister is clear.
+    stop = white(0.12, rng) * env_exp(0.12, 0.0005, 0.012)
+    out = place(out, modes(stop, [(240.0, 0.08, 1.0), (590.0, 0.05, 0.4)]) * 1.4, 0.27)
+
+    return out
+
+
 # name -> (renderer, output path relative to the repo root)
 #
 # Nine cues render onto LEGACY filenames, and they keep them. Those paths are
@@ -938,6 +963,7 @@ CUES = {
     ),
     "rcs_loop": (rcs_loop, "assets/base/sounds/rcs_loop.wav"),
     "salvage_pickup": (salvage_pickup, "assets/base/sounds/salvage_pickup.wav"),
+    "cargo_eject": (cargo_eject, "assets/base/sounds/cargo_eject.wav"),
 }
 
 

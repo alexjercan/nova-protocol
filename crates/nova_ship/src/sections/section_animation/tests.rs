@@ -337,3 +337,107 @@ fn a_zero_duration_track_snaps_between_poses() {
     step(&mut app, 1);
     assert_eq!(progress(&mut app, section), 1.0);
 }
+
+fn intake_door() -> SectionAnimation {
+    SectionAnimation {
+        cue: SectionAnimationCue::IntakeDoor,
+        node_prefix: "intake_slat_".to_string(),
+        motion: SectionAnimationMotion::Fold {
+            degrees: 80.0,
+            slat_width: 0.1458,
+            slat_thickness: 0.02,
+        },
+        open_seconds: 1.0,
+        close_seconds: 1.0,
+    }
+}
+
+#[test]
+fn the_fold_motion_turns_and_slides_each_slat_into_its_pocket() {
+    let (width, thickness) = (0.1458_f32, 0.02_f32);
+    let mut app = App::new();
+    app.init_resource::<Time>();
+    app.add_plugins(SectionAnimationPlugin);
+    let section = app
+        .world_mut()
+        .spawn((
+            SectionAnimations::new(vec![intake_door()]),
+            SectionAnimationRigDirty,
+        ))
+        .id();
+    // Two slats per side, at the recipe's rest placement: the slat turned
+    // so its width runs along the parent's X, closing the aperture edge to
+    // edge from each pocket wall at x = -+0.8.
+    let rest_rotation = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
+    let slats: Vec<(Entity, f32, u32)> = [("l", 1.0_f32), ("r", -1.0)]
+        .into_iter()
+        .flat_map(|(side, toward)| (0..2).map(move |index| (side, toward, index)))
+        .map(|(side, toward, index)| {
+            let rest_x = -toward * 0.8 + toward * (index as f32 + 0.5) * width;
+            let slat = app
+                .world_mut()
+                .spawn((
+                    Name::new(format!("intake_slat_{side}{index}")),
+                    Transform::from_translation(Vec3::new(rest_x, 0.1, -0.3221))
+                        .with_rotation(rest_rotation),
+                    ChildOf(section),
+                ))
+                .id();
+            (slat, toward, index)
+        })
+        .collect();
+    step(&mut app, 0);
+    app.world_mut()
+        .get_mut::<SectionAnimations>(section)
+        .unwrap()
+        .set_cue(SectionAnimationCue::IntakeDoor, 1.0);
+
+    for (dt_ms, progress) in [(0, 0.0_f32), (500, 0.5), (500, 1.0)] {
+        step(&mut app, dt_ms);
+        let fold = 80.0_f32.to_radians() * progress;
+        for &(slat, toward, index) in &slats {
+            // The example's pose (loop_intake_compare `Slat::pose`): each slat
+            // hangs off its pocket wall by its place in the accordion.
+            let pocket = -toward * 0.8;
+            let x = pocket
+                + toward
+                    * ((index as f32 + 0.5) * width * fold.cos() + thickness * 0.5 * fold.sin());
+            let turn = if index % 2 == 0 { fold } else { -fold };
+            let pose = *app.world_mut().get::<Transform>(slat).unwrap();
+            assert!(
+                pose.translation
+                    .abs_diff_eq(Vec3::new(x, 0.1, -0.3221), 1e-5),
+                "slat {toward} {index} at {progress}: {:?}",
+                pose.translation
+            );
+            assert!(
+                pose.rotation
+                    .abs_diff_eq(rest_rotation * Quat::from_rotation_x(turn), 1e-5),
+                "slat {toward} {index} at {progress}: {:?}",
+                pose.rotation
+            );
+        }
+    }
+}
+
+#[test]
+#[should_panic(expected = "Fold node \"intake_slat_x0\" is not a `intake_slat_<l|r><index>` slat")]
+fn a_fold_node_name_without_side_and_index_panics_the_rig() {
+    let mut app = App::new();
+    app.init_resource::<Time>();
+    app.add_plugins(SectionAnimationPlugin);
+    let section = app
+        .world_mut()
+        .spawn((
+            Name::new("cargo intake"),
+            SectionAnimations::new(vec![intake_door()]),
+            SectionAnimationRigDirty,
+        ))
+        .id();
+    app.world_mut().spawn((
+        Name::new("intake_slat_x0"),
+        Transform::IDENTITY,
+        ChildOf(section),
+    ));
+    step(&mut app, 0);
+}

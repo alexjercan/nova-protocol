@@ -78,6 +78,9 @@ pub fn exit_normal(kind: &SectionKind) -> Option<Vec3> {
         // bay's does - and the skin must not clad the one face the mechanic
         // needs bare.
         SectionKind::Docking(_) => Some(Vec3::NEG_Z),
+        // The door folds open on -Z, canisters leave and enter through it,
+        // and the skin must not clad it shut.
+        SectionKind::CargoIntake(_) => Some(Vec3::NEG_Z),
         SectionKind::Hull(_) | SectionKind::Controller(_) => None,
     }
 }

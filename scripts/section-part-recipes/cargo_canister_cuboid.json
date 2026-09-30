@@ -1,0 +1,21 @@
+{
+  "_comment": "ITEM CANDIDATE (cargo canister, cuboid), not a section: it takes the core frame only for the centred 1x1x1 cell box and budget checks. Long axis X, origin at the centre. A canvas body between gunmetal end caps, gunmetal rails down the four long edges, and an amber band off-centre so the canister reads its own orientation. Caps are 0.58 square, the cross-section of the runtime CARGO_CANISTER_SIZE. Promoted: the cargo canister an intake drops and takes in (CargoIntakeSectionConfig canister_mesh).",
+  "frame": "core",
+  "cells": [1, 1, 1],
+  "materials": {
+    "part_amber": { "color": [0.85, 0.55, 0.12], "metallic": 0.4, "roughness": 0.5 },
+    "part_canvas": { "color": [0.58, 0.57, 0.53], "metallic": 0.05, "roughness": 0.9 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 }
+  },
+  "material": "part_gunmetal",
+  "parts": [
+    { "primitive": "box", "size": [0.88, 0.54, 0.54], "at": [0.0, 0.0, 0.0], "material": "part_canvas" },
+    { "primitive": "box", "size": [0.06, 0.58, 0.58], "at": [-0.47, 0.0, 0.0] },
+    { "primitive": "box", "size": [0.06, 0.58, 0.58], "at": [0.47, 0.0, 0.0] },
+    { "primitive": "box", "size": [0.08, 0.56, 0.56], "at": [0.18, 0.0, 0.0], "material": "part_amber" },
+    { "primitive": "box", "size": [0.8, 0.03, 0.03], "at": [0.0, -0.27, -0.27] },
+    { "primitive": "box", "size": [0.8, 0.03, 0.03], "at": [0.0, -0.27, 0.27] },
+    { "primitive": "box", "size": [0.8, 0.03, 0.03], "at": [0.0, 0.27, -0.27] },
+    { "primitive": "box", "size": [0.8, 0.03, 0.03], "at": [0.0, 0.27, 0.27] }
+  ]
+}

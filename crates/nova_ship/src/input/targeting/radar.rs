@@ -41,6 +41,7 @@ pub(super) fn update_radar_search(
     time: Res<Time>,
     settings: Res<TargetingSettings>,
     q_hold: Query<&TriggerState, With<Action<RadarHoldInput>>>,
+    q_canisters: Query<(), With<CargoCanister>>,
     mut acquired_cue: MessageWriter<RadarLockAcquired>,
     mut retarget_cue: MessageWriter<RadarRetargeted>,
     mut spaceship: Query<
@@ -67,6 +68,9 @@ pub(super) fn update_radar_search(
             aim,
             TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos(),
             contacts,
+            radar.engaged == Some(RadarSlot::Combat)
+                || (radar.engaged.is_none() && raised.is_some_and(|raised| raised.0)),
+            |entity| q_canisters.contains(entity),
         );
         if radar.candidate != picked {
             radar.candidate = picked;
@@ -169,13 +173,15 @@ fn radar_pick(
     aim: Vec3,
     min_cos: f32,
     contacts: &SensorContacts,
+    combat: bool,
+    is_canister: impl Fn(Entity) -> bool,
 ) -> Option<Entity> {
     let scored: Vec<(Entity, f32)> = contacts
         .iter()
         .filter_map(|contact| {
             // Acquisition needs the line: you cannot designate what the radar
             // cannot see.
-            if !contact.in_sight {
+            if !contact.in_sight || (combat && is_canister(contact.entity)) {
                 return None;
             }
             let entity = contact.entity;
@@ -269,8 +275,39 @@ mod tests {
             (near_center, Vec3::new(2.0, 0.0, -100.0), true),
             (off_center, Vec3::new(3.0, 0.0, -20.0), true),
         ];
-        let picked = radar_pick(None, origin, aim, cone_cos(18.0), &seen(candidates));
+        let picked = radar_pick(
+            None,
+            origin,
+            aim,
+            cone_cos(18.0),
+            &seen(candidates),
+            false,
+            |_| false,
+        );
         assert_eq!(picked, Some(near_center));
+    }
+
+    #[test]
+    fn combat_skips_canisters_but_travel_can_designate_them() {
+        let canister = Entity::from_raw_u32(1).unwrap();
+        let neutral = Entity::from_raw_u32(2).unwrap();
+        let contacts = seen([
+            (canister, Vec3::new(0.0, 0.0, -10.0), true),
+            (neutral, Vec3::new(1.0, 0.0, -10.0), true),
+        ]);
+        let pick = |combat| {
+            radar_pick(
+                None,
+                Vec3::ZERO,
+                Vec3::NEG_Z,
+                cone_cos(18.0),
+                &contacts,
+                combat,
+                |entity| entity == canister,
+            )
+        };
+        assert_eq!(pick(false), Some(canister));
+        assert_eq!(pick(true), Some(neutral));
     }
 
     #[test]
@@ -281,7 +318,15 @@ mod tests {
             true,
         )];
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &seen(side)),
+            radar_pick(
+                None,
+                Vec3::ZERO,
+                Vec3::NEG_Z,
+                cone_cos(18.0),
+                &seen(side),
+                false,
+                |_| false
+            ),
             None,
             "a body outside the cone must not be picked"
         );
@@ -291,12 +336,28 @@ mod tests {
             true,
         )];
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &seen(behind)),
+            radar_pick(
+                None,
+                Vec3::ZERO,
+                Vec3::NEG_Z,
+                cone_cos(18.0),
+                &seen(behind),
+                false,
+                |_| false
+            ),
             None,
             "a body behind the ship must not be picked"
         );
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &seen([])),
+            radar_pick(
+                None,
+                Vec3::ZERO,
+                Vec3::NEG_Z,
+                cone_cos(18.0),
+                &seen([]),
+                false,
+                |_| false
+            ),
             None
         );
     }
@@ -311,7 +372,15 @@ mod tests {
         let min_cos = cone_cos(18.0);
         let behind_cover = [(hidden, Vec3::new(0.0, 0.0, -100.0), false)];
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, min_cos, &seen(behind_cover)),
+            radar_pick(
+                None,
+                Vec3::ZERO,
+                Vec3::NEG_Z,
+                min_cos,
+                &seen(behind_cover),
+                false,
+                |_| false
+            ),
             None,
             "a body on the ray but behind cover must not be offered"
         );
@@ -321,7 +390,15 @@ mod tests {
             (clear, Vec3::new(4.0, 0.0, -100.0), true),
         ];
         assert_eq!(
-            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, min_cos, &seen(mixed)),
+            radar_pick(
+                None,
+                Vec3::ZERO,
+                Vec3::NEG_Z,
+                min_cos,
+                &seen(mixed),
+                false,
+                |_| false
+            ),
             Some(clear),
             "the nearest VISIBLE body wins, not the nearest body"
         );
@@ -332,7 +409,9 @@ mod tests {
                 Vec3::ZERO,
                 Vec3::NEG_Z,
                 min_cos,
-                &seen(behind_cover)
+                &seen(behind_cover),
+                false,
+                |_| false,
             ),
             None,
             "hysteresis must not hold a candidate the radar can no longer see"
@@ -356,7 +435,15 @@ mod tests {
             (b, Vec3::new(13.0, 0.0, -100.0), true),
         ];
         assert_eq!(
-            radar_pick(Some(a), origin, aim, min_cos, &seen(marginal)),
+            radar_pick(
+                Some(a),
+                origin,
+                aim,
+                min_cos,
+                &seen(marginal),
+                false,
+                |_| false
+            ),
             Some(a),
             "a marginally-nearer challenger must not steal the candidate"
         );
@@ -366,19 +453,31 @@ mod tests {
             (b, Vec3::new(0.1, 0.0, -100.0), true),
         ];
         assert_eq!(
-            radar_pick(Some(a), origin, aim, min_cos, &seen(decisive)),
+            radar_pick(
+                Some(a),
+                origin,
+                aim,
+                min_cos,
+                &seen(decisive),
+                false,
+                |_| false
+            ),
             Some(b),
             "a decisively-nearer challenger takes the candidate"
         );
         // No incumbent: plain nearest wins.
         assert_eq!(
-            radar_pick(None, origin, aim, min_cos, &seen(marginal)),
+            radar_pick(None, origin, aim, min_cos, &seen(marginal), false, |_| {
+                false
+            }),
             Some(b)
         );
         // Cone empty: candidate drops (the abort).
         let outside = [(a, Vec3::new(100.0, 0.0, 0.0), true)];
         assert_eq!(
-            radar_pick(Some(a), origin, aim, min_cos, &seen(outside)),
+            radar_pick(Some(a), origin, aim, min_cos, &seen(outside), false, |_| {
+                false
+            }),
             None
         );
     }
@@ -437,6 +536,36 @@ mod tests {
             .run_system_once(super::super::sensing::update_sensor_contacts)
             .unwrap();
         world.run_system_once(update_radar_search).unwrap();
+    }
+
+    #[test]
+    fn canister_is_travel_lockable_past_unsigned_range_but_excluded_from_combat() {
+        let (mut world, player) = radar_world();
+        // 90 m dead ahead: past the 50 m unsigned range, inside the canister's
+        // own return.
+        let at = Transform::from_xyz(0.0, 0.0, -9.0);
+        assert!(at.translation.length() > TargetingSettings::default().unsigned_lock_range);
+        let canister = world
+            .spawn(cargo_canister(
+                CargoCanister::new(ItemType::HullPlate, 1),
+                at,
+                Vec3::ZERO,
+                AssetRef::from("canister.glb#Scene0"),
+            ))
+            .id();
+        let neutral = world
+            .spawn((RigidBody::Dynamic, Transform::from_xyz(0.4, 0.0, -3.0)))
+            .id();
+        search(&mut world);
+        assert!(world
+            .get::<SensorContacts>(player)
+            .unwrap()
+            .get(canister)
+            .is_some());
+        assert_eq!(candidate(&mut world, player), Some(canister));
+        world.entity_mut(player).insert(WeaponsRaised(true));
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), Some(neutral));
     }
 
     #[test]

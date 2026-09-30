@@ -17,6 +17,7 @@ use nova_ship::prelude::SectionConfig;
 
 use super::assets::BaseContentAssets;
 
+mod cargo_intake;
 mod controller;
 mod docking_port;
 mod hull;
@@ -25,7 +26,8 @@ mod thruster;
 mod torpedo_bay;
 mod turret;
 
-/// The one authoring-owned prototype id a block hull mounts by name.
+/// The authoring-owned prototype ids a block hull mounts by name.
+pub(crate) use cargo_intake::CARGO_INTAKE_SECTION_ID;
 pub(crate) use thruster::VECTOR_THRUSTER_SECTION_ID;
 
 /// Complete built-in prototype catalog in stable generated-content order.
@@ -38,6 +40,7 @@ pub(crate) fn section_catalog(assets: &BaseContentAssets) -> Vec<SectionConfig> 
         torpedo_bay::prototypes(assets),
         railgun::prototypes(assets),
         docking_port::prototypes(assets),
+        cargo_intake::prototypes(assets),
     ]
     .concat()
 }

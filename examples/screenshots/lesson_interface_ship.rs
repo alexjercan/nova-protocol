@@ -206,7 +206,7 @@ fn hurt_the_turret(world: &mut World) {
     }
     let mut ships = world.query_filtered::<&mut ShipInventory, With<PlayerSpaceshipMarker>>();
     for mut inventory in ships.iter_mut(world) {
-        *inventory = ShipInventory::from_iter([(ItemType::HullPlate, 12)]);
+        *inventory = ShipInventory::new(inventory.capacity_kg(), [(ItemType::HullPlate, 12)]);
     }
 }
 

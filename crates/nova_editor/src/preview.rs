@@ -95,6 +95,9 @@ pub(crate) fn insert_preview_section(
         SectionKind::Docking(docking) => {
             entity.insert(preview_docking_section(docking.clone()));
         }
+        SectionKind::CargoIntake(intake) => {
+            entity.insert(preview_cargo_intake_section(intake.clone()));
+        }
     }
     if role == PreviewRole::Display {
         // Dropped rather than never inserted: the preview bundle is one shared

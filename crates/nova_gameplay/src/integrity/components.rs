@@ -78,7 +78,9 @@ pub struct IntegrityLeafMarker;
 
 /// Marks a node disabled by reaching zero health.
 ///
-/// Inserted when a node gains [`HealthZeroMarker`](super::health::HealthZeroMarker).
+/// Inserted when a structure node or a section gains
+/// [`HealthZeroMarker`](super::health::HealthZeroMarker). Any other depleted body,
+/// such as a cargo canister, never gets it; its owner handles the depletion.
 /// The generic core destroys a disabled leaf. Structure adapters can destroy
 /// disabled interior nodes immediately; ships do this for direct depletion.
 #[derive(Component, Debug, Default, Reflect)]

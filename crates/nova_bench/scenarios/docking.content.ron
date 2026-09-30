@@ -139,6 +139,7 @@
                             controller: Player((
                                 input_mapping: {},
                             )),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),
@@ -201,6 +202,7 @@
                             )),
                             controller: r#None,
                             allegiance: Some(Neutral),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),

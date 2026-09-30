@@ -2,6 +2,7 @@
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::ShipInventoryStock;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::WellTargetType;
 
@@ -100,6 +101,7 @@ pub(super) fn backdrop_orbiter(
             }),
             design: ships::design(hull),
             lootable: false,
+            inventory: ShipInventoryStock::new([]),
             ..Default::default()
         }),
     }

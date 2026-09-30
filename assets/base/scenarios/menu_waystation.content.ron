@@ -55,6 +55,7 @@
                             controller: AI((
                                 orbit: Some(Authored("menu_planetoid")),
                             )),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),
@@ -81,6 +82,7 @@
                             controller: AI((
                                 orbit: Some(Authored("menu_planetoid")),
                             )),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),

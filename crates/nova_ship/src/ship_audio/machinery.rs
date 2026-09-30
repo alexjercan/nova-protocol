@@ -1,11 +1,12 @@
 //! The ship's moving parts: the sounds a hull makes when it is not shooting.
 //!
-//! Doors, so far - the retractable PDC housing and the torpedo bay's muzzle
-//! iris - and the seam is deliberately the same as the weapons': the mechanism
-//! reports, content authors the sound, and this module is the only place that
-//! turns the two into a voice.
+//! Doors - the retractable PDC housing, the torpedo bay's muzzle iris and the
+//! cargo intake's accordion - and the intake's drop and take. The seam is
+//! deliberately the same as the weapons': the mechanism reports, content
+//! authors the sound, and this module is the only place that turns the two
+//! into a voice.
 //!
-//! Both cues are placed at the mechanism and routed by whose hull it is on, so
+//! Every cue is placed at the mechanism and routed by whose hull it is on, so
 //! a raider folding its guns two hundred meters away is heard from over there
 //! or not at all.
 
@@ -13,10 +14,14 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::{
-    routing::route_for, BAY_DOOR_CLOSE_VOLUME, BAY_DOOR_OPEN_VOLUME, STOW_CLOSE_VOLUME,
-    STOW_OPEN_VOLUME,
+    routing::route_for, BAY_DOOR_CLOSE_VOLUME, BAY_DOOR_OPEN_VOLUME, CARGO_EJECT_VOLUME,
+    INTAKE_DOOR_CLOSE_VOLUME, INTAKE_DOOR_OPEN_VOLUME, STOW_CLOSE_VOLUME, STOW_OPEN_VOLUME,
 };
 use crate::sections::{
+    cargo_intake_section::{
+        CargoCanisterEjected, CargoCanisterTaken, CargoIntakeDoorMoved,
+        CargoIntakeSectionConfigHelper,
+    },
     torpedo_section::{TorpedoBayDoorsMoved, TorpedoSectionDoorSound},
     turret_section::{TurretSectionStowSounds, TurretStowDoorsMoved},
 };
@@ -101,9 +106,89 @@ pub(super) fn on_bay_doors_play_sfx(
     commands.play_sfx_at(handle, route, volume, at.translation());
 }
 
+/// The intake's door servo, on the frame the door is told to move. One
+/// required file for both directions, like the bay's iris.
+pub(super) fn on_intake_door_play_sfx(
+    moved: On<CargoIntakeDoorMoved>,
+    asset_server: Res<AssetServer>,
+    q_intakes: Query<(&CargoIntakeSectionConfigHelper, &GlobalTransform)>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let intake = moved.entity;
+    let Ok((config, at)) = q_intakes.get(intake) else {
+        return;
+    };
+    let volume = if moved.opening {
+        INTAKE_DOOR_OPEN_VOLUME
+    } else {
+        INTAKE_DOOR_CLOSE_VOLUME
+    };
+    let route = route_for(intake, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(
+        config.door_sound.resolve(&asset_server),
+        route,
+        volume,
+        at.translation(),
+    );
+}
+
+/// A canister leaving the intake, at the intake.
+pub(super) fn on_canister_ejected_play_sfx(
+    ejected: On<CargoCanisterEjected>,
+    asset_server: Res<AssetServer>,
+    q_intakes: Query<(&CargoIntakeSectionConfigHelper, &GlobalTransform)>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let intake = ejected.entity;
+    let Ok((config, at)) = q_intakes.get(intake) else {
+        return;
+    };
+    let route = route_for(intake, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(
+        config.eject_sound.resolve(&asset_server),
+        route,
+        CARGO_EJECT_VOLUME,
+        at.translation(),
+    );
+}
+
+/// A canister taken into the hold, at the intake that took it.
+pub(super) fn on_canister_taken_play_sfx(
+    taken: On<CargoCanisterTaken>,
+    asset_server: Res<AssetServer>,
+    q_intakes: Query<(&CargoIntakeSectionConfigHelper, &GlobalTransform)>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let intake = taken.entity;
+    let Ok((config, at)) = q_intakes.get(intake) else {
+        return;
+    };
+    let route = route_for(intake, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(
+        config.take_sound.resolve(&asset_server),
+        route,
+        SALVAGE_PICKUP_VOLUME,
+        at.translation(),
+    );
+}
+
 #[cfg(test)]
 mod tests {
+    use nova_events::units::prelude::*;
+
     use super::{super::test_support::LastPlayed, *};
+    use crate::sections::cargo_intake_section::{
+        preview_cargo_intake_section, CargoIntakeSectionConfig,
+    };
 
     /// A live turret with the given authored pair, on a ship of its own.
     fn app_with(open: Option<&str>, close: Option<&str>) -> (App, Entity) {
@@ -262,5 +347,77 @@ mod tests {
         let (mut app, bay) = bay_app(None);
         move_iris(&mut app, bay, true);
         assert_eq!(app.world().resource::<LastPlayed>().0, None);
+    }
+
+    #[test]
+    fn the_cargo_intake_voices_its_door_drop_and_take_where_authored() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.add_observer(on_intake_door_play_sfx);
+        app.add_observer(on_canister_ejected_play_sfx);
+        app.add_observer(on_canister_taken_play_sfx);
+        #[derive(Resource, Default)]
+        struct Heard(Vec<(Handle<AudioSource>, f32, SfxSource)>);
+        app.init_resource::<Heard>();
+        app.add_observer(|ev: On<PlaySfx>, mut heard: ResMut<Heard>| {
+            heard.0.push((ev.handle.clone(), ev.volume, ev.source));
+        });
+        let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let point = Vec3::new(3.0, -1.0, 2.0);
+        let at = SfxSource::At(point);
+        let intake = app
+            .world_mut()
+            .spawn((
+                preview_cargo_intake_section(CargoIntakeSectionConfig {
+                    render_mesh: AssetRef::from("intake.glb#Scene0"),
+                    render_mesh_transform: None,
+                    canister_mesh: AssetRef::from("canister.glb#Scene0"),
+                    door_sound: AssetRef::from("base/sounds/bay_door.wav"),
+                    eject_sound: AssetRef::from("base/sounds/cargo_eject.wav"),
+                    take_sound: AssetRef::from("base/sounds/salvage_pickup.wav"),
+                    detection_range: Meters(40.0),
+                    capture_gap: Meters(1.0),
+                    aperture_width: Meters(14.1),
+                    aperture_height: Meters(16.0),
+                    maximum_capture_speed: MetersPerSecond(5.0),
+                    eject_speed: MetersPerSecond(3.0),
+                }),
+                GlobalTransform::from_translation(point),
+                ChildOf(ship),
+            ))
+            .id();
+
+        for opening in [true, false] {
+            app.world_mut().trigger(CargoIntakeDoorMoved {
+                entity: intake,
+                opening,
+            });
+        }
+        app.world_mut()
+            .trigger(CargoCanisterEjected { entity: intake });
+        app.world_mut()
+            .trigger(CargoCanisterTaken { entity: intake });
+        app.world_mut().flush();
+
+        let server = app.world().resource::<AssetServer>().clone();
+        let door = server.load("base/sounds/bay_door.wav");
+        assert_eq!(
+            app.world().resource::<Heard>().0,
+            vec![
+                (door.clone(), INTAKE_DOOR_OPEN_VOLUME, at),
+                (door, INTAKE_DOOR_CLOSE_VOLUME, at),
+                (
+                    server.load("base/sounds/cargo_eject.wav"),
+                    CARGO_EJECT_VOLUME,
+                    at
+                ),
+                (
+                    server.load("base/sounds/salvage_pickup.wav"),
+                    SALVAGE_PICKUP_VOLUME,
+                    at
+                ),
+            ]
+        );
     }
 }

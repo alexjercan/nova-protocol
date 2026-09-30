@@ -83,6 +83,8 @@
         "gltf/bay_tube.glb",
         "gltf/railgun_lance.glb",
         "gltf/dock_flush.glb",
+        "gltf/intake_accordion_3x2x1.glb",
+        "gltf/cargo_canister_cuboid.glb",
         // Decoration fixtures for the derived skin, generated from the recipes
         // in `scripts/greeble-recipes/` by `scripts/gen-greebles.py`. Declared
         // here so a style can name one with `self://gltf/greebles/<id>.glb` and
@@ -250,6 +252,7 @@
         // nothing references yet is a file the bundle ships, not an error.
         "sounds/ammo_dry.wav",
         "sounds/bay_door.wav",
+        "sounds/cargo_eject.wav",
         "sounds/destroy_rock.wav",
         "sounds/destroy_ship.wav",
         "sounds/dry_fire.wav",

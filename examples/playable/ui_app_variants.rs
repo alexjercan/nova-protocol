@@ -1709,7 +1709,7 @@ impl SectionIcon {
             SectionClass::Turret | SectionClass::Torpedo | SectionClass::Railgun => Self::Weapon,
             SectionClass::Thruster => Self::Thruster,
             SectionClass::Controller => Self::Controller,
-            SectionClass::Hull => Self::Hull,
+            SectionClass::Hull | SectionClass::CargoIntake => Self::Hull,
             SectionClass::Docking => Self::Docking,
         }
     }
@@ -3191,6 +3191,7 @@ fn section_about(kind: SectionClass) -> &'static str {
         SectionClass::Torpedo => "Torpedo launch tube.",
         SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
         SectionClass::Docking => "Docking port; locks onto another hull.",
+        SectionClass::CargoIntake => "Cargo intake; takes in slow canisters.",
     }
 }
 

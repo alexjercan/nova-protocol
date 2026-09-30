@@ -19,7 +19,7 @@ use bevy::{
 };
 use nova_assets::prelude::GameAssets;
 use nova_events::prelude::Meters3;
-use nova_gameplay::prelude::{Allegiance, AssetRef};
+use nova_gameplay::prelude::{Allegiance, AssetRef, ShipInventoryStock};
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     spaceship_scenario_object, AsteroidConfig, BaseScenarioObjectConfig, GameShipDesigns,
@@ -239,6 +239,7 @@ pub fn materialize_sector(
                 // marker's requirement default would otherwise decide.
                 controller: SpaceshipController::None,
                 allegiance: Some(Allegiance::Neutral),
+                inventory: ShipInventoryStock::new([]),
                 ..default()
             }),
             Allegiance::Neutral,

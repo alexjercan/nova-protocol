@@ -56,6 +56,7 @@
                                 orbit_enabled: false,
                                 lock_enabled: false,
                             ),
+                            inventory: {},
                             lootable: false,
                         )),
                     )),

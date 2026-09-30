@@ -16,7 +16,9 @@ use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use nova_gameplay::asset_ref::AssetRef;
-use nova_ship::prelude::{SectionConfig, SectionPatchError, DEFAULT_WARN_HULL_FRACTION};
+use nova_ship::prelude::{
+    SectionConfig, SectionKind, SectionPatchError, DEFAULT_WARN_HULL_FRACTION,
+};
 
 use crate::objects::spaceship::prelude::{
     SectionId, SpaceshipSectionConfig, SpaceshipSectionConfigPatch,
@@ -28,7 +30,7 @@ pub mod prelude {
     pub use super::{
         resolve_ship_design, GameShipDesigns, ResolvedSection, ResolvedShipDesign, ShipDesign,
         ShipDesignError, ShipDesignId, ShipDesignPrototype, ShipDesignSource, ShipIntegrityConfig,
-        ShipPresentationConfig,
+        ShipPresentationConfig, HULL_SECTION_CARGO_KG,
     };
 }
 
@@ -385,6 +387,29 @@ pub struct ResolvedShipDesign {
     pub integrity: ShipIntegrityConfig,
     /// The design's look and voice.
     pub presentation: ShipPresentationConfig,
+}
+
+/// Cargo mass one hull section gives a ship's hold, in kilograms.
+pub const HULL_SECTION_CARGO_KG: u32 = 100;
+
+impl ResolvedShipDesign {
+    /// The mass the ship's hold takes, in kilograms:
+    /// [`HULL_SECTION_CARGO_KG`] per hull section.
+    ///
+    /// # Panics
+    ///
+    /// When the hull count times [`HULL_SECTION_CARGO_KG`] overflows a `u32`.
+    pub fn cargo_capacity_kg(&self) -> u32 {
+        let hulls = self
+            .sections
+            .iter()
+            .filter(|section| matches!(section.config.kind, SectionKind::Hull(_)))
+            .count();
+        u32::try_from(hulls)
+            .ok()
+            .and_then(|hulls| hulls.checked_mul(HULL_SECTION_CARGO_KG))
+            .unwrap_or_else(|| panic!("{hulls} hull sections overflow a u32 cargo capacity"))
+    }
 }
 
 /// What went wrong while resolving a design. Reported by the content lint and

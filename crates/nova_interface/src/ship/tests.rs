@@ -182,7 +182,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
             .clone()
             .map(|(text, _)| text)
     };
-    let stock = |count| ShipInventory::from_iter([(ItemType::HullPlate, count)]);
+    let stock = |count| ShipInventory::new(400, [(ItemType::HullPlate, count)]);
 
     // No plates: the P key still sends, and the hull stays at 80/100.
     repair(&mut app, &[hull]);
@@ -1174,7 +1174,7 @@ fn panel_buttons_raise_ship_section_command() {
     // --- Repair button on the hull (starts at 80/100), the other caller. ---
     app.world_mut()
         .entity_mut(ship)
-        .insert(ShipInventory::from_iter([(ItemType::HullPlate, 1)]));
+        .insert(ShipInventory::new(400, [(ItemType::HullPlate, 1)]));
     let repair = app
         .world_mut()
         .spawn(ShipPanelButton::Repair)
@@ -1258,7 +1258,7 @@ fn update_ship_panel_reflects_selection() {
     let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .entity_mut(ship)
-        .insert(ShipInventory::from_iter([(ItemType::HullPlate, 1)]));
+        .insert(ShipInventory::new(400, [(ItemType::HullPlate, 1)]));
     app.world_mut()
         .run_system_once(assign_section_codes)
         .unwrap();

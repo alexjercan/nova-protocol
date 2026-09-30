@@ -6,6 +6,7 @@ use nova_gameplay::gravity::prelude::NovaGravitySystems;
 
 pub mod ammo;
 pub mod base_section;
+pub mod cargo_intake_section;
 pub mod catalog_ids;
 pub mod clearance;
 pub mod controller_section;
@@ -38,11 +39,12 @@ pub mod turret_section;
 /// `SpaceshipSectionPlugin` with `SpaceshipSectionSystems`.
 pub mod prelude {
     pub use super::{
-        ammo::prelude::*, base_section::prelude::*, catalog_ids::prelude::*, clearance::prelude::*,
-        controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
-        damage_plume::prelude::*, damage_sparks::prelude::*, docking_section::prelude::*,
-        fixture::prelude::*, hull_radius::prelude::*, hull_section::prelude::*,
-        integrity::prelude::*, link_points::prelude::*, live_structure_anchor, patch::prelude::*,
+        ammo::prelude::*, base_section::prelude::*, cargo_intake_section::prelude::*,
+        catalog_ids::prelude::*, clearance::prelude::*, controller_section::prelude::*,
+        damage_cracks::prelude::*, damage_effects::prelude::*, damage_plume::prelude::*,
+        damage_sparks::prelude::*, docking_section::prelude::*, fixture::prelude::*,
+        hull_radius::prelude::*, hull_section::prelude::*, integrity::prelude::*,
+        link_points::prelude::*, live_structure_anchor, patch::prelude::*,
         placeholder_art::prelude::*, railgun_section::prelude::*, section_animation::prelude::*,
         shell_shape::prelude::*, shell_skin::prelude::*, signature::prelude::*,
         skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
@@ -290,8 +292,11 @@ impl Plugin for SpaceshipSectionPlugin {
             docking_section::DockingSectionPlugin {
                 render: self.render,
             },
+            cargo_intake_section::CargoIntakeSectionPlugin {
+                render: self.render,
+            },
             // Not one of the kinds above: cladding is a FIXTURE derived from
-            // whatever those five build, so it has no prototype and no palette
+            // whatever those kinds build, so it has no prototype and no palette
             // entry to sit next to them in.
             shell_skin::ShipSkinPlugin {
                 render: self.render,

@@ -125,7 +125,7 @@ impl SectionIconType {
             SectionClass::Turret | SectionClass::Torpedo | SectionClass::Railgun => Self::Weapon,
             SectionClass::Thruster => Self::Thruster,
             SectionClass::Controller => Self::Controller,
-            SectionClass::Hull => Self::Hull,
+            SectionClass::Hull | SectionClass::CargoIntake => Self::Hull,
             SectionClass::Docking => Self::Docking,
         }
     }

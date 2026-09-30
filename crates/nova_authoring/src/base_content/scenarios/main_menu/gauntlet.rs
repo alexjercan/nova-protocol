@@ -123,6 +123,7 @@ fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
                 source: SectionSource::prototype("torpedo_section"),
             }]),
             lootable: false,
+            inventory: ShipInventoryStock::new([]),
             ..Default::default()
         }),
     }
@@ -253,6 +254,7 @@ pub(crate) fn menu_gauntlet(
                 }),
             ),
             lootable: false,
+            inventory: ShipInventoryStock::new([]),
             ..Default::default()
         }),
     });
