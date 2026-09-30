@@ -63,6 +63,7 @@
                                     "pdc_ventral_starboard": [Keyboard(KeyM)],
                                 },
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -132,6 +133,7 @@
                             design: Prototype(id: "block_hauler"),
                             controller: r#None,
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                 ],

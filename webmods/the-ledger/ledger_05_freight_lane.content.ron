@@ -35,6 +35,7 @@
                                 input_mapping: {"turret_port": [Mouse(Left), Gamepad(RightTrigger2)], "turret_starboard": [Mouse(Left), Gamepad(RightTrigger2)]},
                             )),
                             allegiance: Some(Player),
+                            lootable: false,
                         )),
                     )),
                     VariableSet((key: "stage", expression: Term(Factor(Literal(Number(0.0)))))),
@@ -212,6 +213,7 @@
                                 avoid_margin: Some(200.0),
                             )),
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -232,6 +234,7 @@
                                 avoid_margin: Some(200.0),
                             )),
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -245,6 +248,7 @@
                             design: Prototype(id: "ledger_freighter"),
                             controller: None,
                             allegiance: Some(Player),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -265,6 +269,7 @@
                             ),
                             controller: None,
                             allegiance: Some(Player),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -278,6 +283,7 @@
                             design: Prototype(id: "ledger_platform"),
                             controller: None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -301,6 +307,7 @@
                                 ],
                             )),
                             allegiance: Some(Player),
+                            lootable: false,
                         )),
                     )),
                     Objective((
@@ -397,6 +404,7 @@
                                                 engage_range: Some(4400.0),
                                             )),
                                             allegiance: Some(Enemy),
+                                            lootable: false,
                                         )),
                                     )),
                                     SpawnScenarioObject((
@@ -414,6 +422,7 @@
                                                 engage_range: Some(4400.0),
                                             )),
                                             allegiance: Some(Enemy),
+                                            lootable: false,
                                         )),
                                     )),
                                 ],

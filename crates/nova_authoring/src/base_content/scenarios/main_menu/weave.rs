@@ -95,6 +95,7 @@ pub(crate) fn menu_weave(
                 ..Default::default()
             }),
             design: ships::design(ships::BLOCK_CUTTER_SHIP_ID),
+            lootable: false,
             ..Default::default()
         }),
     });

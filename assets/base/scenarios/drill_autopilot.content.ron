@@ -53,6 +53,7 @@
                             capabilities: (
                                 stop_enabled: false,
                             ),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((

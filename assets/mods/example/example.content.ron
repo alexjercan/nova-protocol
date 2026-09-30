@@ -369,6 +369,7 @@
                                     ),
                                 ],
                             )),
+                            lootable: false,
                         )),
                     )),
                     // A lit beacon centrepiece the rocks sit in front of. Purely
@@ -794,6 +795,7 @@
                                     ),
                                 ],
                             )),
+                            lootable: false,
                         )),
                     )),
                 ],

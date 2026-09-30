@@ -219,6 +219,7 @@ id or authored inline.
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
 | `capabilities` | capability set | all on | what this spawn is PERMITTED to do (below). Omit it for a ship that can do everything |
 | `inventory` | item map | empty | what the ship carries at spawn (below). Omit it for a ship that carries nothing |
+| `lootable` | bool | required | `true` lets a ship docked to this one Take from its inventory although it was never neutralized: a derelict. `false` allows Take only once it is neutralized. Give is always allowed |
 
 `design: Inline((..))` carries the same fields a [ship design](../ships/) does
 - `sections`, `integrity`, `presentation`. Author one for a genuine one-off (a
@@ -266,17 +267,23 @@ The items the ship carries at spawn, as a map from item to stack count. Omit
 the field for an empty hold. A count of `0` or the same item listed twice
 fails lint and load. The only item is `HullPlate`, filed under Repair. Stock
 shows in the TAB interface's Inventory pane. A Ship pane repair spends hull
-plates; nothing adds items at runtime, and spent plates return when the
-scenario loads again.
+plates, and a docked player can Give items to any ship and Take them from a
+neutralized or `lootable: true` one. Nothing is saved: stock returns to its
+authored counts when the scenario loads again.
 
 ```ron
-// The open-world player ship's starting stock.
+// The open world's derelict: nobody aboard, free to loot.
+controller: None,
+allegiance: Some(Neutral),
 inventory: {
-    HullPlate: 12,
+    HullPlate: 8,
 },
+lootable: true,
 ```
 
-<!-- Field: crates/nova_scenario/src/objects/spaceship.rs (`SpaceshipConfig::inventory`).
+<!-- Fields: crates/nova_scenario/src/objects/spaceship.rs (`SpaceshipConfig::inventory`,
+     `SpaceshipConfig::lootable`, which inserts `LootableShipMarker` at spawn in
+     crates/nova_scenario/src/actions/spawn.rs).
      Parse: crates/nova_gameplay/src/inventory.rs (`ShipInventory` Deserialize). -->
 
 ### Section patches
@@ -315,6 +322,7 @@ SpawnScenarioObject((
                 "bridge": (config: (health: Some(500.0))),
             },
         ),
+        lootable: false,
     )),
 )),
 ```
@@ -334,6 +342,7 @@ kind: Spaceship((
             ),
         ],
     )),
+    lootable: false,
 )),
 ```
 
@@ -353,6 +362,7 @@ SpawnScenarioObject((
             engage_delay: Some(8.0),
         )),
         design: Prototype(id: "block_picket"),
+        lootable: false,
     )),
 )),
 ```

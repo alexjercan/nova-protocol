@@ -35,6 +35,7 @@
                                 input_mapping: {"turret_port": [Mouse(Left), Gamepad(RightTrigger2)], "turret_starboard": [Mouse(Left), Gamepad(RightTrigger2)]},
                             )),
                             allegiance: Some(Player),
+                            lootable: false,
                         )),
                     )),
                     VariableSet((key: "stage", expression: Term(Factor(Literal(Number(0.0)))))),
@@ -189,6 +190,7 @@
                                 avoid_margin: Some(200.0),
                             )),
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -209,6 +211,7 @@
                                 avoid_margin: Some(200.0),
                             )),
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -254,6 +257,7 @@
                             design: Prototype(id: "ledger_platform"),
                             controller: None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -267,6 +271,7 @@
                             design: Prototype(id: "ledger_platform"),
                             controller: None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -315,6 +320,7 @@
                                 patrol: [(-1200.0, 0.0, -3700.0), (-600.0, 200.0, -4300.0)],
                             )),
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -335,6 +341,7 @@
                                 patrol: [(1400.0, 100.0, -6200.0), (800.0, -100.0, -5200.0)],
                             )),
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                     Objective((id: "patrol", message: "Inspect both relays and clear the patrols.")),

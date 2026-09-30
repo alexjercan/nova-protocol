@@ -1134,6 +1134,7 @@ mod tests {
                                                     },
                                                 )),
                                                 design: Inline((sections: [])),
+                                                lootable: false,
                                             )),
                                         )),
                                     ],

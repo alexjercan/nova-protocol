@@ -54,6 +54,7 @@
                                 goto_enabled: false,
                                 orbit_enabled: false,
                             ),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -392,6 +393,7 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -503,6 +505,7 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -614,6 +617,7 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -725,6 +729,7 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -836,6 +841,7 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            lootable: false,
                         )),
                     )),
                     ObjectiveMarkerAttach((

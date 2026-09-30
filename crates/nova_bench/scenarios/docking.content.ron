@@ -139,6 +139,7 @@
                             controller: Player((
                                 input_mapping: {},
                             )),
+                            lootable: false,
                         )),
                     )),
                     // Quat::from_rotation_y(PI + 0.28) * Quat::from_rotation_x(-0.16),
@@ -200,6 +201,7 @@
                             )),
                             controller: r#None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                 ],

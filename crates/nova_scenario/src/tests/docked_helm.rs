@@ -169,6 +169,7 @@ fn spawn_ship(app: &mut App, design: &str, at: Vec3) -> Entity {
                 allegiance: None,
                 capabilities: default(),
                 inventory: ShipInventory::default(),
+                lootable: false,
             }),
         ))
         .id()

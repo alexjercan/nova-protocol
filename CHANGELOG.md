@@ -42,6 +42,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New Game opens a world setup modal with a seed field. Create flies a line
   warship into an open world generated from the seed and streamed around it.
   Retry keeps the seed.
+- The open-world warship starts with 12 hull plates and a lootable Derelict
+  Tender carrying 8, moored 140 m ahead of its port collar. Stock resets when
+  the scenario loads.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.
@@ -63,15 +66,18 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Spaceships take an `inventory` map of item to count, such as
   `{HullPlate: 12}`; omitted is empty. A zero count or a repeated item fails
   lint and load.
+- **(breaking)** Spaceships require `lootable: true` or `false`; a ship without
+  it fails lint and load. A docked player may Take from a `lootable: true`
+  ship that was never neutralized.
 
 ### Interface & HUD
 
 - **(breaking)** TAB opens a themed interface with Map, Ship and Inventory
   panes; M or pad Y steps through them. GOTO and mates are pane keys; Repair,
   Reload and Rebind are keys and buttons.
-- The Inventory pane lists what your ship and a docked ship carry. Ship pane
-  Repair now spends hull plates, 1 per 20 HP, anywhere; the open-world ship
-  starts with 12, restored when the scenario loads.
+- The Inventory pane lists what your ship and a docked ship carry. Docked,
+  Give to it, or Take once it is neutralized or lootable. Ship pane Repair
+  spends hull plates, 1 per 20 HP, anywhere.
 - The TAB interface blips on open and close like the pause menu, and clicks
   when a tab, filter, item, contact or section pick changes, and on Reframe,
   Fit, Reset, Repair, Reload and Rebind.

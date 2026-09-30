@@ -40,6 +40,7 @@
                                     "pdc_ventral_starboard": [Keyboard(KeyM)],
                                 },
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -94,6 +95,7 @@
                             controller: AI((
                                 engage_delay: Some(15.0),
                             )),
+                            lootable: false,
                         )),
                     )),
                 ],

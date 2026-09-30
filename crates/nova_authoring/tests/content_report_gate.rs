@@ -56,6 +56,7 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                                     (id: "bad", position: (0.0, 0.0, 1.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "imaginary_hull")),
                                 ],
                             )),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -68,6 +69,7 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                                     (id: "turret", position: (0.0, 0.75, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "pdc_kinetic_turret_section")),
                                 ],
                             )),
+                            lootable: false,
                         )),
                     )),
                 ],

@@ -74,6 +74,7 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
                 ],
             ),
             inventory: ShipInventory::default(),
+            lootable: false,
         }),
     }
 }
@@ -105,6 +106,7 @@ pub(crate) fn gantry() -> ScenarioObjectConfig {
                 )],
             ),
             inventory: ShipInventory::default(),
+            lootable: false,
         }),
     }
 }
@@ -154,6 +156,7 @@ pub(crate) fn wreckage() -> Vec<ScenarioObjectConfig> {
                 capabilities: ShipCapabilities::default(),
                 design: ships::design(BLOCK_WRECK_PLATE_SHIP_ID),
                 inventory: ShipInventory::default(),
+                lootable: false,
             }),
         })
         .collect()

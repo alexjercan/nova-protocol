@@ -330,6 +330,7 @@
                                 waypoint_slack: Some(50.0),
                                 arrival_standoff: Some(100.0),
                             )),
+                            lootable: false,
                         )),
                     )),
                     SetCamera((

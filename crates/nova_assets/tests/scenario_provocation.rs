@@ -61,6 +61,7 @@ const SCENARIO_RON: &str = r#"[
                         kind: Spaceship((
                             controller: Player(()),
                             design: Inline((sections: [])),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -69,6 +70,7 @@ const SCENARIO_RON: &str = r#"[
                             controller: AI((patrol: [(600.0, 0.0, -800.0), (1000.0, 100.0, -1400.0)])),
                             allegiance: Some(Neutral),
                             design: Inline((sections: [])),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -77,6 +79,7 @@ const SCENARIO_RON: &str = r#"[
                             controller: AI((patrol: [(-600.0, 0.0, -1600.0), (-200.0, 100.0, -2200.0)])),
                             allegiance: Some(Neutral),
                             design: Inline((sections: [])),
+                            lootable: false,
                         )),
                     )),
                     CreateScenarioArea((id: "area_1", name: "Watch Zone", position: (800.0, 0.0, -1100.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 240.0)),

@@ -281,3 +281,66 @@ fn a_rebound_key_moves_its_footer_hint() {
         "{hints:?}"
     );
 }
+
+/// Press and release `M` through the keyboard messages a window writes, one
+/// frame each.
+fn press_m(app: &mut App) {
+    use bevy::input::{
+        keyboard::{Key, KeyboardInput},
+        ButtonState,
+    };
+
+    for state in [ButtonState::Pressed, ButtonState::Released] {
+        app.world_mut().write_message(KeyboardInput {
+            key_code: KeyCode::KeyM,
+            logical_key: Key::Character("m".into()),
+            state,
+            text: (state == ButtonState::Pressed).then(|| "m".into()),
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        });
+        app.update();
+    }
+}
+
+#[test]
+fn a_focused_text_field_types_m_instead_of_switching_panes() {
+    use bevy::{input::InputPlugin, state::app::StatesPlugin};
+    use nova_gameplay::PauseStates;
+    use nova_input::prelude::RegisterInputActions;
+    use nova_ui::{
+        prelude::{in_input_mode, InputMode, TextFieldFocused},
+        NovaUiPlugin,
+    };
+
+    // nova_ui's real arbiter and the pane switch under the plugin's own gate.
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, StatesPlugin, InputPlugin, NovaUiPlugin));
+    app.insert_state(PauseStates::Interface);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.insert_resource(InterfacePaneType::Inventory);
+    app.add_systems(
+        Update,
+        next_interface_pane.run_if(in_input_mode(InputMode::Normal)),
+    );
+    let field = app.world_mut().spawn(TextFieldFocused::at_end("1")).id();
+    app.update();
+
+    press_m(&mut app);
+    assert_eq!(
+        *app.world().resource::<InterfacePaneType>(),
+        InterfacePaneType::Inventory,
+        "M typed into the focused quantity field must not switch panes"
+    );
+
+    app.world_mut()
+        .entity_mut(field)
+        .remove::<TextFieldFocused>();
+    app.update();
+    press_m(&mut app);
+    assert_eq!(
+        *app.world().resource::<InterfacePaneType>(),
+        InterfacePaneType::Inventory.next(),
+        "with the field let go, M switches panes again"
+    );
+}

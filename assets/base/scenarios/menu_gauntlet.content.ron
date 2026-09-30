@@ -215,6 +215,7 @@
                             )),
                             controller: r#None,
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -259,6 +260,7 @@
                             )),
                             controller: r#None,
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -303,6 +305,7 @@
                             )),
                             controller: r#None,
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -347,6 +350,7 @@
                             )),
                             controller: r#None,
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                     SetCamera((
@@ -521,6 +525,7 @@
                                 pd_range: Some(1300.0),
                             )),
                             allegiance: Some(Player),
+                            lootable: false,
                         )),
                     )),
                     TimerStart((

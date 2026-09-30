@@ -35,6 +35,7 @@
                                 input_mapping: {"turret_port": [Mouse(Left), Gamepad(RightTrigger2)], "turret_starboard": [Mouse(Left), Gamepad(RightTrigger2)]},
                             )),
                             allegiance: Some(Player),
+                            lootable: false,
                         )),
                     )),
                     VariableSet((key: "stage", expression: Term(Factor(Literal(Number(0.0)))))),
@@ -188,6 +189,7 @@
                                 avoid_margin: Some(200.0),
                             )),
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -208,6 +210,7 @@
                                 avoid_margin: Some(200.0),
                             )),
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -269,6 +272,7 @@
                             design: Prototype(id: "ledger_platform"),
                             controller: None,
                             allegiance: Some(Neutral),
+                            lootable: false,
                         )),
                     )),
                     Objective((id: "arena", message: "Clear the three challengers.")),
@@ -309,6 +313,7 @@
                                 engage_range: Some(4200.0),
                             )),
                             allegiance: Some(Enemy),
+                            lootable: false,
                         )),
                     )),
                     CinematicTitle((
@@ -351,6 +356,7 @@
                                                 engage_range: Some(4600.0),
                                             )),
                                             allegiance: Some(Enemy),
+                                            lootable: false,
                                         )),
                                     )),
                                     SpawnScenarioObject((
@@ -369,6 +375,7 @@
                                                 engage_range: Some(4600.0),
                                             )),
                                             allegiance: Some(Enemy),
+                                            lootable: false,
                                         )),
                                     )),
                                 ],
