@@ -163,6 +163,13 @@ FIGURES = [
     ("wiki-section-railgun-corridor.png", "screenshot_railgun"),
     ("wiki-combat-railgun.png",           "screenshot_railgun"),
     ("catalog-siege-railgun-lance-section.png", "screenshot_railgun"),
+    # The ship-section verbs: the clamp with both sleeves out, the bow
+    # emitter's beam on a locked rock and the crater it leaves, and the
+    # dorsal intake under the canister it is about to take.
+    ("wiki-section-docking.png",          "lesson_dock_envelope"),
+    ("wiki-section-mining-beam.png",      "screenshot_mining_beam"),
+    ("wiki-section-mining-beam-carve.png", "screenshot_mining_beam"),
+    ("wiki-section-cargo-intake.png",     "mine_and_sell"),
     # The drive family on one bench: the size comparison, then each large
     # drive on its own.
     ("wiki-section-drives.png",         "screenshot_section_drives"),
@@ -317,6 +324,8 @@ ALIASES = {
     "catalog-pdc-twin-kinetic-turret-section.png": "wiki-section-turret-twin.png",
     "catalog-pdc-twin-pierce-turret-section.png": "wiki-section-turret-twin.png",
     "catalog-railgun-lance-section.png": "wiki-section-railgun.png",
+    "catalog-mining-beam-section.png": "wiki-section-mining-beam.png",
+    "catalog-cargo-intake-section.png": "wiki-section-cargo-intake.png",
     # The gravity chapter asks for a well it can read: a body on black is a
     # rock, and the only frame in the set that SHOWS a well is the orbit shot -
     # the planetoid, the holo ring across it, the radius spoke and the ship on

@@ -387,6 +387,48 @@
         ],
     )),
     Lesson((
+        id: "flight_mine",
+        category: Flight,
+        order: 70,
+        title: "MINE",
+        media: Loop(
+            sheet: "self://training/flight_mine.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a line warship\'s bow emitter on a locked rock: the doors part, the tip runs out, and the beam cuts the rock with a burst of sparks",
+        ),
+        body: "MINE cuts ore from the rock you travel lock. The beam fires straight ahead of its emitter: aim the ship and hold the key within 100 meters. Ore leaves in canisters. No beam means the rock is out of reach or off the line.",
+        actions: [
+            "radar_hold",
+            "mine",
+        ],
+        wiki_path: "wiki/sections/mining-beam#cutting-ore",
+        field_notes: [
+            "The mining beam fires straight ahead of its emitter: aim the ship, not the beam.",
+        ],
+    )),
+    Lesson((
+        id: "flight_cargo_pickup",
+        category: Flight,
+        order: 75,
+        title: "Picking up canisters",
+        media: Loop(
+            sheet: "self://training/flight_cargo_pickup.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a line warship rising under a drifting canister: the canister goes through the cargo intake\'s open door into the hold, and the door folds shut",
+        ),
+        body: "A cargo intake takes a whole canister into your hold. Fly the intake\'s door onto the canister: the canister must touch the opening, and your hull beside it knocks the canister aside. The pickup sight draws a line from the intake to the canister.",
+        wiki_path: "wiki/sections/cargo-intake#taking-a-canister-in",
+        field_notes: [
+            "Fly your cargo intake\'s door onto a canister to take it into your hold.",
+        ],
+    )),
+    Lesson((
         id: "combat_radar",
         category: Combat,
         order: 10,
@@ -1019,6 +1061,53 @@
         wiki_path: "wiki/interface#rebinding-a-section",
         field_notes: [
             "Section controls are set per ship in the Ship pane.",
+        ],
+    )),
+    Lesson((
+        id: "interface_cargo_transfer",
+        category: Interface,
+        order: 27,
+        title: "Take and give",
+        media: Loop(
+            sheet: "self://training/interface_cargo_transfer.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "the Inventory pane docked to a derelict: the Take form for its hull plates set to all and confirmed, and the plates move into your column",
+        ),
+        body: "Docked, the Inventory pane shows both holds. Select an item on your side to give it to the other ship. Select an item on a derelict or a neutralized ship to take it. Confirm moves the full quantity at once, or nothing.",
+        actions: [
+            "dock",
+            "interface_toggle",
+            "interface_next_tab",
+        ],
+        wiki_path: "wiki/interface#take-and-give",
+        field_notes: [
+            "Dock with a derelict to take its cargo in the Inventory pane.",
+        ],
+    )),
+    Lesson((
+        id: "interface_jettison",
+        category: Interface,
+        order: 28,
+        title: "Jettisoning cargo",
+        media: Loop(
+            sheet: "self://training/interface_jettison.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "a line warship\'s cargo intake folding its door open and dropping a canister of hull plates clear of the hull",
+        ),
+        body: "Undocked, select an item in the Inventory pane to jettison it. Confirm packs it into canisters on your cargo intake. When you close the interface, the intake\'s door opens and drops them one at a time. You can pick them up again.",
+        actions: [
+            "interface_toggle",
+            "interface_next_tab",
+        ],
+        wiki_path: "wiki/interface#jettison-and-pickup",
+        field_notes: [
+            "Jettisoned cargo leaves through your cargo intake after you close the interface.",
         ],
     )),
     Lesson((

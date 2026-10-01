@@ -449,6 +449,44 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &["Both ships need a docking port before they can dock."],
         ),
         lesson(
+            "flight_mine",
+            Flight,
+            70,
+            "MINE",
+            looping(
+                "flight_mine",
+                "a line warship's bow emitter on a locked rock: the doors part, the tip runs out, \
+                 and the beam cuts the rock with a burst of sparks",
+            ),
+            "MINE cuts ore from the rock you travel lock. The beam fires straight ahead of its \
+             emitter: aim the ship and hold the key within 100 meters. Ore leaves in canisters. No \
+             beam means the rock is out of reach or off the line.",
+            &["radar_hold", "mine"],
+            "wiki/sections/mining-beam#cutting-ore",
+            None,
+            &[],
+            &["The mining beam fires straight ahead of its emitter: aim the ship, not the beam."],
+        ),
+        lesson(
+            "flight_cargo_pickup",
+            Flight,
+            75,
+            "Picking up canisters",
+            looping(
+                "flight_cargo_pickup",
+                "a line warship rising under a drifting canister: the canister goes through the \
+                 cargo intake's open door into the hold, and the door folds shut",
+            ),
+            "A cargo intake takes a whole canister into your hold. Fly the intake's door onto the \
+             canister: the canister must touch the opening, and your hull beside it knocks the \
+             canister aside. The pickup sight draws a line from the intake to the canister.",
+            &[],
+            "wiki/sections/cargo-intake#taking-a-canister-in",
+            None,
+            &[],
+            &["Fly your cargo intake's door onto a canister to take it into your hold."],
+        ),
+        lesson(
             "combat_radar",
             Combat,
             10,
@@ -1073,6 +1111,44 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &["Section controls are set per ship in the Ship pane."],
+        ),
+        lesson(
+            "interface_cargo_transfer",
+            Interface,
+            27,
+            "Take and give",
+            looping(
+                "interface_cargo_transfer",
+                "the Inventory pane docked to a derelict: the Take form for its hull plates set to \
+                 all and confirmed, and the plates move into your column",
+            ),
+            "Docked, the Inventory pane shows both holds. Select an item on your side to give it \
+             to the other ship. Select an item on a derelict or a neutralized ship to take it. \
+             Confirm moves the full quantity at once, or nothing.",
+            &["dock", "interface_toggle", "interface_next_tab"],
+            "wiki/interface#take-and-give",
+            None,
+            &[],
+            &["Dock with a derelict to take its cargo in the Inventory pane."],
+        ),
+        lesson(
+            "interface_jettison",
+            Interface,
+            28,
+            "Jettisoning cargo",
+            looping(
+                "interface_jettison",
+                "a line warship's cargo intake folding its door open and dropping a canister of \
+                 hull plates clear of the hull",
+            ),
+            "Undocked, select an item in the Inventory pane to jettison it. Confirm packs it into \
+             canisters on your cargo intake. When you close the interface, the intake's door opens \
+             and drops them one at a time. You can pick them up again.",
+            &["interface_toggle", "interface_next_tab"],
+            "wiki/interface#jettison-and-pickup",
+            None,
+            &[],
+            &["Jettisoned cargo leaves through your cargo intake after you close the interface."],
         ),
         lesson(
             "command_open",

@@ -26,6 +26,10 @@ vfx-cold-launch.webm	loop_vfx_range	2.1	72490	fresh
 landing-damage-sequence.webm	loop_damage_sequence	5.5	137927	fresh
 loop-section-railgun.webm	screenshot_railgun	10.7	472756	fresh
 loop-section-railgun-live.webm	screenshot_railgun	2.3	671543	fresh
+loop-section-docking.webm	lesson_dock_envelope	3.0	98981	fresh
+loop-section-mining-beam.webm	screenshot_mining_beam	3.7	181920	fresh
+loop-section-cargo-intake.webm	mine_and_sell	3.3	172685	fresh
+loop-section-cargo-jettison.webm	lesson_cargo	4.1	134439	fresh
 loop-section-thruster.webm	loop_player_flight	4.8	489728	fresh
 news-0110-release-lead.webm	loop_spine_cut	5.3	169087	frozen
 news-0110-spine-cut.webm	loop_spine_cut	5.3	169087	frozen

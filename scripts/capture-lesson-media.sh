@@ -93,6 +93,8 @@ PRODUCERS=(
     "lesson_build_geometry|build_turning:still,build_weapon_mounts:still,build_docking_port:still"
     "lesson_build_generate|build_generate:loop,build_skin:loop"
     "lesson_dock_envelope|build_dock_envelope:loop,flight_dock:loop"
+    "lesson_mining|flight_mine:loop"
+    "lesson_cargo|interface_cargo_transfer:loop,interface_jettison:loop,flight_cargo_pickup:loop"
     "lesson_build_flight_test|build_flight_test:loop"
     "lesson_interface|interface_open:loop,interface_map:loop"
     "lesson_interface_ship|interface_ship_service:loop,interface_rebind_section:loop"

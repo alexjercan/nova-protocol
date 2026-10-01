@@ -11471,6 +11471,910 @@ function initCollapseBudget(host: HTMLElement): void {
     update();
 }
 
+// The cargo intake, from crates/nova_authoring/src/base_content/sections/
+// cargo_intake.rs: INTAKE_CELLS 3 x 2 x 1 (:23), detection_range 40 m (:111),
+// capture_gap 1 m (:112), aperture 22.2 x 15.3 m (:117-118), eject_speed
+// 3 m/s (:119). The runtime is crates/nova_ship/src/sections/
+// cargo_intake_section.rs: CARGO_CANISTER_SIZE 0.94 x 0.58 x 0.58 units (:72);
+// the door opens for a canister whose centre is in front of the face and
+// within detection_range of the face centre (:453-459); the take is a contact
+// with nonnegative penetration into the trigger box, whatever the door does,
+// with room in the hold (:486-495); a drop is born half a canister deep +
+// capture_gap + CARGO_CANISTER_CLEARANCE 0.05 units (:81) off the face
+// (:499-503).
+const INTAKE_HEIGHT_M = 20;
+const INTAKE_DEPTH_M = 10;
+const INTAKE_APERTURE_WIDTH_M = 22.2;
+const INTAKE_APERTURE_HEIGHT_M = 15.3;
+const INTAKE_DETECTION_M = 40;
+const INTAKE_CAPTURE_GAP_M = 1;
+const INTAKE_EJECT_MPS = 3;
+const CANISTER_LENGTH_M = 9.4;
+const CANISTER_SIDE_M = 5.8;
+const INTAKE_BIRTH_M = CANISTER_SIDE_M / 2 + INTAKE_CAPTURE_GAP_M + 0.5;
+
+/** What one intake does with one canister in the widget's side view. */
+export interface IntakeTake {
+    /** The canister's centre is in front of the face, within 40 m of it. */
+    doorOpens: boolean;
+    /** The canister's outline meets the 1 m slab in front of the opening. */
+    touchesSlab: boolean;
+    /** The slab is touched and the hold has room: the whole canister goes in. */
+    taken: boolean;
+}
+
+/**
+ * The intake verdict in the side plane: the canister's nearest point sits
+ * `gapM` out from the face, its centre `upM` up the face, and its long axis
+ * turns `tiltDeg` from the face's up axis (90 is end-on). The slab test is an
+ * inclusive separating-axis test of two outlines, an illustration of the
+ * game's 3D contact, which alone decides a take.
+ */
+export function cargoIntakeTake(
+    gapM: number,
+    upM: number,
+    tiltDeg: number,
+    holdHasRoom: boolean
+): IntakeTake {
+    const tilt = (tiltDeg * Math.PI) / 180;
+    // Unit axes in (out, up) coordinates.
+    const long: [number, number] = [Math.sin(tilt), Math.cos(tilt)];
+    const side: [number, number] = [Math.cos(tilt), -Math.sin(tilt)];
+    const halfLong = CANISTER_LENGTH_M / 2;
+    const halfSide = CANISTER_SIDE_M / 2;
+    const halfOut = halfLong * Math.abs(long[0]) + halfSide * Math.abs(side[0]);
+    const halfUp = halfLong * Math.abs(long[1]) + halfSide * Math.abs(side[1]);
+    const out = gapM + halfOut;
+    const slabOut = INTAKE_CAPTURE_GAP_M / 2;
+    const slabUp = INTAKE_APERTURE_HEIGHT_M / 2;
+    const overlapsOn = (axis: [number, number], canisterHalf: number) =>
+        Math.abs((out - slabOut) * axis[0] + upM * axis[1]) <=
+        canisterHalf + slabOut * Math.abs(axis[0]) + slabUp * Math.abs(axis[1]);
+    const touchesSlab =
+        gapM <= INTAKE_CAPTURE_GAP_M &&
+        Math.abs(upM) <= halfUp + slabUp &&
+        overlapsOn(long, halfLong) &&
+        overlapsOn(side, halfSide);
+    return {
+        doorOpens: Math.hypot(out, upM) <= INTAKE_DETECTION_M,
+        touchesSlab,
+        taken: touchesSlab && holdHasRoom,
+    };
+}
+
+function initCargoIntakeTake(host: HTMLElement): void {
+    header(
+        host,
+        "Intake scope: door and take",
+        "A side view, door looking right, to scale. Move and turn a canister. " +
+            "The door goes by the canister's centre; the take goes by any " +
+            "part of it in the thin slab in front of the opening."
+    );
+
+    const controls = el("div", "widget__controls");
+    const gap = control(
+        "gap to the face",
+        0,
+        45,
+        0.5,
+        6,
+        (v) => meters(v, 1),
+        () => update()
+    );
+    const up = control(
+        "centre up the face",
+        -30,
+        30,
+        0.5,
+        0,
+        (v) => (v > 0 ? `+${meters(v, 1)}` : meters(v, 1)),
+        () => update()
+    );
+    const tilt = control(
+        "long axis",
+        0,
+        90,
+        5,
+        90,
+        (v) =>
+            v === 90
+                ? "90 deg (end-on)"
+                : v === 0
+                  ? "0 deg (along the face)"
+                  : `${v} deg`,
+        () => update()
+    );
+    controls.appendChild(gap.row);
+    controls.appendChild(up.row);
+    controls.appendChild(tilt.row);
+    let room = true;
+    const keys = el("div", "widget__keys");
+    const roomKey = el("button", "widget__btn is-on", "HOLD HAS ROOM");
+    roomKey.type = "button";
+    roomKey.setAttribute("aria-pressed", "true");
+    roomKey.addEventListener("click", () => {
+        room = !room;
+        roomKey.textContent = room ? "HOLD HAS ROOM" : "HOLD FULL";
+        roomKey.classList.toggle("is-on", room);
+        roomKey.setAttribute("aria-pressed", String(room));
+        update();
+    });
+    keys.appendChild(roomKey);
+
+    // 2.5 px to the meter. The intake's box at the left, its door face at FX
+    // looking right, the door range half-disc in front of the face centre.
+    const S = 2.5;
+    const FX = 50;
+    const FY = 126;
+    const reach = INTAKE_DETECTION_M * S;
+    const slabH = INTAKE_APERTURE_HEIGHT_M * S;
+    const svg = svgEl("svg", {
+        viewBox: "0 0 360 252",
+        role: "img",
+        "aria-label":
+            "Side view of the intake: the door face, the 40 m door range in " +
+            "front of it, the 1 m slab across the opening, and the canister " +
+            "you place.",
+    });
+    const add = <
+        K extends "circle" | "line" | "path" | "polygon" | "rect" | "text",
+    >(
+        tag: K,
+        attrs: Record<string, number | string>,
+        words?: string
+    ): SVGElementTagNameMap[K] => {
+        const strings: Record<string, string> = {};
+        for (const [k, v] of Object.entries(attrs)) strings[k] = String(v);
+        return svg.appendChild(svgEl(tag, strings, words));
+    };
+    add("text", { x: 10, y: 18, class: "widget-mark--axis" }, "SIDE VIEW");
+    const range = add("path", {
+        d: `M ${FX} ${FY - reach} A ${reach} ${reach} 0 0 1 ${FX} ${FY + reach} Z`,
+        class: "widget-mark--reach",
+    });
+    add(
+        "text",
+        { x: FX + 6, y: FY - reach + 14, class: "widget-mark--axis" },
+        `door range ${INTAKE_DETECTION_M} m`
+    );
+    add("rect", {
+        x: FX - INTAKE_DEPTH_M * S,
+        y: FY - (INTAKE_HEIGHT_M * S) / 2,
+        width: INTAKE_DEPTH_M * S,
+        height: INTAKE_HEIGHT_M * S,
+        class: "widget-mark--section",
+    });
+    add(
+        "text",
+        {
+            x: FX - (INTAKE_DEPTH_M * S) / 2,
+            y: FY + (INTAKE_HEIGHT_M * S) / 2 + 14,
+            "text-anchor": "middle",
+            class: "widget-mark--axis",
+        },
+        "intake"
+    );
+    const slab = add("rect", {
+        x: FX,
+        y: FY - slabH / 2,
+        width: INTAKE_CAPTURE_GAP_M * S,
+        height: slabH,
+    });
+    add(
+        "text",
+        {
+            x: FX + 6,
+            y: FY - slabH / 2 - 4,
+            class: "widget-mark--label-now",
+        },
+        `${INTAKE_CAPTURE_GAP_M} m slab`
+    );
+    const centreLine = add("line", {
+        x1: FX,
+        y1: FY,
+        class: "widget-mark--ray",
+    });
+    const canister = add("polygon", { points: "" });
+    const centreDot = add("circle", { r: 2.5, class: "widget-mark--dot-now" });
+
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    const stack = el("div", "widget__stack");
+    const readout = el("p", "widget__readout");
+    readout.setAttribute("aria-live", "polite");
+
+    const update = (): void => {
+        const g = Number(gap.input.value);
+        const u = Number(up.input.value);
+        const t = Number(tilt.input.value);
+        const verdict = cargoIntakeTake(g, u, t, room);
+        const rad = (t * Math.PI) / 180;
+        const halfOut =
+            (CANISTER_LENGTH_M / 2) * Math.sin(rad) +
+            (CANISTER_SIDE_M / 2) * Math.cos(rad);
+        const out = g + halfOut;
+        const centreM = Math.hypot(out, u);
+        // Screen y grows down; the face's up axis is screen up.
+        const cx = FX + out * S;
+        const cy = FY - u * S;
+        const corners = [
+            [1, 1],
+            [1, -1],
+            [-1, -1],
+            [-1, 1],
+        ].map(([a, b]) => {
+            const o =
+                a * (CANISTER_LENGTH_M / 2) * Math.sin(rad) +
+                b * (CANISTER_SIDE_M / 2) * Math.cos(rad);
+            const v =
+                a * (CANISTER_LENGTH_M / 2) * Math.cos(rad) -
+                b * (CANISTER_SIDE_M / 2) * Math.sin(rad);
+            return `${(cx + o * S).toFixed(1)},${(cy - v * S).toFixed(1)}`;
+        });
+        canister.setAttribute("points", corners.join(" "));
+        canister.setAttribute(
+            "class",
+            "widget-mark--section" +
+                (verdict.taken
+                    ? " is-hit"
+                    : verdict.touchesSlab
+                      ? " is-dead"
+                      : "")
+        );
+        centreDot.setAttribute("cx", cx.toFixed(1));
+        centreDot.setAttribute("cy", cy.toFixed(1));
+        centreLine.setAttribute("x2", cx.toFixed(1));
+        centreLine.setAttribute("y2", cy.toFixed(1));
+        range.classList.toggle("is-live", verdict.doorOpens);
+        slab.setAttribute(
+            "class",
+            verdict.touchesSlab ? "widget-mark--bore" : "widget-mark--reach"
+        );
+
+        stack.replaceChildren(
+            sectionCell(
+                verdict.doorOpens ? "DOOR OPEN" : "DOOR SHUT",
+                `centre ${meters(centreM, 1)} out`,
+                verdict.doorOpens ? "is-live" : "is-off"
+            ),
+            sectionCell(
+                verdict.touchesSlab ? "IN SLAB" : "CLEAR",
+                `near point ${meters(g, 1)} out`,
+                verdict.touchesSlab ? "is-live" : "is-off"
+            ),
+            sectionCell(
+                room ? "ROOM" : "FULL",
+                "hold free mass",
+                room ? "is-live" : "is-dead"
+            ),
+            sectionCell(
+                verdict.taken ? "TAKEN" : "NOT TAKEN",
+                "the whole canister",
+                verdict.taken ? "is-hit" : "is-off"
+            )
+        );
+        readout.classList.remove("is-warn", "is-fault");
+        if (verdict.taken) {
+            readout.textContent =
+                "TAKEN. Part of the canister is in the slab and the hold has " +
+                "room, so the whole canister goes into the hold at once. The " +
+                "door, speed and angle play no part.";
+        } else if (verdict.touchesSlab) {
+            readout.classList.add("is-fault");
+            readout.textContent =
+                "NOT TAKEN: the hold is full. The canister touches the slab " +
+                "but is heavier than the hold's free mass, so it stays out.";
+        } else if (verdict.doorOpens) {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                `DOOR OPEN, nothing taken yet. The centre is ` +
+                `${meters(centreM, 1)} from the face centre, inside ` +
+                `${INTAKE_DETECTION_M} m. ` +
+                (g <= INTAKE_CAPTURE_GAP_M
+                    ? "The canister is at the face but beside the " +
+                      `${INTAKE_APERTURE_HEIGHT_M} m opening, and a canister ` +
+                      "touching the hull there is not taken."
+                    : `Close the last ` +
+                      `${meters(g - INTAKE_CAPTURE_GAP_M, 1)} to reach the slab.`);
+        } else {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                `DOOR SHUT. The door reads only the centre, ` +
+                `${meters(centreM, 1)} from the face centre, past ` +
+                `${INTAKE_DETECTION_M} m` +
+                (g <= INTAKE_DETECTION_M
+                    ? `, even with the near end ${meters(g, 1)} out.`
+                    : ".");
+        }
+    };
+
+    host.appendChild(controls);
+    host.appendChild(keys);
+    host.appendChild(plot);
+    host.appendChild(stack);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "An illustrative side-plane projection: the canister's long axis " +
+                "turns in the plane of the drawing, and the opening is " +
+                `${INTAKE_APERTURE_WIDTH_M} m across, wider than the ` +
+                `${CANISTER_LENGTH_M} m canister. In the game a physics ` +
+                "contact into the 3D trigger box, with room in the hold, " +
+                "decides the take, so a canister drawn just touching is not " +
+                `a promise. A drop is born ${meters(INTAKE_BIRTH_M, 1)} out ` +
+                `and leaves at ${INTAKE_EJECT_MPS} m/s.`
+        )
+    );
+    update();
+}
+
+// The docking envelope, from crates/nova_authoring/src/base_content/sections/
+// docking_port.rs: DOCK_TUBE_TRAVEL 0.5 cells (:23) out in 1.2 s (:54),
+// capture_distance 10 m (:89), capture_angle 15 deg (:92),
+// maximum_relative_speed 5 m/s (:96), maximum_relative_angular_speed 5 deg/s
+// (:97). Every gate is inclusive and graded against the stricter of the two
+// ports, with the gap between the retracted faces and speed and spin as
+// relative magnitudes (crates/nova_ship/src/sections/docking_section/
+// port.rs:80-104, :218-219). A refused DOCK writes only a debug log
+// (connection.rs:193).
+const DOCK_CELL_M = 10;
+const DOCK_GAP_M = 10;
+const DOCK_SLEEVE_M = 5;
+const DOCK_FACING_DEG = 15;
+const DOCK_SPEED_MPS = 5;
+const DOCK_SPIN_DEG = 5;
+// The widget's fixed approach: every gate but the gap passes.
+const DOCK_SHOWN_FACING_DEG = 5;
+const DOCK_SHOWN_SPEED_MPS = 2;
+const DOCK_SHOWN_SPIN_DEG = 1;
+
+/** Each docking gate for one pair of base ports, and DOCK's verdict. */
+export interface DockingGates {
+    /** The retracted faces are 10 m apart or less. */
+    gap: boolean;
+    /** The two axes are within 15 degrees of opposed. */
+    facing: boolean;
+    /** The relative speed is 5 m/s or less. */
+    speed: boolean;
+    /** The relative spin is 5 degrees a second or less. */
+    spin: boolean;
+    /** All four hold: DOCK is offered. */
+    eligible: boolean;
+}
+
+/**
+ * The capture envelope of a pair of base docking ports. `facingDeg` is how
+ * far the two outward axes are from opposed; the facing gate compares
+ * cosines as the game does.
+ */
+export function dockingGates(
+    gapM: number,
+    facingDeg: number,
+    speedMps: number,
+    spinDegS: number
+): DockingGates {
+    const opposition = -Math.cos((facingDeg * Math.PI) / 180);
+    const gap = gapM <= DOCK_GAP_M;
+    const facing = opposition <= -Math.cos((DOCK_FACING_DEG * Math.PI) / 180);
+    const speed = speedMps <= DOCK_SPEED_MPS;
+    const spin = spinDegS <= DOCK_SPIN_DEG;
+    return {
+        gap,
+        facing,
+        speed,
+        spin,
+        eligible: gap && facing && speed && spin,
+    };
+}
+
+function initDockingEnvelope(host: HTMLElement): void {
+    header(
+        host,
+        "Docking scope: the capture gap",
+        "Two ports from the side, to scale. Facing, speed and spin are held " +
+            "at passing values; slide the gap across the 10 m line."
+    );
+
+    const controls = el("div", "widget__controls");
+    const gap = control(
+        "face gap",
+        0,
+        20,
+        0.5,
+        14,
+        (v) => meters(v, 1),
+        () => update()
+    );
+    controls.appendChild(gap.row);
+
+    // 6 px to the meter: one 10 m cell per port, the gap between them, and
+    // their port tilted by the fixed facing error.
+    const P = 6;
+    const AX = 30;
+    const FACE_A = AX + DOCK_CELL_M * P;
+    const TOP = 50;
+    const CELL = DOCK_CELL_M * P;
+    const CY = TOP + CELL / 2;
+    const svg = svgEl("svg", {
+        viewBox: "0 0 360 170",
+        role: "img",
+        "aria-label":
+            "Two docking ports from the side with the face gap you set, the " +
+            "10 m capture line, and their port turned 5 degrees.",
+    });
+    const add = <K extends "g" | "line" | "rect" | "text">(
+        tag: K,
+        attrs: Record<string, number | string>,
+        words?: string,
+        parent: SVGElement = svg
+    ): SVGElementTagNameMap[K] => {
+        const strings: Record<string, string> = {};
+        for (const [k, v] of Object.entries(attrs)) strings[k] = String(v);
+        return parent.appendChild(svgEl(tag, strings, words));
+    };
+    add(
+        "text",
+        { x: AX, y: 18, class: "widget-mark--axis" },
+        "SIDE VIEW, 1 CELL = 10 M"
+    );
+    add("rect", {
+        x: AX,
+        y: TOP,
+        width: CELL,
+        height: CELL,
+        class: "widget-mark--section",
+    });
+    add(
+        "text",
+        {
+            x: AX + CELL / 2,
+            y: TOP + 26,
+            "text-anchor": "middle",
+            class: "widget-mark--label-now",
+        },
+        "YOURS"
+    );
+    const capture = FACE_A + DOCK_GAP_M * P;
+    add("line", {
+        x1: capture,
+        y1: TOP - 14,
+        x2: capture,
+        y2: TOP + CELL + 14,
+        class: "widget-mark--gate",
+    });
+    add(
+        "text",
+        {
+            x: capture,
+            y: TOP - 18,
+            "text-anchor": "middle",
+            class: "widget-mark--label-gate",
+        },
+        `${DOCK_GAP_M} m`
+    );
+    const theirs = add("g", {});
+    add(
+        "rect",
+        {
+            x: 0,
+            y: -CELL / 2,
+            width: CELL,
+            height: CELL,
+            class: "widget-mark--section",
+        },
+        undefined,
+        theirs
+    );
+    add(
+        "text",
+        {
+            x: CELL / 2,
+            y: -CELL / 2 + 26,
+            "text-anchor": "middle",
+            class: "widget-mark--label-now",
+        },
+        "THEIRS",
+        theirs
+    );
+    const DIM = TOP + CELL + 26;
+    const dim = add("line", {
+        x1: FACE_A,
+        y1: DIM,
+        y2: DIM,
+        class: "widget-mark--now",
+    });
+    const dimWord = add(
+        "text",
+        {
+            y: DIM + 16,
+            "text-anchor": "middle",
+            class: "widget-mark--label-now",
+        },
+        ""
+    );
+
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    const stack = el("div", "widget__stack");
+    const readout = el("p", "widget__readout");
+    readout.setAttribute("aria-live", "polite");
+
+    const update = (): void => {
+        const g = Number(gap.input.value);
+        const gates = dockingGates(
+            g,
+            DOCK_SHOWN_FACING_DEG,
+            DOCK_SHOWN_SPEED_MPS,
+            DOCK_SHOWN_SPIN_DEG
+        );
+        const faceB = FACE_A + g * P;
+        theirs.setAttribute(
+            "transform",
+            `translate(${faceB.toFixed(1)} ${CY}) rotate(${DOCK_SHOWN_FACING_DEG})`
+        );
+        dim.setAttribute("x2", faceB.toFixed(1));
+        dimWord.setAttribute(
+            "x",
+            ((FACE_A + Math.max(faceB, FACE_A + 30)) / 2).toFixed(1)
+        );
+        dimWord.textContent = meters(g, 1);
+        const cell = (word: string, holds: boolean, detail: string) =>
+            sectionCell(
+                `${word} ${holds ? "PASS" : "FAIL"}`,
+                detail,
+                holds ? "is-live" : "is-dead"
+            );
+        stack.replaceChildren(
+            cell("GAP", gates.gap, `${meters(g, 1)} of ${DOCK_GAP_M} m`),
+            cell(
+                "FACING",
+                gates.facing,
+                `fixed ${DOCK_SHOWN_FACING_DEG} of ${DOCK_FACING_DEG} deg`
+            ),
+            cell(
+                "SPEED",
+                gates.speed,
+                `fixed ${DOCK_SHOWN_SPEED_MPS} of ${DOCK_SPEED_MPS} m/s`
+            ),
+            cell(
+                "SPIN",
+                gates.spin,
+                `fixed ${DOCK_SHOWN_SPIN_DEG} of ${DOCK_SPIN_DEG} deg/s`
+            )
+        );
+        readout.classList.toggle("is-fault", !gates.eligible);
+        readout.textContent = gates.eligible
+            ? `DOCK OFFERED. The faces are ${meters(g, 1)} apart, at or ` +
+              `inside ${DOCK_GAP_M} m, and the other three gates hold.`
+            : `NO DOCK. The faces are ${meters(g, 1)} apart, past ` +
+              `${DOCK_GAP_M} m. The chip stays dark.`;
+    };
+
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stack);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "A teaching breakdown, not the in-game HUD. The game shows the " +
+                "DOCK chip and the sight colours: the crosses for facing, the " +
+                "line for gap and motion together. A refused DOCK only writes " +
+                "a debug log. Every gate is inclusive, measured between the " +
+                "retracted faces, with speed and spin relative to the other " +
+                "ship, against the stricter of the two ports. Roll is " +
+                `ignored. After the clamp each ${DOCK_SLEEVE_M} m sleeve runs ` +
+                "out and the two meet across the gap."
+        )
+    );
+    update();
+}
+
+// The mining beam, from crates/nova_authoring/src/base_content/sections/
+// mining_beam.rs: reach 100 m (:101), pulse_interval_seconds 1.0 (:102),
+// carve_radius_cells 1.5 (:103) of a field cell of FIELD_CELL_WORLD 0.5 units
+// (crates/nova_scenario/src/objects/asteroid_carve.rs:108), so about 7.5 m.
+// The checks run in MiningRefusalType order (crates/nova_scenario/src/
+// mining.rs:160-173, :449-486): reach is the collider's nearest point,
+// inclusive, then a ray straight out of the emitter face within reach. A
+// refusal draws nothing and writes an info log (:434-435). Ore is paid only
+// for corners a pulse flips, as canisters after the rock's remesh lands
+// (:804-841). A mined canister holds at most CARGO_CANISTER_MAX_MASS_G
+// 200 kg (crates/nova_gameplay/src/inventory.rs:532), is born
+// MINED_CANISTER_OFFSET 1 unit off the cut and drifts off it at
+// MINED_CANISTER_SPEED 0.2 units/s (mining.rs:93,97,895-925).
+const MINING_REACH_M = 100;
+const MINING_CARVE_M = 7.5;
+const MINED_CANISTER_KG = 200;
+const MINED_BIRTH_M = 10;
+const MINED_DRIFT_MPS = 2;
+// The widget's stand-in for a rock's mesh collider.
+const MINING_ROCK_M = 20;
+
+/** What the mining ship has travel-locked in the widget. */
+export type MiningLock = "none" | "ship" | "plain" | "ore";
+
+/** Why a pulse takes nothing, in check order (mining.rs MiningRefusalType). */
+export type MiningRefusal =
+    "NoLock" | "NotAsteroid" | "Barren" | "OutOfReach" | "OffTarget";
+
+const MINING_REFUSALS: MiningRefusal[] = [
+    "NoLock",
+    "NotAsteroid",
+    "Barren",
+    "OutOfReach",
+    "OffTarget",
+];
+
+/**
+ * The mining checks against a 20 m round rock whose surface is `surfaceM`
+ * from the emitter face, with the beam `aimDeg` off the line to its centre.
+ * `hitM` is where the beam meets the rock, or null on a refusal.
+ */
+export function miningBeamChecks(
+    lock: MiningLock,
+    surfaceM: number,
+    aimDeg: number
+): { refusal: MiningRefusal | null; hitM: number | null } {
+    const refuse = (refusal: MiningRefusal) => ({ refusal, hitM: null });
+    if (lock === "none") return refuse("NoLock");
+    if (lock === "ship") return refuse("NotAsteroid");
+    if (lock === "plain") return refuse("Barren");
+    if (surfaceM > MINING_REACH_M) return refuse("OutOfReach");
+    const centre = surfaceM + MINING_ROCK_M;
+    const aim = (aimDeg * Math.PI) / 180;
+    const off = centre * Math.sin(aim);
+    if (Math.abs(off) > MINING_ROCK_M) return refuse("OffTarget");
+    const along =
+        centre * Math.cos(aim) - Math.sqrt(MINING_ROCK_M ** 2 - off ** 2);
+    if (along > MINING_REACH_M) return refuse("OffTarget");
+    // An emitter face on the surface meets it at once.
+    return { refusal: null, hitM: Math.max(0, along) };
+}
+
+function initMiningBeamChecks(host: HTMLElement): void {
+    header(
+        host,
+        "Mining scope: the pulse checks",
+        "A side view along the beam, to scale. Pick what the ship has " +
+            "locked, then move the rock and the aim. The checks run in order " +
+            "and the first failure refuses the pulse."
+    );
+
+    let lock: MiningLock = "ore";
+    const keys = el("div", "widget__keys");
+    const lockKeys: [MiningLock, string][] = [
+        ["none", "NO LOCK"],
+        ["ship", "SHIP"],
+        ["plain", "PLAIN ROCK"],
+        ["ore", "ORE ROCK"],
+    ];
+    const buttons: HTMLButtonElement[] = [];
+    for (const [value, label] of lockKeys) {
+        const btn = el("button", "widget__btn", label);
+        btn.type = "button";
+        btn.addEventListener("click", () => {
+            lock = value;
+            for (const [index, other] of buttons.entries()) {
+                const on = lockKeys[index][0] === value;
+                other.classList.toggle("is-on", on);
+                other.setAttribute("aria-pressed", String(on));
+            }
+            update();
+        });
+        const on = value === lock;
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-pressed", String(on));
+        buttons.push(btn);
+        keys.appendChild(btn);
+    }
+    const controls = el("div", "widget__controls");
+    const surface = control(
+        "rock surface",
+        0,
+        140,
+        1,
+        60,
+        (v) => meters(v),
+        () => update()
+    );
+    const aim = control(
+        "beam off centre",
+        0,
+        30,
+        1,
+        0,
+        (v) => `${v} deg`,
+        () => update()
+    );
+    controls.appendChild(surface.row);
+    controls.appendChild(aim.row);
+
+    // 1.8 px to the meter: the emitter face at EX, the rock's centre on the
+    // CY line, the beam turned up by the aim.
+    const M = 1.8;
+    const EX = 30;
+    const CY = 120;
+    const GATE = EX + MINING_REACH_M * M;
+    const svg = svgEl("svg", {
+        viewBox: "0 0 360 200",
+        role: "img",
+        "aria-label":
+            "A mining emitter at the left, the 100 m reach line, the rock you " +
+            "place, and the beam's line out of the emitter face.",
+    });
+    const add = <K extends "circle" | "line" | "rect" | "text">(
+        tag: K,
+        attrs: Record<string, number | string>,
+        words?: string
+    ): SVGElementTagNameMap[K] => {
+        const strings: Record<string, string> = {};
+        for (const [k, v] of Object.entries(attrs)) strings[k] = String(v);
+        return svg.appendChild(svgEl(tag, strings, words));
+    };
+    add(
+        "text",
+        { x: 10, y: 18, class: "widget-mark--axis" },
+        "SIDE VIEW, ALONG THE BEAM"
+    );
+    add("line", {
+        x1: GATE,
+        y1: 30,
+        x2: GATE,
+        y2: 190,
+        class: "widget-mark--gate",
+    });
+    add(
+        "text",
+        { x: GATE + 4, y: 40, class: "widget-mark--label-gate" },
+        `REACH ${MINING_REACH_M} m`
+    );
+    const rock = add("circle", {
+        cy: CY,
+        r: MINING_ROCK_M * M,
+        class: "widget-mark--section",
+    });
+    const rockWord = add(
+        "text",
+        {
+            y: CY + MINING_ROCK_M * M + 14,
+            "text-anchor": "middle",
+            class: "widget-mark--axis",
+        },
+        ""
+    );
+    add("rect", {
+        x: EX - 10 * M,
+        y: CY - 9,
+        width: 10 * M,
+        height: 18,
+        class: "widget-mark--section",
+    });
+    add(
+        "text",
+        { x: EX - 10 * M, y: CY + 24, class: "widget-mark--axis" },
+        "emitter"
+    );
+    const aimLine = add("line", { x1: EX, y1: CY, class: "widget-mark--ray" });
+    const beam = add("line", { x1: EX, y1: CY, class: "widget-mark--now" });
+    const cut = add("circle", {
+        r: MINING_CARVE_M * M,
+        class: "widget-mark--rake",
+    });
+
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    const stack = el("div", "widget__stack");
+    const readout = el("p", "widget__readout");
+    readout.setAttribute("aria-live", "polite");
+    const checkWords: Record<MiningRefusal, [string, string]> = {
+        NoLock: ["LOCK", "a travel lock"],
+        NotAsteroid: ["ASTEROID", "the lock is a rock"],
+        Barren: ["ORE", "the rock's kind holds ore"],
+        OutOfReach: ["REACH", `within ${MINING_REACH_M} m`],
+        OffTarget: ["ON LINE", "the beam meets it in reach"],
+    };
+    const refusalWords: Record<MiningRefusal, string> = {
+        NoLock: "the ship has no travel lock",
+        NotAsteroid: "the travel lock is not an asteroid",
+        Barren: "this rock's kind holds no ore",
+        OutOfReach: `the rock's nearest point is past ${MINING_REACH_M} m`,
+        OffTarget:
+            "the line straight out of the emitter face misses the rock " +
+            `within ${MINING_REACH_M} m`,
+    };
+
+    const update = (): void => {
+        const s = Number(surface.input.value);
+        const a = Number(aim.input.value);
+        const verdict = miningBeamChecks(lock, s, a);
+        const rad = (a * Math.PI) / 180;
+        const rockX = EX + (s + MINING_ROCK_M) * M;
+        rock.setAttribute("cx", rockX.toFixed(1));
+        rock.setAttribute(
+            "class",
+            "widget-mark--section" + (lock === "ore" ? " is-hit" : "")
+        );
+        rockWord.setAttribute("x", rockX.toFixed(1));
+        rockWord.textContent =
+            lock === "none"
+                ? "NOT LOCKED"
+                : lock === "ship"
+                  ? "LOCKED SHIP"
+                  : lock === "plain"
+                    ? "PLAIN ROCK"
+                    : "ORE ROCK";
+        const lineEnd = MINING_REACH_M * M;
+        aimLine.setAttribute("x2", (EX + lineEnd * Math.cos(rad)).toFixed(1));
+        aimLine.setAttribute("y2", (CY - lineEnd * Math.sin(rad)).toFixed(1));
+        const hit = verdict.hitM;
+        const shown = hit === null ? "hidden" : "visible";
+        beam.setAttribute("visibility", shown);
+        cut.setAttribute("visibility", shown);
+        if (hit !== null) {
+            const hx = EX + hit * M * Math.cos(rad);
+            const hy = CY - hit * M * Math.sin(rad);
+            beam.setAttribute("x2", hx.toFixed(1));
+            beam.setAttribute("y2", hy.toFixed(1));
+            cut.setAttribute("cx", hx.toFixed(1));
+            cut.setAttribute("cy", hy.toFixed(1));
+        }
+
+        const failed =
+            verdict.refusal === null
+                ? MINING_REFUSALS.length
+                : MINING_REFUSALS.indexOf(verdict.refusal);
+        stack.replaceChildren(
+            ...MINING_REFUSALS.map((check, index) => {
+                const [word, detail] = checkWords[check];
+                if (index < failed)
+                    return sectionCell(`${word} PASS`, detail, "is-live");
+                if (index === failed)
+                    return sectionCell(`${word} FAIL`, detail, "is-dead");
+                return sectionCell(`${word} --`, "not checked", "is-off");
+            })
+        );
+        readout.classList.toggle("is-fault", verdict.refusal !== null);
+        readout.textContent =
+            verdict.refusal === null
+                ? `PULSE ELIGIBLE. The beam meets the rock ${meters(hit ?? 0)} ` +
+                  "out and each pulse cuts where it meets solid material. Ore " +
+                  "comes only from material a pulse newly removes, as " +
+                  "canisters after the rock's remesh lands; the first pulse " +
+                  "into an untouched rock seeds it and cuts nothing."
+                : `REFUSED: ${refusalWords[verdict.refusal]}. The HUD shows ` +
+                  "nothing for this: no beam, no sound, no cut.";
+    };
+
+    host.appendChild(keys);
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stack);
+    host.appendChild(readout);
+    const stats = el("div", "widget__stats");
+    stat(stats, "pulse").textContent = "at once, then 1 a second";
+    stat(stats, "cut").textContent = `~${MINING_CARVE_M} m radius`;
+    stat(stats, "canister").textContent = `up to ${MINED_CANISTER_KG} kg`;
+    stat(stats, "born").textContent = `${MINED_BIRTH_M} m off the cut`;
+    stat(stats, "drift").textContent = `${MINED_DRIFT_MPS} m/s`;
+    host.appendChild(stats);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            `The rock is a ${MINING_ROCK_M} m sphere standing in for its ` +
+                "mesh collider. Reach is measured to the collider's nearest " +
+                `point and holds at exactly ${MINING_REACH_M} m. The dashed ` +
+                "line is the aim; the game draws the beam only while every " +
+                "check passes."
+        )
+    );
+    update();
+}
+
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
@@ -11507,6 +12411,9 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "arrival-standoff": initArrivalStandoff,
     "command-catalog": initCommandCatalog,
     "collapse-budget": initCollapseBudget,
+    "cargo-intake-take": initCargoIntakeTake,
+    "docking-envelope": initDockingEnvelope,
+    "mining-beam-checks": initMiningBeamChecks,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is

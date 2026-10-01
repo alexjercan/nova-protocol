@@ -79,6 +79,21 @@
 //!   the gates, exit clean, recording nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also tile the sheet (staged under
 //!   `NOVA_CAPTURE_DIR`).
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_DOCK_WEB_LOOP=1`: record the site's
+//!   docking loop instead of the sheets (see below).
+//!
+//! ## The site's docking loop and still
+//!
+//! The second sheet's run-in is the only walk in the examples that flies a
+//! pair into the envelope and takes the dock, so the wiki's docking footage is
+//! cut from it too. `NOVA_DOCK_WEB_LOOP=1` records `loop-section-docking` on
+//! the default loop profile (30 fps, 720p) instead of the two sheets on the
+//! lesson profile (10 fps): the creep down the last capture tick, the clamp,
+//! and both sleeves reaching out across the gap. `scripts/capture-web-media.sh`
+//! sets it.
+//!
+//! Every capture run ends on the held pair with both sleeves out and shoots
+//! `wiki-section-docking.png` close on the two ports, the HUD down.
 //!
 //! Capture (windowed, real GPU):
 //! ```text
@@ -280,6 +295,24 @@ const DOCK_EYE: Meters3 = Meters3::new(-79.0, 33.0, 24.0);
 #[cfg(feature = "debug")]
 const DOCK_LOOK: Meters3 = Meters3::new(0.0, 0.0, -23.0);
 
+/// The site's docking loop, recorded in the web loop mode.
+#[cfg(feature = "debug")]
+const DOCK_LOOP: &str = "loop-section-docking";
+
+/// Game seconds the web loop keeps recording once both sleeves are out.
+#[cfg(feature = "debug")]
+const DOCK_LOOP_TAIL_SECS: f32 = 1.0;
+
+/// The wiki's docking still: the held pair with both sleeves out.
+#[cfg(feature = "debug")]
+const DOCK_STILL: &str = "wiki-section-docking.png";
+
+/// How far the still's eye stands from the middle of the two ports, in
+/// meters, on the bearing [`DOCK_EYE`] looks from: near enough that the two
+/// 5 m sleeves read, far enough that both hulls stay in the frame.
+#[cfg(feature = "debug")]
+const STILL_RANGE: f32 = 45.0;
+
 /// What the sight sees, and the two orders that answer it.
 ///
 /// Written by [`measure_the_pair`] from the same `DockingPair` the instrument
@@ -324,6 +357,32 @@ impl Approach {
 #[derive(Resource)]
 struct Approaching;
 
+/// Whether this run records the site's docking loop instead of the lesson
+/// sheets.
+#[cfg(feature = "debug")]
+fn web_loop() -> bool {
+    std::env::var_os("NOVA_DOCK_WEB_LOOP").is_some()
+}
+
+/// Open a lesson sheet, unless this run records the web loop.
+#[cfg(feature = "debug")]
+fn open_sheet(world: &mut World, name: &str) {
+    if !web_loop() {
+        sheet_start(world, name, LESSON_GRID);
+    }
+}
+
+/// Advance once a lesson sheet is written, or at once in the web loop mode,
+/// which records none.
+#[cfg(feature = "debug")]
+fn sheet_done(name: &str) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    if web_loop() {
+        std::sync::Arc::new(|_: &World| true)
+    } else {
+        sheet_written(name)
+    }
+}
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(envelope_plugin).build();
@@ -332,7 +391,11 @@ fn main() -> bevy::app::AppExit {
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::new(
-            lesson_profile(),
+            if web_loop() {
+                LoopProfile::default()
+            } else {
+                lesson_profile()
+            },
         ));
         app.init_resource::<Approach>();
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
@@ -772,6 +835,39 @@ fn the_dock_took(world: &mut World) {
     );
 }
 
+/// The world positions of the ports whose sleeves are fully out.
+#[cfg(feature = "debug")]
+fn extended_ports(world: &World) -> Vec<Vec3> {
+    world
+        .try_query::<(&DockingSectionState, &GlobalTransform)>()
+        .map(|mut ports| {
+            ports
+                .iter(world)
+                .filter(|(state, _)| **state == DockingSectionState::Extended)
+                .map(|(_, pose)| pose.translation())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Advance once both ports' sleeves are fully out.
+#[cfg(feature = "debug")]
+fn both_sleeves_out() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| extended_ports(world).len() == 2)
+}
+
+/// Lower the HUD and stand the eye [`STILL_RANGE`] off the middle of the two
+/// ports, on the bearing the second sheet was shot from.
+#[cfg(feature = "debug")]
+fn frame_the_ports(world: &mut World) {
+    let ports = extended_ports(world);
+    assert_eq!(ports.len(), 2, "both sleeves are out for the still");
+    let middle = Meters3::from_engine((ports[0] + ports[1]) * 0.5);
+    let bearing = (DOCK_EYE.0 - DOCK_LOOK.0).normalize();
+    hide_hud(world);
+    pose_camera(world, Meters3(middle.0 + bearing * STILL_RANGE), middle);
+}
+
 /// Load, lock the spar, frame the pair, and record the approach coming good.
 #[cfg(feature = "debug")]
 fn dock_envelope_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
@@ -803,13 +899,13 @@ fn dock_envelope_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         .until(frames(SETTLE_FRAMES))
         .add()
         .step("open the sheet on the pair out of square")
-        .on_enter(|world: &mut World| sheet_start(world, ENVELOPE_LESSON, LESSON_GRID))
+        .on_enter(|world: &mut World| open_sheet(world, ENVELOPE_LESSON))
         .until(frames(LEAD_CELLS))
         .add()
         .step("fly the approach")
         .on_enter(aim_the_helm)
         .on_enter(|world: &mut World| world.insert_resource(Approaching))
-        .until(and(sheet_written(ENVELOPE_LESSON), every_gate_holds()))
+        .until(and(sheet_done(ENVELOPE_LESSON), every_gate_holds()))
         .deadline(60.0)
         .add()
         .step("every gate holds")
@@ -837,7 +933,10 @@ fn dock_envelope_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         .add()
         .step("open the sheet and creep the last tick down")
         .on_enter(|world: &mut World| {
-            sheet_start(world, DOCK_LESSON, LESSON_GRID);
+            open_sheet(world, DOCK_LESSON);
+            if web_loop() {
+                loop_start(world, DOCK_LOOP);
+            }
             world.insert_resource(DockRun::Creep);
         })
         .until(and(frames(DOCK_LEAD_CELLS), every_gate_holds()))
@@ -856,10 +955,39 @@ fn dock_envelope_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         // since the sheet opened, which is what makes an action loop wrap as a
         // repeat rather than as a jump (`shared/lesson.rs`).
         .step("hold the joined pair to the end of the sheet")
-        .until(sheet_written(DOCK_LESSON))
+        .until(sheet_done(DOCK_LESSON))
         .deadline(30.0)
         .add()
         .step("the dock took")
         .on_enter(the_dock_took)
+        .add()
+        .step("let both sleeves reach out")
+        .until(both_sleeves_out())
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("hold the sleeves out to the end of the web loop")
+        .until(elapsed(if web_loop() { DOCK_LOOP_TAIL_SECS } else { 0.0 }))
+        .add()
+        .step("close the web loop")
+        .on_enter(|world: &mut World| {
+            if web_loop() {
+                loop_end(world, DOCK_LOOP);
+            }
+        })
+        .until(if web_loop() {
+            loop_written(DOCK_LOOP)
+        } else {
+            frames(1)
+        })
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("frame the two ports")
+        .on_enter(frame_the_ports)
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("shoot the held pair")
+        .on_enter(|world: &mut World| shoot(world, DOCK_STILL))
+        .until(shot_written(DOCK_STILL))
+        .deadline(SHOT_DEADLINE_SECS)
         .add()
 }

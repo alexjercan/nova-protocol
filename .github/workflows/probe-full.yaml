@@ -173,14 +173,14 @@ jobs:
               lesson_start_pause lesson_readouts lesson_interface
               lesson_interface_ship lesson_command
               lesson_menu_advanced lesson_menu_mouse lesson_menu_quality
-          # Moving the ship: the flight chapter, the docking envelope, and the
-          # one advanced lesson that is a flight demonstration. Not yet
-          # measured.
+          # Moving the ship: the flight chapter, the docking envelope, mining,
+          # the cargo loop, and the one advanced lesson that is a flight
+          # demonstration. Not yet measured.
           - shard: lessons-flight
             examples: >-
               lesson_flight_aim lesson_flight_basics lesson_flight_orders
               lesson_flight_cancel lesson_flight_well lesson_dock_envelope
-              lesson_advanced_ai_flight
+              lesson_mining lesson_cargo lesson_advanced_ai_flight
           # The combat chapter: the radar, the guns, the rounds and both
           # torpedo run-ins. Not yet measured.
           - shard: lessons-combat

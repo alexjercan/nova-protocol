@@ -138,12 +138,17 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The target inset shows the travel lock when no combat lock is held. Its
   caption adds range and signed closing speed. A combat kill cam plays before
   the travel view.
+- Basic Training adds four lessons with captured footage: MINE, Picking up
+  canisters, Take and give, and Jettisoning cargo.
 
 ### Web & Platform
 
 - The site header carries Home, Wiki, Create, News and Play; Create opens on
   mods or engine work and Wiki on Story and Lore. The landing hero and its
   four-column directory link GitHub and itch.io.
+- New wiki pages for the mining beam and cargo intake, with source-backed
+  diagrams, loops and stills. Getting Started routes mining and cargo; Docking gains an
+  envelope diagram and loop.
 
 ### Audio & Visuals
 

@@ -862,6 +862,14 @@ name = "lesson_dock_envelope"
 path = "examples/screenshots/lesson_dock_envelope.rs"
 
 [[example]]
+name = "lesson_mining"
+path = "examples/screenshots/lesson_mining.rs"
+
+[[example]]
+name = "lesson_cargo"
+path = "examples/screenshots/lesson_cargo.rs"
+
+[[example]]
 name = "lesson_build_flight_test"
 path = "examples/screenshots/lesson_build_flight_test.rs"
 
