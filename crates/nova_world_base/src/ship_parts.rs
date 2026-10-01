@@ -88,7 +88,7 @@ impl ShipPartFamilyType {
                 Some(Self::Weapon)
             }
             SectionKind::CargoIntake(_) => Some(Self::CargoIntake),
-            SectionKind::Docking(_) => None,
+            SectionKind::Docking(_) | SectionKind::Mining(_) => None,
         }
     }
 
@@ -574,7 +574,7 @@ fn check_stats(source: &str, config: &SectionConfig, faults: &mut Vec<ShipPartFa
             require("aperture_width", intake.aperture_width.get(), true);
             require("aperture_height", intake.aperture_height.get(), true);
         }
-        SectionKind::Hull(_) | SectionKind::Docking(_) => {}
+        SectionKind::Hull(_) | SectionKind::Docking(_) | SectionKind::Mining(_) => {}
     }
 }
 
@@ -616,7 +616,7 @@ fn capability(config: &SectionConfig) -> f32 {
         SectionKind::CargoIntake(intake) => {
             intake.aperture_width.get() * intake.aperture_height.get()
         }
-        SectionKind::Docking(_) => 0.0,
+        SectionKind::Docking(_) | SectionKind::Mining(_) => 0.0,
     }
 }
 
@@ -726,7 +726,6 @@ mod tests {
             capture_gap: Meters(1.0),
             aperture_width: Meters(8.0),
             aperture_height: Meters(8.0),
-            maximum_capture_speed: MetersPerSecond(5.0),
             eject_speed: MetersPerSecond(3.0),
         });
         section(id, kind, &[Vec3::Z])

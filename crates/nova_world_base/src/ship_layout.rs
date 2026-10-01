@@ -2149,7 +2149,6 @@ mod tests {
             capture_gap: Meters(1.0),
             aperture_width: Meters(8.0),
             aperture_height: Meters(8.0),
-            maximum_capture_speed: MetersPerSecond(5.0),
             eject_speed: MetersPerSecond(3.0),
         });
         let faces = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z];
