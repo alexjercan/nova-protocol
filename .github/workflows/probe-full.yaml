@@ -171,7 +171,7 @@ jobs:
             examples: >-
               lesson_start_welcome lesson_start_scene lesson_start_dock
               lesson_start_pause lesson_readouts lesson_interface
-              lesson_interface_ship lesson_command
+              lesson_interface_ship lesson_command lesson_generated_world
               lesson_menu_advanced lesson_menu_mouse lesson_menu_quality
           # Moving the ship: the flight chapter, the docking envelope, mining,
           # the cargo loop, and the one advanced lesson that is a flight
