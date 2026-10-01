@@ -15,6 +15,10 @@ Plugin order: Bevy -> input -> assets -> gameplay -> scenario -> UI -> debug.
   `Next`; put one decision question on its own final line.
 - Work on `master`. Use Sprout only when the user requests an isolated worktree.
 - Stage explicit paths. Never leave the index staged across tool calls.
+- Do not ask questions unless the user wants a grilling session. Do not block
+  work.
+- Use subagents to do work, don't block the main orchestrator agent with work
+  or running commands/tests.
 
 ## Implementation gate
 Before code edits, show exact paths and lines, existing types and functions,
