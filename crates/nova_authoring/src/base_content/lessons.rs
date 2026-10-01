@@ -268,6 +268,26 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             &[],
         ),
         lesson(
+            "start_generated_ships",
+            StartHere,
+            50,
+            "Generated ships",
+            still(
+                "start_generated_ships",
+                "the line warship berthed beside a generated derelict under the travel lock, the \
+                 target inset naming it Halurmar derelict, former scavenger, and DOCK offered",
+            ),
+            "New Game streams generated ships. Each has a civilization and a role: civilian, \
+             industrial, scavenger, or armored. Ships of living civilizations are intact; \
+             extinct civilizations leave derelict wrecks. Lock a ship or select it on the Map \
+             pane to read its name.",
+            &["radar_hold", "interface_toggle", "viewer_next"],
+            "wiki/ships#generated-ships",
+            None,
+            &[],
+            &["Extinct civilizations leave derelict wrecks you can dock with and loot."],
+        ),
+        lesson(
             "flight_aim",
             Flight,
             10,
@@ -1092,6 +1112,26 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             None,
             &[],
             &["Select a section in the Ship pane to repair it with hull plates."],
+        ),
+        lesson(
+            "interface_wreck_take",
+            Interface,
+            22,
+            "Looting a wreck",
+            looping(
+                "interface_wreck_take",
+                "the Inventory pane docked to a generated derelict: its hull plate row opens a \
+                 Take form, and Confirm moves one plate, x8 to x7 on the wreck and x12 to x13 \
+                 in the line warship",
+            ),
+            "Lock a derelict wreck, line up a docking port with one of its ports, and dock. In \
+             the Inventory pane, click its hull plates to Take them, or your items to Give. \
+             Wrecks and their stock regenerate when their sector streams back in.",
+            &["radar_hold", "dock", "interface_toggle", "interface_next_tab"],
+            "wiki/interface#take-and-give",
+            None,
+            &[],
+            &["Dock with a derelict wreck to Take its hull plates in the Inventory pane."],
         ),
         lesson(
             "interface_rebind_section",

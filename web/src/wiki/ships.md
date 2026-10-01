@@ -52,6 +52,36 @@ Cladding is the exception to "nothing changes shape". A [clad ship](../keybinds/
 
 Rocks are the other exception, and they carve for real - see [Shooting rock](../combat-weapons/#shooting-rock).
 
+## Generated ships
+
+<!-- Roles and labels: crates/nova_world/src/generation.rs `ShipRoleType`.
+     Status: crates/nova_world_base/src/civilizations.rs
+     `CivilizationStatusType`, drawn by `CivilizationField::civilization`;
+     intact or wreck and hold stock: crates/nova_world_base/src/sector_ships.rs
+     `plan_ship`, `WRECK_PLATES`. Layout from the loaded section catalog:
+     crates/nova_world_base/src/ship_layout.rs `generate_ship` and
+     `generate_wreck`; role style: civilizations.rs `role_style_id`. Name,
+     controller, allegiance and lootable wreck: crates/nova_world/src/
+     streaming.rs `spawn_sector_ship`. Window: crates/nova_world_base/src/
+     lib.rs `OPEN_WORLD_SECTOR_EDGE`, `OPEN_WORLD_ACTIVE_RADIUS`. -->
+
+In a **New Game** world, the ships you meet are generated, not picked from a list of designs. Each one is laid out from the sections of the content the game loaded, for a **civilization** and a **role**:
+
+| Role | Built as |
+| --- | --- |
+| Civilian | Unarmed traffic. |
+| Industrial | Unarmed, with a cargo intake. |
+| Scavenger | A rough, low-tier fighting ship. |
+| Armored | An equipped fighting ship. |
+
+Each role wears its own skin style, intact or wrecked. Every civilization is **living** or **extinct**. A living civilization's ships are intact. An extinct civilization leaves **derelict wrecks**: hulls at any orientation, with every section switched off except the hull and the docking ports. An intact ship's hold is empty; a wreck carries 1 to 8 hull plates.
+
+Nobody flies a generated ship, and every one is neutral. Travel-lock one and the [target viewfinder](../hud/#target-viewfinder) names it, or select it on the [Map pane](../interface/#the-map): an intact ship reads `<civilization> <role>`, and a wreck reads `<civilization> derelict, former <role>`, for example `Halurmar derelict, former scavenger`. A distant blip on the map shows only its contact code.
+
+To loot a wreck, [dock](../sections/docking/) with one of its ports and [Take](../interface/#take-and-give) its hull plates in the Inventory pane.
+
+The world streams in 32 km sectors, and the game keeps the 5 x 5 x 5 block of sectors around yours live. A sector that streams out and back in is generated again from the seed: nothing you did to its ships is kept. A wreck you emptied is full again, a ship you destroyed is back, and anything you gave a ship is gone.
+
 ## The parts
 
 Every section is its own page - what it does, how it behaves, its numbers, and what it is like to face one. [Ship sections](../sections/) opens that chapter with what every part shares and the catalog at a glance.

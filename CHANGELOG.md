@@ -152,6 +152,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   the travel view.
 - Basic Training adds four lessons with captured footage: MINE, Picking up
   canisters, Take and give, and Jettisoning cargo.
+- New Lessons "Generated ships" and "Looting a wreck" teach open-world ship
+  identity and a docked Take and Give from a derelict, with captured footage.
 
 ### Web & Platform
 

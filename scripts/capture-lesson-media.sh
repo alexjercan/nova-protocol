@@ -98,6 +98,7 @@ PRODUCERS=(
     "lesson_build_flight_test|build_flight_test:loop"
     "lesson_interface|interface_open:loop,interface_map:loop"
     "lesson_interface_ship|interface_ship_service:loop,interface_rebind_section:loop"
+    "lesson_generated_world|start_generated_ships:still,interface_wreck_take:loop"
     "lesson_command|command_open:loop,command_prompt:loop"
     "lesson_menu_advanced|advanced_scenarios:still,advanced_mods:still,advanced_bindings:still"
     "lesson_menu_mouse|advanced_mouse:loop"

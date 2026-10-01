@@ -910,6 +910,10 @@ name = "lesson_interface_ship"
 path = "examples/screenshots/lesson_interface_ship.rs"
 
 [[example]]
+name = "lesson_generated_world"
+path = "examples/screenshots/lesson_generated_world.rs"
+
+[[example]]
 name = "lesson_command"
 path = "examples/screenshots/lesson_command.rs"
 
