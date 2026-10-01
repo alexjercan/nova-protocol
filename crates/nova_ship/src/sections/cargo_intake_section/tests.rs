@@ -46,6 +46,8 @@ struct Tick {
     gap: Option<f32>,
     /// Whether any of the canister's contact pairs is touching.
     touching: bool,
+    /// Whether it touches the watched intake collider.
+    mouth_touch: bool,
     velocity: Vec3,
     door: f32,
 }
@@ -89,12 +91,17 @@ fn record_watched_canister(
             touching: collisions
                 .collisions_with(watch.canister)
                 .any(|pair| pair.is_touching()),
+            mouth_touch: collisions.collisions_with(watch.canister).any(|pair| {
+                pair.is_touching()
+                    && (pair.collider1 == watch.intake || pair.collider2 == watch.intake)
+            }),
             velocity: velocity.0,
             door,
         },
         Err(_) => Tick {
             gap: None,
             touching: false,
+            mouth_touch: false,
             velocity: Vec3::ZERO,
             door,
         },
@@ -398,10 +405,18 @@ fn a_canister_whose_footprint_crosses_the_aperture_edge_is_not_taken() {
         .pairs
         .iter()
         .any(|pair| pair.canister == canister && !pair.ready));
+    for _ in 0..120 {
+        app.update();
+    }
+    assert!(
+        app.world().get_entity(canister).is_ok(),
+        "frame contact was taken"
+    );
+    assert_eq!(plates(&app, ship), 12);
 }
 
 #[test]
-fn a_fast_canister_slowed_by_its_impact_is_not_taken_while_it_touches_the_ship() {
+fn a_fast_canister_is_taken_when_it_hits_the_open_intake_mouth() {
     let (mut app, ship, intake) = intake_app(12);
     // 8 m/s head-on: the door is open before it reaches the capture gap.
     let canister = drifting_canister(
@@ -415,10 +430,10 @@ fn a_fast_canister_slowed_by_its_impact_is_not_taken_while_it_touches_the_ship()
 
     let mut frames = 0;
     let mut fast_in_gap = 0;
-    while !ticks(&app).last().is_some_and(|tick| tick.touching) {
+    while app.world().get_entity(canister).is_ok() {
         app.update();
         frames += 1;
-        assert!(frames < 400, "the canister never met the door");
+        assert!(frames < 400, "the canister was never taken at the mouth");
         if ticks(&app).last().is_some_and(|tick| {
             tick.door >= 1.0
                 && tick.gap.is_some_and(|gap| gap <= CAPTURE_GAP.to_engine())
@@ -433,46 +448,33 @@ fn a_fast_canister_slowed_by_its_impact_is_not_taken_while_it_touches_the_ship()
                 .any(|pair| pair.canister == canister && !pair.ready));
         }
     }
-    assert!(
-        fast_in_gap > 0,
-        "speed was never isolated inside the open gap"
-    );
-    // It comes to rest on the door.
-    for _ in 0..120 {
-        app.update();
-    }
-
-    let capture_gap = CAPTURE_GAP.to_engine();
-    let maximum_speed = MetersPerSecond(5.0).to_engine();
+    assert!(fast_in_gap > 0, "speed was never isolated in the open gap");
     let ticks = ticks(&app);
     assert!(
-        ticks.iter().all(|tick| tick.gap.is_some()),
-        "the canister was taken"
+        ticks.last().is_some_and(|tick| tick.mouth_touch),
+        "not an intake collider hit: {ticks:?}"
     );
     assert!(
-        ticks
-            .iter()
-            .any(|tick| tick.door >= 1.0 && tick.gap.is_some_and(|gap| gap <= capture_gap)),
-        "it crossed the capture gap at an open door"
+        ticks.last().unwrap().door >= 1.0
+            && ticks
+                .last()
+                .unwrap()
+                .gap
+                .is_some_and(|gap| gap <= CAPTURE_GAP.to_engine()),
+        "taken outside the open capture gap: {:?}",
+        ticks.last()
     );
-    let hit = ticks.iter().position(|tick| tick.touching).unwrap();
-    assert!(
-        ticks[hit..]
-            .iter()
-            .all(|tick| tick.touching && tick.velocity.length() < maximum_speed),
-        "the impact left it touching the ship under the capture speed"
-    );
-    assert_eq!(plates(&app, ship), 12);
+    assert_eq!(plates(&app, ship), 16);
     assert!(app
         .world()
         .resource::<CargoPickupReadiness>()
         .pairs
         .iter()
-        .any(|pair| pair.canister == canister && !pair.ready));
+        .any(|pair| pair.canister == canister && pair.ready));
 }
 
 #[test]
-fn a_canister_that_hit_the_ship_is_taken_only_after_it_separates_and_closes_again() {
+fn a_canister_at_the_open_mouth_is_taken_without_separating_after_impact() {
     let (mut app, ship, intake) = intake_app(12);
     let canister = drifting_canister(
         &mut app,
@@ -483,67 +485,19 @@ fn a_canister_that_hit_the_ship_is_taken_only_after_it_separates_and_closes_agai
     );
     watch(&mut app, canister, intake);
     let mut frames = 0;
-    while !ticks(&app).last().is_some_and(|tick| tick.touching) {
+    while !ticks(&app).last().is_some_and(|tick| tick.mouth_touch) {
         app.update();
         frames += 1;
         assert!(frames < 400, "the canister never met the door");
     }
-    for _ in 0..60 {
-        app.update();
-    }
-
-    // The hull holds still and the canister drifts off the door at 3 m/s.
-    let world = app.world_mut();
-    world.get_mut::<LinearVelocity>(ship).unwrap().0 = Vec3::ZERO;
-    world.get_mut::<AngularVelocity>(ship).unwrap().0 = Vec3::ZERO;
-    world.get_mut::<LinearVelocity>(canister).unwrap().0 = Vec3::new(0.0, 0.0, -0.3);
-    world.get_mut::<AngularVelocity>(canister).unwrap().0 = Vec3::ZERO;
-    watch(&mut app, canister, intake);
-    let capture_gap = CAPTURE_GAP.to_engine();
-    let mut frames = 0;
-    while !ticks(&app)
-        .last()
-        .is_some_and(|tick| tick.gap.is_none_or(|gap| gap > capture_gap))
-    {
-        app.update();
-        frames += 1;
-        assert!(frames < 200, "the canister never left the capture gap");
-    }
-    let receding = ticks(&app);
-    assert!(
-        receding.iter().all(|tick| tick.gap.is_some()),
-        "taken while it moved away"
-    );
-    assert!(
-        receding.iter().any(|tick| !tick.touching
-            && tick.door >= 1.0
-            && tick.gap.is_some_and(|gap| gap <= capture_gap)),
-        "it never left contact inside the capture gap"
-    );
-    assert_eq!(plates(&app, ship), 12);
+    assert!(app.world().get_entity(canister).is_err());
+    assert_eq!(plates(&app, ship), 16);
     assert!(app
         .world()
         .resource::<CargoPickupReadiness>()
         .pairs
         .iter()
-        .any(|pair| pair.canister == canister && !pair.ready));
-
-    // Turned back at 3 m/s, it is taken before it touches the door again.
-    let velocity = Vec3::new(0.0, 0.0, 0.3);
-    app.world_mut()
-        .get_mut::<LinearVelocity>(canister)
-        .unwrap()
-        .0 = velocity;
-    watch(&mut app, canister, intake);
-    let mut frames = 0;
-    while app.world().get_entity(canister).is_ok() {
-        app.update();
-        frames += 1;
-        assert!(frames < 200, "the returning canister was never taken");
-    }
-
-    assert_taken_before_any_contact(ticks(&app), velocity);
-    assert_eq!(plates(&app, ship), 16);
+        .any(|pair| pair.canister == canister && pair.ready));
 }
 
 #[test]

@@ -49,8 +49,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   emitter within 100 m cuts it once a second with a glowing beam, sparks and a
   pulse sound. Ore leaves as canisters.
 - New `cargo_intake_section`: its door opens for a canister within 40 m and
-  takes one under 5 m/s whole, never while it touches the ship or moves away,
-  if it fits and has room.
+  takes one whole if it fits and has room. Contact-free pickup needs a closing
+  speed under 5 m/s; contact with the open mouth takes it even after impact.
 
 ### Scenarios & Objectives
 
