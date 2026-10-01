@@ -2715,6 +2715,10 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     letter-spacing: 0.1em;
     color: var(--phosphor-muted);
 }
+.widget__kind--generated {
+    color: var(--phosphor);
+    font-size: 0.68rem;
+}
 .widget__cell.is-live {
     border-color: var(--edge-soft);
 }

@@ -63,16 +63,15 @@ Rocks are the other exception, and they carve for real - see [Shooting rock](../
      `generate_wreck`; role style: civilizations.rs `role_style_id`. Name,
      controller, allegiance and lootable wreck: crates/nova_world/src/
      streaming.rs `spawn_sector_ship`. Window: crates/nova_world_base/src/
-     lib.rs `OPEN_WORLD_SECTOR_EDGE`, `OPEN_WORLD_ACTIVE_RADIUS`. -->
+     lib.rs `OPEN_WORLD_SECTOR_EDGE`, `OPEN_WORLD_ACTIVE_RADIUS`. Role
+     outlines, weapon slots and styles in the generated-ship-roles widget:
+     web/src/widgets.ts `GENERATED_SHIP_ROLES`. -->
 
-In a **New Game** world, the ships you meet are generated, not picked from a list of designs. Each one is laid out from the sections of the content the game loaded, for a **civilization** and a **role**:
+In a **New Game** world, the ships you meet are generated, not picked from a list of designs. Each one is laid out from the sections of the content the game loaded, for a **civilization** and a **role**.
 
-| Role | Built as |
-| --- | --- |
-| Civilian | Unarmed traffic. |
-| Industrial | Unarmed, with a cargo intake. |
-| Scavenger | A rough, low-tier fighting ship. |
-| Armored | An equipped fighting ship. |
+<div class="widget" data-widget="generated-ship-roles">
+<p>Four roles: a civilian is unarmed traffic, an industrial is unarmed with a cargo intake, a scavenger is a rough, low-tier armed ship, and an armored is an equipped armed ship. The role and the civilization's status are drawn apart, so each role can be met intact from a living civilization or as a wreck from an extinct one. A wreck comes from an extinct civilization, not from damage.</p>
+</div>
 
 Each role wears its own skin style, intact or wrecked. Every civilization is **living** or **extinct**. A living civilization's ships are intact. An extinct civilization leaves **derelict wrecks**: hulls at any orientation, with every section switched off except the hull and the docking ports. An intact ship's hold is empty; a wreck carries 1 to 8 hull plates.
 
