@@ -282,11 +282,11 @@ Each fires the action into a `NovaEventWorld`, drains with
 ## Recipe 4: add a scenario object kind
 
 A scenario object is a scoped entity spawned by `SpawnScenarioObject`; the
-kind decides its own body (or none - four of the six shipped kinds are
-static). Model it on `crates/nova_scenario/src/objects/beacon.rs` or
-`salvage.rs`. Do NOT model it on the asteroid: it is the least representative
-kind in the directory, split across three modules with two plugins, carrying no
-`Health` and outside the integrity graph entirely.
+kind decides its own body (or none - three of the six shipped kinds are
+static). Model it on `crates/nova_scenario/src/objects/beacon.rs`. Do NOT model
+it on the asteroid: it is the least representative kind in the directory, split
+across three modules with two plugins, carrying no `Health` and outside the
+integrity graph entirely.
 
 > A kind is not required to be a physical body. `beacon.rs` declares
 > `RigidBody::Static` (the base bundle supplies no body), and `light.rs` is a
@@ -313,7 +313,7 @@ kind in the directory, split across three modules with two plugins, carrying no
    `base_scenario_object` (id, name, transform, visibility,
    `ScenarioScopedMarker`) is added by the spawn path, not here. It
    deliberately carries NO body - each kind declares its own `RigidBody` (the
-   asteroid adds `Dynamic` + `TransformInterpolation`; four of the six kinds
+   asteroid adds `Dynamic` + `TransformInterpolation`; three of the six kinds
    are static).
 
    Every distance, speed or acceleration the config carries is `Meters`,
@@ -376,7 +376,6 @@ kind in the directory, split across three modules with two plugins, carrying no
        Asteroid(AsteroidConfig),
        Spaceship(SpaceshipConfig),
        Beacon(BeaconConfig),
-       SalvageCrate(SalvageCrateConfig),
        Light(LightConfig),
        Mine(MineConfig),
    }

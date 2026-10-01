@@ -51,7 +51,7 @@ pub const CONCEALMENT_MASS: f32 = 20_000.0;
 
 /// The rock plate between the carrier and both planetoids: broad enough that a
 /// cutter has several lines through it, and tight enough that nothing
-/// capital-sized would try. The bench's crates sit in it.
+/// capital-sized would try. The bench's maintenance points sit in it.
 pub const SALVAGE_ROCKS: [(Meters3, Meters); 40] = [
     (Meters3::new(400.0, 220.0, -1_200.0), Meters(32.0)),
     (Meters3::new(1_000.0, -260.0, -1_000.0), Meters(22.0)),

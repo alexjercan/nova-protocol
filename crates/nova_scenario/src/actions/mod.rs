@@ -110,8 +110,8 @@ pub fn scoped_entity(world: &mut World, id: &str) -> Option<Entity> {
 ///
 /// Narrower than [`scoped_entity`], and deliberately: the ship actions retune a
 /// HULL - an allegiance, a helm order, a magazine - so a scoped beacon or
-/// salvage crate that happens to share the id is not an answer to the question
-/// they ask. Their warnings say "no scoped SHIP with id" for the same reason.
+/// asteroid that happens to share the id is not an answer to the question they
+/// ask. Their warnings say "no scoped SHIP with id" for the same reason.
 pub fn scoped_ship(world: &mut World, id: &str) -> Option<Entity> {
     let mut query = world
         .query_filtered::<(Entity, &EntityId), (ScenarioAddressable, With<SpaceshipRootMarker>)>();

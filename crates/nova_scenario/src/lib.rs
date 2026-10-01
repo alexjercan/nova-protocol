@@ -31,7 +31,7 @@ pub mod loader;
 pub mod mining;
 /// What an authored string in a config names.
 pub mod names;
-/// Spawnable scenario entities (asteroids, ships, beacons, salvage crates).
+/// Spawnable scenario entities (asteroids, ships, beacons, planets, lights).
 pub mod objects;
 /// Typed read-only scenario queries and continuously sampled watches.
 pub mod queries;

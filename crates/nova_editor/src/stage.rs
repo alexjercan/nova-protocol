@@ -355,15 +355,13 @@ pub(crate) fn draw_object_volumes(
 ///
 /// AUTHORED-OR-ABSENT for a beacon: it is its own trigger area only when a
 /// radius says so, and a beacon that fires nothing must not draw a sphere
-/// claiming it does. Not optional for a crate - the pickup volume IS how a
-/// crate is collected, and it is always wider than the box you can see.
+/// claiming it does.
 ///
 /// The rest are their own picture: a rock, a hull and an anchor's published
 /// radius are all drawn as bodies by [`crate::preview::insert_preview_object`].
 fn trigger_radius(kind: &ScenarioObjectKind) -> Option<Meters> {
     match kind {
         ScenarioObjectKind::Beacon(beacon) => beacon.area_radius,
-        ScenarioObjectKind::SalvageCrate(salvage) => Some(salvage.area_radius),
         ScenarioObjectKind::Anchor(_)
         | ScenarioObjectKind::Asteroid(_)
         | ScenarioObjectKind::Spaceship(_)
@@ -460,7 +458,7 @@ fn grid_centre(point: Vec3, step: f32) -> Vec3 {
 mod tests {
     use nova_gameplay::prelude::AssetRef;
     use nova_scenario::prelude::{
-        aimed_light_base, AnchorConfig, AsteroidConfig, BeaconConfig, SalvageCrateConfig, KIND_ROCK,
+        aimed_light_base, AnchorConfig, AsteroidConfig, BeaconConfig, KIND_ROCK,
     };
 
     use super::*;
@@ -485,15 +483,6 @@ mod tests {
             Some(Meters(400.0))
         );
         assert_eq!(trigger_radius(&beacon(None)), None);
-        assert_eq!(
-            trigger_radius(&ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
-                size: Meters(20.0),
-                area_radius: Meters(120.0),
-                pickup_sound: None,
-            })),
-            Some(Meters(120.0)),
-            "a crate's pickup volume is not optional"
-        );
         assert_eq!(
             trigger_radius(&ScenarioObjectKind::Anchor(AnchorConfig {
                 body_radius: Meters(50.0),

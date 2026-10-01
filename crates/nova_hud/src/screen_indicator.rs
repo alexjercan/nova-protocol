@@ -83,17 +83,6 @@ pub enum ScreenIndicatorSize {
         /// apparent extent only - `min_px` stays the absolute floor.
         scale: f32,
     },
-    /// Track the on-screen extent of an AUTHORED world-space bounding
-    /// radius around the anchor, never shrinking below `min_px`. For
-    /// anchors whose colliders do not describe their visible extent - a
-    /// pickup whose only collider is its oversized sensor sphere would
-    /// make `ApparentSize` balloon to the trigger volume.
-    WorldRadius {
-        /// The visible bounding-sphere radius (world units) to project.
-        radius: f32,
-        /// Minimum indicator size (px), also the fallback size.
-        min_px: f32,
-    },
 }
 
 /// Offset (px) applied to the projected anchor point before the off-screen
@@ -481,15 +470,6 @@ fn indicator_size(
     q_children: &Query<&Children>,
     q_aabb: &Query<&ColliderAabb, Without<Sensor>>,
 ) -> Vec2 {
-    // Shared projection: a world-space bounding radius around the anchor
-    // to on-screen pixels (see the doc above for why only the center must
-    // project).
-    let radius_to_px = |world_radius: f32, center: Vec2, min_px: f32| -> Option<Vec2> {
-        let radius =
-            projected_radius_px(world_radius, anchor_pos, center, camera_transform, camera)?;
-        Some(Vec2::splat((2.0 * radius).max(min_px)))
-    };
-
     match size_mode {
         ScreenIndicatorSize::Fixed(size) => size,
         // Logical px: `ComputedNode::size` is PHYSICAL, and left/top are Val::Px.
@@ -502,15 +482,9 @@ fn indicator_size(
             let Some((_, radius)) = subtree_bounding_sphere(entity, q_children, q_aabb) else {
                 return fallback;
             };
-            let world_radius = radius * scale;
-            radius_to_px(world_radius, center, min_px).unwrap_or(fallback)
-        }
-        ScreenIndicatorSize::WorldRadius { radius, min_px } => {
-            let fallback = Vec2::splat(min_px);
-            let Some(center) = projected else {
-                return fallback;
-            };
-            radius_to_px(radius, center, min_px).unwrap_or(fallback)
+            projected_radius_px(radius * scale, anchor_pos, center, camera_transform, camera)
+                .map(|px| Vec2::splat((2.0 * px).max(min_px)))
+                .unwrap_or(fallback)
         }
     }
 }
@@ -1356,70 +1330,6 @@ mod tests {
             (push - expected).abs() < 1.0,
             "push {push}, expected {expected} (the orb, not the trigger volume)"
         );
-    }
-
-    /// WorldRadius projects the AUTHORED radius, ignoring colliders
-    /// entirely: an oversized sensor sphere on the anchor must not change
-    /// the size (the salvage-crate bug).
-    /// The size scales inversely with distance and floors at min_px.
-    #[test]
-    fn world_radius_projects_the_authored_radius_not_the_colliders() {
-        let mut world = World::new();
-        spawn_camera(&mut world);
-        // The anchor carries a HUGE collider AABB (a pickup sensor);
-        // WorldRadius must not read it.
-        let target = world
-            .spawn((
-                Transform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
-                ColliderAabb::from_min_max(Vec3::new(-8.0, -8.0, -18.0), Vec3::new(8.0, 8.0, -2.0)),
-            ))
-            .id();
-        let radius = 1.3;
-        let indicator = world
-            .spawn(screen_indicator(ScreenIndicatorConfig {
-                anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
-                size: ScreenIndicatorSize::WorldRadius {
-                    radius,
-                    min_px: 8.0,
-                },
-                ..default()
-            }))
-            .id();
-
-        world.run_system_once(update_screen_indicators).unwrap();
-
-        // Same projection algebra as the ApparentSize test, with the
-        // authored radius instead of the collider-derived one.
-        let expected = 2.0 * (400.0 * radius / (10.0 * (800.0 / 600.0)));
-        let (_, _, width, _) = node_rect(&world, indicator);
-        assert!(
-            (width - expected).abs() < 1.0,
-            "width {width}, expected {expected} (authored radius, not the sensor AABB)"
-        );
-
-        // Twice as far: half the pixels (delivery guard for the scaling).
-        world
-            .entity_mut(target)
-            .get_mut::<Transform>()
-            .unwrap()
-            .translation = Vec3::new(0.0, 0.0, -20.0);
-        world.run_system_once(update_screen_indicators).unwrap();
-        let (_, _, far_width, _) = node_rect(&world, indicator);
-        assert!(
-            (far_width - expected / 2.0).abs() < 1.0,
-            "far width {far_width}, expected {}",
-            expected / 2.0
-        );
-
-        // Very far: the floor holds.
-        world
-            .entity_mut(target)
-            .get_mut::<Transform>()
-            .unwrap()
-            .translation = Vec3::new(0.0, 0.0, -10_000.0);
-        world.run_system_once(update_screen_indicators).unwrap();
-        let (_, _, floor_width, _) = node_rect(&world, indicator);
-        assert_eq!(floor_width, 8.0, "min_px floors the size");
     }
 
     #[test]

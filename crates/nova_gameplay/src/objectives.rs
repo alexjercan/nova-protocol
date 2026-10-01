@@ -1,21 +1,21 @@
 //! Mission objectives: the [`GameObjectives`] list the game reasons about, and
-//! the conveyance tags ([`ObjectiveMarkerTarget`], [`ItemHighlight`]) the
-//! scenario side attaches to world entities.
+//! the conveyance tag ([`ObjectiveMarkerTarget`]) the scenario side attaches to
+//! world entities.
 //!
 //! Nova owns this because objectives are mission state, not a widget: the
 //! scenario loader writes [`GameObjectives`], and the HUD reads it from three
 //! places (the objective stack, the NOVA OS monitor and the objective-change
-//! feedback) - this module renders nothing itself. The conveyance tags live
-//! here - not in nova_scenario with the actions that insert them - because the
-//! HUD chip modules (`hud/objective_markers.rs`, `hud/item_highlights.rs`)
-//! query them and the crate dependency runs nova_scenario -> nova_gameplay, the
-//! same split as `BeaconMarker`.
+//! feedback) - this module renders nothing itself. The conveyance tag lives
+//! here - not in nova_scenario with the action that inserts it - because the
+//! HUD chip module (`hud/objective_markers.rs`) queries it and the crate
+//! dependency runs nova_scenario -> nova_gameplay, the same split as
+//! `BeaconMarker`.
 
 use bevy::prelude::*;
 
-/// `GameObjectives`, `Objective`, `ItemHighlight` and `ObjectiveMarkerTarget`.
+/// `GameObjectives`, `Objective` and `ObjectiveMarkerTarget`.
 pub mod prelude {
-    pub use super::{GameObjectives, ItemHighlight, Objective, ObjectiveMarkerTarget};
+    pub use super::{GameObjectives, Objective, ObjectiveMarkerTarget};
 }
 
 /// A single objective line: an opaque `id` for game code to address, and the `message` shown.
@@ -61,28 +61,5 @@ impl ObjectiveMarkerTarget {
         Self {
             label: label.to_string(),
         }
-    }
-}
-
-/// Marks an interactable/collectible prop the player is meant to notice:
-/// the item-highlights observer grows a bracket chip over it that tracks
-/// the prop's on-screen size (hidden off-screen - pointing at off-screen
-/// items is the objective marker's job). Spawned intrinsically by pickup
-/// objects (salvage crates); a pickup that does not advertise itself is a
-/// bug, not a policy.
-#[derive(Component, Debug, Clone, Reflect)]
-#[reflect(Component)]
-pub struct ItemHighlight {
-    /// The prop's VISIBLE bounding-sphere radius (world units) - what the
-    /// bracket sizes to. Authored, not collider-derived: a pickup's only
-    /// collider is its oversized sensor sphere, which would balloon the
-    /// bracket to the trigger volume.
-    pub world_radius: f32,
-}
-
-impl ItemHighlight {
-    /// Construct from the visible bounding radius.
-    pub fn new(world_radius: f32) -> Self {
-        Self { world_radius }
     }
 }

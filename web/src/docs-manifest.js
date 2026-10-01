@@ -818,7 +818,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "The six spawnable scenario object kinds: Anchor, Asteroid, Spaceship, Beacon, SalvageCrate, and Light.",
+            "The six spawnable scenario object kinds: Anchor, Asteroid, Planet, Spaceship, Beacon, and Light.",
         related: ["actions", "base-content", "sections"],
         headings: [
             "Anchor",
@@ -827,7 +827,6 @@ const CREATE_PAGES = [
             "The controller",
             "The sections list",
             "Beacon",
-            "SalvageCrate",
             "Light",
             "Traps for the unwary",
         ],

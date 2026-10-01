@@ -93,6 +93,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Spaceships require `credits`, the balance Buy and Sell pay
   from; a ship without it fails lint and load. Base live ships hold 2000 and
   the derelict 0.
+- **(breaking)** The `SalvageCrate` object is removed; content that spawns one
+  fails to load. Use a `Beacon` with `area_radius` for a reach-this-location
+  trigger. Entering it moves no cargo.
 
 ### Interface & HUD
 

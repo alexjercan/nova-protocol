@@ -218,10 +218,10 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 23] = [
     (UiSfx::NovaOsBed, "nova_bed"),
 ];
 
-/// The salvage-pickup "ding". Deliberately quieter than the objective chime
-/// (`OBJECTIVE_COMPLETE_VOLUME` 0.38 / `OBJECTIVE_NEW_VOLUME` 0.30) so a crate
-/// pickup reads as a light per-item confirmation, not a beat completion. Fired
-/// from `nova_scenario`'s salvage plugin, which owns `SalvageCrateMarker`.
+/// The cargo intake's take "ding". Deliberately quieter than the objective
+/// chime (`OBJECTIVE_COMPLETE_VOLUME` 0.38 / `OBJECTIVE_NEW_VOLUME` 0.30) so a
+/// canister take reads as a light per-item confirmation, not a beat
+/// completion. Fired from `nova_ship`'s intake machinery audio.
 pub const SALVAGE_PICKUP_VOLUME: f32 = 0.22;
 
 /// One mining beam pulse landing. It repeats once a second while the key is

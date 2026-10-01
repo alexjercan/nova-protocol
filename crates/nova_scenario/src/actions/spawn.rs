@@ -10,7 +10,7 @@ use crate::prelude::*;
 
 /// Despawn the scenario object whose [`EntityId`] matches `id` (recursive,
 /// so the object's whole child hierarchy goes with it). The complement of
-/// `SpawnScenarioObject`, e.g. a salvage crate the script removes on pickup.
+/// `SpawnScenarioObject`, e.g. a trigger area the script removes once entered.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DespawnScenarioObjectActionConfig {
@@ -135,8 +135,6 @@ pub enum ScenarioObjectKind {
     Spaceship(SpaceshipConfig),
     /// A nav waypoint with an automatic HUD chip.
     Beacon(BeaconConfig),
-    /// A proximity pickup crate that fires `OnEnter` when flown through.
-    SalvageCrate(SalvageCrateConfig),
     /// An authored light - the scene's own key, rim, fill or lamp. A scene that
     /// spawns none renders black; the engine no longer supplies one.
     Light(LightConfig),
@@ -219,9 +217,6 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                 }
                 ScenarioObjectKind::Beacon(config) => {
                     entity_commands.insert(beacon_scenario_object(config.clone()));
-                }
-                ScenarioObjectKind::SalvageCrate(config) => {
-                    entity_commands.insert(salvage_crate_scenario_object(config.clone()));
                 }
                 ScenarioObjectKind::Light(config) => {
                     entity_commands.insert(light_scenario_object(config.clone()));
@@ -463,7 +458,6 @@ fn body_reach(kind: &ScenarioObjectKind) -> Meters {
         ScenarioObjectKind::Anchor(_)
         | ScenarioObjectKind::Spaceship(_)
         | ScenarioObjectKind::Beacon(_)
-        | ScenarioObjectKind::SalvageCrate(_)
         | ScenarioObjectKind::Light(_) => Meters::ZERO,
     }
 }

@@ -7,7 +7,7 @@ never panics a scenario). All 51 at a glance:
 
 | action | group | what it does |
 |---|---|---|
-| [`SpawnScenarioObject`](#spawnscenarioobject) | [world](#spawning-the-world) | spawn one object: anchor, asteroid, planet, ship, beacon, crate, or light |
+| [`SpawnScenarioObject`](#spawnscenarioobject) | [world](#spawning-the-world) | spawn one object: anchor, asteroid, planet, ship, beacon, or light |
 | [`ScatterObjects`](#scatterobjects) | [world](#spawning-the-world) | spawn `count` copies of a template at deterministic random positions |
 | [`DespawnScenarioObject`](#despawnscenarioobject) | [world](#spawning-the-world) | remove a scoped object and its whole child hierarchy |
 | [`CreateScenarioArea`](#createscenarioarea) | [world](#spawning-the-world) | spawn an invisible spherical sensor zone for `OnEnter` / `OnExit` |
@@ -87,7 +87,7 @@ SpawnScenarioObject((
 | field | type | default | meaning |
 |---|---|---|---|
 | `base` | object base | required | identity + pose (below) |
-| `kind` | object kind | required | `Anchor((..))` / `Asteroid((..))` / `Planet((..))` / `Spaceship((..))` / `Beacon((..))` / `SalvageCrate((..))` / `Light(..)` |
+| `kind` | object kind | required | `Anchor((..))` / `Asteroid((..))` / `Planet((..))` / `Spaceship((..))` / `Beacon((..))` / `Light(..)` |
 
 The `base` block:
 
@@ -173,10 +173,10 @@ quality.
 ### DespawnScenarioObject
 
 Remove the scoped object whose id matches (recursively, whole child
-hierarchy). The classic pairing is a salvage crate on pickup.
+hierarchy). The classic pairing is a beacon area the player has reached.
 
 ```ron
-DespawnScenarioObject((id: "crate_1")),
+DespawnScenarioObject((id: "beacon_1")),
 ```
 
 <details class="explain">
@@ -215,8 +215,8 @@ CreateScenarioArea((id: "safe_zone", name: "Safe Zone",
 Works mid-scenario, and works even when created AROUND a body already
 inside (the entry still fires).
 
-Beacons with `area_radius` and salvage crates are their OWN areas - no
-separate `CreateScenarioArea` needed for those.
+A beacon with `area_radius` is its OWN area - no separate
+`CreateScenarioArea` needed for it.
 
 </details>
 
@@ -436,8 +436,8 @@ HintEmphasisClear((verb: "RADAR")),
 
 ### PlaySound
 
-Play one authored one-shot. Sound that BELONGS to something in the world - a
-crate's pickup ding, a hull coming apart - is authored on that object and
+Play one authored one-shot. Sound that BELONGS to something in the world - an
+intake's take ding, a hull coming apart - is authored on that object and
 played where it happens. This is the other kind: the cue a scene needs and
 nothing in the world produces.
 

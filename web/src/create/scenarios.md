@@ -183,7 +183,7 @@ wait ends; only a handler re-checks.
 - [Events](../events/) - when handlers run and what entity data they carry.
 - [Filters](../filters/) - entity matching, expression conditions, and logic.
 - [Actions](../actions/) - objectives, spawning, story, flow, and state changes.
-- [Scenario objects](../objects/) - asteroids, ships, beacons, salvage, and
+- [Scenario objects](../objects/) - asteroids, planets, ships, beacons, and
   lights.
 - [Variables and expressions](../expressions/) - counters, conditions, clocks,
   and state machines.

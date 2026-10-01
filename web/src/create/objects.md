@@ -3,7 +3,7 @@
 Everything a scenario can place in the world. An object is spawned by
 [`SpawnScenarioObject`](../actions/#spawnscenarioobject) (or in bulk by
 [`ScatterObjects`](../actions/#scatterobjects)): a shared `base` block plus a
-`kind` that picks one of the SEVEN kinds below. Every object gets the base's
+`kind` that picks one of the SIX kinds below. Every object gets the base's
 id, name and pose, is scenario-scoped (teardown removes it), and carries a
 type name the `type_name` filters match:
 
@@ -14,12 +14,11 @@ type name the `type_name` filters match:
 | [`Planet`](#planet) | `"planet"` | dynamic | a seeded WORLD: biomes, terrain, optional gravity well |
 | [`Spaceship`](#spaceship) | `"spaceship"` | dynamic | a multi-section ship, player- or AI-flown |
 | [`Beacon`](#beacon) | `"beacon"` | static | lockable nav marker with a HUD chip |
-| [`SalvageCrate`](#salvagecrate) | `"salvage_crate"` | static | fly-through pickup |
 | [`Light`](#light) | `"light"` | static | the scene's own lighting |
 
 (Trigger AREAS are spawned by the
 [`CreateScenarioArea`](../actions/#createscenarioarea) action rather than as
-an object kind - and beacons and crates can be their own areas, below.)
+an object kind - and a beacon can be its own area, below.)
 
 ## Anchor
 
@@ -554,7 +553,7 @@ live distance, edge-clamped direction cue).
 | `label` | string | required | HUD chip text ("BEACON 1") |
 | `radius` | number | required | visual orb radius, meters |
 | `color` | color | required | orb + emissive tint, tagged: `Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0))` |
-| `area_radius` | `Option` number | `None` | when set, the beacon IS its own trigger area of this radius in meters - [`OnEnter`](../events/#onenter)/`OnExit` fire under the beacon's id, no `CreateScenarioArea` needed |
+| `area_radius` | `Option` number | `None` | when set, the beacon IS its own trigger area of this radius in meters - [`OnEnter`](../events/#onenter)/`OnExit` fire under the beacon's id, no `CreateScenarioArea` needed. Entering it moves no cargo |
 | `lock_signature` | `Option` number | `None` | radar signature override in meters; the default 400 m gives a lock range of about 12 km - author bigger for longer GOTO legs |
 
 ```ron
@@ -566,28 +565,6 @@ SpawnScenarioObject((
         color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
         area_radius: Some(700.0),
     )),
-)),
-```
-
-## SalvageCrate
-
-A minimal fly-through pickup: a static tumbling prop that is its own
-trigger area. It puts nothing in a ship's [inventory](#inventory) - "collected"
-is scenario state you author: an `OnEnter` handler under the crate's id, paired with
-[`DespawnScenarioObject`](../actions/#despawnscenarioobject) and a counter
-[`VariableSet`](../actions/#variableset). The HUD brackets it
-automatically.
-
-| field | type | default | meaning |
-|---|---|---|---|
-| `size` | number | required | visible box edge length, meters |
-| `area_radius` | number | required | the pickup sensor sphere ("collected" distance), meters |
-| `pickup_sound` | `Option` asset ref | `None` | the collection ding, player pickups only (`Some("dep://base/sounds/salvage_pickup.wav")` is the stock one); omitted = silent |
-
-```ron
-SpawnScenarioObject((
-    base: (id: "crate_1", name: "Supply Pod", position: (400.0, 50.0, -600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-    kind: SalvageCrate((size: 15.0, area_radius: 80.0, pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"))),
 )),
 ```
 
@@ -641,7 +618,7 @@ fill from the shadow side. Copy the full light blocks from
 Asteroids and planets are the two object kinds that block radar. While one sits
 on the line between a sensor and a body, that body is not there: it cannot be
 locked, it does not raise a threat arrow, and an AI ship does not detect it.
-Nothing else in the catalog occludes - beacons, crates, lights, trigger areas
+Nothing else in the catalog occludes - beacons, lights, trigger areas
 and other ships are all transparent to the sweep.
 
 This makes cover a thing you PLACE, and it has consequences a range number does
@@ -665,8 +642,8 @@ to cancel someone's burn.
 
 ## Traps for the unwary
 
-- A despawned object fires no `OnExit` for itself, and a beacon/crate area
-  dies with its object.
+- A despawned object fires no `OnExit` for itself, and a beacon area dies
+  with its object.
 - Dynamic bodies (asteroids, ships) spawned overlapping shove apart
   violently on the first physics step - keep spawns separated (see
   `min_separation` under

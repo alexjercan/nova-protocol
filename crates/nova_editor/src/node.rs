@@ -68,8 +68,6 @@ pub(crate) const ASTEROID_TEXTURE: &str = "base/textures/asteroid.png";
 /// hull's. A placed asteroid carries `ImpactSurface::Rock` for its HIT voice
 /// and must not borrow ship plate for the other half.
 pub(crate) const DESTROY_SOUND: &str = "base/sounds/destroy_rock.wav";
-/// The ding a placed salvage crate is picked up with.
-pub(crate) const SALVAGE_SOUND: &str = "base/sounds/salvage_pickup.wav";
 /// The sound a hull built in the editor comes apart with. Every catalog ship
 /// authors this one; a hull the builder made would otherwise die in silence
 /// where the stock corvette speaks.
@@ -312,8 +310,8 @@ impl SectionNode {
     }
 }
 
-/// One non-ship thing the world holds: a rock, a beacon, a salvage crate, an
-/// anchor, a light - or a fixed hull the editor does not design.
+/// One non-ship thing the world holds: a rock, a beacon, an anchor, a light -
+/// or a fixed hull the editor does not design.
 ///
 /// A sibling of the ships under the scenario node, because that is what it is:
 /// one more object the range spawns on start. Its ID is the node's [`NodeId`]
@@ -341,8 +339,6 @@ pub(crate) enum ObjectChoice {
     Asteroid,
     /// A nav waypoint with a HUD chip.
     Beacon,
-    /// A proximity pickup.
-    SalvageCrate,
     /// One of the scene's own lights.
     Light,
     /// A seeded world with a gravity well.
@@ -351,12 +347,11 @@ pub(crate) enum ObjectChoice {
 
 impl ObjectChoice {
     /// Every kind the palette offers.
-    pub(crate) const ALL: [ObjectChoice; 6] = [
+    pub(crate) const ALL: [ObjectChoice; 5] = [
         ObjectChoice::Anchor,
         ObjectChoice::Asteroid,
         ObjectChoice::Planet,
         ObjectChoice::Beacon,
-        ObjectChoice::SalvageCrate,
         ObjectChoice::Light,
     ];
 
@@ -366,7 +361,6 @@ impl ObjectChoice {
             ObjectChoice::Anchor => "Anchor",
             ObjectChoice::Asteroid => "Asteroid",
             ObjectChoice::Beacon => "Beacon",
-            ObjectChoice::SalvageCrate => "Salvage",
             ObjectChoice::Light => "Light",
             ObjectChoice::Planet => "Planet",
         }
@@ -379,7 +373,6 @@ impl ObjectChoice {
             ObjectChoice::Anchor => "anchor",
             ObjectChoice::Asteroid => "asteroid",
             ObjectChoice::Beacon => "beacon",
-            ObjectChoice::SalvageCrate => "salvage",
             ObjectChoice::Light => "light",
             ObjectChoice::Planet => "planet",
         }
@@ -423,11 +416,6 @@ impl ObjectChoice {
                 color: Color::srgb(0.20, 0.90, 1.0),
                 area_radius: None,
                 lock_signature: None,
-            }),
-            ObjectChoice::SalvageCrate => ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
-                size: Meters(20.0),
-                area_radius: Meters(120.0),
-                pickup_sound: Some(AssetRef::from(SALVAGE_SOUND)),
             }),
             // Aimed by the NODE's rotation, not by `aim`: the pose lives on the
             // node like every other node's does, and a second aim point in the

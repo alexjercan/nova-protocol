@@ -39,7 +39,8 @@ const APPROACH_POS: Meters3 = Meters3::new(-2_500.0, 700.0, -5_700.0);
 const WARSHIP_POS: Meters3 = Meters3::new(7_900.0, 250.0, -6_500.0);
 const EMERGENCE_BEACON_POS: Meters3 = Meters3::new(7_900.0, 650.0, -6_500.0);
 
-const CRATE_POSITIONS: [Meters3; 3] = [
+const MAINTENANCE_ORB_RADIUS: Meters = Meters(15.0);
+const MAINTENANCE_POSITIONS: [Meters3; 3] = [
     Meters3::new(2_800.0, 20.0, -3_800.0),
     Meters3::new(2_300.0, 20.0, -4_250.0),
     Meters3::new(1_700.0, 20.0, -4_400.0),
@@ -162,7 +163,7 @@ fn load_map(
 }
 
 fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
-    assert_crates_clear_rocks();
+    assert_points_clear_rocks();
     let mut actions = vec![
         spawn(ship_object(
             "player_cutter",
@@ -231,8 +232,8 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
             .into_iter()
             .map(spawn),
     );
-    for (index, position) in CRATE_POSITIONS.into_iter().enumerate() {
-        actions.push(spawn(crate_object(index + 1, position)));
+    for (index, position) in MAINTENANCE_POSITIONS.into_iter().enumerate() {
+        actions.push(spawn(maintenance_point(index + 1, position)));
     }
 
     actions.extend(pilot_objectives(pilot));
@@ -244,7 +245,10 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
         ),
         marker("carrier_berth", "BLUE - HOME / ATTACK DESTINATION"),
         marker("flight_beacon", "1 MANUAL FLIGHT"),
-        marker("salvage_marker", "2 CRATES + CUTTER-ONLY ROCK PLATE"),
+        marker(
+            "salvage_marker",
+            "2 MAINTENANCE POINTS + CUTTER-ONLY ROCK PLATE",
+        ),
         marker("approach_beacon", "3 LOCK + GOTO APPROACH"),
         marker(
             "inspection_planetoid",
@@ -280,20 +284,20 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
     }
 }
 
-fn assert_crates_clear_rocks() {
+fn assert_points_clear_rocks() {
     // Asteroid runtime geometry can reach the exported maximum noise factor.
     // Convert to engine units only at this geometry boundary and reserve the
-    // crate's own 15 m half-envelope beyond that worst-case surface.
-    let crate_clearance = Meters(15.0).to_engine();
-    for crate_position in CRATE_POSITIONS {
+    // point's own orb radius beyond that worst-case surface.
+    let point_clearance = MAINTENANCE_ORB_RADIUS.to_engine();
+    for point_position in MAINTENANCE_POSITIONS {
         for (rock_position, radius) in stage::SALVAGE_ROCKS {
-            let separation = crate_position
+            let separation = point_position
                 .to_engine()
                 .distance(rock_position.to_engine());
-            let required = radius.to_engine() * ASTEROID_GEOMETRIC_FACTOR_MAX + crate_clearance;
+            let required = radius.to_engine() * ASTEROID_GEOMETRIC_FACTOR_MAX + point_clearance;
             assert!(
                 separation > required,
-                "crate at {crate_position:?} intersects the worst-case rock at {rock_position:?}",
+                "maintenance point at {point_position:?} intersects the worst-case rock at {rock_position:?}",
             );
         }
     }
@@ -313,7 +317,7 @@ fn pilot_objectives(pilot: Pilot) -> Vec<EventActionConfig> {
             objective("route", "Fly from green to the nearby cyan flight beacon."),
             objective(
                 "salvage",
-                "Recover three maintenance crates from the rock cluster.",
+                "Reach the three maintenance points in the rock cluster.",
             ),
             objective("orbit", "Approach and orbit the inspection planetoid."),
             objective("return", "Return toward the blue carrier marker."),
@@ -412,18 +416,22 @@ fn facing(from: Meters3, target: Meters3) -> Quat {
         .rotation
 }
 
-fn crate_object(index: usize, position: Meters3) -> ScenarioObjectConfig {
+/// A location marker: its own 80 m trigger area. Entering it fires `OnEnter`
+/// under its id and moves no cargo; this bench authors no handler for it.
+fn maintenance_point(index: usize, position: Meters3) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
-            id: format!("maintenance_crate_{index}"),
-            name: format!("Maintenance Crate {index}"),
+            id: format!("maintenance_point_{index}"),
+            name: format!("Maintenance Point {index}"),
             position,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
-            size: Meters(15.0),
-            area_radius: Meters(80.0),
-            pickup_sound: None,
+        kind: ScenarioObjectKind::Beacon(BeaconConfig {
+            label: format!("MAINTENANCE {index}"),
+            radius: MAINTENANCE_ORB_RADIUS,
+            color: Color::srgb(1.0, 0.75, 0.15),
+            area_radius: Some(Meters(80.0)),
+            lock_signature: None,
         }),
     }
 }

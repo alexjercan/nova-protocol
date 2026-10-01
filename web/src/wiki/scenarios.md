@@ -10,7 +10,6 @@ A scenario spawns a handful of object kinds:
 - **Planets** - whole worlds, and the thing to place when you want a body rather than a big rock. A type and a seed draw the terrain, the biomes and the polar cap; the radius is the real size, not a designation the mesh reaches past. Nothing can destroy a planet - nothing carves one - and it carries a [gravity well](../gravity-wells/) like any other body.
 - **Spaceships** - multi-section [builds](../sections/) under a player or AI controller, each spawn holding what the ship is permitted to do.
 - **Nav beacons** - lockable waypoints visible to radar within 12 km by default, with authorable signatures for longer legs and optional trigger areas.
-- **Salvage crates** - small pickups collected by flying through them.
 - **Lights** - the scene's own key/rim/fill lighting; a scenario that spawns
   none renders black.
 

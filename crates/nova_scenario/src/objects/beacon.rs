@@ -226,6 +226,11 @@ fn blink_beacons(
 
 #[cfg(test)]
 mod tests {
+    use core::time::Duration;
+
+    use bevy::time::TimeUpdateStrategy;
+    use nova_events::prelude::{EventHandler, GameEventsPlugin};
+
     use super::*;
 
     fn config(area_radius: Option<Meters>) -> BeaconConfig {
@@ -323,5 +328,99 @@ mod tests {
         assert!(world.get::<ScenarioAreaMarker>(entity).is_some());
         assert!(world.get::<Sensor>(entity).is_some());
         assert!(world.get::<Collider>(entity).is_some());
+    }
+
+    /// A location is not a pickup: a ship flying through a beacon's area fires
+    /// one `OnEnter` under the beacon's id and leaves with the same inventory.
+    /// The handler counts deliveries, so a quiet sensor reads 0 and a
+    /// per-collider burst reads more than 1.
+    #[test]
+    fn entering_a_beacon_area_fires_one_on_enter_and_moves_no_cargo() {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            AssetPlugin::default(),
+            bevy::mesh::MeshPlugin,
+            PhysicsPlugins::default(),
+        ));
+        app.insert_resource(Gravity(Vec3::ZERO));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.02,
+        )));
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_plugins((ScenarioAreaPlugin, BeaconPlugin { render: false }));
+        app.finish();
+
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable("enters".to_string(), VariableLiteral::Number(0.0));
+        let mut handler = EventHandler::<NovaEventWorld>::from(crate::events::EventConfig::OnEnter);
+        handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some("depot".to_string()),
+            other_id: Some("ship".to_string()),
+            ..Default::default()
+        }));
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "enters".to_string(),
+            expression: VariableExpressionNode::new_add(
+                VariableTermNode::new_factor(VariableFactorNode::new_name("enters".to_string())),
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                )),
+            ),
+        }));
+        app.world_mut().spawn(handler);
+
+        app.world_mut().spawn((
+            EntityId::new("depot".to_string()),
+            beacon_scenario_object(config(Some(Meters(100.0)))),
+            Transform::IDENTITY,
+        ));
+        let inventory = ShipInventory::new(
+            ItemType::HullPlate.mass_g() * 10,
+            [(ItemType::HullPlate, 3)],
+        );
+        // Three section colliders on one rigid body, as a ship's sections are,
+        // flying from outside the 10-unit area to beyond its far side.
+        let ship = app
+            .world_mut()
+            .spawn((
+                EntityId::new("ship".to_string()),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
+                RigidBody::Dynamic,
+                Transform::from_xyz(-30.0, 0.0, 0.0),
+                LinearVelocity(Vec3::new(20.0, 0.0, 0.0)),
+                inventory.clone(),
+            ))
+            .id();
+        for dx in [-0.4_f32, 0.0, 0.4] {
+            app.world_mut().spawn((
+                Collider::sphere(0.5),
+                ColliderDensity(1.0),
+                Transform::from_xyz(dx, 0.0, 0.0),
+                ChildOf(ship),
+            ));
+        }
+        for _ in 0..200 {
+            app.update();
+        }
+
+        let ship_x = app.world().get::<Position>(ship).unwrap().x;
+        assert!(ship_x > 11.0, "the ship flew through the area (x {ship_x})");
+        assert_eq!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("enters"),
+            Some(&VariableLiteral::Number(1.0)),
+            "one OnEnter under the beacon id"
+        );
+        assert_eq!(
+            app.world().get::<ShipInventory>(ship),
+            Some(&inventory),
+            "entering a location moves no cargo"
+        );
     }
 }

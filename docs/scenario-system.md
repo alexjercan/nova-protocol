@@ -106,9 +106,9 @@ Three parts make it work:
   the budget catches is an asset source that has gone silent. A handle that
   fails, or a load that stops moving, fails the load CLOSED - see below.
 
-Ships are the only object kind involved. A beacon and a salvage crate build
-primitives, an asteroid meshes itself on a worker, and a light and an anchor
-have no mesh at all. The warm-up is also registered only when
+Ships are the only object kind involved. A beacon builds primitives, an
+asteroid meshes itself on a worker, and a light and an anchor have no mesh at
+all. The warm-up is also registered only when
 `NovaScenarioPlugin::render` is set: a headless rig builds no mesh children, so
 there is nothing to warm and nothing to wait for.
 

@@ -97,9 +97,6 @@ pub(crate) fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
         ScenarioObjectKind::Spaceship(config) => spaceship_mark(&config.controller),
         // BLACK FLAG - a waypoint.
         ScenarioObjectKind::Beacon(_) => ("\u{2691}", "BEACON"),
-        // WHITE SQUARE CONTAINING BLACK SMALL SQUARE - a crate with something
-        // in it.
-        ScenarioObjectKind::SalvageCrate(_) => ("\u{25a3}", "SALVAGE"),
         // BLACK SUN WITH RAYS.
         ScenarioObjectKind::Light(_) => ("\u{2600}", "LIGHT"),
         // CIRCLE WITH LEFT HALF BLACK - a lit world with a terminator, told

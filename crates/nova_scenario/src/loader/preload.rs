@@ -101,7 +101,7 @@ pub fn scenario_render_meshes(
                 _ => return,
             };
             // Ships are the only object kind that names a glTF. The rest build
-            // primitives (beacon, salvage crate) or generate their mesh on a
+            // primitives (beacon) or generate their mesh on a
             // worker (asteroid), and a light and an anchor have no mesh at all.
             let ScenarioObjectKind::Spaceship(spaceship) = &object.kind else {
                 return;

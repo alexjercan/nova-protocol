@@ -145,8 +145,7 @@ const MINING_DOOR_CLOSE_VOLUME: f32 = 0.14;
 
 /// A canister leaving the intake: at the heavier door edge, since the push
 /// and the door are one piece of machinery. The take plays at
-/// [`nova_gameplay::audio::SALVAGE_PICKUP_VOLUME`], the other pickup in the
-/// game.
+/// [`nova_gameplay::audio::SALVAGE_PICKUP_VOLUME`].
 const CARGO_EJECT_VOLUME: f32 = 0.20;
 
 /// A shell going back into the lance. Well under the shot

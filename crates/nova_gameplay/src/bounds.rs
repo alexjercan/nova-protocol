@@ -31,9 +31,8 @@ pub mod prelude {
 /// SENSOR colliders are excluded by the query shape rather than by this walk:
 /// they are invisible trigger volumes, not apparent size. A locked beacon's
 /// only collider is its authored 700 m trigger sphere, so the HUD reticle
-/// wrapped the trigger instead of the 20 m orb - the same class of bug as the
-/// salvage-crate bracket - and the editor framed the trigger, which puts the
-/// beacon in the middle of an empty screen.
+/// wrapped the trigger instead of the 20 m orb, and the editor framed the
+/// trigger, which puts the beacon in the middle of an empty screen.
 ///
 /// A sensor-only subtree yields `None` and the caller supplies its own floor:
 /// the indicator's `min_px`, the inset's section half-extent, the node's own

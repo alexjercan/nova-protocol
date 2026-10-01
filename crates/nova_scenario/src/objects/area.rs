@@ -31,10 +31,9 @@ pub struct ScenarioAreaMarker;
 /// an area sensor (empirically 3+ for the old trainer, 18 for a small modelled
 /// craft, 90+ for a
 /// skinned block ship). Without this, an `OnEnter` handler that is not
-/// idempotent - the salvage crate's `despawn + crates_recovered += 1` - runs
-/// once PER section collider, despawning a crate several times and over-counting
-/// the tally. Collapsing the burst: `OnEnter` fires when the set fills, `OnExit`
-/// when it empties.
+/// idempotent - a `despawn + reached += 1` - runs once PER section collider,
+/// despawning the area several times and over-counting the tally. Collapsing
+/// the burst: `OnEnter` fires when the set fills, `OnExit` when it empties.
 ///
 /// A SET, not a count. A ship loses colliders while it is inside an area - a
 /// destroyed section despawns, and so does every skin plate riding it - and
@@ -671,8 +670,8 @@ mod tests {
 
     /// A COMPOUND body - one rigid body wearing many section colliders, like a
     /// spaceship - must fire exactly ONE OnEnter, not one per collider. Regression
-    /// for an 18-section modelled hull triple-triggering the salvage crate pickup
-    /// (despawning a crate several times and over-counting the tally). Counts
+    /// for an 18-section modelled hull triple-triggering an area handler
+    /// (despawning it several times and over-counting the tally). Counts
     /// OnEnter deliveries by incrementing a variable each fire.
     #[test]
     fn a_compound_body_fires_one_on_enter() {

@@ -56,7 +56,6 @@ pub mod emphasis;
 pub mod flight_status;
 pub mod holo_instruments;
 pub mod hull_shell;
-pub mod item_highlights;
 pub mod key_glyphs;
 pub mod keybind_dock;
 pub mod lock_crosshairs;
@@ -87,15 +86,14 @@ pub mod prelude {
         cinematic_prompt::prelude::*, cinematic_title::prelude::*, comms_panel::prelude::*,
         component_lock::prelude::*, docking_sight::prelude::*, edge_indicators::prelude::*,
         emphasis::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        hull_shell::prelude::*, item_highlights::prelude::*, key_glyphs::prelude::*,
-        keybind_dock::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
-        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
-        objective_markers::prelude::*, objective_stack::prelude::*, pickup_sight::prelude::*,
-        readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
-        target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
-        velocity::prelude::*, HudContextGate, HudInterfaceExempt, HudSelfDrivenVisibility,
-        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
-        NovaHudSystems,
+        hull_shell::prelude::*, key_glyphs::prelude::*, keybind_dock::prelude::*,
+        lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
+        objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
+        pickup_sight::prelude::*, readout::prelude::*, screen_indicator::prelude::*,
+        situation::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
+        turret_lead::prelude::*, velocity::prelude::*, HudContextGate, HudInterfaceExempt,
+        HudSelfDrivenVisibility, HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets,
+        NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -359,7 +357,6 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(beacon_chips::BeaconChipsHudPlugin);
         app.add_plugins(allegiance_markers::AllegianceMarkerHudPlugin);
         app.add_plugins(objective_markers::ObjectiveMarkersHudPlugin);
-        app.add_plugins(item_highlights::ItemHighlightsHudPlugin);
         app.add_plugins(cargo_canister_chips::CargoCanisterChipsHudPlugin);
         app.add_plugins(pickup_sight::PickupSightPlugin);
         app.add_plugins(objective_feedback::ObjectiveFeedbackPlugin);

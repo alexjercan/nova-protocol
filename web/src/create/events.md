@@ -394,7 +394,7 @@ ship dies through the section-explosion pipeline. Payload: `id` and
 <summary>Show explanation</summary>
 
 Type names are the object-kind constants: `"anchor"`, `"asteroid"`,
-`"planet"`, `"spaceship"`, `"beacon"`, `"salvage_crate"`, `"light"` - see
+`"planet"`, `"spaceship"`, `"beacon"`, `"light"` - see
 [Scenario objects](../objects/).
 
 </details>
@@ -454,11 +454,10 @@ Match one area and one specific entering ship:
 <details class="explain">
 <summary>Show explanation</summary>
 
-Three things produce trigger areas: the
-[`CreateScenarioArea`](../actions/#createscenarioarea) action, a
-[`Beacon`](../objects/#beacon) with `area_radius` set, and every
-[`SalvageCrate`](../objects/#salvagecrate) (its `area_radius` is the pickup
-sensor). All three report under their own id.
+Two things produce trigger areas: the
+[`CreateScenarioArea`](../actions/#createscenarioarea) action and a
+[`Beacon`](../objects/#beacon) with `area_radius` set. Both report under their
+own id. Entering an area moves no cargo.
 
 Or accept any spaceship that enters that area by filtering the other party's
 type:

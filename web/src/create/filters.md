@@ -39,7 +39,7 @@ Entity(())
 | field | type | default | matches |
 |---|---|---|---|
 | `id` | `Option` string | `None` | the event subject's id |
-| `type_name` | `Option` string | `None` | the subject's object kind (`"anchor"`, `"asteroid"`, `"planet"`, `"spaceship"`, `"beacon"`, `"salvage_crate"`, `"light"`) |
+| `type_name` | `Option` string | `None` | the subject's object kind (`"anchor"`, `"asteroid"`, `"planet"`, `"spaceship"`, `"beacon"`, `"light"`) |
 | `other_id` | `Option` string | `None` | the other party's id |
 | `other_type_name` | `Option` string | `None` | the other party's object kind |
 
@@ -50,7 +50,7 @@ truth. The quick map:
 | event | `id` / `type_name` (subject) | `other_id` / `other_type_name` |
 |---|---|---|
 | `OnDefeated`, `OnDestroyed`, `OnNeutralized` | the defeated / destroyed / neutralized object | (none) |
-| `OnEnter` / `OnExit` | the AREA (zone, beacon, crate) | the body that entered / left |
+| `OnEnter` / `OnExit` | the AREA (zone or beacon) | the body that entered / left |
 | Orbit lifecycle events | the well being orbited | the orbiting ship |
 | travel/combat lock start/end | the locked target | the locking player ship |
 | `OnDocked` / `OnUndocked` | the hull that was docked with | the hull that asked for the dock |

@@ -771,7 +771,6 @@ const CONTROLLER: FieldSpec = plain("controller");
 const ALLEGIANCE: FieldSpec = plain("allegiance");
 const LABEL: FieldSpec = plain("label");
 const COLOR: FieldSpec = plain("color");
-const SIZE: FieldSpec = floored("size", "m", 0.5);
 const ILLUMINANCE: FieldSpec = floored("illuminance", "lx", 50.0);
 const INTENSITY: FieldSpec = floored("intensity", "lm", 50.0);
 const RANGE: FieldSpec = floored("range", "m", 1.0);
@@ -864,7 +863,6 @@ const PLANET_PICKS: &[FieldSpec] = &[PLANET_TYPE, SEED, RADIUS, MASS];
 /// controller's own fields come along.
 const SPACESHIP_PICKS: &[FieldSpec] = &[DESIGN, CONTROLLER, ALLEGIANCE];
 const BEACON_PICKS: &[FieldSpec] = &[LABEL, RADIUS, COLOR, AREA_RADIUS];
-const SALVAGE_PICKS: &[FieldSpec] = &[SIZE, AREA_RADIUS];
 /// No `aim`. The node's ROTATION aims the light (`node.rs`), and two controls
 /// on one output is a builder turning the gizmo and watching nothing happen.
 const LIGHT_PICKS: &[FieldSpec] = &[ILLUMINANCE, INTENSITY, COLOR, RANGE, RADIUS, SHADOWS];
@@ -902,7 +900,6 @@ const DECLARED: &[&[FieldSpec]] = &[
     PLANET_PICKS,
     SPACESHIP_PICKS,
     BEACON_PICKS,
-    SALVAGE_PICKS,
     LIGHT_PICKS,
     SCENARIO_PICKS,
     UNPICKED,
@@ -2108,7 +2105,6 @@ pub(crate) fn object_config(kind: &ScenarioObjectKind) -> Option<&dyn PartialRef
         ScenarioObjectKind::Anchor(config) => Some(config),
         ScenarioObjectKind::Asteroid(config) => Some(config),
         ScenarioObjectKind::Beacon(config) => Some(config),
-        ScenarioObjectKind::SalvageCrate(config) => Some(config),
         ScenarioObjectKind::Light(config) => Some(config),
         ScenarioObjectKind::Planet(config) => Some(config),
         ScenarioObjectKind::Spaceship(config) => Some(config),
@@ -2121,7 +2117,6 @@ pub(crate) fn object_config_mut(kind: &mut ScenarioObjectKind) -> Option<&mut dy
         ScenarioObjectKind::Anchor(config) => Some(config),
         ScenarioObjectKind::Asteroid(config) => Some(config),
         ScenarioObjectKind::Beacon(config) => Some(config),
-        ScenarioObjectKind::SalvageCrate(config) => Some(config),
         ScenarioObjectKind::Light(config) => Some(config),
         ScenarioObjectKind::Planet(config) => Some(config),
         ScenarioObjectKind::Spaceship(config) => Some(config),
@@ -2258,7 +2253,6 @@ fn object_picks(kind: &ScenarioObjectKind) -> &'static [FieldSpec] {
         ScenarioObjectKind::Asteroid(_) => ASTEROID_PICKS,
         ScenarioObjectKind::Spaceship(_) => SPACESHIP_PICKS,
         ScenarioObjectKind::Beacon(_) => BEACON_PICKS,
-        ScenarioObjectKind::SalvageCrate(_) => SALVAGE_PICKS,
         ScenarioObjectKind::Light(_) => LIGHT_PICKS,
         ScenarioObjectKind::Planet(_) => PLANET_PICKS,
     }

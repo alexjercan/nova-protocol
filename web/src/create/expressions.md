@@ -209,8 +209,8 @@ Increment a counter (re-evaluated per event, so it accumulates):
 
 ```ron
 VariableSet((
-    key: "crates_recovered",
-    expression: Add(Factor(Name("crates_recovered")), Term(Factor(Literal(Number(1.0))))),
+    key: "points_reached",
+    expression: Add(Factor(Name("points_reached")), Term(Factor(Literal(Number(1.0))))),
 ))
 ```
 
@@ -227,7 +227,7 @@ an `==` one.
     once: true,
     filters: [
         Expression((GreaterThan(
-            Term(Factor(Name("crates_recovered"))),
+            Term(Factor(Name("points_reached"))),
             Term(Factor(Literal(Number(1.0)))),      // fires at 2 or more
         ))),
     ],

@@ -226,19 +226,6 @@ pub(crate) fn insert_preview_object(
             });
             sphere_body(entity, art, radius, material);
         }
-        ScenarioObjectKind::SalvageCrate(salvage) => {
-            let size = salvage.size.to_engine().max(1.0);
-            let material = art.materials.add(StandardMaterial {
-                base_color: Color::srgb(0.85, 0.65, 0.25),
-                perceptual_roughness: 0.7,
-                ..default()
-            });
-            entity.insert((
-                Mesh3d(art.meshes.add(Cuboid::from_length(size))),
-                MeshMaterial3d(material),
-                Collider::cuboid(size, size, size),
-            ));
-        }
         // A light is invisible where it stands, so the editor gives it a bulb:
         // a small glowing marker in the light's own colour, big enough to grab.
         ScenarioObjectKind::Light(light) => {
@@ -342,7 +329,6 @@ fn drawn_fields(kind: &ScenarioObjectKind) -> &'static [&'static str] {
         // the real surface: a seed change IS a different world.
         ScenarioObjectKind::Planet(_) => &["radius", "planet_type", "seed", "relief", "sea_level"],
         ScenarioObjectKind::Beacon(_) => &["radius", "color"],
-        ScenarioObjectKind::SalvageCrate(_) => &["size"],
         ScenarioObjectKind::Light(_) => &["color"],
         ScenarioObjectKind::Spaceship(_) => &["hull"],
     }

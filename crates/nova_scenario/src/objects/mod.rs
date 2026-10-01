@@ -1,5 +1,5 @@
 //! The things a scenario can place in the world - asteroids, beacons, lights,
-//! salvage, spaceships, trigger areas - one module each.
+//! spaceships, trigger areas - one module each.
 //!
 //! Each submodule owns its authored config, its spawn bundle and its plugin;
 //! [`ScenarioObjectsPlugin`] adds them all and is the only registration point.
@@ -32,7 +32,6 @@ pub mod planet_surface;
 /// What KIND of world a planetoid is: the authored types, the biomes each may
 /// draw from, and the seeded draw that turns one into the other.
 pub mod planet_type;
-pub mod salvage;
 /// The SHIP DESIGN content kind: an assembled section list authored once and
 /// spawned by id.
 pub mod ship_design;
@@ -45,20 +44,19 @@ pub mod prelude {
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
         asteroid_kind::prelude::*, asteroid_surface::prelude::*, beacon::prelude::*,
         light::prelude::*, planet::prelude::*, planet_surface::prelude::*, planet_type::prelude::*,
-        salvage::prelude::*, ship_design::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
+        ship_design::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
     };
 }
 
 use bevy::prelude::*;
 
 /// Aggregates the scenario-object plugins (asteroid, spaceship, area, beacon,
-/// salvage crate, light) into one group. `render` is threaded to the
+/// light) into one group. `render` is threaded to the
 /// render-bearing members so headless tools can spawn objects without their
 /// visuals.
 /// Adds each object type's own plugin (see [`asteroid::AsteroidPlugin`],
 /// [`spaceship::SpaceshipPlugin`], [`area::ScenarioAreaPlugin`],
-/// [`beacon::BeaconPlugin`], [`salvage::SalvageCratePlugin`],
-/// [`light::LightPlugin`]) at build time.
+/// [`beacon::BeaconPlugin`], [`light::LightPlugin`]) at build time.
 pub struct ScenarioObjectsPlugin {
     /// Whether the render-bearing object plugins spawn their visuals (false for headless tools).
     pub render: bool,
@@ -81,9 +79,6 @@ impl Plugin for ScenarioObjectsPlugin {
         app.add_plugins(spaceship::SpaceshipPlugin);
         app.add_plugins(area::ScenarioAreaPlugin);
         app.add_plugins(beacon::BeaconPlugin {
-            render: self.render,
-        });
-        app.add_plugins(salvage::SalvageCratePlugin {
             render: self.render,
         });
         app.add_plugins(light::LightPlugin {
