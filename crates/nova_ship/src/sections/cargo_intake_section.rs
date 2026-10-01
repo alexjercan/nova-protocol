@@ -14,10 +14,11 @@
 //! - detection: the canister centre is in front of the face and within
 //!   `detection_range` of its centre. A canister here, or a waiting drop,
 //!   opens the door.
-//! - take: avian reports the canister's collider touching the trigger. Speed,
-//!   rotation and the door play no part. The report is one physics step old,
-//!   and a canister that closes on the face ends its step against the face,
-//!   inside the trigger, so a fast head-on canister is still reported.
+//! - take: an avian contact point has nonnegative penetration into the
+//!   trigger. Speculative separated contacts do not count. Speed, rotation
+//!   and the door play no part. The report is one physics step old, and a
+//!   canister that closes on the face ends its step against the face, inside
+//!   the trigger, so a fast head-on canister is still reported.
 //!
 //! The same fixed pass publishes [`CargoPickupReadiness`] for every live
 //! intake/canister pair, including canisters outside detection. Each pair's
@@ -372,7 +373,7 @@ struct CanisterRead {
 }
 
 /// Run every live intake on a spaceship root: steer its door, take every
-/// canister its trigger touches that fits the hold, and drop the front of its
+/// canister overlapping its trigger that fits the hold, and drop the front of its
 /// ejection queue once the door is open and no canister is near the birth
 /// point.
 ///
@@ -472,9 +473,11 @@ fn run_cargo_intakes(
 
         for read in canisters.iter_mut().filter(|read| !read.taken) {
             let ready = trigger.is_some_and(|&CargoIntakeTrigger(trigger)| {
-                collisions
-                    .get(trigger, read.entity)
-                    .is_some_and(|pair| pair.is_touching())
+                collisions.get(trigger, read.entity).is_some_and(|pair| {
+                    pair.manifolds.iter().any(|manifold| {
+                        manifold.points.iter().any(|point| point.penetration >= 0.0)
+                    })
+                })
             }) && inventory.free_g() >= read.canister.total_mass_g();
             readiness.pairs.push(CargoPickupPair {
                 ship,

@@ -528,6 +528,97 @@ fn an_ejected_canister_leaves_without_being_taken_back() {
     assert_eq!(takes(&app), 0);
 }
 
+#[test]
+fn speculative_ejection_contact_is_refused_until_actual_reentry() {
+    let (mut app, ship, intake) = intake_app(8);
+    app.world_mut().get_mut::<LinearVelocity>(ship).unwrap().0 = Vec3::NEG_Z * 3.0;
+    app.world_mut()
+        .entity_mut(intake)
+        .insert(CargoIntakeEjectionQueue(VecDeque::from([
+            CargoCanister::new(ItemType::HullPlate, 4),
+        ])));
+
+    let mut frames = 0;
+    let canister = loop {
+        app.update();
+        frames += 1;
+        assert!(frames < 200, "the ejection never left");
+        if let Some((entity, ..)) = canisters(&mut app).first() {
+            break *entity;
+        }
+    };
+    let trigger = app.world().get::<CargoIntakeTrigger>(intake).unwrap().0;
+    let (_, speculative) = app
+        .world()
+        .resource::<ContactGraph>()
+        .get(trigger, canister)
+        .expect("ejected canister has a speculative contact");
+    assert!(speculative.is_touching());
+    let deepest = speculative
+        .manifolds
+        .iter()
+        .flat_map(|manifold| &manifold.points)
+        .map(|point| point.penetration)
+        .fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        deepest.is_finite() && deepest < 0.0,
+        "separated contact: {deepest}"
+    );
+    app.update();
+    assert!(app.world().get_entity(canister).is_ok());
+    assert_eq!(plates(&app, ship), 8);
+    assert_eq!(takes(&app), 0);
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.intake == intake && pair.canister == canister && !pair.ready));
+
+    // Move the same ship back toward its dropped canister. No origin ban may
+    // prevent a real return through this intake.
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(ConstantLinearAcceleration(Vec3::NEG_Z));
+    let mut overlapped = false;
+    for _ in 0..180 {
+        if let Some((_, contact)) = app
+            .world()
+            .resource::<ContactGraph>()
+            .get(trigger, canister)
+        {
+            overlapped |= contact
+                .manifolds
+                .iter()
+                .any(|manifold| manifold.points.iter().any(|point| point.penetration >= 0.0));
+        }
+        app.update();
+        if app.world().get_entity(canister).is_err() {
+            break;
+        }
+        assert_eq!(plates(&app, ship), 8);
+        assert_eq!(takes(&app), 0);
+    }
+    assert!(overlapped, "the canister never intersected the trigger");
+    assert!(
+        app.world().get_entity(canister).is_err(),
+        "actual reentry was refused"
+    );
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.intake == intake && pair.canister == canister && pair.ready));
+    assert_eq!(plates(&app, ship), 12);
+    assert_eq!(takes(&app), 1);
+    for _ in 0..4 {
+        app.update();
+    }
+    assert_eq!(plates(&app, ship), 12);
+    assert_eq!(takes(&app), 1);
+}
+
 /// The item counts held by live canisters and by `intake`'s queue.
 fn queued_and_drifting(app: &mut App, intake: Entity) -> BTreeMap<ItemType, u32> {
     let mut held = BTreeMap::new();
