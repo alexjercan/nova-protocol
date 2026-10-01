@@ -465,7 +465,7 @@ fn sweep_the_blip(derelict: bool) -> impl Fn(&mut World, f32, u32) + Send + Sync
         let sweep = 2 * points.len();
         let at = (frame as usize - 1) % (sweep + 6);
         match at.checked_sub(sweep) {
-            None if at % 2 == 0 => {
+            None if at.is_multiple_of(2) => {
                 debug!(
                     "identity: aim {code} point {} at {:?}",
                     at / 2,
