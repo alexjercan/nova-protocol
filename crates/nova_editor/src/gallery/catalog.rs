@@ -160,10 +160,6 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
                 "Capture".to_string(),
                 format!("{:.0} m gap", intake.capture_gap.0),
             ),
-            (
-                "Speed".to_string(),
-                format!("{:.1} m/s", intake.maximum_capture_speed.0),
-            ),
         ],
         SectionKind::Mining(mining) => vec![
             ("Reach".to_string(), format!("{:.0} m", mining.reach.0)),

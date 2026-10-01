@@ -48,9 +48,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `mining_beam_section`: hold V near a travel-locked rock and each deployed
   emitter within 100 m cuts it once a second with a glowing beam, sparks and a
   pulse sound. Ore leaves as canisters.
-- New `cargo_intake_section`: its door opens for a canister within 40 m and
-  takes one whole if it fits and has room. Contact-free pickup needs a closing
-  speed under 5 m/s; contact with the open mouth takes it even after impact.
+- New `cargo_intake_section`: its door opens for a canister within 40 m. A
+  canister touching its 1 m trigger is taken whole, at any speed, if the hold
+  has room.
 
 ### Scenarios & Objectives
 
@@ -82,8 +82,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   of `HullPlate`, `PdcRound`, `RailSlug`, `Torpedo`. Each hull section holds
   100 kg; overstock fails lint, then load.
 - New `CargoIntake` section kind with required door, eject and take sounds,
-  `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures,
-  speeds and a missing door track.
+  `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures
+  and a missing door track.
 - New `Mining` section kind: pulse and door sounds, reach, interval, carve
   radius and stow tracks. Lint/load reject bad stats, collider or tracks;
   invalid live mods end the run.

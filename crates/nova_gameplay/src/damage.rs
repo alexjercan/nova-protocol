@@ -592,16 +592,19 @@ struct PendingBlastHits(Vec<PendingBlastHit>);
 
 /// Collect a blast overlap without applying it. Resolution waits until every
 /// collision from this physics tick is known, so same-tick blasts cannot use a
-/// hole another blast has only queued.
+/// hole another blast has only queued. A sensor target is skipped: trigger
+/// volumes (scenario areas, cargo intake triggers) are transparent to a blast
+/// as they are to a round.
 fn collect_nova_blast_collision(
     collision: On<CollisionStart>,
     q_blast: Query<(), With<NovaBlast>>,
+    q_sensors: Query<(), With<Sensor>>,
     mut pending: ResMut<PendingBlastHits>,
 ) {
     let Some(blast) = collision.body1 else {
         return;
     };
-    if !q_blast.contains(blast) {
+    if !q_blast.contains(blast) || q_sensors.contains(collision.collider2) {
         return;
     }
     pending.0.push(PendingBlastHit {
@@ -1461,6 +1464,38 @@ mod tests {
             "nova blast should deal a single 50.0, got drop {}",
             1000.0 - health(&app, target)
         );
+    }
+
+    /// Sensors are transparent to a blast as they are to a round: a trigger
+    /// volume inside the sphere takes no hit and makes no impact.
+    #[test]
+    fn a_blast_does_not_strike_a_sensor() {
+        let mut app = blast_app();
+        #[derive(Resource, Default)]
+        struct SensorImpacts(usize);
+        app.init_resource::<SensorImpacts>();
+        let sensor = app
+            .world_mut()
+            .spawn((
+                RigidBody::Static,
+                Collider::cuboid(2.0, 2.0, 0.1),
+                Sensor,
+                Transform::from_xyz(5.0, 0.0, 0.0),
+            ))
+            .id();
+        app.add_observer(
+            move |impact: On<SurfaceImpact>, mut count: ResMut<SensorImpacts>| {
+                if impact.entity == sensor {
+                    count.0 += 1;
+                }
+            },
+        );
+        app.world_mut().spawn((
+            nova_blast(30.0, 100.0, DamageType::Explosive),
+            Transform::default(),
+        ));
+        settle(&mut app);
+        assert_eq!(app.world().resource::<SensorImpacts>().0, 0);
     }
 
     /// A body of `count` colliders on a ring of `at_range` about the origin,

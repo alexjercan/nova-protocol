@@ -275,13 +275,12 @@ To take a canister in, bring the intake's door to it:
 | Canister | What the intake does |
 | --- | --- |
 | In front of the door and within 40 m of it | Opens the door. |
-| Within 1 m of the door face, clear of the 22.2 x 15.3 m opening's edges by 0.5 m, and moving under 5 m/s relative to it, not away from it | Takes the whole canister into your hold once the door is fully open, before it touches the door. |
-| Faster than 5 m/s relative to the door | Is not taken, and hits the door. |
-| Touching any part of your ship | Is not taken. Once it drifts off, it is taken when it comes back under 5 m/s. |
+| Any part of it within 1 m in front of the 22.2 x 15.3 m opening | Takes the whole canister into your hold at once, at any speed and any angle, open door or not. |
+| Touching your ship anywhere else | Is not taken. |
 | Heavier than your hold has room for | Stays out, whole. |
-| Just jettisoned | Is taken back the moment it closes on the open door again. |
+| Just jettisoned | Leaves without being taken. It is taken back only if it turns and comes within 1 m of the opening again. |
 
-The door, a drop and a take each make a sound at the intake. With a canister within 200 m of your ship, the pickup sight draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap slowly. The sight stays cyan while closing. The take sound and the canister going through the door confirm a take; the sight goes with the canister. An unavailable intake, or no canister within 200 m, draws no sight.
+The door, a drop and a take each make a sound at the intake. With a canister within 200 m of your ship, the pickup sight draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap. The sight stays cyan while closing. The take sound and the canister going through the door confirm a take; the sight goes with the canister. An unavailable intake, or no canister within 200 m, draws no sight.
 
 Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for multiple item types, with its total mass in kg. The tag hides while the canister is off-screen. A canister has 20 HP; at zero it and its contents are destroyed, not picked up. Canisters can be designated with a travel lock but cannot enter the combat target slot. Canisters are not saved: they go when the scenario ends, and a jettisoned stack returns to your hold when the scenario loads again.
 

@@ -1,28 +1,23 @@
 //! The cargo intake section: an accordion door that takes in drifting cargo
 //! canisters and drops the player's jettisoned stock.
 //!
-//! The intake's volumes are geometry, not colliders. The workspace has no
-//! collision layers, so a sensor on the ship body would join the ship's
-//! compound for bullets, locks and overlap reads. Instead each tick the
-//! intake measures every canister in its own frame against the authored
-//! collider's local -Z face ([`cargo_intake_zone`]):
+//! Each live intake owns a trigger: a detached static avian [`Sensor`] box
+//! that fills the capture gap in front of the authored collider's local -Z
+//! face ([`cargo_intake_face`]), `aperture_width` by `aperture_height` across
+//! it. It is not a child collider of the ship: the workspace has no collision
+//! layers, so a sensor in the ship's compound would join it for mass, bullets,
+//! locks and overlap reads. Weapons and sight lines already pass through every
+//! `Sensor`. The fixed pass writes the trigger's pose from the ship's
+//! physics pose before physics steps, and the intake's despawn takes the
+//! trigger with it.
 //!
 //! - detection: the canister centre is in front of the face and within
-//!   `detection_range` of its centre. A canister here opens the door.
-//! - capture: the canister's nearest side is at most `capture_gap` from the
-//!   face plane, and its rotated footprint fits the aperture less
-//!   [`CARGO_APERTURE_MARGIN`] on every side. A slow canister here that is
-//!   not moving away from the face is taken whole once the door is fully
-//!   open.
-//!
-//! The capture gap is the no-impact rule: a canister that closes under the
-//! capture speed is taken before it can touch the face. Avian computes a
-//! contact only within one step's relative travel (at least its contact
-//! tolerance), which at the capture speed limit is a few centimeters, far
-//! inside the gap. A faster canister crosses the gap and hits the ship. The
-//! intake refuses a canister while it touches any part of its own ship, and
-//! while it moves away, so a canister slowed by an impact is taken only once
-//! it separates and closes on the door again.
+//!   `detection_range` of its centre. A canister here, or a waiting drop,
+//!   opens the door.
+//! - take: avian reports the canister's collider touching the trigger. Speed,
+//!   rotation and the door play no part. The report is one physics step old,
+//!   and a canister that closes on the face ends its step against the face,
+//!   inside the trigger, so a fast head-on canister is still reported.
 //!
 //! The same fixed pass publishes [`CargoPickupReadiness`] for every live
 //! intake/canister pair, including canisters outside detection. Each pair's
@@ -33,14 +28,14 @@
 //! candidate.
 //!
 //! A take moves the whole canister into the ship's [`ShipInventory`] or does
-//! nothing: a canister heavier than the hold's free mass stays out.
+//! nothing: a canister heavier than the hold's free mass stays out. A
+//! canister in two triggers goes to the first intake in entity order.
 //! A jettison waits on the intake in a [`CargoIntakeEjectionQueue`]. The
 //! intake drops the front canister once its door is fully open and no
 //! canister is near the birth point, so the next waits until the last drifts
-//! clear. The canister is born through `Commands`, so the tick that drops it
-//! cannot see it, and with its near side past the capture gap, moving away.
-//! From the next tick any intake takes it back the moment it closes on an
-//! open door.
+//! clear. The canister is born through `Commands` with its near side past
+//! the trigger, moving away, so it is taken back only if it turns and enters
+//! the trigger again.
 //!
 //! The door, the drop and the take each trigger an event
 //! ([`CargoIntakeDoorMoved`], [`CargoCanisterEjected`],
@@ -66,7 +61,7 @@ pub mod prelude {
         CargoCanisterEjected, CargoCanisterTaken, CargoIntakeDoorMoved, CargoIntakeEjectionQueue,
         CargoIntakeSectionConfig, CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker,
         CargoIntakeSectionPlugin, CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness,
-        CARGO_APERTURE_MARGIN, CARGO_CANISTER_SIZE,
+        CARGO_CANISTER_SIZE,
     };
 }
 
@@ -80,13 +75,8 @@ pub const CARGO_CANISTER_SIZE: Vec3 = Vec3::new(0.94, 0.58, 0.58);
 /// from about 102 m, past the 50 m point-blank range of unsigned debris.
 const CARGO_CANISTER_LOCK_SIGNATURE: f32 = 0.34;
 
-/// The clear space a canister's rotated footprint keeps from each edge of the
-/// aperture for a take: a tumbling canister's footprint changes between
-/// ticks, and the take must stay off the frame.
-pub const CARGO_APERTURE_MARGIN: Meters = Meters(0.5);
-
-/// How far past the capture gap a fresh canister's near side is born, in
-/// world units, so the drop starts outside the capture volume.
+/// How far past the trigger a fresh canister's near side is born, in world
+/// units, so the drop starts outside it.
 const CARGO_CANISTER_CLEARANCE: f32 = 0.05;
 
 /// Authorable config for a cargo intake section. Every field is required.
@@ -98,7 +88,7 @@ pub struct CargoIntakeSectionConfig {
     #[reflect(ignore)]
     pub render_mesh: AssetRef<WorldAsset>,
     /// Optional transform applied to the render mesh only (never the collider
-    /// the volumes are measured from).
+    /// the volumes stand on).
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -119,17 +109,14 @@ pub struct CargoIntakeSectionConfig {
     /// How far from the face centre a canister in front of the face opens the
     /// door.
     pub detection_range: Meters,
-    /// How near the face plane a canister's nearest side must come to be
-    /// taken. Less than `detection_range`.
+    /// The trigger's depth out from the face plane. Less than
+    /// `detection_range`.
     pub capture_gap: Meters,
-    /// The clear opening across the face, along the section's local X, with
-    /// the door fully open. A canister's footprint must fit it to be taken.
+    /// The trigger's width: the clear opening across the face, along the
+    /// section's local X, with the door fully open.
     pub aperture_width: Meters,
-    /// The clear opening across the face, along the section's local Y.
+    /// The trigger's height: the clear opening along the section's local Y.
     pub aperture_height: Meters,
-    /// The fastest a canister may move relative to the intake's own point
-    /// velocity and still be taken.
-    pub maximum_capture_speed: MetersPerSecond,
     /// The speed a dropped canister leaves the face at, relative to the
     /// intake's own point velocity.
     pub eject_speed: MetersPerSecond,
@@ -198,6 +185,16 @@ pub struct CargoPickupPair {
     pub ready: bool,
 }
 
+/// On an intake's trigger: the intake that owns it.
+#[derive(Component, Debug)]
+#[relationship(relationship_target = CargoIntakeTrigger)]
+struct CargoIntakeTriggerOf(Entity);
+
+/// On a live intake: its trigger, despawned with the intake.
+#[derive(Component, Debug)]
+#[relationship_target(relationship = CargoIntakeTriggerOf, linked_spawn)]
+struct CargoIntakeTrigger(Entity);
+
 #[derive(Component, Clone, Debug, Deref, Reflect)]
 struct CargoIntakeSectionRenderMesh(#[reflect(ignore)] AssetRef<WorldAsset>);
 
@@ -239,6 +236,9 @@ pub fn cargo_canister(
         transform,
         Visibility::Visible,
         RigidBody::Dynamic,
+        // Avian sleeps a body under 1.5 m/s after half a second and freezes
+        // it in place, so a slow drift would stop short of a trigger.
+        SleepingDisabled,
         Collider::cuboid(
             CARGO_CANISTER_SIZE.x,
             CARGO_CANISTER_SIZE.y,
@@ -280,53 +280,87 @@ pub fn cargo_intake_face(
     (position + normal * collider.aabb_half_extents().z, normal)
 }
 
-/// Where a canister is relative to one intake.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CargoIntakeZoneType {
-    /// Centre behind the face plane or past the detection range.
-    Outside,
-    /// Centre in front of the face and within the detection range, not in
-    /// capture.
-    Detection,
-    /// Nearest side within the capture gap and footprint inside the aperture
-    /// less its margin.
-    Capture,
+/// The world pose of the trigger of an intake at `position` with `rotation`:
+/// the centre of the capture gap in front of the door face, square to it.
+fn cargo_intake_trigger_pose(
+    position: Vec3,
+    rotation: Quat,
+    collider: SectionCollider,
+    config: &CargoIntakeSectionConfig,
+) -> (Vec3, Quat) {
+    let (face, normal) = cargo_intake_face(position, rotation, collider);
+    (
+        face + normal * (config.capture_gap.to_engine() * 0.5),
+        rotation,
+    )
 }
 
-/// The zone of a canister at `centre` with `rotation`, both intake-local in
-/// world units, for an intake whose collider has `half_extents` and whose
-/// door is its local -Z face. `aperture` is the half opening less the margin.
-fn cargo_intake_zone(
-    centre: Vec3,
-    rotation: Quat,
-    half_extents: Vec3,
-    detection_range: f32,
-    capture_gap: f32,
-    aperture: Vec2,
-) -> CargoIntakeZoneType {
-    let face = Vec3::new(0.0, 0.0, -half_extents.z);
-    let depth = face.z - centre.z;
-    if depth < 0.0 {
-        return CargoIntakeZoneType::Outside;
+/// Keep one trigger on every live intake on a spaceship root, posed from the
+/// ship's physics pose before physics steps; despawn the trigger of an
+/// intake that is inactive or off a ship.
+fn sync_cargo_intake_triggers(
+    mut commands: Commands,
+    q_ships: Query<(&Position, &Rotation), With<SpaceshipRootMarker>>,
+    q_intakes: Query<
+        (
+            Entity,
+            Option<&ChildOf>,
+            &CargoIntakeSectionConfigHelper,
+            &SectionCollider,
+            Has<SectionInactiveMarker>,
+            Option<&CargoIntakeTrigger>,
+        ),
+        With<CargoIntakeSectionMarker>,
+    >,
+    mut q_triggers: Query<
+        (&mut Position, &mut Rotation),
+        (With<CargoIntakeTriggerOf>, Without<SpaceshipRootMarker>),
+    >,
+    q_chain: Query<(&Transform, &ChildOf)>,
+) {
+    for (intake, child_of, config, collider, inactive, trigger) in &q_intakes {
+        let pose = child_of.filter(|_| !inactive).and_then(|&ChildOf(ship)| {
+            let (position, rotation) = q_ships.get(ship).ok()?;
+            let (local_position, local_rotation) = local_pose_in_root(intake, ship, &q_chain)?;
+            Some(cargo_intake_trigger_pose(
+                position.0 + rotation.0 * local_position,
+                rotation.0 * local_rotation,
+                *collider,
+                config,
+            ))
+        });
+        match (pose, trigger) {
+            (Some((translation, rotation)), Some(&CargoIntakeTrigger(trigger))) => {
+                let Ok((mut position, mut trigger_rotation)) = q_triggers.get_mut(trigger) else {
+                    error!(
+                        "sync_cargo_intake_triggers: trigger {trigger:?} of intake {intake:?} \
+                         has no pose"
+                    );
+                    continue;
+                };
+                position.0 = translation;
+                trigger_rotation.0 = rotation;
+            }
+            (Some((translation, rotation)), None) => {
+                commands.spawn((
+                    Name::new("Cargo Intake Trigger"),
+                    CargoIntakeTriggerOf(intake),
+                    RigidBody::Static,
+                    Collider::cuboid(
+                        config.aperture_width.to_engine(),
+                        config.aperture_height.to_engine(),
+                        config.capture_gap.to_engine(),
+                    ),
+                    Sensor,
+                    Transform::from_translation(translation).with_rotation(rotation),
+                ));
+            }
+            (None, Some(&CargoIntakeTrigger(trigger))) => {
+                commands.entity(trigger).despawn();
+            }
+            (None, None) => {}
+        }
     }
-    // The canister box's half-extent along a local axis, from its rotation.
-    let half = CARGO_CANISTER_SIZE * 0.5;
-    let extent = |axis: Vec3| {
-        (rotation * Vec3::X).dot(axis).abs() * half.x
-            + (rotation * Vec3::Y).dot(axis).abs() * half.y
-            + (rotation * Vec3::Z).dot(axis).abs() * half.z
-    };
-    let gap = depth - extent(Vec3::Z);
-    if gap <= capture_gap
-        && centre.x.abs() + extent(Vec3::X) <= aperture.x
-        && centre.y.abs() + extent(Vec3::Y) <= aperture.y
-    {
-        return CargoIntakeZoneType::Capture;
-    }
-    if centre.distance(face) <= detection_range {
-        return CargoIntakeZoneType::Detection;
-    }
-    CargoIntakeZoneType::Outside
 }
 
 /// One canister as the intake pass reads it.
@@ -334,15 +368,13 @@ struct CanisterRead {
     entity: Entity,
     canister: CargoCanister,
     position: Vec3,
-    rotation: Quat,
-    velocity: Vec3,
     taken: bool,
 }
 
-/// Run every live intake on a spaceship root: steer its door, take fitting
-/// canisters through a fully open door, including on contact with its mouth,
-/// and drop the front of its ejection queue once the door is open and no
-/// canister is near the birth point.
+/// Run every live intake on a spaceship root: steer its door, take every
+/// canister its trigger touches that fits the hold, and drop the front of its
+/// ejection queue once the door is open and no canister is near the birth
+/// point.
 ///
 /// A missing `IntakeDoor` track counts as an open door, as a doorless torpedo
 /// bay launches at once: content lint requires the track, so only a
@@ -367,6 +399,7 @@ fn run_cargo_intakes(
             &CargoIntakeSectionConfigHelper,
             &SectionCollider,
             &mut SectionAnimations,
+            Option<&CargoIntakeTrigger>,
             Option<&mut CargoIntakeEjectionQueue>,
         ),
         (
@@ -374,17 +407,7 @@ fn run_cargo_intakes(
             Without<SectionInactiveMarker>,
         ),
     >,
-    q_canisters: Query<
-        (
-            Entity,
-            &CargoCanister,
-            &Position,
-            &Rotation,
-            &LinearVelocity,
-            &Health,
-        ),
-        Without<HealthZeroMarker>,
-    >,
+    q_canisters: Query<(Entity, &CargoCanister, &Position, &Health), Without<HealthZeroMarker>>,
     q_chain: Query<(&Transform, &ChildOf)>,
     collisions: Collisions,
     mut readiness: ResMut<CargoPickupReadiness>,
@@ -392,24 +415,20 @@ fn run_cargo_intakes(
     readiness.pairs.clear();
     let mut canisters: Vec<CanisterRead> = q_canisters
         .iter()
-        .filter(|(_, _, _, _, _, health)| health.current > 0.0)
-        .map(
-            |(entity, canister, position, rotation, velocity, _)| CanisterRead {
-                entity,
-                canister: canister.clone(),
-                position: position.0,
-                rotation: rotation.0,
-                velocity: velocity.0,
-                taken: false,
-            },
-        )
+        .filter(|(.., health)| health.current > 0.0)
+        .map(|(entity, canister, position, _)| CanisterRead {
+            entity,
+            canister: canister.clone(),
+            position: position.0,
+            taken: false,
+        })
         .collect();
     canisters.sort_by_key(|read| read.entity);
 
     let mut intakes: Vec<Entity> = q_intakes.iter().map(|(entity, ..)| entity).collect();
     intakes.sort();
     for intake in intakes {
-        let Ok((_, &ChildOf(ship), config, collider, mut animations, mut ejections)) =
+        let Ok((_, &ChildOf(ship), config, collider, mut animations, trigger, mut ejections)) =
             q_intakes.get_mut(intake)
         else {
             continue;
@@ -426,42 +445,17 @@ fn run_cargo_intakes(
         };
         let intake_position = position.0 + rotation.0 * local_position;
         let intake_rotation = rotation.0 * local_rotation;
-        let to_local = |world: Vec3| intake_rotation.inverse() * (world - intake_position);
         let center_of_mass = position.0 + rotation.0 * center.0;
         let point_velocity =
             |point: Vec3| rigid_body_point_velocity(lin_vel.0, ang_vel.0, center_of_mass, point);
-
-        let half_extents = collider.aabb_half_extents();
+        let (face_centre, normal) = cargo_intake_face(intake_position, intake_rotation, *collider);
         let detection_range = config.detection_range.to_engine();
-        let capture_gap = config.capture_gap.to_engine();
-        let margin = CARGO_APERTURE_MARGIN.to_engine();
-        let aperture = Vec2::new(
-            config.aperture_width.to_engine() * 0.5 - margin,
-            config.aperture_height.to_engine() * 0.5 - margin,
-        );
-        let maximum_speed = config.maximum_capture_speed.to_engine();
-        let zones: Vec<CargoIntakeZoneType> = canisters
-            .iter()
-            .map(|read| {
-                if read.taken {
-                    CargoIntakeZoneType::Outside
-                } else {
-                    cargo_intake_zone(
-                        to_local(read.position),
-                        intake_rotation.inverse() * read.rotation,
-                        half_extents,
-                        detection_range,
-                        capture_gap,
-                        aperture,
-                    )
-                }
-            })
-            .collect();
 
         let wanted = ejections.is_some()
-            || zones
-                .iter()
-                .any(|zone| *zone != CargoIntakeZoneType::Outside);
+            || canisters.iter().any(|read| {
+                let offset = read.position - face_centre;
+                !read.taken && offset.dot(normal) >= 0.0 && offset.length() <= detection_range
+            });
         let target = if wanted { 1.0 } else { 0.0 };
         if let Some(was) = animations.cue_target(SectionAnimationCue::IntakeDoor) {
             if was != target {
@@ -476,23 +470,12 @@ fn run_cargo_intakes(
             .cue_progress(SectionAnimationCue::IntakeDoor)
             .is_none_or(|progress| progress >= 1.0);
 
-        let (face_centre, normal) = cargo_intake_face(intake_position, intake_rotation, *collider);
-        for (read, zone) in canisters.iter_mut().zip(&zones) {
-            if read.taken {
-                continue;
-            }
-            let ready = *zone == CargoIntakeZoneType::Capture && open && {
-                let relative = read.velocity - point_velocity(read.position);
-                // The full footprint fits inside the aperture in Capture.
-                // A contact there is a mouth hit, not a frame hit. Accept it
-                // even if impact changed the velocity before this pass.
-                let touching_mouth = collisions.collisions_with(read.entity).any(|pair| {
-                    pair.is_touching() && (pair.collider1 == intake || pair.collider2 == intake)
-                });
-                (touching_mouth
-                    || (relative.length() <= maximum_speed && relative.dot(normal) <= 0.0))
-                    && inventory.free_g() >= read.canister.total_mass_g()
-            };
+        for read in canisters.iter_mut().filter(|read| !read.taken) {
+            let ready = trigger.is_some_and(|&CargoIntakeTrigger(trigger)| {
+                collisions
+                    .get(trigger, read.entity)
+                    .is_some_and(|pair| pair.is_touching())
+            }) && inventory.free_g() >= read.canister.total_mass_g();
             readiness.pairs.push(CargoPickupPair {
                 ship,
                 intake,
@@ -511,7 +494,10 @@ fn run_cargo_intakes(
         }
 
         let birth = face_centre
-            + normal * (CARGO_CANISTER_SIZE.z * 0.5 + capture_gap + CARGO_CANISTER_CLEARANCE);
+            + normal
+                * (CARGO_CANISTER_SIZE.z * 0.5
+                    + config.capture_gap.to_engine()
+                    + CARGO_CANISTER_CLEARANCE);
         // Two canisters whose centres are a full diagonal apart cannot overlap.
         let birth_clear = canisters.iter().all(|read| {
             read.taken || read.position.distance(birth) >= CARGO_CANISTER_SIZE.length()
@@ -587,13 +573,14 @@ fn insert_cargo_canister_render(
     )]);
 }
 
-/// System set for the intake pass, on the fixed clock with the other section
-/// systems, so a take and a drop land before physics steps.
+/// System set for the trigger sync and the intake pass, on the fixed clock
+/// with the other section systems, so a trigger pose, a take and a drop land
+/// before physics steps.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CargoIntakeSystems;
 
-/// Adds cargo intakes: the door driver, takes and drops, readiness, and (when
-/// `render`) the intake and canister scenes.
+/// Adds cargo intakes: their triggers, the door driver, takes and drops,
+/// readiness, and (when `render`) the intake and canister scenes.
 #[derive(Default)]
 pub struct CargoIntakeSectionPlugin {
     /// Whether the render-side half is added (false on headless servers).
@@ -614,7 +601,12 @@ impl Plugin for CargoIntakeSectionPlugin {
             FixedUpdate,
             CargoIntakeSystems.in_set(super::SpaceshipSectionSystems),
         );
-        app.add_systems(FixedUpdate, run_cargo_intakes.in_set(CargoIntakeSystems));
+        app.add_systems(
+            FixedUpdate,
+            (sync_cargo_intake_triggers, run_cargo_intakes)
+                .chain()
+                .in_set(CargoIntakeSystems),
+        );
 
         if self.render {
             app.add_observer(insert_cargo_intake_section_render);

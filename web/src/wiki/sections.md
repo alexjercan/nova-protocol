@@ -65,7 +65,7 @@ The whole shipped catalog at a glance; every child page carries the full per-kin
 <tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Lance)</span><span class="catalog__id">lance_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">750 blast / 300 m</td></tr>
 <tr><td>Railgun</td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">180</td><td class="catalog__num">300 Pierce / 1800 power</td></tr>
 <tr><td>Docking</td><td><span class="catalog__name">Docking Port Section</span><span class="catalog__id">docking_port_section</span></td><td class="catalog__num">90</td><td class="catalog__num">10 m gap / 15 deg</td></tr>
-<tr><td>Cargo intake</td><td><span class="catalog__name">Cargo Intake Section</span><span class="catalog__id">cargo_intake_section</span></td><td class="catalog__num">90</td><td class="catalog__num">1 m / 5 m/s, 3x2x1</td></tr>
+<tr><td>Cargo intake</td><td><span class="catalog__name">Cargo Intake Section</span><span class="catalog__id">cargo_intake_section</span></td><td class="catalog__num">90</td><td class="catalog__num">1 m reach, 3x2x1</td></tr>
 <tr><td>Mining</td><td><span class="catalog__name">Mining Beam Section</span><span class="catalog__id">mining_beam_section</span></td><td class="catalog__num">90</td><td class="catalog__num">100 m / 1 pulse/s</td></tr>
 </tbody>
 </table>

@@ -89,12 +89,10 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             name: "Cargo Intake Section".to_string(),
             description: "A hold mouth behind an accordion door. The door \
                           folds open for a canister within 40 m of it. The \
-                          intake takes a canister moving under 5 m/s, and \
-                          not away from the open door, whole, if it fits the \
-                          opening and the hold has room. It never takes a \
-                          canister that touches the ship. Jettison in the \
-                          Inventory pane drops a canister out through the \
-                          same door."
+                          intake takes, whole and at any speed, a canister \
+                          that reaches into the 1 m in front of its opening, \
+                          if the hold has room. Jettison in the Inventory \
+                          pane drops a canister out through the same door."
                 .to_string(),
             health: CARGO_INTAKE_BASE_HEALTH,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
@@ -118,7 +116,6 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             // top 7.70 m up, so the opening is 22.2 m by 15.3 m.
             aperture_width: Meters(22.2),
             aperture_height: Meters(15.3),
-            maximum_capture_speed: MetersPerSecond(5.0),
             eject_speed: MetersPerSecond(3.0),
         }),
     }]

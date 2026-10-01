@@ -31,7 +31,7 @@
 //! lock on anything else - a beacon, a ship, a dead canister, a canister out
 //! of range - leaves the pick to distance. The pair with the nearer intake
 //! face to its canister wins, then the lower entity IDs. That pick is a
-//! display convenience only: the mechanic's own zone and speed gates, not
+//! display convenience only: the intake triggers and hold room, not
 //! distance, decide which intake actually takes which canister.
 
 use bevy::{light::NotShadowCaster, prelude::*};
@@ -845,7 +845,6 @@ mod tests {
                     capture_gap: Meters(1.0),
                     aperture_width: Meters(22.2),
                     aperture_height: Meters(15.3),
-                    maximum_capture_speed: MetersPerSecond(5.0),
                     eject_speed: MetersPerSecond(3.0),
                 }),
             ))

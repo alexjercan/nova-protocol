@@ -1049,8 +1049,8 @@ the pair and leaves the dock in place.
 
 `CargoIntakeSectionConfig` - a cargo intake: a hold mouth behind a door on the
 section's local `-Z` face. The door opens for a nearby canister, the intake
-takes a slow one into the ship's [inventory](../objects/#inventory), and the
-Inventory pane's Jettison drops canisters out through it. One ships:
+takes one, at any speed, into the ship's [inventory](../objects/#inventory),
+and the Inventory pane's Jettison drops canisters out through it. One ships:
 `cargo_intake_section`, a 3x2x1 box on the line warship's top deck, door up.
 
 ```ron
@@ -1064,7 +1064,6 @@ kind: CargoIntake((
     capture_gap: 1.0,
     aperture_width: 22.2,
     aperture_height: 15.3,
-    maximum_capture_speed: 5.0,
     eject_speed: 3.0,
 )),
 ```
@@ -1078,40 +1077,36 @@ kind: CargoIntake((
 - `take_sound` - played as a canister is taken into the hold. Required.
 - `detection_range` (meters) - a canister centre in front of the door face and
   within this distance of the face centre opens the door.
-- `capture_gap` (meters) - a canister whose nearest side is at most this far
-  from the face plane can be taken. Less than `detection_range`. A canister
-  that closes slower than `maximum_capture_speed` is taken before it touches
-  the face, so it never bumps the intake. A canister that touches any part of
-  the ship, or moves away from the face, is not taken.
-- `aperture_width`, `aperture_height` (meters) - the clear opening across the
-  face along the section's local X and Y with the door open. A canister's
-  rotated footprint must fit it with 0.5 m to spare on every side. At most the
-  collider face, and at least 6.8 m: the canister's narrow side, 5.8 m, plus
-  both margins.
-- `maximum_capture_speed` (meters per second) - the fastest a canister may
-  move relative to the intake's own point velocity and still be taken.
+- `capture_gap` (meters) - the depth, out from the face plane, of the intake's
+  trigger: a box a canister's collider must touch to be taken. Less than
+  `detection_range`.
+- `aperture_width`, `aperture_height` (meters) - the trigger's width and
+  height, across the face along the section's local X and Y. At most the
+  collider face.
 - `eject_speed` (meters per second) - how fast a dropped canister leaves the
   face, relative to the intake's own point velocity.
 
-The volumes are measured from the `-Z` face of the section's `Cuboid`
-collider, so an intake must author one. A take is whole or nothing: a
-canister heavier than the hold's free mass stays out. A canister can hold
+The trigger is measured from the `-Z` face of the section's `Cuboid`
+collider, so an intake must author one; it is a detached sensor, not a child
+of the ship body, so weapons and sight lines pass through it. A take is whole
+or nothing: a canister heavier than the hold's free mass stays out, and a
+canister touching two triggers goes to one intake only. A canister can hold
 several item types up to 200 kg total; hull plates weigh 10 kg each. A
 canister has 20 HP; at zero it and its contents are lost. A jettison fills
 canisters with whole items, topping up the last waiting one first, and queues
 them on the intake; the intake drops the front one once the door is fully open
 and no canister centre is within 12.5 m of the birth point. Waiting canisters
 are lost with the intake. The canister is born 1.5 m clear of the face,
-outside the capture gap and moving away, and any intake can take it back from
-the next tick. Author an
+outside the trigger and moving away, so any intake takes it back only once it
+turns and closes on the trigger again. Author an
 [`IntakeDoor` track](#animation-tracks) with a `Fold` motion to give the door
-its slats. Lint rejects an intake without a `Cuboid` collider, a range, gap,
-aperture or speed that is not finite and positive, a `capture_gap` not less
-than `detection_range`, an aperture wider than the collider face or narrower
-than 6.8 m, or no `IntakeDoor` track. A missing sound field fails the parse. Offer no link point on the `-Z`
-face: that face is the door.
+its slats. Lint rejects an intake without a `Cuboid` collider, a range, gap or
+aperture that is not finite and positive, a `capture_gap` not less than
+`detection_range`, an aperture wider than the collider face, or no
+`IntakeDoor` track. A missing sound field fails the parse. Offer no link point
+on the `-Z` face: that face is the door.
 
-<!-- Grammar verified against crates/nova_ship/src/sections/cargo_intake_section.rs (config, zones, run_cargo_intakes) and crates/nova_scenario/src/lint/ship.rs check_cargo_intake_config. Values from assets/base/sections/base.content.ron cargo_intake_section. -->
+<!-- Grammar verified against crates/nova_ship/src/sections/cargo_intake_section.rs (config, trigger, run_cargo_intakes) and crates/nova_scenario/src/lint/ship.rs check_cargo_intake_config. Values from assets/base/sections/base.content.ron cargo_intake_section. -->
 
 ## Mining
 

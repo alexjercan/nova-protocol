@@ -413,7 +413,6 @@ mod tests {
                     capture_gap: Meters(1.0),
                     aperture_width: Meters(14.1),
                     aperture_height: Meters(16.0),
-                    maximum_capture_speed: MetersPerSecond(5.0),
                     eject_speed: MetersPerSecond(3.0),
                 }),
                 GlobalTransform::from_translation(point),
