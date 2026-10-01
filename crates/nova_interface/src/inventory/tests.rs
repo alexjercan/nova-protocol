@@ -1351,6 +1351,7 @@ mod generated_wreck {
                     capabilities: default(),
                     inventory: ShipInventoryStock::new([(ItemType::HullPlate, PLAYER_PLATES)]),
                     lootable: false,
+                    credits: 0,
                 }),
             ))
             .id();

@@ -81,8 +81,8 @@ impl ShipPartFamilyType {
     ];
 
     /// The family of a section kind.
-    fn of(kind: &SectionKind) -> Self {
-        match kind {
+    fn of(kind: &SectionKind) -> Option<Self> {
+        Some(match kind {
             SectionKind::Hull(_) => Self::Hull,
             SectionKind::Controller(_) => Self::Controller,
             SectionKind::Thruster(_) => Self::Thruster,
@@ -91,8 +91,9 @@ impl ShipPartFamilyType {
             }
             SectionKind::CargoIntake(_) => Self::CargoIntake,
             SectionKind::Docking(_) => Self::Docking,
-            SectionKind::Mining(_) => unreachable!("mining is excluded before family classification"),
-        }
+            // The first generated-hull slice does not equip mining sections.
+            SectionKind::Mining(_) => return None,
+        })
     }
 
     /// Whether a ship of `role` may carry a part of this family. Civilian
@@ -377,7 +378,9 @@ impl ShipPartSnapshot {
             if faults.len() > before {
                 continue;
             }
-            let family = ShipPartFamilyType::of(&config.kind);
+            let Some(family) = ShipPartFamilyType::of(&config.kind) else {
+                continue;
+            };
             match exclusion(config) {
                 Ok(Some(excluded_as)) => {
                     excluded.insert(config.base.id.clone(), excluded_as);

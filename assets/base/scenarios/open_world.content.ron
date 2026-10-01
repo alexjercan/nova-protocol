@@ -74,6 +74,7 @@
                                 Torpedo: 12,
                             },
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((

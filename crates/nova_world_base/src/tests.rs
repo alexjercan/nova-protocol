@@ -232,7 +232,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0xed7e_d8f2_b5b5_92fd,
+        0xe724_206c_1ef4_1d8e,
         "the pinned window's bodies changed"
     );
 }

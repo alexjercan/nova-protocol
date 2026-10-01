@@ -794,7 +794,7 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
     world.flush();
     assert_eq!(
         ships_under(&mut world, root),
-        (vec![id], Vec::new()),
+        (vec!["Solmar civilian".to_string()], Vec::new()),
         "a cleared ship must spawn under its root and stop being held"
     );
 }
@@ -854,14 +854,9 @@ fn a_materialized_derelict_is_lootable_with_its_manifest_stock_and_an_intact_shi
     assert_eq!(
         spawned,
         vec![
+            ("Solmar civilian".to_string(), false, false, vec![]),
             (
-                sector_id(SectorCoord::ORIGIN, "ship", 0),
-                false,
-                false,
-                vec![]
-            ),
-            (
-                sector_id(SectorCoord::ORIGIN, "ship", 1),
+                "Solmar derelict, former civilian".to_string(),
                 true,
                 true,
                 vec![(ItemType::HullPlate, 5)]
