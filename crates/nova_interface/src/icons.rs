@@ -26,6 +26,7 @@ pub(crate) enum SectionIconType {
     Hull,
     Docking,
     Mining,
+    CargoIntake,
 }
 
 /// What a map contact is, as the map draws it: a ship, a rock, a planet or a
@@ -112,13 +113,14 @@ fn polygon(p: Vec2, points: &[Vec2]) -> f32 {
 }
 
 impl SectionIconType {
-    pub(crate) const ALL: [Self; 6] = [
+    pub(crate) const ALL: [Self; 7] = [
         Self::Weapon,
         Self::Thruster,
         Self::Controller,
         Self::Hull,
         Self::Docking,
         Self::Mining,
+        Self::CargoIntake,
     ];
 
     /// The family a section kind belongs to.
@@ -127,9 +129,10 @@ impl SectionIconType {
             SectionClass::Turret | SectionClass::Torpedo | SectionClass::Railgun => Self::Weapon,
             SectionClass::Thruster => Self::Thruster,
             SectionClass::Controller => Self::Controller,
-            SectionClass::Hull | SectionClass::CargoIntake => Self::Hull,
+            SectionClass::Hull => Self::Hull,
             SectionClass::Docking => Self::Docking,
             SectionClass::Mining => Self::Mining,
+            SectionClass::CargoIntake => Self::CargoIntake,
         }
     }
 
@@ -142,6 +145,7 @@ impl SectionIconType {
             Self::Hull => "Hull",
             Self::Docking => "Docking",
             Self::Mining => "Mining",
+            Self::CargoIntake => "Cargo Intake",
         }
     }
 
@@ -155,6 +159,7 @@ impl SectionIconType {
             Self::Hull => UiColor::Primary,
             Self::Docking => UiColor::Nominal,
             Self::Mining => UiColor::Accent,
+            Self::CargoIntake => UiColor::AccentHigh,
         }
     }
 
@@ -169,7 +174,8 @@ impl SectionIconType {
 
     /// Each family has its own silhouette: a reticle for a weapon, a nozzle
     /// and plume for a thruster, a diamond core for the controller, a riveted
-    /// plate for hull, a clamped collar for docking, and a beam for mining.
+    /// plate for hull, a clamped collar for docking, a beam for mining, and an
+    /// open cargo door for the intake.
     fn coverage(self, p: Vec2, px: f32) -> f32 {
         match self {
             Self::Weapon => {
@@ -250,6 +256,28 @@ impl SectionIconType {
                 solid(casing, px)
                     .max(solid(emitter, px))
                     .max(solid(beam, px))
+            }
+            Self::CargoIntake => {
+                let door = polygon(
+                    p,
+                    &[
+                        Vec2::new(-0.88, -0.78),
+                        Vec2::new(0.88, -0.78),
+                        Vec2::new(0.7, 0.78),
+                        Vec2::new(-0.7, 0.78),
+                    ],
+                );
+                let mouth = polygon(
+                    p,
+                    &[
+                        Vec2::new(-0.58, -0.43),
+                        Vec2::new(0.58, -0.43),
+                        Vec2::new(0.46, 0.48),
+                        Vec2::new(-0.46, 0.48),
+                    ],
+                );
+                let sill = segment(p, Vec2::new(-0.7, 0.76), Vec2::new(0.7, 0.76), 0.13);
+                solid(door.max(-mouth), px).max(solid(sill, px))
             }
         }
     }

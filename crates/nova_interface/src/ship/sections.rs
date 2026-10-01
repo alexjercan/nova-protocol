@@ -51,7 +51,7 @@ pub(crate) fn kind_description(kind: SectionClass) -> &'static str {
         SectionClass::Torpedo => "Torpedo launch tube.",
         SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
         SectionClass::Docking => "Docking port; locks onto another hull.",
-        SectionClass::CargoIntake => "Cargo intake; takes in slow canisters.",
+        SectionClass::CargoIntake => "Cargo intake; receives drifting canisters.",
         SectionClass::Mining => "Mining emitter; cuts ore from a locked rock.",
     }
 }

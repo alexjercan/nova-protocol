@@ -133,6 +133,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   NEUTRAL or HELM FAULT.
 - The Ship pane gives mining beams their own icon and legend entry instead of
   marking them as hull. Docking and mining remain visible in the section key.
+- The Ship pane shows cargo intakes with a separate amber door icon and legend
+  entry instead of marking them as hull.
 - The target inset shows the travel lock when no combat lock is held. Its
   caption adds range and signed closing speed. A combat kill cam plays before
   the travel view.

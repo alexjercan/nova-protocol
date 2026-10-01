@@ -973,12 +973,16 @@ fn badge_shows_family_icon_status_pip_and_code() {
 fn docking_and_mining_sections_have_distinct_legend_icons() {
     let docking = SectionIconType::of(SectionClass::Docking);
     let mining = SectionIconType::of(SectionClass::Mining);
+    let intake = SectionIconType::of(SectionClass::CargoIntake);
     assert_ne!(docking, mining);
     assert_ne!(mining, SectionIconType::of(SectionClass::Hull));
+    assert_ne!(intake, SectionIconType::of(SectionClass::Hull));
     assert_eq!(docking.label(), "Docking");
     assert_eq!(mining.label(), "Mining");
+    assert_eq!(intake.label(), "Cargo Intake");
     assert!(SectionIconType::ALL.contains(&docking));
     assert!(SectionIconType::ALL.contains(&mining));
+    assert!(SectionIconType::ALL.contains(&intake));
 }
 
 #[test]
