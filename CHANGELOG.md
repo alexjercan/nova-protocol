@@ -46,8 +46,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   railgun on R, two torpedo bays on F, a docking collar on each shoulder and a
   dorsal cargo intake.
 - New `cargo_intake_section`: its door opens for a canister within 40 m and
-  takes one under 5 m/s whole, never while it touches the ship or moves away,
-  if it fits and has room.
+  takes one whole if it fits and has room. Contact-free pickup needs a closing
+  speed under 5 m/s; contact with the open mouth takes it even after impact.
 
 ### Scenarios & Objectives
 

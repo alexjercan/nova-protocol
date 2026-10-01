@@ -339,8 +339,8 @@ struct CanisterRead {
     taken: bool,
 }
 
-/// Run every live intake on a spaceship root: steer its door, take slow,
-/// closing canisters that do not touch the ship through a fully open door,
+/// Run every live intake on a spaceship root: steer its door, take fitting
+/// canisters through a fully open door, including on contact with its mouth,
 /// and drop the front of its ejection queue once the door is open and no
 /// canister is near the birth point.
 ///
@@ -483,15 +483,14 @@ fn run_cargo_intakes(
             }
             let ready = *zone == CargoIntakeZoneType::Capture && open && {
                 let relative = read.velocity - point_velocity(read.position);
-                // Avian keeps manifold pairs until the next step,
-                // including speculative contacts. A refused canister
-                // must separate before it can close on the door again.
-                let touching_ship = collisions
-                    .collisions_with(read.entity)
-                    .any(|pair| pair.body1 == Some(ship) || pair.body2 == Some(ship));
-                !touching_ship
-                    && relative.length() <= maximum_speed
-                    && relative.dot(normal) <= 0.0
+                // The full footprint fits inside the aperture in Capture.
+                // A contact there is a mouth hit, not a frame hit. Accept it
+                // even if impact changed the velocity before this pass.
+                let touching_mouth = collisions.collisions_with(read.entity).any(|pair| {
+                    pair.is_touching() && (pair.collider1 == intake || pair.collider2 == intake)
+                });
+                (touching_mouth
+                    || (relative.length() <= maximum_speed && relative.dot(normal) <= 0.0))
                     && inventory.free_g() >= read.canister.total_mass_g()
             };
             readiness.pairs.push(CargoPickupPair {
