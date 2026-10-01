@@ -20,9 +20,9 @@
 //! docks into whatever stands in its lane.
 //!
 //! PURE. The open world pins one to its generator when it arms, beside the
-//! digest of the loaded catalog it came from; the content lint and the
-//! `world_ships` debug example build their own. No generator builds ships
-//! from it yet. Scoring is provisional until generated ships are reviewed.
+//! digest of the loaded catalog it came from, and lays out every hull a cell
+//! owns from it; the content lint and the `world_ships` debug example build
+//! their own. Scoring is provisional until generated ships are reviewed.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -33,8 +33,7 @@ use nova_gameplay::prelude::Fnv64;
 use nova_ship::prelude::{
     cell_grid_fit, CellGridFault, SectionCollider, SectionConfig, SectionKind, TurretJoint,
 };
-
-use crate::civilizations::ShipRoleType;
+use nova_world::prelude::ShipRoleType;
 
 /// The version of the canonical form [`ShipPartSnapshot::content_hash`]
 /// reads. Change it with any change to what the hash covers or how it is
@@ -169,7 +168,8 @@ pub enum ShipPartExclusionType {
     OffGrid(CellGridFault),
 }
 
-/// Why a set of packs is not a valid snapshot.
+/// Why a set of packs is not a valid snapshot, or why loaded content cannot arm
+/// the open world.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ShipPartFault {
     /// Two packs share one id.
@@ -226,6 +226,13 @@ pub enum ShipPartFault {
         /// [`CellGridFault::ObliqueExit`] or [`CellGridFault::SocketOnExitFace`].
         fault: CellGridFault,
     },
+    /// No loaded style has the id a role's generated ships wear.
+    MissingRoleStyle {
+        /// The role.
+        role: ShipRoleType,
+        /// Its [`role_style_id`].
+        style: &'static str,
+    },
 }
 
 impl fmt::Display for ShipPartFault {
@@ -262,6 +269,11 @@ impl fmt::Display for ShipPartFault {
                  needs one"
             ),
             Self::UnlanedExit { pack, id, fault } => write!(f, "section '{id}' ({pack}) {fault}"),
+            Self::MissingRoleStyle { role, style } => write!(
+                f,
+                "{} ships wear style '{style}', and no loaded content authors it",
+                role.label()
+            ),
         }
     }
 }

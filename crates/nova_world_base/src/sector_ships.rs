@@ -41,7 +41,7 @@ use nova_world::prelude::*;
 
 use crate::{
     civilizations::{
-        AdvancementCurveType, Civilization, CivilizationField, CivilizationStatusType, ShipRoleType,
+        AdvancementCurveType, Civilization, CivilizationField, CivilizationStatusType,
     },
     clusters::pick,
     environment::Environment,
@@ -99,6 +99,10 @@ pub struct PlannedShip {
     pub clearance: Meters,
     /// Whether it is intact or a derelict.
     pub condition: SectorShipConditionType,
+    /// The civilization that built it.
+    pub civilization: CivilizationId,
+    /// The role it was laid out for. A wreck keeps the role it was built for.
+    pub role: ShipRoleType,
     /// What its hold carries: nothing when intact, [`wreck_stock`] when a
     /// derelict.
     pub stock: ShipInventoryStock,
@@ -232,6 +236,8 @@ pub fn plan_ship(
         rotation,
         clearance: layout.clearance,
         condition,
+        civilization: civilization.id,
+        role,
         stock,
     })
 }

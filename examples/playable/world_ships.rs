@@ -36,9 +36,10 @@
 //!   turrets fire on the left mouse button, its bays on `F` and its rails on
 //!   `R` once weapons are raised.
 //!
-//! Every ship stands bare, as the generator emits it, until `C` or `--skin`
-//! clads it in the derived skin with the catalog's first style. The skin is a
-//! prototype look only: nothing the world generates asks for it yet.
+//! The generator clads every ship in the derived skin with its role's style,
+//! as the open world spawns it. The example strips that skin so the bare
+//! hulls compare; `C` or `--skin` puts it back. The WFC hulls name no style,
+//! so clad they wear the undressed derivation.
 //!
 //! # Hand-run
 //!
@@ -93,6 +94,7 @@ use nova_debug::prelude::capturing;
 use nova_input::prelude::InputSource;
 use nova_protocol::prelude::*;
 use nova_wfc::prelude::*;
+use nova_world::prelude::{CivilizationId, ShipRoleType};
 
 #[derive(Parser)]
 #[command(name = "world_ships")]
@@ -109,7 +111,8 @@ struct Cli {
     /// Start by piloting one matrix ship, named `<role>-<low|high>-<single|paired>`.
     #[arg(long)]
     pilot: Option<String>,
-    /// Start with every ship clad in its derived skin.
+    /// Start with every ship clad in its derived skin, as the open world
+    /// spawns it.
     #[arg(long)]
     skin: bool,
 }
@@ -921,7 +924,6 @@ fn load_pending_scene(
     skin: Res<SkinType>,
     enabled: Res<EnabledMods>,
     sections: Res<GameSections>,
-    styles: Res<GameStyles>,
     game_assets: Res<GameAssets>,
 ) {
     let Some(pending) = pending else {
@@ -939,17 +941,12 @@ fn load_pending_scene(
     let scene = pending.0;
     commands.remove_resource::<PendingScene>();
     commands.insert_resource(scene);
-    let style = match *skin {
-        SkinType::Bare => None,
-        SkinType::Clad => style_at(&styles, 0),
-    };
     commands.trigger(LoadScenario(scenario(
         &game_assets,
         &sections,
         &stage,
         scene,
         *skin,
-        style,
     )));
 }
 
@@ -1106,10 +1103,9 @@ fn scenario_id(scene: SceneType, skin: SkinType) -> String {
     format!("world_ships_{scene}_{}", skin.label())
 }
 
-/// `design` bare, or clad in its derived skin with `style`.
-fn dressed(mut design: ShipDesign, skin: SkinType, style: StyleId) -> ShipDesign {
+/// `design` bare, or clad in its derived skin with its own style.
+fn dressed(mut design: ShipDesign, skin: SkinType) -> ShipDesign {
     design.presentation.skin = skin == SkinType::Clad;
-    design.presentation.style = style.map(str::to_string);
     design
 }
 
@@ -1120,7 +1116,6 @@ fn scenario(
     stage: &Stage,
     scene: SceneType,
     skin: SkinType,
-    style: StyleId,
 ) -> ScenarioConfig {
     let actions = match scene {
         SceneType::View(view) => {
@@ -1134,7 +1129,7 @@ fn scenario(
                 .map(|((name, design, _), position)| {
                     let ship = SpaceshipConfig {
                         controller: SpaceshipController::None,
-                        design: ShipDesignSource::Inline(dressed(design, skin, style)),
+                        design: ShipDesignSource::Inline(dressed(design, skin)),
                         ..default()
                     };
                     // A wreck states what it lacks rather than lean on the
@@ -1177,11 +1172,7 @@ fn scenario(
                     controller: SpaceshipController::Player(PlayerControllerConfig {
                         input_mapping: bindings,
                     }),
-                    design: ShipDesignSource::Inline(dressed(
-                        ship.layout.design.clone(),
-                        skin,
-                        style,
-                    )),
+                    design: ShipDesignSource::Inline(dressed(ship.layout.design.clone(), skin)),
                     ..default()
                 },
             ))

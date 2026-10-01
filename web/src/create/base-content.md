@@ -97,6 +97,11 @@ A ship names one with `style: Some("<id>")` beside `skin: true` on its
 a `Style` with the same id replaces that look everywhere; a new id is a new look.
 See [Ship skin styles](../styles/).
 
+Open-world ships wear one of these by role, intact or wrecked: civilian
+`civilian`, industrial `industrial`, scavenger `salvage`, armored `armoured`.
+Overlay the id to restyle them. The open world does not start if one of these
+ids is missing.
+
 ### Modelled ship parts (not base content)
 
 Base ships NO parts cut for one craft. Every base hull is built out of the

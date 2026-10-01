@@ -316,6 +316,10 @@ fn require_resolved(ship: &SectorShip, sections: &GameSections) {
 /// Spawn one generated ship under `root`, where and as its manifest entry
 /// says, its hold filled with the entry's stock.
 ///
+/// Its `Name` says whose it is and what it was built for, `<civilization>
+/// <role>` or `<civilization> derelict, former <role>`. Inspection and the
+/// selected target show it; a distant map blip shows a minted code instead.
+///
 /// Nobody aboard and nobody's side: a generated ship is unpiloted, and an AI
 /// that shot it would be shooting the furniture. The allegiance is inserted
 /// beside the bundle for the same reason the scenario loader does it - the
@@ -333,13 +337,21 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
         clearance: _,
         design,
         condition,
+        civilization,
+        role,
         stock,
     } = ship;
     let derelict = condition == SectorShipConditionType::Derelict;
+    let name = match condition {
+        SectorShipConditionType::Intact => format!("{} {}", civilization.name(), role.label()),
+        SectorShipConditionType::Derelict => {
+            format!("{} derelict, former {}", civilization.name(), role.label())
+        }
+    };
     let ship = (
         base_scenario_object(&BaseScenarioObjectConfig {
-            id: id.clone(),
-            name: id,
+            id,
+            name,
             position,
             rotation,
         }),

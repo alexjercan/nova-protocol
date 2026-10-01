@@ -30,12 +30,13 @@
 //! alone, so every intact ship can be ruined. A seeded layout that fails
 //! is redrawn a fixed number of times, then the request fails with its seed,
 //! civilization, role and the last failed constraint. Nothing substitutes an
-//! authored hull.
+//! authored hull. Every layout wears the derived skin in its role's base
+//! style, [`role_style_id`](crate::role_style_id).
 //!
 //! WRECKS. [`generate_wreck`] ruins the intact ship of the same request: it
-//! keeps the role, source, advancement, fittings and cell bounds, and omits
-//! seeded breaches of structural cubes, each growing inward from the outer
-//! hull, while the rest stays one connected ship. The cubes across a docking
+//! keeps the role, style, source, advancement, fittings and cell bounds, and
+//! omits seeded breaches of structural cubes, each growing inward from the
+//! outer hull, while the rest stays one connected ship. The cubes across a docking
 //! port's back never go, so a wreck keeps a backed port. A wreck digs toward a
 //! fifth of its cubes off its mirror image, so it cannot read as a sparse
 //! intact hull. A thin hull that cannot give that many settles for a floor:
@@ -59,17 +60,19 @@ use std::{
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{Fnv32, SeedStream};
-use nova_scenario::prelude::{SectionSource, ShipDesign, SpaceshipSectionConfig};
+use nova_scenario::prelude::{
+    SectionSource, ShipDesign, ShipPresentationConfig, SpaceshipSectionConfig,
+};
 use nova_ship::prelude::{
     blocked_exits, cube_rotations, derive_link_point_graph, exit_normal, mirror_face,
     mirror_rotation, oriented_part, placement_blocks_an_exit, read_structure, ship_exits,
     LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints, SectionCollider,
     SectionConfig, SectionFootprint, SectionKind, GRID_EPSILON,
 };
-use nova_world::prelude::SECTOR_SHIP_CLEARANCE_MAX;
+use nova_world::prelude::{CivilizationId, ShipRoleType, SECTOR_SHIP_CLEARANCE_MAX};
 
 use crate::{
-    civilizations::{CivilizationId, ShipRoleType},
+    role_style_id,
     ship_parts::{ShipPart, ShipPartFamilyType, ShipPartSnapshot},
 };
 
@@ -1674,6 +1677,11 @@ impl<'a> Draw<'a> {
             ShipLayout {
                 design: ShipDesign {
                     sections,
+                    presentation: ShipPresentationConfig {
+                        skin: true,
+                        style: Some(role_style_id(self.request.role).to_string()),
+                        ..default()
+                    },
                     ..default()
                 },
                 drive: drive.layout,
@@ -2594,6 +2602,30 @@ pub(crate) mod tests {
         let message = failure.to_string();
         for named in ["ship seed 42", "civ_1_n2_0@7", "civilian", "ceiling"] {
             assert!(message.contains(named), "{message}");
+        }
+    }
+
+    #[test]
+    fn every_role_wears_its_style_intact_and_wrecked() {
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        for (role, style) in [
+            (ShipRoleType::Civilian, "civilian"),
+            (ShipRoleType::Industrial, "industrial"),
+            (ShipRoleType::Scavenger, "salvage"),
+            (ShipRoleType::Armored, "armoured"),
+        ] {
+            let request = request(1, role, 1.0);
+            let intact = generate_ship(&snapshot, request).expect("the ship generates");
+            let wreck = generate_wreck(&snapshot, request).expect("the wreck generates");
+            for (condition, layout) in [("intact", intact), ("wrecked", wreck)] {
+                let presentation = &layout.design.presentation;
+                assert!(presentation.skin, "{role:?} {condition} stands bare");
+                assert_eq!(
+                    presentation.style.as_deref(),
+                    Some(style),
+                    "{role:?} {condition} wears the wrong style"
+                );
+            }
         }
     }
 

@@ -35,6 +35,7 @@ use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::PlayerSpaceshipMarker;
 use nova_scenario::prelude::{CurrentScenario, ScenarioRole};
+use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
 mod civilizations;
@@ -50,8 +51,8 @@ mod tests;
 
 pub use crate::{
     civilizations::{
-        AdvancementCurveType, Civilization, CivilizationField, CivilizationId, CivilizationReach,
-        CivilizationStatusType, ShipRoleType,
+        role_style_id, AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
+        CivilizationStatusType,
     },
     clusters::{sector_clusters, ClusterSummary, ClusterType, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
@@ -72,17 +73,18 @@ pub use crate::{
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
 /// the session, the generator, its clearance margin, the environment, cluster
 /// and civilization diagnostics, the ship-part snapshot, the ship layout, the
-/// ship planner and the base-world ids into scope.
+/// ship planner, the base-world ids and the role style ids into scope.
 pub mod prelude {
     pub use super::{
-        generate_ship, generate_wreck, plan_ship, sector_clusters, wreck_stock,
-        AdvancementCurveType, Civilization, CivilizationField, CivilizationId, CivilizationReach,
+        generate_ship, generate_wreck, plan_ship, role_style_id, sector_clusters, wreck_stock,
+        AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
         CivilizationStatusType, ClusterSummary, ClusterType, Environment, EnvironmentFieldType,
         EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession,
         PlannedShip, SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
         ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
-        ShipPartFault, ShipPartPack, ShipPartSnapshot, ShipRoleType, BLOCK_LINE_WARSHIP_SHIP_ID,
-        CLEARANCE_MARGIN, OPEN_WORLD_SCENARIO_ID, SHIP_ADVANCEMENT_CURVE, WRECK_PLATES,
+        ShipPartFault, ShipPartPack, ShipPartSnapshot, ARMOURED_STYLE_ID,
+        BLOCK_LINE_WARSHIP_SHIP_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID,
+        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, SHIP_ADVANCEMENT_CURVE, WRECK_PLATES,
     };
 }
 
@@ -94,6 +96,18 @@ pub const OPEN_WORLD_SCENARIO_ID: &str = "open_world";
 /// hull, with six point-defense mounts, one spinal railgun and two torpedo
 /// bays.
 pub const BLOCK_LINE_WARSHIP_SHIP_ID: &str = "block_line_warship";
+
+/// The id the industrial look is named by. Industrial world ships wear it.
+pub const INDUSTRIAL_STYLE_ID: &str = "industrial";
+
+/// The id the armoured look is named by. Armored world ships wear it.
+pub const ARMOURED_STYLE_ID: &str = "armoured";
+
+/// The id the civilian look is named by. Civilian world ships wear it.
+pub const CIVILIAN_STYLE_ID: &str = "civilian";
+
+/// The id the salvage look is named by. Scavenger world ships wear it.
+pub const SALVAGE_STYLE_ID: &str = "salvage";
 
 /// The open world's cell edge.
 ///
@@ -154,7 +168,8 @@ impl Plugin for NovaWorldBasePlugin {
 /// - Exactly one player ship: put the [`WorldObserver`] on it, and insert the
 ///   config from [`OpenWorldSession`] unless the same config is already armed.
 ///   An armed world keeps the generator it armed with; an unarmed one builds
-///   its ship-part snapshot from [`LoadedSectionPacks`], once.
+///   its ship-part snapshot from [`LoadedSectionPacks`], once, and checks
+///   [`GameStyles`] for every role's style.
 ///
 /// # Panics
 ///
@@ -163,11 +178,12 @@ impl Plugin for NovaWorldBasePlugin {
 /// assembly faults, not runtime conditions, and there is no world to guess.
 ///
 /// With exactly one player ship, it also panics when there are no
-/// [`LoadedSectionPacks`] (the merge logged why), when the loaded ship parts
-/// do not build a snapshot, and when the loaded catalog digest differs from
-/// the armed one. The last check runs before any config is written: a new
-/// config would retire every sector and regenerate the world from content it
-/// was not armed over.
+/// [`LoadedSectionPacks`] or no [`GameStyles`] (the merge logged why), when
+/// the loaded ship parts do not build a snapshot or a role's style is
+/// missing, and when the loaded catalog digest differs from the armed one.
+/// The last check runs before any config is written: a new config would
+/// retire every sector and regenerate the world from content it was not
+/// armed over.
 fn sync_open_world(world: &mut World) {
     let open = world
         .resource::<CurrentScenario>()
@@ -211,6 +227,12 @@ fn sync_open_world(world: &mut World) {
              content merge refused the catalog and logged why"
         );
     };
+    let Some(styles) = world.get_resource::<GameStyles>() else {
+        panic!(
+            "nova_world_base: an OpenWorld scenario is live with no GameStyles; the content \
+             merge refused the catalog and logged why"
+        );
+    };
     let armed = world.get_resource::<WorldConfig<NovaLayeredWorld>>();
     let generator = match armed {
         Some(armed) if armed.generator.catalog() != loaded.digest => panic!(
@@ -220,10 +242,9 @@ fn sync_open_world(world: &mut World) {
             loaded.digest.0
         ),
         Some(armed) => armed.generator.clone(),
-        None => NovaLayeredWorld::from_loaded(loaded).unwrap_or_else(|faults| {
+        None => NovaLayeredWorld::from_loaded(loaded, styles).unwrap_or_else(|faults| {
             panic!(
-                "nova_world_base: the loaded ship parts do not build a snapshot, so the open \
-                 world cannot arm:\n  {}",
+                "nova_world_base: the loaded content does not arm the open world:\n  {}",
                 faults
                     .iter()
                     .map(ToString::to_string)

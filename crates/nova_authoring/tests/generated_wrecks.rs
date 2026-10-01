@@ -5,9 +5,9 @@
 use bevy::math::Vec3;
 use nova_authoring::lint_walk::repo_ship_part_packs;
 use nova_ship::prelude::GRID_EPSILON;
+use nova_world::prelude::{CivilizationId, ShipRoleType};
 use nova_world_base::prelude::{
-    generate_ship, generate_wreck, CivilizationId, ShipLayoutRequest, ShipPartSnapshot,
-    ShipRoleType,
+    generate_ship, generate_wreck, ShipLayoutRequest, ShipPartSnapshot,
 };
 
 #[test]

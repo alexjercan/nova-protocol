@@ -546,6 +546,13 @@ path = "examples/systems/system_world_sectors.rs"
 name = "system_open_world"
 path = "examples/systems/system_open_world.rs"
 
+# What a generated ship tells the player: on a pinned seed, one intact ship and
+# one derelict read in the HUD target inset and the Map pane, with no ship name
+# on any map blip.
+[[example]]
+name = "system_open_world_identity"
+path = "examples/systems/system_open_world_identity.rs"
+
 # Then the one range that grades SHIPPED content rather than a fixture built
 # beside it: the campaign's first chapter, booted by scenario id and walked
 # from the opening scene to the banner. Every other range above owns its world,

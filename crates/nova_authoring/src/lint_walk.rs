@@ -737,6 +737,9 @@ fn build_report(
                     (&base_id, "ship parts")
                 }
                 ShipPartFault::MissingFamily(_) => (&bundle.id, "ship parts"),
+                ShipPartFault::MissingRoleStyle { .. } => {
+                    unreachable!("only arming the open world checks role styles, not a snapshot")
+                }
             };
             ship_part_faults.insert((owner.clone(), element.to_string(), fault.to_string()));
         }

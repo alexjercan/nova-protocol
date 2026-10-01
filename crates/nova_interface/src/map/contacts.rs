@@ -135,8 +135,8 @@ pub struct MapContact {
     pub kind: MapContactKind,
     /// What the contact is drawn as.
     pub(crate) body: BodyIconType,
-    /// The unique, typeable label (`SELF`, `HOST-1`, ...). Falls back to the
-    /// uppercased name until `assign_map_contact_codes` mints the real code.
+    /// The unique, typeable label (`SELF`, `HOST-1`, ...), as
+    /// `assign_map_contact_codes` minted it.
     pub code: String,
     /// The contact's display name.
     pub name: String,
@@ -240,20 +240,17 @@ impl MapContacts<'_, '_> {
         })
     }
 
-    /// The minted code for an entity, or a fallback derived from `kind`/`name`
-    /// for the one frame before [`assign_map_contact_codes`] mints it.
-    pub(crate) fn code_for(&self, entity: Entity, kind: MapContactKind, name: &str) -> String {
-        self.codes
-            .get(entity)
-            .ok()
-            .map(|c| c.0.clone())
-            .unwrap_or_else(|| {
-                if kind == MapContactKind::OwnShip {
-                    kind.code_prefix().to_string()
-                } else {
-                    name.to_uppercase()
-                }
-            })
+    /// The minted code for an entity. The own ship is always `SELF`; any
+    /// other contact has none until [`assign_map_contact_codes`] mints it.
+    ///
+    /// No fallback to the contact's name: a streamed ship's name says whose
+    /// it is, and a blip keeps the label it spawned with.
+    pub(crate) fn code_for(&self, entity: Entity, kind: MapContactKind) -> Option<String> {
+        match self.codes.get(entity) {
+            Ok(code) => Some(code.0.clone()),
+            Err(_) if kind == MapContactKind::OwnShip => Some(kind.code_prefix().to_string()),
+            Err(_) => None,
+        }
     }
 
     /// A stable sort key for an entity: its authored [`EntityId`] when present,
@@ -296,7 +293,9 @@ impl MapContacts<'_, '_> {
             .unwrap_or(Vec3::ZERO)
     }
 
-    /// Enumerate every contact with live range/bearing, own ship first.
+    /// Enumerate every contact with live range/bearing, own ship first. A
+    /// contact waits for its minted code, so it shows on the pass after
+    /// [`assign_map_contact_codes`] first sees it.
     pub fn collect(&self) -> Vec<MapContact> {
         let (player_entity, player_pos, player_rot) = match self.player_frame() {
             Some(frame) => frame,
@@ -322,11 +321,14 @@ impl MapContacts<'_, '_> {
             let name = name
                 .map(|n| n.as_str().to_string())
                 .unwrap_or_else(|| "NOVA".to_string());
+            let code = self
+                .code_for(player_entity, MapContactKind::OwnShip)
+                .expect("the own ship is always SELF");
             contacts.push(MapContact {
                 entity: player_entity,
                 kind: MapContactKind::OwnShip,
                 body: BodyIconType::Ship,
-                code: self.code_for(player_entity, MapContactKind::OwnShip, &name),
+                code,
                 name,
                 world_pos: player_pos,
                 range: 0.0,
@@ -338,6 +340,9 @@ impl MapContacts<'_, '_> {
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
             let kind = ship_contact_kind(allegiance);
+            let Some(code) = self.code_for(entity, kind) else {
+                continue;
+            };
             let name = name
                 .map(|n| n.as_str().to_string())
                 .unwrap_or_else(|| "CONTACT".to_string());
@@ -345,7 +350,7 @@ impl MapContacts<'_, '_> {
                 entity,
                 kind,
                 body: BodyIconType::Ship,
-                code: self.code_for(entity, kind, &name),
+                code,
                 name,
                 world_pos,
                 range,
@@ -355,13 +360,16 @@ impl MapContacts<'_, '_> {
         }
         for (entity, gt, marker) in &self.objectives {
             let world_pos = gt.translation();
+            let Some(code) = self.code_for(entity, MapContactKind::Objective) else {
+                continue;
+            };
             let (range, brg, mark) = bearing(world_pos);
             let name = marker.label.to_uppercase();
             contacts.push(MapContact {
                 entity,
                 kind: MapContactKind::Objective,
                 body: BodyIconType::Objective,
-                code: self.code_for(entity, MapContactKind::Objective, &name),
+                code,
                 name,
                 world_pos,
                 range,
@@ -375,8 +383,11 @@ impl MapContacts<'_, '_> {
             }
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
-            let name = terrain_name(type_name).to_string();
             let kind = terrain_kind(type_name);
+            let Some(code) = self.code_for(entity, kind) else {
+                continue;
+            };
+            let name = terrain_name(type_name).to_string();
             contacts.push(MapContact {
                 entity,
                 kind,
@@ -385,7 +396,7 @@ impl MapContacts<'_, '_> {
                 } else {
                     BodyIconType::Asteroid
                 },
-                code: self.code_for(entity, kind, &name),
+                code,
                 name,
                 world_pos,
                 range,

@@ -632,6 +632,8 @@ impl SectorPlan {
                     clearance: ship.clearance,
                     design: ship.design.clone(),
                     condition: ship.condition,
+                    civilization: ship.civilization,
+                    role: ship.role,
                     stock: ship.stock.clone(),
                 }),
                 ClusterBody::Hull { .. } => {

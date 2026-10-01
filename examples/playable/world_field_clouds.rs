@@ -287,6 +287,7 @@ fn boot_clouds(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     loaded: Res<LoadedSectionPacks>,
+    styles: Res<GameStyles>,
 ) {
     const _: () = assert!(
         CLOUD_EDGE_SAMPLES.pow(3) <= CLOUD_SAMPLES_MAX,
@@ -306,7 +307,7 @@ fn boot_clouds(
         "World Field Clouds",
     )));
 
-    let config = featured_world_config(&loaded);
+    let config = featured_world_config(&loaded, &styles);
     commands.insert_resource(CloudJob(
         AsyncComputeTaskPool::get().spawn(async move { sample_volume(&config) }),
     ));

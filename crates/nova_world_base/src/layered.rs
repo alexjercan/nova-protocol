@@ -9,11 +9,13 @@ use std::sync::Arc;
 
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::Meters;
+use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
 use crate::{
     clusters::{plan_sector, validate_cluster_geometry},
     environment::EnvironmentFields,
+    role_style_id,
     ship_parts::{ShipPartFault, ShipPartPack, ShipPartSnapshot},
 };
 
@@ -68,10 +70,18 @@ impl NovaLayeredWorld {
     /// Pin the ship parts of `loaded` and the digest of the catalog they came
     /// from. Builds the snapshot once; a clone shares it.
     ///
+    /// `styles` is only checked: the digest already covers them, so the
+    /// arming check refuses a style change like any other content change.
+    ///
     /// # Errors
     ///
-    /// Every fault [`ShipPartSnapshot::build`] finds in the loaded sections.
-    pub fn from_loaded(loaded: &LoadedSectionPacks) -> Result<Self, Vec<ShipPartFault>> {
+    /// Every fault [`ShipPartSnapshot::build`] finds in the loaded sections,
+    /// and [`ShipPartFault::MissingRoleStyle`] for each role whose
+    /// [`role_style_id`] `styles` does not hold.
+    pub fn from_loaded(
+        loaded: &LoadedSectionPacks,
+        styles: &GameStyles,
+    ) -> Result<Self, Vec<ShipPartFault>> {
         let packs: Vec<ShipPartPack> = loaded
             .packs
             .iter()
@@ -81,10 +91,25 @@ impl NovaLayeredWorld {
                 sections: pack.sections.clone(),
             })
             .collect();
-        Ok(Self {
-            parts: Arc::new(ShipPartSnapshot::build(&packs)?),
-            catalog: loaded.digest,
-        })
+        let unstyled: Vec<ShipPartFault> = ShipRoleType::ALL
+            .into_iter()
+            .filter(|role| styles.get_style(role_style_id(*role)).is_none())
+            .map(|role| ShipPartFault::MissingRoleStyle {
+                role,
+                style: role_style_id(role),
+            })
+            .collect();
+        match ShipPartSnapshot::build(&packs) {
+            Ok(parts) if unstyled.is_empty() => Ok(Self {
+                parts: Arc::new(parts),
+                catalog: loaded.digest,
+            }),
+            Ok(_) => Err(unstyled),
+            Err(mut faults) => {
+                faults.extend(unstyled);
+                Err(faults)
+            }
+        }
     }
 
     /// The ship parts this world was armed with.

@@ -32,10 +32,10 @@ use nova_ship::prelude::{
 
 use crate::{
     generate_sector, materialize_pending_ships, materialize_sector, prepare_sector, sector_id,
-    validate_manifest, NovaWorldPlugin, ObserverBody, PendingSectorShip, SectorAsteroid,
-    SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest, SectorPlanet,
-    SectorShip, SectorShipConditionType, WorldConfig, WorldGeometry, WorldObserver,
-    ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
+    validate_manifest, CivilizationId, NovaWorldPlugin, ObserverBody, PendingSectorShip,
+    SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator,
+    SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType, WorldConfig,
+    WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
 };
 
 /// The section prototype every test ship is built from.
@@ -125,6 +125,11 @@ fn ship(id: String, position: Meters3, prototype: &str) -> SectorShip {
             ..default()
         },
         condition: SectorShipConditionType::Intact,
+        civilization: CivilizationId {
+            world_seed: 0,
+            node: [0, 0, 0],
+        },
+        role: ShipRoleType::Civilian,
         stock: ShipInventoryStock::default(),
     }
 }
@@ -641,6 +646,64 @@ fn canonical_text_describes_a_rotation_and_its_negation_alike() {
         described[0], described[2],
         "two different rotations described the same"
     );
+}
+
+/// Every ship field that changes what spawns, or whose ship it is, is part of
+/// "the same sector": the design's integrity and presentation, a section's
+/// prototype patch, the civilization and the role each describe a different
+/// cell. A non-finite value prints apart from `None` and from another
+/// non-finite value, never as one shared `null`.
+#[test]
+fn canonical_text_tells_ship_design_fields_and_identity_apart() {
+    fn patch_health(ship: &mut SectorShip, health: f32) {
+        let SectionSource::Prototype { patch, .. } = &mut ship.design.sections[0].source else {
+            panic!("the fixture ship's hull is a prototype reference");
+        };
+        patch.health = Some(health);
+    }
+    let input = rocks().input(SectorCoord::ORIGIN);
+    let variants: [(&str, fn(&mut SectorShip)); 11] = [
+        ("as built", |_| {}),
+        ("collapse 0.1", |ship| {
+            ship.design.integrity.collapse_threshold = Some(0.1);
+        }),
+        ("collapse NaN", |ship| {
+            ship.design.integrity.collapse_threshold = Some(f32::NAN);
+        }),
+        ("collapse inf", |ship| {
+            ship.design.integrity.collapse_threshold = Some(f32::INFINITY);
+        }),
+        ("skinned", |ship| ship.design.presentation.skin = true),
+        ("styled", |ship| {
+            ship.design.presentation.style = Some("armoured".to_string());
+        }),
+        ("patched health 50", |ship| patch_health(ship, 50.0)),
+        ("patched health NaN", |ship| patch_health(ship, f32::NAN)),
+        ("patched health -inf", |ship| {
+            patch_health(ship, f32::NEG_INFINITY);
+        }),
+        ("another civilization", |ship| {
+            ship.civilization.node = [1, 0, 0]
+        }),
+        ("another role", |ship| ship.role = ShipRoleType::Armored),
+    ];
+    let described: Vec<(&str, String)> = variants
+        .into_iter()
+        .map(|(label, change)| {
+            let mut manifest = one_ship(input);
+            change(&mut manifest.ships[0]);
+            let text = validate_manifest(input, manifest)
+                .expect("a valid ship must describe")
+                .canonical();
+            (label, text)
+        })
+        .collect();
+
+    for (index, (label, text)) in described.iter().enumerate() {
+        for (other_label, other) in &described[index + 1..] {
+            assert_ne!(text, other, "{label} and {other_label} described the same");
+        }
+    }
 }
 
 /// The observer's body where it overlaps [`one_ship`]'s clearance, and where

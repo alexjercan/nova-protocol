@@ -61,6 +61,9 @@ tempfile = "3"
 # decodes in the game, on every target, which is what makes a WebP sheet
 # provable without a browser.
 image = { version = "0.25", default-features = false, features = ["webp"] }
+# `generated_wrecks.rs` names a layout request's civilization and role, which
+# `nova_world` owns.
+nova_world = { path = "../nova_world" }
 
 [lints]
 workspace = true

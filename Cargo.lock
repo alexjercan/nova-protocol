@@ -4592,6 +4592,7 @@ dependencies = [
  "nova_ship",
  "nova_training",
  "nova_ui",
+ "nova_world",
  "nova_world_base",
  "ron",
  "serde",

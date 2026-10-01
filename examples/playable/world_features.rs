@@ -46,12 +46,20 @@
 //!
 //! Harnessed mode, the fleet's run gate:
 //! - `NOVA_AUTOPILOT=1`: load, arm, cross one boundary, come back, shoot the
-//!   three pictures, exit clean. This is the path `probe run` takes.
+//!   pictures, exit clean. This is the path `probe run` takes.
 //! - `NOVA_CAPTURE=1`: writes `world-features-cluster.png`,
-//!   `world-features-planetoid.png` and `world-features-derelict.png`. The
-//!   cluster shot is the rings around the nearest cluster; the other two are
-//!   the objects only this generator streams, which is what a reviewer has to
-//!   look at.
+//!   `world-features-planetoid.png` and one
+//!   `world-features-ship-<role>-<condition>.png` for each generated ship role
+//!   and each of intact and derelict. The cluster shot is the rings around the
+//!   nearest cluster; the others are the objects only this generator streams,
+//!   which is what a reviewer has to look at. A ship shot frames the manifest
+//!   ship of that role and condition nearest the home centre within
+//!   `SHIP_SEARCH_RADIUS` cells, streams the window around it and checks the
+//!   live ship by its `EntityId`: its `Name`, role style and
+//!   `DerelictShipMarker`. A caption in the frame prints what was read off
+//!   the live ship beside its manifest entry, and the run logs each pick. A
+//!   role and condition with no ship in reach is logged as missing and shot
+//!   as nothing.
 
 #[path = "../shared/world_fixture/mod.rs"]
 pub mod world_fixture;
@@ -156,13 +164,14 @@ fn boot_observer(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     loaded: Res<LoadedSectionPacks>,
+    styles: Res<GameStyles>,
 ) {
     commands.trigger(LoadScenario(free_play_scenario(
         &game_assets,
         SCENARIO_ID,
         "World Features Observer",
     )));
-    commands.insert_resource(featured_world_config(&loaded));
+    commands.insert_resource(featured_world_config(&loaded, &styles));
 
     commands.spawn((
         Name::new("Observer Key Light"),
@@ -465,7 +474,7 @@ fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
     let across = home.offset(1, 0, 0);
     let edge = EXAMPLE_SECTOR_EDGE;
 
-    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+    let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("wait for the streamed world")
         .enter(GameStates::Loading)
         .until(and(scenario_is_built(), sector_set_is(home)))
@@ -489,12 +498,15 @@ fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .until(sector_set_is(home))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        // The three pictures. The targets are read from the HOME window and
-        // kept, because flying to one of them can move the window off the
-        // other. Last in the script on purpose - `pose_camera` takes the WASD
-        // rig off the camera, so nothing flies after this.
+        // The pictures. The targets are read from the HOME window and kept,
+        // because flying to one of them can move the window off the others.
+        // Last in the script on purpose - `pose_camera` takes the WASD rig
+        // off the camera, so nothing flies after this.
         .step("pick the shot targets")
         .on_enter(pick_shot_targets)
+        .add()
+        .step("search the ship shots")
+        .on_enter(search_ship_shots)
         .add()
         .step("frame the nearest cluster")
         .on_enter(|world: &mut World| {
@@ -536,32 +548,66 @@ fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         })
         .until(shot_written(PLANETOID_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
-        .add()
-        .step("frame the derelict")
-        .on_enter(|world: &mut World| {
-            let targets = *world.resource::<ShotTargets>();
-            pose_camera(
-                world,
-                standoff(targets.derelict, DERELICT_STANDOFF),
-                targets.derelict,
-            );
-        })
-        .until(and(window_is_settled(), frames(SETTLE_FRAMES)))
-        .deadline(STEP_DEADLINE_SECS)
-        .add()
-        .step("shoot the derelict")
-        .on_enter(|world: &mut World| {
-            let targets = *world.resource::<ShotTargets>();
-            assert!(
-                derelict_nearest(world, targets.derelict)
-                    .is_some_and(|at| at.distance(targets.derelict).get() < 1.0),
-                "world features: the derelict must be live in the window the shot frames"
-            );
-            shoot(world, DERELICT_SHOT);
-        })
-        .until(shot_written(DERELICT_SHOT))
-        .deadline(SHOT_DEADLINE_SECS)
-        .add()
+        .add();
+
+    for (r, role) in ShipRoleType::ALL.into_iter().enumerate() {
+        for (c, condition) in SHIP_CONDITIONS.into_iter().enumerate() {
+            let name = ship_shot_name(role, condition);
+            let missing = resource_where::<ShipShots>(move |shots| shots.0[r][c].is_none());
+            script = script
+                .step(format!(
+                    "frame the {} {} ship",
+                    role.label(),
+                    condition.label()
+                ))
+                .on_enter(move |world: &mut World| {
+                    let Some(shot) = world.resource::<ShipShots>().0[r][c].clone() else {
+                        return;
+                    };
+                    let distance = Meters(shot.clearance.get() * SHIP_STANDOFF_CLEARANCES);
+                    pose_camera(world, standoff(shot.position, distance), shot.position);
+                })
+                .until(or(
+                    missing.clone(),
+                    and(window_is_settled(), frames(SETTLE_FRAMES)),
+                ))
+                .deadline(STEP_DEADLINE_SECS)
+                .add()
+                .step(format!(
+                    "caption the {} {} ship",
+                    role.label(),
+                    condition.label()
+                ))
+                .on_enter(move |world: &mut World| {
+                    let Some(shot) = world.resource::<ShipShots>().0[r][c].clone() else {
+                        return;
+                    };
+                    caption_live_ship(world, &shot);
+                })
+                .until(or(missing.clone(), frames(CAPTION_FRAMES)))
+                .deadline(STEP_DEADLINE_SECS)
+                .add()
+                .step(format!(
+                    "shoot the {} {} ship",
+                    role.label(),
+                    condition.label()
+                ))
+                .on_enter({
+                    let name = name.clone();
+                    let present =
+                        move |world: &World| world.resource::<ShipShots>().0[r][c].is_some();
+                    move |world: &mut World| {
+                        if present(world) {
+                            shoot(world, &name);
+                        }
+                    }
+                })
+                .until(or(missing, shot_written(name)))
+                .deadline(SHOT_DEADLINE_SECS)
+                .add();
+        }
+    }
+    script
 }
 
 /// The picture of the cluster anchored nearest the home cell.
@@ -572,10 +618,6 @@ const CLUSTER_SHOT: &str = "world-features-cluster.png";
 #[cfg(feature = "debug")]
 const PLANETOID_SHOT: &str = "world-features-planetoid.png";
 
-/// The picture of the derelict nearest the home cell.
-#[cfg(feature = "debug")]
-const DERELICT_SHOT: &str = "world-features-derelict.png";
-
 /// How many body radii back the planetoid shot stands.
 ///
 /// A planetoid is 600 to 1200 m, so a fixed distance would fill the frame with
@@ -583,12 +625,19 @@ const DERELICT_SHOT: &str = "world-features-derelict.png";
 #[cfg(feature = "debug")]
 const PLANETOID_STANDOFF: f32 = 3.2;
 
-/// How far back the derelict shot stands, in meters.
+/// How many hull clearance radii back a ship shot stands.
 ///
-/// Close enough to frame ONE derelict: what the picture is for is whether the
-/// hull is a real ship, and the readout in the corner carries the count.
+/// A generated hull's clearance runs up to 400 m, so a fixed distance would
+/// lose a small hull in the frame. Scaling by the hull keeps each one close.
 #[cfg(feature = "debug")]
-const DERELICT_STANDOFF: Meters = Meters(700.0);
+const SHIP_STANDOFF_CLEARANCES: f32 = 2.5;
+
+/// The conditions a ship shot is taken in, in [`ShipShots`] column order.
+#[cfg(feature = "debug")]
+const SHIP_CONDITIONS: [SectorShipConditionType; 2] = [
+    SectorShipConditionType::Intact,
+    SectorShipConditionType::Derelict,
+];
 
 /// How far outside a cluster's extent the cluster shot stands.
 ///
@@ -597,11 +646,12 @@ const DERELICT_STANDOFF: Meters = Meters(700.0);
 #[cfg(feature = "debug")]
 const CLUSTER_STANDOFF: Meters = Meters(1_500.0);
 
-/// Where the three shot targets stood while the home window was up.
+/// Where the cluster and planetoid shot targets stood while the home window
+/// was up.
 ///
-/// Kept rather than looked up at shot time: flying to the planetoid can
-/// retire the cell the derelict is in, so the second target has to be a
-/// remembered PLACE, not a live entity.
+/// Kept rather than looked up at shot time: flying to the cluster can retire
+/// the cell the planetoid is in, so the second target has to be a remembered
+/// PLACE, not a live entity.
 #[cfg(feature = "debug")]
 #[derive(Resource, Clone, Copy)]
 struct ShotTargets {
@@ -609,17 +659,15 @@ struct ShotTargets {
     planetoid: Meters3,
     /// How big it is, which is what sizes its shot.
     planetoid_radius: Meters,
-    /// Which derelict to shoot.
-    derelict: Meters3,
     /// The anchor of the cluster the cluster shot frames.
     cluster: Meters3,
     /// How far that cluster reaches, which is where its ring is.
     cluster_extent: Meters,
 }
 
-/// Read the three shot targets out of the live home window: the cluster
-/// anchored nearest the home centre, and the planetoid and the derelict
-/// nearest it.
+/// Read the cluster and planetoid shot targets out of the live home window:
+/// the cluster anchored nearest the home centre, and the planetoid nearest
+/// it.
 ///
 /// Nearest rather than first: query order is not the spawn order, and two
 /// runs of the same seed have to shoot the same bodies to be comparable.
@@ -643,22 +691,17 @@ fn pick_shot_targets(world: &mut World) {
         .expect("world features: the home window must own a cluster body to shoot");
     let (planetoid, planetoid_radius) = planetoid_nearest(world, home)
         .expect("world features: the home window must hold a planetoid to shoot");
-    let derelict = derelict_nearest(world, home)
-        .expect("world features: the home window must hold a derelict to shoot");
     info!(
-        "world features: shooting {} ({}, extent {:.0} m, anchor {:?}), the planetoid in {} \
-         and the derelict in {}",
+        "world features: shooting {} ({}, extent {:.0} m, anchor {:?}) and the planetoid in {}",
         cluster.id,
         cluster.cluster_type.label(),
         cluster.extent.get(),
         cluster.anchor.get(),
         SectorCoord::containing(planetoid, edge),
-        SectorCoord::containing(derelict, edge),
     );
     world.insert_resource(ShotTargets {
         planetoid,
         planetoid_radius,
-        derelict,
         cluster: cluster.anchor,
         cluster_extent: cluster.extent,
     });
@@ -693,14 +736,267 @@ fn planetoid_nearest(world: &mut World, point: Meters3) -> Option<(Meters3, Mete
         })
 }
 
-/// The live derelict nearest `point`.
+/// How many cells out from home, on each axis, the ship shots search the
+/// generator's manifests.
+///
+/// Wider than the live window: at the fixture seed the home window holds no
+/// intact ship. The search is pure, so it streams nothing; only the cell a
+/// shot frames is streamed, by the live window around the camera. Bounded, so
+/// a role the world does not field nearby is reported missing rather than
+/// hunted for.
 #[cfg(feature = "debug")]
-fn derelict_nearest(world: &mut World, point: Meters3) -> Option<Meters3> {
-    let mut query = world.query_filtered::<&GlobalTransform, With<SpaceshipRootMarker>>();
-    query
+const SHIP_SEARCH_RADIUS: i32 = 3;
+
+/// How many frames a ship caption stands before its shot, so the text is laid
+/// out and drawn in the picture.
+#[cfg(feature = "debug")]
+const CAPTION_FRAMES: u32 = 3;
+
+/// One generated ship a ship shot frames, as its cell's manifest plans it.
+#[cfg(feature = "debug")]
+#[derive(Clone)]
+struct ShipShot {
+    /// Its stable streamed id, which finds it again at shot time.
+    id: String,
+    /// The cell whose manifest plans it.
+    cell: SectorCoord,
+    /// The civilization it belongs to.
+    civilization: CivilizationId,
+    /// Its role.
+    role: ShipRoleType,
+    /// Whether it is intact or a derelict.
+    condition: SectorShipConditionType,
+    /// Where its root stands.
+    position: Meters3,
+    /// Its manifest clearance radius, which sizes its shot.
+    clearance: Meters,
+}
+
+#[cfg(feature = "debug")]
+impl ShipShot {
+    /// The `Name` the stream gives it.
+    fn name(&self) -> String {
+        match self.condition {
+            SectorShipConditionType::Intact => {
+                format!("{} {}", self.civilization.name(), self.role.label())
+            }
+            SectorShipConditionType::Derelict => format!(
+                "{} derelict, former {}",
+                self.civilization.name(),
+                self.role.label()
+            ),
+        }
+    }
+}
+
+/// The ship each ship shot frames: one row per [`ShipRoleType::ALL`] role and
+/// one column per [`SHIP_CONDITIONS`] condition. `None` when no manifest in
+/// reach plans a ship of that role and condition.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct ShipShots([[Option<ShipShot>; 2]; 4]);
+
+/// What a ship caption reads off a live ship root.
+#[cfg(feature = "debug")]
+type ShipRow = (
+    &'static EntityId,
+    &'static Name,
+    &'static ShipStyle,
+    Has<DerelictShipMarker>,
+    &'static GlobalTransform,
+);
+
+/// The text a ship shot prints over its picture.
+#[cfg(feature = "debug")]
+#[derive(Component)]
+struct ShipShotCaption;
+
+/// The picture of the `role` ship in `condition`.
+#[cfg(feature = "debug")]
+fn ship_shot_name(role: ShipRoleType, condition: SectorShipConditionType) -> String {
+    format!(
+        "world-features-ship-{}-{}.png",
+        role.label(),
+        condition.label()
+    )
+}
+
+/// Pick one ship of each role and condition out of the manifests of every
+/// cell within [`SHIP_SEARCH_RADIUS`] of home: the one nearest the home
+/// centre, ties broken by id. Logs every pick and every missing one.
+///
+/// # Panics
+///
+/// When a cell fails to generate, or a planned ship does not wear its role's
+/// style.
+#[cfg(feature = "debug")]
+fn search_ship_shots(world: &mut World) {
+    let config = world.resource::<WorldConfig<NovaLayeredWorld>>();
+    let home = FEATURE_HOME.centre(config.sector_edge);
+    let reach = -SHIP_SEARCH_RADIUS..=SHIP_SEARCH_RADIUS;
+    let mut shots: [[Option<ShipShot>; 2]; 4] = Default::default();
+    let mut planned = 0;
+    for x in reach.clone() {
+        for y in reach.clone() {
+            for z in reach.clone() {
+                let cell = FEATURE_HOME.offset(x, y, z);
+                let manifest = config
+                    .generator
+                    .generate(config.input(cell))
+                    .unwrap_or_else(|fault| panic!("world features: {cell}: {fault}"));
+                for ship in manifest.ships {
+                    planned += 1;
+                    assert_eq!(
+                        ship.design.presentation.style.as_deref(),
+                        Some(role_style_id(ship.role)),
+                        "world features: ship {} is planned in another style",
+                        ship.id
+                    );
+                    let r = ShipRoleType::ALL
+                        .iter()
+                        .position(|role| *role == ship.role)
+                        .expect("every role is in ShipRoleType::ALL");
+                    let c = usize::from(ship.condition == SectorShipConditionType::Derelict);
+                    let nearer = shots[r][c].as_ref().is_none_or(|best| {
+                        ship.position
+                            .distance(home)
+                            .get()
+                            .total_cmp(&best.position.distance(home).get())
+                            .then_with(|| ship.id.cmp(&best.id))
+                            .is_lt()
+                    });
+                    if nearer {
+                        shots[r][c] = Some(ShipShot {
+                            id: ship.id,
+                            cell,
+                            civilization: ship.civilization,
+                            role: ship.role,
+                            condition: ship.condition,
+                            position: ship.position,
+                            clearance: ship.clearance,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    info!(
+        "world features: {planned} ships planned within {SHIP_SEARCH_RADIUS} cells of \
+         {FEATURE_HOME}"
+    );
+    for (r, role) in ShipRoleType::ALL.into_iter().enumerate() {
+        for (c, condition) in SHIP_CONDITIONS.into_iter().enumerate() {
+            match &shots[r][c] {
+                Some(shot) => info!(
+                    "world features: picked {} {} ship {} in {}: {} ({}), {:.0} m from home, \
+                     clearance {:.0} m",
+                    role.label(),
+                    condition.label(),
+                    shot.id,
+                    shot.cell,
+                    shot.name(),
+                    shot.civilization,
+                    shot.position.distance(home).get(),
+                    shot.clearance.get(),
+                ),
+                None => info!(
+                    "world features: missing {} {} ship: no manifest within \
+                     {SHIP_SEARCH_RADIUS} cells of {FEATURE_HOME} plans one",
+                    role.label(),
+                    condition.label()
+                ),
+            }
+        }
+    }
+    world.insert_resource(ShipShots(shots));
+}
+
+/// Find `shot`'s ship live by its `EntityId`, check that it is the ship its
+/// manifest planned, and print what it carries over the picture.
+///
+/// # Panics
+///
+/// When the ship is not live, or its `Name`, style or derelict marker is not
+/// what its manifest entry gives it.
+#[cfg(feature = "debug")]
+fn caption_live_ship(world: &mut World, shot: &ShipShot) {
+    let mut ships = world.query_filtered::<ShipRow, With<SpaceshipRootMarker>>();
+    let (name, style, derelict, at) = ships
         .iter(world)
-        .map(|transform| Meters3::from_engine(transform.translation()))
-        .min_by(|a, b| a.distance(point).get().total_cmp(&b.distance(point).get()))
+        .find(|(id, ..)| id.0 == shot.id)
+        .map(|(_, name, style, derelict, transform)| {
+            (
+                name.to_string(),
+                style.0.clone(),
+                derelict,
+                Meters3::from_engine(transform.translation()),
+            )
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "world features: ship {} must be live in the window its shot frames",
+                shot.id
+            )
+        });
+    assert_eq!(name, shot.name(), "world features: ship {} name", shot.id);
+    assert_eq!(
+        style.as_deref(),
+        Some(role_style_id(shot.role)),
+        "world features: ship {} style",
+        shot.id
+    );
+    assert_eq!(
+        derelict,
+        shot.condition == SectorShipConditionType::Derelict,
+        "world features: ship {} derelict marker",
+        shot.id
+    );
+    let caption = format!(
+        "live EntityId {}\nName \"{name}\"\nShipStyle {}  DerelictShipMarker {}\n\
+         manifest {} {} {} {} clearance {:.0} m\nlive {:.0} m from planned",
+        shot.id,
+        style.as_deref().unwrap_or("none"),
+        if derelict { "yes" } else { "no" },
+        shot.cell,
+        shot.civilization,
+        shot.role.label(),
+        shot.condition.label(),
+        shot.clearance.get(),
+        at.distance(shot.position).get(),
+    );
+    info!(
+        "world features: caption {}: {}",
+        shot.id,
+        caption.replace('\n', " | ")
+    );
+    let mut captions = world.query_filtered::<&mut Text, With<ShipShotCaption>>();
+    if let Some(mut text) = captions.iter_mut(world).next() {
+        text.0 = caption;
+        return;
+    }
+    world
+        .spawn((
+            Name::new("Ship Shot Caption"),
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(12.0),
+                left: Val::Px(12.0),
+                padding: UiRect::all(Val::Px(6.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                ShipShotCaption,
+                Text::new(caption),
+                TextFont {
+                    font_size: FontSize::Px(18.0),
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
+        });
 }
 
 /// Advance once the window around wherever the observer now stands has

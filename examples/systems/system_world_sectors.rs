@@ -450,7 +450,10 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .add()
         .step("arm the stream")
         .on_enter(|world: &mut World| {
-            let config = featured_world_config(world.resource::<LoadedSectionPacks>());
+            let config = featured_world_config(
+                world.resource::<LoadedSectionPacks>(),
+                world.resource::<GameStyles>(),
+            );
             world.insert_resource(config);
         })
         .until(sector_set_is(home))
@@ -514,7 +517,10 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
             let stats = *world.resource::<SectorJobStats>();
             let job = hand_in_work(world, REPLACED_JOB_CELL, REPLACED_READY_CELL);
             world.insert_resource(ReplacedWorld { roots, job, stats });
-            let config = featured_world_config(world.resource::<LoadedSectionPacks>());
+            let config = featured_world_config(
+                world.resource::<LoadedSectionPacks>(),
+                world.resource::<GameStyles>(),
+            );
             world.insert_resource(WorldConfig {
                 seed: REPLACEMENT_SEED,
                 ..config
@@ -696,7 +702,10 @@ fn report_empty_bootstrap(world: &mut World) {
 fn report_visit_order(world: &mut World) {
     let compared = assert_visit_order(&uniform_world_config(), SectorCoord::ORIGIN)
         + assert_visit_order(
-            &featured_world_config(world.resource::<LoadedSectionPacks>()),
+            &featured_world_config(
+                world.resource::<LoadedSectionPacks>(),
+                world.resource::<GameStyles>(),
+            ),
             FEATURE_HOME,
         );
 
@@ -795,7 +804,10 @@ fn assert_visit_order<G: SectorGenerator>(config: &WorldConfig<G>, centre: Secto
 /// generator was given.
 #[cfg(feature = "debug")]
 fn report_cluster_plan(world: &mut World) {
-    let config = featured_world_config(world.resource::<LoadedSectionPacks>());
+    let config = featured_world_config(
+        world.resource::<LoadedSectionPacks>(),
+        world.resource::<GameStyles>(),
+    );
 
     // One cluster, however many cells own its bodies. Built as id -> every
     // copy handed out, so a disagreement names the cluster rather than the
@@ -968,7 +980,10 @@ fn report_cluster_plan(world: &mut World) {
 /// cells. `nova_world` itself refuses only an overlap.
 #[cfg(feature = "debug")]
 fn report_clearance(world: &mut World) {
-    let config = featured_world_config(world.resource::<LoadedSectionPacks>());
+    let config = featured_world_config(
+        world.resource::<LoadedSectionPacks>(),
+        world.resource::<GameStyles>(),
+    );
     let half_edge = config.sector_edge.get() * 0.5;
     let described = describe_window(FEATURE_HOME, &config);
 
@@ -1530,7 +1545,10 @@ fn report_world_replacement(world: &mut World) {
     let baseline = replaced.stats;
     let old_job = replaced.job;
 
-    let old_config = featured_world_config(world.resource::<LoadedSectionPacks>());
+    let old_config = featured_world_config(
+        world.resource::<LoadedSectionPacks>(),
+        world.resource::<GameStyles>(),
+    );
     let new_config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
     assert_eq!(
         new_config.seed, REPLACEMENT_SEED,

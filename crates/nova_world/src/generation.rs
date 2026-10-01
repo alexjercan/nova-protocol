@@ -8,11 +8,11 @@
 //! held to the same rule: it gets a seed, an edge and a coordinate, and
 //! nothing else.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, fmt};
 
 use bevy::{log::info_span, math::Quat};
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::ShipInventoryStock;
+use nova_gameplay::prelude::{Fnv32, SeedStream, ShipInventoryStock};
 use nova_scenario::prelude::{
     is_asteroid_kind, is_valid_asteroid_mass, prepare_asteroid_geometry, prepare_planet,
     AsteroidKindId, PlanetConfig, PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign,
@@ -71,6 +71,126 @@ impl SectorShipConditionType {
     }
 }
 
+/// The chance a name has three syllables rather than two.
+const NAME_THREE_SYLLABLE_CHANCE: f32 = 0.5;
+
+/// The syllables a name is composed from. Content: a change renames every
+/// civilization in every world.
+const NAME_SYLLABLES: [&str; 24] = [
+    "an", "bel", "cor", "da", "el", "fen", "gar", "hal", "is", "jor", "ka", "lun", "mar", "nor",
+    "os", "pra", "quel", "ren", "sol", "tev", "ur", "vas", "wen", "zo",
+];
+
+/// A civilization's stable machine identity: the world seed and its signed
+/// lattice node.
+///
+/// Never a hash and never a name. Two nodes whose draw streams collide still
+/// have distinct identities, and two civilizations may share a display name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CivilizationId {
+    /// The world seed the civilization was drawn from.
+    pub world_seed: u32,
+    /// Its node on the civilization lattice.
+    pub node: [i32; 3],
+}
+
+impl CivilizationId {
+    /// The display name: two or three syllables, first letter capitalized.
+    ///
+    /// A pure function of the identity. Names repeat across a world, so a
+    /// name must not be used to find a civilization.
+    pub fn name(self) -> String {
+        let mut stream = self.stream(b"name");
+        let syllables = if stream.unit() < 1.0 - NAME_THREE_SYLLABLE_CHANCE {
+            2
+        } else {
+            3
+        };
+        // Three syllable draws every time, so the syllable count does not
+        // shift any later draw.
+        let drawn: [&str; 3] = std::array::from_fn(|_| {
+            let index = (stream.unit() * NAME_SYLLABLES.len() as f32) as usize;
+            NAME_SYLLABLES[index.min(NAME_SYLLABLES.len() - 1)]
+        });
+        let joined = drawn[..syllables].concat();
+        let mut letters = joined.chars();
+        letters.next().map_or_else(String::new, |first| {
+            first.to_uppercase().chain(letters).collect()
+        })
+    }
+
+    /// The draw stream for one aspect of this civilization: the FNV-1a 32
+    /// of the world seed, `civilization`, `aspect` and the node, each index
+    /// little-endian.
+    ///
+    /// Public so the generator that draws a civilization's centroid, status,
+    /// advancement and roles keys them the same way [`name`](Self::name)
+    /// is keyed. Each aspect has its own stream, so retuning one aspect
+    /// cannot move another: a new name inventory keeps every centroid and
+    /// status. A change to this keying moves every civilization in every
+    /// world.
+    pub fn stream(self, aspect: &[u8]) -> SeedStream {
+        SeedStream::new(
+            Fnv32::new()
+                .write(&self.world_seed.to_le_bytes())
+                .write(b"civilization")
+                .write(aspect)
+                .write(&self.node[0].to_le_bytes())
+                .write(&self.node[1].to_le_bytes())
+                .write(&self.node[2].to_le_bytes())
+                .finish(),
+        )
+    }
+}
+
+impl fmt::Display for CivilizationId {
+    /// `civ_<x>_<y>_<z>@<seed>`, a negative index written `n<abs>`.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "civ")?;
+        for index in self.node {
+            if index < 0 {
+                write!(formatter, "_n{}", index.unsigned_abs())?;
+            } else {
+                write!(formatter, "_{index}")?;
+            }
+        }
+        write!(formatter, "@{}", self.world_seed)
+    }
+}
+
+/// The four closed ship roles a civilization fields.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ShipRoleType {
+    /// Unarmed traffic.
+    Civilian,
+    /// Unarmed miners with cargo intake.
+    Industrial,
+    /// Rough, low-tier fighting ships.
+    Scavenger,
+    /// Equipped fighting ships.
+    Armored,
+}
+
+impl ShipRoleType {
+    /// Every role, in the order a role array holds them.
+    pub const ALL: [Self; 4] = [
+        Self::Civilian,
+        Self::Industrial,
+        Self::Scavenger,
+        Self::Armored,
+    ];
+
+    /// What a readout or a legend calls the role.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Civilian => "civilian",
+            Self::Industrial => "industrial",
+            Self::Scavenger => "scavenger",
+            Self::Armored => "armored",
+        }
+    }
+}
+
 /// One generated ship: a hull with nobody aboard and nobody's side.
 #[derive(Clone, Debug)]
 pub struct SectorShip {
@@ -88,6 +208,10 @@ pub struct SectorShip {
     pub design: ShipDesign,
     /// Whether it works or is a derelict.
     pub condition: SectorShipConditionType,
+    /// The civilization it belongs to, or belonged to as a derelict.
+    pub civilization: CivilizationId,
+    /// What it was built for. A derelict keeps its former role.
+    pub role: ShipRoleType,
     /// What its hold carries when it spawns. The spawn refuses stock past
     /// the hold its resolved design gives it.
     pub stock: ShipInventoryStock,
@@ -173,7 +297,13 @@ impl SectorDescription {
     /// values, not placement: they are printed exact, as the shortest text
     /// that reads back to the same f32, and `None` prints apart from every
     /// `Some`. Rounding them would call two different worlds the same one.
-    /// A ship's stock prints every stack and count.
+    /// A ship's stock prints every stack and count. Its civilization, role,
+    /// design integrity, design presentation and each section's prototype
+    /// patch print through `Debug`: field by field in declaration order, a
+    /// float as the shortest text that reads back to it, a non-finite float
+    /// as `NaN` or `inf`, apart from `None`. An asset handle prints its
+    /// runtime id, so a design that carries one compares equal only within
+    /// one run; generated designs carry none.
     pub fn canonical(&self) -> String {
         let point = |position: Meters3| {
             let p = position.get();
@@ -208,24 +338,29 @@ impl SectorDescription {
         }
         for ship in &self.ships {
             out.push_str(&format!(
-                "ship {} {} {} c{:.2} {} stock {:?}\n",
+                "ship {} {} {} c{:.2} {} {} {} stock {:?} integrity {:?} presentation {:?}\n",
                 ship.id,
                 point(ship.position),
                 canonical_rotation(ship.rotation),
                 ship.clearance.get(),
                 ship.condition.label(),
+                ship.civilization,
+                ship.role.label(),
                 ship.stock.stacks().collect::<Vec<_>>(),
+                ship.design.integrity,
+                ship.design.presentation,
             ));
             for section in &ship.design.sections {
                 let p = section.position;
                 out.push_str(&format!(
-                    "  section {} {} {:.3} {:.3} {:.3} {}\n",
+                    "  section {} {} {:.3} {:.3} {:.3} {} patch {:?}\n",
                     section.id,
                     section.source.prototype_id(),
                     p.x,
                     p.y,
                     p.z,
                     canonical_rotation(section.rotation),
+                    section.source.patch(),
                 ));
             }
         }

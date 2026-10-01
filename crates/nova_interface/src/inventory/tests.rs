@@ -1141,8 +1141,8 @@ mod generated_wreck {
     };
     use nova_world::{materialize_sector, prelude::*, ObserverBody};
     use nova_world_base::prelude::{
-        generate_wreck, wreck_stock, CivilizationId, ShipLayoutRequest, ShipPartFamilyType,
-        ShipPartPack, ShipPartSnapshot, ShipRoleType,
+        generate_wreck, wreck_stock, ShipLayoutRequest, ShipPartFamilyType, ShipPartPack,
+        ShipPartSnapshot,
     };
     use serde::Deserialize;
 
@@ -1239,19 +1239,17 @@ mod generated_wreck {
 
         // An armored wreck: its weapons spawn inactive, and it must still
         // not read as neutralized.
-        let wreck = generate_wreck(
-            &snapshot,
-            ShipLayoutRequest {
-                seed: 3,
-                civilization: CivilizationId {
-                    world_seed: 7,
-                    node: [0, 0, 0],
-                },
-                role: ShipRoleType::Armored,
-                advancement: 0.5,
+        let request = ShipLayoutRequest {
+            seed: 3,
+            civilization: CivilizationId {
+                world_seed: 7,
+                node: [0, 0, 0],
             },
-        )
-        .unwrap_or_else(|failure| panic!("{failure}"));
+            role: ShipRoleType::Armored,
+            advancement: 0.5,
+        };
+        let wreck =
+            generate_wreck(&snapshot, request).unwrap_or_else(|failure| panic!("{failure}"));
         let stock = wreck_stock(&snapshot, &wreck.design, 5).expect("a wreck's hull holds plates");
         let [(ItemType::HullPlate, drawn)] = stock.stacks().collect::<Vec<_>>()[..] else {
             panic!("a wreck carries one plate stack: {stock:?}");
@@ -1285,6 +1283,8 @@ mod generated_wreck {
                 clearance: wreck.clearance,
                 design: wreck.design.clone(),
                 condition: SectorShipConditionType::Derelict,
+                civilization: request.civilization,
+                role: request.role,
                 stock,
             }),
         };

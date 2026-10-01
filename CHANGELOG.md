@@ -164,6 +164,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Audio & Visuals
 
+- Open-world ships and wrecks wear the derived skin in their role's style:
+  civilian, industrial, salvage for scavengers, armoured for armored.
 - The base sky uses a new 1024 px cubemap with diffuse nebulae instead of the old point-star texture.
 
 ### Performance
@@ -216,6 +218,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `world_clusters` example streams five kinds of asteroid, planetoid and
   derelict groups that cross sector faces, drawn from three noise fields, with
   a field heatmap and seam markers.
+- New `system_open_world_identity` range checks on a pinned seed that a
+  generated ship's name shows in the HUD target inset and the Map panel, and
+  never on a map blip.
 - Capture loops write `<loop>.webm` with a stereo Opus track from the engine's
   per-voice mix and pan, PCM peak cut to -1 dBFS before Opus, plus a v1
   `<loop>.jsonl` SFX sidecar and its samples.

@@ -907,10 +907,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "no other scenario runs over an armed world or a sector root",
         ],
     ),
+    (
+        "system_open_world_identity",
+        &[
+            "the window streams one intact generated ship and one derelict",
+            "a picked ship shows its name in the panel and only its code on the blip",
+            "no map blip carries a generated ship's name",
+        ],
+    ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 446;
+const SYSTEMS_INVARIANTS: usize = 449;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

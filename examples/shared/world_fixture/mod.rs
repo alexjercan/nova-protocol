@@ -110,20 +110,23 @@ pub fn uniform_world_config() -> WorldConfig<UniformAsteroids> {
     }
 }
 
-/// The same seed, window and edge, filled by the base game's generator and
-/// pinned to the ship parts of `loaded`.
+/// The same seed, window and edge, filled by the base game's generator,
+/// pinned to the ship parts of `loaded` and checked against `styles`.
 ///
 /// Sharing the streaming dials with [`uniform_world_config`] is the point:
 /// what changes between two examples is what a cell CONTAINS, so a difference
 /// in how the window behaves cannot be blamed on a different window.
-pub fn featured_world_config(loaded: &LoadedSectionPacks) -> WorldConfig<NovaLayeredWorld> {
+pub fn featured_world_config(
+    loaded: &LoadedSectionPacks,
+    styles: &GameStyles,
+) -> WorldConfig<NovaLayeredWorld> {
     WorldConfig {
         seed: EXAMPLE_SEED,
         sector_edge: EXAMPLE_SECTOR_EDGE,
         active_radius: EXAMPLE_ACTIVE_RADIUS,
-        generator: NovaLayeredWorld::from_loaded(loaded).unwrap_or_else(|faults| {
+        generator: NovaLayeredWorld::from_loaded(loaded, styles).unwrap_or_else(|faults| {
             panic!(
-                "world fixture: the loaded catalog's ship parts do not arm:\n  {}",
+                "world fixture: the loaded catalog does not arm:\n  {}",
                 faults
                     .iter()
                     .map(ToString::to_string)
@@ -147,11 +150,14 @@ pub const FEATURE_HOME: SectorCoord = SectorCoord::ORIGIN;
 /// generator: asteroid-rich, rock-only, planet-heavy, derelict-only and
 /// low-rock groups on a global lattice, and one background rock at most per
 /// cell, all read off three environment fields. Its hulls are laid out from
-/// the ship parts of `loaded`.
-pub fn clustered_world_config(loaded: &LoadedSectionPacks) -> WorldConfig<ClusteredWorld> {
-    let world = NovaLayeredWorld::from_loaded(loaded).unwrap_or_else(|faults| {
+/// the ship parts of `loaded`, checked against `styles`.
+pub fn clustered_world_config(
+    loaded: &LoadedSectionPacks,
+    styles: &GameStyles,
+) -> WorldConfig<ClusteredWorld> {
+    let world = NovaLayeredWorld::from_loaded(loaded, styles).unwrap_or_else(|faults| {
         panic!(
-            "world fixture: the loaded catalog's ship parts do not arm:\n  {}",
+            "world fixture: the loaded catalog does not arm:\n  {}",
             faults
                 .iter()
                 .map(ToString::to_string)

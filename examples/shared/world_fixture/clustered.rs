@@ -463,6 +463,8 @@ impl CellPlan {
                     clearance: ship.clearance,
                     design: ship.design.clone(),
                     condition: ship.condition,
+                    civilization: ship.civilization,
+                    role: ship.role,
                     stock: ship.stock.clone(),
                 }),
                 ClusterBody::Hull { .. } => {
@@ -1053,14 +1055,17 @@ mod tests {
     /// The clustered config pinned to the base game's section catalog, as
     /// the merge registers it for a run with no mods.
     fn config() -> WorldConfig<ClusteredWorld> {
-        clustered_world_config(&LoadedSectionPacks {
-            packs: vec![LoadedSectionPack {
-                id: "nova_protocol".to_string(),
-                dependencies: Vec::new(),
-                sections: nova_authoring::generation::build_section_catalog(),
-            }],
-            digest: ContentCatalogDigest(0),
-        })
+        clustered_world_config(
+            &LoadedSectionPacks {
+                packs: vec![LoadedSectionPack {
+                    id: "nova_protocol".to_string(),
+                    dependencies: Vec::new(),
+                    sections: nova_authoring::generation::build_section_catalog(),
+                }],
+                digest: ContentCatalogDigest(0),
+            },
+            &GameStyles(nova_authoring::generation::build_styles()),
+        )
     }
 
     fn window_plans() -> BTreeMap<SectorCoord, CellPlan> {

@@ -42,20 +42,11 @@ use nova_ship::prelude::{
     FixtureDensity, FixtureOrientation, FixturePlacement, FixtureRegion, ShipStyleConfig,
     StyleFixtureConfig, StylePalette, SurfaceFinish,
 };
+use nova_world_base::prelude::{
+    ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID,
+};
 
 use super::assets::BaseContentAssets;
-
-/// The id the industrial look is named by.
-pub const INDUSTRIAL_STYLE_ID: &str = "industrial";
-
-/// The id the armoured look is named by.
-pub const ARMOURED_STYLE_ID: &str = "armoured";
-
-/// The id the civilian look is named by.
-pub const CIVILIAN_STYLE_ID: &str = "civilian";
-
-/// The id the salvage look is named by.
-pub const SALVAGE_STYLE_ID: &str = "salvage";
 
 /// Every built-in style, in stable generated-content order.
 ///

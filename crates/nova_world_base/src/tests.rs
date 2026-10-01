@@ -7,7 +7,7 @@ use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, ScenarioConfig, SectionSource, ShipDesign,
     ShipDesignSource, SpaceshipSectionConfig,
 };
-use nova_ship::prelude::GameSections;
+use nova_ship::prelude::{GameSections, ShipStyleConfig};
 
 use super::*;
 
@@ -34,9 +34,23 @@ fn loaded() -> LoadedSectionPacks {
     loaded_with(1)
 }
 
-/// A generator pinned to [`loaded`].
+/// One style for each role's [`role_style_id`].
+fn styles() -> GameStyles {
+    GameStyles(
+        ShipRoleType::ALL
+            .into_iter()
+            .map(|role| ShipStyleConfig {
+                id: role_style_id(role).to_string(),
+                ..default()
+            })
+            .collect(),
+    )
+}
+
+/// A generator pinned to [`loaded`] and checked against [`styles`].
 pub(crate) fn fixture_world() -> NovaLayeredWorld {
-    NovaLayeredWorld::from_loaded(&loaded()).expect("the fixture packs build a snapshot")
+    NovaLayeredWorld::from_loaded(&loaded(), &styles())
+        .expect("the fixture packs build a snapshot and every role has a style")
 }
 
 fn scenario(role: ScenarioRole) -> CurrentScenario {
@@ -52,6 +66,7 @@ fn world(role: ScenarioRole) -> World {
     world.insert_resource(scenario(role));
     world.insert_resource(OpenWorldSession { seed: SEED });
     world.insert_resource(loaded());
+    world.insert_resource(styles());
     world
 }
 
@@ -297,13 +312,25 @@ fn an_open_world_with_no_loaded_catalog_is_refused() {
 }
 
 #[test]
-#[should_panic(expected = "do not build a snapshot")]
+#[should_panic(expected = "does not arm the open world")]
 fn an_open_world_whose_ship_parts_do_not_build_is_refused() {
     let mut world = world(ScenarioRole::OpenWorld);
     world.insert_resource(LoadedSectionPacks {
         packs: Vec::new(),
         digest: ContentCatalogDigest(1),
     });
+    world.spawn(PlayerSpaceshipMarker);
+
+    sync(&mut world);
+}
+
+#[test]
+#[should_panic(expected = "scavenger ships wear style 'salvage', and no loaded content authors it")]
+fn an_open_world_missing_a_role_style_is_refused() {
+    let mut world = world(ScenarioRole::OpenWorld);
+    world
+        .resource_mut::<GameStyles>()
+        .retain(|style| style.id != SALVAGE_STYLE_ID);
     world.spawn(PlayerSpaceshipMarker);
 
     sync(&mut world);
