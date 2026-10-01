@@ -22,12 +22,12 @@ use nova_gameplay::{asset_ref::AssetRef, prelude::*};
 
 use crate::prelude::*;
 
-/// The `mining_section` spawners, its face helper, config, fault, markers
-/// and `MiningSectionPlugin` with `MiningSectionSystems`.
+/// The `mining_section` spawners, its face helper, config, fault, markers,
+/// door event and `MiningSectionPlugin` with `MiningSectionSystems`.
 pub mod prelude {
     pub use super::{
-        mining_emitter_face, mining_section, preview_mining_section, MiningEmitter,
-        MiningSectionConfig, MiningSectionConfigFault, MiningSectionConfigHelper,
+        mining_emitter_face, mining_section, preview_mining_section, MiningDoorsMoved,
+        MiningEmitter, MiningSectionConfig, MiningSectionConfigFault, MiningSectionConfigHelper,
         MiningSectionMarker, MiningSectionPlugin, MiningSectionSystems,
     };
 }
@@ -48,6 +48,16 @@ pub struct MiningSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh_transform: Option<RenderMeshTransform>,
+    /// Played at the beam's hit on every pulse that passes its checks. A
+    /// refused pulse plays nothing.
+    #[reflect(ignore)]
+    pub pulse_sound: AssetRef<AudioSource>,
+    /// Played at the section when the doors start to part.
+    #[reflect(ignore)]
+    pub door_open_sound: AssetRef<AudioSource>,
+    /// Played at the section when the doors start to shut.
+    #[reflect(ignore)]
+    pub door_close_sound: AssetRef<AudioSource>,
     /// How far the beam reaches from the emitter face along its local -Z.
     pub reach: Meters,
     /// Game seconds between pulses of a fully deployed emitter.
@@ -127,6 +137,17 @@ impl MiningEmitter {
     }
 }
 
+/// An emitter's doors were told to move the other way: the change of their
+/// target, not of their progress. The spawn snap and a held key report
+/// nothing.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct MiningDoorsMoved {
+    /// The emitter whose doors moved.
+    pub entity: Entity,
+    /// True when the doors are parting, false when they are shutting.
+    pub opening: bool,
+}
+
 #[derive(Component, Clone, Debug, Deref, Reflect)]
 struct MiningSectionRenderMesh(#[reflect(ignore)] AssetRef<WorldAsset>);
 
@@ -179,38 +200,52 @@ fn arm_mining_emitters(mut q_emitters: Query<&mut SectionAnimations, Added<Minin
 }
 
 /// Steer `cue` toward `target` only when it is headed elsewhere, so a settled
-/// rig stays out of change detection.
-fn steer(animations: &mut Mut<SectionAnimations>, cue: SectionAnimationCue, target: f32) {
-    if animations.cue_target(cue).is_some_and(|was| was != target) {
+/// rig stays out of change detection. True when it redirected the cue.
+fn steer(animations: &mut Mut<SectionAnimations>, cue: SectionAnimationCue, target: f32) -> bool {
+    let redirect = animations.cue_target(cue).is_some_and(|was| was != target);
+    if redirect {
         animations.set_cue(cue, target);
     }
+    redirect
 }
 
 /// Sequence every live emitter from its ship's key: doors then tip out while
 /// held, tip then doors in once released. An absent track reads as already
-/// at its end, as the turret stow machine reads one.
+/// at its end, as the turret stow machine reads one. Each door redirect
+/// reports [`MiningDoorsMoved`].
 fn drive_mining_emitters(
     mut q_emitters: Query<
-        (&ChildOf, &mut MiningEmitter, &mut SectionAnimations),
+        (Entity, &ChildOf, &mut MiningEmitter, &mut SectionAnimations),
         (With<MiningSectionMarker>, Without<SectionInactiveMarker>),
     >,
     q_held: Query<(), With<MiningHeld>>,
+    mut commands: Commands,
 ) {
-    for (&ChildOf(ship), mut emitter, mut animations) in &mut q_emitters {
+    for (entity, &ChildOf(ship), mut emitter, mut animations) in &mut q_emitters {
         let held = q_held.contains(ship);
         let doors = animations.cue_progress(SectionAnimationCue::StowDoors);
         let tip = animations.cue_progress(SectionAnimationCue::StowLift);
         let doors_open = doors.is_none_or(|doors| doors == 0.0);
         let tip_out = tip.is_none_or(|tip| tip == 0.0);
         if held {
-            steer(&mut animations, SectionAnimationCue::StowDoors, 0.0);
+            if steer(&mut animations, SectionAnimationCue::StowDoors, 0.0) {
+                commands.trigger(MiningDoorsMoved {
+                    entity,
+                    opening: true,
+                });
+            }
             if doors_open {
                 steer(&mut animations, SectionAnimationCue::StowLift, 0.0);
             }
         } else {
             steer(&mut animations, SectionAnimationCue::StowLift, 1.0);
-            if tip.is_none_or(|tip| tip == 1.0) {
-                steer(&mut animations, SectionAnimationCue::StowDoors, 1.0);
+            if tip.is_none_or(|tip| tip == 1.0)
+                && steer(&mut animations, SectionAnimationCue::StowDoors, 1.0)
+            {
+                commands.trigger(MiningDoorsMoved {
+                    entity,
+                    opening: false,
+                });
             }
         }
         let deployed = held && doors_open && tip_out;

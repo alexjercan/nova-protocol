@@ -17,7 +17,12 @@
 //! pulse changes nothing.
 //!
 //! While a deployed emitter's checks pass, [`MiningBeamHit`] holds where its
-//! beam meets the rock, and a rendered app draws the beam to that point.
+//! beam meets the rock, and a rendered app draws the beam to that point. Every
+//! pulse that passes its checks plays the section's authored `pulse_sound` at
+//! the hit, and a rendered app flares the beam and throws a fixed burst of
+//! sparks off the hit. A refused pulse is silent and draws nothing. The beam,
+//! its flare and the sparks are art: they read the pulse and the hit and never
+//! change what the pulse cut.
 //!
 //! An untouched rock has no field. The first pulse asks for one with
 //! [`AsteroidFieldSeedRequest`] and takes nothing; later pulses wait while
@@ -37,12 +42,22 @@
 //! to its drop, and a sector retirement or scenario unload discards them with
 //! it; a retired rock comes back pristine.
 
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    f32::consts::TAU,
+};
 
 use avian3d::prelude::{
     AngularVelocity, Collider, LinearVelocity, SpatialQuery, SpatialQueryFilter,
 };
-use bevy::{light::NotShadowCaster, prelude::*};
+use bevy::{
+    light::NotShadowCaster,
+    pbr::{Material, MaterialPlugin},
+    prelude::*,
+    render::render_resource::AsBindGroup,
+    shader::ShaderRef,
+};
+use bevy_hanabi::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
@@ -81,8 +96,52 @@ const MINED_CANISTER_OFFSET: f32 = 1.0;
 /// on top of the rock's own motion at the birth point.
 const MINED_CANISTER_SPEED: f32 = 0.2;
 
-/// The drawn beam's radius, in engine units: about the emitter lens. Art only.
-const MINING_BEAM_RADIUS: f32 = 0.04;
+/// The drawn beam's radius, in engine units: the halo's edge, about twice the
+/// emitter lens. The shader fades the halo to nothing there. Art only.
+const MINING_BEAM_RADIUS: f32 = 0.09;
+
+/// The beam's halo and core colours, HDR so the camera's bloom takes them.
+const MINING_BEAM_GLOW: LinearRgba = LinearRgba::rgb(0.2, 1.9, 1.0);
+const MINING_BEAM_CORE: LinearRgba = LinearRgba::rgb(2.4, 6.0, 4.0);
+
+/// Game seconds a pulse's flare takes to fade, which is also how long its
+/// slug takes to run from the emitter face to the rock.
+const MINING_BEAM_FLASH_SECONDS: f32 = 0.35;
+
+/// Sparks one pulse throws off the hit.
+const MINING_SPARK_COUNT: f32 = 14.0;
+
+/// Sparks one emitter's effect holds in flight. Over twice what one pulse
+/// throws, so a new pulse is not starved by the last one's tail; a pulse rate
+/// fast enough to fill it drops sparks, never grows the pool.
+const MINING_SPARK_CAPACITY: u32 = 32;
+
+/// The throw: a cone about the way back to the emitter, in radians off its
+/// axis, and a speed band in engine units per second. The hit is on the floor
+/// of the crater earlier pulses cut, so the cone is narrow and the throw hard
+/// enough to carry a spark out of the bore.
+const MINING_SPARK_CONE: f32 = 0.45;
+const MINING_SPARK_SPEED_MIN: f32 = 5.0;
+const MINING_SPARK_SPEED_MAX: f32 = 10.0;
+
+/// How fast a spark slows, per second of its speed.
+const MINING_SPARK_DRAG: f32 = 3.5;
+
+/// A spark's life in game seconds, drawn per spark.
+const MINING_SPARK_LIFETIME_MIN: f32 = 0.3;
+const MINING_SPARK_LIFETIME_MAX: f32 = 0.6;
+
+/// A spark's streak at birth, along and across its flight, in engine units.
+/// It shrinks to nothing over its life.
+const MINING_SPARK_LENGTH: f32 = 0.35;
+const MINING_SPARK_WIDTH: f32 = 0.04;
+
+/// The spark effect's per-burst properties: the way back to the emitter and
+/// two axes across it, all in world space. The effect simulates in global
+/// space, which carries the emitter's translation and not its rotation.
+const SPARK_OUTWARD_PROPERTY: &str = "outward";
+const SPARK_RIGHT_PROPERTY: &str = "right";
+const SPARK_UP_PROPERTY: &str = "up";
 
 /// The ore a pulse into an asteroid of `kind` yields, or `None` for a kind
 /// that holds none, such as `plain`, the unshaded control rock.
@@ -190,9 +249,56 @@ struct MiningPulseClock(f32);
 #[derive(Component, Clone, Copy, Debug)]
 struct MinedOreDrop;
 
-/// Marks the drawn beam, a child of its mining section.
+/// The drawn beam, a child of its mining section.
 #[derive(Component, Clone, Copy, Debug)]
-struct MiningBeamLaser;
+struct MiningBeamLaser {
+    /// 1 as a pulse lands, falling to 0 over [`MINING_BEAM_FLASH_SECONDS`].
+    flash: f32,
+}
+
+/// Marks the spark emitter a rendered app gives each live mining section, a
+/// child of the section.
+#[derive(Component, Clone, Copy, Debug)]
+struct MiningBeamSparks;
+
+/// The drawn beam's look: an unlit, additive tube (`mining_beam.wgsl`). One
+/// per beam, since its length and flare are the beam's own.
+#[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
+struct MiningBeamMaterial {
+    /// The halo's colour.
+    #[uniform(0)]
+    glow: LinearRgba,
+    /// The core's colour.
+    #[uniform(0)]
+    core: LinearRgba,
+    /// The beam's direction, face to hit, in world space.
+    #[uniform(0)]
+    axis: Vec3,
+    /// The beam's length in engine units.
+    #[uniform(0)]
+    length: f32,
+    /// The beam's [`MiningBeamLaser::flash`].
+    #[uniform(0)]
+    flash: f32,
+}
+
+impl Material for MiningBeamMaterial {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/mining_beam.wgsl".into()
+    }
+
+    fn alpha_mode(&self) -> bevy::prelude::AlphaMode {
+        bevy::prelude::AlphaMode::Add
+    }
+
+    fn enable_prepass() -> bool {
+        false
+    }
+
+    fn enable_shadows() -> bool {
+        false
+    }
+}
 
 /// The queries the pulse reads a locked rock through.
 type RockQuery<'w, 's> =
@@ -451,56 +557,148 @@ fn carve(
     corners
 }
 
-/// Give every new live emitter its drawn beam, hidden.
+/// Give every new live emitter its drawn beam, hidden, and its idle spark
+/// emitter. An app with no particle effects gets the beam alone.
 fn insert_mining_beam_laser(
     add: On<Add, MiningEmitter>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut art: Local<Option<(Handle<Mesh>, Handle<StandardMaterial>)>>,
+    mut materials: ResMut<Assets<MiningBeamMaterial>>,
+    effects: Option<ResMut<Assets<EffectAsset>>>,
+    mut mesh: Local<Option<Handle<Mesh>>>,
+    mut sparks: Local<Option<Handle<EffectAsset>>>,
 ) {
-    let (mesh, material) = art
+    let mesh = mesh
         .get_or_insert_with(|| {
-            (
-                meshes.add(Cylinder::new(MINING_BEAM_RADIUS, 1.0)),
-                materials.add(StandardMaterial {
-                    base_color: Color::srgb(0.15, 0.85, 0.5),
-                    emissive: LinearRgba::rgb(0.6, 3.4, 2.0),
-                    unlit: true,
-                    ..default()
-                }),
+            meshes.add(
+                Cylinder::new(MINING_BEAM_RADIUS, 1.0)
+                    .mesh()
+                    .resolution(24)
+                    .without_caps(),
             )
         })
         .clone();
     commands.spawn((
         Name::new("Mining Beam"),
-        MiningBeamLaser,
+        MiningBeamLaser { flash: 0.0 },
         Mesh3d(mesh),
-        MeshMaterial3d(material),
+        MeshMaterial3d(materials.add(MiningBeamMaterial {
+            glow: MINING_BEAM_GLOW,
+            core: MINING_BEAM_CORE,
+            axis: Vec3::Y,
+            length: 1.0,
+            flash: 0.0,
+        })),
         NotShadowCaster,
         Transform::default(),
         Visibility::Hidden,
         ChildOf(add.entity),
     ));
+    let Some(mut effects) = effects else {
+        return;
+    };
+    let effect = sparks
+        .get_or_insert_with(|| effects.add(build_spark_effect()))
+        .clone();
+    commands.spawn((
+        Name::new("Mining Beam Sparks"),
+        MiningBeamSparks,
+        ParticleEffect::new(effect),
+        EffectProperties::default(),
+        EffectSpawner::new(&idle_spark_spawner()),
+        Transform::default(),
+        ChildOf(add.entity),
+    ));
 }
 
-/// Stretch each drawn beam from its emitter face to its [`MiningBeamHit`], or
-/// hide it when the section has none.
+/// The idle spawner every spark emitter is minted with: one burst, held until
+/// a pulse resets it.
+fn idle_spark_spawner() -> SpawnerSettings {
+    SpawnerSettings::once(MINING_SPARK_COUNT.into()).with_emit_on_start(false)
+}
+
+/// The spark graph: a cone of short, hot streaks thrown back off the hit
+/// toward the emitter, slowing, shrinking and cooling to nothing.
+fn build_spark_effect() -> EffectAsset {
+    let writer = ExprWriter::new();
+
+    let outward = writer.prop(writer.add_property(SPARK_OUTWARD_PROPERTY, Vec3::Y.into()));
+    let right = writer.prop(writer.add_property(SPARK_RIGHT_PROPERTY, Vec3::X.into()));
+    let up = writer.prop(writer.add_property(SPARK_UP_PROPERTY, Vec3::Z.into()));
+
+    let turn = writer.rand(ScalarType::Float) * writer.lit(TAU);
+    let lean = writer.rand(ScalarType::Float) * writer.lit(MINING_SPARK_CONE);
+    let sideways = (right * turn.clone().cos() + up * turn.sin()) * lean.clone().sin();
+    let direction = outward * lean.cos() + sideways;
+    let speed = writer
+        .lit(MINING_SPARK_SPEED_MIN)
+        .uniform(writer.lit(MINING_SPARK_SPEED_MAX));
+    let lifetime = writer
+        .lit(MINING_SPARK_LIFETIME_MIN)
+        .uniform(writer.lit(MINING_SPARK_LIFETIME_MAX));
+
+    let init_pos = SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
+    let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, (direction * speed).expr());
+    let init_age = SetAttributeModifier::new(Attribute::AGE, writer.lit(0.).expr());
+    let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime.expr());
+    let drag = LinearDragModifier::new(writer.lit(MINING_SPARK_DRAG).expr());
+
+    // White-hot at the hit, the beam's green as it flies, gone at the end.
+    let mut color = bevy_hanabi::Gradient::new();
+    color.add_key(0.0, Vec4::new(6.0, 9.0, 6.5, 1.0));
+    color.add_key(0.3, Vec4::new(1.0, 4.2, 2.2, 1.0));
+    color.add_key(1.0, Vec4::new(0.0, 0.6, 0.3, 0.0));
+    let mut size = bevy_hanabi::Gradient::new();
+    size.add_key(0.0, Vec3::new(MINING_SPARK_LENGTH, MINING_SPARK_WIDTH, 1.0));
+    size.add_key(1.0, Vec3::new(0.0, 0.0, 1.0));
+
+    EffectAsset::new(MINING_SPARK_CAPACITY, idle_spark_spawner(), writer.finish())
+        .with_name("mining_beam_sparks")
+        .with_simulation_space(SimulationSpace::Global)
+        .with_alpha_mode(bevy_hanabi::AlphaMode::Add)
+        .init(init_pos)
+        .init(init_vel)
+        .init(init_age)
+        .init(init_lifetime)
+        .update(drag)
+        .render(OrientModifier::new(OrientMode::AlongVelocity))
+        .render(ColorOverLifetimeModifier {
+            gradient: color,
+            blend: ColorBlendMode::default(),
+            mask: ColorBlendMask::default(),
+        })
+        .render(SizeOverLifetimeModifier {
+            gradient: size,
+            screen_space_size: false,
+        })
+}
+
+/// Stretch each drawn beam from its emitter face to its [`MiningBeamHit`] and
+/// fade its flare, or hide it when the section has none.
 fn draw_mining_beams(
-    mut q_lasers: Query<(&ChildOf, &mut Transform, &mut Visibility), With<MiningBeamLaser>>,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<MiningBeamMaterial>>,
+    mut q_lasers: Query<(
+        &ChildOf,
+        &mut MiningBeamLaser,
+        &MeshMaterial3d<MiningBeamMaterial>,
+        &mut Transform,
+        &mut Visibility,
+    )>,
     q_sections: Query<(&GlobalTransform, &SectionCollider, Option<&MiningBeamHit>)>,
 ) {
-    for (&ChildOf(section), mut transform, mut visibility) in &mut q_lasers {
+    for (&ChildOf(section), mut laser, material, mut transform, mut visibility) in &mut q_lasers {
         let Ok((frame, collider, hit)) = q_sections.get(section) else {
             continue;
         };
-        let Some(hit) = hit else {
-            visibility.set_if_neq(Visibility::Hidden);
-            continue;
-        };
         let (face, _) = mining_emitter_face(Vec3::ZERO, Quat::IDENTITY, *collider);
-        let target = frame.affine().inverse().transform_point3(hit.at);
-        let Some(direction) = (target - face).try_normalize() else {
+        let Some((target, direction)) = hit.and_then(|hit| {
+            let target = frame.affine().inverse().transform_point3(hit.at);
+            (target - face)
+                .try_normalize()
+                .map(|direction| (target, direction))
+        }) else {
+            laser.flash = 0.0;
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         };
@@ -511,7 +709,94 @@ fn draw_mining_beams(
             scale: Vec3::new(1.0, length, 1.0),
         };
         visibility.set_if_neq(Visibility::Inherited);
+        laser.flash = (laser.flash - time.delta_secs() / MINING_BEAM_FLASH_SECONDS).max(0.0);
+        let axis = frame.rotation() * direction;
+        // Written only on a change, so a steady beam re-uploads nothing.
+        let now = (axis, length, laser.flash);
+        let drawn = materials
+            .get(&material.0)
+            .map(|drawn| (drawn.axis, drawn.length, drawn.flash));
+        if drawn != Some(now) {
+            if let Some(mut drawn) = materials.get_mut(&material.0) {
+                (drawn.axis, drawn.length, drawn.flash) = now;
+            }
+        }
     }
+}
+
+/// Flare the drawn beam and throw a burst of sparks off the hit, on every
+/// pulse that passes its checks. A tier with particles off throws no sparks.
+fn flash_mining_beam(
+    pulse: On<MiningPulse>,
+    tier: Option<Res<GraphicsBudget>>,
+    q_sections: Query<(
+        &GlobalTransform,
+        &SectionCollider,
+        &MiningBeamHit,
+        &Children,
+    )>,
+    mut q_lasers: Query<&mut MiningBeamLaser>,
+    mut q_sparks: Query<
+        (&mut Transform, &mut EffectProperties, &mut EffectSpawner),
+        With<MiningBeamSparks>,
+    >,
+) {
+    if pulse.outcome.is_err() {
+        return;
+    }
+    let Ok((frame, collider, hit, children)) = q_sections.get(pulse.entity) else {
+        return;
+    };
+    let sparks = tier.as_deref().is_none_or(|tier| tier.particles);
+    let (_, rotation, position) = frame.to_scale_rotation_translation();
+    let (face, _) = mining_emitter_face(position, rotation, *collider);
+    let outward = (face - hit.at).normalize_or(Vec3::Y);
+    let (right, up) = outward.any_orthonormal_pair();
+    let local_hit = frame.affine().inverse().transform_point3(hit.at);
+    for child in children.iter() {
+        if let Ok(mut laser) = q_lasers.get_mut(child) {
+            laser.flash = 1.0;
+        }
+        if !sparks {
+            continue;
+        }
+        if let Ok((mut transform, mut properties, mut spawner)) = q_sparks.get_mut(child) {
+            transform.translation = local_hit;
+            properties.set(SPARK_OUTWARD_PROPERTY, outward.into());
+            properties.set(SPARK_RIGHT_PROPERTY, right.into());
+            properties.set(SPARK_UP_PROPERTY, up.into());
+            spawner.reset();
+        }
+    }
+}
+
+/// Play the section's pulse sound at its hit, on every pulse that passes its
+/// checks. On the player's own ship it is heard through the hull; on any
+/// other, from out there. A refused pulse plays nothing.
+fn play_mining_pulse_sfx(
+    pulse: On<MiningPulse>,
+    asset_server: Res<AssetServer>,
+    q_sections: Query<(&MiningSectionConfigHelper, &ChildOf, &MiningBeamHit)>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    if pulse.outcome.is_err() {
+        return;
+    }
+    let Ok((config, &ChildOf(ship), hit)) = q_sections.get(pulse.entity) else {
+        return;
+    };
+    let route = if q_player.contains(ship) {
+        AudioRoute::Hull
+    } else {
+        AudioRoute::Exterior
+    };
+    commands.play_sfx_at(
+        config.pulse_sound.resolve(&asset_server),
+        route,
+        MINING_PULSE_VOLUME,
+        hit.at,
+    );
 }
 
 /// Turn the ore a rock owes into queued canisters once its carve is drawn and
@@ -682,11 +967,12 @@ fn check_mined_canister_mesh(
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MiningSystems;
 
-/// Adds the mining sections' beams, the ore release and the canister ejector.
+/// Adds the mining sections' beams, their pulse sound, the ore release and
+/// the canister ejector.
 #[derive(Default, Clone, Debug)]
 pub struct MiningPlugin {
-    /// Whether the beam is drawn and the mined canister model is loaded and
-    /// checked (false on headless rigs, which draw neither).
+    /// Whether the beam and its sparks are drawn and the mined canister model
+    /// is loaded and checked (false on headless rigs, which draw none of it).
     pub render: bool,
 }
 
@@ -695,6 +981,8 @@ impl Plugin for MiningPlugin {
         trace!("MiningPlugin: build");
 
         app.add_observer(release_mined_ore);
+        // Audio, not render: registered regardless of the render flag.
+        app.add_observer(play_mining_pulse_sfx);
         app.configure_sets(Update, MiningSystems.after(MiningSectionSystems));
         app.add_systems(
             Update,
@@ -703,7 +991,9 @@ impl Plugin for MiningPlugin {
                 .in_set(MiningSystems),
         );
         if self.render {
+            app.add_plugins(MaterialPlugin::<MiningBeamMaterial>::default());
             app.add_observer(insert_mining_beam_laser);
+            app.add_observer(flash_mining_beam);
             app.add_systems(
                 Update,
                 (
@@ -755,6 +1045,11 @@ mod tests {
     #[derive(Resource, Default)]
     struct Remeshes(u32);
 
+    /// Every sound played, in order: its route, whether it was placed at a
+    /// live beam hit, and the path it loads.
+    #[derive(Resource, Default)]
+    struct Played(Vec<(AudioRoute, bool, Option<String>)>);
+
     fn mining_app() -> App {
         let mut app = unfinished_integrity_physics_app();
         app.add_plugins((
@@ -768,9 +1063,23 @@ mod tests {
         app.init_resource::<GameObjectives>();
         app.init_resource::<Pulses>();
         app.init_resource::<Remeshes>();
+        app.init_resource::<Played>();
+        app.init_asset::<AudioSource>();
         app.add_observer(|pulse: On<MiningPulse>, mut pulses: ResMut<Pulses>| {
             pulses.0.push((pulse.entity, pulse.outcome));
         });
+        app.add_observer(
+            |sfx: On<PlaySfx>,
+             server: Res<AssetServer>,
+             q_hits: Query<&MiningBeamHit>,
+             mut played: ResMut<Played>| {
+                let at_hit = q_hits.iter().any(|hit| sfx.source == SfxSource::At(hit.at));
+                let path = server
+                    .get_path(sfx.handle.id())
+                    .map(|path| path.to_string());
+                played.0.push((sfx.route, at_hit, path));
+            },
+        );
         app.add_observer(|_: On<AsteroidRemeshed>, mut remeshes: ResMut<Remeshes>| {
             remeshes.0 += 1;
         });
@@ -821,6 +1130,9 @@ mod tests {
         MiningSectionConfig {
             render_mesh: AssetRef::default(),
             render_mesh_transform: None,
+            pulse_sound: AssetRef::from("base/sounds/mining_pulse.wav"),
+            door_open_sound: AssetRef::from("base/sounds/mining_door_open.wav"),
+            door_close_sound: AssetRef::from("base/sounds/mining_door_close.wav"),
             reach: Meters(100.0),
             pulse_interval_seconds: interval,
             carve_radius_cells: 1.5,
@@ -1036,6 +1348,38 @@ mod tests {
         }
         assert_eq!(app.world().resource::<Pulses>().0.len(), before);
         assert!(app.world().get::<MiningBeamHit>(aimed).is_none());
+    }
+
+    /// A held ship's emitters play their authored pulse sound once for every
+    /// pulse that passes its checks, at the beam's hit and through the hull of
+    /// the player's own ship. A refused pulse plays nothing: the turned
+    /// emitter refuses every pulse.
+    #[test]
+    fn only_a_pulse_that_passes_its_checks_plays_the_pulse_sound() {
+        let mut app = mining_app();
+        let (root, node) = spawn_rock(&mut app, KIND_ROCK);
+        let ship = spawn_player(&mut app, root, node, 5.0);
+        spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
+        spawn_emitter(&mut app, ship, Vec3::Y, std::f32::consts::PI, 0.5);
+        app.world_mut().entity_mut(ship).insert(MiningHeld);
+
+        // Three game seconds and a little: four pulses from the aimed
+        // emitter and seven from the turned one.
+        for _ in 0..185 {
+            app.update();
+        }
+        let pulses = &app.world().resource::<Pulses>().0;
+        let passed = pulses.iter().filter(|(_, outcome)| outcome.is_ok()).count();
+        let refused = pulses.len() - passed;
+        assert!(passed >= 2, "{pulses:?}");
+        assert!(refused >= 1, "{pulses:?}");
+        let played = &app.world().resource::<Played>().0;
+        assert_eq!(played.len(), passed, "{played:?}");
+        for (route, at_hit, path) in played {
+            assert_eq!(*route, AudioRoute::Hull);
+            assert!(*at_hit, "a pulse sound was not placed at the beam hit");
+            assert_eq!(path.as_deref(), Some("base/sounds/mining_pulse.wav"));
+        }
     }
 
     /// A weapon's crater remeshes the rock like a pulse does, and pays

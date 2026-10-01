@@ -45,9 +45,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `block_line_warship` Line Warship: six PDCs on the trigger, a bow railgun
   on R, two torpedo bays on F, a collar per shoulder, a dorsal cargo intake and
   a bow mining beam on V.
-- New `mining_beam_section`: hold V with a rock travel-locked and each deployed
-  emitter within 100 m cuts it where its beam hits, once a second. The ore
-  leaves the rock as canisters.
+- New `mining_beam_section`: hold V near a travel-locked rock and each deployed
+  emitter within 100 m cuts it once a second with a glowing beam, sparks and a
+  pulse sound. Ore leaves as canisters.
 - New `cargo_intake_section`: its door opens for a canister within 40 m and
   takes one under 5 m/s whole, never while it touches the ship or moves away,
   if it fits and has room.
@@ -84,9 +84,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `CargoIntake` section kind with required door, eject and take sounds,
   `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures,
   speeds and a missing door track.
-- New `Mining` section kind with `reach`, `pulse_interval_seconds`,
-  `carve_radius_cells` and `StowDoors` and `StowLift` tracks. Lint and load
-  reject bad stats, collider or tracks; invalid live mods end the run.
+- New `Mining` section kind: pulse and door sounds, `reach`,
+  `pulse_interval_seconds`, `carve_radius_cells`, stow tracks. Lint and load
+  reject bad stats, collider or tracks; bad live mods end the run.
 - **(breaking)** Spaceships require `lootable: true` or `false`; a ship without
   it fails lint and load. A docked player may Take from a `lootable: true`
   ship that was never neutralized.

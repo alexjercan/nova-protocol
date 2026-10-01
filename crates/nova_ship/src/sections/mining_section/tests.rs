@@ -23,6 +23,9 @@ fn config() -> MiningSectionConfig {
     MiningSectionConfig {
         render_mesh: AssetRef::default(),
         render_mesh_transform: None,
+        pulse_sound: AssetRef::from("pulse.wav"),
+        door_open_sound: AssetRef::from("door_open.wav"),
+        door_close_sound: AssetRef::from("door_close.wav"),
         reach: Meters(100.0),
         pulse_interval_seconds: 1.0,
         carve_radius_cells: 1.5,
@@ -138,6 +141,42 @@ fn an_emitter_opens_doors_before_the_tip_and_retracts_in_reverse() {
     }
     let last = stow.last().unwrap();
     assert_eq!((last.doors, last.tip), (1.0, 1.0));
+}
+
+/// The door turns an emitter reported, as their `opening` flags.
+#[derive(Resource, Default)]
+struct DoorTurns(Vec<bool>);
+
+/// The spawn snap and an idle emitter report nothing. A press reports one
+/// opening however long the key stays held, and a release while the doors
+/// are still parting reports one closing.
+#[test]
+fn an_emitter_reports_a_door_turn_only_when_the_door_target_changes() {
+    let mut app = emitter_app();
+    app.init_resource::<DoorTurns>();
+    app.add_observer(
+        |moved: On<MiningDoorsMoved>, mut turns: ResMut<DoorTurns>| {
+            turns.0.push(moved.opening);
+        },
+    );
+    let ship = app.world_mut().spawn_empty().id();
+    let emitter = app
+        .world_mut()
+        .spawn((mining_section(config()), ChildOf(ship), tracks()))
+        .id();
+
+    run(&mut app, emitter, 10);
+    assert_eq!(app.world().resource::<DoorTurns>().0, Vec::<bool>::new());
+
+    app.world_mut().entity_mut(ship).insert(MiningHeld);
+    let parting = run(&mut app, emitter, 3);
+    assert_eq!(app.world().resource::<DoorTurns>().0, vec![true]);
+    let doors = parting.last().unwrap().doors;
+    assert!(doors > 0.0 && doors < 1.0, "{parting:?}");
+
+    app.world_mut().entity_mut(ship).remove::<MiningHeld>();
+    run(&mut app, emitter, 10);
+    assert_eq!(app.world().resource::<DoorTurns>().0, vec![true, false]);
 }
 
 /// A stat that is not finite and positive is refused by name.

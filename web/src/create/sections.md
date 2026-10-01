@@ -1123,6 +1123,9 @@ the railgun.
 ```ron
 kind: Mining((
     render_mesh: "dep://base/gltf/mining_beam_compact.glb#Scene0",
+    pulse_sound: "self://sounds/mining_pulse.wav",
+    door_open_sound: "self://sounds/mining_door_open.wav",
+    door_close_sound: "self://sounds/mining_door_close.wav",
     reach: 100.0,
     pulse_interval_seconds: 1.0,
     carve_radius_cells: 1.5,
@@ -1132,6 +1135,11 @@ kind: Mining((
 - `render_mesh` - the emitter's scene: its casing, the doors its `StowDoors`
   track slides and the tip its `StowLift` track retracts.
   `render_mesh_transform` (optional) moves the mesh only.
+- `pulse_sound` - played at the hit on every pulse that passes its checks. A
+  refused pulse plays nothing. Base content ships `mining_pulse.wav`.
+- `door_open_sound` and `door_close_sound` - played at the section when its
+  doors start to part and start to shut. Base content ships
+  `mining_door_open.wav` and `mining_door_close.wav`.
 - `reach` (meters) - the rock must be within this distance of the emitter face,
   and the beam must meet it within this distance.
 - `pulse_interval_seconds` - game seconds between the pulses of one deployed
@@ -1149,12 +1157,17 @@ once the rock is redrawn, so material already shot away pays nothing. The ore
 leaves the rock as canisters, one at a time, when the space by the surface is
 clear. The emitter costs no power and no ammunition.
 
+The beam draws from the face to the hit only while the emitter is deployed and
+its last pulse found the rock. Each passed pulse flares the beam and throws a
+short spray of sparks off the hit. The glow and the sparks are art only: they
+never change what a pulse cuts or pays.
+
 The beam is measured from the `-Z` face of the section's `Cuboid` collider,
 so an emitter must author one. Author a
 [`StowDoors` and a `StowLift` track](#animation-tracks); progress 1 of each is
 stowed. Lint rejects an emitter without a `Cuboid` collider, a stat that is not
-finite and positive, or a missing track. Offer no link point on the `-Z` face:
-that face is the emitter.
+finite and positive, or a missing track. A missing sound field fails the
+parse. Offer no link point on the `-Z` face: that face is the emitter.
 
 <!-- Grammar verified against crates/nova_ship/src/sections/mining_section.rs (config, validate, drive_mining_emitters), crates/nova_scenario/src/mining.rs (pulse_mining_beams, aim_beam, carve) and crates/nova_scenario/src/lint/ship.rs check_mining_config. Values from assets/base/sections/base.content.ron mining_beam_section. -->
 

@@ -133,6 +133,9 @@ without a controller flies blind and gets no warnings at all.
 | --- | --- |
 | `salvage_pickup.wav` | the salvage crate's `pickup_sound` and the cargo intake's `take_sound` |
 | `cargo_eject.wav` | the cargo intake's `eject_sound` |
+| `mining_pulse.wav` | the mining beam's `pulse_sound`, once per pulse that passes its checks |
+| `mining_door_open.wav` | the mining beam's `door_open_sound`, when its lids start to part |
+| `mining_door_close.wav` | the mining beam's `door_close_sound`, when its lids start to shut |
 
 ## Web (wasm) builds
 

@@ -93,6 +93,9 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
         kind: SectionKind::Mining(MiningSectionConfig {
             render_mesh: meshes.mining_beam.clone(),
             render_mesh_transform: None,
+            pulse_sound: meshes.mining_pulse_sound.clone(),
+            door_open_sound: meshes.mining_door_open_sound.clone(),
+            door_close_sound: meshes.mining_door_close_sound.clone(),
             // Provisional stats: 100 m of reach, one pulse a second, and a
             // carve sphere of 1.5 cells of the rock's own field.
             reach: Meters(100.0),

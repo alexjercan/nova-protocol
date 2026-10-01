@@ -386,6 +386,9 @@ mod tests {
             kind: SectionKind::Mining(MiningSectionConfig {
                 render_mesh: AssetRef::from("gltf/mining_beam_compact.glb#Scene0".to_string()),
                 render_mesh_transform: None,
+                pulse_sound: AssetRef::from("sounds/mining_pulse.wav".to_string()),
+                door_open_sound: AssetRef::from("sounds/mining_door_open.wav".to_string()),
+                door_close_sound: AssetRef::from("sounds/mining_door_close.wav".to_string()),
                 reach: Meters(f32::NAN),
                 pulse_interval_seconds: 1.0,
                 carve_radius_cells: 1.5,

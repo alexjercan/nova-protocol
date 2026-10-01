@@ -2954,6 +2954,9 @@
         ),
         kind: Mining((
             render_mesh: "self://gltf/mining_beam_compact.glb#Scene0",
+            pulse_sound: "self://sounds/mining_pulse.wav",
+            door_open_sound: "self://sounds/mining_door_open.wav",
+            door_close_sound: "self://sounds/mining_door_close.wav",
             reach: 100.0,
             pulse_interval_seconds: 1.0,
             carve_radius_cells: 1.5,

@@ -86,6 +86,12 @@ pub struct BaseContentAssets {
     pub cargo_eject_sound: AssetRef<AudioSource>,
     /// A cargo intake taking a canister into the hold, the salvage pickup.
     pub cargo_take_sound: AssetRef<AudioSource>,
+    /// One mining beam pulse landing on the rock.
+    pub mining_pulse_sound: AssetRef<AudioSource>,
+    /// The mining emitter's lids parting.
+    pub mining_door_open_sound: AssetRef<AudioSource>,
+    /// The mining emitter's lids shutting.
+    pub mining_door_close_sound: AssetRef<AudioSource>,
     /// The warhead. A hard front and a spray of fragments, distinct from
     /// [`Self::section_destroy_sound`] because a section failure is structural.
     pub torpedo_detonation_sound: AssetRef<AudioSource>,
@@ -239,6 +245,13 @@ impl BaseContentAssets {
             torpedo_door_sound: AssetRef::from("self://sounds/bay_door.wav".to_string()),
             cargo_eject_sound: AssetRef::from("self://sounds/cargo_eject.wav".to_string()),
             cargo_take_sound: AssetRef::from("self://sounds/salvage_pickup.wav".to_string()),
+            mining_pulse_sound: AssetRef::from("self://sounds/mining_pulse.wav".to_string()),
+            mining_door_open_sound: AssetRef::from(
+                "self://sounds/mining_door_open.wav".to_string(),
+            ),
+            mining_door_close_sound: AssetRef::from(
+                "self://sounds/mining_door_close.wav".to_string(),
+            ),
             torpedo_detonation_sound: AssetRef::from(
                 "self://sounds/torpedo_detonate.wav".to_string(),
             ),

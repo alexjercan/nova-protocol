@@ -4909,6 +4909,7 @@ dependencies = [
  "avian3d",
  "bevy",
  "bevy_enhanced_input",
+ "bevy_hanabi",
  "bevy_rand",
  "criterion 0.7.0",
  "noise",

@@ -14,6 +14,8 @@
 //! - `mining-beam-deployed.png`: the emitter out, the beam leaving its face.
 //! - `mining-beam-hit.png`: the level view from starboard after three paying
 //!   pulses, the beam clear of the hull and ending on the rock.
+//! - `mining-beam-sparks.png`: close on the hit 0.15 game seconds after the
+//!   next pulse, its sparks in flight.
 //! - `mining-beam-retracted.png`: the key released and the emitter shut again.
 //! - `mining-beam-rock-after.png`: the carved face once every canister left.
 //!
@@ -24,9 +26,10 @@
 //! The run fails loudly if the emitter's nodes first render in any pose but
 //! the stowed one, if the tip moves while the doors are not fully open, if a
 //! pulse is refused, if too few pulses pay ore, if the rock has pushed the
-//! warship off its mark, if a beam hit is left after the release, or if the
-//! rock's lost solid corners, the pulse log and the ore in canisters and the
-//! hold disagree.
+//! warship off its mark, if a beam hit is left after the release, if the rock's
+//! lost solid corners, the pulse log and the ore in canisters and the hold
+//! disagree, or if the pulse sound did not play once per pulse through the
+//! warship's hull.
 //!
 //! Capture (windowed, real GPU):
 //! ```text
@@ -78,6 +81,11 @@ const PARKED_DRIFT: f32 = 0.2;
 #[cfg(feature = "debug")]
 const PAID_PULSES: usize = 3;
 
+/// Game seconds after a pulse the sparks shot waits for, so the burst has
+/// left the crater.
+#[cfg(feature = "debug")]
+const SPARKS_AFTER_PULSE_SECS: f32 = 0.15;
+
 /// Real-seconds backstop for a state wait, long enough for lavapipe frames.
 #[cfg(feature = "debug")]
 const STEP_DEADLINE_SECS: f32 = 90.0;
@@ -100,6 +108,13 @@ const EMITTER_NODE_PREFIXES: [&str; 2] = ["stow_lid_", "beam_tip"];
 #[derive(Resource, Default)]
 struct PulseLog(Vec<Result<u32, MiningRefusalType>>);
 
+/// The route of every mining pulse sound the game played, in order.
+#[derive(Resource, Default)]
+struct PulseSounds(Vec<AudioRoute>);
+
+/// The pulse sound's file, as the base bundle ships it.
+const PULSE_SOUND: &str = "sounds/mining_pulse.wav";
+
 /// What the script records to compare later.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
@@ -113,6 +128,10 @@ struct MiningProof {
     seeded_corners: Option<u32>,
     /// `Time<Virtual>::max_delta` before [`TRACK_FRAME_STEP`] replaced it.
     free_max_delta: Option<std::time::Duration>,
+    /// The pulse count when the sparks shot started waiting.
+    pulses_before_sparks: Option<usize>,
+    /// Game seconds at the last pulse.
+    last_pulse_at: f32,
 }
 
 fn main() -> bevy::app::AppExit {
@@ -127,6 +146,11 @@ fn main() -> bevy::app::AppExit {
             (force_capture_resolution, hide_dev_overlays, hide_hud),
         );
         app.init_resource::<MiningProof>();
+        app.add_observer(
+            |_: On<MiningPulse>, time: Res<Time<Virtual>>, mut proof: ResMut<MiningProof>| {
+                proof.last_pulse_at = time.elapsed_secs();
+            },
+        );
         // `Last`: after the scene spawner and every pose writer, so what
         // these read is what the frame renders.
         app.add_systems(Last, (assert_emitter_frame, record_mining_proof).chain());
@@ -141,6 +165,17 @@ fn custom_plugin(app: &mut App) {
     app.add_observer(|pulse: On<MiningPulse>, mut log: ResMut<PulseLog>| {
         log.0.push(pulse.outcome);
     });
+    app.init_resource::<PulseSounds>();
+    app.add_observer(
+        |sfx: On<PlaySfx>, server: Res<AssetServer>, mut sounds: ResMut<PulseSounds>| {
+            if server
+                .get_path(sfx.handle.id())
+                .is_some_and(|path| path.path().ends_with(PULSE_SOUND))
+            {
+                sounds.0.push(sfx.route);
+            }
+        },
+    );
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
 }
 
@@ -398,6 +433,21 @@ fn frame_beam(world: &mut World) {
     );
 }
 
+/// Frame the beam's hit close, from above and to starboard of the beam, so
+/// the sparks thrown back up the beam show against space.
+#[cfg(feature = "debug")]
+fn frame_hit(world: &mut World) {
+    let hit = world
+        .try_query::<&MiningBeamHit>()
+        .and_then(|mut hits| hits.iter(world).next().copied())
+        .expect("the beam holds a hit while the key is held");
+    pose_camera(
+        world,
+        Meters3::from_engine(hit.at + Vec3::new(3.5, 2.5, 4.0)),
+        Meters3::from_engine(hit.at + Vec3::new(0.0, 0.0, 1.0)),
+    );
+}
+
 /// Refuse a shot of a warship the rock has pushed off its mark.
 #[cfg(feature = "debug")]
 fn assert_parked(world: &mut World) {
@@ -552,6 +602,37 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written("mining-beam-hit.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
+        .step("wait for the next pulse's sparks")
+        .on_enter(|world| {
+            let pulses = world.resource::<PulseLog>().0.len();
+            world.resource_mut::<MiningProof>().pulses_before_sparks = Some(pulses);
+            frame_hit(world);
+            set_paused(world, false);
+        })
+        .until(when(|world| {
+            let proof = world.resource::<MiningProof>();
+            let now = world.resource::<Time<Virtual>>().elapsed_secs();
+            proof
+                .pulses_before_sparks
+                .is_some_and(|before| world.resource::<PulseLog>().0.len() > before)
+                && now - proof.last_pulse_at >= SPARKS_AFTER_PULSE_SECS
+        }))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("shoot the sparks")
+        .on_enter(|world| {
+            set_paused(world, true);
+            let log = world.resource::<PulseLog>().0.clone();
+            info!("mining_beam: sparks shot after {} pulse(s)", log.len());
+            assert!(
+                log.last().is_some_and(Result::is_ok),
+                "the sparks shot follows a pulse that passed: {log:?}"
+            );
+            shoot(world, "mining-beam-sparks.png");
+        })
+        .until(shot_written("mining-beam-sparks.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
         .step("release the mine key until the emitter is shut")
         .on_enter(|world| {
             let pulses = world.resource::<PulseLog>().0.len();
@@ -653,6 +734,17 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 in_canisters + hold,
                 flipped,
                 "every flipped corner is one stone ore in a canister or the hold"
+            );
+            let sounds = world.resource::<PulseSounds>().0.clone();
+            info!(
+                "mining_beam: {} pulse sound(s) for {} pulse(s), routes {sounds:?}",
+                sounds.len(),
+                log.len()
+            );
+            assert_eq!(sounds.len(), log.len(), "one pulse sound per pulse");
+            assert!(
+                sounds.iter().all(|route| *route == AudioRoute::Hull),
+                "the player's pulses are heard through the hull: {sounds:?}"
             );
         })
         .until(frames(1))

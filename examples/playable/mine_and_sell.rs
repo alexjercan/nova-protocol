@@ -329,10 +329,6 @@ mod walk {
 
     /// Fly [`Helm`] with the flight computer's `MatchVelocity`, the nose held
     /// forward.
-    #[expect(
-        clippy::type_complexity,
-        reason = "the ship, its intake and the canisters"
-    )]
     fn steer_helm(
         mut commands: Commands,
         mut helm: ResMut<Helm>,
@@ -554,7 +550,7 @@ mod walk {
             .query::<&MinedCanisterQueue>()
             .iter(world)
             .flat_map(MinedCanisterQueue::canisters)
-            .map(|canister| ore_in(canister))
+            .map(ore_in)
             .sum();
         let proof = world.resource::<FlowProof>();
         let gone: Vec<u32> = proof
