@@ -1623,19 +1623,19 @@ impl<'a> Draw<'a> {
                 ));
             }
         }
-        if intake {
-            if !self.fit(
+        if intake
+            && !self.fit(
                 &mut grid,
                 &intakes,
                 "intake",
                 flank_aim,
                 MountType::BackedMirrored,
                 b"intake_slot",
-            ) {
-                return Err(ShipLayoutConstraintType::Unplaced(
-                    ShipPartFamilyType::CargoIntake,
-                ));
-            }
+            )
+        {
+            return Err(ShipLayoutConstraintType::Unplaced(
+                ShipPartFamilyType::CargoIntake,
+            ));
         }
 
         // Every ship docks: a mirrored pair of flank ports where one fits,
@@ -1714,7 +1714,7 @@ impl<'a> Draw<'a> {
         // The fewest stations whose body, between the nose and the stern,
         // holds the flank run.
         let shortest = (MIN_STATIONS..)
-            .find(|length| flank.is_none_or(|run| length - nose_length(*length) - 1 >= run.length))
+            .find(|length| flank.is_none_or(|run| length - nose_length(*length) > run.length))
             .expect("a long enough spine holds any run");
         let mut length = (length.round() as i32).max(shortest);
         let mut width = (width.round() as i32).max(1) + widen;
