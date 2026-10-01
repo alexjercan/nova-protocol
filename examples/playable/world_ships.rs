@@ -182,12 +182,10 @@ const MIN_TURN_DEGREES: f32 = 5.0;
 #[cfg(feature = "debug")]
 const CANISTER_STANDOFF: f32 = 0.3;
 
-/// The offered canister's closing speed as a share of the intake's capture
-/// speed limit. Base content's limit is 5 m/s, so 0.6 closes at 3 m/s: a
-/// canister at avian's default linear sleep threshold (1.5 m/s) falls asleep
-/// and never reaches the door.
+/// The offered canister must keep moving past Avian's default linear sleep
+/// threshold (1.5 m/s) to reach the intake trigger.
 #[cfg(feature = "debug")]
-const CANISTER_CLOSING_SHARE: f32 = 0.6;
+const CANISTER_CLOSING_SPEED: MetersPerSecond = MetersPerSecond(3.0);
 
 /// The name `nova_core` gives the scenario loading panel. On a software
 /// renderer the panel holds to its hard cap after the scene is up, so a shot
@@ -1560,8 +1558,7 @@ fn check_fire(world: &mut World) {
     );
 }
 
-/// Drift a canister of one hull plate into the piloted ship's intake, square
-/// to its door, closing well under the capture speed.
+/// Drift a canister of one hull plate into the piloted ship's intake.
 #[cfg(feature = "debug")]
 fn offer_canister(world: &mut World) {
     let ship = pilot_ship(world);
@@ -1587,7 +1584,7 @@ fn offer_canister_to(world: &mut World, ship: Entity) {
     let (face, normal) = cargo_intake_face(translation, rotation, collider);
     let depth = CARGO_CANISTER_SIZE.z * 0.5;
     let at = face + normal * (config.capture_gap.to_engine() + depth + CANISTER_STANDOFF);
-    let closing = config.maximum_capture_speed.to_engine() * CANISTER_CLOSING_SHARE;
+    let closing = CANISTER_CLOSING_SPEED.to_engine();
     let ship_velocity = world
         .get::<LinearVelocity>(ship)
         .map(|velocity| velocity.0)
