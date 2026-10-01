@@ -6,7 +6,14 @@
 //! mandatory. Everything else - a shipped optional mod from
 //! `mods.catalog.ron`, a mod downloaded from the portal - loads through the
 //! asset server on its own, and a failure disables that mod, says so once, and
-//! leaves the files where they are.
+//! leaves the files where they are. A mod whose sections load but fail
+//! validation is disabled the same way, by the merge
+//! ([`register_bundles`](crate::merge::register_bundles)), together with every
+//! enabled mod that depends on a mod safe mode disabled. Invalid BASE content
+//! is not a mod the player can switch off: it refuses the load. During a
+//! scenario no mod is switched off either: the scenario spawned from a catalog
+//! that mod may be part of, so a mod that fails to load, fails validation, or
+//! depends on a disabled mod refuses the load too.
 //!
 //! Ownership: `nova_modding`'s [`CatalogLoader`](nova_modding::prelude::CatalogLoader)
 //! decides what is mandatory (it loads a handle only for `base`); this module
@@ -27,6 +34,7 @@ use bevy::{
     asset::{LoadState, RecursiveDependencyLoadState},
     prelude::*,
 };
+use nova_gameplay::prelude::GameStates;
 use nova_modding::prelude::{BundleAsset, CatalogEntry, InstalledCatalog};
 
 use crate::{
@@ -117,7 +125,7 @@ pub struct ModQuarantine {
 
 impl ModQuarantine {
     /// Record a failure, unless this id is already in the episode.
-    fn record(&mut self, id: &str, reason: String) -> bool {
+    pub(crate) fn record(&mut self, id: &str, reason: String) -> bool {
         if self.disabled.iter().any(|m| m.id == id) {
             return false;
         }
@@ -130,10 +138,12 @@ impl ModQuarantine {
     }
 }
 
-/// The verdict on a boot that cannot continue: a MANDATORY asset did not load.
+/// The verdict on a boot that cannot continue: a MANDATORY asset did not load,
+/// or the base game's content failed validation.
 ///
-/// Inserted at `OnEnter(GameAssetsStates::Failed)` and read by the fatal screen
-/// in `nova_core`. Present at all is the whole signal; the fields are what the
+/// Inserted by the merge when base content is invalid, else at
+/// `OnEnter(GameAssetsStates::Failed)`, and read by the fatal screen in
+/// `nova_core`. Present at all is the whole signal; the fields are what the
 /// screen can say about it.
 #[derive(Resource, Clone, Debug)]
 pub struct FatalAssetFailure {
@@ -250,7 +260,13 @@ const REASON_CHARS: usize = 160;
 /// change-gated `save_enabled_mods` is what writes the choice to disk - so the
 /// mod is off on the next launch too, with its files still installed for the
 /// player to update or remove.
+///
+/// In [`GameStates::Playing`] a failed load refuses the run instead, before
+/// any mod is recorded or removed: the running scenario may read that mod's
+/// content, and this cannot tell whether it does.
 pub fn quarantine_failed_mods(
+    mut commands: Commands,
+    game_state: Res<State<GameStates>>,
     asset_server: Res<AssetServer>,
     optional: Res<OptionalBundles>,
     downloaded: Res<DownloadedMods>,
@@ -265,6 +281,7 @@ pub fn quarantine_failed_mods(
         .0
         .iter()
         .map(|installed| (installed.record.id.as_str(), &installed.bundle));
+    let mut failed: Vec<(&str, String)> = Vec::new();
     for (id, bundle) in shipped.chain(cached) {
         // ENABLED only. A broken mod the player has switched off is breaking
         // nothing, and reporting it would put the same modal in front of them
@@ -277,9 +294,34 @@ pub fn quarantine_failed_mods(
         let Some(Err(reason)) = settled_state(&asset_server, bundle) else {
             continue;
         };
-        if !quarantine.record(id, reason.clone()) {
+        if quarantine.disabled.iter().any(|m| m.id == id) || failed.iter().any(|(f, _)| *f == id) {
             continue;
         }
+        failed.push((id, reason));
+    }
+    if failed.is_empty() {
+        return;
+    }
+    if *game_state.get() == GameStates::Playing {
+        let refusals: Vec<String> = failed
+            .iter()
+            .map(|(id, reason)| format!("mod '{id}': {reason}"))
+            .collect();
+        for refusal in &refusals {
+            error!("safe mode: mod content failed to load during a scenario: {refusal}");
+        }
+        commands.insert_resource(FatalAssetFailure {
+            detail: format!(
+                "A mod failed to load while a scenario was running: {}. \
+                 Safe mode cannot disable a mod during a scenario.",
+                refusals.join("; ")
+            ),
+            boot: false,
+        });
+        return;
+    }
+    for (id, reason) in failed {
+        quarantine.record(id, reason.clone());
         enabled.0.remove(id);
         // WARN, not ERROR: the game handled this. The run continues, the
         // player is told, and the level a harness treats as a failed run

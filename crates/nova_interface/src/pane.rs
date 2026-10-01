@@ -701,12 +701,30 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     pane_footer(
         body,
         |legend| {
-            for icon in SectionIconType::ALL {
-                legend.spawn(legend_entry()).with_children(|entry| {
-                    entry.spawn(icon_node(icons.section(icon), icon.color(), 18.0));
-                    entry.spawn(themed_label(icon.label(), 12.0, UiColor::Body));
+            legend
+                .spawn(Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(5),
+                    ..default()
+                })
+                .with_children(|rows| {
+                    for icons_in_row in SectionIconType::ALL.chunks(3) {
+                        rows.spawn(Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            column_gap: px(8),
+                            ..default()
+                        })
+                        .with_children(|row| {
+                            for &icon in icons_in_row {
+                                row.spawn(legend_entry()).with_children(|entry| {
+                                    entry.spawn(icon_node(icons.section(icon), icon.color(), 18.0));
+                                    entry.spawn(themed_label(icon.label(), 12.0, UiColor::Body));
+                                });
+                            }
+                        });
+                    }
                 });
-            }
         },
         |controls| {
             controls

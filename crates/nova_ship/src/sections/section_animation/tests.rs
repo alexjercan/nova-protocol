@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use bevy::world_serialization::WorldSerializationPlugin;
+
 use super::*;
 
 /// A minimal app with the animation plugin, one animated section, and a
@@ -176,6 +178,65 @@ fn a_late_scene_lands_on_the_current_pose_when_its_rig_resolves() {
     let expected = Quat::from_rotation_x(100_f32.to_radians());
     let moved = *app.world_mut().get::<Transform>(petal).unwrap();
     assert!(moved.rotation.abs_diff_eq(expected, 1e-5));
+}
+
+#[test]
+fn a_spawned_scene_node_first_renders_at_its_rig_pose() {
+    // A stowed emitter's scene spawns in `SpawnScene`, after the `Update`
+    // driver: the first frame that renders its lid must already show the
+    // snapped stow pose, not the deployed rest the art authors.
+    let mut app = App::new();
+    app.init_resource::<Time>();
+    app.add_plugins((
+        AssetPlugin::default(),
+        WorldSerializationPlugin,
+        SectionAnimationPlugin,
+    ))
+    .register_type::<Name>()
+    .register_type::<Transform>()
+    .register_type::<ChildOf>()
+    .register_type::<Children>();
+    let track = SectionAnimation {
+        cue: SectionAnimationCue::StowDoors,
+        node_prefix: "stow_lid_".to_string(),
+        motion: SectionAnimationMotion::Translate {
+            offset: Vec3::new(-0.24, 0.0, 0.0),
+        },
+        open_seconds: 0.3,
+        close_seconds: 0.3,
+    };
+    let mut scene = World::new();
+    scene.spawn((
+        Name::new("stow_lid_right"),
+        Transform::from_translation(Vec3::new(0.37, 0.18, 0.0)),
+    ));
+    let scene = app
+        .world_mut()
+        .resource_mut::<Assets<WorldAsset>>()
+        .add(WorldAsset::new(scene));
+    let mut animations = SectionAnimations::new(vec![track]);
+    animations.snap_cue(SectionAnimationCue::StowDoors, 1.0);
+    let section = app.world_mut().spawn(animations).id();
+    app.world_mut()
+        .spawn((WorldAssetRoot(scene), ChildOf(section)));
+
+    let mut q_lid = app.world_mut().query::<(&Name, &Transform)>();
+    let first = (0..4)
+        .find_map(|_| {
+            app.update();
+            q_lid
+                .iter(app.world())
+                .find(|(name, _)| name.as_str() == "stow_lid_right")
+                .map(|(_, transform)| *transform)
+        })
+        .expect("the lid scene spawns");
+    assert!(
+        first
+            .translation
+            .abs_diff_eq(Vec3::new(0.13, 0.18, 0.0), 1e-5),
+        "the lid first renders shut, not at its authored rest: {:?}",
+        first.translation
+    );
 }
 
 #[test]

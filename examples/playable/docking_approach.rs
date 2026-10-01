@@ -26,9 +26,9 @@
 //! Roll is not assisted and not drawn: the ports are round and the capture
 //! ignores how the two hulls are clocked about the axis.
 //!
-//! Neither hull is shipped content. The tender and the spar are built here
-//! from catalog PROTOTYPE sections, so mounting a port on a playable ship
-//! costs the base fleet nothing.
+//! Neither hull is shipped content. The tender and the spar are built in
+//! `shared/docking_pair.rs` from catalog PROTOTYPE sections, so mounting a
+//! port on a playable ship costs the base fleet nothing.
 //!
 //! ```text
 //! cargo run --example docking_approach --features debug
@@ -37,8 +37,12 @@
 //! Under `NOVA_AUTOPILOT=1` the script locks the spar, checks that the lock
 //! and the sight both came up, and exits - the flying is the human's half.
 
+#[path = "shared/docking_pair.rs"]
+mod docking_pair;
+
 use bevy::prelude::*;
 use clap::Parser;
+use docking_pair::{spar, tender};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -105,78 +109,6 @@ fn approach_plugin(app: &mut App) {
 
 fn load_approach(mut commands: Commands, game_assets: Res<GameAssets>) {
     commands.trigger(LoadScenario(approach(&game_assets)));
-}
-
-/// One prototype section at a build cell, square with the hull.
-fn part(id: &str, prototype: &str, cell: Vec3) -> SpaceshipSectionConfig {
-    SpaceshipSectionConfig {
-        id: id.to_string(),
-        position: cell,
-        rotation: Quat::IDENTITY,
-        source: SectionSource::prototype(prototype),
-    }
-}
-
-/// The tender: a bow port, a spine, two shoulder plates and a drive.
-///
-/// The port stands at the very bow with nothing in front of it, which is the
-/// port's own clearance rule - its face is what the capture is measured from,
-/// and a plate bolted over it would be a hatch that opens into a wall.
-fn tender() -> ShipDesign {
-    clad(
-        vec![
-            part(
-                "dock_bow",
-                DOCKING_PORT_SECTION_ID,
-                Vec3::new(0.0, 0.0, -2.0),
-            ),
-            part("bow", REINFORCED_HULL_SECTION_ID, Vec3::new(0.0, 0.0, -1.0)),
-            part("bridge", BASIC_CONTROLLER_SECTION_ID, Vec3::ZERO),
-            part("shoulder_port", LIGHT_HULL_SECTION_ID, Vec3::NEG_X),
-            part("shoulder_starboard", LIGHT_HULL_SECTION_ID, Vec3::X),
-            part("drive", BASIC_THRUSTER_SECTION_ID, Vec3::Z),
-        ],
-        "industrial",
-    )
-}
-
-/// The spar: a plain moored stack with one port on its near end and nothing
-/// that flies. It is the thing you dock WITH, not a second ship.
-fn spar() -> ShipDesign {
-    clad(
-        vec![
-            part(
-                "dock_fore",
-                DOCKING_PORT_SECTION_ID,
-                Vec3::new(0.0, 0.0, -2.0),
-            ),
-            part(
-                "fore",
-                REINFORCED_HULL_SECTION_ID,
-                Vec3::new(0.0, 0.0, -1.0),
-            ),
-            part("midships", REINFORCED_HULL_SECTION_ID, Vec3::ZERO),
-            part("aft", REINFORCED_HULL_SECTION_ID, Vec3::Z),
-            part("mast_high", LIGHT_HULL_SECTION_ID, Vec3::Y),
-            part("mast_low", LIGHT_HULL_SECTION_ID, Vec3::NEG_Y),
-        ],
-        "industrial",
-    )
-}
-
-/// A hand-built cell list wearing the derived skin, the way every block hull
-/// in the fleet is dressed. A design that leaves this off renders as bare
-/// cells, which is a look the game ships nowhere.
-fn clad(sections: Vec<SpaceshipSectionConfig>, style: &str) -> ShipDesign {
-    ShipDesign {
-        sections,
-        presentation: ShipPresentationConfig {
-            skin: true,
-            style: Some(style.to_string()),
-            ..ShipPresentationConfig::base_voice()
-        },
-        ..default()
-    }
 }
 
 fn ship_object(

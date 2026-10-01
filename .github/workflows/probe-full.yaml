@@ -76,7 +76,7 @@ jobs:
             examples: >-
               screenshot_editor screenshot_planet_editor system_ship_editor
               system_field_controls bug_sandbox_soak parts_viewer widget_zoo
-              ui_app_variants
+              ui_app_variants trade_loop mine_and_sell
           # The front end a player boots into: main menu, scenario picker,
           # the interface, the command modal, settings, and the refusals that
           # keep it standing. 694 s.
@@ -92,7 +92,8 @@ jobs:
           # every headless spike - they are cheap and they belong here. 550 s.
           - shard: hud
             examples: >-
-              screenshot_hud_shell screenshot_contextual_hud system_hud_shell
+              screenshot_hud_shell screenshot_contextual_hud screenshot_mining_beam
+              system_hud_shell
               system_hud_scales system_hud_indicators system_mission_hud
               system_ui_scale system_input_modes system_headless_map_goto
               system_headless_drag
@@ -120,7 +121,7 @@ jobs:
           # read off a hull that is still standing. 711 s.
           - shard: hull
             examples: >-
-              screenshot_section_frame screenshot_section_gallery
+              mining_beam_gallery screenshot_section_frame screenshot_section_gallery
               screenshot_section_drives screenshot_section_weapons
               screenshot_section_trials screenshot_hull_juice
               screenshot_damage_levels loop_sections_compare loop_spine_cut

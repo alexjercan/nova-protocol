@@ -434,8 +434,8 @@ pub struct DestroySound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 /// Which kind of section this is, tagging the matching kind-specific config.
 /// The discriminant that selects a section's behavior plugin and the config it
 /// reads: hull (structure only), thruster (thrust), controller (attitude PD),
-/// turret (guns), torpedo (bay). Add a variant here (plus its config module and
-/// plugin) to introduce a new section kind.
+/// turret (guns), torpedo (bay), mining (ore emitter). Add a variant here (plus
+/// its config module and plugin) to introduce a new section kind.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SectionKind {
@@ -456,6 +456,8 @@ pub enum SectionKind {
     /// Accordion-doored hold mouth for cargo canisters; see
     /// [`CargoIntakeSectionConfig`].
     CargoIntake(CargoIntakeSectionConfig),
+    /// Retractable ore emitter; see [`MiningSectionConfig`].
+    Mining(MiningSectionConfig),
 }
 
 impl SectionKind {
@@ -476,6 +478,7 @@ impl SectionKind {
             SectionKind::Railgun(_) => SectionClass::Railgun,
             SectionKind::Docking(_) => SectionClass::Docking,
             SectionKind::CargoIntake(_) => SectionClass::CargoIntake,
+            SectionKind::Mining(_) => SectionClass::Mining,
         }
     }
 }
@@ -520,7 +523,8 @@ impl SectionConfig {
             | SectionKind::Thruster(_)
             | SectionKind::Controller(_)
             | SectionKind::Docking(_)
-            | SectionKind::CargoIntake(_) => {}
+            | SectionKind::CargoIntake(_)
+            | SectionKind::Mining(_) => {}
         }
         self
     }

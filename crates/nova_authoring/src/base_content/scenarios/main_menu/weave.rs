@@ -97,6 +97,7 @@ pub(crate) fn menu_weave(
             design: ships::design(ships::BLOCK_CUTTER_SHIP_ID),
             lootable: false,
             inventory: ShipInventoryStock::new([]),
+            credits: 2_000,
             ..Default::default()
         }),
     });

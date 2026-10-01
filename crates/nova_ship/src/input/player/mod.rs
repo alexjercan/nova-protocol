@@ -28,9 +28,10 @@ use control::player_control_is_suspended;
 use flight_rig::{
     on_autopilot_goto_input, on_autopilot_off_input, on_autopilot_orbit_input,
     on_autopilot_stop_input, on_dock_helm_input, on_dock_input, on_flight_burn_input,
-    on_flight_burn_input_completed, on_player_added_spawn_flight_input,
-    on_player_removed_despawn_flight_input, on_rcs_aim, on_rcs_modifier_released,
-    on_rcs_modifier_start, rebuild_flight_input_on_rebind, release_rcs_without_the_helm,
+    on_flight_burn_input_completed, on_mine_released, on_mine_start,
+    on_player_added_spawn_flight_input, on_player_removed_despawn_flight_input, on_rcs_aim,
+    on_rcs_modifier_released, on_rcs_modifier_start, rebuild_flight_input_on_rebind,
+    release_rcs_without_the_helm,
 };
 use hints::update_flight_verb_hints;
 use intent::{
@@ -49,6 +50,7 @@ use wheel::{on_wheel_step, on_wheel_zoom, WheelDownInput, WheelUpInput};
 pub(crate) use self::flight_rig::FlightInputMarker;
 pub use self::{
     control::{resume_player_control, suspend_player_control, PlayerControlSuspended},
+    flight_rig::MiningHeld,
     hints::{FlightVerbHints, VerbHint},
     weapons::{
         SectionInputBindingChanged, SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding,
@@ -61,10 +63,10 @@ use crate::input::bindings::flight_bindings;
 /// `SpaceshipPlayerInputPlugin`.
 pub mod prelude {
     pub use super::{
-        resume_player_control, suspend_player_control, FlightVerbHints, PlayerControlSuspended,
-        SectionInputBindingChanged, SpaceshipPlayerInputPlugin, SpaceshipRailgunInputBinding,
-        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
-        VerbHint,
+        resume_player_control, suspend_player_control, FlightVerbHints, MiningHeld,
+        PlayerControlSuspended, SectionInputBindingChanged, SpaceshipPlayerInputPlugin,
+        SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
+        SpaceshipTurretInputBinding, VerbHint,
     };
 }
 
@@ -122,6 +124,9 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_observer(on_autopilot_off_input);
         app.add_observer(on_dock_input);
         app.add_observer(on_dock_helm_input);
+        app.add_observer(on_mine_start);
+        app.add_observer(on_mine_released);
+        app.register_type::<MiningHeld>();
         app.add_observer(on_rcs_modifier_start);
         app.add_observer(on_rcs_modifier_released);
         app.add_observer(on_rcs_aim);

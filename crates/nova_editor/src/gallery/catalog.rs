@@ -58,7 +58,9 @@ impl GalleryCategory {
     /// The category a prototype of this kind lives under.
     pub(crate) fn of(kind: &SectionKind) -> Self {
         match kind {
-            SectionKind::Hull(_) | SectionKind::CargoIntake(_) => Self::Structure,
+            SectionKind::Hull(_) | SectionKind::CargoIntake(_) | SectionKind::Mining(_) => {
+                Self::Structure
+            }
             SectionKind::Thruster(_) => Self::Propulsion,
             SectionKind::Controller(_) => Self::Control,
             SectionKind::Turret(_) | SectionKind::Railgun(_) => Self::Weapons,
@@ -161,6 +163,17 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
             (
                 "Speed".to_string(),
                 format!("{:.1} m/s", intake.maximum_capture_speed.0),
+            ),
+        ],
+        SectionKind::Mining(mining) => vec![
+            ("Reach".to_string(), format!("{:.0} m", mining.reach.0)),
+            (
+                "Pulse".to_string(),
+                format!("{:.1} s", mining.pulse_interval_seconds),
+            ),
+            (
+                "Carve".to_string(),
+                format!("{:.1} cells", mining.carve_radius_cells),
             ),
         ],
         SectionKind::Docking(docking) => vec![

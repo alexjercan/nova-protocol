@@ -57,6 +57,7 @@
                             )),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -84,6 +85,7 @@
                             )),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((

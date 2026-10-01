@@ -16,7 +16,7 @@
 //! turrets; kind modules (the bay's muzzle door, later the railgun charge
 //! and the PDC stow) write cue targets and nothing else.
 
-use bevy::{prelude::*, world_serialization::WorldInstanceReady};
+use bevy::{app::SceneSpawnerSystems, prelude::*, world_serialization::WorldInstanceReady};
 
 /// The authored track types, the runtime [`SectionAnimations`] component, and
 /// `SectionAnimationPlugin` with `SectionAnimationSystems`.
@@ -37,15 +37,15 @@ pub enum SectionAnimationCue {
     /// A weapon bay's muzzle cover: driven to 1 (open) across a launch and
     /// back to 0 (closed) at rest by the bay's own fire path.
     MuzzleDoor,
-    /// A retractable turret's elevator: driven to 1 (sunk into the housing)
+    /// A retractable mount's elevator: driven to 1 (sunk into the housing)
     /// while stowed, 0 (raised, the rest pose) while deployed. Steered by
-    /// the turret's stow state machine, which sequences it against
-    /// [`Self::StowDoors`].
+    /// the turret's stow state machine or the mining emitter's sequence, each
+    /// of which sequences it against [`Self::StowDoors`].
     StowLift,
-    /// A retractable turret's housing lids: driven to 1 (shut over the sunk
-    /// gun) while stowed, 0 (parted, the rest pose) while deployed. The stow
-    /// machine shuts them only after [`Self::StowLift`] reaches 1, and parts
-    /// them before raising it.
+    /// A retractable mount's housing lids: driven to 1 (shut over the sunk
+    /// gun or emitter tip) while stowed, 0 (parted, the rest pose) while
+    /// deployed. Both sequences shut them only after [`Self::StowLift`]
+    /// reaches 1, and part them before raising it.
     StowDoors,
     /// A charging weapon's capacitor bolt: driven to 1 across the charge and
     /// snapped back to 0 the instant the shot leaves. The railgun's track
@@ -248,8 +248,8 @@ struct TrackState {
     progress: f32,
     /// Where the track is going, steered through [`SectionAnimations::set_cue`].
     target: f32,
-    /// Forces one transform write even at rest - set on resolve and on
-    /// retarget, so late-spawning scenes land on the current pose.
+    /// Forces one transform write even at rest - set on retarget and on
+    /// snap, so a snapped pose lands without travel.
     dirty: bool,
     /// The matched scene nodes.
     nodes: Vec<TrackNode>,
@@ -383,13 +383,18 @@ fn mark_ready_section_rigs(
 /// compose the motion onto itself. Fresh entities are genuinely at their
 /// authored pose (nothing drives an unresolved node), so first capture is
 /// the only correct one.
+///
+/// Each fresh node gets the track's current pose here, not from the driver:
+/// this runs in `SpawnScene` right after the scene spawner, after `Update`,
+/// so a scene's first rendered frame already shows its rig's pose. A stowed
+/// emitter never renders one frame at its deployed rest pose.
 fn resolve_section_animation_rigs(
     mut q_dirty: Query<
         (Entity, Option<&Name>, &mut SectionAnimations),
         With<SectionAnimationRigDirty>,
     >,
     q_children: Query<&Children>,
-    q_named: Query<(&Name, &Transform)>,
+    mut q_named: Query<(&Name, &mut Transform)>,
     mut commands: Commands,
 ) {
     for (section, section_name, mut animations) in &mut q_dirty {
@@ -403,24 +408,30 @@ fn resolve_section_animation_rigs(
             .map(|track| std::mem::take(&mut track.nodes))
             .collect();
         for node in q_children.iter_descendants(section) {
-            let Ok((name, transform)) = q_named.get(node) else {
+            let Ok((name, mut transform)) = q_named.get_mut(node) else {
                 continue;
             };
+            // Read once: a track that matches first poses the node below.
+            let authored = *transform;
             for (track, known) in animations.tracks.iter_mut().zip(&known) {
                 let prefix = track.config.node_prefix.as_str();
-                if name.as_str().starts_with(prefix) {
-                    let rest = known
-                        .iter()
-                        .find(|seen| seen.entity == node)
-                        .map_or(*transform, |seen| seen.rest);
-                    let slat = track.config.motion.slat(&section_label, name, prefix);
-                    track.nodes.push(TrackNode {
-                        entity: node,
-                        rest,
-                        slat,
-                    });
-                    track.dirty = true;
+                if !name.as_str().starts_with(prefix) {
+                    continue;
                 }
+                if let Some(seen) = known.iter().find(|seen| seen.entity == node) {
+                    track.nodes.push(*seen);
+                    continue;
+                }
+                let resolved = TrackNode {
+                    entity: node,
+                    rest: authored,
+                    slat: track.config.motion.slat(&section_label, name, prefix),
+                };
+                track
+                    .config
+                    .motion
+                    .apply(&resolved, track.progress, &mut transform);
+                track.nodes.push(resolved);
             }
         }
         commands
@@ -486,10 +497,11 @@ fn drive_section_animations(
     }
 }
 
-/// System set for the section-animation rig resolution and driver, on the
-/// render clock (`Update`). Cue writers on the fixed clock (the bay's fire
-/// path) need no edge against this set: a target written in `FixedUpdate`
-/// is picked up the same frame, because `FixedUpdate` runs first.
+/// System set for the section-animation driver, on the render clock
+/// (`Update`). Rig resolution runs later, in `SpawnScene`. Cue writers on
+/// the fixed clock (the bay's fire path) need no edge against this set: a
+/// target written in `FixedUpdate` is picked up the same frame, because
+/// `FixedUpdate` runs first.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SectionAnimationSystems;
 
@@ -506,9 +518,11 @@ impl Plugin for SectionAnimationPlugin {
         app.add_observer(mark_ready_section_rigs);
         app.add_systems(
             Update,
-            (resolve_section_animation_rigs, drive_section_animations)
-                .chain()
-                .in_set(SectionAnimationSystems),
+            drive_section_animations.in_set(SectionAnimationSystems),
+        );
+        app.add_systems(
+            SpawnScene,
+            resolve_section_animation_rigs.after(SceneSpawnerSystems::WorldInstanceSpawn),
         );
     }
 }

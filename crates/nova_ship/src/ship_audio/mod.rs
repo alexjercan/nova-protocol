@@ -60,7 +60,7 @@ use self::{
     loops::{drive_railgun_charge_loops, drive_rcs_loops, drive_thruster_loops},
     machinery::{
         on_bay_doors_play_sfx, on_canister_ejected_play_sfx, on_canister_taken_play_sfx,
-        on_intake_door_play_sfx, on_stow_doors_play_sfx,
+        on_intake_door_play_sfx, on_mining_doors_play_sfx, on_stow_doors_play_sfx,
     },
 };
 
@@ -137,6 +137,11 @@ const BAY_DOOR_CLOSE_VOLUME: f32 = 0.20;
 /// since the base intake plays the same file.
 const INTAKE_DOOR_OPEN_VOLUME: f32 = 0.16;
 const INTAKE_DOOR_CLOSE_VOLUME: f32 = 0.20;
+
+/// The mining emitter's lids parting and shutting: the PDC housing's lid
+/// band and levels, since both are small lid servos on the hull.
+const MINING_DOOR_OPEN_VOLUME: f32 = 0.09;
+const MINING_DOOR_CLOSE_VOLUME: f32 = 0.14;
 
 /// A canister leaving the intake: at the heavier door edge, since the push
 /// and the door are one piece of machinery. The take plays at
@@ -233,6 +238,7 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_stow_doors_play_sfx);
         app.add_observer(on_bay_doors_play_sfx);
         app.add_observer(on_intake_door_play_sfx);
+        app.add_observer(on_mining_doors_play_sfx);
         app.add_observer(on_canister_ejected_play_sfx);
         app.add_observer(on_canister_taken_play_sfx);
         app.add_observer(on_reload_complete_play_sfx);

@@ -61,6 +61,7 @@
                             )),
                             inventory: {PdcRound: 6000, RailSlug: 20, Torpedo: 12},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -76,6 +77,7 @@
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                 ],

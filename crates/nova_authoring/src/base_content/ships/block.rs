@@ -21,7 +21,7 @@ use nova_ship::prelude::{
 };
 
 use crate::base_content::{
-    sections::{CARGO_INTAKE_SECTION_ID, VECTOR_THRUSTER_SECTION_ID},
+    sections::{CARGO_INTAKE_SECTION_ID, MINING_BEAM_SECTION_ID, VECTOR_THRUSTER_SECTION_ID},
     styles::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID},
 };
 
@@ -70,6 +70,14 @@ pub(crate) const BLOCK_LINE_WARSHIP_TORPEDO_IDS: [&str; 2] = ["torpedo_port", "t
 
 /// The line warship's dorsal cargo intake.
 pub(crate) const BLOCK_LINE_WARSHIP_INTAKE_ID: &str = "cargo_intake";
+
+/// The line warship's mining emitter.
+const BLOCK_LINE_WARSHIP_MINING_ID: &str = "mining_beam";
+
+/// The top-deck bow cell the line warship's emitter replaces, starboard of
+/// the lance. The deck cell below it would put the lance beside the beam lane
+/// and clad it shut.
+const LINE_WARSHIP_MINING_CELL: IVec3 = IVec3::new(1, 1, -7);
 
 /// The six dorsal cells the line warship's intake replaces, centred on the
 /// spine between the aft point-defense seats and the transom.
@@ -395,6 +403,9 @@ pub(super) fn patrol_gunship() -> BlockShip {
 /// A 3x2 cargo intake replaces six top-deck cells aft, door up and flush
 /// with the deck, one plate row behind the aft point-defense seats. It is
 /// off-grid, so [`carve`] clears its cells.
+///
+/// A mining emitter replaces the starboard top-deck plate at the bow, its
+/// emitter face flush with the nose and its beam lane clear forward.
 pub(super) fn line_warship() -> BlockShip {
     BlockShip {
         cells: carve(
@@ -481,6 +492,11 @@ pub(super) fn line_warship() -> BlockShip {
                 CARGO_INTAKE_SECTION_ID,
                 Vec3::new(0.0, 1.0, 5.5),
                 Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+            ),
+            cell_part(
+                BLOCK_LINE_WARSHIP_MINING_ID,
+                MINING_BEAM_SECTION_ID,
+                LINE_WARSHIP_MINING_CELL,
             ),
         ],
         plate: REINFORCED_HULL_SECTION_ID,
@@ -737,7 +753,10 @@ fn union(parts: Vec<Vec<IVec3>>) -> Vec<IVec3> {
 mod tests {
     use std::collections::HashMap;
 
+    use nova_ship::prelude::{exit_normal, placement_blocks_an_exit, PlacedPart, SectionFootprint};
+
     use super::*;
+    use crate::base_content::{assets::BaseContentAssets, sections::section_catalog};
 
     /// Every hand-authored block hull, so a fleet-wide test cannot miss one.
     /// The wreck plate is included; `crewed` filters it out where a test
@@ -938,6 +957,53 @@ mod tests {
                 "a section still fills intake cell {cell}"
             );
         }
+    }
+
+    /// The line warship's emitter stands in a bow hull cell, faces forward,
+    /// and adds no blocked exit: its beam lane is void and no neighbour clads
+    /// it, and it clads no other part's lane.
+    #[test]
+    fn the_line_warship_emitter_fires_forward_down_a_clear_lane() {
+        let hull = line_warship();
+        assert!(hull.cells.contains(&LINE_WARSHIP_MINING_CELL));
+        let sections = hull.sections();
+        let emitter = sections
+            .iter()
+            .find(|section| section.id == BLOCK_LINE_WARSHIP_MINING_ID)
+            .expect("the line warship carries its emitter");
+        assert_eq!(emitter.position, LINE_WARSHIP_MINING_CELL.as_vec3());
+        assert!(
+            sections
+                .iter()
+                .filter(|section| section.position == emitter.position)
+                .count()
+                == 1,
+            "a plate still fills the emitter cell"
+        );
+
+        let catalog = section_catalog(&BaseContentAssets::from_paths());
+        let placed = |section: &SpaceshipSectionConfig| {
+            let config = catalog
+                .iter()
+                .find(|config| config.base.id == section.source.prototype_id())
+                .expect("every line warship section is in the catalog");
+            PlacedPart {
+                position: section.position,
+                rotation: section.rotation,
+                link_points: config.base.link_points.as_slice(),
+                footprint: *SectionFootprint::from_collider(
+                    config.base.collider.unwrap_or_default(),
+                ),
+                exit: exit_normal(&config.kind),
+            }
+        };
+        assert_eq!(placed(emitter).exit, Some(Vec3::NEG_Z));
+        let rest: Vec<PlacedPart> = sections
+            .iter()
+            .filter(|section| section.id != BLOCK_LINE_WARSHIP_MINING_ID)
+            .map(placed)
+            .collect();
+        assert!(!placement_blocks_an_exit(&rest, &placed(emitter)));
     }
 
     /// Every block ship carries the one bridge id content addresses.

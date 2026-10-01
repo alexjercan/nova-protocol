@@ -42,9 +42,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Ships & Sections
 
-- New `block_line_warship` Line Warship: six PDC mounts on the trigger, a bow
-  railgun on R, two torpedo bays on F, a docking collar on each shoulder and a
-  dorsal cargo intake.
+- New `block_line_warship` Line Warship: six PDCs on the trigger, a bow railgun
+  on R, two torpedo bays on F, a collar per shoulder, a dorsal cargo intake and
+  a bow mining beam on V.
+- New `mining_beam_section`: hold V near a travel-locked rock and each deployed
+  emitter within 100 m cuts it once a second with a glowing beam, sparks and a
+  pulse sound. Ore leaves as canisters.
 - New `cargo_intake_section`: its door opens for a canister within 40 m and
   takes one whole if it fits and has room. Contact-free pickup needs a closing
   speed under 5 m/s; contact with the open mouth takes it even after impact.
@@ -55,8 +58,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   warship into an open world generated from the seed and streamed around it.
   Retry keeps the seed.
 - The open-world warship starts with 12 hull plates, 6000 PDC rounds, 20 rail
-  slugs and 12 torpedoes beside a lootable Derelict Tender with 8 plates. Stock
-  resets when the scenario loads.
+  slugs, 12 torpedoes and 2000 cr beside a lootable Derelict Tender with 8
+  plates and 0 cr. Stock resets on load.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.
@@ -81,9 +84,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `CargoIntake` section kind with required door, eject and take sounds,
   `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures,
   speeds and a missing door track.
+- New `Mining` section kind: pulse and door sounds, reach, interval, carve
+  radius and stow tracks. Lint/load reject bad stats, collider or tracks;
+  invalid live mods end the run.
 - **(breaking)** Spaceships require `lootable: true` or `false`; a ship without
   it fails lint and load. A docked player may Take from a `lootable: true`
   ship that was never neutralized.
+- **(breaking)** Spaceships require `credits`, the balance Buy and Sell pay
+  from; a ship without it fails lint and load. Base live ships hold 2000 and
+  the derelict 0.
 
 ### Interface & HUD
 
@@ -93,6 +102,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Inventory pane lists your and a docked ship's cargo, load, item weight
   and transfer weight. Docked, Give, or Take once neutralized or lootable.
   Repair spends 1 hull plate per 20 HP, anywhere.
+- Docked with a live ship, Buy at a fixed ask or Sell at a fixed bid. Items and
+  credits move together from real stock and balances, or a refusal moves
+  nothing. Columns show credits.
+- Inventory Confirm is disabled when a draft has no valid quantity or its
+  transfer or trade preflight refuses against live stock, room or credits.
 - Undocked, Jettison queues canisters of up to 200 kg that the intake drops in
   order. Canisters have 20 HP, lose their contents on destruction, and accept
   travel but not combat locks.
@@ -104,9 +118,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `:` opens NOVA COMMANDS on the CRT over any screen; Escape
   returns there. The `nova>` prompt and app verbs are gone. New `log` prints
   comms, objectives and lock drops.
-- New armed cheat `item give <ship-id> <item-id> <quantity>` adds HullPlate,
-  PdcRound, RailSlug or Torpedo stock to one ship when the whole quantity fits
-  its hold.
+- New armed cheat `item give <ship-id> <item-id> <quantity>` adds any known
+  item to one ship when the whole quantity fits its hold.
 - Keybinds saved under `novaos_*` IDs load onto `interface_toggle` and
   `viewer_*`.
 - The Map labels an asteroid only while it is selected, so a belt of rocks no
@@ -115,6 +128,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A HELM chip reads TAKE HELM, RELEASE HELM or HELM FAULT while docked. Off a
   measured helm, blocked verbs stay on the dock dark. The mode chip reads
   NEUTRAL or HELM FAULT.
+- The Ship pane gives mining beams their own icon and legend entry instead of
+  marking them as hull. Docking and mining remain visible in the section key.
 - The target inset shows the travel lock when no combat lock is held. Its
   caption adds range and signed closing speed. A combat kill cam plays before
   the travel view.
@@ -152,6 +167,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
+- New `trade_loop` playable example docks with a demo-only trader and checks Buy, Sell and refusal through the Inventory pane, with rendered checkpoints.
+- New `mine_and_sell` playable example mines ore, takes a canister through the intake and sells its ore to a docked demo trader, checking the ore and credit ledger.
 - World streaming logs per-cell work at TRACE and summarizes retirements and live windows at DEBUG. PDC mount ownership logs each transition at TRACE and summarizes changes per ship at DEBUG.
 - **(breaking)** Crates `nova_os` and `nova_os_ui` are now `nova_command` and
   `nova_interface`.

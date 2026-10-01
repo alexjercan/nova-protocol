@@ -30,6 +30,7 @@ readings](#damage-is-two-readings)).
 | `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds it, optional `rake_radius` spends that budget on a wider corridor instead of unused depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammunition: Limited(1)` with a long `reload` drawing `RailSlug`. |
 | `Docking`    | Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. `capture_distance`, `capture_angle` and the two relative-speed ceilings are the envelope a `DOCK` is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see [below](#docking-ports-and-what-holds-a-pair-together)). |
 | `CargoIntake` | Cargo intake. Takes a fitting `CargoCanister` whole into the ship's `ShipInventory` and drops the Inventory pane's jettisons from a `CargoIntakeEjectionQueue`, front first, one at a time while the door is open and the birth point is clear. Its volumes are geometry off the `Cuboid` collider's -Z face, not sensors: the workspace has no collision layers, so a sensor would join the ship's compound. `detection_range` opens the door; `capture_gap`, the rotated canister footprint against `aperture_width`/`aperture_height` less `CARGO_APERTURE_MARGIN`, and `maximum_capture_speed` bound a contact-free take; a fitting canister that touches the fully open mouth is taken even after impact, while a frame strike is refused; `eject_speed` sets a drop; the `IntakeDoor` track gates both. The door, drop and take trigger events that `ship_audio/machinery.rs` voices (`cargo_intake_section.rs`). |
+| `Mining` | Mining emitter. While the ship holds `MiningHeld` (the `V` key), `drive_mining_emitters` opens the `StowDoors` track, then extends the `StowLift` tip; on release the tip goes in before the doors shut (`mining_section.rs`). Each change of the doors' target triggers `MiningDoorsMoved`, and `ship_audio` plays the authored `door_open_sound` or `door_close_sound` at the section; the spawn snap and a held key play nothing. Each fully deployed emitter pulses on its own clock every `pulse_interval_seconds`. A pulse casts a ray from its collider's -Z face against the travel-locked rock alone, within `reach`, and carves `carve_radius_cells` at the hit. Ore is paid per newly emptied corner after the remesh, then leaves the rock as canisters one at a time. A passed pulse plays the authored `pulse_sound` at the hit and, in a rendered app, flares the additive beam shader (`assets/shaders/mining_beam.wgsl`) and throws a fixed spark burst. A refusal is a `MiningPulse` with a `MiningRefusalType`, plays nothing and changes nothing (`nova_scenario/src/mining.rs`). |
 
 `run_cargo_intakes` publishes `CargoPickupReadiness` for each live intake/canister pair on the fixed clock, including out-of-range canisters. A pair names only the ship, intake, canister and `ready`; it carries no pose. The HUD draws its live pickup sight for one published pair from rendered `GlobalTransform` poses, with the face from `cargo_intake_face`, the helper the fixed pass also uses. The canister must be within `CARGO_PICKUP_SIGHT_RANGE` (200 m) of the player's ship, with no lock needed: a travel-locked canister first, else the nearest intake face, then the lower entity IDs (`pickup_sight.rs`). No pair in range draws no sight. A take despawns the canister in the same pass, so the sight clears with it and `CargoCanisterTaken` voices the take.
 
@@ -37,7 +38,7 @@ readings](#damage-is-two-readings)).
 Every base prototype is GENERIC and authored under
 `crates/nova_authoring/src/base_content/sections/`, one module per family
 (`hull`, `controller`, `thruster`, `turret`, `torpedo_bay`, `railgun`,
-`docking_port`, `cargo_intake`); a mod that brings modelled craft declares their parts itself. The explicit `section_catalog()` is
+`docking_port`, `cargo_intake`, `mining_beam`); a mod that brings modelled craft declares their parts itself. The explicit `section_catalog()` is
 generated into `assets/base/sections/base.content.ron` by `content -- gen` and
 merged into the resource by
 `crates/nova_assets/src/merge.rs`. The outer-skin cladding is not a prototype at
@@ -390,9 +391,14 @@ the unit-cube defaults:
 
 A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
 `controller` (`None`, `Player`, or `AI`), an `allegiance`, a `capabilities` set
-(what this spawn is permitted to do) and a `design`: a `ShipDesignSource`, which
-is either an `Inline` `ShipDesign` or a `Prototype` naming a catalog design by
-id with this spawn's own `section_patches` over it. The design carries the
+(what this spawn is permitted to do), a required `inventory` stock, a required
+`lootable` flag and a required `credits` balance. Stock must fit the resolved
+hull's hold at 100 kg per hull section; lint rejects heavier stock and load
+fails if it escapes lint. `lootable: true` permits Take while docked even when
+the ship was not neutralized; `credits` funds Buy and Sell against real stock.
+A `design` is a `ShipDesignSource`, either an `Inline` `ShipDesign` or a
+`Prototype` naming a catalog design by id with this spawn's own
+`section_patches` over it. The design carries the
 `integrity` (the optional `collapse_threshold`, below), the `presentation` (the
 [derived cladding](#the-derived-skin), the style and the cockpit voice) and a
 list of `SpaceshipSectionConfig`, each placing one section at a `position` +

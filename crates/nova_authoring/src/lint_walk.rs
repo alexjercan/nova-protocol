@@ -1136,6 +1136,7 @@ mod tests {
                                                 design: Inline((sections: [])),
                                                 inventory: {},
                                                 lootable: false,
+                                                credits: 0,
                                             )),
                                         )),
                                     ],

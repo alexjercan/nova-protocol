@@ -64,6 +64,20 @@ pub(super) struct DockInput;
 #[action_output(bool)]
 pub(super) struct DockHelmInput;
 
+/// Hold the mining beams on the travel-locked rock (`V`). A plain Down action
+/// whose Start and Complete the observers turn into [`MiningHeld`] on the
+/// player ship, as the RCS modifier does with [`RcsActive`].
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(super) struct MineInput;
+
+/// Marks the player ship root while the mine key is held. The ship's mining
+/// sections deploy while it is present and retract once it is gone; the input
+/// layer alone inserts and removes it.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct MiningHeld;
+
 /// The RCS fine-adjust modifier: held (SHIFT) to enter the docking translation
 /// mode. A plain Down action read as a held modifier (the `action_held` pattern,
 /// not a binding Chord - see `modal-input-observer-dispatch`), whose Start/Stop
@@ -180,6 +194,15 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         ..default()
                     },
                     bindings.bundle("dock_helm"),
+                ),
+                (
+                    Name::new("Input: Mine"),
+                    Action::<MineInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings.bundle("mine"),
                 ),
                 (
                     // The radar hold: Start = search opens (slot latched),
@@ -704,6 +727,31 @@ pub(super) fn on_rcs_modifier_start(
         .entity(entity)
         .insert(RcsActive)
         .remove::<Autopilot>();
+}
+
+/// Start holding the mining beams on a fresh `V` press. Frozen or suspended
+/// control hears nothing, as the RCS modifier does.
+pub(super) fn on_mine_start(
+    _: On<Start<MineInput>>,
+    mut commands: Commands,
+    ship: Single<Entity, With<PlayerSpaceshipMarker>>,
+    pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
+) {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
+        return;
+    }
+    commands.entity(*ship).insert(MiningHeld);
+}
+
+/// Stop the mining beams on `V` release. NOT pause-gated: a release must
+/// always clean up.
+pub(super) fn on_mine_released(
+    _: On<Complete<MineInput>>,
+    mut commands: Commands,
+    ship: Single<Entity, With<PlayerSpaceshipMarker>>,
+) {
+    commands.entity(*ship).remove::<MiningHeld>();
 }
 
 /// Leave RCS mode on SHIFT release: drop [`RcsActive`] and zero the held

@@ -2,8 +2,9 @@
 
 A `Section` is a reusable ship part defined in a mod's `*.content.ron` file.
 Create a new id to add a part to the editor palette, or reuse a base id to
-replace that part everywhere. The eight available kinds are `Hull`, `Thruster`,
-`Controller`, `Turret`, `Torpedo`, `Railgun`, `Docking`, and `CargoIntake`.
+replace that part everywhere. The nine available kinds are `Hull`, `Thruster`,
+`Controller`, `Turret`, `Torpedo`, `Railgun`, `Docking`, `CargoIntake`, and
+`Mining`.
 
 Start with the two working section items in
 `assets/mods/example/example.content.ron`: one replaces
@@ -286,8 +287,8 @@ Who raises each cue:
 | cue | steered by | progress 1 is |
 |---|---|---|
 | `MuzzleDoor` | The torpedo bay's fire path, on the HELD trigger - and only while the bay could genuinely fire, so weapons safety or an empty magazine keeps the iris shut. A launched round holds it open across the cold coast, so a tapped trigger closes the doors behind the torpedo rather than on it. | open |
-| `StowLift` | The turret's stow machine. | sunk into the housing |
-| `StowDoors` | The turret's stow machine, sequenced against the lift: it shuts the lids only once the gun is fully down, and parts them before raising it. | shut over the sunk gun |
+| `StowLift` | The turret's stow machine, or a mining emitter's sequence. | sunk into the housing |
+| `StowDoors` | The turret's stow machine or a mining emitter's sequence, against the lift: it shuts the lids only once the gun or tip is fully in, and parts them before moving it out. | shut over the sunk gun or tip |
 | `Charge` | The railgun's charge system, from the committed trigger to the shot. It writes the charge fraction straight in, so `open_seconds` and `close_seconds` are unread on this cue: the travel is the authored `charge_seconds`, and the snap back to 0 is the shot leaving. | fully charged, the instant before firing |
 | `DockTube` | The docking port's sleeve, once the dock's fixed joint EXISTS - never before it, so the tube can never be what holds the two hulls together. It stows again the moment the dock is released. | the sleeve fully out, 0.5 cells past the port face |
 | `IntakeDoor` | The cargo intake, while a canister is in its detection volume or a jettison waits on it. It takes a canister in or drops one only at progress 1. | the door fully folded open |
@@ -1111,6 +1112,64 @@ than 6.8 m, or no `IntakeDoor` track. A missing sound field fails the parse. Off
 face: that face is the door.
 
 <!-- Grammar verified against crates/nova_ship/src/sections/cargo_intake_section.rs (config, zones, run_cargo_intakes) and crates/nova_scenario/src/lint/ship.rs check_cargo_intake_config. Values from assets/base/sections/base.content.ron cargo_intake_section. -->
+
+## Mining
+
+`MiningSectionConfig` - a mining emitter: a beam out of the section's local
+`-Z` face that cuts ore from the ship's travel-locked rock. One ships:
+`mining_beam_section`, a 1x1x1 emitter at the line warship's bow, starboard of
+the railgun.
+
+```ron
+kind: Mining((
+    render_mesh: "dep://base/gltf/mining_beam_compact.glb#Scene0",
+    pulse_sound: "self://sounds/mining_pulse.wav",
+    door_open_sound: "self://sounds/mining_door_open.wav",
+    door_close_sound: "self://sounds/mining_door_close.wav",
+    reach: 100.0,
+    pulse_interval_seconds: 1.0,
+    carve_radius_cells: 1.5,
+)),
+```
+
+- `render_mesh` - the emitter's scene: its casing, the doors its `StowDoors`
+  track slides and the tip its `StowLift` track retracts.
+  `render_mesh_transform` (optional) moves the mesh only.
+- `pulse_sound` - played at the hit on every pulse that passes its checks. A
+  refused pulse plays nothing. Base content ships `mining_pulse.wav`.
+- `door_open_sound` and `door_close_sound` - played at the section when its
+  doors start to part and start to shut. Base content ships
+  `mining_door_open.wav` and `mining_door_close.wav`.
+- `reach` (meters) - the rock must be within this distance of the emitter face,
+  and the beam must meet it within this distance.
+- `pulse_interval_seconds` - game seconds between the pulses of one deployed
+  emitter. The first pulse comes at once.
+- `carve_radius_cells` - the radius of the sphere one pulse cuts, in cells of
+  the rock's own field.
+
+Hold the mine key (`V`) and every emitter on the ship opens its doors, then
+extends its tip. Release it and the tip goes in before the doors shut. Only a
+fully deployed emitter pulses, and each one pulses on its own clock. A pulse
+needs a travel-locked asteroid of a kind that yields ore, within `reach`, and a
+straight line out of the face that meets it. A pulse that fails any check
+changes nothing and is logged. A pulse pays one ore per cell corner it empties,
+once the rock is redrawn, so material already shot away pays nothing. The ore
+leaves the rock as canisters, one at a time, when the space by the surface is
+clear. The emitter costs no power and no ammunition.
+
+The beam draws from the face to the hit only while the emitter is deployed and
+its last pulse found the rock. Each passed pulse flares the beam and throws a
+short spray of sparks off the hit. The glow and the sparks are art only: they
+never change what a pulse cuts or pays.
+
+The beam is measured from the `-Z` face of the section's `Cuboid` collider,
+so an emitter must author one. Author a
+[`StowDoors` and a `StowLift` track](#animation-tracks); progress 1 of each is
+stowed. Lint rejects an emitter without a `Cuboid` collider, a stat that is not
+finite and positive, or a missing track. A missing sound field fails the
+parse. Offer no link point on the `-Z` face: that face is the emitter.
+
+<!-- Grammar verified against crates/nova_ship/src/sections/mining_section.rs (config, validate, drive_mining_emitters), crates/nova_scenario/src/mining.rs (pulse_mining_beams, aim_beam, carve) and crates/nova_scenario/src/lint/ship.rs check_mining_config. Values from assets/base/sections/base.content.ron mining_beam_section. -->
 
 ## A section in a mod
 

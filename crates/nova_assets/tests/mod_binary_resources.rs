@@ -17,8 +17,10 @@ use bevy::{
     asset::{AssetPlugin, RecursiveDependencyLoadState, UntypedAssetId},
     ecs::system::RunSystemOnce,
     prelude::*,
+    state::app::StatesPlugin,
 };
 use nova_assets::prelude::*;
+use nova_gameplay::prelude::GameStates;
 use nova_modding::prelude::{
     BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, ModMeta,
     NovaModdingPlugin,
@@ -38,8 +40,13 @@ fn headless_app() -> App {
         },
     ));
     app.add_plugins(NovaModdingPlugin);
+    // The merge reads the game state; this rig is never in a scenario.
+    app.add_plugins(StatesPlugin);
+    app.init_state::<GameStates>();
     app.init_resource::<DownloadedMods>();
     app.init_resource::<OptionalBundles>();
+    // The merge records a mod it refuses here, as production does.
+    app.init_resource::<ModQuarantine>();
     app
 }
 

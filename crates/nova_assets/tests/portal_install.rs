@@ -33,6 +33,7 @@ use std::{
 use bevy::{
     asset::{AssetPlugin, RecursiveDependencyLoadState, UntypedAssetId},
     prelude::*,
+    state::app::StatesPlugin,
 };
 use nova_assets::{
     mod_cache,
@@ -43,6 +44,7 @@ use nova_assets::{
     },
     prelude::*,
 };
+use nova_gameplay::prelude::GameStates;
 use nova_mod_format::{ModMeta, PortalCatalog, PortalEntry, PortalFile, PORTAL_SCHEMA_VERSION};
 use nova_modding::prelude::{InstalledCatalog, NovaModdingPlugin};
 use nova_scenario::prelude::GameScenarios;
@@ -82,6 +84,9 @@ fn portal_app() -> App {
         },
     ));
     app.add_plugins(NovaModdingPlugin);
+    // The merge reads the game state; this rig is never in a scenario.
+    app.add_plugins(StatesPlugin);
+    app.init_state::<GameStates>();
     app.init_resource::<EnabledMods>();
     app.init_resource::<DownloadedMods>();
     app.init_resource::<ModCatalog>();
@@ -89,6 +94,8 @@ fn portal_app() -> App {
     // downloaded mods, and the shipped catalog's optional half is nobody's
     // dependency now (`nova_assets::safe_mode`).
     app.init_resource::<OptionalBundles>();
+    // The merge records a mod it refuses here, as production does.
+    app.init_resource::<ModQuarantine>();
     app.add_plugins(PortalPlugin);
     app.add_systems(Update, nova_assets::mark_installed_bundles_loaded);
     app.add_systems(

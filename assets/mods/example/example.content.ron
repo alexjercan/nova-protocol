@@ -371,6 +371,7 @@
                             )),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     // A lit beacon centrepiece the rocks sit in front of. Purely
@@ -798,6 +799,7 @@
                             )),
                             inventory: {},
                             lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                 ],

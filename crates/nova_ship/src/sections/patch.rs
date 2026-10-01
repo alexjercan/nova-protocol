@@ -32,8 +32,8 @@ pub mod prelude {
     pub use super::{
         duplicate_muzzle_id, muzzle_ids, CargoIntakeSectionConfigPatch,
         ControllerSectionConfigPatch, DockingSectionConfigPatch, HullSectionConfigPatch,
-        MuzzleConfigPatch, RailgunSectionConfigPatch, SectionConfigPatch, SectionKindPatch,
-        SectionPatchError, ThrusterSectionConfigPatch, TorpedoSectionConfigPatch,
+        MiningSectionConfigPatch, MuzzleConfigPatch, RailgunSectionConfigPatch, SectionConfigPatch,
+        SectionKindPatch, SectionPatchError, ThrusterSectionConfigPatch, TorpedoSectionConfigPatch,
         TurretSectionConfigPatch,
     };
 }
@@ -171,6 +171,8 @@ pub enum SectionKindPatch {
     Docking(DockingSectionConfigPatch),
     /// A cargo intake: nothing kind-specific to patch, as for a hull.
     CargoIntake(CargoIntakeSectionConfigPatch),
+    /// A mining emitter: nothing kind-specific to patch, as for an intake.
+    Mining(MiningSectionConfigPatch),
 }
 
 impl SectionKindPatch {
@@ -185,6 +187,7 @@ impl SectionKindPatch {
             SectionKindPatch::Railgun(_) => SectionClass::Railgun,
             SectionKindPatch::Docking(_) => SectionClass::Docking,
             SectionKindPatch::CargoIntake(_) => SectionClass::CargoIntake,
+            SectionKindPatch::Mining(_) => SectionClass::Mining,
         }
     }
 
@@ -201,6 +204,7 @@ impl SectionKindPatch {
             SectionKindPatch::Railgun(patch) => unchanged(patch),
             SectionKindPatch::Docking(patch) => unchanged(patch),
             SectionKindPatch::CargoIntake(patch) => unchanged(patch),
+            SectionKindPatch::Mining(patch) => unchanged(patch),
         }
     }
 
@@ -236,6 +240,9 @@ impl SectionKindPatch {
             ),
             (SectionKind::CargoIntake(_), SectionKind::CargoIntake(_)) => {
                 Some(SectionKindPatch::CargoIntake(CargoIntakeSectionConfigPatch))
+            }
+            (SectionKind::Mining(_), SectionKind::Mining(_)) => {
+                Some(SectionKindPatch::Mining(MiningSectionConfigPatch))
             }
             _ => None,
         }
@@ -273,6 +280,7 @@ impl SectionKindPatch {
                 Ok(())
             }
             (SectionKindPatch::CargoIntake(_), SectionKind::CargoIntake(_)) => Ok(()),
+            (SectionKindPatch::Mining(_), SectionKind::Mining(_)) => Ok(()),
             (patch, kind) => Err(SectionPatchError::KindMismatch {
                 resolved: kind.class(),
                 patch: patch.class(),
@@ -645,6 +653,13 @@ impl DockingSectionConfigPatch {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CargoIntakeSectionConfigPatch;
+
+/// A mining emitter carries no patchable knobs: its reach, pulse and carve
+/// are the prototype's, and its health is the common
+/// [`SectionConfigPatch::health`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MiningSectionConfigPatch;
 
 /// The value a patch field takes to turn `prototype` into `edited`: the new
 /// value where the two differ, and nothing - inherit - where they do not.

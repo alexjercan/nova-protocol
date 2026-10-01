@@ -9,9 +9,11 @@
 //! repair spends [`ItemType::HullPlate`] by the [`plan_plate_repair`] rule, an
 //! Inventory pane transfer moves items between two docked ships by the
 //! [`plan_item_transfer`] rule, and a jettison queues [`CargoCanister`]s by the
-//! [`plan_item_jettison`] rule, and a weapon's idle reload moves its ammunition
-//! item into the magazine. Stock is not saved: it returns to its authored
-//! counts when the scenario loads again. A stack exists only while its count is
+//! [`plan_item_jettison`] rule, a weapon's idle reload moves its ammunition
+//! item into the magazine, and a Buy or Sell with a docked trader moves items
+//! and [`ShipCredits`] together by the [`plan_item_trade`] rule. Stock and
+//! credits are not saved: they return to their authored values when the
+//! scenario loads again. A stack exists only while its count is
 //! above zero, and the mass of all stacks never passes the capacity. Mass is
 //! counted in grams; [`kg_text`] shows it in kilograms.
 
@@ -24,10 +26,11 @@ use crate::integrity::prelude::Health;
 /// The whole module.
 pub mod prelude {
     pub use super::{
-        kg_text, plan_item_jettison, plan_item_transfer, plan_plate_repair, CargoCanister,
-        ItemCategoryType, ItemJettison, ItemJettisonRefusalType, ItemTransferRefusalType,
-        ItemTransferType, ItemType, LootableShipMarker, PlateRepair, PlateRepairRefusalType,
-        ShipInventory, ShipInventoryStock, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
+        kg_text, plan_item_jettison, plan_item_trade, plan_item_transfer, plan_plate_repair,
+        CargoCanister, ItemCategoryType, ItemJettison, ItemJettisonRefusalType, ItemTrade,
+        ItemTradeRefusalType, ItemTradeType, ItemTransferRefusalType, ItemTransferType, ItemType,
+        LootableShipMarker, PlateRepair, PlateRepairRefusalType, ShipCredits, ShipInventory,
+        ShipInventoryStock, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
     };
 }
 
@@ -45,6 +48,18 @@ pub enum ItemType {
     /// One torpedo. Every bay type loads the same torpedo; the bay decides its
     /// flight.
     Torpedo,
+    /// Ore mined from a rock-kind asteroid.
+    StoneOre,
+    /// Ore mined from a metal-kind asteroid.
+    IronOre,
+    /// Ice mined from an ice-kind asteroid.
+    WaterIce,
+    /// Ore mined from a carbon-kind asteroid.
+    CarbonOre,
+    /// Packed provisions for trade. Nothing eats them.
+    Rations,
+    /// Scavenged machine parts for trade.
+    SalvagedParts,
 }
 
 impl ItemType {
@@ -56,6 +71,43 @@ impl ItemType {
             Self::PdcRound => 200,
             Self::RailSlug => 20_000,
             Self::Torpedo => 150_000,
+            Self::StoneOre | Self::IronOre | Self::WaterIce | Self::CarbonOre => 10_000,
+            Self::Rations => 2_000,
+            Self::SalvagedParts => 25_000,
+        }
+    }
+
+    /// Credits a trader asks for one item: what a Buy pays. Provisional
+    /// values, not a balance decision.
+    pub fn ask_cr(self) -> u32 {
+        match self {
+            Self::HullPlate => 40,
+            Self::PdcRound => 4,
+            Self::RailSlug => 40,
+            Self::Torpedo => 400,
+            Self::StoneOre => 4,
+            Self::IronOre => 16,
+            Self::WaterIce => 12,
+            Self::CarbonOre => 8,
+            Self::Rations => 8,
+            Self::SalvagedParts => 120,
+        }
+    }
+
+    /// Credits a trader bids for one item: what a Sell earns. Below
+    /// [`ask_cr`](Self::ask_cr), so buying and selling back loses credits.
+    pub fn bid_cr(self) -> u32 {
+        match self {
+            Self::HullPlate => 30,
+            Self::PdcRound => 3,
+            Self::RailSlug => 30,
+            Self::Torpedo => 300,
+            Self::StoneOre => 3,
+            Self::IronOre => 12,
+            Self::WaterIce => 9,
+            Self::CarbonOre => 6,
+            Self::Rations => 6,
+            Self::SalvagedParts => 90,
         }
     }
 
@@ -71,6 +123,11 @@ impl ItemType {
         match self {
             Self::HullPlate => ItemCategoryType::Repair,
             Self::PdcRound | Self::RailSlug | Self::Torpedo => ItemCategoryType::Ammo,
+            Self::StoneOre | Self::IronOre | Self::WaterIce | Self::CarbonOre => {
+                ItemCategoryType::Raw
+            }
+            Self::Rations => ItemCategoryType::Food,
+            Self::SalvagedParts => ItemCategoryType::Parts,
         }
     }
 
@@ -82,6 +139,12 @@ impl ItemType {
             Self::PdcRound => "PDC round",
             Self::RailSlug => "Rail slug",
             Self::Torpedo => "Torpedo",
+            Self::StoneOre => "Stone ore",
+            Self::IronOre => "Iron ore",
+            Self::WaterIce => "Water ice",
+            Self::CarbonOre => "Carbon ore",
+            Self::Rations => "Rations",
+            Self::SalvagedParts => "Salvaged parts",
         }
     }
 }
@@ -279,6 +342,13 @@ impl ShipInventory {
     }
 }
 
+/// The credits one ship holds. Required by every
+/// [`SpaceshipRootMarker`](crate::markers::SpaceshipRootMarker); the `Default`
+/// of zero is the value for a ship that no config states. An authored ship
+/// states its balance through `SpaceshipConfig::credits`.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+pub struct ShipCredits(pub u32);
+
 /// Marks a ship root that a docked ship may Take from although it was never
 /// neutralized: a derelict. Authored through `SpaceshipConfig::lootable`.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
@@ -352,6 +422,110 @@ pub fn plan_item_transfer(
         return Err(ItemTransferRefusalType::NoRoom { free_g });
     }
     Ok(quantity)
+}
+
+/// Which way a trade with a docked trader moves items and credits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+pub enum ItemTradeType {
+    /// Items from the trader into the player ship, paid at the item's ask.
+    Buy,
+    /// Items from the player ship into the trader, paid at the item's bid.
+    Sell,
+}
+
+/// A planned trade: the count to move from seller to buyer and the credits to
+/// move from buyer to seller.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemTrade {
+    /// Items to remove from the seller and add to the buyer; above zero.
+    pub count: u32,
+    /// Credits to remove from the buyer and add to the seller.
+    pub price_cr: u32,
+}
+
+/// Why a trade moves nothing, in check order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemTradeRefusalType {
+    /// The docked partner is neutralized or lootable: a derelict does not
+    /// trade.
+    NotTrader,
+    /// The quantity text is not a whole number.
+    NoQuantity,
+    /// A quantity of zero.
+    ZeroQuantity,
+    /// The seller carries fewer than the quantity.
+    Short {
+        /// What the seller carries.
+        held: u32,
+    },
+    /// The buyer has room for less than the quantity's mass.
+    NoRoom {
+        /// How many more grams the buyer has room for.
+        free_g: u32,
+    },
+    /// The buyer holds fewer credits than the price.
+    NoCredits {
+        /// What the buyer holds.
+        credits: u32,
+    },
+    /// The seller's balance after the trade would not fit in [`ShipCredits`].
+    CreditOverflow,
+}
+
+/// Plan a trade of `quantity` of `item` between the player ship (`own`,
+/// holding `own_cr`) and its docked `partner` (holding `partner_cr`).
+///
+/// `partner_trades` is true when the partner is neither neutralized nor
+/// carries [`LootableShipMarker`]. A Buy moves items from the partner to the
+/// player at [`ItemType::ask_cr`] each; a Sell moves them from the player to
+/// the partner at [`ItemType::bid_cr`] each. Checks run in
+/// [`ItemTradeRefusalType`] order, and a refusal changes nothing.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "both ships' stock and credits, read as one atomic plan"
+)]
+pub fn plan_item_trade(
+    trade: ItemTradeType,
+    partner_trades: bool,
+    item: ItemType,
+    quantity: Option<u32>,
+    own: &ShipInventory,
+    own_cr: u32,
+    partner: &ShipInventory,
+    partner_cr: u32,
+) -> Result<ItemTrade, ItemTradeRefusalType> {
+    if !partner_trades {
+        return Err(ItemTradeRefusalType::NotTrader);
+    }
+    let quantity = quantity.ok_or(ItemTradeRefusalType::NoQuantity)?;
+    if quantity == 0 {
+        return Err(ItemTradeRefusalType::ZeroQuantity);
+    }
+    let (seller, buyer, buyer_cr, seller_cr, unit_cr) = match trade {
+        ItemTradeType::Buy => (partner, own, own_cr, partner_cr, item.ask_cr()),
+        ItemTradeType::Sell => (own, partner, partner_cr, own_cr, item.bid_cr()),
+    };
+    let held = seller.count(item);
+    if quantity > held {
+        return Err(ItemTradeRefusalType::Short { held });
+    }
+    let free_g = buyer.free_g();
+    if item.stack_mass_g(quantity) > u64::from(free_g) {
+        return Err(ItemTradeRefusalType::NoRoom { free_g });
+    }
+    let price = u64::from(quantity) * u64::from(unit_cr);
+    if price > u64::from(buyer_cr) {
+        return Err(ItemTradeRefusalType::NoCredits { credits: buyer_cr });
+    }
+    // The price fits: it is at most the buyer's u32 balance.
+    let price_cr = price as u32;
+    if seller_cr.checked_add(price_cr).is_none() {
+        return Err(ItemTradeRefusalType::CreditOverflow);
+    }
+    Ok(ItemTrade {
+        count: quantity,
+        price_cr,
+    })
 }
 
 /// Maximum mass of a drifting canister, in grams.
@@ -698,6 +872,165 @@ mod transfer_tests {
         assert_eq!(own.used_g(), 200_000);
         assert_eq!(own.free_g(), 200_000);
         assert!(partner.is_empty());
+    }
+
+    #[test]
+    fn item_trade_plans_refuse_in_order_and_conserve_items_and_credits() {
+        use ItemTradeRefusalType::*;
+        use ItemTradeType::*;
+        // 400 kg of room; ore is 10 kg, ask 4 and bid 3 for stone.
+        let ore = |count: u32| ShipInventory::new(400_000, [(ItemType::StoneOre, count)]);
+        let plan = |trade,
+                    trades,
+                    quantity,
+                    own: &ShipInventory,
+                    own_cr,
+                    partner: &ShipInventory,
+                    partner_cr| {
+            plan_item_trade(
+                trade,
+                trades,
+                ItemType::StoneOre,
+                quantity,
+                own,
+                own_cr,
+                partner,
+                partner_cr,
+            )
+        };
+        let (own, partner) = (ore(10), ore(30));
+
+        assert_eq!(
+            plan(Buy, true, Some(5), &own, 100, &partner, 0),
+            Ok(ItemTrade {
+                count: 5,
+                price_cr: 20
+            })
+        );
+        assert_eq!(
+            plan(Sell, true, Some(10), &own, 0, &partner, 30),
+            Ok(ItemTrade {
+                count: 10,
+                price_cr: 30
+            })
+        );
+        // Exact funds and exact room are valid; both balances may reach zero.
+        let mut exact = ShipInventory::new(50_000, []);
+        let mut seller = ore(5);
+        let (mut buyer_cr, mut seller_cr) = (20, 0);
+        assert_eq!(
+            plan(Buy, true, Some(5), &exact, buyer_cr, &seller, seller_cr),
+            Ok(ItemTrade {
+                count: 5,
+                price_cr: 20
+            })
+        );
+        assert_eq!(
+            plan(
+                Buy,
+                true,
+                Some(5),
+                &ShipInventory::new(49_999, []),
+                20,
+                &seller,
+                0
+            ),
+            Err(NoRoom { free_g: 49_999 })
+        );
+        assert_eq!(
+            plan(Buy, true, Some(5), &exact, 19, &seller, 0),
+            Err(NoCredits { credits: 19 })
+        );
+        seller.remove(ItemType::StoneOre, 5);
+        exact.add(ItemType::StoneOre, 5);
+        buyer_cr -= 20;
+        seller_cr += 20;
+        assert_eq!((buyer_cr, seller_cr, exact.free_g()), (0, 20, 0));
+        assert_eq!(
+            exact.count(ItemType::StoneOre) + seller.count(ItemType::StoneOre),
+            5
+        );
+        assert_eq!(
+            plan(Buy, true, Some(1), &exact, buyer_cr, &ore(1), seller_cr),
+            Err(NoRoom { free_g: 0 })
+        );
+        assert_eq!(
+            plan(
+                Buy,
+                true,
+                Some(1),
+                &ShipInventory::new(400_000, []),
+                buyer_cr,
+                &ore(1),
+                seller_cr,
+            ),
+            Err(NoCredits { credits: 0 })
+        );
+        // A derelict trades nothing, whatever else is wrong.
+        assert_eq!(plan(Buy, false, None, &own, 0, &partner, 0), Err(NotTrader));
+        assert_eq!(
+            plan(Sell, true, None, &own, 0, &partner, 0),
+            Err(NoQuantity)
+        );
+        assert_eq!(
+            plan(Sell, true, Some(0), &own, 0, &partner, 0),
+            Err(ZeroQuantity)
+        );
+        // Stock, then room, then credits.
+        assert_eq!(
+            plan(Sell, true, Some(11), &own, 0, &partner, 0),
+            Err(Short { held: 10 })
+        );
+        assert_eq!(
+            plan(
+                Buy,
+                true,
+                Some(31),
+                &ShipInventory::default(),
+                0,
+                &partner,
+                0
+            ),
+            Err(Short { held: 30 })
+        );
+        assert_eq!(
+            plan(
+                Buy,
+                true,
+                Some(1),
+                &ShipInventory::default(),
+                0,
+                &partner,
+                0
+            ),
+            Err(NoRoom { free_g: 0 })
+        );
+        assert_eq!(
+            plan(Buy, true, Some(5), &own, 19, &partner, 0),
+            Err(NoCredits { credits: 19 })
+        );
+        assert_eq!(
+            plan(Sell, true, Some(10), &own, 0, &partner, 29),
+            Err(NoCredits { credits: 29 })
+        );
+        assert_eq!(
+            plan(Sell, true, Some(1), &own, u32::MAX - 2, &partner, 3),
+            Err(CreditOverflow)
+        );
+
+        // A planned Buy conserves items and credits across both ships.
+        let (mut own, mut partner) = (own, partner);
+        let (mut own_cr, mut partner_cr) = (100u32, 7u32);
+        let trade = plan(Buy, true, Some(5), &own, own_cr, &partner, partner_cr).expect("planned");
+        partner.remove(ItemType::StoneOre, trade.count);
+        own.add(ItemType::StoneOre, trade.count);
+        own_cr -= trade.price_cr;
+        partner_cr += trade.price_cr;
+        assert_eq!(
+            own.count(ItemType::StoneOre) + partner.count(ItemType::StoneOre),
+            40
+        );
+        assert_eq!((own_cr, partner_cr), (80, 27));
     }
 
     #[test]

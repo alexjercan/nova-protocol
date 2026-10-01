@@ -1,7 +1,8 @@
 //! The ship's moving parts: the sounds a hull makes when it is not shooting.
 //!
-//! Doors - the retractable PDC housing, the torpedo bay's muzzle iris and the
-//! cargo intake's accordion - and the intake's drop and take. The seam is
+//! Doors - the retractable PDC housing, the torpedo bay's muzzle iris, the
+//! cargo intake's accordion and the mining emitter's lids - and the intake's
+//! drop and take. The seam is
 //! deliberately the same as the weapons': the mechanism reports, content
 //! authors the sound, and this module is the only place that turns the two
 //! into a voice.
@@ -15,13 +16,15 @@ use nova_gameplay::prelude::*;
 
 use super::{
     routing::route_for, BAY_DOOR_CLOSE_VOLUME, BAY_DOOR_OPEN_VOLUME, CARGO_EJECT_VOLUME,
-    INTAKE_DOOR_CLOSE_VOLUME, INTAKE_DOOR_OPEN_VOLUME, STOW_CLOSE_VOLUME, STOW_OPEN_VOLUME,
+    INTAKE_DOOR_CLOSE_VOLUME, INTAKE_DOOR_OPEN_VOLUME, MINING_DOOR_CLOSE_VOLUME,
+    MINING_DOOR_OPEN_VOLUME, STOW_CLOSE_VOLUME, STOW_OPEN_VOLUME,
 };
 use crate::sections::{
     cargo_intake_section::{
         CargoCanisterEjected, CargoCanisterTaken, CargoIntakeDoorMoved,
         CargoIntakeSectionConfigHelper,
     },
+    mining_section::{MiningDoorsMoved, MiningSectionConfigHelper},
     torpedo_section::{TorpedoBayDoorsMoved, TorpedoSectionDoorSound},
     turret_section::{TurretSectionStowSounds, TurretStowDoorsMoved},
 };
@@ -135,6 +138,35 @@ pub(super) fn on_intake_door_play_sfx(
     );
 }
 
+/// The mining emitter's lids, on the frame they are told to move. Two
+/// required files, one per direction, like the PDC housing's pair.
+pub(super) fn on_mining_doors_play_sfx(
+    moved: On<MiningDoorsMoved>,
+    asset_server: Res<AssetServer>,
+    q_emitters: Query<(&MiningSectionConfigHelper, &GlobalTransform)>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let emitter = moved.entity;
+    let Ok((config, at)) = q_emitters.get(emitter) else {
+        return;
+    };
+    let (sound, volume) = if moved.opening {
+        (&config.door_open_sound, MINING_DOOR_OPEN_VOLUME)
+    } else {
+        (&config.door_close_sound, MINING_DOOR_CLOSE_VOLUME)
+    };
+    let route = route_for(emitter, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(
+        sound.resolve(&asset_server),
+        route,
+        volume,
+        at.translation(),
+    );
+}
+
 /// A canister leaving the intake, at the intake.
 pub(super) fn on_canister_ejected_play_sfx(
     ejected: On<CargoCanisterEjected>,
@@ -186,8 +218,9 @@ mod tests {
     use nova_events::units::prelude::*;
 
     use super::{super::test_support::LastPlayed, *};
-    use crate::sections::cargo_intake_section::{
-        preview_cargo_intake_section, CargoIntakeSectionConfig,
+    use crate::sections::{
+        cargo_intake_section::{preview_cargo_intake_section, CargoIntakeSectionConfig},
+        mining_section::{preview_mining_section, MiningSectionConfig},
     };
 
     /// A live turret with the given authored pair, on a ship of its own.
@@ -415,6 +448,65 @@ mod tests {
                 (
                     server.load("base/sounds/salvage_pickup.wav"),
                     SALVAGE_PICKUP_VOLUME,
+                    at
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn each_mining_door_direction_plays_its_own_file_at_its_own_level_at_the_section() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.add_observer(on_mining_doors_play_sfx);
+        #[derive(Resource, Default)]
+        struct Heard(Vec<(Handle<AudioSource>, f32, SfxSource)>);
+        app.init_resource::<Heard>();
+        app.add_observer(|ev: On<PlaySfx>, mut heard: ResMut<Heard>| {
+            heard.0.push((ev.handle.clone(), ev.volume, ev.source));
+        });
+        let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let point = Vec3::new(-2.0, 4.0, 1.0);
+        let at = SfxSource::At(point);
+        let emitter = app
+            .world_mut()
+            .spawn((
+                preview_mining_section(MiningSectionConfig {
+                    render_mesh: AssetRef::from("mining.glb#Scene0"),
+                    render_mesh_transform: None,
+                    pulse_sound: AssetRef::from("base/sounds/mining_pulse.wav"),
+                    door_open_sound: AssetRef::from("base/sounds/mining_door_open.wav"),
+                    door_close_sound: AssetRef::from("base/sounds/mining_door_close.wav"),
+                    reach: Meters(100.0),
+                    pulse_interval_seconds: 1.0,
+                    carve_radius_cells: 1.5,
+                }),
+                GlobalTransform::from_translation(point),
+                ChildOf(ship),
+            ))
+            .id();
+
+        for opening in [true, false] {
+            app.world_mut().trigger(MiningDoorsMoved {
+                entity: emitter,
+                opening,
+            });
+        }
+        app.world_mut().flush();
+
+        let server = app.world().resource::<AssetServer>().clone();
+        assert_eq!(
+            app.world().resource::<Heard>().0,
+            vec![
+                (
+                    server.load("base/sounds/mining_door_open.wav"),
+                    MINING_DOOR_OPEN_VOLUME,
+                    at
+                ),
+                (
+                    server.load("base/sounds/mining_door_close.wav"),
+                    MINING_DOOR_CLOSE_VOLUME,
                     at
                 ),
             ]

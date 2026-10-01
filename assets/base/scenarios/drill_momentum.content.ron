@@ -60,6 +60,7 @@
                                 PdcRound: 2000,
                             },
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((

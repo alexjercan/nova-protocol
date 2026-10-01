@@ -6,10 +6,10 @@ use nova_gameplay::prelude::kg_text;
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
     section_colliders_overlap, AmmoCapacity, CargoIntakeSectionConfig, ControllerSectionConfig,
-    DockingSectionConfig, LinkPointGraphError, LinkPointRef, PlacedSectionCollider,
-    PlacedSectionLinkPoints, RailgunSectionConfig, ReloadConfig, SectionAnimationCue,
-    SectionCollider, SectionConfig, SectionKind, TorpedoSectionConfig, TurretJoint,
-    TurretSectionConfig, CARGO_APERTURE_MARGIN, CARGO_CANISTER_SIZE,
+    DockingSectionConfig, LinkPointGraphError, LinkPointRef, MiningSectionConfig,
+    PlacedSectionCollider, PlacedSectionLinkPoints, RailgunSectionConfig, ReloadConfig,
+    SectionAnimationCue, SectionCollider, SectionConfig, SectionKind, TorpedoSectionConfig,
+    TurretJoint, TurretSectionConfig, CARGO_APERTURE_MARGIN, CARGO_CANISTER_SIZE,
 };
 
 use super::{KnownSections, KnownShipDesigns, LintIssue};
@@ -196,6 +196,9 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
         }
         SectionKind::CargoIntake(intake) => {
             check_cargo_intake_config(config, intake, source, &mut issues);
+        }
+        SectionKind::Mining(mining) => {
+            check_mining_config(config, mining, source, &mut issues);
         }
         _ => {}
     }
@@ -519,6 +522,42 @@ fn check_cargo_intake_config(
             "cargo intake authors no IntakeDoor animation track, so its door never opens"
                 .to_string(),
         );
+    }
+}
+
+/// A mining section needs finite, positive stats, a Cuboid collider whose -Z
+/// face is the emitter, and both stow tracks, or its doors and tip never move.
+fn check_mining_config(
+    config: &SectionConfig,
+    mining: &MiningSectionConfig,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let section_id = config.base.id.as_str();
+    let mut error = |message: String| {
+        issues.push(LintIssue::error(
+            source,
+            format!("section '{section_id}': {message}"),
+        ));
+    };
+    if let Err(fault) = mining.validate() {
+        error(fault.to_string());
+    }
+    if !matches!(config.base.collider, Some(SectionCollider::Cuboid { .. })) {
+        error(format!(
+            "a mining section must author a Cuboid collider - its emitter is the box's -Z face - got {:?}",
+            config.base.collider
+        ));
+    }
+    for (cue, part) in [
+        (SectionAnimationCue::StowDoors, "doors"),
+        (SectionAnimationCue::StowLift, "tip"),
+    ] {
+        if !config.base.animations.iter().any(|track| track.cue == cue) {
+            error(format!(
+                "mining section authors no {cue:?} animation track, so its {part} never move"
+            ));
+        }
     }
 }
 

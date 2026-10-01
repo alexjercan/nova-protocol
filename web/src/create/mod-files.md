@@ -104,6 +104,17 @@ the Mods screen is where the player updates, removes or re-enables it. So a mod
 you ship broken costs that mod, not the player's game - but nothing tells them
 more than the loader's own first line, which is what `content lint` is for.
 
+The load also runs the section checks `content lint` runs, on every section a
+mod carries, used or not. One failing section switches off the WHOLE mod, and
+the notice names the section and the first fault. Every enabled mod that
+depends on it is switched off with it, because its ships name sections that are
+no longer there. A mod that overrides a base section with a broken one is
+switched off, and the base section stays.
+
+During a scenario, a mod that fails to load, fails these checks, or depends on
+a mod that was switched off (after an update or a download, for example) is not
+switched off: the game stops with an error that names the mod.
+
 The full packaging, catalog, local installation, and publishing flow is in
 [Publish a mod](../publish-a-mod/).
 

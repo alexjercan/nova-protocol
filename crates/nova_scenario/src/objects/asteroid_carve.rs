@@ -82,10 +82,13 @@ use super::{
     asteroid_surface::prelude::{AsteroidSurfaceMaterial, RockHeight},
 };
 
-/// `AsteroidField`, `AsteroidCarvePlugin` and the rock mesh they share with the
-/// spawn path.
+/// `AsteroidField`, its seed request and remesh event, `AsteroidCarvePlugin`
+/// and the rock mesh they share with the spawn path.
 pub mod prelude {
-    pub use super::{pristine_rock_mesh, AsteroidCarvePlugin, AsteroidField, CarveApplyReport};
+    pub use super::{
+        pristine_rock_mesh, AsteroidCarvePlugin, AsteroidField, AsteroidFieldSeedRequest,
+        AsteroidRemeshed, CarveApplyReport,
+    };
 }
 
 /// How wide one field cell is, in WORLD units.
@@ -158,11 +161,13 @@ pub struct AsteroidField {
     /// NOT a count. Repeated fire grows a mark's radius without growing the
     /// list, and a count would call that "nothing new" and never carve it.
     applied: u64,
-    /// Mark signature whose candidate was last attempted.
+    /// Mark signature whose candidate was last attempted; `None` after a
+    /// [`mine`](Self::mine), which changes the solid without changing the
+    /// marks.
     ///
-    /// A rejected surface waits for another mark rather than rebuilding the
-    /// same unusable collider every frame.
-    attempted: u64,
+    /// A rejected surface waits for another mark or mining pulse rather than
+    /// rebuilding the same unusable collider every frame.
+    attempted: Option<u64>,
     /// How much solid `field` holds, in the grid's own cubic units.
     ///
     /// CARRIED, not measured. `subtract_sphere` reports exactly what it took by
@@ -204,6 +209,46 @@ impl AsteroidField {
     pub fn solid(&self) -> &SignedField {
         &self.field
     }
+
+    /// Take a mining sphere at `at` with `radius`, both in the field's unit
+    /// space, and return how many corners it flipped from solid to empty.
+    ///
+    /// Only material still in the field counts: a corner a hit or an earlier
+    /// pulse already emptied flips nothing. The change waits for the next
+    /// remesh like a hit does, and [`AsteroidRemeshed`] says when it is drawn
+    /// and collided with.
+    pub fn mine(&mut self, at: Vec3, radius: f32) -> u32 {
+        let flipped = self.field.subtract_sphere(at, radius);
+        self.volume -= corner_volume(&self.field, flipped);
+        if flipped > 0 {
+            self.attempted = None;
+        }
+        flipped
+    }
+}
+
+/// The cubic unit-space volume of `corners` cells of `field`.
+fn corner_volume(field: &SignedField, corners: u32) -> f32 {
+    corners as f32 * field.cell_size().powi(3)
+}
+
+/// Asks for the pristine field of a rock node that no hit has marked, so a
+/// mining pulse can carve it. Removed when the seed task starts.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct AsteroidFieldSeedRequest;
+
+/// A rock node's carve became observable: a remesh swapped in a validated
+/// collider and mesh, or the rock ran out of material and is being despawned.
+///
+/// Triggered through `Commands` after the swap's inserts, so an observer sees
+/// the new collider, and before the despawn, so an exhausted node still
+/// exists.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct AsteroidRemeshed {
+    /// The rock's mesh node, which carries the field.
+    pub entity: Entity,
+    /// True when the rock ran out of material and is being despawned.
+    pub exhausted: bool,
 }
 
 /// The worst frame the swap-in has had, and what it took delivery of.
@@ -502,7 +547,7 @@ struct CarvedSurface {
 
 /// The pristine field a rock is waiting on, in flight on the compute pool.
 #[derive(Component)]
-struct AsteroidFieldSeeding(Task<SignedField>);
+pub(crate) struct AsteroidFieldSeeding(Task<SignedField>);
 
 /// The remesh a rock has in flight, at most one at a time.
 ///
@@ -511,7 +556,7 @@ struct AsteroidFieldSeeding(Task<SignedField>);
 /// the task hands back. That staleness is the same one the volume throttle
 /// already allows, and it is what a carve costs instead of a frame.
 #[derive(Component)]
-struct AsteroidRemesh(Task<CarvedSurface>);
+pub(crate) struct AsteroidRemesh(Task<CarvedSurface>);
 
 /// Split, mesh and collide one candidate solid AND everything it cut free.
 /// Pure, and run off the main thread.
@@ -587,21 +632,27 @@ fn carve_surface(
     }
 }
 
-/// Put the pristine field of every rock that has just been marked in flight.
+/// Put the pristine field of every rock that has just been marked, or that a
+/// miner asked for with [`AsteroidFieldSeedRequest`], in flight.
 ///
-/// A rock is gridded only once it is shot at, so this is where a scenario's
-/// untouched hundred stay free. The seed is tens of thousands of noise samples
-/// and it goes to the pool for the same reason the remesh does.
+/// A rock is gridded only once it is shot at or mined, so this is where a
+/// scenario's untouched hundred stay free. The seed is tens of thousands of
+/// noise samples and it goes to the pool for the same reason the remesh does.
 fn seed_asteroid_fields(
     mut commands: Commands,
     q_nodes: Query<
-        (Entity, &DamageMarks, &ChildOf),
+        (
+            Entity,
+            &DamageMarks,
+            &ChildOf,
+            Has<AsteroidFieldSeedRequest>,
+        ),
         (Without<AsteroidField>, Without<AsteroidFieldSeeding>),
     >,
     q_asteroid: Query<(&AsteroidSeed, &AsteroidRadius), With<AsteroidMarker>>,
 ) {
-    for (node, marks, ChildOf(root)) in &q_nodes {
-        if marks.0.is_empty() {
+    for (node, marks, ChildOf(root), requested) in &q_nodes {
+        if marks.0.is_empty() && !requested {
             continue;
         }
         let Ok((seed, nominal)) = q_asteroid.get(*root) else {
@@ -609,7 +660,10 @@ fn seed_asteroid_fields(
         };
         let (seed, radius) = (seed.0, nominal.0);
         let task = AsyncComputeTaskPool::get().spawn(async move { pristine_field(seed, radius) });
-        commands.entity(node).insert(AsteroidFieldSeeding(task));
+        commands
+            .entity(node)
+            .remove::<AsteroidFieldSeedRequest>()
+            .insert(AsteroidFieldSeeding(task));
     }
 }
 
@@ -636,7 +690,7 @@ fn collect_asteroid_field_seeds(
             .insert(AsteroidField {
                 field: seeded,
                 applied: 0,
-                attempted: 0,
+                attempted: None,
                 volume,
                 meshed_volume: volume,
             });
@@ -644,7 +698,7 @@ fn collect_asteroid_field_seeds(
 }
 
 /// Carve every mark into the rock's own field, and put a remesh in flight when
-/// the grid has lost a cell.
+/// the grid has lost a cell to a mark or a mining pulse.
 ///
 /// Marks accumulate on every hit, but remeshing waits until the grid loses a
 /// cell. A change the field cannot yet draw must not pay for connectivity,
@@ -666,10 +720,8 @@ fn carve_asteroid_fields(
     >,
 ) {
     for (node, marks, mut field, frame) in &mut q_nodes {
-        if marks.0.is_empty() {
-            continue;
-        }
-
+        // A mined rock may carry no marks at all; its empty list still has a
+        // signature, so the check below still sees the pulse.
         let signature = AsteroidField::signature(marks);
         if field.applied != signature {
             field.applied = signature;
@@ -677,7 +729,8 @@ fn carve_asteroid_fields(
             // max, so re-applying one already in the solid changes nothing -
             // and reports taking nothing, which is what keeps `volume` exact.
             for mark in &marks.0 {
-                field.volume -= field.field.subtract_sphere(mark.at, mark.radius);
+                let flipped = field.field.subtract_sphere(mark.at, mark.radius);
+                field.volume -= corner_volume(&field.field, flipped);
             }
         }
 
@@ -685,10 +738,10 @@ fn carve_asteroid_fields(
         // surface topology. Keep accumulating it, but do not pay connectivity,
         // surface generation and collider rebuild until at least one cell is
         // observably gone.
-        if field.attempted == signature || field.volume >= field.meshed_volume {
+        if field.attempted == Some(signature) || field.volume >= field.meshed_volume {
             continue;
         }
-        field.attempted = signature;
+        field.attempted = Some(signature);
 
         // Work on a candidate. Splitting mutates a field; doing it to the live
         // one before collider validation can spawn duplicate islands and leave
@@ -791,6 +844,10 @@ fn collect_asteroid_remeshes(
             // a second puff for the same material is the same round paid twice.
             frame_cost.pieces +=
                 throw_severed_pieces(&mut commands, &mut meshes, &parent, carved.pieces);
+            commands.trigger(AsteroidRemeshed {
+                entity: node,
+                exhausted: true,
+            });
             // Reuse the common destruction cue seam without opting into its
             // health or random-fragment finale.
             commands.entity(node).insert(IntegrityDestroyMarker);
@@ -822,6 +879,10 @@ fn collect_asteroid_remeshes(
         // field, so the whole list is re-applied to the solid that came back.
         field.applied = 0;
 
+        let remeshed = AsteroidRemeshed {
+            entity: node,
+            exhausted: false,
+        };
         let mut node = commands.entity(node);
         node.insert(collider);
         // The density rides along unchanged, so avian re-derives mass from the
@@ -841,6 +902,7 @@ fn collect_asteroid_remeshes(
         if shrunk < body.0 {
             commands.entity(*root).insert(BodyRadius(shrunk));
         }
+        commands.trigger(remeshed);
     }
 
     if frame_cost.delivered > 0 {

@@ -332,6 +332,7 @@
                             )),
                             inventory: {},
                             lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SetCamera((

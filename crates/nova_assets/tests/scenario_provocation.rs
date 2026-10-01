@@ -63,6 +63,7 @@ const SCENARIO_RON: &str = r#"[
                             design: Inline((sections: [])),
                             inventory: {},
                             lootable: false,
+                            credits: 0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -73,6 +74,7 @@ const SCENARIO_RON: &str = r#"[
                             design: Inline((sections: [])),
                             inventory: {},
                             lootable: false,
+                            credits: 0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -83,6 +85,7 @@ const SCENARIO_RON: &str = r#"[
                             design: Inline((sections: [])),
                             inventory: {},
                             lootable: false,
+                            credits: 0,
                         )),
                     )),
                     CreateScenarioArea((id: "area_1", name: "Watch Zone", position: (800.0, 0.0, -1100.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 240.0)),

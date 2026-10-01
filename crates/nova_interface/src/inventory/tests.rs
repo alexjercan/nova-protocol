@@ -6,8 +6,8 @@ use std::collections::VecDeque;
 
 use bevy::{
     ecs::system::RunSystemOnce,
-    ui::{ComputedNode, UiGlobalTransform},
-    ui_widgets::ValueChange,
+    ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
+    ui_widgets::{Activate, ValueChange},
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{
@@ -138,14 +138,18 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
     let root = app.world_mut().spawn(Node::default()).id();
     spawn_inventory_body(&mut app, root);
     let player = spawn_player(app.world_mut(), 12);
+    app.world_mut()
+        .entity_mut(player)
+        .insert(ShipCredits(2_000));
 
     // Undocked: the player's own stack, and no partner to read.
     app.update();
     let world = app.world_mut();
-    // The player's title carries its load against its capacity.
+    // The player's title carries its load against its capacity and its
+    // credits, grouped by thousands.
     assert_eq!(
         column_title(world, InventorySideType::Own),
-        "NOVA 120 kg / 400 kg"
+        "NOVA 120 kg / 400 kg  2,000 cr"
     );
     assert_eq!(
         column_texts(world, InventorySideType::Own),
@@ -157,7 +161,10 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
     dock_partner(app.world_mut(), player, "Picket", 40);
     app.update();
     let world = app.world_mut();
-    assert_eq!(column_title(world, InventorySideType::Partner), "Picket");
+    assert_eq!(
+        column_title(world, InventorySideType::Partner),
+        "Picket  0 cr"
+    );
     assert_eq!(
         column_texts(world, InventorySideType::Partner),
         ["Hull plate", "x40"]
@@ -345,8 +352,15 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
         inspector(world, InventoryInspectorField::Weight).as_deref(),
         Some("10 kg")
     );
-    // Picket is not lootable, so its row opens no draft to weigh.
-    assert!(!total_weight_shown(world));
+    // Picket is not lootable, so it trades: its row opens a one-unit Buy.
+    assert!(total_weight_shown(world));
+    assert_eq!(
+        world
+            .resource::<InventoryRuntime>()
+            .draft
+            .map(|draft| draft.action),
+        Some(InventoryActionType::Buy)
+    );
 
     // Ammo hides the hull plates and drops the selection with them.
     let ammo = centre_of::<InventoryFilterChip>(rig.app.world_mut(), |chip| {
@@ -378,7 +392,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
         inspector(world, InventoryInspectorField::Weight).as_deref(),
         Some("0.2 kg")
     );
-    assert!(!total_weight_shown(world));
+    assert!(total_weight_shown(world));
 
     // The current filter again rebuilds nothing and stays silent.
     click_at(&mut rig, ammo);
@@ -563,6 +577,213 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
         refused("Refused: not docked")
     );
     assert_eq!(plates(app.world(), player), 20);
+}
+
+/// Buy and Sell move items one way and the exact price the other way, in
+/// one run; every refusal moves neither. Items and credits both conserve.
+#[test]
+fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
+    use InventoryActionType::{Buy, Sell};
+
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_resource::<InventoryRuntime>();
+    app.add_message::<InventoryActionCommand>();
+    app.add_systems(Update, apply_inventory_action_commands);
+    hear_ui_cues(&mut app);
+    let player = spawn_player(app.world_mut(), 12);
+    let partner = dock_partner(app.world_mut(), player, "Trader", 8);
+    app.world_mut().entity_mut(player).insert(ShipCredits(100));
+    app.world_mut()
+        .entity_mut(partner)
+        .insert(ShipCredits(1_000));
+    let state = |app: &App| {
+        let credits = |ship| app.world().get::<ShipCredits>(ship).unwrap().0;
+        (
+            plates(app.world(), player),
+            credits(player),
+            plates(app.world(), partner),
+            credits(partner),
+        )
+    };
+    let confirm = |app: &mut App, action, quantity: Option<u32>| {
+        app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
+            action,
+            item: ItemType::HullPlate,
+            quantity,
+        });
+        app.world_mut().write_message(InventoryActionCommand {
+            action,
+            item: ItemType::HullPlate,
+            quantity,
+        });
+        app.update();
+        let draft_open = app.world().resource::<InventoryRuntime>().draft.is_some();
+        let (items, player_cr, partner_items, partner_cr) = state(app);
+        assert_eq!(items + partner_items, 20, "items conserve");
+        assert_eq!(player_cr + partner_cr, 1_100, "credits conserve");
+        (note(app), take_cues(app), draft_open)
+    };
+    let traded = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
+    let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
+
+    // A hull plate asks 40 cr and bids 30 cr.
+    assert_eq!(
+        confirm(&mut app, Buy, Some(2)),
+        traded("Bought 2 Hull plate from Trader for 80 cr")
+    );
+    assert_eq!(state(&app), (14, 20, 6, 1_080));
+    assert_eq!(
+        confirm(&mut app, Buy, Some(1)),
+        refused("Refused: NOVA has only 20 cr")
+    );
+    assert_eq!(
+        confirm(&mut app, Sell, Some(3)),
+        traded("Sold 3 Hull plate to Trader for 90 cr")
+    );
+    assert_eq!(state(&app), (11, 110, 9, 990));
+    assert_eq!(
+        confirm(&mut app, Sell, Some(12)),
+        refused("Refused: only 11 Hull plate in NOVA")
+    );
+    assert_eq!(
+        confirm(&mut app, Buy, Some(10)),
+        refused("Refused: only 9 Hull plate in Trader")
+    );
+    assert_eq!(
+        confirm(&mut app, Sell, Some(0)),
+        refused("Refused: quantity is zero")
+    );
+
+    // The buyer's hold binds before its credits.
+    app.world_mut()
+        .entity_mut(partner)
+        .insert(ShipInventory::new(100_000, [(ItemType::HullPlate, 9)]));
+    assert_eq!(
+        confirm(&mut app, Sell, Some(2)),
+        refused("Refused: Trader has room for 10 kg more")
+    );
+
+    // A lootable ship is a wreck, not a market.
+    app.world_mut()
+        .entity_mut(partner)
+        .insert(LootableShipMarker);
+    assert_eq!(
+        confirm(&mut app, Buy, Some(1)),
+        refused("Refused: Trader does not trade")
+    );
+    assert_eq!(state(&app), (11, 110, 9, 990));
+}
+
+/// Confirm follows the live plan: disabled on each refusal the summary shows,
+/// so neither a click nor a triggered `Activate` sends it, and enabled again
+/// once the quantity, room or credits allow the trade. A Buy that fills the
+/// hold and spends every credit exactly is allowed.
+#[test]
+fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_credits() {
+    let (mut rig, player) = inventory_rig();
+    // 380 of 400 kg: room for two 10 kg plates; 80 cr buys two at 40 cr.
+    rig.app
+        .world_mut()
+        .entity_mut(player)
+        .insert((hold(38), ShipCredits(80)));
+    let partner = dock_partner(rig.app.world_mut(), player, "Trader", 8);
+    rig.app
+        .world_mut()
+        .entity_mut(partner)
+        .insert(ShipCredits(1_000));
+    settle(&mut rig.app);
+    let state = |app: &App| {
+        let credits = |ship| app.world().get::<ShipCredits>(ship).unwrap().0;
+        (
+            plates(app.world(), player),
+            credits(player),
+            plates(app.world(), partner),
+            credits(partner),
+        )
+    };
+    let confirm = only::<InventoryDraftConfirm>(rig.app.world_mut());
+    let field = only::<InventoryDraftField>(rig.app.world_mut());
+    let form = |app: &mut App| {
+        let world = app.world_mut();
+        let summary = world
+            .query::<(&InventoryInspectorField, &Text)>()
+            .iter(world)
+            .find(|(each, _)| **each == InventoryInspectorField::DraftSummary)
+            .map(|(_, text)| text.0.clone())
+            .expect("the form has a summary");
+        (summary, world.get::<InteractionDisabled>(confirm).is_none())
+    };
+    let set_field = |app: &mut App, text: &str| {
+        app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = text.to_string();
+        settle(app);
+    };
+
+    let partner_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
+        row.side == InventorySideType::Partner
+    });
+    click_at(&mut rig, partner_row);
+    assert_eq!(
+        form(&mut rig.app),
+        ("Price 40 cr, you after: 40 cr".to_string(), true)
+    );
+
+    // Three plates overfill the hold: disabled, and neither a click nor a
+    // triggered Activate moves anything or says anything.
+    set_field(&mut rig.app, "3");
+    assert_eq!(
+        form(&mut rig.app),
+        ("Refused: NOVA has room for 20 kg more".to_string(), false)
+    );
+    take_cues(&mut rig.app);
+    let confirm_at = centre_of::<InventoryDraftConfirm>(rig.app.world_mut(), |_| true);
+    click_at(&mut rig, confirm_at);
+    rig.app.world_mut().trigger(Activate { entity: confirm });
+    settle(&mut rig.app);
+    assert_eq!(state(&rig.app), (38, 80, 8, 1_000));
+    assert_eq!(note(&rig.app), None);
+    assert!(take_cues(&mut rig.app).is_empty());
+    assert_eq!(draft_quantity(&rig.app), Some(3));
+
+    set_field(&mut rig.app, "2x");
+    assert_eq!(
+        form(&mut rig.app),
+        ("Type a whole number".to_string(), false)
+    );
+
+    // Two plates fill the hold and spend every credit exactly: allowed.
+    set_field(&mut rig.app, "2");
+    assert_eq!(
+        form(&mut rig.app),
+        ("Price 80 cr, you after: 0 cr".to_string(), true)
+    );
+
+    // A credit short disables it; the credit back enables it.
+    rig.app
+        .world_mut()
+        .entity_mut(player)
+        .insert(ShipCredits(79));
+    settle(&mut rig.app);
+    assert_eq!(
+        form(&mut rig.app),
+        ("Refused: NOVA has only 79 cr".to_string(), false)
+    );
+    rig.app
+        .world_mut()
+        .entity_mut(player)
+        .insert(ShipCredits(80));
+    settle(&mut rig.app);
+    assert!(form(&mut rig.app).1);
+
+    // The shorter summary reflows the form, so aim at Confirm again.
+    let confirm_at = centre_of::<InventoryDraftConfirm>(rig.app.world_mut(), |_| true);
+    click_at(&mut rig, confirm_at);
+    assert_eq!(state(&rig.app), (40, 0, 6, 1_080));
+    assert_eq!(rig.app.world().resource::<InventoryRuntime>().draft, None);
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Bought 2 Hull plate from Trader for 80 cr")
+    );
 }
 
 #[test]

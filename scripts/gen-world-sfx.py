@@ -928,6 +928,98 @@ def cargo_eject(rng):
     return out
 
 
+def mining_pulse(rng):
+    """One mining beam pulse biting the rock: the emitter's zap, then the
+    face spalling where it lands.
+
+    A tool, not a gun. It repeats once a second for as long as the key is
+    held, so it has no hard crack and no chest punch: the front is a bright
+    downward chirp, the body is a short sizzle of grit, and the only low end
+    is a soft thud of stone. The chirp's two detuned partials are what keep it
+    apart from the lance's electrical snap, which is broadband.
+    """
+    duration = 0.42
+    out = silence(duration)
+
+    # The emitter discharging: a downward chirp with a detuned twin, so it
+    # beats instead of ringing like a tone.
+    chirp = sweep(0.16, 2100.0, 520.0, curve=1.6) + 0.55 * sweep(0.16, 2240.0, 560.0, curve=1.6)
+    chirp = saturate(chirp * 1.3, 1.6) * env_exp(0.16, 0.002, 0.045)
+    out = place(out, chirp * 0.42, 0.0)
+
+    # The beam's hum riding the chirp: a low buzz that sets the register.
+    hum = osc(0.2, 118.0, "saw", slide_to=96.0) * env_ad(0.2, 0.004, 0.19, curve=2.2)
+    out = place(out, lowpass(hum, 900.0) * 0.30, 0.0)
+
+    # The face spalling: grit fizzing off the hit, bright and gone.
+    grit = white(0.24, rng) * env_exp(0.24, 0.004, 0.05)
+    grit = bandpass(grit, 1800.0, 7200.0, order=2)
+    grit *= 0.6 + 0.4 * np.sign(np.sin(2.0 * math.pi * 63.0 * np.arange(len(grit)) / SAMPLE_RATE))
+    out = place(out, grit * 0.34, 0.03)
+
+    # The stone answering: a soft thud, low and short.
+    thud = white(0.22, rng) * env_exp(0.22, 0.003, 0.035)
+    thud = modes(bandpass(thud, 60.0, 360.0, order=2), [(132.0, 0.09, 1.0), (211.0, 0.06, 0.5)])
+    out = place(out, thud * 1.2, 0.035)
+
+    return out
+
+
+def _mining_lid_slide(rng, duration, freq_from, freq_to):
+    """The emitter's two lids running on their rails - shared by both door
+    cues.
+
+    The lids slide sideways instead of swinging up like the PDC housing, so
+    the body is rail friction, not a motor: a narrow band of scrape with a
+    small, high actuator whine riding it. Open and close are the same rails
+    going two ways and differ only in where the whine travels.
+    """
+    scrape = white(duration, rng) * env_ad(duration, 0.02, duration - 0.02, curve=0.7)
+    scrape = bandpass(scrape, 900.0, 3800.0, order=2)
+    whine = osc(duration, freq_from, "triangle", slide_to=freq_to, curve="lin")
+    whine = lowpass(whine, 3000.0) * env_ad(duration, 0.03, duration - 0.03, curve=0.6)
+    return scrape * 0.40 + whine * 0.22
+
+
+def mining_door_open(rng):
+    """The mining emitter's lids parting: unlatch, slide, and the two lids
+    caught at their stops a few milliseconds apart."""
+    duration = 0.38
+    out = silence(duration)
+
+    latch = white(0.025, rng) * env_exp(0.025, 0.0003, 0.003)
+    out = place(out, modes(latch, [(2300.0, 0.020, 1.0), (3700.0, 0.012, 0.5)]) * 1.4, 0.0)
+
+    out = place(out, _mining_lid_slide(rng, 0.22, 520.0, 690.0), 0.02)
+
+    # Two lids, two stops. Caught, not seated, so they ring a little.
+    for at in (0.245, 0.245 + float(rng.uniform(0.006, 0.014))):
+        stop = white(0.10, rng) * env_exp(0.10, 0.0004, 0.010)
+        out = place(out, modes(stop, [(880.0, 0.05, 1.0), (1760.0, 0.03, 0.4)]) * 0.9, at)
+
+    return out
+
+
+def mining_door_close(rng):
+    """The lids shutting: slide, then the two lids meeting in the middle and
+    locking."""
+    duration = 0.36
+    out = silence(duration)
+
+    out = place(out, _mining_lid_slide(rng, 0.22, 680.0, 500.0), 0.0)
+
+    # The lids meet each other, so the close is one damped knock, lower and
+    # harder than the open's two stops.
+    meet = white(0.10, rng) * env_exp(0.10, 0.0003, 0.008)
+    out = place(out, bandpass(meet, 160.0, 900.0, order=3) * 1.4, 0.22)
+    out = place(out, modes(meet, [(620.0, 0.04, 1.0), (1300.0, 0.025, 0.4)]) * 1.1, 0.221)
+
+    lock = white(0.03, rng) * env_exp(0.03, 0.0002, 0.0025)
+    out = place(out, modes(lock, [(2600.0, 0.014, 1.0), (4100.0, 0.009, 0.5)]) * 1.1, 0.27)
+
+    return out
+
+
 # name -> (renderer, output path relative to the repo root)
 #
 # Nine cues render onto LEGACY filenames, and they keep them. Those paths are
@@ -964,6 +1056,9 @@ CUES = {
     "rcs_loop": (rcs_loop, "assets/base/sounds/rcs_loop.wav"),
     "salvage_pickup": (salvage_pickup, "assets/base/sounds/salvage_pickup.wav"),
     "cargo_eject": (cargo_eject, "assets/base/sounds/cargo_eject.wav"),
+    "mining_pulse": (mining_pulse, "assets/base/sounds/mining_pulse.wav"),
+    "mining_door_open": (mining_door_open, "assets/base/sounds/mining_door_open.wav"),
+    "mining_door_close": (mining_door_close, "assets/base/sounds/mining_door_close.wav"),
 }
 
 

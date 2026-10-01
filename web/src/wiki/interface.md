@@ -134,6 +134,9 @@ The Ship pane is a schematic 3D viewer of your own hull: one block per section, 
 | `TRB-1` | Torpedo bay | Weapon |
 | `RAIL-1` | Railgun | Weapon |
 | `DOCK-1` | Docking clamp | Docking |
+| `MNG-1` | Mining beam | Mining |
+
+The footer shows separate Docking and Mining icons. The Mine (hold), Dock and Helm keys are in **Settings > Controls > FLIGHT**; their defaults are <kbd>V</kbd>, <kbd>D</kbd> and <kbd>H</kbd>. You can rebind each key there.
 
 Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or with **Prev** / **Next** in the panel. The panel shows its family icon, a condition bar, its status, what it does, its HP, ammunition and current bindings.
 
@@ -208,14 +211,16 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      Hold: `HULL_SECTION_CARGO_G` and `ResolvedShipDesign::cargo_capacity_g`
      in crates/nova_scenario/src/objects/ship_design.rs.
      Take and Give: crates/nova_gameplay/src/inventory.rs `plan_item_transfer`;
-     Jettison: `plan_item_jettison`; both applied by
+     Buy and Sell: `plan_item_trade`, prices `ItemType::ask_cr` and
+     `ItemType::bid_cr`, balance `ShipCredits` from `SpaceshipConfig::credits`;
+     Jettison: `plan_item_jettison`; all applied by
      crates/nova_interface/src/inventory/app.rs
      `apply_inventory_action_commands`. Intake: crates/nova_ship/src/sections/
      cargo_intake_section.rs `run_cargo_intakes`; numbers from
      crates/nova_authoring/src/base_content/sections/cargo_intake.rs. Tag:
      crates/nova_hud/src/cargo_canister_chips.rs. -->
 
-The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it, for example `Line Warship 3520 kg / 13200 kg`. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs and 12 torpedoes - 3,520 kg in all - with a Derelict Tender carrying 8 more hull plates moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A [repair](#the-ship) spends hull plates, and a weapon's idle [reload](../combat-weapons/#magazines) spends matching ammunition. Nothing is saved: spent and moved items return to their starting counts when the scenario loads again. With cheats armed, [`item give`](../commands/#cheats) adds items to a ship's hold.
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it and your credits, for example `Line Warship 3520 kg / 13200 kg  2,000 cr`. The docked ship's title shows its credits too. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs, 12 torpedoes - 3,520 kg in all - and 2,000 cr, with a Derelict Tender carrying 8 more hull plates and 0 cr moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A [repair](#the-ship) spends hull plates, and a weapon's idle [reload](../combat-weapons/#magazines) spends matching ammunition. Nothing is saved: spent and moved items and credits return to their starting values when the scenario loads again. With cheats armed, [`item give`](../commands/#cheats) adds items to a ship's hold.
 
 | Filter | Shows |
 | --- | --- |
@@ -226,7 +231,7 @@ The Inventory pane lists what your ship carries in the left column and, while yo
 | **Raw** | Mined or salvaged bulk material. |
 | **Parts** | Scavenged objects for a story, an objective or trade. |
 
-Click an item to inspect it: the inspector shows its category, what it is, how many the selected ship carries and the weight of one item. A PDC round weighs 0.2 kg. While a Take, Give or Jettison is open, **Total weight** shows the weight of the quantity you chose: 2 hull plates read 20 kg however many you carry.
+Click an item to inspect it: the inspector shows its category, what it is, how many the selected ship carries and the weight of one item. A PDC round weighs 0.2 kg. While a Take, Give, Buy, Sell or Jettison is open, **Total weight** shows the weight of the quantity you chose: 2 hull plates read 20 kg however many you carry.
 
 ### Take and give
 
@@ -234,10 +239,30 @@ Docked, a click on an item opens a transfer form in the inspector at a quantity 
 
 | Click | Opens | When |
 | --- | --- | --- |
-| An item in your column | **Give** to the docked ship | Always while docked, for example to deliver cargo. |
+| An item in your column | **Give** to the docked ship | Always while docked, for example to deliver cargo. With a ship that trades, the **Give** and **Sell** buttons switch the form and keep the quantity. |
 | An item in the docked ship's column | **Take** from it | Only when the docked ship is neutralized or a lootable derelict. Taking from a live ship would be stealing. |
+| An item in the docked ship's column | **Buy** from it | When the docked ship trades: it is neither neutralized nor lootable. |
 
-Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or **All** for the whole stack. The slider hides when the stack holds one item. **Confirm** moves the items at once and the note line reads `Took 3 Hull plate from Derelict Tender` or `Gave 3 Hull plate to Derelict Tender`. A refused move changes nothing and keeps the form open so you can fix the quantity: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Hull plate in Derelict Tender`, `Refused: Derelict Tender has room for 30 kg more`, `Refused: Derelict Tender is not neutralized or lootable`, or `Refused: not docked`. A move never splits to fit: with room for 30 kg, a move of 5 hull plates is refused whole. There is no price. Items given to a ship that the open world streams away are gone with it.
+Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or **All** for the whole stack. The slider hides when the stack holds one item. **Confirm** moves the items at once and the note line reads `Took 3 Hull plate from Derelict Tender` or `Gave 3 Hull plate to Derelict Tender`. A refused move changes nothing and keeps the form open so you can fix the quantity: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Hull plate in Derelict Tender`, `Refused: Derelict Tender has room for 30 kg more`, `Refused: Derelict Tender is not neutralized or lootable`, or `Refused: not docked`. A move never splits to fit: with room for 30 kg, a move of 5 hull plates is refused whole. Take and Give have no price. Items given to a ship that the open world streams away are gone with it.
+
+### Buy and sell
+
+Every live ship trades: any docked ship that is neither neutralized nor lootable. It sells only what its hold carries and pays only from its own credits. Nothing restocks. The open world has no ship that trades yet; its Derelict Tender is lootable.
+
+| Item | Buy (ask) | Sell (bid) |
+| --- | --- | --- |
+| Hull plate | 40 cr | 30 cr |
+| PDC round | 4 cr | 3 cr |
+| Rail slug | 40 cr | 30 cr |
+| Torpedo | 400 cr | 300 cr |
+| Stone ore | 4 cr | 3 cr |
+| Iron ore | 16 cr | 12 cr |
+| Water ice | 12 cr | 9 cr |
+| Carbon ore | 8 cr | 6 cr |
+| Rations | 8 cr | 6 cr |
+| Salvaged parts | 120 cr | 90 cr |
+
+Prices are fixed per item and the same on every ship. A Buy pays the ask and a Sell earns the bid, so selling back what you bought loses credits. While the form is open it shows the price and your balance after, for example `Price 20 cr, you after: 1,980 cr`. **Confirm** moves the items and the credits at once, and the note line reads `Bought 5 Stone ore from Frame Tender for 20 cr` or `Sold 10 Stone ore to Frame Tender for 30 cr`. A refused trade changes nothing and keeps the form open: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Stone ore in Frame Tender`, `Refused: Line Warship has room for 30 kg more`, `Refused: Frame Tender has only 20 cr`, `Refused: Frame Tender cannot hold more credits`, `Refused: Frame Tender does not trade`, or `Refused: not docked`. A trade never splits to fit the hold or the credits.
 
 ### Jettison and pickup
 

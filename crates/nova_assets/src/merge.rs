@@ -12,6 +12,7 @@ pub mod prelude {
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
+use nova_gameplay::prelude::GameStates;
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
     GameCampaigns, GameScenarios, GameShipDesigns, NewGameStart, ScenarioRole, ShipDesignPrototype,
@@ -24,7 +25,7 @@ use crate::{
     collections::GameAssets,
     mod_refs,
     mod_set::{enabled_bundles, shadows_shipped, DownloadedMods, EnabledMods},
-    safe_mode::{catalog_bundle, OptionalBundles},
+    safe_mode::{catalog_bundle, FatalAssetFailure, ModQuarantine, OptionalBundles},
 };
 
 /// Route every ENABLED cataloged bundle's content into the id-keyed game registries,
@@ -53,10 +54,26 @@ use crate::{
 /// [`mark_installed_bundles_loaded`](crate::mark_installed_bundles_loaded)
 /// re-triggers this system when the load lands, and a `DownloadedMods` change
 /// (install/uninstall) re-triggers it too.
+///
+/// Every section a loaded enabled bundle carries passes
+/// [`lint_section_config`](nova_scenario::prelude::lint_section_config) before
+/// anything is published, used or not, and the finding is charged to the
+/// bundle that authored it. An error in the base bundle refuses the load: it
+/// inserts [`FatalAssetFailure`] and publishes nothing. An error in any other
+/// bundle quarantines that whole mod and every enabled mod that depends on it,
+/// and this pass merges without them - so no registry ever holds an invalid
+/// section, and no ship resolves against a prototype its mod took away.
+///
+/// In [`GameStates::Playing`] a mod this gate would refuse, invalid or
+/// depending on a disabled mod, refuses the load like the base does: the
+/// running scenario spawned from the published catalog, and taking a mod away
+/// under it would leave it partial.
 pub fn register_bundles(
     mut commands: Commands,
+    game_state: Res<State<GameStates>>,
     game_assets: Res<GameAssets>,
-    enabled: Res<EnabledMods>,
+    mut enabled: ResMut<EnabledMods>,
+    mut quarantine: ResMut<ModQuarantine>,
     downloaded: Res<DownloadedMods>,
     optional: Res<OptionalBundles>,
     catalogs: Res<Assets<InstalledCatalog>>,
@@ -85,8 +102,17 @@ pub fn register_bundles(
     // then downloaded order, the stable tiebreak the dependency sort keeps
     // below. `mod_set::enabled_bundles` owns that walk, so the merge, the mods
     // rows and the editor's asset index cannot disagree about what is active.
+    //
+    // The walk reads a snapshot of the enabled set, because the section gate
+    // below takes refused mods out of the live one.
+    let enabled_now = enabled.clone();
     let mut ordered: Vec<(&str, &Handle<BundleAsset>)> = Vec::new();
-    for active in enabled_bundles(catalog, Some(&optional), Some(&downloaded), Some(&enabled)) {
+    for active in enabled_bundles(
+        catalog,
+        Some(&optional),
+        Some(&downloaded),
+        Some(&enabled_now),
+    ) {
         // An OPTIONAL entry reads through its runtime load, which - like a
         // downloaded bundle - may still be in flight or may have failed and
         // been quarantined. Both are handled below by the same loaded-or-skip
@@ -113,6 +139,129 @@ pub fn register_bundles(
         }
         ordered.push((active.id, handle));
     }
+
+    // The section gate. It runs before the dependency graph and the flatten,
+    // so a refused mod is out of this pass entirely: its refs resolve nowhere
+    // and its content reaches no registry.
+    let base_ids: HashSet<&str> = catalog
+        .into_iter()
+        .flat_map(|catalog| catalog.entries.iter())
+        .filter(|entry| entry.decl.base)
+        .map(|entry| entry.decl.id.as_str())
+        .collect();
+    let summary = |errors: &[nova_scenario::prelude::LintIssue]| match errors.len() {
+        1 => errors[0].message.clone(),
+        n => format!("{} (+{} more)", errors[0].message, n - 1),
+    };
+    // Every bundle is checked before any verdict, so a refused base changes no
+    // mod: the run ends, and nothing about the enabled set is persisted.
+    let mut base_errors = Vec::new();
+    let mut invalid_mods = Vec::new();
+    for (mod_id, handle) in &ordered {
+        let Some(bundle) = bundles.get(*handle) else {
+            continue;
+        };
+        let errors = section_errors(mod_id, bundle, &contents);
+        if errors.is_empty() {
+            continue;
+        }
+        if base_ids.contains(mod_id) {
+            base_errors.extend(errors);
+        } else {
+            invalid_mods.push((*mod_id, summary(&errors)));
+        }
+    }
+    if !base_errors.is_empty() {
+        for issue in &base_errors {
+            error!(
+                "register_bundles: base content lint [Error]: {}",
+                issue.message
+            );
+        }
+        // Nothing is published, and `fail_refused_content` ends the run. The
+        // last good registries stay in the world, but `Failed` is terminal and
+        // runs no merge and no screen that reads them.
+        commands.insert_resource(FatalAssetFailure {
+            detail: format!(
+                "The base game's content is invalid: {}. The installation is damaged.",
+                summary(&base_errors)
+            ),
+            boot: false,
+        });
+        return;
+    }
+    // A mod that declares a dependency safe mode took away this episode, or
+    // is taking away in this pass, goes with it, to a fixed point: its ships
+    // name the dependency's sections, and without them they would spawn as
+    // partial hulls.
+    let mut stranded: Vec<(&str, String)> = Vec::new();
+    let refusing = |id: &str, stranded: &[(&str, String)]| {
+        invalid_mods.iter().any(|(m, _)| *m == id) || stranded.iter().any(|(m, _)| *m == id)
+    };
+    loop {
+        let next = ordered.iter().find_map(|(mod_id, handle)| {
+            if refusing(mod_id, &stranded) {
+                return None;
+            }
+            let bundle = bundles.get(*handle)?;
+            bundle
+                .meta
+                .dependencies
+                .iter()
+                .find(|dep| {
+                    refusing(dep, &stranded) || quarantine.disabled.iter().any(|m| &m.id == *dep)
+                })
+                .map(|dep| {
+                    (
+                        *mod_id,
+                        format!("it depends on mod '{dep}', which safe mode disabled"),
+                    )
+                })
+        });
+        let Some(next) = next else {
+            break;
+        };
+        stranded.push(next);
+    }
+    if *game_state.get() == GameStates::Playing && !(invalid_mods.is_empty() && stranded.is_empty())
+    {
+        let refusals: Vec<String> = invalid_mods
+            .iter()
+            .chain(&stranded)
+            .map(|(mod_id, reason)| format!("mod '{mod_id}': {reason}"))
+            .collect();
+        for refusal in &refusals {
+            error!("register_bundles: mod refused during a scenario: {refusal}");
+        }
+        // Checked for every mod, new downloads too: a mod the scenario does
+        // not use cannot be told apart here from one it does.
+        commands.insert_resource(FatalAssetFailure {
+            detail: format!(
+                "Mod content was refused while a scenario was running: {}. \
+                 Safe mode cannot disable a mod during a scenario.",
+                refusals.join("; ")
+            ),
+            boot: false,
+        });
+        return;
+    }
+    let mut refused: HashSet<&str> = HashSet::new();
+    for (mod_id, reason) in invalid_mods {
+        warn!("safe mode: mod '{mod_id}' is disabled because its content is invalid: {reason}");
+        quarantine.record(mod_id, reason);
+        refused.insert(mod_id);
+    }
+    for (mod_id, reason) in stranded {
+        warn!("safe mode: mod '{mod_id}' is disabled because {reason}");
+        quarantine.record(mod_id, reason);
+        refused.insert(mod_id);
+    }
+    for mod_id in &refused {
+        // Removed even when the episode already recorded the id: a player may
+        // switch a refused mod back on, and it is refused again.
+        enabled.0.remove(*mod_id);
+    }
+    ordered.retain(|(mod_id, _)| !refused.contains(mod_id));
 
     // Dependency-respecting merge order: a mod's Content overlays its
     // dependencies' (last-wins by id), so a dependency must merge BEFORE its
@@ -442,6 +591,42 @@ pub fn register_bundles(
     commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(TrainingCatalog::new(outcome.lessons));
     commands.insert_resource(GameUiThemes(outcome.ui_themes));
+}
+
+/// Every error [`lint_section_config`](nova_scenario::prelude::lint_section_config)
+/// finds in one bundle's sections, charged to `mod_id`. Warnings are logged
+/// here and do not refuse the bundle.
+///
+/// A content file that did not load is skipped: the flatten reports it.
+fn section_errors(
+    mod_id: &str,
+    bundle: &BundleAsset,
+    contents: &Assets<ContentAsset>,
+) -> Vec<nova_scenario::prelude::LintIssue> {
+    let mut errors = Vec::new();
+    let sections = bundle
+        .content
+        .iter()
+        .filter_map(|handle| contents.get(handle))
+        .flat_map(|content| content.0.iter())
+        .filter_map(|item| match item {
+            Content::Section(config) => Some(config.as_ref()),
+            _ => None,
+        });
+    for config in sections {
+        for issue in nova_scenario::prelude::lint_section_config(config, mod_id) {
+            match issue.severity {
+                nova_scenario::prelude::LintSeverity::Error => errors.push(issue),
+                nova_scenario::prelude::LintSeverity::Warn => {
+                    warn!(
+                        "register_bundles: content lint [Warn] mod '{mod_id}': {}",
+                        issue.message
+                    );
+                }
+            }
+        }
+    }
+    errors
 }
 
 /// The scenario ids the last merge published, so the next one knows which

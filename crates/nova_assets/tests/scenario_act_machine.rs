@@ -71,19 +71,20 @@ const SCENARIO_RON: &str = r#"[
                             design: Inline((sections: [])),
                             inventory: {},
                             lootable: false,
+                            credits: 0,
                         )),
                     )),
                     SpawnScenarioObject((
                         base: (id: "spaceship_2", name: "Ship Two", position: (0.0, 0.0, -6000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-                        kind: Spaceship((controller: AI(()), design: Inline((sections: [])), inventory: {}, lootable: false)),
+                        kind: Spaceship((controller: AI(()), design: Inline((sections: [])), inventory: {}, lootable: false, credits: 0)),
                     )),
                     SpawnScenarioObject((
                         base: (id: "spaceship_3", name: "Ship Three", position: (0.0, 0.0, -6200.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-                        kind: Spaceship((controller: AI(()), design: Inline((sections: [])), inventory: {}, lootable: false)),
+                        kind: Spaceship((controller: AI(()), design: Inline((sections: [])), inventory: {}, lootable: false, credits: 0)),
                     )),
                     SpawnScenarioObject((
                         base: (id: "station_1", name: "Station One", position: (0.0, 0.0, -9000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-                        kind: Spaceship((controller: AI(()), design: Inline((sections: [])), inventory: {}, lootable: false)),
+                        kind: Spaceship((controller: AI(()), design: Inline((sections: [])), inventory: {}, lootable: false, credits: 0)),
                     )),
                 ],
             ),

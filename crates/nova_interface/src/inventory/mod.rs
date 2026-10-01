@@ -3,15 +3,19 @@
 //!
 //! The pane reads the live [`ShipInventory`](nova_gameplay::prelude::ShipInventory)
 //! of the player ship and of the partner its `DockingConnection` names: category
-//! filters, one column per ship, the player's load against its capacity, and an
-//! inspector for the clicked row. While docked, the inspector opens a transfer
-//! form: Give from the player's row to any partner, Take from the partner's row
-//! when the partner is neutralized or lootable. While undocked with a live cargo
-//! intake, the player's row opens a Jettison form. Confirm writes an
-//! [`InventoryActionCommand`], and [`apply_inventory_action_commands`] moves the
-//! items by the [`plan_item_transfer`](nova_gameplay::prelude::plan_item_transfer)
-//! or [`plan_item_jettison`](nova_gameplay::prelude::plan_item_jettison) rule or
-//! refuses with no change. There is no price.
+//! filters, one column per ship with its credits, the player's load against its
+//! capacity, and an inspector for the clicked row. While docked, the inspector
+//! opens an action form. The player's row opens Give, and switches to Sell when
+//! the partner trades: it is neither neutralized nor lootable. The partner's row
+//! opens Take when the partner is neutralized or lootable, and Buy otherwise.
+//! While undocked with a live cargo intake, the player's row opens a Jettison
+//! form. Confirm writes an [`InventoryActionCommand`], and
+//! [`apply_inventory_action_commands`] moves the items, and for a trade the
+//! credits, by the
+//! [`plan_item_transfer`](nova_gameplay::prelude::plan_item_transfer),
+//! [`plan_item_trade`](nova_gameplay::prelude::plan_item_trade) or
+//! [`plan_item_jettison`](nova_gameplay::prelude::plan_item_jettison) rule, or
+//! refuses with no change.
 //!
 //! # Module layout
 //!
@@ -25,7 +29,7 @@ mod app;
 mod tests;
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{ItemCategoryType, ItemTransferType, ItemType};
+use nova_gameplay::prelude::{ItemCategoryType, ItemTradeType, ItemTransferType, ItemType};
 
 pub(crate) use self::app::*;
 
@@ -88,17 +92,30 @@ pub(crate) enum InventoryActionType {
     Take,
     /// Move items from the player ship to the docked partner.
     Give,
+    /// Move items from the trading partner to the player ship, paying its ask.
+    Buy,
+    /// Move items from the player ship to the trading partner, paid its bid.
+    Sell,
     /// Queue items from the player ship as canisters on its cargo intake.
     Jettison,
 }
 
 impl InventoryActionType {
-    /// The transfer this action is, or `None` for a jettison.
+    /// The transfer this action is, or `None` for a trade or a jettison.
     pub(crate) fn transfer(self) -> Option<ItemTransferType> {
         match self {
             Self::Take => Some(ItemTransferType::Take),
             Self::Give => Some(ItemTransferType::Give),
-            Self::Jettison => None,
+            Self::Buy | Self::Sell | Self::Jettison => None,
+        }
+    }
+
+    /// The trade this action is, or `None` for a transfer or a jettison.
+    pub(crate) fn trade(self) -> Option<ItemTradeType> {
+        match self {
+            Self::Buy => Some(ItemTradeType::Buy),
+            Self::Sell => Some(ItemTradeType::Sell),
+            Self::Take | Self::Give | Self::Jettison => None,
         }
     }
 }
@@ -106,7 +123,7 @@ impl InventoryActionType {
 /// An action waiting for its quantity to be confirmed.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryDraft {
-    /// Take, Give or Jettison.
+    /// Take, Give, Buy, Sell or Jettison.
     pub(crate) action: InventoryActionType,
     /// The item to move.
     pub(crate) item: ItemType,
@@ -120,7 +137,7 @@ pub(crate) struct InventoryDraft {
 /// form's Confirm and applied by [`apply_inventory_action_commands`].
 #[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryActionCommand {
-    /// Take, Give or Jettison.
+    /// Take, Give, Buy, Sell or Jettison.
     pub(crate) action: InventoryActionType,
     /// The item to move.
     pub(crate) item: ItemType,

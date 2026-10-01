@@ -58,6 +58,7 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                             )),
                             inventory: {},
                             lootable: false,
+                            credits: 0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -72,6 +73,7 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                             )),
                             inventory: {},
                             lootable: false,
+                            credits: 0,
                         )),
                     )),
                 ],

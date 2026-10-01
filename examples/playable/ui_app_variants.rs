@@ -440,6 +440,7 @@ enum SectionIcon {
     Controller,
     Hull,
     Docking,
+    Mining,
 }
 
 /// What a fixture good is for: one icon, tint and filter per category.
@@ -1368,33 +1369,39 @@ fn ship_controls(row: &mut ChildSpawnerCommands) {
         .observe(reset_ship);
 }
 
-/// The section kinds: each icon in its tint and its word, wrapping when the
-/// row is short.
+/// Keep all section families visible in two rows, even in a narrow footer.
 fn section_legend(parent: &mut ChildSpawnerCommands, icons: &SketchIcons) {
     parent
         .spawn(Node {
-            flex_direction: FlexDirection::Row,
-            flex_wrap: FlexWrap::Wrap,
-            align_items: AlignItems::Center,
-            column_gap: px(12),
-            row_gap: px(6),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(5),
             flex_shrink: 0.0,
             ..default()
         })
         .with_children(|legend| {
-            for icon in SectionIcon::ALL {
+            for icons_in_row in SectionIcon::ALL.chunks(3) {
                 legend
-                    .spawn((
-                        Name::new(format!("Sketch Legend {}", icon.label())),
-                        legend_entry(),
-                    ))
-                    .with_children(|entry| {
-                        entry.spawn(icon_node(
-                            icons.sections[icon.index()].clone(),
-                            icon.color(),
-                            18.0,
-                        ));
-                        text(entry, icon.label(), 12.0, UiColor::Body);
+                    .spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        column_gap: px(8),
+                        ..default()
+                    })
+                    .with_children(|row| {
+                        for &icon in icons_in_row {
+                            row.spawn((
+                                Name::new(format!("Sketch Legend {}", icon.label())),
+                                legend_entry(),
+                            ))
+                            .with_children(|entry| {
+                                entry.spawn(icon_node(
+                                    icons.sections[icon.index()].clone(),
+                                    icon.color(),
+                                    18.0,
+                                ));
+                                text(entry, icon.label(), 12.0, UiColor::Body);
+                            });
+                        }
                     });
             }
         });
@@ -1696,12 +1703,13 @@ fn polygon(p: Vec2, points: &[Vec2]) -> f32 {
 }
 
 impl SectionIcon {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::Weapon,
         Self::Thruster,
         Self::Controller,
         Self::Hull,
         Self::Docking,
+        Self::Mining,
     ];
 
     fn of(kind: SectionClass) -> Self {
@@ -1711,6 +1719,7 @@ impl SectionIcon {
             SectionClass::Controller => Self::Controller,
             SectionClass::Hull | SectionClass::CargoIntake => Self::Hull,
             SectionClass::Docking => Self::Docking,
+            SectionClass::Mining => Self::Mining,
         }
     }
 
@@ -1725,6 +1734,7 @@ impl SectionIcon {
             Self::Controller => "Controller",
             Self::Hull => "Hull",
             Self::Docking => "Docking",
+            Self::Mining => "Mining",
         }
     }
 
@@ -1737,6 +1747,7 @@ impl SectionIcon {
             Self::Controller => UiColor::AccentHigh,
             Self::Hull => UiColor::Primary,
             Self::Docking => UiColor::Nominal,
+            Self::Mining => UiColor::Accent,
         }
     }
 
@@ -1751,7 +1762,7 @@ impl SectionIcon {
 
     /// Each family has its own silhouette: a reticle for a weapon, a nozzle
     /// and plume for a thruster, a diamond core for the controller, a riveted
-    /// plate for hull, and a clamped collar for docking.
+    /// plate for hull, a clamped collar for docking, and a beam for mining.
     fn coverage(self, p: Vec2, px: f32) -> f32 {
         match self {
             Self::Weapon => {
@@ -1816,6 +1827,22 @@ impl SectionIcon {
                     .fold(f32::INFINITY, f32::min);
                 solid(ring(p, Vec2::ZERO, 0.5, 0.16).min(clamps), px)
                     .max(solid(circle(p, Vec2::ZERO, 0.16), px) * 0.6)
+            }
+            Self::Mining => {
+                let casing = polygon(
+                    p,
+                    &[
+                        Vec2::new(-0.5, 0.8),
+                        Vec2::new(0.5, 0.8),
+                        Vec2::new(0.5, 0.35),
+                        Vec2::new(-0.5, 0.35),
+                    ],
+                );
+                let emitter = segment(p, Vec2::new(0.0, 0.28), Vec2::new(0.0, -0.25), 0.2);
+                let beam = segment(p, Vec2::new(0.0, -0.32), Vec2::new(0.0, -0.9), 0.1);
+                solid(casing, px)
+                    .max(solid(emitter, px))
+                    .max(solid(beam, px))
             }
         }
     }
@@ -3192,6 +3219,7 @@ fn section_about(kind: SectionClass) -> &'static str {
         SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
         SectionClass::Docking => "Docking port; locks onto another hull.",
         SectionClass::CargoIntake => "Cargo intake; takes in slow canisters.",
+        SectionClass::Mining => "Mining emitter; cuts ore from a locked rock.",
     }
 }
 

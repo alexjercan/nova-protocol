@@ -16,8 +16,10 @@ use bevy::{
     asset::{AssetPlugin, RecursiveDependencyLoadState, UntypedAssetId},
     ecs::system::RunSystemOnce,
     prelude::*,
+    state::app::StatesPlugin,
 };
 use nova_assets::prelude::*;
+use nova_gameplay::prelude::GameStates;
 use nova_modding::prelude::{
     BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, NovaModdingPlugin,
 };
@@ -37,6 +39,9 @@ fn headless_app() -> App {
         },
     ));
     app.add_plugins(NovaModdingPlugin);
+    // The merge reads the game state; this rig is never in a scenario.
+    app.add_plugins(StatesPlugin);
+    app.init_state::<GameStates>();
     // Production (GameAssetsPlugin) always inits the downloaded half of the
     // installed set; register_bundles/build_mod_catalog read it. Empty here -
     // the download path has its own rig (tests/mod_cache_install.rs).
@@ -44,6 +49,8 @@ fn headless_app() -> App {
     // ...and the optional half, which is where a non-base catalog entry's
     // bundle handle lives now.
     app.init_resource::<OptionalBundles>();
+    // The merge records a mod it refuses here, as production does.
+    app.init_resource::<ModQuarantine>();
     app
 }
 

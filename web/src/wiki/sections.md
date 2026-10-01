@@ -22,7 +22,7 @@
     </figcaption>
 </figure>
 
-A ship is an assembly of sections, each with one job: hull blocks carry the structure, a controller turns it, thrusters push it, the turrets, torpedo bays and the railgun fight with it, a docking port holds it to another ship, and a [cargo intake](../interface/#jettison-and-pickup) drops and takes in cargo canisters. There is no hidden ship underneath - what a hull can do is exactly what its parts can do, and what it loses when a part is shot off is exactly that part's job. How a whole ship holds together and comes apart is on [Ships & damage](../ships/). This chapter is the parts themselves, one page per kind.
+A ship is an assembly of sections, each with one job: hull blocks carry the structure, a controller turns it, thrusters push it, the turrets, torpedo bays and the railgun fight with it, a docking port holds it to another ship, a [cargo intake](../interface/#jettison-and-pickup) drops and takes in cargo canisters, and a [mining beam](../keybinds/) cuts ore from a locked rock. There is no hidden ship underneath - what a hull can do is exactly what its parts can do, and what it loses when a part is shot off is exactly that part's job. How a whole ship holds together and comes apart is on [Ships & damage](../ships/). This chapter is the parts themselves, one page per kind.
 
 <div id="wiki-children"></div>
 
@@ -43,7 +43,7 @@ Every page runs the same course: what the part does and the numbers that decide 
 The whole shipped catalog at a glance; every child page carries the full per-kind stats. A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them. What breaks the pattern is the mounts that are not unit cells: a PDC turret is a half-cell cube at an eighth of the mass, a torpedo bay a two-cell tube, a railgun a three-cell spine, and the two large drives are 18 and 75 cells of block.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/, one module per family: hull.rs (reinforced, cargo and tank 200, light 60), thruster.rs (basic 70 at 1.0, vector 480 at 9.0 over 3x3x2, capital 1250 at 25.0 over 5x5x3), controller.rs (100, max_torque 9760), turret.rs (pdc_turret_prototype, health 130, gatling at 100/s and twin at half per muzzle), torpedo_bay.rs (torpedo_bay_prototype and its two call sites), railgun.rs (railgun_lance_prototype), docking_port.rs and cargo_intake.rs. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/, one module per family: hull.rs (reinforced, cargo and tank 200, light 60), thruster.rs (basic 70 at 1.0, vector 480 at 9.0 over 3x3x2, capital 1250 at 25.0 over 5x5x3), controller.rs (100, max_torque 9760), turret.rs (pdc_turret_prototype, health 130, gatling at 100/s and twin at half per muzzle), torpedo_bay.rs (torpedo_bay_prototype and its two call sites), railgun.rs (railgun_lance_prototype), docking_port.rs, cargo_intake.rs and mining_beam.rs. -->
 <table>
 <thead>
 <tr><th>Kind</th><th>Variant</th><th>Health</th><th>Signature stat</th></tr>
@@ -66,6 +66,7 @@ The whole shipped catalog at a glance; every child page carries the full per-kin
 <tr><td>Railgun</td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">180</td><td class="catalog__num">300 Pierce / 1800 power</td></tr>
 <tr><td>Docking</td><td><span class="catalog__name">Docking Port Section</span><span class="catalog__id">docking_port_section</span></td><td class="catalog__num">90</td><td class="catalog__num">10 m gap / 15 deg</td></tr>
 <tr><td>Cargo intake</td><td><span class="catalog__name">Cargo Intake Section</span><span class="catalog__id">cargo_intake_section</span></td><td class="catalog__num">90</td><td class="catalog__num">1 m / 5 m/s, 3x2x1</td></tr>
+<tr><td>Mining</td><td><span class="catalog__name">Mining Beam Section</span><span class="catalog__id">mining_beam_section</span></td><td class="catalog__num">90</td><td class="catalog__num">100 m / 1 pulse/s</td></tr>
 </tbody>
 </table>
 </div>
