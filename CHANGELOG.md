@@ -84,9 +84,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `CargoIntake` section kind with required door, eject and take sounds,
   `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures,
   speeds and a missing door track.
-- New `Mining` section kind: pulse and door sounds, `reach`,
-  `pulse_interval_seconds`, `carve_radius_cells`, stow tracks. Lint and load
-  reject bad stats, collider or tracks; bad live mods end the run.
+- New `Mining` section kind: pulse and door sounds, reach, interval, carve
+  radius and stow tracks. Lint/load reject bad stats, collider or tracks;
+  invalid live mods end the run.
 - **(breaking)** Spaceships require `lootable: true` or `false`; a ship without
   it fails lint and load. A docked player may Take from a `lootable: true`
   ship that was never neutralized.
