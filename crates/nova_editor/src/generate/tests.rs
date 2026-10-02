@@ -6,8 +6,7 @@
 
 use bevy::ui_widgets::observe;
 use nova_input::prelude::InputSource;
-use nova_ship::prelude::LinkPoint;
-use nova_wfc::prelude::GRID_EPSILON;
+use nova_ship::prelude::{LinkPoint, GRID_EPSILON};
 
 use super::*;
 use crate::node::{EditorNode, ScenarioNode};

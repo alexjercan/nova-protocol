@@ -42,6 +42,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Ships & Sections
 
+- Generated ship prototypes gain side-backed industrial intakes, varied hull sections, drive banks sized for thrust, and more flight computers and high-tier combat weapons.
 - New `block_line_warship` Line Warship: six PDCs on the trigger, a bow railgun
   on R, two torpedo bays on F, a collar per shoulder, a dorsal cargo intake and
   a bow mining beam on V.
@@ -87,6 +88,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `Mining` section kind: pulse and door sounds, reach, interval, carve
   radius and stow tracks. Lint/load reject bad stats, collider or tracks;
   invalid live mods end the run.
+- **(breaking)** Lint rejects bad section health/collider/thrust/torque/damage,
+  a section id shared by unrelated mods, a missing part family, and an oblique
+  or socket-blocked exit.
+- Editor Generate names and refuses a plan part that fires between two axes,
+  instead of leaving it off the hull or placing it with no clear firing lane.
 - **(breaking)** Spaceships require `lootable: true` or `false`; a ship without
   it fails lint and load. A docked player may Take from a `lootable: true`
   ship that was never neutralized.

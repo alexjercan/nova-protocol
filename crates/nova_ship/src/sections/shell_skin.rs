@@ -127,7 +127,7 @@ const SUPPORT_REACH: usize = 4;
 /// part that stands on a cell boundary sits a quarter cell off its own centre.
 /// Rounding the raw float would put a section half a cell from where it stands
 /// often enough to matter, and the skin would then clad the wrong neighbourhood.
-const PLACEMENT_SNAP: f32 = 4096.0;
+pub(crate) const PLACEMENT_SNAP: f32 = 4096.0;
 
 /// What one filled cell turns outward: the faces carrying a link-point socket,
 /// and the faces something fires, launches or exhausts through.

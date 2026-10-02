@@ -8,6 +8,7 @@ pub mod ammo;
 pub mod base_section;
 pub mod cargo_intake_section;
 pub mod catalog_ids;
+pub mod cell_grid;
 pub mod clearance;
 pub mod controller_section;
 pub mod damage_cracks;
@@ -41,17 +42,17 @@ pub mod turret_section;
 pub mod prelude {
     pub use super::{
         ammo::prelude::*, base_section::prelude::*, cargo_intake_section::prelude::*,
-        catalog_ids::prelude::*, clearance::prelude::*, controller_section::prelude::*,
-        damage_cracks::prelude::*, damage_effects::prelude::*, damage_plume::prelude::*,
-        damage_sparks::prelude::*, docking_section::prelude::*, fixture::prelude::*,
-        hull_radius::prelude::*, hull_section::prelude::*, integrity::prelude::*,
-        link_points::prelude::*, live_structure_anchor, mining_section::prelude::*,
-        patch::prelude::*, placeholder_art::prelude::*, railgun_section::prelude::*,
-        section_animation::prelude::*, shell_shape::prelude::*, shell_skin::prelude::*,
-        signature::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
-        skin_report::prelude::*, skin_style::prelude::*, thruster_section::prelude::*,
-        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
-        SpaceshipSectionSystems,
+        catalog_ids::prelude::*, cell_grid::prelude::*, clearance::prelude::*,
+        controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
+        damage_plume::prelude::*, damage_sparks::prelude::*, docking_section::prelude::*,
+        fixture::prelude::*, hull_radius::prelude::*, hull_section::prelude::*,
+        integrity::prelude::*, link_points::prelude::*, live_structure_anchor,
+        mining_section::prelude::*, patch::prelude::*, placeholder_art::prelude::*,
+        railgun_section::prelude::*, section_animation::prelude::*, shell_shape::prelude::*,
+        shell_skin::prelude::*, signature::prelude::*, skin_decor::prelude::*,
+        skin_reading::prelude::*, skin_report::prelude::*, skin_style::prelude::*,
+        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
+        SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 

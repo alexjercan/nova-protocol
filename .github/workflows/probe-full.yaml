@@ -208,7 +208,8 @@ jobs:
               loop_belt_compare loop_derived_skin screenshot_hero_ship
               screenshot_thruster_gallery world_sectors world_features
               world_field_slices world_field_clouds world_clusters
-              system_world_sectors system_open_world
+              world_civilizations world_ships system_world_sectors
+              system_open_world
     steps:
       - uses: actions/checkout@v4
 

@@ -49,11 +49,11 @@ use bevy::prelude::*;
 use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipPresentationConfig, SpaceshipSectionConfig,
 };
-use nova_ship::prelude::{GameSections, GameStyles, SectionFootprint};
+use nova_ship::prelude::{mirror_rotation, GameSections, GameStyles, SectionFootprint};
 
 use crate::{
     collapse::Collapse,
-    grid::{mirrored, Grid},
+    grid::Grid,
     plan::{WfcGrid, WfcPlan, MAX_WFC_CELLS},
     tiles::{Family, Tile},
 };
@@ -63,7 +63,6 @@ pub mod prelude {
     pub use super::{style_at, StyleId, TileSet};
     pub use crate::{
         check::{hull_errors, lint_errors, place, unmated_contacts, Placed},
-        grid::GRID_EPSILON,
         plan::{WfcAim, WfcGrid, WfcKeel, WfcPart, WfcPlan, WfcVacuum, WfcZone, MAX_WFC_CELLS},
         tiles::rotated_half_extents,
     };
@@ -313,7 +312,7 @@ impl TileSet {
             sections.push(SpaceshipSectionConfig {
                 id: format!("port_{x}_{y}_{z}"),
                 position: Vec3::new(-position.x, position.y, position.z),
-                rotation: mirrored(part.rotation),
+                rotation: mirror_rotation(part.rotation),
                 source,
             });
         }

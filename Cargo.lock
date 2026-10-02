@@ -4996,7 +4996,9 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_scenario",
+ "nova_ship",
  "nova_world",
+ "ron",
 ]
 
 [[package]]

@@ -7,7 +7,8 @@
 use bevy::prelude::{default, Quat, UVec3, Vec3};
 use nova_scenario::prelude::{SectionSource, ShipDesign, SpaceshipSectionConfig};
 use nova_ship::prelude::{
-    BaseSectionConfig, GameSections, HullSectionConfig, LinkPoint, SectionConfig, SectionKind,
+    BaseSectionConfig, GameSections, HullSectionConfig, LinkPoint, SectionCollider, SectionConfig,
+    SectionKind, GRID_EPSILON,
 };
 
 use crate::{
@@ -145,6 +146,62 @@ fn a_plan_naming_an_absent_prototype_is_refused_with_the_id_in_the_line() {
         error.contains("no_such_section"),
         "the refusal names the id that did not resolve: {error}"
     );
+}
+
+/// A plan that draws a bay firing between two axes is refused, never built
+/// without it. The grid can keep no lane clear in front of that muzzle, so
+/// skipping the part would silently drop a weapon the plan names, and tiling
+/// it without a lane would let the hull stand across its fire.
+#[test]
+fn a_plan_drawing_a_bay_that_fires_off_axis_is_refused_with_the_id_in_the_line() {
+    let mut catalog = nova_authoring::generation::build_section_catalog();
+    let bay = catalog
+        .iter()
+        .find(|section| section.base.id == "torpedo_section")
+        .expect("the shipped catalog has the two-cell bay")
+        .clone();
+    let oblique = |mut section: SectionConfig, id: &str| {
+        section.base.id = id.to_string();
+        let SectionKind::Torpedo(ref mut tube) = section.kind else {
+            panic!("the bay is a torpedo section");
+        };
+        tube.spawn_offset = Vec3::new(0.0, -1.0, -1.0);
+        section
+    };
+    let mut one_cell = oblique(bay.clone(), "oblique_one_cell_bay");
+    one_cell.base.collider = Some(SectionCollider::Cuboid { size: Vec3::ONE });
+    one_cell.base.link_points = vec![LinkPoint {
+        id: "aft".to_string(),
+        position: Vec3::Z * 0.5,
+        normal: Vec3::Z,
+    }];
+    catalog.push(oblique(bay, "oblique_two_cell_bay"));
+    catalog.push(one_cell);
+    let sections = GameSections(catalog);
+
+    let built: Vec<&str> = ["oblique_two_cell_bay", "oblique_one_cell_bay"]
+        .into_iter()
+        .filter(|id| {
+            let mut plan = WfcPlan::standard_hull();
+            plan.parts.push(WfcPart {
+                prototype: id.to_string(),
+                weight: 1.0,
+                aim: None,
+                zone: None,
+            });
+            match TileSet::build(&sections, &plan) {
+                Ok(_) => true,
+                Err(error) => {
+                    assert!(
+                        error.contains(id) && error.contains("not cardinal"),
+                        "the refusal names the part and its oblique exit: {error}"
+                    );
+                    false
+                }
+            }
+        })
+        .collect();
+    assert!(built.is_empty(), "built a tile set drawing {built:?}");
 }
 
 /// The contradiction path, which `lib.rs` makes a headline claim about:
