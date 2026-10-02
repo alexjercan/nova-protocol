@@ -42,7 +42,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Ships & Sections
 
-- Generated ship prototypes gain side-backed industrial intakes, varied hull sections, drive banks sized for thrust, and more flight computers and high-tier combat weapons.
+- Generated ship prototypes gain backed side docking ports and industrial
+  intakes, varied hull parts, stronger drives and high-tier combat weapons.
 - New `block_line_warship` Line Warship: six PDCs on the trigger, a bow railgun
   on R, two torpedo bays on F, a collar per shoulder, a dorsal cargo intake and
   a bow mining beam on V.
@@ -59,8 +60,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   warship into an open world generated from the seed and streamed around it.
   Retry keeps the seed.
 - The open-world warship starts with 12 hull plates, 6000 PDC rounds, 20 rail
-  slugs, 12 torpedoes and 2000 cr beside a lootable Derelict Tender with 8
-  plates and 0 cr. Stock resets on load.
+  slugs, 12 torpedoes and 2000 cr. Stock resets when the scenario loads.
+- Open-world ships come from the civilizations in reach: unpiloted intact
+  ships, and lootable derelicts with only hull and docks live and 1 to 8 hull
+  plates to Take. An unloaded sector restocks.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.
@@ -102,6 +105,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** The `SalvageCrate` object is removed; content that spawns one
   fails to load. Use a `Beacon` with `area_radius` for a reach-this-location
   trigger. Entering it moves no cargo.
+- An open world pins its ship parts to the loaded mod catalog. It panics at
+  arming if the catalog has a non-finite value, and if the catalog changes
+  under an armed world.
 
 ### Interface & HUD
 
@@ -158,6 +164,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Audio & Visuals
 
+- Open-world ships and wrecks wear the derived skin in their role's style:
+  civilian, industrial, salvage for scavengers, armoured for armored.
 - The base sky uses a new 1024 px cubemap with diffuse nebulae instead of the old point-star texture.
 
 ### Performance
@@ -210,6 +218,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `world_clusters` example streams five kinds of asteroid, planetoid and
   derelict groups that cross sector faces, drawn from three noise fields, with
   a field heatmap and seam markers.
+- New `system_open_world_identity` range checks on a pinned seed that a
+  generated ship's name shows in the HUD target inset and the Map panel, and
+  never on a map blip.
 - Capture loops write `<loop>.webm` with a stereo Opus track from the engine's
   per-voice mix and pan, PCM peak cut to -1 dBFS before Opus, plus a v1
   `<loop>.jsonl` SFX sidecar and its samples.

@@ -533,11 +533,12 @@ cargo run content lint --target <mod> --report r.md     # + write a per-mod repo
     scenarios with no terminal `Outcome`, resource-ref membership, ...);
   - the generated-ship part check - each bundle's section catalog, with base
     and its transitive dependencies, must build one
-    `nova_world_base::ShipPartSnapshot`: positive finite part stats, a section
-    id overlaid only along a dependency chain, a usable hull, controller,
-    thruster and cargo intake, a weapon or thruster that fires straight out
-    of one of its own faces, and no socket on the face a weapon, thruster or
-    cargo intake fires or opens through. Each fault is reported once per
+    `nova_world_base::ShipPartSnapshot`: positive finite part stats, a
+    docking capture angle under 90 degrees, a section id overlaid only along
+    a dependency chain, a usable hull, controller, thruster, cargo intake and
+    docking port, a weapon or thruster that fires straight out of one of its
+    own faces, and no socket on the face a weapon, thruster, cargo intake or
+    docking port fires, opens or docks through. Each fault is reported once per
     owner: the bundle that authors it, or else each bundle whose catalog
     raises it;
   - the combat balance/fairness audit - every combat scenario's derived sheet,

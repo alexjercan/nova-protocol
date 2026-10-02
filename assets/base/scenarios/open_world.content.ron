@@ -2,7 +2,7 @@
     Scenario((
         id: "open_world",
         name: "Open World",
-        description: "An open world generated from your seed: sparse asteroid clusters, planetoids and derelicts, streamed in around your line warship as you fly.",
+        description: "An open world generated from your seed: sparse asteroid clusters, planetoids and generated ships, streamed in around your line warship as you fly.",
         cubemap: "self://textures/cubemap.png",
         role: OpenWorld,
         events: [
@@ -75,35 +75,6 @@
                             },
                             lootable: false,
                             credits: 2000,
-                        )),
-                    )),
-                    SpawnScenarioObject((
-                        base: (
-                            id: "derelict_tender",
-                            name: "Derelict Tender",
-                            position: (
-                                -55.0,
-                                0.0,
-                                -170.0,
-                            ),
-                            rotation: (
-                                0.0,
-                                1.0,
-                                0.0,
-                                0.0,
-                            ),
-                        ),
-                        kind: Spaceship((
-                            design: Prototype(
-                                id: "block_frame_tender_damaged",
-                            ),
-                            controller: r#None,
-                            allegiance: Some(Neutral),
-                            inventory: {
-                                HullPlate: 8,
-                            },
-                            lootable: true,
-                            credits: 0,
                         )),
                     )),
                     SpawnScenarioObject((

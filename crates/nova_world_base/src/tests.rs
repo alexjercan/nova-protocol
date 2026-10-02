@@ -1,12 +1,57 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, panic::AssertUnwindSafe};
 
 use bevy::ecs::system::RunSystemOnce;
-use nova_gameplay::prelude::Fnv64;
-use nova_scenario::prelude::ScenarioConfig;
+use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
+use nova_gameplay::prelude::{Fnv64, ItemType};
+use nova_scenario::prelude::{
+    resolve_ship_design, GameShipDesigns, ScenarioConfig, SectionSource, ShipDesign,
+    ShipDesignSource, SpaceshipSectionConfig,
+};
+use nova_ship::prelude::{GameSections, ShipStyleConfig};
 
 use super::*;
 
 const SEED: u32 = 20_260_923;
+
+/// The ship-layout test packs as the merge would register them, under
+/// `digest`.
+fn loaded_with(digest: u64) -> LoadedSectionPacks {
+    LoadedSectionPacks {
+        packs: crate::ship_layout::tests::packs()
+            .into_iter()
+            .map(|pack| LoadedSectionPack {
+                id: pack.id,
+                dependencies: pack.dependencies,
+                sections: pack.sections,
+            })
+            .collect(),
+        digest: ContentCatalogDigest(digest),
+    }
+}
+
+/// The loaded catalog every test world arms over.
+fn loaded() -> LoadedSectionPacks {
+    loaded_with(1)
+}
+
+/// One style for each role's [`role_style_id`].
+fn styles() -> GameStyles {
+    GameStyles(
+        ShipRoleType::ALL
+            .into_iter()
+            .map(|role| ShipStyleConfig {
+                id: role_style_id(role).to_string(),
+                ..default()
+            })
+            .collect(),
+    )
+}
+
+/// A generator pinned to [`loaded`] and checked against [`styles`].
+pub(crate) fn fixture_world() -> NovaLayeredWorld {
+    NovaLayeredWorld::from_loaded(&loaded(), &styles())
+        .expect("the fixture packs build a snapshot and every role has a style")
+}
 
 fn scenario(role: ScenarioRole) -> CurrentScenario {
     CurrentScenario(Some(ScenarioConfig {
@@ -20,6 +65,8 @@ fn world(role: ScenarioRole) -> World {
     let mut world = World::new();
     world.insert_resource(scenario(role));
     world.insert_resource(OpenWorldSession { seed: SEED });
+    world.insert_resource(loaded());
+    world.insert_resource(styles());
     world
 }
 
@@ -38,7 +85,7 @@ fn session_config() -> WorldConfig<NovaLayeredWorld> {
         seed: SEED,
         sector_edge: OPEN_WORLD_SECTOR_EDGE,
         active_radius: OPEN_WORLD_ACTIVE_RADIUS,
-        generator: NovaLayeredWorld,
+        generator: fixture_world(),
     }
 }
 
@@ -70,8 +117,91 @@ fn the_open_world_describes_the_same_sectors_in_any_visit_order() {
     );
 
     assert_eq!(forward.len(), 125, "radius 2 keeps a 5x5x5 window live");
+    assert!(
+        forward.values().any(|text| text.contains("\n  section ")),
+        "the window must hold a generated ship"
+    );
     assert_eq!(forward, reverse, "a reverse walk changed a sector");
     assert_eq!(forward, strided, "a strided walk changed a sector");
+}
+
+/// A wreck is a loot source: every derelict in the live window carries 1 to 8
+/// hull plates that fit the hold its resolved design gives it, and an intact
+/// ship carries nothing. A wreck with no hull section left holds no plate, so
+/// it gets no stock rather than an empty lootable hold.
+#[test]
+fn every_planned_wreck_carries_one_to_eight_plates_its_hull_holds_and_an_intact_ship_none() {
+    let config = session_config();
+    let parts = config.generator.parts();
+    let sections = GameSections(
+        parts
+            .parts()
+            .iter()
+            .map(|part| part.config.clone())
+            .collect(),
+    );
+    let mut wrecks = 0;
+    for coord in desired_sectors(SectorCoord::ORIGIN, config.active_radius) {
+        let description = generate_sector(&config, coord)
+            .unwrap_or_else(|fault| panic!("sector {coord:?}: {fault}"));
+        for ship in description.ships() {
+            let stacks: Vec<(ItemType, u32)> = ship.stock.stacks().collect();
+            match ship.condition {
+                SectorShipConditionType::Intact => {
+                    assert!(
+                        stacks.is_empty(),
+                        "intact ship {} carries {stacks:?}",
+                        ship.id
+                    );
+                }
+                SectorShipConditionType::Derelict => {
+                    wrecks += 1;
+                    let [(ItemType::HullPlate, plates)] = stacks[..] else {
+                        panic!("wreck {} carries {stacks:?}, not one plate stack", ship.id);
+                    };
+                    assert!(
+                        WRECK_PLATES.contains(&plates),
+                        "wreck {}: {plates}",
+                        ship.id
+                    );
+                    let (resolved, errors) = resolve_ship_design(
+                        &ShipDesignSource::Inline(ship.design.clone()),
+                        &GameShipDesigns::default(),
+                        &sections,
+                    );
+                    assert!(errors.is_empty(), "wreck {}: {errors:?}", ship.id);
+                    assert!(
+                        ship.stock.mass_g() <= u64::from(resolved.cargo_capacity_g()),
+                        "wreck {} overfills its hold",
+                        ship.id
+                    );
+                }
+            }
+        }
+    }
+    assert!(wrecks > 0, "the window must hold a wreck");
+
+    let docks_only = ShipDesign {
+        sections: parts
+            .parts()
+            .iter()
+            .filter(|part| part.family == ShipPartFamilyType::Docking)
+            .take(1)
+            .map(|part| SpaceshipSectionConfig {
+                id: "dock".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                source: SectionSource::prototype(part.id()),
+            })
+            .collect(),
+        ..default()
+    };
+    assert_eq!(
+        docks_only.sections.len(),
+        1,
+        "the fixture has a docking port"
+    );
+    assert_eq!(wreck_stock(parts, &docks_only, 0), None);
 }
 
 /// A pinned window generates the bodies it was recorded with: every rock,
@@ -90,7 +220,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         seed: 20_260_922,
         sector_edge: Meters(32_000.0),
         active_radius: 2,
-        generator: NovaLayeredWorld,
+        generator: fixture_world(),
     };
     let canonical: String = desired_sectors(SectorCoord::ORIGIN, config.active_radius)
         .into_iter()
@@ -102,7 +232,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0x577f_fba4_7b43_1a28,
+        0xe724_206c_1ef4_1d8e,
         "the pinned window's bodies changed"
     );
 }
@@ -130,6 +260,80 @@ fn an_armed_world_is_not_rewritten_by_the_next_sync() {
     sync(&mut world);
 
     assert!(!world.is_resource_changed::<WorldConfig<NovaLayeredWorld>>());
+}
+
+/// The merge runs again whenever the mod set or a bundle load changes. The
+/// same effective catalog merged again is the same world.
+#[test]
+fn a_remerged_identical_catalog_does_not_rewrite_the_armed_world() {
+    let mut world = world(ScenarioRole::OpenWorld);
+    world.spawn(PlayerSpaceshipMarker);
+    sync(&mut world);
+    world.clear_trackers();
+
+    world.insert_resource(loaded());
+    sync(&mut world);
+
+    assert!(!world.is_resource_changed::<WorldConfig<NovaLayeredWorld>>());
+}
+
+/// A new config would retire every sector and regenerate the world from
+/// content it was not armed over, so the refusal comes before any write.
+#[test]
+fn a_changed_catalog_under_an_armed_world_is_refused() {
+    let mut world = world(ScenarioRole::OpenWorld);
+    world.spawn(PlayerSpaceshipMarker);
+    sync(&mut world);
+    world.clear_trackers();
+
+    world.insert_resource(loaded_with(2));
+    let refused = std::panic::catch_unwind(AssertUnwindSafe(|| sync(&mut world)))
+        .expect_err("a changed catalog under an armed world must be refused");
+
+    let message = refused
+        .downcast_ref::<String>()
+        .expect("the refusal is a formatted message");
+    assert!(
+        message.contains("loaded content changed under an armed open world"),
+        "{message}"
+    );
+    assert_eq!(armed(&world), Some(&session_config()));
+    assert!(!world.is_resource_changed::<WorldConfig<NovaLayeredWorld>>());
+}
+
+#[test]
+#[should_panic(expected = "no LoadedSectionPacks")]
+fn an_open_world_with_no_loaded_catalog_is_refused() {
+    let mut world = world(ScenarioRole::OpenWorld);
+    world.remove_resource::<LoadedSectionPacks>();
+    world.spawn(PlayerSpaceshipMarker);
+
+    sync(&mut world);
+}
+
+#[test]
+#[should_panic(expected = "does not arm the open world")]
+fn an_open_world_whose_ship_parts_do_not_build_is_refused() {
+    let mut world = world(ScenarioRole::OpenWorld);
+    world.insert_resource(LoadedSectionPacks {
+        packs: Vec::new(),
+        digest: ContentCatalogDigest(1),
+    });
+    world.spawn(PlayerSpaceshipMarker);
+
+    sync(&mut world);
+}
+
+#[test]
+#[should_panic(expected = "scavenger ships wear style 'salvage', and no loaded content authors it")]
+fn an_open_world_missing_a_role_style_is_refused() {
+    let mut world = world(ScenarioRole::OpenWorld);
+    world
+        .resource_mut::<GameStyles>()
+        .retain(|style| style.id != SALVAGE_STYLE_ID);
+    world.spawn(PlayerSpaceshipMarker);
+
+    sync(&mut world);
 }
 
 #[test]

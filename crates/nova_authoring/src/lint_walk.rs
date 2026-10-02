@@ -737,6 +737,9 @@ fn build_report(
                     (&base_id, "ship parts")
                 }
                 ShipPartFault::MissingFamily(_) => (&bundle.id, "ship parts"),
+                ShipPartFault::MissingRoleStyle { .. } => {
+                    unreachable!("only arming the open world checks role styles, not a snapshot")
+                }
             };
             ship_part_faults.insert((owner.clone(), element.to_string(), fault.to_string()));
         }
@@ -1173,6 +1176,17 @@ mod tests {
                 "Thruster((magnitude: 1.0))",
             ),
             intake(&[[0.0, 0.0, 1.0]]),
+            socketed(
+                "dock",
+                &[
+                    [1.0, 0.0, 0.0],
+                    [-1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [0.0, -1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                ],
+                "Docking((capture_distance: 10.0, capture_angle: 15.0, maximum_relative_speed: 5.0, maximum_relative_angular_speed: 5.0))",
+            ),
         ];
         let all = vec![
             walked("base", &[], &[], base),

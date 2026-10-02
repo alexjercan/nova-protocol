@@ -14,14 +14,15 @@
 //! within a family, so the weakest usable part of a family needs advancement
 //! 0 and the strongest needs 1. A valid part that a generator cannot place is
 //! excluded before normalization, so it can never define a family's floor.
-//! A socketed part that fires down a non-cardinal lane, or through a face
-//! that carries one of its own sockets, is not excluded: it is an authoring
-//! fault, as a bad stat is, because a hull built around it fires into
-//! whatever stands in its lane.
+//! A socketed part that fires or docks down a non-cardinal lane, or through a
+//! face that carries one of its own sockets, is not excluded: it is an
+//! authoring fault, as a bad stat is, because a hull built around it fires or
+//! docks into whatever stands in its lane.
 //!
-//! PURE, and read by the content lint and the `world_ships` debug example
-//! only: the live generator does not build ships from it yet, and nothing pins its hash to a session yet. Scoring is
-//! provisional until generated ships are reviewed.
+//! PURE. The open world pins one to its generator when it arms, beside the
+//! digest of the loaded catalog it came from, and lays out every hull a cell
+//! owns from it; the content lint and the `world_ships` debug example build
+//! their own. Scoring is provisional until generated ships are reviewed.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -32,8 +33,7 @@ use nova_gameplay::prelude::Fnv64;
 use nova_ship::prelude::{
     cell_grid_fit, CellGridFault, SectionCollider, SectionConfig, SectionKind, TurretJoint,
 };
-
-use crate::civilizations::ShipRoleType;
+use nova_world::prelude::ShipRoleType;
 
 /// The version of the canonical form [`ShipPartSnapshot::content_hash`]
 /// reads. Change it with any change to what the hash covers or how it is
@@ -65,31 +65,35 @@ pub enum ShipPartFamilyType {
     Weapon,
     /// Cargo intake, scored by door aperture.
     CargoIntake,
+    /// Docking port, scored by capture distance in engine units.
+    Docking,
 }
 
 impl ShipPartFamilyType {
     /// Every family, in declaration order.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Hull,
         Self::Controller,
         Self::Thruster,
         Self::Weapon,
         Self::CargoIntake,
+        Self::Docking,
     ];
 
-    /// The family of a section kind, or `None` for a kind generated ships do
-    /// not use.
+    /// The family of a section kind.
     fn of(kind: &SectionKind) -> Option<Self> {
-        match kind {
-            SectionKind::Hull(_) => Some(Self::Hull),
-            SectionKind::Controller(_) => Some(Self::Controller),
-            SectionKind::Thruster(_) => Some(Self::Thruster),
+        Some(match kind {
+            SectionKind::Hull(_) => Self::Hull,
+            SectionKind::Controller(_) => Self::Controller,
+            SectionKind::Thruster(_) => Self::Thruster,
             SectionKind::Turret(_) | SectionKind::Torpedo(_) | SectionKind::Railgun(_) => {
-                Some(Self::Weapon)
+                Self::Weapon
             }
-            SectionKind::CargoIntake(_) => Some(Self::CargoIntake),
-            SectionKind::Docking(_) | SectionKind::Mining(_) => None,
-        }
+            SectionKind::CargoIntake(_) => Self::CargoIntake,
+            SectionKind::Docking(_) => Self::Docking,
+            // The first generated-hull slice does not equip mining sections.
+            SectionKind::Mining(_) => return None,
+        })
     }
 
     /// Whether a ship of `role` may carry a part of this family. Civilian
@@ -97,15 +101,17 @@ impl ShipPartFamilyType {
     pub(crate) fn allowed_on(self, role: ShipRoleType) -> bool {
         match self {
             Self::Weapon => matches!(role, ShipRoleType::Scavenger | ShipRoleType::Armored),
-            Self::Hull | Self::Controller | Self::Thruster | Self::CargoIntake => true,
+            Self::Hull | Self::Controller | Self::Thruster | Self::CargoIntake | Self::Docking => {
+                true
+            }
         }
     }
 
     /// Whether every ship of `role` needs a part of this family. Every ship
-    /// flies; an industrial ship mines; a fighting ship fights.
+    /// flies and docks; an industrial ship mines; a fighting ship fights.
     pub(crate) fn required_by(self, role: ShipRoleType) -> bool {
         match self {
-            Self::Hull | Self::Controller | Self::Thruster => true,
+            Self::Hull | Self::Controller | Self::Thruster | Self::Docking => true,
             Self::Weapon => matches!(role, ShipRoleType::Scavenger | ShipRoleType::Armored),
             Self::CargoIntake => role == ShipRoleType::Industrial,
         }
@@ -120,6 +126,7 @@ impl fmt::Display for ShipPartFamilyType {
             Self::Thruster => "thruster",
             Self::Weapon => "weapon",
             Self::CargoIntake => "cargo intake",
+            Self::Docking => "docking port",
         })
     }
 }
@@ -151,8 +158,6 @@ impl ShipPart {
 /// fault: the section still loads and still serves authored ships.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShipPartExclusionType {
-    /// A docking port. Generated ships do not dock yet.
-    Docking,
     /// The section has no link point, so it cannot join one connected ship.
     MissingLinks,
     /// A railgun with no charge time has no damage per second to score.
@@ -164,7 +169,8 @@ pub enum ShipPartExclusionType {
     OffGrid(CellGridFault),
 }
 
-/// Why a set of packs is not a valid snapshot.
+/// Why a set of packs is not a valid snapshot, or why loaded content cannot arm
+/// the open world.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ShipPartFault {
     /// Two packs share one id.
@@ -210,8 +216,8 @@ pub enum ShipPartFault {
     /// industrial ship needs.
     MissingFamily(ShipPartFamilyType),
     /// A weapon or thruster fires down a lane the grid cannot keep clear, or a
-    /// weapon, thruster or cargo intake fires or opens through a face that
-    /// carries one of its own sockets.
+    /// weapon, thruster, cargo intake or docking port fires, opens or docks
+    /// through a face that carries one of its own sockets.
     UnlanedExit {
         /// The pack whose definition is effective.
         pack: String,
@@ -220,6 +226,13 @@ pub enum ShipPartFault {
         /// The [`CellGridFault`] the exit check refused it for: always
         /// [`CellGridFault::ObliqueExit`] or [`CellGridFault::SocketOnExitFace`].
         fault: CellGridFault,
+    },
+    /// No loaded style has the id a role's generated ships wear.
+    MissingRoleStyle {
+        /// The role.
+        role: ShipRoleType,
+        /// Its [`role_style_id`].
+        style: &'static str,
     },
 }
 
@@ -257,6 +270,11 @@ impl fmt::Display for ShipPartFault {
                  needs one"
             ),
             Self::UnlanedExit { pack, id, fault } => write!(f, "section '{id}' ({pack}) {fault}"),
+            Self::MissingRoleStyle { role, style } => write!(
+                f,
+                "{} ships wear style '{style}', and no loaded content authors it",
+                role.label()
+            ),
         }
     }
 }
@@ -361,7 +379,6 @@ impl ShipPartSnapshot {
                 continue;
             }
             let Some(family) = ShipPartFamilyType::of(&config.kind) else {
-                excluded.insert(config.base.id.clone(), ShipPartExclusionType::Docking);
                 continue;
             };
             match exclusion(config) {
@@ -574,7 +591,30 @@ fn check_stats(source: &str, config: &SectionConfig, faults: &mut Vec<ShipPartFa
             require("aperture_width", intake.aperture_width.get(), true);
             require("aperture_height", intake.aperture_height.get(), true);
         }
-        SectionKind::Hull(_) | SectionKind::Docking(_) | SectionKind::Mining(_) => {}
+        SectionKind::Docking(docking) => {
+            require("capture_distance", docking.capture_distance.get(), true);
+            require(
+                "maximum_relative_speed",
+                docking.maximum_relative_speed.get(),
+                false,
+            );
+            require(
+                "maximum_relative_angular_speed",
+                docking.maximum_relative_angular_speed,
+                false,
+            );
+            // The runtime docking lint's range: a cone at or past 90 degrees
+            // accepts a partner facing away.
+            if !(0.0..90.0).contains(&docking.capture_angle) {
+                faults.push(ShipPartFault::InvalidStat {
+                    pack: source.to_string(),
+                    id: config.base.id.clone(),
+                    stat: "capture_angle",
+                    value: docking.capture_angle,
+                });
+            }
+        }
+        SectionKind::Hull(_) | SectionKind::Mining(_) => {}
     }
 }
 
@@ -616,7 +656,8 @@ fn capability(config: &SectionConfig) -> f32 {
         SectionKind::CargoIntake(intake) => {
             intake.aperture_width.get() * intake.aperture_height.get()
         }
-        SectionKind::Docking(_) | SectionKind::Mining(_) => 0.0,
+        SectionKind::Docking(docking) => docking.capture_distance.to_engine(),
+        SectionKind::Mining(_) => unreachable!("mining is excluded before capability scoring"),
     }
 }
 
@@ -662,8 +703,9 @@ mod tests {
     use bevy::prelude::*;
     use nova_events::prelude::{Meters, MetersPerSecond};
     use nova_ship::prelude::{
-        BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, HullSectionConfig,
-        LinkPoint, MuzzleConfig, ThrusterSectionConfig, TorpedoSectionConfig, TurretSectionConfig,
+        BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, DockingSectionConfig,
+        HullSectionConfig, LinkPoint, MuzzleConfig, ThrusterSectionConfig, TorpedoSectionConfig,
+        TurretSectionConfig,
     };
 
     use super::*;
@@ -731,6 +773,12 @@ mod tests {
         section(id, kind, &[Vec3::Z])
     }
 
+    /// A port with a socket on every face but its mouth, -Z.
+    fn dock(id: &str, docking: DockingSectionConfig) -> SectionConfig {
+        let faces = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z];
+        section(id, SectionKind::Docking(docking), &faces)
+    }
+
     fn pack(id: &str, dependencies: &[&str], sections: Vec<SectionConfig>) -> ShipPartPack {
         ShipPartPack {
             id: id.to_string(),
@@ -746,6 +794,7 @@ mod tests {
             controller("controller"),
             thruster("thruster", 1.0),
             intake("intake"),
+            dock("dock", DockingSectionConfig::default()),
         ]
     }
 
@@ -806,16 +855,79 @@ mod tests {
     }
 
     #[test]
-    fn a_catalog_without_a_cargo_intake_is_refused() {
-        let mut sections = floor();
-        sections.retain(|section| section.base.id != "intake");
+    fn a_catalog_without_a_cargo_intake_or_a_docking_port_is_refused() {
+        for (missing, family) in [
+            ("intake", ShipPartFamilyType::CargoIntake),
+            ("dock", ShipPartFamilyType::Docking),
+        ] {
+            let mut sections = floor();
+            sections.retain(|section| section.base.id != missing);
 
-        assert_eq!(
-            faults(&[pack("base", &[], sections)]),
-            [ShipPartFault::MissingFamily(
-                ShipPartFamilyType::CargoIntake
-            )]
-        );
+            assert_eq!(
+                faults(&[pack("base", &[], sections)]),
+                [ShipPartFault::MissingFamily(family)]
+            );
+        }
+    }
+
+    #[test]
+    fn a_docking_port_scores_its_capture_distance_and_refuses_a_bad_envelope_or_mouth() {
+        let reach = |meters| DockingSectionConfig {
+            capture_distance: Meters(meters),
+            ..default()
+        };
+        let mut sections = floor();
+        sections.push(dock("long_dock", reach(40.0)));
+        let snapshot =
+            ShipPartSnapshot::build(&[pack("base", &[], sections)]).expect("the packs build");
+        let scores: Vec<(&str, f32, f32)> = snapshot
+            .parts()
+            .iter()
+            .filter(|part| part.family == ShipPartFamilyType::Docking)
+            .map(|part| (part.id(), part.capability, part.advancement))
+            .collect();
+        assert_eq!(scores, [("dock", 1.0, 0.0), ("long_dock", 4.0, 1.0)]);
+
+        let mut sections = floor();
+        sections.push(dock("short_dock", reach(0.0)));
+        sections.push(dock(
+            "wide_dock",
+            DockingSectionConfig {
+                capture_angle: 90.0,
+                ..default()
+            },
+        ));
+        sections.push(dock(
+            "restless_dock",
+            DockingSectionConfig {
+                maximum_relative_speed: MetersPerSecond(f32::INFINITY),
+                maximum_relative_angular_speed: -1.0,
+                ..default()
+            },
+        ));
+        // A socket on the mouth invites a plate over the hatch.
+        sections.push(section(
+            "sealed_dock",
+            SectionKind::Docking(DockingSectionConfig::default()),
+            &[Vec3::Z, Vec3::NEG_Z],
+        ));
+        let refused: Vec<(String, String)> = faults(&[pack("base", &[], sections)])
+            .into_iter()
+            .map(|fault| match fault {
+                ShipPartFault::InvalidStat { id, stat, .. } => (id, stat.to_string()),
+                ShipPartFault::UnlanedExit { id, fault, .. } => (id, format!("{fault:?}")),
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        let expected = [
+            ("restless_dock", "maximum_relative_speed"),
+            ("restless_dock", "maximum_relative_angular_speed"),
+            ("sealed_dock", "SocketOnExitFace"),
+            ("short_dock", "capture_distance"),
+            ("wide_dock", "capture_angle"),
+        ]
+        .map(|(id, stat)| (id.to_string(), stat.to_string()));
+        assert_eq!(refused, expected);
     }
 
     #[test]

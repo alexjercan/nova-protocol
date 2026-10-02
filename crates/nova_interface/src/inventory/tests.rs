@@ -1121,3 +1121,281 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         Display::None
     );
 }
+
+/// A generated wreck as the open world spawns it, docked through the real
+/// docking systems and looted and restocked through the pane's own transfer
+/// system.
+mod generated_wreck {
+    use nova_events::prelude::{Meters, Meters3};
+    use nova_gameplay::test_support::{settle as settle_physics, unfinished_integrity_physics_app};
+    use nova_scenario::prelude::{
+        resolve_ship_design, spaceship_scenario_object, GameShipDesigns, ShipDesignPrototype,
+        ShipDesignSource, SpaceshipConfig, SpaceshipController, SpaceshipPlugin,
+    };
+    use nova_ship::{
+        flight::prelude::NovaFlightPlugin,
+        prelude::{
+            DockingConnectionRequest, GameSections, PDControllerPlugin, SectionConfig,
+            SpaceshipSectionPlugin,
+        },
+    };
+    use nova_world::{materialize_sector, prelude::*, ObserverBody};
+    use nova_world_base::prelude::{
+        generate_wreck, wreck_stock, ShipLayoutRequest, ShipPartFamilyType, ShipPartPack,
+        ShipPartSnapshot,
+    };
+    use serde::Deserialize;
+
+    use super::*;
+
+    /// The open world's player hull and the collar it docks on, facing -X.
+    const WARSHIP: &str = "block_line_warship";
+    const PLAYER_COLLAR: &str = "port_collar";
+    /// Face-to-face gap at capture, cells: inside the one-cell capture
+    /// distance.
+    const GAP: f32 = 0.5;
+    /// What the player carries before the dock.
+    const PLAYER_PLATES: u32 = 12;
+
+    #[derive(Deserialize)]
+    #[expect(
+        clippy::large_enum_variant,
+        reason = "each catalog entry is parsed once and moved out"
+    )]
+    enum Entry {
+        Section(SectionConfig),
+        Ship(ShipDesignPrototype),
+    }
+
+    /// The shipped section and ship catalogs.
+    fn catalog() -> (Vec<SectionConfig>, Vec<ShipDesignPrototype>) {
+        let load = |path: &str| -> Vec<Entry> {
+            let file = format!("{}/../../assets/base/{path}", env!("CARGO_MANIFEST_DIR"));
+            ron::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap()
+        };
+        let (mut sections, mut ships) = (Vec::new(), Vec::new());
+        for entry in load("sections/base.content.ron")
+            .into_iter()
+            .chain(load("ships/base.content.ron"))
+        {
+            match entry {
+                Entry::Section(section) => sections.push(section),
+                Entry::Ship(ship) => ships.push(ship),
+            }
+        }
+        (sections, ships)
+    }
+
+    /// A generator whose every cell holds one ship.
+    #[derive(Clone, Debug)]
+    struct OneShip(SectorShip);
+
+    impl SectorGenerator for OneShip {
+        fn validate(&self, _geometry: WorldGeometry) -> Result<(), SectorFault> {
+            Ok(())
+        }
+
+        fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
+            Ok(SectorManifest {
+                coord: input.coord,
+                asteroids: Vec::new(),
+                planets: Vec::new(),
+                ships: vec![self.0.clone()],
+            })
+        }
+    }
+
+    fn plates(world: &World, ship: Entity) -> u32 {
+        super::plates(world, ship)
+    }
+
+    /// Write one confirmed command with its draft open, run it, and return
+    /// the note line.
+    fn confirm(app: &mut App, action: InventoryActionType, quantity: u32) -> Option<String> {
+        let command = InventoryActionCommand {
+            action,
+            item: ItemType::HullPlate,
+            quantity: Some(quantity),
+        };
+        app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
+            action,
+            item: ItemType::HullPlate,
+            quantity: Some(quantity),
+        });
+        app.world_mut().write_message(command);
+        app.update();
+        note(app)
+    }
+
+    #[test]
+    fn a_docked_generated_wreck_gives_its_plates_by_take_and_takes_them_back_by_give() {
+        let (sections, ships) = catalog();
+        let snapshot = ShipPartSnapshot::build(&[ShipPartPack {
+            id: "base".to_string(),
+            dependencies: Vec::new(),
+            sections: sections.clone(),
+        }])
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+
+        // An armored wreck: its weapons spawn inactive, and it must still
+        // not read as neutralized.
+        let request = ShipLayoutRequest {
+            seed: 3,
+            civilization: CivilizationId {
+                world_seed: 7,
+                node: [0, 0, 0],
+            },
+            role: ShipRoleType::Armored,
+            advancement: 0.5,
+        };
+        let wreck =
+            generate_wreck(&snapshot, request).unwrap_or_else(|failure| panic!("{failure}"));
+        let stock = wreck_stock(&snapshot, &wreck.design, 5).expect("a wreck's hull holds plates");
+        let [(ItemType::HullPlate, drawn)] = stock.stacks().collect::<Vec<_>>()[..] else {
+            panic!("a wreck carries one plate stack: {stock:?}");
+        };
+        let dock = wreck
+            .design
+            .sections
+            .iter()
+            .filter(|section| {
+                snapshot
+                    .parts()
+                    .iter()
+                    .find(|part| part.id() == section.source.prototype_id())
+                    .is_some_and(|part| part.family == ShipPartFamilyType::Docking)
+            })
+            .max_by(|a, b| a.position.x.total_cmp(&b.position.x))
+            .expect("every generated ship docks")
+            .position;
+        assert!(dock.x > 0.0, "the wreck's starboard dock faces +X");
+
+        let edge = Meters(32_000.0);
+        let centre = SectorCoord::ORIGIN.centre(edge);
+        let config = WorldConfig {
+            seed: 7,
+            sector_edge: edge,
+            active_radius: 1,
+            generator: OneShip(SectorShip {
+                id: sector_id(SectorCoord::ORIGIN, "ship", 0),
+                position: centre,
+                rotation: Quat::IDENTITY,
+                clearance: wreck.clearance,
+                design: wreck.design.clone(),
+                condition: SectorShipConditionType::Derelict,
+                civilization: request.civilization,
+                role: request.role,
+                stock,
+            }),
+        };
+        let prepared =
+            prepare_sector(config, SectorCoord::ORIGIN).expect("one valid wreck prepares");
+
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins((
+            PDControllerPlugin,
+            SpaceshipSectionPlugin { render: false },
+            SpaceshipPlugin,
+            NovaFlightPlugin,
+        ));
+        app.insert_resource(GameSections(sections));
+        app.insert_resource(GameShipDesigns(ships));
+        app.init_resource::<InventoryRuntime>();
+        app.add_message::<InventoryActionCommand>();
+        app.add_systems(Update, apply_inventory_action_commands);
+        hear_ui_cues(&mut app);
+        app.finish();
+
+        // The world spawns the wreck, with the observer far from it.
+        let loaded = app.world().resource::<GameSections>().clone();
+        let world = app.world_mut();
+        materialize_sector(
+            &mut world.commands(),
+            prepared,
+            &AssetRef::default(),
+            &loaded,
+            ObserverBody {
+                position: centre + Meters3::new(0.0, 0.0, 10_000.0),
+                reach: Meters::ZERO,
+            },
+        );
+        world.flush();
+        let wreck = world
+            .query_filtered::<Entity, With<DerelictShipMarker>>()
+            .single(world)
+            .expect("the world spawned one wreck");
+
+        // The player's port collar square to the wreck's dock, GAP apart.
+        let (warship, errors) = resolve_ship_design(
+            &ShipDesignSource::prototype(WARSHIP),
+            app.world().resource::<GameShipDesigns>(),
+            app.world().resource::<GameSections>(),
+        );
+        assert!(errors.is_empty(), "{errors:?}");
+        let collar = warship
+            .sections
+            .iter()
+            .find(|section| section.id == PLAYER_COLLAR)
+            .expect("the warship has a port collar")
+            .position;
+        let player = app
+            .world_mut()
+            .spawn((
+                Transform::from_translation(
+                    centre.to_engine() + dock + Vec3::X * (1.0 + GAP) - collar,
+                ),
+                spaceship_scenario_object(SpaceshipConfig {
+                    design: ShipDesignSource::prototype(WARSHIP),
+                    controller: SpaceshipController::None,
+                    allegiance: None,
+                    capabilities: default(),
+                    inventory: ShipInventoryStock::new([(ItemType::HullPlate, PLAYER_PLATES)]),
+                    lootable: false,
+                    credits: 0,
+                }),
+            ))
+            .id();
+        settle_physics(&mut app);
+        settle_physics(&mut app);
+        app.world_mut()
+            .entity_mut(player)
+            .insert(PlayerSpaceshipMarker);
+        app.world_mut().trigger(DockingConnectionRequest {
+            entity: player,
+            target: wreck,
+        });
+        app.update();
+        assert!(
+            app.world().get::<DockedShip>(player).is_some(),
+            "the real dock with the wreck was refused"
+        );
+        settle_physics(&mut app);
+
+        let entity = app.world().entity(wreck);
+        assert!(entity.contains::<LootableShipMarker>());
+        assert!(!entity.contains::<NeutralizedMarker>());
+        assert_eq!(entity.get::<Allegiance>(), Some(&Allegiance::Neutral));
+        assert_eq!(
+            plates(app.world(), wreck),
+            drawn,
+            "the wreck spawns its stock"
+        );
+        let name = entity
+            .get::<Name>()
+            .expect("the wreck is named")
+            .to_string();
+        let total = PLAYER_PLATES + drawn;
+        let held = |app: &App| (plates(app.world(), player), plates(app.world(), wreck));
+
+        assert_eq!(
+            confirm(&mut app, InventoryActionType::Take, drawn),
+            Some(format!("Took {drawn} Hull plate from {name}"))
+        );
+        assert_eq!(held(&app), (total, 0));
+        assert_eq!(
+            confirm(&mut app, InventoryActionType::Give, 3),
+            Some(format!("Gave 3 Hull plate to {name}"))
+        );
+        assert_eq!(held(&app), (total - 3, 3));
+    }
+}

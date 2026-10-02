@@ -8,6 +8,9 @@ description = "The base game's open world: its sector generator and the session 
 
 [dependencies]
 bevy = { version = "0.19.0" }
+# `LoadedSectionPacks`: the section packs and catalog digest the content merge
+# registered, which the open world pins its ship parts to when it arms.
+nova_assets = { path = "../nova_assets" }
 # The environment: three global `Fbm<Perlin>` fields every cluster and
 # background scatter reads. Same crate and version the planet and asteroid
 # surfaces already generate from, so a world field and a shipped surface

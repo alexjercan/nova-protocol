@@ -7,16 +7,15 @@
 //! Jettison drops, and the canister the Jettison drops is the canister the
 //! pickup takes.
 //!
-//! ## The scene is New Game's berth
+//! ## The scene is a staged berth
 //!
-//! The shipped `block_line_warship` and the Derelict Tender
-//! (`block_frame_tender_damaged`, lootable, 8 hull plates) stand as the open
-//! world stages them (`crates/nova_authoring/src/base_content/scenarios/open_world.rs`),
-//! with the warship moved up to the berth that scenario's comment describes:
-//! the two port collars square and 5 m apart, inside the 10 m capture gap. The
-//! walk docks with the real `dock` key and drives the Inventory pane with the
-//! pointer, so the Take, the Jettison, the door and the take are the
-//! production path.
+//! The shipped `block_line_warship` and a Derelict Tender
+//! (`block_frame_tender_damaged`, lootable, 8 hull plates) stand berthed: the
+//! two port collars square and 5 m apart, inside the 10 m capture gap. New
+//! Game streams its wrecks at seeded poses, so this scene stages its own
+//! derelict to make the take repeatable. The walk docks with the real `dock`
+//! key and drives the Inventory pane with the pointer, so the Take, the
+//! Jettison, the door and the take are the production path.
 //!
 //! ## The three sheets
 //!
@@ -75,13 +74,13 @@ struct Cli;
 const PLAYER_ID: &str = "player";
 const DERELICT_ID: &str = "derelict_tender";
 
-/// The hull plates the derelict carries, as New Game stocks it.
+/// The hull plates the derelict carries.
 const DERELICT_PLATES: u32 = 8;
 
-/// The warship at the open world's berth: 140 m ahead of its spawn, where
-/// its port collar face stands 5 m from the derelict's.
+/// The warship at the berth, where its port collar face stands 5 m from the
+/// derelict's.
 const PLAYER_POSITION: Meters3 = Meters3::new(0.0, 0.0, -140.0);
-/// The derelict as the open world places it.
+/// The derelict, off the warship's port collar.
 const DERELICT_POSITION: Meters3 = Meters3::new(-55.0, 0.0, -170.0);
 /// Turned 180 degrees about Y, so its port collar faces the warship's.
 const DERELICT_ROTATION: Quat = Quat::from_xyzw(0.0, 1.0, 0.0, 0.0);

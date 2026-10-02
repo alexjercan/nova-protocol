@@ -18,16 +18,20 @@ use bevy::{
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
 use nova_assets::prelude::GameAssets;
-use nova_events::prelude::Meters3;
-use nova_gameplay::prelude::{Allegiance, AssetRef, LootableShipMarker, ShipInventoryStock};
+use nova_events::prelude::{Meters, Meters3};
+use nova_gameplay::prelude::{
+    Allegiance, AssetRef, DerelictShipMarker, IntegrityEnvelope, LootableShipMarker,
+};
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
-    spaceship_scenario_object, AsteroidConfig, BaseScenarioObjectConfig, GameShipDesigns,
-    ShipDesignSource, SpaceshipConfig, SpaceshipController,
+    resolve_ship_design, spaceship_scenario_object, AsteroidConfig, BaseScenarioObjectConfig,
+    GameShipDesigns, ShipDesignSource, SpaceshipConfig, SpaceshipController,
 };
+use nova_ship::prelude::GameSections;
 
 use crate::{
-    prepare_sector, PreparedSector, SectorCoord, SectorFault, SectorGenerator, WorldConfig,
+    bodies_clear, prepare_sector, PreparedSector, SectorCoord, SectorFault, SectorGenerator,
+    SectorShip, SectorShipConditionType, WorldConfig,
 };
 
 /// Marks the entity the desired set is centred on.
@@ -48,6 +52,56 @@ pub struct WorldObserver;
 /// also carries keeps the session sweep able to take it.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct SectorRoot(pub SectorCoord);
+
+/// A generated ship held back because the observer's body overlapped its
+/// clearance sphere when its cell materialized.
+///
+/// A child of the cell's [`SectorRoot`], so retiring the cell takes it with
+/// the root, and it carries the manifest entry unchanged:
+/// [`materialize_pending_ships`] spawns exactly that ship where the manifest
+/// put it once the observer is clear. It has no body of its own.
+#[derive(Component, Debug)]
+pub struct PendingSectorShip(SectorShip);
+
+impl PendingSectorShip {
+    /// The manifest entry it holds.
+    pub fn ship(&self) -> &SectorShip {
+        &self.0
+    }
+}
+
+/// Where the [`WorldObserver`]'s body stands and how far it reaches, as a
+/// held ship's overlap test reads it.
+#[derive(Clone, Copy, Debug)]
+pub struct ObserverBody {
+    /// The observer's position.
+    pub position: Meters3,
+    /// How far its body reaches from that position.
+    pub reach: Meters,
+}
+
+impl ObserverBody {
+    /// Read from the observer's transform and its published
+    /// [`IntegrityEnvelope`]. An observer that publishes none, such as a
+    /// free-fly camera, has no body to overlap and reaches nothing.
+    pub fn read(transform: &GlobalTransform, envelope: Option<&IntegrityEnvelope>) -> Self {
+        Self {
+            position: Meters3::from_engine(transform.translation()),
+            reach: envelope.map_or(Meters::ZERO, |envelope| Meters::from_engine(envelope.0)),
+        }
+    }
+
+    /// Whether the body reaches into `ship`'s clearance sphere.
+    fn overlaps(self, ship: &SectorShip) -> bool {
+        !bodies_clear(
+            self.position,
+            self.reach,
+            ship.position,
+            ship.clearance,
+            Meters::ZERO,
+        )
+    }
+}
 
 /// Which cell the [`WorldObserver`] is in. Written by
 /// [`track_current_sector`], and the centre every desired-set decision in the
@@ -121,20 +175,26 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 /// streamed planetoid carries a `GravityWell` and would otherwise be orbitable
 /// by name. A nearest-well target reaches it on purpose: it names no id.
 ///
+/// A ship whose clearance sphere `observer` overlaps is not spawned: it is
+/// held as a [`PendingSectorShip`] child of the root, for
+/// [`materialize_pending_ships`] to spawn once the observer is clear.
+///
 /// # Panics
 ///
 /// When `prepared` carries a different number of rocks than asteroids or a
 /// different number of surfaces than planetoids - zipping a short list would
 /// silently spawn a sector missing its tail - and on
-/// [`SectorFault::UnknownShip`] when a ship names a design the loaded catalog
-/// does not hold. The catalog is a main-thread resource, so this is
-/// the first place the id CAN be checked, and it is checked before the root is
-/// spawned.
+/// [`SectorFault::InvalidShipDesign`] when a ship's inline design does not
+/// resolve whole against `sections`. The spawn's resolver skips a broken
+/// section and flies the rest, so every design is resolved strictly here
+/// first. The catalog is a main-thread resource, so this is the first place
+/// the design CAN be resolved, and it is resolved before the root is spawned.
 pub fn materialize_sector(
     commands: &mut Commands,
     prepared: PreparedSector,
     texture: &AssetRef<Image>,
-    designs: &GameShipDesigns,
+    sections: &GameSections,
+    observer: ObserverBody,
 ) -> Entity {
     let PreparedSector {
         description,
@@ -157,14 +217,7 @@ pub fn materialize_sector(
         description.planets.len()
     );
     for ship in &description.ships {
-        assert!(
-            designs.get_design(&ship.design).is_some(),
-            "nova_world: {}",
-            SectorFault::UnknownShip {
-                id: ship.id.clone(),
-                design: ship.design.clone(),
-            }
-        );
+        require_resolved(ship, sections);
     }
 
     let objects = description.object_count();
@@ -220,43 +273,104 @@ pub fn materialize_sector(
     }
 
     for ship in description.ships {
-        commands.spawn((
-            base_scenario_object(&BaseScenarioObjectConfig {
-                id: ship.id.clone(),
-                name: ship.id.clone(),
-                position: ship.position,
-                rotation: Quat::from_rotation_y(ship.yaw),
-            }),
-            spaceship_scenario_object(SpaceshipConfig {
-                design: ShipDesignSource::Prototype {
-                    id: ship.design.clone(),
-                    section_patches: BTreeMap::new(),
-                },
-                // Nobody aboard and nobody's side: a generated ship is scenery
-                // with a hull, and an AI that shot it would be shooting the
-                // furniture. The allegiance is inserted beside the bundle for
-                // the same reason the scenario loader does it - the controller
-                // marker's requirement default would otherwise decide.
-                controller: SpaceshipController::None,
-                allegiance: Some(Allegiance::Neutral),
-                inventory: ShipInventoryStock::new([]),
-                // A wreck: nobody aboard to trade with, so a docked ship may
-                // Take from it and nothing pays or is paid.
-                lootable: true,
-                credits: 0,
-                ..default()
-            }),
-            // Beside the bundle for the reason the allegiance is: the scenario
-            // loader inserts it from `lootable`, and this spawn is not that
-            // loader.
-            LootableShipMarker,
-            Allegiance::Neutral,
-            ChildOf(root),
-        ));
+        if observer.overlaps(&ship) {
+            debug!(
+                "nova_world: holding ship '{}' in {coord}: the observer overlaps its {:.0} m \
+                 clearance",
+                ship.id,
+                ship.clearance.get()
+            );
+            commands.spawn((PendingSectorShip(ship), ChildOf(root)));
+        } else {
+            spawn_sector_ship(commands, root, ship);
+        }
     }
 
     trace!("nova_world: materialized {coord} with {objects} object(s)");
     root
+}
+
+/// Refuse a ship whose inline design does not resolve whole against
+/// `sections`.
+///
+/// # Panics
+///
+/// On [`SectorFault::InvalidShipDesign`] with every resolver error.
+fn require_resolved(ship: &SectorShip, sections: &GameSections) {
+    // The source is borrowed through a clone because the resolver takes a
+    // `ShipDesignSource`, and the manifest entry keeps its design for a held
+    // ship. Once per ship per materialized cell.
+    let source = ShipDesignSource::Inline(ship.design.clone());
+    let (_, errors) = resolve_ship_design(&source, &GameShipDesigns::default(), sections);
+    if !errors.is_empty() {
+        panic!(
+            "nova_world: {}",
+            SectorFault::InvalidShipDesign {
+                id: ship.id.clone(),
+                errors,
+            }
+        );
+    }
+}
+
+/// Spawn one generated ship under `root`, where and as its manifest entry
+/// says, its hold filled with the entry's stock.
+///
+/// Its `Name` says whose it is and what it was built for, `<civilization>
+/// <role>` or `<civilization> derelict, former <role>`. Inspection and the
+/// selected target show it; a distant map blip shows a minted code instead.
+///
+/// Nobody aboard and nobody's side: a generated ship is unpiloted, and an AI
+/// that shot it would be shooting the furniture. The allegiance is inserted
+/// beside the bundle for the same reason the scenario loader does it - the
+/// controller marker's requirement default would otherwise decide. A derelict
+/// also carries [`DerelictShipMarker`] in the same bundle, so the section spawn
+/// sees it and every section but hull and docking port spawns inactive, and
+/// [`LootableShipMarker`], so a ship docked to it may Take its stock. The
+/// scenario spawn action inserts that marker from `lootable`; this spawn does
+/// not run through it.
+fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
+    let SectorShip {
+        id,
+        position,
+        rotation,
+        clearance: _,
+        design,
+        condition,
+        civilization,
+        role,
+        stock,
+    } = ship;
+    let derelict = condition == SectorShipConditionType::Derelict;
+    let name = match condition {
+        SectorShipConditionType::Intact => format!("{} {}", civilization.name(), role.label()),
+        SectorShipConditionType::Derelict => {
+            format!("{} derelict, former {}", civilization.name(), role.label())
+        }
+    };
+    let ship = (
+        base_scenario_object(&BaseScenarioObjectConfig {
+            id,
+            name,
+            position,
+            rotation,
+        }),
+        spaceship_scenario_object(SpaceshipConfig {
+            design: ShipDesignSource::Inline(design),
+            controller: SpaceshipController::None,
+            allegiance: Some(Allegiance::Neutral),
+            inventory: stock,
+            lootable: derelict,
+            ..default()
+        }),
+        Allegiance::Neutral,
+        ChildOf(root),
+    );
+    if derelict {
+        commands.spawn((ship, DerelictShipMarker, LootableShipMarker));
+    } else {
+        commands.spawn(ship);
+    }
 }
 
 /// The live sector roots, keyed by cell.
@@ -599,8 +713,10 @@ pub fn collect_sector_jobs<G: SectorGenerator>(
 ///
 /// # Panics
 ///
-/// Through [`live_sectors`] on a duplicate root, and through
-/// [`materialize_sector`] on a ship the catalog does not hold.
+/// Through [`live_sectors`] on a duplicate root, through
+/// [`materialize_sector`] on a ship design the loaded sections do not resolve,
+/// and on [`SectorFault::AbsentObserver`] unless there is exactly one
+/// [`WorldObserver`].
 ///
 /// When a caller wrote [`WorldConfig`] after
 /// [`crate::NovaWorldSystems::Cleanup`] had already gone, so the world the old
@@ -619,7 +735,8 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
     mut ready: ResMut<ReadySectors>,
     mut stats: ResMut<SectorJobStats>,
     game_assets: Res<GameAssets>,
-    designs: Res<GameShipDesigns>,
+    sections: Res<GameSections>,
+    observer: Query<(&GlobalTransform, Option<&IntegrityEnvelope>), With<WorldObserver>>,
 ) {
     assert_world_was_cleared(&config, &cleared);
     let desired = desired_sectors(current.0, config.active_radius);
@@ -641,7 +758,11 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
 
     let coord = prepared.description().coord;
     let texture: AssetRef<Image> = game_assets.asteroid_texture.clone().into();
-    materialize_sector(&mut commands, prepared, &texture, &designs);
+    let Ok((transform, envelope)) = observer.single() else {
+        panic!("nova_world: {}", SectorFault::AbsentObserver);
+    };
+    let observer = ObserverBody::read(transform, envelope);
+    materialize_sector(&mut commands, prepared, &texture, &sections, observer);
     stats.materialized += 1;
 
     if desired
@@ -658,6 +779,43 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
             stats.discarded,
             stats.peak_pending
         );
+    }
+}
+
+/// Spawn every held ship whose clearance sphere the observer has left, each
+/// on its own, where its manifest entry puts it, under the root that holds
+/// it.
+///
+/// A held ship the observer still overlaps waits another frame. Nothing moves
+/// or drops it: the manifest decided the ship, and the observer only decides
+/// when it appears.
+///
+/// # Panics
+///
+/// On [`SectorFault::AbsentObserver`] unless there is exactly one
+/// [`WorldObserver`].
+pub fn materialize_pending_ships(
+    mut commands: Commands,
+    pending: Query<(Entity, &PendingSectorShip, &ChildOf)>,
+    observer: Query<(&GlobalTransform, Option<&IntegrityEnvelope>), With<WorldObserver>>,
+) {
+    if pending.is_empty() {
+        return;
+    }
+    let Ok((transform, envelope)) = observer.single() else {
+        panic!("nova_world: {}", SectorFault::AbsentObserver);
+    };
+    let observer = ObserverBody::read(transform, envelope);
+    for (entity, held, child_of) in &pending {
+        if observer.overlaps(&held.0) {
+            continue;
+        }
+        debug!(
+            "nova_world: the observer cleared held ship '{}'; spawning it",
+            held.0.id
+        );
+        commands.entity(entity).despawn();
+        spawn_sector_ship(&mut commands, child_of.parent(), held.0.clone());
     }
 }
 

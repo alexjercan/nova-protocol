@@ -33,12 +33,20 @@
 //! geometry, unique ids the cell owns, bodies wholly inside the cell and not
 //! overlapping, shipped asteroid kinds and planet configs - before a worker
 //! prepares anything. It does not limit how many bodies a cell holds; the
-//! generator owns its density. A ship's design is a key into the ship catalog,
-//! which is a Bevy resource, so the check can only refuse a blank one. The
-//! catalog lookup happens on the main thread in [`materialize_sector`], where
-//! an id the game does not ship is a [`SectorFault::UnknownShip`] panic -
-//! loud, and before the cell's entities exist, but at materialization and not
-//! at arming.
+//! generator owns its density. A ship carries its generated design inline,
+//! with the clearance radius the generator measured, capped at
+//! [`SECTOR_SHIP_CLEARANCE_MAX`]. The section catalog is a Bevy resource, so
+//! the worker checks only what needs no catalog. [`materialize_sector`]
+//! resolves every design strictly on the main thread, where a section that
+//! does not resolve is a [`SectorFault::InvalidShipDesign`] panic - loud, and
+//! before the cell's entities exist, but at materialization and not at
+//! arming.
+//!
+//! A ship whose clearance sphere the observer's body overlaps when its cell
+//! materializes is held as a [`PendingSectorShip`] under the cell's root and
+//! spawned by [`materialize_pending_ships`] once the observer is clear. Its
+//! manifest entry never changes, and retiring the cell takes the held ship
+//! with the root.
 //!
 //! # The job lifetime
 //!
@@ -69,7 +77,8 @@
 //!    itself; a completion for a cell nobody wants any more is dropped.
 //! 5. [`NovaWorldSystems::Materialize`] spawns AT MOST ONE prepared sector,
 //!    nearest first, so a large window costs one frame of spawning per cell
-//!    instead of one frame of all of it.
+//!    instead of one frame of all of it. Then it spawns each held ship the
+//!    observer is clear of.
 //! 6. [`NovaWorldSystems::Retire`] takes back roots, running jobs and prepared
 //!    results that fall outside the desired set.
 //!
@@ -146,7 +155,7 @@ use std::{any::type_name, fmt::Debug, marker::PhantomData};
 use bevy::{ecs::change_detection::CheckChangeTicks, prelude::*};
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::{Fnv32, SeedStream};
-use nova_scenario::prelude::{scenario_is_live, AsteroidKindId, CurrentScenario, ShipDesignId};
+use nova_scenario::prelude::{scenario_is_live, AsteroidKindId, CurrentScenario, ShipDesignError};
 
 mod generation;
 mod streaming;
@@ -157,14 +166,14 @@ mod tests;
 pub use crate::{
     generation::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
-        PreparedSector, SectorAsteroid, SectorDescription, SectorManifest, SectorPlanet,
-        SectorShip, SECTOR_SHIP_CLEARANCE,
+        CivilizationId, PreparedSector, SectorAsteroid, SectorDescription, SectorManifest,
+        SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType, SECTOR_SHIP_CLEARANCE_MAX,
     },
     streaming::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
-        materialize_ready_sector, materialize_sector, request_sectors, retire_sectors,
-        track_current_sector, CurrentSector, ReadySectors, SectorJob, SectorJobStats, SectorRoot,
-        WorldObserver,
+        materialize_pending_ships, materialize_ready_sector, materialize_sector, request_sectors,
+        retire_sectors, track_current_sector, CurrentSector, ObserverBody, PendingSectorShip,
+        ReadySectors, SectorJob, SectorJobStats, SectorRoot, WorldObserver,
     },
 };
 
@@ -174,14 +183,14 @@ pub use crate::{
 pub mod prelude {
     pub use super::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
-        NovaWorldPlugin, NovaWorldSystems, PreparedSector, SectorAsteroid, SectorCoord,
-        SectorDescription, SectorFault, SectorGenerationInput, SectorGenerator, SectorManifest,
-        SectorPlanet, SectorShip, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
-        SECTOR_SHIP_CLEARANCE,
+        CivilizationId, NovaWorldPlugin, NovaWorldSystems, PreparedSector, SectorAsteroid,
+        SectorCoord, SectorDescription, SectorFault, SectorGenerationInput, SectorGenerator,
+        SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType,
+        WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
     };
     pub use crate::streaming::{
-        desired_sectors, CurrentSector, ReadySectors, SectorJob, SectorJobStats, SectorRoot,
-        WorldObserver,
+        desired_sectors, CurrentSector, PendingSectorShip, ReadySectors, SectorJob, SectorJobStats,
+        SectorRoot, WorldObserver,
     };
 }
 
@@ -571,14 +580,15 @@ pub enum SectorFault {
         /// The id nobody answers to.
         kind: AsteroidKindId,
     },
-    /// A generated ship names a design the loaded catalog does not hold.
-    /// Checked on the main thread, where the catalog lives, and refused before
-    /// the sector spawns anything.
-    UnknownShip {
-        /// The ship that named it.
+    /// A generated ship's inline design does not resolve whole against the
+    /// loaded section catalog. Checked on the main thread, where the catalog
+    /// lives, and refused before the sector spawns anything: the spawn's own
+    /// resolver would skip the broken sections and fly the rest.
+    InvalidShipDesign {
+        /// The ship whose design it is.
         id: String,
-        /// The design id nobody answers to.
-        design: ShipDesignId,
+        /// Every error the resolver reported.
+        errors: Vec<ShipDesignError>,
     },
     /// Two objects in one sector, or two values one generator names, claim
     /// the same id. Never resolved by spawn order: an id is how an object is
@@ -643,9 +653,14 @@ impl std::fmt::Display for SectorFault {
                 formatter,
                 "a generated rock names asteroid kind '{kind}', which the game does not ship"
             ),
-            Self::UnknownShip { id, design } => write!(
+            Self::InvalidShipDesign { id, errors } => write!(
                 formatter,
-                "ship '{id}' names design '{design}', which the catalog does not hold"
+                "ship '{id}' has a design the loaded sections do not resolve: {}",
+                errors
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ")
             ),
             Self::DuplicateId { id } => write!(formatter, "two objects claim the id '{id}'"),
             Self::InvalidGeometry { id } => {
@@ -690,7 +705,8 @@ pub enum NovaWorldSystems {
     Request,
     /// Take in what the workers finished, without waiting on anything.
     Collect,
-    /// Spawn at most one prepared sector.
+    /// Spawn at most one prepared sector, then every held ship the observer
+    /// has left.
     Materialize,
     /// Take back everything outside the desired set.
     Retire,
@@ -807,7 +823,9 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
                 track_current_sector::<G>.in_set(NovaWorldSystems::Observe),
                 request_sectors::<G>.in_set(NovaWorldSystems::Request),
                 collect_sector_jobs::<G>.in_set(NovaWorldSystems::Collect),
-                materialize_ready_sector::<G>.in_set(NovaWorldSystems::Materialize),
+                (materialize_ready_sector::<G>, materialize_pending_ships)
+                    .chain()
+                    .in_set(NovaWorldSystems::Materialize),
                 retire_sectors::<G>.in_set(NovaWorldSystems::Retire),
             ),
         );

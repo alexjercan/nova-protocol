@@ -8,13 +8,14 @@
 //! held to the same rule: it gets a seed, an edge and a coordinate, and
 //! nothing else.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, fmt};
 
-use bevy::log::info_span;
+use bevy::{log::info_span, math::Quat};
 use nova_events::prelude::{Meters, Meters3};
+use nova_gameplay::prelude::{Fnv32, SeedStream, ShipInventoryStock};
 use nova_scenario::prelude::{
     is_asteroid_kind, is_valid_asteroid_mass, prepare_asteroid_geometry, prepare_planet,
-    AsteroidKindId, PlanetConfig, PreparedAsteroid, PreparedPlanet, ShipDesignId,
+    AsteroidKindId, PlanetConfig, PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign,
     ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
@@ -50,17 +51,170 @@ pub struct SectorPlanet {
     pub config: PlanetConfig,
 }
 
+/// Whether a generated ship still works or is a derelict.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SectorShipConditionType {
+    /// Powered and unpiloted: every system works, and nothing flies it.
+    Intact,
+    /// A derelict: its hull and docking ports stay live, and every other
+    /// section spawns inactive.
+    Derelict,
+}
+
+impl SectorShipConditionType {
+    /// What the canonical description calls the condition.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Intact => "intact",
+            Self::Derelict => "derelict",
+        }
+    }
+}
+
+/// The chance a name has three syllables rather than two.
+const NAME_THREE_SYLLABLE_CHANCE: f32 = 0.5;
+
+/// The syllables a name is composed from. Content: a change renames every
+/// civilization in every world.
+const NAME_SYLLABLES: [&str; 24] = [
+    "an", "bel", "cor", "da", "el", "fen", "gar", "hal", "is", "jor", "ka", "lun", "mar", "nor",
+    "os", "pra", "quel", "ren", "sol", "tev", "ur", "vas", "wen", "zo",
+];
+
+/// A civilization's stable machine identity: the world seed and its signed
+/// lattice node.
+///
+/// Never a hash and never a name. Two nodes whose draw streams collide still
+/// have distinct identities, and two civilizations may share a display name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CivilizationId {
+    /// The world seed the civilization was drawn from.
+    pub world_seed: u32,
+    /// Its node on the civilization lattice.
+    pub node: [i32; 3],
+}
+
+impl CivilizationId {
+    /// The display name: two or three syllables, first letter capitalized.
+    ///
+    /// A pure function of the identity. Names repeat across a world, so a
+    /// name must not be used to find a civilization.
+    pub fn name(self) -> String {
+        let mut stream = self.stream(b"name");
+        let syllables = if stream.unit() < 1.0 - NAME_THREE_SYLLABLE_CHANCE {
+            2
+        } else {
+            3
+        };
+        // Three syllable draws every time, so the syllable count does not
+        // shift any later draw.
+        let drawn: [&str; 3] = std::array::from_fn(|_| {
+            let index = (stream.unit() * NAME_SYLLABLES.len() as f32) as usize;
+            NAME_SYLLABLES[index.min(NAME_SYLLABLES.len() - 1)]
+        });
+        let joined = drawn[..syllables].concat();
+        let mut letters = joined.chars();
+        letters.next().map_or_else(String::new, |first| {
+            first.to_uppercase().chain(letters).collect()
+        })
+    }
+
+    /// The draw stream for one aspect of this civilization: the FNV-1a 32
+    /// of the world seed, `civilization`, `aspect` and the node, each index
+    /// little-endian.
+    ///
+    /// Public so the generator that draws a civilization's centroid, status,
+    /// advancement and roles keys them the same way [`name`](Self::name)
+    /// is keyed. Each aspect has its own stream, so retuning one aspect
+    /// cannot move another: a new name inventory keeps every centroid and
+    /// status. A change to this keying moves every civilization in every
+    /// world.
+    pub fn stream(self, aspect: &[u8]) -> SeedStream {
+        SeedStream::new(
+            Fnv32::new()
+                .write(&self.world_seed.to_le_bytes())
+                .write(b"civilization")
+                .write(aspect)
+                .write(&self.node[0].to_le_bytes())
+                .write(&self.node[1].to_le_bytes())
+                .write(&self.node[2].to_le_bytes())
+                .finish(),
+        )
+    }
+}
+
+impl fmt::Display for CivilizationId {
+    /// `civ_<x>_<y>_<z>@<seed>`, a negative index written `n<abs>`.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "civ")?;
+        for index in self.node {
+            if index < 0 {
+                write!(formatter, "_n{}", index.unsigned_abs())?;
+            } else {
+                write!(formatter, "_{index}")?;
+            }
+        }
+        write!(formatter, "@{}", self.world_seed)
+    }
+}
+
+/// The four closed ship roles a civilization fields.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ShipRoleType {
+    /// Unarmed traffic.
+    Civilian,
+    /// Unarmed miners with cargo intake.
+    Industrial,
+    /// Rough, low-tier fighting ships.
+    Scavenger,
+    /// Equipped fighting ships.
+    Armored,
+}
+
+impl ShipRoleType {
+    /// Every role, in the order a role array holds them.
+    pub const ALL: [Self; 4] = [
+        Self::Civilian,
+        Self::Industrial,
+        Self::Scavenger,
+        Self::Armored,
+    ];
+
+    /// What a readout or a legend calls the role.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Civilian => "civilian",
+            Self::Industrial => "industrial",
+            Self::Scavenger => "scavenger",
+            Self::Armored => "armored",
+        }
+    }
+}
+
 /// One generated ship: a hull with nobody aboard and nobody's side.
 #[derive(Clone, Debug)]
 pub struct SectorShip {
     /// The ship's scenario id, prefixed with its owning cell's slug.
     pub id: String,
-    /// Where it floats, in meters from the world origin.
+    /// Where its root floats, in meters from the world origin.
     pub position: Meters3,
-    /// Which way it is pointing. Yaw only - the hull sits level.
-    pub yaw: f32,
-    /// The catalog design it is built from.
-    pub design: ShipDesignId,
+    /// Its full orientation: a finite unit quaternion.
+    pub rotation: Quat,
+    /// The radius around the root that holds the whole hull in any
+    /// orientation. At most [`SECTOR_SHIP_CLEARANCE_MAX`].
+    pub clearance: Meters,
+    /// The generated design, carried inline: every section names a section
+    /// prototype of the loaded catalog.
+    pub design: ShipDesign,
+    /// Whether it works or is a derelict.
+    pub condition: SectorShipConditionType,
+    /// The civilization it belongs to, or belonged to as a derelict.
+    pub civilization: CivilizationId,
+    /// What it was built for. A derelict keeps its former role.
+    pub role: ShipRoleType,
+    /// What its hold carries when it spawns. The spawn refuses stock past
+    /// the hold its resolved design gives it.
+    pub stock: ShipInventoryStock,
 }
 
 /// What a [`SectorGenerator`] says one cell holds. UNTRUSTED.
@@ -143,6 +297,13 @@ impl SectorDescription {
     /// values, not placement: they are printed exact, as the shortest text
     /// that reads back to the same f32, and `None` prints apart from every
     /// `Some`. Rounding them would call two different worlds the same one.
+    /// A ship's stock prints every stack and count. Its civilization, role,
+    /// design integrity, design presentation and each section's prototype
+    /// patch print through `Debug`: field by field in declaration order, a
+    /// float as the shortest text that reads back to it, a non-finite float
+    /// as `NaN` or `inf`, apart from `None`. An asset handle prints its
+    /// runtime id, so a design that carries one compares equal only within
+    /// one run; generated designs carry none.
     pub fn canonical(&self) -> String {
         let point = |position: Meters3| {
             let p = position.get();
@@ -177,15 +338,48 @@ impl SectorDescription {
         }
         for ship in &self.ships {
             out.push_str(&format!(
-                "ship {} {} y{:.4} {}\n",
+                "ship {} {} {} c{:.2} {} {} {} stock {:?} integrity {:?} presentation {:?}\n",
                 ship.id,
                 point(ship.position),
-                ship.yaw,
-                ship.design
+                canonical_rotation(ship.rotation),
+                ship.clearance.get(),
+                ship.condition.label(),
+                ship.civilization,
+                ship.role.label(),
+                ship.stock.stacks().collect::<Vec<_>>(),
+                ship.design.integrity,
+                ship.design.presentation,
             ));
+            for section in &ship.design.sections {
+                let p = section.position;
+                out.push_str(&format!(
+                    "  section {} {} {:.3} {:.3} {:.3} {} patch {:?}\n",
+                    section.id,
+                    section.source.prototype_id(),
+                    p.x,
+                    p.y,
+                    p.z,
+                    canonical_rotation(section.rotation),
+                    section.source.patch(),
+                ));
+            }
         }
         out
     }
+}
+
+/// A rotation as the canonical description prints it: `q` and `-q` are one
+/// rotation, so the sign makes the first nonzero of `w`, `x`, `y`, `z`
+/// positive, and each component prints to a millionth.
+fn canonical_rotation(rotation: Quat) -> String {
+    let components = [rotation.w, rotation.x, rotation.y, rotation.z];
+    let sign = match components.iter().find(|value| **value != 0.0) {
+        Some(first) if *first < 0.0 => -1.0,
+        _ => 1.0,
+    };
+    // Adding zero turns a negative zero into a positive one.
+    let [w, x, y, z] = components.map(|value| sign * value + 0.0);
+    format!("q{w:.6} {x:.6} {y:.6} {z:.6}")
 }
 
 /// One sector described, validated and prepared: everything
@@ -197,8 +391,8 @@ impl SectorDescription {
 /// two halves are not the same shape: a [`PreparedAsteroid`] is the GEOMETRY
 /// only, and the rock's config is rebuilt from the description at spawn, while
 /// a [`PreparedPlanet`] carries its config beside its visual. A ship needs no
-/// preparation: its sections are resolved from the catalog on the main
-/// thread, which is the one place the catalog exists.
+/// preparation: its inline design's sections are resolved against the section
+/// catalog on the main thread, which is the one place the catalog exists.
 #[derive(Debug)]
 pub struct PreparedSector {
     pub(crate) description: SectorDescription,
@@ -213,15 +407,19 @@ impl PreparedSector {
     }
 }
 
-/// How much room [`validate_manifest`] assumes a generated ship fills.
+/// The largest hull clearance a generated ship may declare.
 ///
-/// A materialization safety approximation, not a distribution rule: a ship's
-/// sections are resolved from the catalog on the main thread, so a worker
-/// checking where the ship stands cannot measure the hull. This radius around
-/// the ship root stands in for it when the check keeps a ship inside its cell
-/// and clear of the other bodies. Generous on purpose. A generator may space
-/// its ships wider, but never narrower.
-pub const SECTOR_SHIP_CLEARANCE: Meters = Meters(400.0);
+/// A generator measures each hull and declares the radius around its root
+/// that holds it in any orientation; [`validate_manifest`] refuses a larger
+/// one. The bound keeps a generator's cluster halo finite: a policy that
+/// plans where hulls stand before it lays them out can reserve this radius
+/// for each and know the actual hull fits inside.
+pub const SECTOR_SHIP_CLEARANCE_MAX: Meters = Meters(400.0);
+
+/// How far a ship's rotation may be from unit length and still count as a
+/// rotation. A generator composes it from a few `f32` products, so it cannot
+/// be exact.
+const ROTATION_LENGTH_TOLERANCE: f32 = 1e-4;
 
 /// Whether two bodies keep `margin` between their clearance spheres.
 ///
@@ -275,8 +473,12 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// that [`is_valid_asteroid_mass`] accepts; and planet configs that
 /// [`PlanetConfig::validate`] accepts. How many bodies a generator places
 /// and how far apart it spaces them is its own policy; this check only refuses
-/// what cannot be materialized. The ship design is only checked for a blank id
-/// here; the catalog lookup is main-thread work in `materialize_sector`.
+/// what cannot be materialized. A ship's rotation must be a finite unit
+/// quaternion, its declared clearance positive and at most
+/// [`SECTOR_SHIP_CLEARANCE_MAX`], and its clearance sphere is the one that
+/// must stand inside the cell. Its inline design is checked for what needs no
+/// catalog; the strict resolve against the loaded sections is main-thread work
+/// in `materialize_sector`.
 ///
 /// # Errors
 ///
@@ -286,8 +488,11 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// [`SectorFault::Manifest`] for the wrong cell, an object outside its cell or
 /// overlapping another, an id another cell owns, an asteroid mass
 /// [`is_valid_asteroid_mass`] refuses, a planet config
-/// [`PlanetConfig::validate`] refuses, or a blank ship design;
-/// [`SectorFault::InvalidGeometry`] for non-finite geometry;
+/// [`PlanetConfig::validate`] refuses, a ship clearance above the maximum, or
+/// a ship design with no sections, a repeated section id, an inline section or
+/// a non-finite section pose;
+/// [`SectorFault::InvalidGeometry`] for non-finite geometry, a ship rotation
+/// that is not a unit quaternion and a ship clearance that is not positive;
 /// [`SectorFault::DuplicateId`] and [`SectorFault::UnknownKind`].
 pub fn validate_manifest(
     input: SectorGenerationInput,
@@ -369,20 +574,36 @@ pub fn validate_manifest(
     }
     for ship in &manifest.ships {
         own(&ship.id)?;
-        if !ship.yaw.is_finite() {
+        if !ship.rotation.is_finite()
+            || (ship.rotation.length() - 1.0).abs() > ROTATION_LENGTH_TOLERANCE
+        {
             return Err(SectorFault::InvalidGeometry {
                 id: ship.id.clone(),
             });
         }
-        if ship.design.as_str().trim().is_empty() {
-            return Err(refuse(&ship.id, "design", "an empty id".to_string()));
+        let clearance = ship.clearance.get();
+        if !clearance.is_finite() || clearance <= 0.0 {
+            return Err(SectorFault::InvalidGeometry {
+                id: ship.id.clone(),
+            });
         }
+        if ship.clearance > SECTOR_SHIP_CLEARANCE_MAX {
+            return Err(refuse(
+                &ship.id,
+                "clearance",
+                format!(
+                    "{clearance} m, above the {} m maximum",
+                    SECTOR_SHIP_CLEARANCE_MAX.get()
+                ),
+            ));
+        }
+        check_ship_design(ship).map_err(|value| refuse(&ship.id, "design", value))?;
         stand_inside(
             input,
             &mut standing,
             &ship.id,
             ship.position,
-            SECTOR_SHIP_CLEARANCE,
+            ship.clearance,
         )?;
     }
     let SectorManifest {
@@ -397,6 +618,32 @@ pub fn validate_manifest(
         planets,
         ships,
     })
+}
+
+/// Refuse a design the worker can tell is broken without the catalog: no
+/// sections, a section id used twice, an inline section rather than a
+/// prototype reference, or a section pose that is not finite. Whether each
+/// prototype resolves is main-thread work in `materialize_sector`.
+fn check_ship_design(ship: &SectorShip) -> Result<(), String> {
+    if ship.design.sections.is_empty() {
+        return Err("no sections".to_string());
+    }
+    let mut ids = BTreeSet::new();
+    for section in &ship.design.sections {
+        if !ids.insert(section.id.as_str()) {
+            return Err(format!("section id '{}' used twice", section.id));
+        }
+        if let SectionSource::Inline(_) = section.source {
+            return Err(format!(
+                "section '{}' is inline, not a prototype reference",
+                section.id
+            ));
+        }
+        if !section.position.is_finite() || !section.rotation.is_finite() {
+            return Err(format!("section '{}' has a non-finite pose", section.id));
+        }
+    }
+    Ok(())
 }
 
 /// Refuse a body that does not stand wholly inside its own cell, or that

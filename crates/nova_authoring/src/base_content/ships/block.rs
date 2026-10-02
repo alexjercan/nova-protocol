@@ -19,10 +19,10 @@ use nova_ship::prelude::{
     LIGHT_HULL_SECTION_ID, PDC_KINETIC_TURRET_SECTION_ID, RAILGUN_LANCE_SECTION_ID,
     REINFORCED_HULL_SECTION_ID, TORPEDO_SECTION_ID,
 };
+use nova_world_base::prelude::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID};
 
-use crate::base_content::{
-    sections::{CARGO_INTAKE_SECTION_ID, MINING_BEAM_SECTION_ID, VECTOR_THRUSTER_SECTION_ID},
-    styles::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID},
+use crate::base_content::sections::{
+    CARGO_INTAKE_SECTION_ID, MINING_BEAM_SECTION_ID, VECTOR_THRUSTER_SECTION_ID,
 };
 
 /// The drive section ids the block fleet repeats: a pair on the beam, or one

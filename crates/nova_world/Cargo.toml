@@ -20,9 +20,12 @@ nova_events = { path = "../nova_events" }
 # coordinate-addressable world is built on. Never the ambient RNG.
 nova_gameplay = { path = "../nova_gameplay" }
 # The object factories a streamed sector spawns through - the same ones the
-# scenario loader calls - plus `PlanetType`, `ShipDesignId`, the asteroid kind
-# table and the session liveness the outer cleanup is gated on.
+# scenario loader calls - plus `PlanetType`, the ship design resolver, the
+# asteroid kind table and the session liveness the outer cleanup is gated on.
 nova_scenario = { path = "../nova_scenario" }
+# `GameSections`: the loaded section catalog a generated ship's inline design
+# is resolved against before its sector spawns.
+nova_ship = { path = "../nova_ship" }
 
 [lints]
 workspace = true

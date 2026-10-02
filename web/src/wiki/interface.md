@@ -207,7 +207,9 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      Pane: crates/nova_interface/src/inventory/app.rs `update_inventory_panel`
      (partner through `DockedShip` -> `DockingConnection`); filter order
      `FILTER_ORDER`. Open-world stock: crates/nova_authoring/src/base_content/
-     scenarios/open_world.rs `player` and `derelict`. Ship pane repair spends
+     scenarios/open_world.rs `player`; wreck stock: crates/nova_world_base/src/
+     sector_ships.rs `wreck_stock`, spawned lootable by crates/nova_world/src/
+     streaming.rs `spawn_sector_ship`. Ship pane repair spends
      hull plates: crates/nova_interface/src/ship/sections.rs `repair_section`.
      Hold: `HULL_SECTION_CARGO_G` and `ResolvedShipDesign::cargo_capacity_g`
      in crates/nova_scenario/src/objects/ship_design.rs.
@@ -219,7 +221,7 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      `apply_inventory_action_commands`. The intake's door, drop and pickup
      live on wiki/sections/cargo-intake.md. -->
 
-The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it and your credits, for example `Line Warship 3520 kg / 13100 kg  2,000 cr`. The docked ship's title shows its credits too. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs, 12 torpedoes - 3,520 kg in all - and 2,000 cr, with a Derelict Tender carrying 8 more hull plates and 0 cr moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A [repair](#the-ship) spends hull plates, and a weapon's idle [reload](../combat-weapons/#magazines) spends matching ammunition. Nothing is saved: spent and moved items and credits return to their starting values when the scenario loads again. With cheats armed, [`item give`](../commands/#cheats) adds items to a ship's hold.
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it and your credits, for example `Line Warship 3520 kg / 13100 kg  2,000 cr`. The docked ship's title shows its credits too. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs, 12 torpedoes - 3,520 kg in all - and 2,000 cr. Each generated derelict wreck carries 1 to 8 hull plates and 0 cr: stop with one of your docking collars beside one of its docking ports to [dock](../sections/docking/), then Take them. Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A [repair](#the-ship) spends hull plates, and a weapon's idle [reload](../combat-weapons/#magazines) spends matching ammunition. Nothing is saved: spent and moved items and credits return to their starting values when the scenario loads again; a retired sector regenerates a wreck's plates. With cheats armed, [`item give`](../commands/#cheats) adds items to a ship's hold.
 
 | Filter | Shows |
 | --- | --- |
@@ -242,11 +244,11 @@ Docked, a click on an item opens a transfer form in the inspector at a quantity 
 | An item in the docked ship's column | **Take** from it | Only when the docked ship is neutralized or a lootable derelict. Taking from a live ship would be stealing. |
 | An item in the docked ship's column | **Buy** from it | When the docked ship trades: it is neither neutralized nor lootable. |
 
-Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or **All** for the whole stack. The slider hides when the stack holds one item. **Confirm** moves the items at once and the note line reads `Took 3 Hull plate from Derelict Tender` or `Gave 3 Hull plate to Derelict Tender`. A refused move changes nothing and keeps the form open so you can fix the quantity: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Hull plate in Derelict Tender`, `Refused: Derelict Tender has room for 30 kg more`, `Refused: Derelict Tender is not neutralized or lootable`, or `Refused: not docked`. A move never splits to fit: with room for 30 kg, a move of 5 hull plates is refused whole. Take and Give have no price. Items given to a ship that the open world streams away are gone with it.
+Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or **All** for the whole stack. The slider hides when the stack holds one item. **Confirm** moves the items at once and the note line reads `Took 3 Hull plate from <ship>` or `Gave 3 Hull plate to <ship>`, where `<ship>` is the docked ship's name. A refused move changes nothing and keeps the form open so you can fix the quantity: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Hull plate in <ship>`, `Refused: <ship> has room for 30 kg more`, `Refused: <ship> is not neutralized or lootable`, or `Refused: not docked`. A move never splits to fit: with room for 30 kg, a move of 5 hull plates is refused whole. Take and Give have no price. Items given to a ship that the open world streams away are gone with it, and a wreck you emptied has its plates again when its sector streams back in.
 
 ### Buy and sell
 
-Every live ship trades: any docked ship that is neither neutralized nor lootable. It sells only what its hold carries and pays only from its own credits. Nothing restocks. The open world has no ship that trades yet; its Derelict Tender is lootable.
+Every live ship trades: any docked ship that is neither neutralized nor lootable. It sells only what its hold carries and pays only from its own credits. Nothing restocks. The open world has no stocked trader yet; generated wrecks are lootable.
 
 | Item | Buy (ask) | Sell (bid) |
 | --- | --- | --- |

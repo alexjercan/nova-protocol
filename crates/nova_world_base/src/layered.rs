@@ -5,12 +5,18 @@
 //! places are, what they are FILLED with out of shipped content, and how far
 //! apart it stands them. It takes no list from a caller.
 
+use std::sync::Arc;
+
+use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::Meters;
+use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
 use crate::{
     clusters::{plan_sector, validate_cluster_geometry},
     environment::EnvironmentFields,
+    role_style_id,
+    ship_parts::{ShipPartFault, ShipPartPack, ShipPartSnapshot},
 };
 
 /// Extra room this generator keeps between every pair of clearance spheres
@@ -40,12 +46,82 @@ const SECTOR_EDGE_MAX: Meters = Meters(128_000.0);
 /// lattice node or the cell, in a fixed order, so a cell is the same cell in
 /// any visit order.
 ///
-/// No fields. The content it draws from is the shipped content the policy
-/// names - every natural asteroid kind, every `PlanetType`, and the shipped
-/// derelict hulls - so there is no list a caller could leave empty or fill
-/// with an id the game does not ship.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NovaLayeredWorld;
+/// No content list from a caller. The rocks and worlds it draws from are the
+/// shipped content the policy names - every natural asteroid kind and every
+/// `PlanetType` - so there is no list a caller could leave empty or fill with
+/// an id the game does not ship. The ship parts it pins are the snapshot of
+/// the loaded catalog it was built from, with that catalog's digest; every
+/// ship it plans is laid out from them.
+#[derive(Clone, Debug)]
+pub struct NovaLayeredWorld {
+    parts: Arc<ShipPartSnapshot>,
+    catalog: ContentCatalogDigest,
+}
+
+/// Equal when both pin one catalog and one ship-part snapshot. Compares two
+/// digests, never the parts, so the arming check stays cheap every frame.
+impl PartialEq for NovaLayeredWorld {
+    fn eq(&self, other: &Self) -> bool {
+        self.catalog == other.catalog && self.parts.content_hash() == other.parts.content_hash()
+    }
+}
+
+impl NovaLayeredWorld {
+    /// Pin the ship parts of `loaded` and the digest of the catalog they came
+    /// from. Builds the snapshot once; a clone shares it.
+    ///
+    /// `styles` is only checked: the digest already covers them, so the
+    /// arming check refuses a style change like any other content change.
+    ///
+    /// # Errors
+    ///
+    /// Every fault [`ShipPartSnapshot::build`] finds in the loaded sections,
+    /// and [`ShipPartFault::MissingRoleStyle`] for each role whose
+    /// [`role_style_id`] `styles` does not hold.
+    pub fn from_loaded(
+        loaded: &LoadedSectionPacks,
+        styles: &GameStyles,
+    ) -> Result<Self, Vec<ShipPartFault>> {
+        let packs: Vec<ShipPartPack> = loaded
+            .packs
+            .iter()
+            .map(|pack| ShipPartPack {
+                id: pack.id.clone(),
+                dependencies: pack.dependencies.clone(),
+                sections: pack.sections.clone(),
+            })
+            .collect();
+        let unstyled: Vec<ShipPartFault> = ShipRoleType::ALL
+            .into_iter()
+            .filter(|role| styles.get_style(role_style_id(*role)).is_none())
+            .map(|role| ShipPartFault::MissingRoleStyle {
+                role,
+                style: role_style_id(role),
+            })
+            .collect();
+        match ShipPartSnapshot::build(&packs) {
+            Ok(parts) if unstyled.is_empty() => Ok(Self {
+                parts: Arc::new(parts),
+                catalog: loaded.digest,
+            }),
+            Ok(_) => Err(unstyled),
+            Err(mut faults) => {
+                faults.extend(unstyled);
+                Err(faults)
+            }
+        }
+    }
+
+    /// The ship parts this world was armed with.
+    pub fn parts(&self) -> &ShipPartSnapshot {
+        &self.parts
+    }
+
+    /// The digest of the catalog this world was armed over.
+    pub fn catalog(&self) -> ContentCatalogDigest {
+        self.catalog
+    }
+}
 
 impl SectorGenerator for NovaLayeredWorld {
     /// Refuse an edge wider than the 128 km `SECTOR_EDGE_MAX`, one too narrow
@@ -66,7 +142,7 @@ impl SectorGenerator for NovaLayeredWorld {
     }
 
     fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
-        Ok(plan_sector(&EnvironmentFields::new(input.seed), input)?.manifest())
+        Ok(plan_sector(&EnvironmentFields::new(input.seed), &self.parts, input)?.manifest())
     }
 }
 
@@ -79,7 +155,7 @@ mod tests {
             seed: 20_260_922,
             sector_edge,
             active_radius: 2,
-            generator: NovaLayeredWorld,
+            generator: crate::tests::fixture_world(),
         }
     }
 

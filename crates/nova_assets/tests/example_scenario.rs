@@ -191,6 +191,15 @@ fn app_with_extra_catalog_entry() -> App {
 /// Load the real catalog and run `register_bundles` once with the given enabled set,
 /// returning the resulting `(GameSections, GameScenarios)`.
 fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
+    let app = merged_app(enabled);
+    let sections = app.world().resource::<GameSections>().clone();
+    let scenarios = app.world().resource::<GameScenarios>().clone();
+    (sections, scenarios)
+}
+
+/// A fresh app that loaded the real catalog and ran `register_bundles` once
+/// with the given enabled set.
+fn merged_app(enabled: &[&str]) -> App {
     let mut app = headless_app();
     let asset_server = app.world().resource::<AssetServer>().clone();
     let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
@@ -209,10 +218,7 @@ fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
     app.world_mut()
         .run_system_once(nova_assets::register_bundles_for_test)
         .expect("register bundles");
-
-    let sections = app.world().resource::<GameSections>().clone();
-    let scenarios = app.world().resource::<GameScenarios>().clone();
-    (sections, scenarios)
+    app
 }
 
 /// The DEEP loader gate: every bundle the installed catalog names loads through
@@ -492,6 +498,118 @@ fn catalog_loads_and_base_only_merges_by_default() {
         !scenarios.contains_key("example_arena"),
         "the example mod's scenario must NOT be registered while it is disabled"
     );
+}
+
+/// The real shipped content has a canonical form, and two separate merges of
+/// one enabled set - separate apps, separate hash maps - pin one digest.
+/// Enabling a mod changes it and adds its section pack over the base game.
+#[test]
+fn the_loaded_catalog_digest_is_stable_and_follows_the_enabled_mods() {
+    let loaded = |enabled: &[&str]| {
+        merged_app(enabled)
+            .world()
+            .get_resource::<LoadedSectionPacks>()
+            .cloned()
+            .expect("the real catalog registers its section packs")
+    };
+    let base = loaded(&["base"]);
+    let modded = loaded(&["base", "example"]);
+
+    assert_eq!(base.digest, loaded(&["base"]).digest);
+    assert_ne!(base.digest, modded.digest);
+    assert!(
+        base.packs.len() == 1 && !base.packs[0].sections.is_empty(),
+        "the base pack carries the base sections"
+    );
+    let ids: Vec<(&str, &[String])> = modded
+        .packs
+        .iter()
+        .map(|pack| (pack.id.as_str(), pack.dependencies.as_slice()))
+        .collect();
+    assert_eq!(
+        ids,
+        [("base", &[][..]), ("example", &["base".to_string()][..])]
+    );
+}
+
+/// A loaded mod whose section has a non-finite stat leaves no canonical
+/// catalog: the merge withdraws the section packs an earlier merge
+/// registered, rather than hash the value or keep a stale catalog.
+#[test]
+fn a_loaded_non_finite_stat_withdraws_the_section_packs() {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
+
+    let nan_hull = nova_ship::prelude::SectionConfig {
+        base: nova_ship::prelude::BaseSectionConfig {
+            id: "nan_hull".to_string(),
+            health: f32::NAN,
+            ..Default::default()
+        },
+        kind: nova_ship::prelude::SectionKind::Hull(Default::default()),
+    };
+    let content = app
+        .world_mut()
+        .resource_mut::<Assets<ContentAsset>>()
+        .add(ContentAsset(vec![Content::Section(Box::new(nan_hull))]));
+    let bundle = app
+        .world_mut()
+        .resource_mut::<Assets<BundleAsset>>()
+        .add(BundleAsset {
+            content: vec![content],
+            meta: Default::default(),
+            new_game_scenario: None,
+            resources: Vec::new(),
+            resource_base: "mods/nan-fixture".to_string(),
+        });
+    app.world_mut()
+        .insert_resource(OptionalBundles(vec![OptionalBundle {
+            id: "nan-fixture".to_string(),
+            bundle,
+        }]));
+    let with_fixture = {
+        let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
+        let mut entries = catalogs
+            .get(&catalog)
+            .expect("catalog loaded")
+            .entries
+            .clone();
+        entries.push(CatalogEntry {
+            decl: ModEntry {
+                id: "nan-fixture".to_string(),
+                bundle: "mods/nan-fixture/nan-fixture.bundle.ron".to_string(),
+                base: false,
+            },
+            bundle: None,
+        });
+        InstalledCatalog { entries }
+    };
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<InstalledCatalog>>()
+        .add(with_fixture);
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(handle));
+    let merge = |app: &mut App, enabled: &[&str]| {
+        app.world_mut()
+            .insert_resource(EnabledMods(enabled.iter().map(|s| s.to_string()).collect()));
+        app.world_mut()
+            .run_system_once(nova_assets::register_bundles_for_test)
+            .expect("register bundles");
+    };
+
+    merge(&mut app, &["base"]);
+    assert!(app.world().contains_resource::<LoadedSectionPacks>());
+
+    merge(&mut app, &["base", "nan-fixture"]);
+    assert!(!app.world().contains_resource::<LoadedSectionPacks>());
 }
 
 #[test]

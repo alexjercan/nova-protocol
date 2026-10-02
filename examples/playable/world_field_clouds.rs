@@ -283,7 +283,12 @@ fn clouds_plugin(app: &mut App) {
 
 /// Load the empty bootstrap, start the one sampling pass, and put the readout
 /// up.
-fn boot_clouds(mut commands: Commands, game_assets: Res<GameAssets>) {
+fn boot_clouds(
+    mut commands: Commands,
+    game_assets: Res<GameAssets>,
+    loaded: Res<LoadedSectionPacks>,
+    styles: Res<GameStyles>,
+) {
     const _: () = assert!(
         CLOUD_EDGE_SAMPLES.pow(3) <= CLOUD_SAMPLES_MAX,
         "the sample lattice must stay inside the sample cap"
@@ -302,7 +307,7 @@ fn boot_clouds(mut commands: Commands, game_assets: Res<GameAssets>) {
         "World Field Clouds",
     )));
 
-    let config = featured_world_config();
+    let config = featured_world_config(&loaded, &styles);
     commands.insert_resource(CloudJob(
         AsyncComputeTaskPool::get().spawn(async move { sample_volume(&config) }),
     ));
@@ -421,7 +426,7 @@ fn sample_volume(config: &WorldConfig<NovaLayeredWorld>) -> CloudField {
     let mut rings = Vec::new();
     let mut anchored = [0_usize; ClusterType::ALL.len()];
     for coord in desired_sectors(FEATURE_HOME, EXAMPLE_ACTIVE_RADIUS) {
-        let plan = sector_clusters(config.input(coord))
+        let plan = sector_clusters(&config.generator, config.input(coord))
             .unwrap_or_else(|fault| panic!("world field clouds: {coord}: {fault}"));
         // Several cells can own bodies of one cluster; only the cell its
         // anchor stands in counts it, so a ring is one cluster.
@@ -496,9 +501,7 @@ fn park_at_home(
 fn cloud_view_pose() -> Transform {
     // Engine boundary: a cell centre and a standoff are meters, a transform is
     // world units.
-    let home = FEATURE_HOME
-        .centre(featured_world_config().sector_edge)
-        .to_engine();
+    let home = FEATURE_HOME.centre(EXAMPLE_SECTOR_EDGE).to_engine();
     let eye = home + CLOUD_EYE.normalize() * CLOUD_STANDOFF.to_engine();
     Transform::from_translation(eye).looking_at(home, Vec3::Y)
 }
@@ -580,7 +583,7 @@ fn draw_marks(mut gizmos: Gizmos, field: Option<Res<CloudField>>, view: Res<Clou
 /// Cage the 5x5x5 sector window around the home cell, so a mark's position is
 /// readable in CELLS and not only in kilometres.
 fn draw_window(mut gizmos: Gizmos) {
-    let edge = featured_world_config().sector_edge;
+    let edge = EXAMPLE_SECTOR_EDGE;
     let lines = 2 * EXAMPLE_ACTIVE_RADIUS + 2;
     let span = edge.get() * (lines - 1) as f32;
     let corner = FEATURE_HOME.centre(edge).get()

@@ -95,6 +95,7 @@ fn scripted_world() -> (World, Entity, Entity) {
 #[test]
 fn map_contacts_report_kinds_range_and_bearing() {
     let (mut world, _player, raider) = scripted_world();
+    world.run_system_once(assign_map_contact_codes).unwrap();
     let contacts = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
 
     // Own ship is enumerated first.
@@ -321,6 +322,9 @@ fn map_focus_follow_recenters_on_a_new_selection() {
         .id();
 
     // Build the scene (framed on the player).
+    app.world_mut()
+        .run_system_once(assign_map_contact_codes)
+        .unwrap();
     app.world_mut().run_system_once(manage_map_scene).unwrap();
 
     // Select the raider: the orbit center + ring anchor snap onto it.
@@ -380,6 +384,9 @@ fn a_rebound_goto_key_is_the_key_the_map_answers() {
             Name::new("RAIDER"),
         ))
         .id();
+    app.world_mut()
+        .run_system_once(assign_map_contact_codes)
+        .unwrap();
     {
         let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
         runtime.active = true;
@@ -441,6 +448,9 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
         ))
         .id();
 
+    app.world_mut()
+        .run_system_once(assign_map_contact_codes)
+        .unwrap();
     {
         let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
         runtime.active = true;
@@ -1136,4 +1146,77 @@ fn a_selected_contact_fills_the_panel_in_place() {
     // A held selection writes nothing.
     settle(app);
     assert_eq!(take_churn(app), NodeChurn::default());
+}
+
+/// Every label text under the map blips, read from the live tree.
+fn blip_label_texts(world: &mut World) -> Vec<String> {
+    let blips: Vec<Entity> = world
+        .query_filtered::<Entity, With<MapBlip>>()
+        .iter(world)
+        .collect();
+    let mut texts = Vec::new();
+    for blip in blips {
+        let mut pending = vec![blip];
+        while let Some(entity) = pending.pop() {
+            if let Some(text) = world.get::<Text>(entity) {
+                texts.push(text.0.clone());
+            }
+            if let Some(children) = world.get::<Children>(entity) {
+                pending.extend(children.iter());
+            }
+        }
+    }
+    texts
+}
+
+/// A streamed ship's `Name` says whose it is and what it was, which is for
+/// inspection, not for a distant label. A ship whose spawn lands after this
+/// frame's minting must not reach a blip under its name: it waits for its
+/// minted code, and the panel still reads its name once it is selected.
+#[test]
+fn a_ship_that_lands_after_minting_never_labels_its_blip_with_its_name() {
+    const WRECK: &str = "Halcor derelict, former scavenger";
+    let (mut world, _player, _raider) = scripted_world();
+    world.run_system_once(assign_map_contact_codes).unwrap();
+    let viewport = world.spawn(MapViewportMarker).id();
+    let wreck = world
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Neutral,
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -400.0)),
+            Name::new(WRECK),
+        ))
+        .id();
+
+    // What `project_map_blips` does on a contact's first sight.
+    let first_sight = |world: &mut World| {
+        world
+            .run_system_once_with(
+                |viewport: In<Entity>, contacts: MapContacts, mut commands: Commands| {
+                    for contact in contacts.collect() {
+                        spawn_blip(&mut commands, *viewport, &contact, &InterfaceIcons::blank());
+                    }
+                },
+                viewport,
+            )
+            .unwrap();
+    };
+    first_sight(&mut world);
+    let leaked: Vec<String> = blip_label_texts(&mut world)
+        .into_iter()
+        .filter(|text| text.to_uppercase().contains("HALCOR"))
+        .collect();
+    assert!(
+        leaked.is_empty(),
+        "a blip is labelled with the wreck's name: {leaked:?}"
+    );
+
+    world.run_system_once(assign_map_contact_codes).unwrap();
+    let contacts = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
+    let contact = contacts
+        .iter()
+        .find(|contact| contact.entity == wreck)
+        .expect("the wreck is a contact once its code is minted");
+    assert_eq!(contact.code, "NEU-1");
+    assert_eq!(contact.name, WRECK, "the panel still reads its name");
 }

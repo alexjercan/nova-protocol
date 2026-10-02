@@ -27,17 +27,19 @@
 //! - WFC: four hulls of the current `wfc_ships` generator on the standard
 //!   plan, at the same spacing rule.
 //! - Wrecks: one DERELICT per role, same column order. Every active
-//!   section (drive, flight computer, weapons, intake) is disabled in place as
-//!   it spawns; the ships have no controller, Neutral allegiance and every
-//!   ship capability off, and keep their physics.
+//!   system (drive, flight computer, weapons, intake) is disabled in place as
+//!   it spawns. Hull and docking ports stay active for damage and Take/Give;
+//!   the ships have no controller, Neutral allegiance, and every ship capability
+//!   off, and keep their physics.
 //! - Pilot: one matrix ship under the player's own controller. An industrial
 //!   ship is offered a canister that drifts into its intake; a fighter's
 //!   turrets fire on the left mouse button, its bays on `F` and its rails on
 //!   `R` once weapons are raised.
 //!
-//! Every ship stands bare, as the generator emits it, until `C` or `--skin`
-//! clads it in the derived skin with the catalog's first style. The skin is a
-//! prototype look only: nothing the world generates asks for it yet.
+//! The generator clads every ship in the derived skin with its role's style,
+//! as the open world spawns it. The example strips that skin so the bare
+//! hulls compare; `C` or `--skin` puts it back. The WFC hulls name no style,
+//! so clad they wear the undressed derivation.
 //!
 //! # Hand-run
 //!
@@ -92,6 +94,7 @@ use nova_debug::prelude::capturing;
 use nova_input::prelude::InputSource;
 use nova_protocol::prelude::*;
 use nova_wfc::prelude::*;
+use nova_world::prelude::{CivilizationId, ShipRoleType};
 
 #[derive(Parser)]
 #[command(name = "world_ships")]
@@ -108,7 +111,8 @@ struct Cli {
     /// Start by piloting one matrix ship, named `<role>-<low|high>-<single|paired>`.
     #[arg(long)]
     pilot: Option<String>,
-    /// Start with every ship clad in its derived skin.
+    /// Start with every ship clad in its derived skin, as the open world
+    /// spawns it.
     #[arg(long)]
     skin: bool,
 }
@@ -920,7 +924,6 @@ fn load_pending_scene(
     skin: Res<SkinType>,
     enabled: Res<EnabledMods>,
     sections: Res<GameSections>,
-    styles: Res<GameStyles>,
     game_assets: Res<GameAssets>,
 ) {
     let Some(pending) = pending else {
@@ -938,17 +941,12 @@ fn load_pending_scene(
     let scene = pending.0;
     commands.remove_resource::<PendingScene>();
     commands.insert_resource(scene);
-    let style = match *skin {
-        SkinType::Bare => None,
-        SkinType::Clad => style_at(&styles, 0),
-    };
     commands.trigger(LoadScenario(scenario(
         &game_assets,
         &sections,
         &stage,
         scene,
         *skin,
-        style,
     )));
 }
 
@@ -1055,9 +1053,9 @@ fn view_ships(stage: &Stage, view: ViewType) -> Vec<(String, ShipDesign, f32)> {
     }
 }
 
-/// Disable every active section of a wreck as it spawns. The section's kind
-/// marker lands in the spawn's own command flush, after its `ChildOf` and the
-/// root's `EntityId`, so no tick sees the section live.
+/// Disable a wreck's drives, controllers, weapons and intake at spawn while
+/// keeping its docking ports usable. The kind marker lands in the spawn's own
+/// command flush, after its `ChildOf` and the root's `EntityId`.
 fn disable_wreck_systems(
     add: On<
         Add,
@@ -1068,7 +1066,6 @@ fn disable_wreck_systems(
             TorpedoSectionMarker,
             RailgunSectionMarker,
             CargoIntakeSectionMarker,
-            DockingSectionMarker,
         ),
     >,
     mut commands: Commands,
@@ -1106,10 +1103,9 @@ fn scenario_id(scene: SceneType, skin: SkinType) -> String {
     format!("world_ships_{scene}_{}", skin.label())
 }
 
-/// `design` bare, or clad in its derived skin with `style`.
-fn dressed(mut design: ShipDesign, skin: SkinType, style: StyleId) -> ShipDesign {
+/// `design` bare, or clad in its derived skin with its own style.
+fn dressed(mut design: ShipDesign, skin: SkinType) -> ShipDesign {
     design.presentation.skin = skin == SkinType::Clad;
-    design.presentation.style = style.map(str::to_string);
     design
 }
 
@@ -1120,7 +1116,6 @@ fn scenario(
     stage: &Stage,
     scene: SceneType,
     skin: SkinType,
-    style: StyleId,
 ) -> ScenarioConfig {
     let actions = match scene {
         SceneType::View(view) => {
@@ -1134,7 +1129,7 @@ fn scenario(
                 .map(|((name, design, _), position)| {
                     let ship = SpaceshipConfig {
                         controller: SpaceshipController::None,
-                        design: ShipDesignSource::Inline(dressed(design, skin, style)),
+                        design: ShipDesignSource::Inline(dressed(design, skin)),
                         ..default()
                     };
                     // A wreck states what it lacks rather than lean on the
@@ -1177,11 +1172,7 @@ fn scenario(
                     controller: SpaceshipController::Player(PlayerControllerConfig {
                         input_mapping: bindings,
                     }),
-                    design: ShipDesignSource::Inline(dressed(
-                        ship.layout.design.clone(),
-                        skin,
-                        style,
-                    )),
+                    design: ShipDesignSource::Inline(dressed(ship.layout.design.clone(), skin)),
                     ..default()
                 },
             ))
@@ -1638,8 +1629,8 @@ fn root_sections(world: &mut World, root: Entity) -> Vec<Entity> {
 
 /// Every wreck is off from its first frame: each section of its design
 /// stands under its root, joined through the integrity graph, at full health
-/// and with a collider; each hull section is live and every other section is
-/// disabled in place; nothing drives it, it sides with nobody and every ship
+/// and with a collider; hull and docking sections stay active, while other
+/// sections are disabled; nothing drives it, it sides with nobody and every ship
 /// capability is off.
 #[cfg(feature = "debug")]
 fn check_wrecks_off(world: &mut World) {
@@ -1691,6 +1682,7 @@ fn check_wrecks_off(world: &mut World) {
             sections.len()
         );
         let mut hulls = 0;
+        let mut docks = 0;
         for section in &sections {
             let entity = world.entity(*section);
             let id = entity
@@ -1698,16 +1690,13 @@ fn check_wrecks_off(world: &mut World) {
                 .map(|id| id.0.clone())
                 .unwrap_or_default();
             let hull = entity.contains::<HullSectionMarker>();
+            let docking = entity.contains::<DockingSectionMarker>();
             hulls += usize::from(hull);
+            docks += usize::from(docking);
             assert_eq!(
                 entity.contains::<SectionInactiveMarker>(),
-                !hull,
-                "world_ships: {name} section '{id}' is {}",
-                if hull {
-                    "a disabled hull"
-                } else {
-                    "a live active section"
-                }
+                !(hull || docking),
+                "world_ships: {name} section '{id}' has the wrong active state (hull={hull}, docking={docking})"
             );
             let health = entity.get::<Health>().expect("a live section has health");
             assert!(
@@ -1743,10 +1732,10 @@ fn check_wrecks_off(world: &mut World) {
             world,
             format!(
                 "{name}: {} sections joined under one root at full health with colliders; {hulls} \
-                 hull live, {} active disabled; no controller, Neutral, every capability off, \
+                 hull live, {docks} docking live, {} systems disabled; no controller, Neutral, every capability off, \
                  no radar",
                 sections.len(),
-                sections.len() - hulls
+                sections.len() - hulls - docks
             ),
         );
     }

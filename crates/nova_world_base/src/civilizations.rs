@@ -8,17 +8,17 @@
 //! smoothly with 3D distance and reaches zero only at [`INFLUENCE_REACH`];
 //! there is no territory border and no unclaimed pool.
 //!
-//! PURE, and read by debug diagnostics only: the live generator does not
-//! select ships from it yet. Every constant here is provisional until the
-//! diagnostic maps are reviewed.
-
-use std::fmt;
+//! PURE. The open world's ship planner reads it to pick each generated ship's
+//! civilization and role, and debug diagnostics read it too. Every constant
+//! here is provisional until the diagnostic maps are reviewed.
 
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::{Fnv32, SeedStream};
 use nova_world::prelude::*;
 
-use crate::{clusters::ramp, environment::Environment};
+use crate::{
+    clusters::ramp, environment::Environment, ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID,
+    INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID,
+};
 
 /// The spacing of the civilization lattice: one civilization per node.
 const CIVILIZATION_LATTICE: Meters = Meters(240_000.0);
@@ -64,16 +64,6 @@ const SPECIALIST_FACTOR: f32 = 4.0;
 /// zero, so a civilization with no eligible weapon still has a buildable role.
 const FIGHTER_ABSENT_CHANCE: f32 = 0.15;
 
-/// The chance a name has three syllables rather than two.
-const NAME_THREE_SYLLABLE_CHANCE: f32 = 0.5;
-
-/// The syllables a name is composed from. Content: a change renames every
-/// civilization in every world.
-const NAME_SYLLABLES: [&str; 24] = [
-    "an", "bel", "cor", "da", "el", "fen", "gar", "hal", "is", "jor", "ka", "lun", "mar", "nor",
-    "os", "pra", "quel", "ren", "sol", "tev", "ur", "vas", "wen", "zo",
-];
-
 // Coverage: the farthest point from its nearest centroid is a lattice-gap
 // corner with every jitter pulled away, `sqrt(3) * (L / 2 + J)`, 277 km. It
 // must stay inside the reach, or some place has no civilization.
@@ -87,77 +77,6 @@ const _: () = assert!(
 // `0 < C < 2R / 3`.
 const _: () = assert!(INFLUENCE_CORE.0 > 0.0 && 3.0 * INFLUENCE_CORE.0 < 2.0 * INFLUENCE_REACH.0);
 
-/// A civilization's stable machine identity: the world seed and its signed
-/// lattice node.
-///
-/// Never a hash and never a name. Two nodes whose draw streams collide still
-/// have distinct identities, and two civilizations may share a display name.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CivilizationId {
-    /// The world seed the civilization was drawn from.
-    pub world_seed: u32,
-    /// Its node on the civilization lattice.
-    pub node: [i32; 3],
-}
-
-impl CivilizationId {
-    /// The display name: two or three syllables, first letter capitalized.
-    ///
-    /// A pure function of the identity. Names repeat across a world, so a
-    /// name must not be used to find a civilization.
-    pub fn name(self) -> String {
-        let mut stream = self.stream(b"name");
-        let syllables = if stream.unit() < 1.0 - NAME_THREE_SYLLABLE_CHANCE {
-            2
-        } else {
-            3
-        };
-        // Three syllable draws every time, so the syllable count does not
-        // shift any later draw.
-        let drawn: [&str; 3] = std::array::from_fn(|_| {
-            let index = (stream.unit() * NAME_SYLLABLES.len() as f32) as usize;
-            NAME_SYLLABLES[index.min(NAME_SYLLABLES.len() - 1)]
-        });
-        let joined = drawn[..syllables].concat();
-        let mut letters = joined.chars();
-        letters.next().map_or_else(String::new, |first| {
-            first.to_uppercase().chain(letters).collect()
-        })
-    }
-
-    /// The draw stream for one aspect of this civilization.
-    ///
-    /// Each aspect has its own stream, so retuning one aspect cannot move
-    /// another: a new name inventory keeps every centroid and status.
-    fn stream(self, aspect: &[u8]) -> SeedStream {
-        SeedStream::new(
-            Fnv32::new()
-                .write(&self.world_seed.to_le_bytes())
-                .write(b"civilization")
-                .write(aspect)
-                .write(&self.node[0].to_le_bytes())
-                .write(&self.node[1].to_le_bytes())
-                .write(&self.node[2].to_le_bytes())
-                .finish(),
-        )
-    }
-}
-
-impl fmt::Display for CivilizationId {
-    /// `civ_<x>_<y>_<z>@<seed>`, a negative index written `n<abs>`.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "civ")?;
-        for index in self.node {
-            if index < 0 {
-                write!(formatter, "_n{}", index.unsigned_abs())?;
-            } else {
-                write!(formatter, "_{index}")?;
-            }
-        }
-        write!(formatter, "@{}", self.world_seed)
-    }
-}
-
 /// Whether a civilization still fields intact ships or only left derelicts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CivilizationStatusType {
@@ -167,36 +86,14 @@ pub enum CivilizationStatusType {
     Extinct,
 }
 
-/// The four closed ship roles a civilization fields.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ShipRoleType {
-    /// Unarmed traffic.
-    Civilian,
-    /// Unarmed miners with cargo intake.
-    Industrial,
-    /// Rough, low-tier fighting ships.
-    Scavenger,
-    /// Equipped fighting ships.
-    Armored,
-}
-
-impl ShipRoleType {
-    /// Every role, in the order a role array holds them.
-    pub const ALL: [Self; 4] = [
-        Self::Civilian,
-        Self::Industrial,
-        Self::Scavenger,
-        Self::Armored,
-    ];
-
-    /// What a readout or a legend calls the role.
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Civilian => "civilian",
-            Self::Industrial => "industrial",
-            Self::Scavenger => "scavenger",
-            Self::Armored => "armored",
-        }
+/// The id of the base style every ship of `role` wears, intact or wrecked.
+/// The open world refuses to arm over content that authors none of these.
+pub const fn role_style_id(role: ShipRoleType) -> &'static str {
+    match role {
+        ShipRoleType::Civilian => CIVILIAN_STYLE_ID,
+        ShipRoleType::Industrial => INDUSTRIAL_STYLE_ID,
+        ShipRoleType::Scavenger => SALVAGE_STYLE_ID,
+        ShipRoleType::Armored => ARMOURED_STYLE_ID,
     }
 }
 

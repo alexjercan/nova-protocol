@@ -1,7 +1,7 @@
 //! The ship-structure vocabulary: what a ship root, a section and a fired
 //! projectile ARE, with none of the behavior that builds or flies them.
 //!
-//! These are the ten markers that both sides of the ship seam read. The ship
+//! These are the fourteen markers that both sides of the ship seam read. The ship
 //! crate spawns them; `integrity` and `gravity` here classify entities by them
 //! (is this a ship root? a live section? a torpedo?) without depending on the
 //! sections that define one. They are plain unit components with no systems and
@@ -25,9 +25,9 @@ use crate::{
 /// The whole module - every marker is part of the shared vocabulary.
 pub mod prelude {
     pub use super::{
-        ControllerSectionMarker, GunRoundMarker, PlayerSpaceshipMarker, RailgunSectionMarker,
-        RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker, SpaceshipRootMarker,
-        ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
+        ControllerSectionMarker, DerelictShipMarker, GunRoundMarker, PlayerSpaceshipMarker,
+        RailgunSectionMarker, RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker,
+        SpaceshipRootMarker, ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
         TurretBulletProjectileMarker, TurretSectionMarker,
     };
 }
@@ -55,6 +55,16 @@ pub struct SpaceshipRootMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 #[require(SpaceshipRootMarker, Allegiance = Allegiance::Player)]
 pub struct PlayerSpaceshipMarker;
+
+/// Marks a ship root that was spawned as a derelict: every section but its
+/// hull and docking ports spawns carrying [`SectionInactiveMarker`].
+///
+/// Inserted in the root's spawn bundle, so the section spawn sees it. A
+/// derelict was never in a fight, so neutralization never reads its inactive
+/// weapons or flight computers as a defeat: it keeps its allegiance's marker
+/// and fires no defeat event.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+pub struct DerelictShipMarker;
 
 /// Marks a live section entity in a ship tree. Present on every spawned section
 /// (added by `base_section`); its absence marks the editor preview
