@@ -112,16 +112,16 @@ Nothing here ends. The objective on your HUD just names the way out: <kbd>F1</kb
 
 ## Mining and cargo
 
-<!-- Route verified against crates/nova_authoring/src/base_content/scenarios/open_world.rs (the line warship, its stock and the lootable Derelict Tender), crates/nova_authoring/src/base_content/ships/block.rs (the warship's collars, dorsal intake and bow emitter) and crates/nova_world/src/streaming.rs (generated ships are lootable with 0 cr, so none trades). -->
+<!-- Route verified against crates/nova_authoring/src/base_content/scenarios/open_world.rs (the line warship and its stock), crates/nova_authoring/src/base_content/ships/block.rs (the warship's collars, dorsal intake and bow emitter), crates/nova_world_base/src/sector_ships.rs (`WRECK_PLATES`; an intact hold starts empty) and crates/nova_world/src/streaming.rs `spawn_sector_ship` (only derelicts are lootable; every generated ship has 0 cr, so none trades). -->
 
 The line warship New Game gives you carries a docking port on each shoulder, a cargo intake on its top deck and a mining beam at its bow. Its hold is what keeps it fighting: a [repair](../interface/#the-ship) spends hull plates, and every idle [reload](../combat-weapons/#magazines) spends ammunition. Press <kbd>Tab</kbd> and step to the **Inventory** pane to see what you carry.
 
-1. **Take from the derelict.** A Derelict Tender with 8 hull plates sits ahead of your port collar. Travel-lock it, line the two ports up and press <kbd>D</kbd> to [dock](../sections/docking/#flying-the-approach). In the Inventory pane, click its hull plates and **Confirm** to [take](../interface/#take-and-give) them. <kbd>D</kbd> again lets go.
+1. **Take from a wreck.** Each generated derelict wreck carries 1 to 8 hull plates. Travel-lock one, line one of your ports up with one of its ports and press <kbd>D</kbd> to [dock](../sections/docking/#flying-the-approach). In the Inventory pane, click its hull plates and **Confirm** to [take](../interface/#take-and-give) them. <kbd>D</kbd> again lets go.
 2. **Mine a rock.** Travel-lock a rock, put your nose on it inside 100 m and hold <kbd>V</kbd>. The [mining beam](../sections/mining-beam/#cutting-ore) cuts it once a second, and the ore drifts off the rock in canisters.
 3. **Pick up a canister.** Fly your top-deck [cargo intake](../sections/cargo-intake/#taking-a-canister-in) up onto a canister, door first. It goes into your hold whole.
 4. **Drop cargo.** Undocked, click an item in the Inventory pane and **Confirm** a [Jettison](../interface/#jettison-and-pickup). Close the pane and the intake drops it as canisters, which you can pick up again.
 
-Ore sells to a docked ship that trades, but nothing in the New Game world trades yet: the derelict and every other wreck out there can only be looted. Mined ore stays in your hold for now.
+Ore sells to a docked ship that trades, but nothing in the New Game world trades yet: generated ships carry no credits, and wrecks can only be looted. Mined ore stays in your hold for now.
 
 ## Where to go next
 
