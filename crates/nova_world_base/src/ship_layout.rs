@@ -6,9 +6,9 @@
 //! and varies the cross-section station by station. The spine mixes up to
 //! [`STRUCTURAL_PALETTE`] structural cube types in mirror image. Then it mounts
 //! the drive bank, copies of one drive around a centred single or in mirrored
-//! pairs, the flight computers, the role's weapons or side cargo intakes, and
-//! the docking ports: a mirrored pair out of the hull's sides where one fits,
-//! else one port alone.
+//! pairs, the flight computers, the role's weapons or side cargo intakes, the
+//! docking ports, a mirrored pair out of the hull's sides where one fits, else
+//! one port alone, and an industrial ship's seeded mining beams.
 //! Every part stands on the cell grid through [`oriented_part`], so a mod part
 //! joins by its type, footprint and sockets.
 //!
@@ -32,6 +32,13 @@
 //! civilization, role and the last failed constraint. Nothing substitutes an
 //! authored hull. Every layout wears the derived skin in its role's base
 //! style, [`role_style_id`](crate::role_style_id).
+//!
+//! MINING. An industrial request carries mining beams with a chance that
+//! rises from [`MINING_CHANCE`]'s low end at advancement 0 to its high end at
+//! 1, drawn once per request, never per attempt: one beam on the centreline
+//! below [`MINING_PAIR_ADVANCEMENT`], a mirrored pair from it. A request with
+//! no eligible mining beam carries none. A drawn count that no attempt can
+//! mount with clear lanes fails the request; nothing mounts fewer.
 //!
 //! WRECKS. [`generate_wreck`] ruins the intact ship of the same request: it
 //! keeps the role, style, source, advancement, fittings and cell bounds, and
@@ -122,6 +129,14 @@ const WRECK_BREACHES: usize = 3;
 
 /// How many seeded omission plans a wreck request draws before it fails.
 const MAX_WRECK_ATTEMPTS: u32 = 8;
+
+/// The chance an industrial request carries mining beams, at advancement 0
+/// and at advancement 1, interpolated linearly between.
+const MINING_CHANCE: (f32, f32) = (0.25, 0.75);
+
+/// The advancement from which an industrial request that carries mining beams
+/// carries a mirrored pair rather than one beam.
+const MINING_PAIR_ADVANCEMENT: f32 = 0.5;
 
 /// The six cardinal steps, in [`CELL_FACES`](nova_ship::prelude::CELL_FACES) order.
 const STEPS: [IVec3; 6] = [
@@ -415,9 +430,33 @@ pub fn generate_ship(
         }
     }
 
+    // Drawn once per request, so an attempt that cannot mount the count
+    // fails rather than redraws it.
+    let mut mining = SeedStream::new(
+        Fnv32::new()
+            .write(&request.seed.to_le_bytes())
+            .write(b"ship_layout")
+            .write(b"mining")
+            .finish(),
+    );
+    let advancement = request.advancement.clamp(0.0, 1.0);
+    let chance = MINING_CHANCE.0 + (MINING_CHANCE.1 - MINING_CHANCE.0) * advancement;
+    let eligible = !snapshot
+        .eligible(
+            request.role,
+            ShipPartFamilyType::Mining,
+            request.advancement,
+        )
+        .is_empty();
+    let beams = match (eligible && mining.unit() < chance, advancement) {
+        (false, _) => 0,
+        (true, advancement) if advancement < MINING_PAIR_ADVANCEMENT => 1,
+        (true, _) => 2,
+    };
+
     let mut last = None;
     for attempt in 0..MAX_LAYOUT_ATTEMPTS {
-        let built = Draw::new(snapshot, request, attempt)
+        let built = Draw::new(snapshot, request, attempt, beams)
             .layout()
             .and_then(|layout| check(snapshot, request, &layout.design).map(|()| layout));
         match built {
@@ -1046,6 +1085,17 @@ fn flank_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
     matches!(aims?, STARBOARD | PORT).then_some(1)
 }
 
+/// How a mining beam may point: forward best, so the ship faces the rock it
+/// cuts, then up or down, then out of a side.
+fn mining_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
+    match aims? {
+        FORWARD => Some(3),
+        DORSAL | VENTRAL => Some(2),
+        STARBOARD | PORT => Some(1),
+        _ => None,
+    }
+}
+
 /// How many weapon slots a role fills at `advancement`. The first is
 /// required; a later slot that finds no room is left out.
 fn weapon_slots(role: ShipRoleType, advancement: f32) -> u32 {
@@ -1278,14 +1328,22 @@ struct Draw<'a> {
     snapshot: &'a ShipPartSnapshot,
     request: ShipLayoutRequest,
     attempt: u32,
+    /// The mining beams the request carries: 0, 1 or 2.
+    beams: u32,
 }
 
 impl<'a> Draw<'a> {
-    fn new(snapshot: &'a ShipPartSnapshot, request: ShipLayoutRequest, attempt: u32) -> Self {
+    fn new(
+        snapshot: &'a ShipPartSnapshot,
+        request: ShipLayoutRequest,
+        attempt: u32,
+        beams: u32,
+    ) -> Self {
         Self {
             snapshot,
             request,
             attempt,
+            beams,
         }
     }
 
@@ -1295,9 +1353,9 @@ impl<'a> Draw<'a> {
 
     /// The eligible parts of `family` that pass `usable`, in the order this
     /// attempt tries them: the preferred source first for a coherent role,
-    /// then the other sources, each source's parts shuffled. A drive or weapon
-    /// within [`TIER_BAND`] of the request's advancement comes before its
-    /// source's weaker parts.
+    /// then the other sources, each source's parts shuffled. A drive, weapon or
+    /// mining beam within [`TIER_BAND`] of the request's advancement comes
+    /// before its source's weaker parts.
     fn ranked(
         &self,
         family: ShipPartFamilyType,
@@ -1325,7 +1383,7 @@ impl<'a> Draw<'a> {
         let mut sources = shuffled(sources, &mut stream);
         let banded = matches!(
             family,
-            ShipPartFamilyType::Thruster | ShipPartFamilyType::Weapon
+            ShipPartFamilyType::Thruster | ShipPartFamilyType::Weapon | ShipPartFamilyType::Mining
         );
         let floor = self.request.advancement - TIER_BAND;
         if coherent {
@@ -1653,6 +1711,31 @@ impl<'a> Draw<'a> {
             ));
         }
 
+        // The request's mining beams, the full count or none: one on the
+        // centreline or a mirrored pair, each lane clear.
+        if self.beams > 0 {
+            let beams = self.ranked(ShipPartFamilyType::Mining, Some(source), b"mining", |_| {
+                true
+            });
+            let mount = match self.beams {
+                1 => MountType::Centred,
+                2 => MountType::Paired,
+                beams => unreachable!("a request draws 0, 1 or 2 mining beams, not {beams}"),
+            };
+            if !self.fit(
+                &mut grid,
+                &beams,
+                "mining",
+                mining_aim,
+                mount,
+                b"mining_slot",
+            ) {
+                return Err(ShipLayoutConstraintType::Unplaced(
+                    ShipPartFamilyType::Mining,
+                ));
+            }
+        }
+
         // Centre the ship on its bounds along y and z; x is already the
         // mirror plane.
         let (low, high) = grid.bounds();
@@ -1899,6 +1982,10 @@ fn is_structural_cube(part: &ShipPart) -> bool {
 enum MountType {
     /// On the centreline or as a mirrored pair.
     Mirrored,
+    /// One part on the centreline.
+    Centred,
+    /// A mirrored pair.
+    Paired,
     /// On the centreline or as a mirrored pair, with a structural cube behind
     /// every cell of each part's back.
     BackedMirrored,
@@ -1921,7 +2008,7 @@ impl Draw<'_> {
         mount: MountType,
         aspect: &[u8],
     ) -> bool {
-        let backed = mount != MountType::Mirrored;
+        let backed = matches!(mount, MountType::BackedMirrored | MountType::BackedLone);
         let lone = mount == MountType::BackedLone;
         let surface = grid.surface();
         for part in parts {
@@ -1944,10 +2031,14 @@ impl Draw<'_> {
                         let anchor = IVec3::from_array(*cell) - own.cell.as_ivec3();
                         let on_centreline = anchor.x == -(anchor.x + span.x - 1);
                         let starboard = anchor.x >= 1;
-                        let admitted = if lone {
-                            anchor.x >= 0
-                        } else {
-                            (on_centreline && centred) || (starboard && port.is_some())
+                        let paired = starboard && port.is_some();
+                        let admitted = match mount {
+                            MountType::BackedLone => anchor.x >= 0,
+                            MountType::Centred => on_centreline && centred,
+                            MountType::Paired => paired,
+                            MountType::Mirrored | MountType::BackedMirrored => {
+                                (on_centreline && centred) || paired
+                            }
                         };
                         if admitted {
                             anchors.insert(anchor.to_array());
@@ -2320,8 +2411,8 @@ pub(crate) mod tests {
     use nova_events::prelude::MetersPerSecond;
     use nova_ship::prelude::{
         BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, DockingSectionConfig,
-        HullSectionConfig, LinkPoint, MuzzleConfig, SectionCollider, ThrusterSectionConfig,
-        TurretSectionConfig, CELL_FACES,
+        HullSectionConfig, LinkPoint, MiningSectionConfig, MuzzleConfig, SectionCollider,
+        ThrusterSectionConfig, TurretSectionConfig, CELL_FACES,
     };
 
     use super::*;
@@ -2430,6 +2521,22 @@ pub(crate) mod tests {
         block(id, 90.0, kind, UVec3::ONE, faces)
     }
 
+    /// A one-cell mining beam with a socket on each of `faces`; it fires
+    /// through -Z.
+    pub(crate) fn mining(id: &str, carve_radius_cells: f32, faces: &[Vec3]) -> SectionConfig {
+        let kind = SectionKind::Mining(MiningSectionConfig {
+            render_mesh: "beam.glb#Scene0".into(),
+            render_mesh_transform: None,
+            pulse_sound: "pulse.wav".into(),
+            door_open_sound: "open.wav".into(),
+            door_close_sound: "close.wav".into(),
+            reach: Meters(100.0),
+            pulse_interval_seconds: 1.0,
+            carve_radius_cells,
+        });
+        block(id, 90.0, kind, UVec3::ONE, faces)
+    }
+
     /// Every face but the mouth, so the port is its own mirror image.
     pub(crate) const DOCK_FACES: [Vec3; 5] = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z];
 
@@ -2446,7 +2553,7 @@ pub(crate) mod tests {
     }
 
     /// Base content with a weak and a strong part of every family, and a mod
-    /// with its own hull, drive and turret.
+    /// with its own hull, drive, turret and a stronger mining beam.
     pub(crate) fn packs() -> Vec<ShipPartPack> {
         vec![
             pack(
@@ -2462,6 +2569,7 @@ pub(crate) mod tests {
                     turret("fast_turret", 4.0),
                     intake("intake"),
                     dock("dock", &DOCK_FACES),
+                    mining("mining_beam", 1.0, &DOCK_FACES),
                 ],
             ),
             pack(
@@ -2471,6 +2579,7 @@ pub(crate) mod tests {
                     cube("mod_cube", 200.0),
                     drive("mod_drive", 3.0, UVec3::ONE),
                     turret("mod_turret", 2.0),
+                    mining("mod_mining_beam", 1.5, &DOCK_FACES),
                 ],
             ),
         ]
@@ -2527,8 +2636,11 @@ pub(crate) mod tests {
             .iter()
             .map(|part| (part.id(), part))
             .collect();
+        // Industrial mining beam counts and prototypes seen, by advancement.
+        let mut beams: BTreeSet<(u32, usize)> = BTreeSet::new();
+        let mut beam_parts: BTreeSet<&str> = BTreeSet::new();
         for advancement in [0.0, 1.0] {
-            for seed in 0..8 {
+            for seed in 0..24 {
                 for role in ShipRoleType::ALL {
                     let layout = generate_ship(&snapshot, request(seed, role, advancement))
                         .expect("the ship generates");
@@ -2548,6 +2660,16 @@ pub(crate) mod tests {
                     assert_eq!(count(ShipPartFamilyType::Weapon) >= 1, armed, "{context}");
                     if role == ShipRoleType::Industrial {
                         assert!(count(ShipPartFamilyType::CargoIntake) >= 1, "{context}");
+                        let mining = count(ShipPartFamilyType::Mining);
+                        beams.insert((advancement as u32, mining));
+                        beam_parts.extend(
+                            carried
+                                .iter()
+                                .filter(|part| part.family == ShipPartFamilyType::Mining)
+                                .map(|part| part.id()),
+                        );
+                    } else {
+                        assert_eq!(count(ShipPartFamilyType::Mining), 0, "{context}");
                     }
                     assert!(
                         carried.iter().all(|part| part.advancement <= advancement),
@@ -2556,6 +2678,18 @@ pub(crate) mod tests {
                 }
             }
         }
+        // One beam below the pair advancement, a pair from it, and none on a
+        // seed that draws none; base and mod beams both mount.
+        assert_eq!(
+            beams,
+            BTreeSet::from([(0, 0), (0, 1), (1, 0), (1, 2)]),
+            "industrial mining beam counts by advancement"
+        );
+        assert_eq!(
+            beam_parts,
+            BTreeSet::from(["mining_beam", "mod_mining_beam"]),
+            "mounted mining beams"
+        );
 
         // A fighter with no eligible weapon is refused, not built unarmed.
         let mut unarmed = packs();
@@ -2602,6 +2736,44 @@ pub(crate) mod tests {
         let message = failure.to_string();
         for named in ["ship seed 42", "civ_1_n2_0@7", "civilian", "ceiling"] {
             assert!(message.contains(named), "{message}");
+        }
+    }
+
+    #[test]
+    fn a_drawn_mining_beam_that_cannot_mount_fails_the_request() {
+        // A mining beam socketed on two adjacent faces is never its own
+        // mirror image, so a drawn single beam has no centreline mount: the
+        // request fails rather than flying without it, and a request that
+        // draws none builds.
+        let lopsided = ShipPartSnapshot::build(&[pack(
+            "base",
+            &[],
+            vec![
+                cube("cube", 100.0),
+                controller("controller"),
+                drive("small_drive", 1.0, UVec3::ONE),
+                intake("intake"),
+                dock("dock", &DOCK_FACES),
+                mining("lopsided_beam", 1.0, &[Vec3::X, Vec3::Y]),
+            ],
+        )])
+        .expect("the packs build");
+        let outcomes: Vec<Result<ShipLayout, ShipLayoutFailure>> = (0..16)
+            .map(|seed| generate_ship(&lopsided, request(seed, ShipRoleType::Industrial, 0.0)))
+            .collect();
+        assert!(outcomes.iter().any(Result::is_ok), "a beamless draw builds");
+        let failures: Vec<&ShipLayoutFailure> = outcomes
+            .iter()
+            .filter_map(|outcome| outcome.as_ref().err())
+            .collect();
+        assert!(!failures.is_empty(), "a seed draws a beam");
+        for failure in failures {
+            assert_eq!(failure.attempts, MAX_LAYOUT_ATTEMPTS, "{failure}");
+            assert_eq!(
+                failure.constraint,
+                ShipLayoutConstraintType::Unplaced(ShipPartFamilyType::Mining),
+                "{failure}"
+            );
         }
     }
 
@@ -2778,7 +2950,7 @@ pub(crate) mod tests {
         let request = request(2, ShipRoleType::Civilian, 0.0);
         let refused = (0..MAX_LAYOUT_ATTEMPTS)
             .find(|attempt| {
-                Draw::new(&short, request, *attempt)
+                Draw::new(&short, request, *attempt, 0)
                     .layout()
                     .and_then(|layout| check(&short, request, &layout.design))
                     == Err(ShipLayoutConstraintType::Unruinable)

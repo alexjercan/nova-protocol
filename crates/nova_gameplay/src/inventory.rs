@@ -26,11 +26,12 @@ use crate::integrity::prelude::Health;
 /// The whole module.
 pub mod prelude {
     pub use super::{
-        kg_text, plan_item_jettison, plan_item_trade, plan_item_transfer, plan_plate_repair,
-        CargoCanister, ItemCategoryType, ItemJettison, ItemJettisonRefusalType, ItemTrade,
-        ItemTradeRefusalType, ItemTradeType, ItemTransferRefusalType, ItemTransferType, ItemType,
-        LootableShipMarker, PlateRepair, PlateRepairRefusalType, ShipCredits, ShipInventory,
-        ShipInventoryStock, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
+        kg_text, plan_credit_take, plan_item_jettison, plan_item_trade, plan_item_transfer,
+        plan_plate_repair, CargoCanister, CreditTakeRefusalType, ItemCategoryType, ItemJettison,
+        ItemJettisonRefusalType, ItemTrade, ItemTradeRefusalType, ItemTradeType,
+        ItemTransferRefusalType, ItemTransferType, ItemType, LootableShipMarker, PlateRepair,
+        PlateRepairRefusalType, ShipCredits, ShipInventory, ShipInventoryStock,
+        CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
     };
 }
 
@@ -526,6 +527,43 @@ pub fn plan_item_trade(
         count: quantity,
         price_cr,
     })
+}
+
+/// Why a credit take moves nothing, in check order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CreditTakeRefusalType {
+    /// The partner is neither neutralized nor lootable: an intact trading
+    /// ship is never robbed.
+    NotEligible,
+    /// The partner holds no credits to take.
+    ZeroBalance,
+    /// The player's balance after the take would not fit in [`ShipCredits`].
+    Overflow,
+}
+
+/// Plan taking the docked partner's whole credit balance into the player
+/// ship's `own_cr`.
+///
+/// `eligible` is true when the partner is neutralized or carries
+/// [`LootableShipMarker`]; an intact trading partner is never robbed. On
+/// success, returns the whole `partner_cr` to add to `own_cr`, leaving the
+/// partner at zero; a refusal changes nothing. Checks run in
+/// [`CreditTakeRefusalType`] order.
+pub fn plan_credit_take(
+    eligible: bool,
+    own_cr: u32,
+    partner_cr: u32,
+) -> Result<u32, CreditTakeRefusalType> {
+    if !eligible {
+        return Err(CreditTakeRefusalType::NotEligible);
+    }
+    if partner_cr == 0 {
+        return Err(CreditTakeRefusalType::ZeroBalance);
+    }
+    own_cr
+        .checked_add(partner_cr)
+        .ok_or(CreditTakeRefusalType::Overflow)?;
+    Ok(partner_cr)
 }
 
 /// Maximum mass of a drifting canister, in grams.
@@ -1031,6 +1069,27 @@ mod transfer_tests {
             40
         );
         assert_eq!((own_cr, partner_cr), (80, 27));
+    }
+
+    #[test]
+    fn credit_take_moves_the_whole_balance_and_refuses_without_mutation() {
+        use CreditTakeRefusalType::*;
+
+        // An intact, non-neutralized partner is never robbed, whatever its
+        // balance.
+        assert_eq!(plan_credit_take(false, 0, 500), Err(NotEligible));
+        // A zero balance has nothing to take, even when eligible.
+        assert_eq!(plan_credit_take(true, 0, 0), Err(ZeroBalance));
+        // Eligibility wins over an empty balance.
+        assert_eq!(plan_credit_take(false, 0, 0), Err(NotEligible));
+        // A normal take moves the partner's whole balance.
+        assert_eq!(plan_credit_take(true, 100, 500), Ok(500));
+        // Repeating the action against the now-zero balance refuses again.
+        assert_eq!(plan_credit_take(true, 600, 0), Err(ZeroBalance));
+        // A take that would overflow the player's balance is refused, taking
+        // nothing.
+        assert_eq!(plan_credit_take(true, u32::MAX - 2, 3), Err(Overflow));
+        assert_eq!(plan_credit_take(true, u32::MAX - 3, 3), Ok(3));
     }
 
     #[test]

@@ -27,7 +27,7 @@
 //! - WFC: four hulls of the current `wfc_ships` generator on the standard
 //!   plan, at the same spacing rule.
 //! - Wrecks: one DERELICT per role, same column order. Every active
-//!   system (drive, flight computer, weapons, intake) is disabled in place as
+//!   system (drive, flight computer, weapons, mining, intake) is disabled in place as
 //!   it spawns. Hull and docking ports stay active for damage and Take/Give;
 //!   the ships have no controller, Neutral allegiance, and every ship capability
 //!   off, and keep their physics.
@@ -1053,7 +1053,7 @@ fn view_ships(stage: &Stage, view: ViewType) -> Vec<(String, ShipDesign, f32)> {
     }
 }
 
-/// Disable a wreck's drives, controllers, weapons and intake at spawn while
+/// Disable a wreck's drives, controllers, weapons, mining and intake at spawn while
 /// keeping its docking ports usable. The kind marker lands in the spawn's own
 /// command flush, after its `ChildOf` and the root's `EntityId`.
 fn disable_wreck_systems(
@@ -1065,6 +1065,7 @@ fn disable_wreck_systems(
             TurretSectionMarker,
             TorpedoSectionMarker,
             RailgunSectionMarker,
+            MiningSectionMarker,
             CargoIntakeSectionMarker,
         ),
     >,

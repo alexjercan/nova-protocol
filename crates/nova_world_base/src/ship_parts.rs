@@ -67,17 +67,21 @@ pub enum ShipPartFamilyType {
     CargoIntake,
     /// Docking port, scored by capture distance in engine units.
     Docking,
+    /// Mining beam, scored by carve volume per second: the cube of its carve
+    /// radius over its pulse interval.
+    Mining,
 }
 
 impl ShipPartFamilyType {
     /// Every family, in declaration order.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Hull,
         Self::Controller,
         Self::Thruster,
         Self::Weapon,
         Self::CargoIntake,
         Self::Docking,
+        Self::Mining,
     ];
 
     /// The family of a section kind.
@@ -91,16 +95,17 @@ impl ShipPartFamilyType {
             }
             SectionKind::CargoIntake(_) => Self::CargoIntake,
             SectionKind::Docking(_) => Self::Docking,
-            // The first generated-hull slice does not equip mining sections.
-            SectionKind::Mining(_) => return None,
+            SectionKind::Mining(_) => Self::Mining,
         })
     }
 
     /// Whether a ship of `role` may carry a part of this family. Civilian
-    /// and industrial ships carry no weapon, not even an empty mount.
+    /// and industrial ships carry no weapon, not even an empty mount, and
+    /// only an industrial ship carries a mining beam.
     pub(crate) fn allowed_on(self, role: ShipRoleType) -> bool {
         match self {
             Self::Weapon => matches!(role, ShipRoleType::Scavenger | ShipRoleType::Armored),
+            Self::Mining => role == ShipRoleType::Industrial,
             Self::Hull | Self::Controller | Self::Thruster | Self::CargoIntake | Self::Docking => {
                 true
             }
@@ -108,10 +113,13 @@ impl ShipPartFamilyType {
     }
 
     /// Whether every ship of `role` needs a part of this family. Every ship
-    /// flies and docks; an industrial ship mines; a fighting ship fights.
+    /// flies and docks; an industrial ship takes cargo in; a fighting ship
+    /// fights. A mining beam is an industrial ship's seeded option, never a
+    /// requirement.
     pub(crate) fn required_by(self, role: ShipRoleType) -> bool {
         match self {
             Self::Hull | Self::Controller | Self::Thruster | Self::Docking => true,
+            Self::Mining => false,
             Self::Weapon => matches!(role, ShipRoleType::Scavenger | ShipRoleType::Armored),
             Self::CargoIntake => role == ShipRoleType::Industrial,
         }
@@ -127,6 +135,7 @@ impl fmt::Display for ShipPartFamilyType {
             Self::Weapon => "weapon",
             Self::CargoIntake => "cargo intake",
             Self::Docking => "docking port",
+            Self::Mining => "mining beam",
         })
     }
 }
@@ -215,9 +224,9 @@ pub enum ShipPartFault {
     /// No usable part of a family every minimum-advancement civilian or
     /// industrial ship needs.
     MissingFamily(ShipPartFamilyType),
-    /// A weapon or thruster fires down a lane the grid cannot keep clear, or a
-    /// weapon, thruster, cargo intake or docking port fires, opens or docks
-    /// through a face that carries one of its own sockets.
+    /// A weapon, thruster or mining beam fires down a lane the grid cannot
+    /// keep clear, or one of those, a cargo intake or a docking port fires,
+    /// opens or docks through a face that carries one of its own sockets.
     UnlanedExit {
         /// The pack whose definition is effective.
         pack: String,
@@ -614,7 +623,16 @@ fn check_stats(source: &str, config: &SectionConfig, faults: &mut Vec<ShipPartFa
                 });
             }
         }
-        SectionKind::Hull(_) | SectionKind::Mining(_) => {}
+        SectionKind::Mining(mining) => {
+            require("reach", mining.reach.get(), true);
+            require(
+                "pulse_interval_seconds",
+                mining.pulse_interval_seconds,
+                true,
+            );
+            require("carve_radius_cells", mining.carve_radius_cells, true);
+        }
+        SectionKind::Hull(_) => {}
     }
 }
 
@@ -657,7 +675,9 @@ fn capability(config: &SectionConfig) -> f32 {
             intake.aperture_width.get() * intake.aperture_height.get()
         }
         SectionKind::Docking(docking) => docking.capture_distance.to_engine(),
-        SectionKind::Mining(_) => unreachable!("mining is excluded before capability scoring"),
+        SectionKind::Mining(mining) => {
+            mining.carve_radius_cells.powi(3) / mining.pulse_interval_seconds
+        }
     }
 }
 

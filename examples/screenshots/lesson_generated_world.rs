@@ -2,7 +2,7 @@
 //! `start_generated_ships` (a generated derelict travel-locked beside the
 //! player, the target inset naming its civilization and former role) and
 //! `interface_wreck_take` (the Inventory pane docked to that derelict: Take one
-//! hull plate from it, then Give one back).
+//! unit of its actual stock, then Give one back).
 //!
 //! One producer, two lessons, because they are one session: the still is shot
 //! on the wreck the sheet then docks with.
@@ -139,9 +139,14 @@ fn main() -> bevy::app::AppExit {
 struct Wreck {
     entity: Entity,
     name: String,
-    /// The two holds' hull plates when the wreck was picked: the player's,
-    /// then the wreck's.
-    plates: (u32, u32),
+    /// The item the walk takes and gives back: the lowest-ordered item the
+    /// wreck's actual stock carries, picked once here. A generated wreck is no
+    /// longer guaranteed a [`ItemType::HullPlate`], so Take and Give must work
+    /// from whatever it actually holds, and never reroll it.
+    item: ItemType,
+    /// The two holds' counts of `item` when the wreck was picked: the
+    /// player's, then the wreck's.
+    stock: (u32, u32),
 }
 
 /// While present, the player and the wreck are held at rest: the berth is a
@@ -160,19 +165,18 @@ fn the_player(world: &World) -> Option<Entity> {
     players.next().is_none().then_some(player)
 }
 
-/// The hull plates a ship's hold carries.
+/// How many of `item` a ship's hold carries.
 #[cfg(feature = "debug")]
-fn plates(world: &World, ship: Entity) -> u32 {
+fn count_of(world: &World, ship: Entity, item: ItemType) -> u32 {
     world
         .get::<ShipInventory>(ship)
         .expect("generated world: a ship carries a ShipInventory")
-        .stacks()
-        .filter(|(item, _)| *item == ItemType::HullPlate)
-        .map(|(_, count)| count)
-        .sum()
+        .count(item)
 }
 
-/// Pick the nearest lootable derelict, named the way the world names one.
+/// Pick the nearest lootable derelict, named the way the world names one, and
+/// the lowest-[`ItemType`]-ordered item its actual stock carries: the wreck's
+/// mixed loot is no longer guaranteed a hull plate.
 #[cfg(feature = "debug")]
 fn pick_the_wreck(world: &mut World) {
     let player = the_player(world).expect("generated world: exactly one player ship");
@@ -194,19 +198,27 @@ fn pick_the_wreck(world: &mut World) {
         name.contains(" derelict, former "),
         "generated world: derelict {entity:?} is named '{name}'"
     );
-    let held = (plates(world, player), plates(world, entity));
+    let item = world
+        .get::<ShipInventory>(entity)
+        .expect("generated world: a ship carries a ShipInventory")
+        .stacks()
+        .next()
+        .map(|(item, _)| item)
+        .unwrap_or_else(|| panic!("generated world: derelict '{name}' carries no stock"));
+    let stock = (count_of(world, player, item), count_of(world, entity, item));
     assert!(
-        held.1 > 0,
-        "generated world: derelict '{name}' carries no hull plate"
+        stock.1 > 0,
+        "generated world: derelict '{name}' carries no {item:?}"
     );
     info!(
-        "generated world: wreck '{name}' {entity:?}, plates player {} wreck {}",
-        held.0, held.1
+        "generated world: wreck '{name}' {entity:?}, item {item:?} player {} wreck {}",
+        stock.0, stock.1
     );
     world.insert_resource(Wreck {
         entity,
         name,
-        plates: held,
+        item,
+        stock,
     });
 }
 
@@ -350,7 +362,7 @@ fn the_interface_shows(
     })
 }
 
-/// Advance once a laid-out, visible text reads the note `verb` 1 Hull plate
+/// Advance once a laid-out, visible text reads the note `verb` 1 `<item>`
 /// with the wreck's name, as the pane's note line writes it.
 #[cfg(feature = "debug")]
 fn the_note_reads(
@@ -358,9 +370,11 @@ fn the_note_reads(
     preposition: &'static str,
 ) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(move |world: &World| {
+        let wreck = world.resource::<Wreck>();
         let note = format!(
-            "{verb} 1 Hull plate {preposition} {}",
-            world.resource::<Wreck>().name
+            "{verb} 1 {} {preposition} {}",
+            wreck.item.label(),
+            wreck.name
         );
         world
             .try_query::<(&Text, &ComputedNode, &InheritedVisibility)>()
@@ -372,29 +386,57 @@ fn the_note_reads(
     })
 }
 
-/// Assert both holds moved by `moved` plates from the wreck to the player, and
-/// that the pair holds every plate it started with.
+/// Assert both holds moved by `moved` units of the wreck's item from the wreck
+/// to the player, and that the pair holds every unit it started with.
 #[cfg(feature = "debug")]
-fn check_plates(stage: &'static str, moved: i64) -> impl Fn(&mut World) + Send + Sync + 'static {
+fn check_stock(stage: &'static str, moved: i64) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| {
         let wreck = world.resource::<Wreck>().clone();
         let player = the_player(world).expect("generated world: exactly one player ship");
-        let now = (plates(world, player), plates(world, wreck.entity));
+        let now = (
+            count_of(world, player, wreck.item),
+            count_of(world, wreck.entity, wreck.item),
+        );
         let want = (
-            (i64::from(wreck.plates.0) + moved) as u32,
-            (i64::from(wreck.plates.1) - moved) as u32,
+            (i64::from(wreck.stock.0) + moved) as u32,
+            (i64::from(wreck.stock.1) - moved) as u32,
         );
         assert_eq!(
             now, want,
-            "generated world {stage}: (player, wreck) hull plates"
+            "generated world {stage}: (player, wreck) {:?} counts",
+            wreck.item
         );
         info!(
-            "generated world {stage}: player {} wreck {} hull plates, {} in the pair",
+            "generated world {stage}: player {} wreck {} {:?}, {} in the pair",
             now.0,
             now.1,
+            wreck.item,
             now.0 + now.1
         );
     }
+}
+
+/// The widget name [`inventory_row`](nova_interface) gives the wreck's
+/// selected item's row in the `side` column (`"Own"` or `"Partner"`).
+#[cfg(feature = "debug")]
+fn row_name(side: &str, item: ItemType) -> String {
+    format!("InventoryRow{side}{item:?}")
+}
+
+/// Advance once the docked pane lays out a visible row for the wreck's item in
+/// the `side` column (`"Own"` or `"Partner"`).
+///
+/// Resolved from [`Wreck`] at the predicate's own poll rather than baked into
+/// the script: the item is not known until the wreck is picked, long after
+/// `world_script` builds every step.
+#[cfg(feature = "debug")]
+fn row_present(
+    side: &'static str,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        let item = world.resource::<Wreck>().item;
+        ui_node_rect(world, &row_name(side, item)).is_some()
+    })
 }
 
 /// One pointer click on the UI node `name` inside a recording: aim on entry,
@@ -415,6 +457,32 @@ fn quick_click(
     script
         .step(label)
         .on_enter(hover_named(name))
+        .each(|world: &mut World, _, frame| match frame {
+            2 => press_mouse(MouseButton::Left)(world),
+            3 => release_mouse(MouseButton::Left)(world),
+            _ => {}
+        })
+        .until(landed)
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+}
+
+/// Like [`quick_click`], but aims at the wreck's selected item's row in the
+/// `side` column, resolved from [`Wreck`] at the beat's own entry rather than
+/// baked into the script: see [`row_present`].
+#[cfg(feature = "debug")]
+fn quick_click_item(
+    script: nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>,
+    label: &str,
+    side: &'static str,
+    landed: std::sync::Arc<nova_protocol::nova_debug::harness::Predicate>,
+) -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    script
+        .step(label)
+        .on_enter(move |world: &mut World| {
+            let item = world.resource::<Wreck>().item;
+            hover_named(row_name(side, item))(world);
+        })
         .each(|world: &mut World, _, frame| match frame {
             2 => press_mouse(MouseButton::Left)(world),
             3 => release_mouse(MouseButton::Left)(world),
@@ -528,7 +596,7 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .click_named(
             "open the Inventory pane",
             "InterfaceTabInventory",
-            ui_node_present("InventoryRowPartnerHullPlate"),
+            row_present("Partner"),
             BEAT_DEADLINE_SECS,
         )
         .step("settle the docked pane")
@@ -538,10 +606,10 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .on_enter(|world: &mut World| sheet_start(world, TAKE_LESSON, LESSON_GRID))
         .until(frames(TAKE_LEAD_CELLS))
         .add();
-    let script = quick_click(
+    let script = quick_click_item(
         script,
-        "take: click the wreck's hull plates",
-        "InventoryRowPartnerHullPlate",
+        "take: click the wreck's stock",
+        "Partner",
         ui_node_present("InventoryDraftConfirm"),
     );
     let script = quick_click(
@@ -550,21 +618,22 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         "InventoryDraftConfirm",
         the_note_reads("Took", "from"),
     );
-    script
+    let script = script
         .step("check the Take")
-        .on_enter(check_plates("after the Take", 1))
+        .on_enter(check_stock("after the Take", 1))
         .until(frames(1))
         .add()
         .step("hold the Take note to the end of the sheet")
         .until(sheet_written(TAKE_LESSON))
         .deadline(60.0)
-        .add()
-        .click_named(
-            "give: pick your hull plates",
-            "InventoryRowOwnHullPlate",
-            ui_node_present("InventoryDraftConfirm"),
-            BEAT_DEADLINE_SECS,
-        )
+        .add();
+    let script = quick_click_item(
+        script,
+        "give: pick your stock",
+        "Own",
+        ui_node_present("InventoryDraftConfirm"),
+    );
+    script
         .click_named(
             "give: confirm",
             "InventoryDraftConfirm",
@@ -574,7 +643,7 @@ fn world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // Shot on the frame the note lands: the note line clears, so a settle
         // here would photograph the restored counts without the Give.
         .step("check and shoot the Give")
-        .on_enter(check_plates("after the Give", 0))
+        .on_enter(check_stock("after the Give", 0))
         .on_enter(|world: &mut World| shoot(world, GIVE_SHOT))
         .until(shot_written(GIVE_SHOT))
         .deadline(BEAT_DEADLINE_SECS)

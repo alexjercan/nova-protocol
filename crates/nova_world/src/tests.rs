@@ -20,7 +20,7 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::{
     AssetRef, DerelictShipMarker, GravityWell, IntegrityEnvelope, ItemType, LootableShipMarker,
-    ShipInventoryStock,
+    ShipCredits, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
     AsteroidMass, AsteroidPlugin, PlanetConfig, PlanetType, SectionSource, ShipDesign,
@@ -131,6 +131,7 @@ fn ship(id: String, position: Meters3, prototype: &str) -> SectorShip {
         },
         role: ShipRoleType::Civilian,
         stock: ShipInventoryStock::default(),
+        credits: 120,
     }
 }
 
@@ -800,13 +801,14 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
 }
 
 /// A manifest of `input`'s cell holding an intact [`ship`] at its centre and a
-/// derelict one 1 km off carrying five hull plates.
+/// derelict one 1 km off carrying five hull plates and 15 credits.
 fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
     let centre = input.coord.centre(input.geometry.sector_edge);
     let mut manifest = one_ship(input);
     manifest.ships.push(SectorShip {
         condition: SectorShipConditionType::Derelict,
         stock: ShipInventoryStock::new([(ItemType::HullPlate, 5)]),
+        credits: 15,
         ..ship(
             sector_id(input.coord, "ship", 1),
             centre + Meters3::new(1_000.0, 0.0, 0.0),
@@ -817,7 +819,8 @@ fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
 }
 
 /// A derelict spawns lootable with its manifest stock, so a docked ship may
-/// Take it; an intact ship spawns neither lootable nor stocked.
+/// Take it; an intact ship spawns neither lootable nor stocked. Each spawns
+/// with its manifest credits.
 #[test]
 fn a_materialized_derelict_is_lootable_with_its_manifest_stock_and_an_intact_ship_is_not() {
     let config = answering(intact_and_derelict);
@@ -833,20 +836,22 @@ fn a_materialized_derelict_is_lootable_with_its_manifest_stock_and_an_intact_shi
     );
     world.flush();
 
-    let mut spawned: Vec<(String, bool, bool, Vec<(ItemType, u32)>)> = world
+    let mut spawned: Vec<(String, bool, bool, Vec<(ItemType, u32)>, u32)> = world
         .query::<(
             &Name,
             Has<DerelictShipMarker>,
             Has<LootableShipMarker>,
             &ShipInventoryStock,
+            &ShipCredits,
         )>()
         .iter(&world)
-        .map(|(name, derelict, lootable, stock)| {
+        .map(|(name, derelict, lootable, stock, credits)| {
             (
                 name.to_string(),
                 derelict,
                 lootable,
                 stock.stacks().collect(),
+                credits.0,
             )
         })
         .collect();
@@ -854,12 +859,13 @@ fn a_materialized_derelict_is_lootable_with_its_manifest_stock_and_an_intact_shi
     assert_eq!(
         spawned,
         vec![
-            ("Solmar civilian".to_string(), false, false, vec![]),
+            ("Solmar civilian".to_string(), false, false, vec![], 120),
             (
                 "Solmar derelict, former civilian".to_string(),
                 true,
                 true,
-                vec![(ItemType::HullPlate, 5)]
+                vec![(ItemType::HullPlate, 5)],
+                15
             ),
         ]
     );

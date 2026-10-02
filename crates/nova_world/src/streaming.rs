@@ -314,7 +314,8 @@ fn require_resolved(ship: &SectorShip, sections: &GameSections) {
 }
 
 /// Spawn one generated ship under `root`, where and as its manifest entry
-/// says, its hold filled with the entry's stock.
+/// says, its hold filled with the entry's stock and its balance the entry's
+/// credits.
 ///
 /// Its `Name` says whose it is and what it was built for, `<civilization>
 /// <role>` or `<civilization> derelict, former <role>`. Inspection and the
@@ -340,6 +341,7 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
         civilization,
         role,
         stock,
+        credits,
     } = ship;
     let derelict = condition == SectorShipConditionType::Derelict;
     let name = match condition {
@@ -361,6 +363,7 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
             allegiance: Some(Allegiance::Neutral),
             inventory: stock,
             lootable: derelict,
+            credits,
             ..default()
         }),
         Allegiance::Neutral,

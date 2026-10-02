@@ -53,6 +53,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `cargo_intake_section`: its door opens for a canister within 40 m. A
   canister touching its 1 m trigger is taken whole, at any speed, if the hold
   has room.
+- Some generated industrial ships carry one or two real mining beams, chance
+  and pair count rising with advancement; a derelict keeps any beam mounted
+  but inert.
 
 ### Scenarios & Objectives
 
@@ -62,8 +65,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The open-world warship starts with 12 hull plates, 6000 PDC rounds, 20 rail
   slugs, 12 torpedoes and 2000 cr. Stock resets when the scenario loads.
 - Open-world ships come from the civilizations in reach: unpiloted intact
-  ships, and lootable derelicts with only hull and docks live and 1 to 8 hull
-  plates to Take. An unloaded sector restocks.
+  ships and lootable derelicts, each with role-specific goods and credits
+  scaled by advancement. An unloaded sector restocks.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.
@@ -117,6 +120,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Inventory pane lists your and a docked ship's cargo, load, item weight
   and transfer weight. Docked, Give, or Take once neutralized or lootable.
   Repair spends 1 hull plate per 20 HP, anywhere.
+- Docked with a lootable or neutralized ship, Take credits moves its full
+  balance at once; an overflow or ineligible partner changes nothing.
 - Docked with a live ship, Buy at a fixed ask or Sell at a fixed bid. Items and
   credits move together from real stock and balances, or a refusal moves
   nothing. Columns show credits.

@@ -18,10 +18,14 @@
 //! an intact ship, level in its local frame with the cluster's seeded yaw; an
 //! extinct one's is a wreck at a seeded 3D orientation.
 //!
-//! An intact ship's hold starts empty. A wreck carries [`WRECK_PLATES`] hull
-//! plates drawn from its own stream, keyed like the ship, at most what its
-//! remaining hull sections hold, so a docked ship may Take them. Nothing keeps
-//! what was taken: a retired cell comes back with its wrecks' stock whole.
+//! Every ship starts with goods and credits, each drawn from its own stream
+//! keyed like the ship and scaled by its civilization's advancement. Its hold
+//! carries [`ship_stock`]: a role's item mix toward a seeded share of the
+//! hold its hull sections give, a wreck's toward half that share of what its
+//! remaining hull holds, drawn apart from the intact ship's. Its balance
+//! rises with advancement whatever its role or hold; a wreck keeps a seeded
+//! share of an intact balance, at least one credit. Nothing keeps what was
+//! taken: a retired cell comes back with its ships' stock and credits whole.
 //!
 //! FAIL LOUD. A layout or wreck that fails for the selected civilization and
 //! role fails the sector; only a cell's spatial checks may skip a planned
@@ -29,8 +33,6 @@
 //!
 //! Every chance here is provisional until generated ships are reviewed in
 //! travel.
-
-use std::ops::RangeInclusive;
 
 use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{Meters, Meters3};
@@ -60,9 +62,23 @@ pub const SHIP_ADVANCEMENT_CURVE: AdvancementCurveType = AdvancementCurveType::L
 /// civilization in reach rather than the cluster's primary.
 const SECONDARY_CIVILIZATION_CHANCE: f32 = 0.1;
 
-/// How many hull plates a wreck draws for its hold, before its hull caps
-/// them.
-pub const WRECK_PLATES: RangeInclusive<u32> = 1..=8;
+/// The share of its hold an intact ship's stock aims for, as a `(least,
+/// most)` band at advancement 0 and at advancement 1, interpolated linearly
+/// between. A target, not a fill: item masses round it down.
+const STOCK_SHARE: [(f32, f32); 2] = [(0.05, 0.15), (0.20, 0.40)];
+
+/// What a wreck's stock share is of an intact ship's band.
+const WRECK_STOCK_SCALE: f32 = 0.5;
+
+/// The most distinct items one hold draws.
+const STOCK_STACKS: usize = 3;
+
+/// An intact ship's credit balance, as a `(least, most)` band at advancement
+/// 0 and at advancement 1, interpolated linearly between.
+const CREDITS: [(f32, f32); 2] = [(50.0, 200.0), (500.0, 2_000.0)];
+
+/// The share of an intact balance a wreck keeps, as a `(least, most)` band.
+const WRECK_CREDIT_SHARE: (f32, f32) = (0.10, 0.25);
 
 /// One hull a cluster planned, as a cell that owns it hands it over.
 #[derive(Clone, Copy, Debug)]
@@ -103,9 +119,10 @@ pub struct PlannedShip {
     pub civilization: CivilizationId,
     /// The role it was laid out for. A wreck keeps the role it was built for.
     pub role: ShipRoleType,
-    /// What its hold carries: nothing when intact, [`wreck_stock`] when a
-    /// derelict.
+    /// What its hold carries, see [`ship_stock`].
     pub stock: ShipInventoryStock,
+    /// Its credit balance.
+    pub credits: u32,
 }
 
 /// Lay out the ship `hull` stands for.
@@ -117,7 +134,7 @@ pub struct PlannedShip {
 /// advancement builds no role, on `layout` with the failed request when the
 /// layout fails, on `frame` when an intact hull stands at its planetoid's
 /// centre, where it has no outward direction to stand level on, and on
-/// `stock` when a wreck has no hull section left to hold a plate.
+/// `stock` when its hold cannot fit one unit of its role's lightest item.
 pub fn plan_ship(
     parts: &ShipPartSnapshot,
     civilizations: &CivilizationField,
@@ -198,18 +215,32 @@ pub fn plan_ship(
     };
     let layout = layout.map_err(|failure| refuse("layout", failure.to_string()))?;
 
-    let stock = match condition {
-        SectorShipConditionType::Intact => ShipInventoryStock::default(),
-        SectorShipConditionType::Derelict => {
-            let draw = SeedStream::new(key(b"sector_ship_stock")).next_u32();
-            wreck_stock(parts, &layout.design, draw).ok_or_else(|| {
-                refuse(
-                    "stock",
-                    "the wreck has no hull section to hold a plate".to_string(),
-                )
-            })?
-        }
+    let stock_key = match condition {
+        SectorShipConditionType::Intact => key(b"sector_ship_stock"),
+        SectorShipConditionType::Derelict => key(b"sector_ship_wreck_stock"),
     };
+    let stock = ship_stock(
+        parts,
+        &layout.design,
+        role,
+        condition,
+        civilization.advancement,
+        stock_key,
+    )
+    .ok_or_else(|| {
+        refuse(
+            "stock",
+            format!(
+                "the {} hold cannot fit one unit of its lightest item",
+                role.label()
+            ),
+        )
+    })?;
+    let credits = ship_credits(
+        civilization.advancement,
+        condition,
+        key(b"sector_ship_credits"),
+    );
 
     let rotation = match condition {
         SectorShipConditionType::Intact => {
@@ -239,24 +270,37 @@ pub fn plan_ship(
         civilization: civilization.id,
         role,
         stock,
+        credits,
     })
 }
 
-/// The hull plates a wreck of `design` carries: a count in [`WRECK_PLATES`]
-/// chosen by `draw`, cut to what its hull sections hold at
-/// [`HULL_SECTION_CARGO_G`] each, the rule the spawn sizes its hold by.
+/// The stock a ship of `role` and `condition`, laid out as `design`, starts
+/// with at `advancement`, drawn from a stream seeded by `draw`.
 ///
-/// `None` when the hull holds less than one plate: a wreck is a loot source,
-/// so a design that cannot carry any fails its sector rather than spawning
-/// empty.
+/// The hold is what `design`'s hull sections give at
+/// [`HULL_SECTION_CARGO_G`] each, the rule the spawn sizes it by, so a
+/// wreck's is what its remaining hull holds. The stock aims for a share of it
+/// drawn from [`STOCK_SHARE`] at `advancement`, scaled by
+/// [`WRECK_STOCK_SCALE`] for a derelict. Up to [`STOCK_STACKS`] distinct items
+/// of the role's mix are drawn by weight and split the target by seeded
+/// shares; each takes the whole units its share holds, so a heavy item may
+/// take none. Stock that rounds to nothing is one unit of the role's lightest
+/// item, so every ship carries goods. Never heavier than the hold.
+///
+/// `None` when the hold cannot fit one unit of the role's lightest item: a
+/// ship is a goods source, so a design that cannot carry any fails its
+/// sector rather than spawning empty.
 ///
 /// # Panics
 ///
 /// When a section of `design` names no part of `parts`: every generated
 /// design is built from the snapshot it is checked against.
-pub fn wreck_stock(
+pub fn ship_stock(
     parts: &ShipPartSnapshot,
     design: &ShipDesign,
+    role: ShipRoleType,
+    condition: SectorShipConditionType,
+    advancement: f32,
     draw: u32,
 ) -> Option<ShipInventoryStock> {
     let hulls = design
@@ -274,11 +318,105 @@ pub fn wreck_stock(
             matches!(part.config.kind, SectionKind::Hull(_))
         })
         .count() as u64;
-    let room = hulls * u64::from(HULL_SECTION_CARGO_G) / u64::from(ItemType::HullPlate.mass_g());
-    let (least, most) = (*WRECK_PLATES.start(), *WRECK_PLATES.end());
-    let drawn = least + draw % (most - least + 1);
-    let plates = u64::from(drawn).min(room) as u32;
-    (plates > 0).then(|| ShipInventoryStock::new([(ItemType::HullPlate, plates)]))
+    let hold = hulls * u64::from(HULL_SECTION_CARGO_G);
+    // Ammunition of every kind on an armed ship, whichever its weapons fire.
+    let mix: &[(ItemType, f32)] = match role {
+        ShipRoleType::Industrial => &[
+            (ItemType::StoneOre, 2.0),
+            (ItemType::IronOre, 2.0),
+            (ItemType::WaterIce, 2.0),
+            (ItemType::CarbonOre, 2.0),
+            (ItemType::SalvagedParts, 3.0),
+            (ItemType::Rations, 1.0),
+        ],
+        ShipRoleType::Civilian => &[
+            (ItemType::Rations, 5.0),
+            (ItemType::SalvagedParts, 3.0),
+            (ItemType::WaterIce, 1.0),
+            (ItemType::HullPlate, 1.0),
+        ],
+        ShipRoleType::Scavenger => &[
+            (ItemType::PdcRound, 2.0),
+            (ItemType::RailSlug, 1.0),
+            (ItemType::Torpedo, 1.0),
+            (ItemType::HullPlate, 3.0),
+            (ItemType::SalvagedParts, 3.0),
+            (ItemType::Rations, 1.0),
+        ],
+        ShipRoleType::Armored => &[
+            (ItemType::PdcRound, 3.0),
+            (ItemType::RailSlug, 2.0),
+            (ItemType::Torpedo, 1.0),
+            (ItemType::HullPlate, 3.0),
+            (ItemType::SalvagedParts, 2.0),
+            (ItemType::Rations, 1.0),
+        ],
+    };
+    let lightest = mix
+        .iter()
+        .map(|(item, _)| *item)
+        .min_by_key(|item| item.mass_g())
+        .expect("every role mixes at least one item");
+    if hold < u64::from(lightest.mass_g()) {
+        return None;
+    }
+
+    let mut stream = SeedStream::new(draw);
+    let advancement = advancement.clamp(0.0, 1.0);
+    let [(low_least, low_most), (high_least, high_most)] = STOCK_SHARE;
+    let least = low_least + (high_least - low_least) * advancement;
+    let most = low_most + (high_most - low_most) * advancement;
+    let mut share = least + (most - least) * stream.unit();
+    if condition == SectorShipConditionType::Derelict {
+        share *= WRECK_STOCK_SCALE;
+    }
+    let target = (hold as f64 * f64::from(share)) as u64;
+
+    let kinds = (1 + (stream.unit() * STOCK_STACKS as f32) as usize).min(STOCK_STACKS);
+    let mut left = mix.to_vec();
+    let mut drawn = Vec::with_capacity(kinds);
+    for _ in 0..kinds {
+        let item = pick(&left, stream.unit());
+        left.retain(|(other, _)| *other != item);
+        drawn.push((item, 0.5 + stream.unit()));
+    }
+    let total: f32 = drawn.iter().map(|(_, weight)| weight).sum();
+    let mut stacks: Vec<(ItemType, u32)> = drawn
+        .into_iter()
+        .filter_map(|(item, weight)| {
+            let portion = (target as f64 * f64::from(weight / total)) as u64;
+            let units = portion / u64::from(item.mass_g());
+            let units = u32::try_from(units).expect("a generated hold's units fit a u32");
+            (units > 0).then_some((item, units))
+        })
+        .collect();
+    if stacks.is_empty() {
+        stacks.push((lightest, 1));
+    }
+    Some(ShipInventoryStock::new(stacks))
+}
+
+/// The credit balance a ship of `condition` starts with at `advancement`,
+/// drawn from a stream seeded by `draw`, whatever its role or hold.
+///
+/// An intact ship draws a balance from [`CREDITS`] at `advancement`. A wreck
+/// draws one the same way and keeps a share of it from
+/// [`WRECK_CREDIT_SHARE`], at least one credit.
+fn ship_credits(advancement: f32, condition: SectorShipConditionType, draw: u32) -> u32 {
+    let mut stream = SeedStream::new(draw);
+    let advancement = advancement.clamp(0.0, 1.0);
+    let [(low_least, low_most), (high_least, high_most)] = CREDITS;
+    let least = low_least + (high_least - low_least) * advancement;
+    let most = low_most + (high_most - low_most) * advancement;
+    let budget = least + (most - least) * stream.unit();
+    match condition {
+        SectorShipConditionType::Intact => budget.round() as u32,
+        SectorShipConditionType::Derelict => {
+            let (low, high) = WRECK_CREDIT_SHARE;
+            let kept = low + (high - low) * stream.unit();
+            ((budget * kept).round() as u32).max(1)
+        }
+    }
 }
 
 /// The civilization a cluster's hulls come from first: one of those in reach
