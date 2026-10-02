@@ -57,29 +57,34 @@ Rocks are the other exception, and they carve for real - see [Shooting rock](../
 <!-- Roles and labels: crates/nova_world/src/generation.rs `ShipRoleType`.
      Status: crates/nova_world_base/src/civilizations.rs
      `CivilizationStatusType`, drawn by `CivilizationField::civilization`;
-     intact or wreck and hold stock: crates/nova_world_base/src/sector_ships.rs
-     `plan_ship`, `WRECK_PLATES`. Layout from the loaded section catalog:
-     crates/nova_world_base/src/ship_layout.rs `generate_ship` and
-     `generate_wreck`; role style: civilizations.rs `role_style_id`. Name,
-     controller, allegiance and lootable wreck: crates/nova_world/src/
-     streaming.rs `spawn_sector_ship`. Window: crates/nova_world_base/src/
-     lib.rs `OPEN_WORLD_SECTOR_EDGE`, `OPEN_WORLD_ACTIVE_RADIUS`. Role
-     outlines, weapon slots and styles in the generated-ship-roles widget:
-     web/src/widgets.ts `GENERATED_SHIP_ROLES`. -->
+     intact or wreck, hold stock and credits: crates/nova_world_base/src/
+     sector_ships.rs `plan_ship`, `ship_stock`, `ship_credits`. Layout from
+     the loaded section catalog, including an industrial ship's seeded
+     mining beams: crates/nova_world_base/src/ship_layout.rs `generate_ship`
+     and `generate_wreck`; role style: civilizations.rs `role_style_id`.
+     Name, controller, allegiance, credits and lootable wreck:
+     crates/nova_world/src/streaming.rs `spawn_sector_ship`. Window:
+     crates/nova_world_base/src/lib.rs `OPEN_WORLD_SECTOR_EDGE`,
+     `OPEN_WORLD_ACTIVE_RADIUS`. Take credits: crates/nova_gameplay/src/
+     inventory.rs `plan_credit_take`. Role outlines, weapon slots and styles
+     in the generated-ship-roles widget: web/src/widgets.ts
+     `GENERATED_SHIP_ROLES`. -->
 
 In a **New Game** world, the ships you meet are generated, not picked from a list of designs. Each one is laid out from the sections of the content the game loaded, for a **civilization** and a **role**.
 
 <div class="widget" data-widget="generated-ship-roles">
-<p>Four roles: a civilian is unarmed traffic, an industrial is unarmed with a cargo intake, a scavenger is a rough, low-tier armed ship, and an armored is an equipped armed ship. The role and the civilization's status are drawn apart, so each role can be met intact from a living civilization or as a wreck from an extinct one. A wreck comes from an extinct civilization, not from damage.</p>
+<p>Four roles: a civilian is unarmed traffic, an industrial is unarmed with a cargo intake and a chance of one or two mining beams, a scavenger is a rough, low-tier armed ship, and an armored is an equipped armed ship. The role and the civilization's status are drawn apart, so each role can be met intact from a living civilization or as a wreck from an extinct one. A wreck comes from an extinct civilization, not from damage.</p>
 </div>
 
-Each role wears its own skin style, intact or wrecked. Every civilization is **living** or **extinct**. A living civilization's ships are intact. An extinct civilization leaves **derelict wrecks**: hulls at any orientation, with every section switched off except the hull and the docking ports. An intact ship's hold is empty; a wreck carries 1 to 8 hull plates.
+Each role wears its own skin style, intact or wrecked. Every civilization is **living** or **extinct**. A living civilization's ships are intact. An extinct civilization leaves **derelict wrecks**: hulls at any orientation, with every section switched off except the hull and the docking ports.
+
+Every ship, intact or wrecked, starts with goods and credits scaled by its civilization's advancement: an industrial hold favors ore and parts, a civilian's rations and parts, and a scavenger's or armored ship's ammunition, hull plates and parts, drawn apart from its credit balance. A wreck's hold and balance are drawn the same way, independently, against what is left of its hull: roughly half the cargo and 10-25% of the credits an intact ship of the same standing would carry, with at least one credit kept. A wreck may hold no hull plates at all. A low-advancement ship still carries something of each kind, nonzero. Some industrial ships, living or wrecked, also mount one or two real mining beams; a wrecked beam stays mounted but inert, like every other system a derelict carries.
 
 Nobody flies a generated ship, and every one is neutral. Travel-lock one and the [target viewfinder](../hud/#target-viewfinder) names it, or select it on the [Map pane](../interface/#the-map): an intact ship reads `<civilization> <role>`, and a wreck reads `<civilization> derelict, former <role>`, for example `Halurmar derelict, former scavenger`. A distant blip on the map shows only its contact code.
 
-To loot a wreck, [dock](../sections/docking/) with one of its ports and [Take](../interface/#take-and-give) its hull plates in the Inventory pane.
+To loot a wreck, or a ship you neutralized in combat, [dock](../sections/docking/) with one of its ports: [Take](../interface/#take-and-give) its goods, and **Take credits** moves its whole balance in one click, in the Inventory pane. An intact ship that is still fighting is never robbed.
 
-The world streams in 32 km sectors, and the game keeps the 5 x 5 x 5 block of sectors around yours live. A sector that streams out and back in is generated again from the seed: nothing you did to its ships is kept. A wreck you emptied is full again, a ship you destroyed is back, and anything you gave a ship is gone.
+The world streams in 32 km sectors, and the game keeps the 5 x 5 x 5 block of sectors around yours live. A sector that streams out and back in is generated again from the seed: nothing you did to its ships is kept. A wreck you emptied is full again, a ship you destroyed is back, anything you gave a ship is gone, and credits you took are back on the ship you took them from.
 
 ## The parts
 

@@ -12400,7 +12400,7 @@ const GENERATED_SHIP_ROLES = [
     {
         label: "industrial",
         style: "industrial",
-        build: "unarmed, cargo intake",
+        build: "unarmed, cargo intake, optional 1-2 mining beams",
         length: 16,
         width: 7,
         weapon: false,
@@ -12425,9 +12425,11 @@ const GENERATED_SHIP_ROLES = [
         intake: false,
     },
 ];
-// A wreck's hold (nova_world_base/src/sector_ships.rs:65 `WRECK_PLATES`).
-const WRECK_PLATES_MIN = 1;
-const WRECK_PLATES_MAX = 8;
+// Every ship's hold and credits (nova_world_base/src/sector_ships.rs
+// `ship_stock`, `ship_credits`): a role-specific item mix and a balance,
+// both scaled by the civilization's advancement; a wreck's of each are
+// drawn apart from the intact ship's, roughly half the goods and a
+// fraction of the credits.
 // A wreck digs toward a fifth of its structural cubes, split into three
 // breaches (ship_layout.rs:112 `WRECK_OMISSION_SHARE`, ship_layout.rs:121
 // `WRECK_BREACHES`).
@@ -12645,21 +12647,24 @@ function initGeneratedShipRoles(host: HTMLElement): void {
             : "every section";
         offStat.textContent = extinct ? listed : "none";
         holdStat.textContent = extinct
-            ? `${WRECK_PLATES_MIN} to ${WRECK_PLATES_MAX} hull plates`
-            : "empty";
+            ? "mixed goods, about half a hold's share, and a share of its credits"
+            : "its own goods and credits";
         allegianceStat.textContent = "Neutral, nobody flies it";
         if (extinct) {
             readout.textContent =
                 `A derelict ${role.label} ship of an extinct civilization. It lies ` +
                 `at any orientation with ${WRECK_BREACHES} breaches dug into ` +
                 "its hull. The hull and docking ports stay live, so it can be " +
-                `hit, carved and docked with; the ${listed} spawned off. On ` +
-                `lock it reads <civilization> derelict, former ${role.label}.`;
+                `hit, carved and docked with; the ${listed} spawned off. It still ` +
+                "carries its own mixed goods, which may include no hull plates " +
+                "at all, and a share of its credits. On lock it reads " +
+                `<civilization> derelict, former ${role.label}.`;
         } else {
             readout.textContent =
                 `An intact ${role.label} ship of a living civilization. It is ` +
                 `level with every section live, the ${listed} included, and ` +
-                `its hold empty. On lock it reads <civilization> ${role.label}.`;
+                "its hold carries its own seeded goods and credits. On lock it " +
+                `reads <civilization> ${role.label}.`;
         }
     };
 
@@ -12679,8 +12684,9 @@ function initGeneratedShipRoles(host: HTMLElement): void {
                 "before the seed resizes it, top view, cells to scale, and the breaches only placed. The " +
                 "real layout comes from the loaded section catalog, which " +
                 "places the docks, drive, weapons and intake where they fit. " +
-                "A wreck's plate count is seeded, cut to what its hull " +
-                "sections hold, and whole again when its sector streams back in."
+                "A ship's stock and credits are seeded, scaled to what its " +
+                "hull holds and its civilization's advancement, and whole " +
+                "again when its sector streams back in."
         )
     );
     update();

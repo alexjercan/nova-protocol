@@ -125,12 +125,12 @@ fn the_open_world_describes_the_same_sectors_in_any_visit_order() {
     assert_eq!(forward, strided, "a strided walk changed a sector");
 }
 
-/// A wreck is a loot source: every derelict in the live window carries 1 to 8
-/// hull plates that fit the hold its resolved design gives it, and an intact
-/// ship carries nothing. A wreck with no hull section left holds no plate, so
-/// it gets no stock rather than an empty lootable hold.
+/// Every planned ship is a goods and credit source: each in the live window
+/// carries stock its resolved hold fits and a positive balance in its
+/// condition's band, and a wreck's mixed stock need not hold a plate. A hold
+/// that cannot fit one unit of its role's lightest item gets no stock.
 #[test]
-fn every_planned_wreck_carries_one_to_eight_plates_its_hull_holds_and_an_intact_ship_none() {
+fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
     let config = session_config();
     let parts = config.generator.parts();
     let sections = GameSections(
@@ -140,46 +140,50 @@ fn every_planned_wreck_carries_one_to_eight_plates_its_hull_holds_and_an_intact_
             .map(|part| part.config.clone())
             .collect(),
     );
-    let mut wrecks = 0;
+    let (mut intact, mut wrecks, mut plateless_wrecks) = (0, 0, 0);
     for coord in desired_sectors(SectorCoord::ORIGIN, config.active_radius) {
         let description = generate_sector(&config, coord)
             .unwrap_or_else(|fault| panic!("sector {coord:?}: {fault}"));
         for ship in description.ships() {
             let stacks: Vec<(ItemType, u32)> = ship.stock.stacks().collect();
-            match ship.condition {
+            assert!(!stacks.is_empty(), "ship {} carries no goods", ship.id);
+            let (resolved, errors) = resolve_ship_design(
+                &ShipDesignSource::Inline(ship.design.clone()),
+                &GameShipDesigns::default(),
+                &sections,
+            );
+            assert!(errors.is_empty(), "ship {}: {errors:?}", ship.id);
+            assert!(
+                ship.stock.mass_g() <= u64::from(resolved.cargo_capacity_g()),
+                "ship {} overfills its hold",
+                ship.id
+            );
+            let credits = match ship.condition {
                 SectorShipConditionType::Intact => {
-                    assert!(
-                        stacks.is_empty(),
-                        "intact ship {} carries {stacks:?}",
-                        ship.id
-                    );
+                    intact += 1;
+                    50..=2_000
                 }
                 SectorShipConditionType::Derelict => {
                     wrecks += 1;
-                    let [(ItemType::HullPlate, plates)] = stacks[..] else {
-                        panic!("wreck {} carries {stacks:?}, not one plate stack", ship.id);
-                    };
-                    assert!(
-                        WRECK_PLATES.contains(&plates),
-                        "wreck {}: {plates}",
-                        ship.id
-                    );
-                    let (resolved, errors) = resolve_ship_design(
-                        &ShipDesignSource::Inline(ship.design.clone()),
-                        &GameShipDesigns::default(),
-                        &sections,
-                    );
-                    assert!(errors.is_empty(), "wreck {}: {errors:?}", ship.id);
-                    assert!(
-                        ship.stock.mass_g() <= u64::from(resolved.cargo_capacity_g()),
-                        "wreck {} overfills its hold",
-                        ship.id
-                    );
+                    plateless_wrecks +=
+                        usize::from(!stacks.iter().any(|(item, _)| *item == ItemType::HullPlate));
+                    1..=500
                 }
-            }
+            };
+            assert!(
+                credits.contains(&ship.credits),
+                "ship {} holds {} credits",
+                ship.id,
+                ship.credits
+            );
         }
     }
+    assert!(intact > 0, "the window must hold an intact ship");
     assert!(wrecks > 0, "the window must hold a wreck");
+    assert!(
+        plateless_wrecks > 0,
+        "a wreck's mixed stock may hold no plate"
+    );
 
     let docks_only = ShipDesign {
         sections: parts
@@ -201,7 +205,20 @@ fn every_planned_wreck_carries_one_to_eight_plates_its_hull_holds_and_an_intact_
         1,
         "the fixture has a docking port"
     );
-    assert_eq!(wreck_stock(parts, &docks_only, 0), None);
+    for role in ShipRoleType::ALL {
+        assert_eq!(
+            ship_stock(
+                parts,
+                &docks_only,
+                role,
+                SectorShipConditionType::Derelict,
+                0.0,
+                0
+            ),
+            None,
+            "{role:?}"
+        );
+    }
 }
 
 /// A pinned window generates the bodies it was recorded with: every rock,
@@ -232,7 +249,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0xe724_206c_1ef4_1d8e,
+        0xde62_925f_8289_e4cb,
         "the pinned window's bodies changed"
     );
 }

@@ -30,8 +30,8 @@ use nova_ui::{
 };
 
 use super::{
-    InventoryActionCommand, InventoryActionType, InventoryDraft, InventoryRuntime,
-    InventorySideType,
+    CreditTakeCommand, InventoryActionCommand, InventoryActionType, InventoryDraft,
+    InventoryRuntime, InventorySideType,
 };
 use crate::{
     icons::{icon_node, InterfaceIcons},
@@ -70,6 +70,13 @@ pub(crate) struct InventoryColumn {
 /// The heading over one side's rows: the ship's name.
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct InventoryColumnTitle(pub(crate) InventorySideType);
+
+/// The partner column header's Take credits button: a click moves its whole
+/// balance in one confirmation, no item and no quantity. Shown only while the
+/// partner is eligible (neutralized or lootable) and holds a credit above
+/// zero, so it offers the action even with an empty hold.
+#[derive(Component, Clone, Copy, Debug)]
+pub(crate) struct InventoryTakeCreditsButton;
 
 /// One side's whole panel: border, title, headings and rows. Hidden, not
 /// removed, while the side has no ship, so its slot keeps the columns equal.
@@ -356,11 +363,29 @@ fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType)
             ThemedBorder::alpha(UiColor::Secondary, 0.35),
         ))
         .with_children(|panel| {
-            panel.spawn((
-                InventoryColumnTitle(side),
-                themed_label("", 15.0, UiColor::Primary),
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-            ));
+            panel
+                .spawn(control_row(JustifyContent::SpaceBetween))
+                .with_children(|head| {
+                    head.spawn((
+                        InventoryColumnTitle(side),
+                        themed_label("", 15.0, UiColor::Primary),
+                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                        Node {
+                            flex_grow: 1.0,
+                            min_width: px(0),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                    ));
+                    if side == InventorySideType::Partner {
+                        head.spawn((
+                            Name::new("InventoryTakeCredits"),
+                            InventoryTakeCreditsButton,
+                            compact_button(ButtonSpec::new("Take credits").fit().ghost()),
+                        ))
+                        .observe(on_take_credits_button);
+                    }
+                });
             panel
                 .spawn(Node {
                     flex_direction: FlexDirection::Row,
@@ -829,6 +854,20 @@ fn on_inventory_draft_action_chip(
     play_menu_select(&mut commands, bank.as_deref());
 }
 
+/// Send one Take credits command, with one click, while the button is
+/// enabled. The button widget drops a pointer or key press on a disabled
+/// button; this guard also drops an `Activate` triggered directly.
+fn on_take_credits_button(
+    activate: On<Activate>,
+    q_disabled: Query<(), With<InteractionDisabled>>,
+    mut actions: MessageWriter<CreditTakeCommand>,
+) {
+    if q_disabled.contains(activate.entity) {
+        return;
+    }
+    actions.write(CreditTakeCommand);
+}
+
 /// The player ship, the ship it is docked with and the player's cargo intake,
 /// as the Inventory pane reads and moves them. One resolver for the panel, the
 /// row click, the form and the action handler, so all four fail the same way
@@ -1214,6 +1253,72 @@ pub(crate) fn apply_inventory_action_commands(
     }
 }
 
+/// Apply each confirmed [`CreditTakeCommand`]: move the docked partner's
+/// whole credit balance into the player ship's by the [`plan_credit_take`]
+/// rule, leaving the partner at zero, or refuse with no change. Flash the
+/// result on the note line, the same as every other Inventory action.
+/// Each command reads the balance the previous one left, so a second command
+/// against an already-zeroed partner refuses as a repeat. With no docked
+/// partner the commands are dropped, as the panel offers no such button then.
+pub(crate) fn apply_credit_take_commands(
+    mut actions: MessageReader<CreditTakeCommand>,
+    mut ships: InventoryShips,
+    mut runtime: ResMut<InventoryRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+) {
+    let Some(pair) = ships.pair() else {
+        actions.clear();
+        return;
+    };
+    let Some(partner) = pair.partner else {
+        actions.clear();
+        return;
+    };
+    for _ in actions.read() {
+        let partner_title = ships.title(partner, InventorySideType::Partner);
+        let (_, _, _, own_cr) = ships.ship(pair.own);
+        let (_, _, eligible, partner_cr) = ships.ship(partner);
+        let result = plan_credit_take(eligible, own_cr, partner_cr)
+            .map_err(|refusal| credit_take_refusal_text(refusal, &partner_title));
+        let (note, cue, volume) = match result {
+            Ok(amount) => {
+                let [(_, _, _, _, mut own_cr), (_, _, _, _, mut partner_cr)] = ships
+                    .ships
+                    .get_many_mut([pair.own, partner])
+                    .expect(
+                        "InventoryShips::pair checked both ships, and a ship does not dock with itself",
+                    );
+                own_cr.0 += amount;
+                partner_cr.0 = 0;
+                (
+                    format!("Took {} from {partner_title}", cr_text(amount)),
+                    UiSfx::MenuSelect,
+                    MENU_SELECT_VOLUME,
+                )
+            }
+            Err(note) => (note, UiSfx::EditorDeny, EDITOR_DENY_VOLUME),
+        };
+        runtime.note = Some((note, NOTE_SECONDS));
+        play_cue(&mut commands, bank.as_deref(), cue, volume);
+    }
+}
+
+/// The note text of a refused Take credits.
+fn credit_take_refusal_text(refusal: CreditTakeRefusalType, partner_title: &str) -> String {
+    match refusal {
+        CreditTakeRefusalType::NotEligible => {
+            format!("Refused: {partner_title} is not neutralized or lootable")
+        }
+        CreditTakeRefusalType::ZeroBalance => {
+            format!("Refused: {partner_title} holds no credits")
+        }
+        CreditTakeRefusalType::Overflow => {
+            "Refused: your ship cannot hold more credits".to_string()
+        }
+    }
+}
+
 /// Move one command's items, or say why not. Both texts are the note line.
 fn transfer_items(
     ships: &mut InventoryShips,
@@ -1482,6 +1587,10 @@ pub(crate) fn update_inventory_panel(
         (Without<InventoryRow>, Without<InventoryFilterChip>),
     >,
     mut q_part: Query<(&InspectorPart, &mut Node)>,
+    mut q_take_credits: Query<
+        &mut Node,
+        (With<InventoryTakeCreditsButton>, Without<InspectorPart>),
+    >,
     mut q_field: Query<(&InventoryInspectorField, &mut Text, &mut ThemedText)>,
     mut q_icon: Query<(&mut ImageNode, &mut ThemedImageTint), With<InventoryInspectorIcon>>,
     q_confirm: Query<(Entity, Has<InteractionDisabled>), With<InventoryDraftConfirm>>,
@@ -1510,10 +1619,12 @@ pub(crate) fn update_inventory_panel(
         title: own_title,
         stacks: Some(own_inventory.stacks().collect()),
     };
+    let mut partner_credits = None;
     let partner = match pair.partner {
         Some(other) => {
             let title = ships.title(other, InventorySideType::Partner);
             let (_, inventory, _, credits) = ships.ship(other);
+            partner_credits = Some(credits);
             SideView {
                 heading: format!("{title}  {}", cr_text(credits)),
                 title,
@@ -1528,6 +1639,7 @@ pub(crate) fn update_inventory_panel(
     };
     let partner_lootable = ships.partner_lootable(pair);
     let has_intake = ships.intake(pair.own).is_some();
+    let take_credits_shown = partner_lootable == Some(true) && partner_credits.unwrap_or(0) > 0;
     let side = |which: InventorySideType| match which {
         InventorySideType::Own => &own,
         InventorySideType::Partner => &partner,
@@ -1663,6 +1775,17 @@ pub(crate) fn update_inventory_panel(
             InspectorPart::TotalWeight => draft.is_some_and(|draft| draft.quantity.is_some()),
         };
         let display = if shown { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+
+    for mut node in &mut q_take_credits {
+        let display = if take_credits_shown {
+            Display::Flex
+        } else {
+            Display::None
+        };
         if node.display != display {
             node.display = display;
         }

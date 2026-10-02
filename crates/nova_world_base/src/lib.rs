@@ -57,9 +57,7 @@ pub use crate::{
     clusters::{sector_clusters, ClusterSummary, ClusterType, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
     layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
-    sector_ships::{
-        plan_ship, wreck_stock, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE, WRECK_PLATES,
-    },
+    sector_ships::{plan_ship, ship_stock, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
     ship_layout::{
         generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
         ShipLayoutFailure, ShipLayoutRequest,
@@ -76,7 +74,7 @@ pub use crate::{
 /// ship planner, the base-world ids and the role style ids into scope.
 pub mod prelude {
     pub use super::{
-        generate_ship, generate_wreck, plan_ship, role_style_id, sector_clusters, wreck_stock,
+        generate_ship, generate_wreck, plan_ship, role_style_id, sector_clusters, ship_stock,
         AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
         CivilizationStatusType, ClusterSummary, ClusterType, Environment, EnvironmentFieldType,
         EnvironmentFields, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, OpenWorldSession,
@@ -84,7 +82,7 @@ pub mod prelude {
         ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
         ShipPartFault, ShipPartPack, ShipPartSnapshot, ARMOURED_STYLE_ID,
         BLOCK_LINE_WARSHIP_SHIP_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, INDUSTRIAL_STYLE_ID,
-        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, SHIP_ADVANCEMENT_CURVE, WRECK_PLATES,
+        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, SHIP_ADVANCEMENT_CURVE,
     };
 }
 

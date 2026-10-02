@@ -15,6 +15,12 @@
 //! [`plan_item_transfer`](nova_gameplay::prelude::plan_item_transfer),
 //! [`plan_item_trade`](nova_gameplay::prelude::plan_item_trade) or
 //! [`plan_item_jettison`](nova_gameplay::prelude::plan_item_jettison) rule, or
+//! refuses with no change. The partner column header also carries a
+//! separate Take credits button, shown only while the partner is neutralized
+//! or lootable and holds a credit above zero, even with an empty hold; one
+//! click writes a [`CreditTakeCommand`] and
+//! [`apply_credit_take_commands`] moves its whole balance by the
+//! [`plan_credit_take`](nova_gameplay::prelude::plan_credit_take) rule, or
 //! refuses with no change.
 //!
 //! # Module layout
@@ -40,10 +46,12 @@ impl Plugin for InventoryPanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InventoryRuntime>();
         app.add_message::<InventoryActionCommand>();
+        app.add_message::<CreditTakeCommand>();
         app.add_systems(
             Update,
             (
                 apply_inventory_action_commands,
+                apply_credit_take_commands,
                 type_inventory_draft,
                 update_inventory_panel,
                 sync_inventory_draft_controls,
@@ -144,3 +152,10 @@ pub(crate) struct InventoryActionCommand {
     /// The quantity; `None` when the typed text is not a whole number.
     pub(crate) quantity: Option<u32>,
 }
+
+/// Take the docked partner's whole credit balance, written only by the
+/// partner column header's Take credits button and applied by
+/// [`apply_credit_take_commands`]. No item and no quantity: the balance moves
+/// whole on one click, unlike an item Take or Give.
+#[derive(Message, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct CreditTakeCommand;

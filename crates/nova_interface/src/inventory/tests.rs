@@ -675,6 +675,121 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
     assert_eq!(state(&app), (11, 110, 9, 990));
 }
 
+/// A click moves the docked partner's whole credit balance in one
+/// confirmation and zeros it; an intact, non-neutralized partner is never
+/// robbed; repeating the action against a zeroed balance refuses again; and
+/// an overflowing balance refuses without moving anything.
+#[test]
+fn take_credits_moves_the_whole_balance_once_and_a_refusal_changes_nothing() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_resource::<InventoryRuntime>();
+    app.add_message::<CreditTakeCommand>();
+    app.add_systems(Update, apply_credit_take_commands);
+    hear_ui_cues(&mut app);
+    let player = spawn_player(app.world_mut(), 12);
+    let partner = dock_partner(app.world_mut(), player, "Derelict", 8);
+    app.world_mut().entity_mut(player).insert(ShipCredits(100));
+    app.world_mut().entity_mut(partner).insert(ShipCredits(500));
+    let credits = |app: &App, ship| app.world().get::<ShipCredits>(ship).unwrap().0;
+    let take = |app: &mut App| {
+        app.world_mut().write_message(CreditTakeCommand);
+        app.update();
+        (note(app), take_cues(app))
+    };
+
+    // A live ship that was never neutralized is not robbed.
+    assert_eq!(
+        take(&mut app),
+        (
+            Some("Refused: Derelict is not neutralized or lootable".to_string()),
+            vec![UiSfx::EditorDeny]
+        )
+    );
+    assert_eq!((credits(&app, player), credits(&app, partner)), (100, 500));
+
+    // Lootable: one click takes the whole balance and zeros the partner.
+    app.world_mut()
+        .entity_mut(partner)
+        .insert(LootableShipMarker);
+    assert_eq!(
+        take(&mut app),
+        (
+            Some("Took 500 cr from Derelict".to_string()),
+            vec![UiSfx::MenuSelect]
+        )
+    );
+    assert_eq!((credits(&app, player), credits(&app, partner)), (600, 0));
+
+    // Repeating the action against the zeroed balance refuses again.
+    assert_eq!(
+        take(&mut app),
+        (
+            Some("Refused: Derelict holds no credits".to_string()),
+            vec![UiSfx::EditorDeny]
+        )
+    );
+    assert_eq!((credits(&app, player), credits(&app, partner)), (600, 0));
+
+    // An overflowing take refuses without moving anything.
+    app.world_mut()
+        .entity_mut(player)
+        .insert(ShipCredits(u32::MAX - 2));
+    app.world_mut().entity_mut(partner).insert(ShipCredits(3));
+    assert_eq!(
+        take(&mut app),
+        (
+            Some("Refused: your ship cannot hold more credits".to_string()),
+            vec![UiSfx::EditorDeny]
+        )
+    );
+    assert_eq!(
+        (credits(&app, player), credits(&app, partner)),
+        (u32::MAX - 2, 3)
+    );
+}
+
+/// The partner header's Take credits button shows only while the partner is
+/// eligible (neutralized or lootable) and holds a credit above zero, even
+/// with an empty hold, and never for an intact trading partner.
+#[test]
+fn take_credits_button_shows_only_for_an_eligible_nonzero_balance() {
+    let (mut rig, player) = inventory_rig();
+    let partner = dock_partner(rig.app.world_mut(), player, "Derelict", 8);
+    rig.app
+        .world_mut()
+        .entity_mut(partner)
+        .insert((ShipCredits(500), ShipInventory::default()));
+    settle(&mut rig.app);
+    let shown = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<&Node, With<InventoryTakeCreditsButton>>()
+            .single(app.world())
+            .expect("the pane spawns one Take credits button")
+            .display
+            != Display::None
+    };
+
+    // An intact, non-neutralized partner with credits: hidden.
+    assert!(!shown(&mut rig.app));
+
+    // Lootable with a nonzero balance and an empty hold: shown.
+    rig.app
+        .world_mut()
+        .entity_mut(partner)
+        .insert(LootableShipMarker);
+    settle(&mut rig.app);
+    assert!(shown(&mut rig.app));
+
+    // A zero balance hides it again, even while still lootable.
+    rig.app
+        .world_mut()
+        .entity_mut(partner)
+        .insert(ShipCredits(0));
+    settle(&mut rig.app);
+    assert!(!shown(&mut rig.app));
+}
+
 /// Confirm follows the live plan: disabled on each refusal the summary shows,
 /// so neither a click nor a triggered `Activate` sends it, and enabled again
 /// once the quantity, room or credits allow the trade. A Buy that fills the
@@ -1141,7 +1256,7 @@ mod generated_wreck {
     };
     use nova_world::{materialize_sector, prelude::*, ObserverBody};
     use nova_world_base::prelude::{
-        generate_wreck, wreck_stock, ShipLayoutRequest, ShipPartFamilyType, ShipPartPack,
+        generate_wreck, ship_stock, ShipLayoutRequest, ShipPartFamilyType, ShipPartPack,
         ShipPartSnapshot,
     };
     use serde::Deserialize;
@@ -1205,21 +1320,30 @@ mod generated_wreck {
         }
     }
 
-    fn plates(world: &World, ship: Entity) -> u32 {
-        super::plates(world, ship)
+    /// How many of `item` `ship` carries.
+    fn count(world: &World, ship: Entity, item: ItemType) -> u32 {
+        world
+            .get::<ShipInventory>(ship)
+            .expect("a ship root carries a ShipInventory")
+            .count(item)
     }
 
     /// Write one confirmed command with its draft open, run it, and return
     /// the note line.
-    fn confirm(app: &mut App, action: InventoryActionType, quantity: u32) -> Option<String> {
+    fn confirm(
+        app: &mut App,
+        action: InventoryActionType,
+        item: ItemType,
+        quantity: u32,
+    ) -> Option<String> {
         let command = InventoryActionCommand {
             action,
-            item: ItemType::HullPlate,
+            item,
             quantity: Some(quantity),
         };
         app.world_mut().resource_mut::<InventoryRuntime>().draft = Some(InventoryDraft {
             action,
-            item: ItemType::HullPlate,
+            item,
             quantity: Some(quantity),
         });
         app.world_mut().write_message(command);
@@ -1228,7 +1352,7 @@ mod generated_wreck {
     }
 
     #[test]
-    fn a_docked_generated_wreck_gives_its_plates_by_take_and_takes_them_back_by_give() {
+    fn a_docked_generated_wreck_gives_its_stock_by_take_and_takes_it_back_by_give() {
         let (sections, ships) = catalog();
         let snapshot = ShipPartSnapshot::build(&[ShipPartPack {
             id: "base".to_string(),
@@ -1250,10 +1374,19 @@ mod generated_wreck {
         };
         let wreck =
             generate_wreck(&snapshot, request).unwrap_or_else(|failure| panic!("{failure}"));
-        let stock = wreck_stock(&snapshot, &wreck.design, 5).expect("a wreck's hull holds plates");
-        let [(ItemType::HullPlate, drawn)] = stock.stacks().collect::<Vec<_>>()[..] else {
-            panic!("a wreck carries one plate stack: {stock:?}");
-        };
+        let stock = ship_stock(
+            &snapshot,
+            &wreck.design,
+            request.role,
+            SectorShipConditionType::Derelict,
+            request.advancement,
+            5,
+        )
+        .expect("a wreck's hull holds its role's lightest item");
+        let (drawn_item, drawn) = stock
+            .stacks()
+            .next()
+            .expect("ship_stock never returns empty stock");
         let dock = wreck
             .design
             .sections
@@ -1286,6 +1419,7 @@ mod generated_wreck {
                 civilization: request.civilization,
                 role: request.role,
                 stock,
+                credits: 0,
             }),
         };
         let prepared =
@@ -1376,7 +1510,7 @@ mod generated_wreck {
         assert!(!entity.contains::<NeutralizedMarker>());
         assert_eq!(entity.get::<Allegiance>(), Some(&Allegiance::Neutral));
         assert_eq!(
-            plates(app.world(), wreck),
+            count(app.world(), wreck, drawn_item),
             drawn,
             "the wreck spawns its stock"
         );
@@ -1384,18 +1518,24 @@ mod generated_wreck {
             .get::<Name>()
             .expect("the wreck is named")
             .to_string();
-        let total = PLAYER_PLATES + drawn;
-        let held = |app: &App| (plates(app.world(), player), plates(app.world(), wreck));
+        let label = drawn_item.label();
+        let held = |app: &App| {
+            (
+                count(app.world(), player, drawn_item),
+                count(app.world(), wreck, drawn_item),
+            )
+        };
+        let before_take = held(&app).0;
 
         assert_eq!(
-            confirm(&mut app, InventoryActionType::Take, drawn),
-            Some(format!("Took {drawn} Hull plate from {name}"))
+            confirm(&mut app, InventoryActionType::Take, drawn_item, drawn),
+            Some(format!("Took {drawn} {label} from {name}"))
         );
-        assert_eq!(held(&app), (total, 0));
+        assert_eq!(held(&app), (before_take + drawn, 0));
         assert_eq!(
-            confirm(&mut app, InventoryActionType::Give, 3),
-            Some(format!("Gave 3 Hull plate to {name}"))
+            confirm(&mut app, InventoryActionType::Give, drawn_item, 1),
+            Some(format!("Gave 1 {label} to {name}"))
         );
-        assert_eq!(held(&app), (total - 3, 3));
+        assert_eq!(held(&app), (before_take + drawn - 1, 1));
     }
 }

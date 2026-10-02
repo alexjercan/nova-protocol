@@ -215,6 +215,8 @@ pub struct SectorShip {
     /// What its hold carries when it spawns. The spawn refuses stock past
     /// the hold its resolved design gives it.
     pub stock: ShipInventoryStock,
+    /// Its credit balance when it spawns.
+    pub credits: u32,
 }
 
 /// What a [`SectorGenerator`] says one cell holds. UNTRUSTED.
@@ -297,7 +299,8 @@ impl SectorDescription {
     /// values, not placement: they are printed exact, as the shortest text
     /// that reads back to the same f32, and `None` prints apart from every
     /// `Some`. Rounding them would call two different worlds the same one.
-    /// A ship's stock prints every stack and count. Its civilization, role,
+    /// A ship's stock prints every stack and count, and its credits their
+    /// balance. Its civilization, role,
     /// design integrity, design presentation and each section's prototype
     /// patch print through `Debug`: field by field in declaration order, a
     /// float as the shortest text that reads back to it, a non-finite float
@@ -338,7 +341,8 @@ impl SectorDescription {
         }
         for ship in &self.ships {
             out.push_str(&format!(
-                "ship {} {} {} c{:.2} {} {} {} stock {:?} integrity {:?} presentation {:?}\n",
+                "ship {} {} {} c{:.2} {} {} {} stock {:?} credits {} integrity {:?} \
+                 presentation {:?}\n",
                 ship.id,
                 point(ship.position),
                 canonical_rotation(ship.rotation),
@@ -347,6 +351,7 @@ impl SectorDescription {
                 ship.civilization,
                 ship.role.label(),
                 ship.stock.stacks().collect::<Vec<_>>(),
+                ship.credits,
                 ship.design.integrity,
                 ship.design.presentation,
             ));
