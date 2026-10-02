@@ -1,8 +1,8 @@
 # Seed generated ships with cargo, credits, and optional industrial mining beams
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
-- TAGS: v0.15.0,world,ships,inventory,design
+- TAGS: v0.15.0, world, ships, inventory, design
 
 ## Goal and sequence
 

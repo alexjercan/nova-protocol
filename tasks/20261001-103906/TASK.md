@@ -1,6 +1,6 @@
 # Teach generated-world ships and wrecks in wiki and Lessons
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.15.0
 

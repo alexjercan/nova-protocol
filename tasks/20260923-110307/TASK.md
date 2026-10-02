@@ -1,8 +1,8 @@
 # Add regional ship variety to the open world
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.15.0,world,ships,content
+- TAGS: v0.15.0, world, ships, content
 
 ## Goal and boundary
 
