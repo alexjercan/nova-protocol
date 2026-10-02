@@ -1,6 +1,6 @@
 # Teach ship sections and item-loop play in wiki and Lessons
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.15.0
 
@@ -30,3 +30,9 @@
 - A reader can follow each documented shipped action in a real current build; no open-PR feature is described as live. Diagrams label real geometry and units; captured loops/frames show the stated before/after state. Inspect output on wide and narrow pages and in the Lessons pane.
 - Every new lesson wiki path, action ID, media path, and practice ID validates. Run affected authoring/link/media checks, generate and lint base content, `nix develop --command mdbook build`, and web npm CI; inspect rendered docs/menu and captured lesson media. Record any absent capture evidence honestly.
 - Ship-section teaching has independent source ownership, media, and acceptance evidence from the generated-world task. The task is not complete by adding prose or placeholders alone.
+
+## Closure (2026-10-02)
+
+- PR #102 was squash-merged into master as `b4680eb89`. It ships the ship-section/item-loop wiki pages, interactive widgets, Lessons, and capture media. All seven PR checks passed at head `343e0aee4` before merge.
+- Scoped content, media, docs, example-build, and rendered-page checks passed. Workspace-wide tests, Clippy, and running the new lesson examples were not performed locally.
+- Generated-world documentation remains separate under `20261001-103906`; PR #101 is open and stacked on the regional ship PRs.
