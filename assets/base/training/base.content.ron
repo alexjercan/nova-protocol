@@ -134,6 +134,26 @@
         wiki_path: "wiki/getting-started#launch-and-start",
     )),
     Lesson((
+        id: "start_generated_ships",
+        category: StartHere,
+        order: 50,
+        title: "Generated ships",
+        media: Image(
+            image: "self://training/start_generated_ships.webp",
+            alt: "the line warship berthed beside a generated derelict under the travel lock, the target inset naming it Halurmar derelict, former scavenger, and DOCK offered",
+        ),
+        body: "New Game streams generated ships. Each has a civilization and a role: civilian, industrial, scavenger, or armored. Ships of living civilizations are intact; extinct civilizations leave derelict wrecks. Lock a ship or select it on the Map pane to read its name.",
+        actions: [
+            "radar_hold",
+            "interface_toggle",
+            "viewer_next",
+        ],
+        wiki_path: "wiki/ships#generated-ships",
+        field_notes: [
+            "Extinct civilizations leave derelict wrecks you can dock with and loot.",
+        ],
+    )),
+    Lesson((
         id: "flight_aim",
         category: Flight,
         order: 10,
@@ -1037,6 +1057,31 @@
         wiki_path: "wiki/interface#the-ship",
         field_notes: [
             "Select a section in the Ship pane to repair it with hull plates.",
+        ],
+    )),
+    Lesson((
+        id: "interface_wreck_take",
+        category: Interface,
+        order: 22,
+        title: "Looting a wreck",
+        media: Loop(
+            sheet: "self://training/interface_wreck_take.webp",
+            columns: 4,
+            rows: 5,
+            frames: 20,
+            frames_per_second: 10.0,
+            alt: "the Inventory pane docked to a generated derelict: its hull plate row opens a Take form, and Confirm moves one plate, x8 to x7 on the wreck and x12 to x13 in the line warship",
+        ),
+        body: "Lock a derelict wreck, line up a docking port with one of its ports, and dock. In the Inventory pane, click its hull plates to Take them, or your items to Give. Wrecks and their stock regenerate when their sector streams back in.",
+        actions: [
+            "radar_hold",
+            "dock",
+            "interface_toggle",
+            "interface_next_tab",
+        ],
+        wiki_path: "wiki/interface#take-and-give",
+        field_notes: [
+            "Dock with a derelict wreck to Take its hull plates in the Inventory pane.",
         ],
     )),
     Lesson((

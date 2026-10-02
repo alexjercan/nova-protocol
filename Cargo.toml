@@ -279,6 +279,15 @@ path = "examples/playable/world_civilizations.rs"
 name = "world_ships"
 path = "examples/playable/world_ships.rs"
 
+# One generated sector of the base game's world at a time, with no streaming:
+# a cell is prepared off the frame, swapped in for the one on screen once it
+# is ready, and its objects are orbited or flown around. Arrow keys and Page
+# Up / Page Down step the cell, `[` and `]` cycle the orbited object, and
+# `--seed` picks the world.
+[[example]]
+name = "world_sector_inspector"
+path = "examples/playable/world_sector_inspector.rs"
+
 # The same streaming loop over a world whose bodies come in GROUPS: asteroid-rich,
 # rock-only, planet-heavy, derelict-only and low-rock, decided on a global
 # lattice from three environment fields and owned body by body by the cell each
@@ -908,6 +917,10 @@ path = "examples/screenshots/lesson_interface.rs"
 [[example]]
 name = "lesson_interface_ship"
 path = "examples/screenshots/lesson_interface_ship.rs"
+
+[[example]]
+name = "lesson_generated_world"
+path = "examples/screenshots/lesson_generated_world.rs"
 
 [[example]]
 name = "lesson_command"

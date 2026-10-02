@@ -152,6 +152,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   the travel view.
 - Basic Training adds four lessons with captured footage: MINE, Picking up
   canisters, Take and give, and Jettisoning cargo.
+- New Lessons "Generated ships" and "Looting a wreck" teach open-world ship
+  identity and a docked Take and Give from a derelict, with captured footage.
 
 ### Web & Platform
 
@@ -193,6 +195,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - New `trade_loop` playable example docks with a demo-only trader and checks Buy, Sell and refusal through the Inventory pane, with rendered checkpoints.
 - New `mine_and_sell` playable example mines ore, takes a canister through the intake and sells its ore to a docked demo trader, checking the ore and credit ledger.
+- New `world_sector_inspector` playable example shows one generated sector at a time: step cells with the arrow keys, orbit each object with [ and ], or fly free with WASD.
 - World streaming logs per-cell work at TRACE and summarizes retirements and live windows at DEBUG. PDC mount ownership logs each transition at TRACE and summarizes changes per ship at DEBUG.
 - **(breaking)** Crates `nova_os` and `nova_os_ui` are now `nova_command` and
   `nova_interface`.

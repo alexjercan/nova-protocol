@@ -12375,6 +12375,317 @@ function initMiningBeamChecks(host: HTMLElement): void {
     update();
 }
 
+// ---- generated-ship-roles: role and civilization status, apart ------------
+
+// The four roles (nova_world/src/generation.rs:163 `ShipRoleType`, `label`)
+// and the base style each wears (nova_world_base/src/civilizations.rs:91
+// `role_style_id`, ids at nova_world_base/src/lib.rs:101-110). The outline is
+// the role's spine at advancement 1 (nova_world_base/src/ship_layout.rs:1017
+// `role_spine`): `length` stations by `2 * half_width + 1` cells, before
+// `plan` (ship_layout.rs:1701) resizes it by seed. Weapon slots
+// are `1 + round(advancement * k)` for the armed roles (ship_layout.rs:1051
+// `weapon_slots`); every role carries a controller and a drive, and an
+// industrial a cargo intake (nova_world_base/src/ship_parts.rs:112
+// `required_by`).
+const GENERATED_SHIP_ROLES = [
+    {
+        label: "civilian",
+        style: "civilian",
+        build: "unarmed, narrow",
+        length: 22,
+        width: 3,
+        weapon: false,
+        intake: false,
+    },
+    {
+        label: "industrial",
+        style: "industrial",
+        build: "unarmed, cargo intake",
+        length: 16,
+        width: 7,
+        weapon: false,
+        intake: true,
+    },
+    {
+        label: "scavenger",
+        style: "salvage",
+        build: "1 weapon, up to 3",
+        length: 14,
+        width: 5,
+        weapon: true,
+        intake: false,
+    },
+    {
+        label: "armored",
+        style: "armoured",
+        build: "1 weapon, up to 5",
+        length: 24,
+        width: 7,
+        weapon: true,
+        intake: false,
+    },
+];
+// A wreck's hold (nova_world_base/src/sector_ships.rs:65 `WRECK_PLATES`).
+const WRECK_PLATES_MIN = 1;
+const WRECK_PLATES_MAX = 8;
+// A wreck digs toward a fifth of its structural cubes, split into three
+// breaches (ship_layout.rs:112 `WRECK_OMISSION_SHARE`, ship_layout.rs:121
+// `WRECK_BREACHES`).
+const WRECK_OMISSION_SHARE = 0.2;
+const WRECK_BREACHES = 3;
+
+// Role and status are picked apart. Status is the civilization's own draw
+// (civilizations.rs:186 `civilization`), so the two status keys show two
+// kinds of civilization, never two stages of one ship. Living gives an intact
+// ship and extinct a wreck (sector_ships.rs:121 `plan_ship`); a wreck keeps
+// its hull and docking ports live and spawns every other section, the
+// controller too, inactive (nova_scenario/src/objects/spaceship.rs:632).
+// Names, the empty controller and Neutral allegiance:
+// nova_world/src/streaming.rs:345-361.
+function initGeneratedShipRoles(host: HTMLElement): void {
+    header(
+        host,
+        "Generated ships: role by civilization",
+        "Two seeded draws, apart: the hull's role and its civilization's " +
+            "status. Pick each one. Any role can come from either kind of " +
+            "civilization. LIVING and EXTINCT are two kinds of civilization, " +
+            "not stages: a ship never moves from one to the other."
+    );
+
+    let roleIndex = 0;
+    let extinct = false;
+    const roleKeys = keyRow(
+        GENERATED_SHIP_ROLES.map((role) => role.label.toUpperCase()),
+        roleIndex,
+        (index) => {
+            roleIndex = index;
+            update();
+        }
+    );
+    const statusKeys = keyRow(["LIVING", "EXTINCT"], 0, (index) => {
+        extinct = index === 1;
+        update();
+    });
+
+    // One cell scale for every role, so the outlines compare. The drive sits
+    // aft (left), a weapon at the nose (right), the docking port on the top
+    // flank at mid-length and an intake on the bottom flank. A wreck tilts by
+    // TILT, so the box is sized for the widest role tilted.
+    const CELL = 18;
+    const DRIVE = 1.6;
+    const NOSE = 2;
+    const PORT = 1;
+    const INTAKE = 1.4;
+    const TILT = 12;
+    const PAD = 16;
+    const extent = (
+        role: (typeof GENERATED_SHIP_ROLES)[number]
+    ): { w: number; h: number } => ({
+        w: (DRIVE + role.length + (role.weapon ? NOSE : 0)) * CELL,
+        h: (PORT + role.width + (role.intake ? INTAKE : 0)) * CELL,
+    });
+    const cos = Math.cos((TILT * Math.PI) / 180);
+    const sin = Math.sin((TILT * Math.PI) / 180);
+    let viewW = 0;
+    let viewH = 0;
+    for (const role of GENERATED_SHIP_ROLES) {
+        const { w, h } = extent(role);
+        viewW = Math.max(viewW, w, w * cos + h * sin);
+        viewH = Math.max(viewH, h, w * sin + h * cos);
+    }
+    viewW = Math.ceil(viewW + 2 * PAD);
+    viewH = Math.ceil(viewH + 2 * PAD);
+    const cx = viewW / 2;
+    const cy = viewH / 2;
+
+    const svg = svgEl("svg", {
+        viewBox: `0 0 ${viewW} ${viewH}`,
+        role: "img",
+    });
+    const plot = el("div", "widget__plot");
+    const caption = el("p");
+    const roleWord = el("b");
+    const styleWord = el("span", "widget__kind widget__kind--generated");
+    caption.appendChild(roleWord);
+    caption.appendChild(document.createTextNode(" "));
+    caption.appendChild(styleWord);
+    plot.appendChild(caption);
+    plot.appendChild(svg);
+
+    const stats = el("div", "widget__stats");
+    const buildStat = stat(stats, "build");
+    const liveStat = stat(stats, "live");
+    const offStat = stat(stats, "off");
+    const holdStat = stat(stats, "hold");
+    const allegianceStat = stat(stats, "allegiance");
+    const readout = el("p", "widget__readout");
+
+    const draw = (
+        role: (typeof GENERATED_SHIP_ROLES)[number],
+        wreck: boolean
+    ): void => {
+        svg.replaceChildren();
+        const { w, h } = extent(role);
+        // The drawing's box, centred, so the tilt turns it about its middle.
+        const left = cx - w / 2;
+        const top = cy - h / 2;
+        const x0 = left + DRIVE * CELL;
+        const y0 = top + PORT * CELL;
+        const hullW = role.length * CELL;
+        const hullH = role.width * CELL;
+        const g = svgEl(
+            "g",
+            wreck ? { transform: `rotate(${-TILT} ${cx} ${cy})` } : {}
+        );
+        // Three illustrative breaches bitten into the flanks, each a half
+        // disc of a third of a fifth of the hull, clear of the docking port's
+        // back and of the intake.
+        const bites: [number, number][] = [
+            [role.length * 0.2, 0],
+            [role.length * 0.35, role.width],
+            [role.length * 0.8, 0],
+        ];
+        const radius = Math.sqrt(
+            (2 * WRECK_OMISSION_SHARE * role.length * role.width) /
+                (WRECK_BREACHES * Math.PI)
+        );
+        for (let i = 0; i < role.length; i++) {
+            for (let j = 0; j < role.width; j++) {
+                const breached =
+                    wreck &&
+                    bites.some(
+                        ([bx, by]) =>
+                            Math.hypot(i + 0.5 - bx, j + 0.5 - by) < radius
+                    );
+                if (breached) continue;
+                g.appendChild(
+                    svgEl("rect", {
+                        x: (x0 + i * CELL + 1).toFixed(1),
+                        y: (y0 + j * CELL + 1).toFixed(1),
+                        width: String(CELL - 2),
+                        height: String(CELL - 2),
+                        class: "widget-mark--zone is-lit",
+                    })
+                );
+            }
+        }
+        const midY = y0 + hullH / 2;
+        const system = wreck ? "widget-mark--rake" : "widget-mark--contact";
+        // The docking port stays live on both: it is how a wreck is looted.
+        g.appendChild(
+            svgEl("rect", {
+                x: (x0 + hullW / 2 - CELL).toFixed(1),
+                y: (y0 - PORT * CELL).toFixed(1),
+                width: String(2 * CELL),
+                height: String(PORT * CELL),
+                class: "widget-mark--ship",
+            })
+        );
+        g.appendChild(
+            svgEl("rect", {
+                x: left.toFixed(1),
+                y: (midY - CELL).toFixed(1),
+                width: (DRIVE * CELL).toFixed(1),
+                height: String(2 * CELL),
+                class: system,
+            })
+        );
+        if (role.weapon) {
+            const nose = x0 + hullW;
+            g.appendChild(
+                svgEl("polygon", {
+                    points:
+                        `${nose.toFixed(1)},${(midY - CELL).toFixed(1)} ` +
+                        `${(nose + NOSE * CELL).toFixed(1)},${midY.toFixed(1)} ` +
+                        `${nose.toFixed(1)},${(midY + CELL).toFixed(1)}`,
+                    class: system,
+                })
+            );
+        }
+        if (role.intake) {
+            g.appendChild(
+                svgEl("rect", {
+                    x: (x0 + hullW * 0.7 - CELL).toFixed(1),
+                    y: (y0 + hullH).toFixed(1),
+                    width: String(2 * CELL),
+                    height: (INTAKE * CELL).toFixed(1),
+                    class: system,
+                })
+            );
+        }
+        svg.appendChild(g);
+        svg.setAttribute(
+            "aria-label",
+            wreck
+                ? `Top view of a wreck, former ${role.label}, tilted: hull broken by ` +
+                      "three breaches, docking port lit, every drawn system dashed off."
+                : `Top view of an intact ${role.label}, level: hull, docking ` +
+                      "port and every drawn system lit."
+        );
+    };
+
+    const update = (): void => {
+        const role = GENERATED_SHIP_ROLES[roleIndex];
+        draw(role, extinct);
+        roleWord.textContent = role.label.toUpperCase();
+        styleWord.textContent = `style ${role.style}`;
+        const systems = [
+            "controller",
+            "drive",
+            ...(role.weapon ? ["weapons"] : []),
+            ...(role.intake ? ["intake"] : []),
+        ];
+        const listed =
+            systems.length > 1
+                ? `${systems.slice(0, -1).join(", ")} and ${systems[systems.length - 1]}`
+                : systems[0];
+        buildStat.textContent = role.build;
+        liveStat.textContent = extinct
+            ? "hull, docking ports"
+            : "every section";
+        offStat.textContent = extinct ? listed : "none";
+        holdStat.textContent = extinct
+            ? `${WRECK_PLATES_MIN} to ${WRECK_PLATES_MAX} hull plates`
+            : "empty";
+        allegianceStat.textContent = "Neutral, nobody flies it";
+        if (extinct) {
+            readout.textContent =
+                `A derelict ${role.label} ship of an extinct civilization. It lies ` +
+                `at any orientation with ${WRECK_BREACHES} breaches dug into ` +
+                "its hull. The hull and docking ports stay live, so it can be " +
+                `hit, carved and docked with; the ${listed} spawned off. On ` +
+                `lock it reads <civilization> derelict, former ${role.label}.`;
+        } else {
+            readout.textContent =
+                `An intact ${role.label} ship of a living civilization. It is ` +
+                `level with every section live, the ${listed} included, and ` +
+                `its hold empty. On lock it reads <civilization> ${role.label}.`;
+        }
+    };
+
+    host.appendChild(roleKeys.row);
+    host.appendChild(statusKeys.row);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "Lit: hull and docking port. Amber: a system (drive, weapon, " +
+                "intake). Dashed: a system spawned off. The controller is not " +
+                "drawn. The outlines are " +
+                "illustrative: each role's base body at full advancement, " +
+                "before the seed resizes it, top view, cells to scale, and the breaches only placed. The " +
+                "real layout comes from the loaded section catalog, which " +
+                "places the docks, drive, weapons and intake where they fit. " +
+                "A wreck's plate count is seeded, cut to what its hull " +
+                "sections hold, and whole again when its sector streams back in."
+        )
+    );
+    update();
+}
+
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
@@ -12414,6 +12725,7 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "cargo-intake-take": initCargoIntakeTake,
     "docking-envelope": initDockingEnvelope,
     "mining-beam-checks": initMiningBeamChecks,
+    "generated-ship-roles": initGeneratedShipRoles,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is

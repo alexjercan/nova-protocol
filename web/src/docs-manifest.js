@@ -88,11 +88,12 @@ const WIKI_PAGES = [
         category: "World",
         tags: ["ships", "combat"],
         summary:
-            "What a ship is made of, how it comes apart under fire - wrecks, neutralized hulls, what damage looks like - and where each part is documented.",
+            "What a ship is made of, how it comes apart under fire - wrecks, neutralized hulls, what damage looks like - the generated ships and derelicts of a New Game world, and where each part is documented.",
         related: ["sections", "combat-weapons", "targeting-radar", "hud"],
         headings: [
             "Taking a ship apart",
             "What damage looks like",
+            "Generated ships",
             "The parts",
         ],
     },

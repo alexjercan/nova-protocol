@@ -171,7 +171,7 @@ jobs:
             examples: >-
               lesson_start_welcome lesson_start_scene lesson_start_dock
               lesson_start_pause lesson_readouts lesson_interface
-              lesson_interface_ship lesson_command
+              lesson_interface_ship lesson_command lesson_generated_world
               lesson_menu_advanced lesson_menu_mouse lesson_menu_quality
           # Moving the ship: the flight chapter, the docking envelope, mining,
           # the cargo loop, and the one advanced lesson that is a flight
@@ -208,7 +208,8 @@ jobs:
               loop_belt_compare loop_derived_skin screenshot_hero_ship
               screenshot_thruster_gallery world_sectors world_features
               world_field_slices world_field_clouds world_clusters
-              world_civilizations world_ships system_world_sectors
+              world_civilizations world_ships world_sector_inspector
+              system_world_sectors
               system_open_world system_open_world_identity
     steps:
       - uses: actions/checkout@v4
