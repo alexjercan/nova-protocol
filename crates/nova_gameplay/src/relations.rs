@@ -16,11 +16,13 @@
 
 use bevy::prelude::*;
 
+use crate::projectile_hooks::ProjectileOwner;
+
 /// `Relation`, `Allegiance`, the `relation` helper and `NovaRelationsPlugin`.
 pub mod prelude {
     pub use super::{
-        relation, ship_relation, Allegiance, NovaRelationsPlugin, Relation, RelationParty,
-        RetaliationTarget,
+        projectile_party, relation, ship_relation, Allegiance, NovaRelationsPlugin, Relation,
+        RelationParty, RetaliationTarget,
     };
 }
 
@@ -74,7 +76,7 @@ pub fn relation(a: Option<&Allegiance>, b: Option<&Allegiance>) -> Relation {
 /// allegiance and its civilization's side stay as they were; [`ship_relation`]
 /// reads the pair as hostile while this names the other ship. The AI sets it
 /// on a hit and clears it when the target is lost or leaves the ship's
-/// territory. Required by the AI ship marker; `None` on every calm ship.
+/// territory, or the ship stops being Neutral. Required by the AI ship marker; `None` on every calm ship.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct RetaliationTarget(pub Option<Entity>);
@@ -104,6 +106,23 @@ pub fn ship_relation(a: RelationParty<'_>, b: RelationParty<'_>) -> Relation {
         return Relation::Hostile;
     }
     relation(a.allegiance, b.allegiance)
+}
+
+/// The [`RelationParty`] a projectile stands for: its owner ship, so a
+/// retaliation pair also reads each other's torpedoes and slugs as hostile.
+/// The side is the projectile's own, copied from the owner at launch.
+pub fn projectile_party<'a>(
+    projectile: Entity,
+    allegiance: Option<&'a Allegiance>,
+    owner: Option<&ProjectileOwner>,
+    retaliation: &'a Query<&RetaliationTarget>,
+) -> RelationParty<'a> {
+    let entity = owner.map_or(projectile, |owner| owner.0);
+    RelationParty {
+        entity,
+        allegiance,
+        retaliation: retaliation.get(entity).ok(),
+    }
 }
 
 /// Registers the [`Allegiance`] component for reflection so the faction model

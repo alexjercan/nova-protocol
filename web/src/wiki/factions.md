@@ -26,11 +26,11 @@ One exception rides on top of the side-only model. An **armed** Neutral ship tha
 <details class="explain">
 <summary>Show explanation</summary>
 
-It lets go the moment any of these is true: the ship it was answering is gone or neutralized; the Neutral stops being an armed combatant; or either ship strays beyond the Neutral's leash. A fresh hit can always name a new target. An **unarmed** Neutral never answers this way, and a Player-aligned ship the player hits stays allied - only a Neutral hitting back works like this.
+It lets go the moment any of these is true: the ship it was answering is gone or neutralized; the Neutral stops being an armed combatant or is re-aligned to another side by a scripted `SetAllegiance`; or either ship strays beyond the Neutral's leash. A fresh hit can always name a new target. An **unarmed** Neutral never answers this way, and a Player-aligned ship the player hits stays allied - only a Neutral hitting back works like this.
 
 </details>
 
-It shows up everywhere relation is read: acquisition and sensing, the [allegiance marker](../hud/#allegiance-markers) over the Neutral's hull, the [target viewfinder](../hud/#target-viewfinder) caption, the [Map](../interface/#the-map) contact kind, and the threat-lock audio cue. A [dock](../sections/docking/) request reads it too - see [Docking port](../sections/docking/#who-lets-you-dock).
+It shows up everywhere relation is read: acquisition and sensing, the [allegiance marker](../hud/#allegiance-markers) over the Neutral's hull, the [target viewfinder](../hud/#target-viewfinder) caption, the [Map](../interface/#the-map) contact kind, and the threat-lock audio cue. The committed torpedoes either ship fires count as their owner: the other ship's [point defense](../combat-weapons/#point-defense) engages them, and one from a ship answering you gets a HUD edge arrow while it is off screen. A [dock](../sections/docking/) request reads it too - see [Docking port](../sections/docking/#who-lets-you-dock).
 
 ## What allegiance drives
 

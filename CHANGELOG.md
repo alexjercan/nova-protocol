@@ -44,9 +44,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   The free Reload Section key (L) is gone.
 - AI raiders and tutorial drones carry no reserve: once their magazines are
   spent they stay dry. The ammo gauge previews only what the reserve can load.
-- An armed Neutral ship answers whoever last hit it: the pair reads Hostile to
-  each other in sensing, targeting, HUD and map contacts, until the target is
-  lost, neutralized or past its leash.
+- An armed Neutral ship answers whoever last hit it: the pair and their
+  torpedoes read Hostile to each other until the target is lost or
+  neutralized, the ship changes side, or either ship leaves its leash.
 - An unarmed ship of any side is now neutralized when it loses the last
   working thruster it had; a hull that never had one is still only destroyed.
   The armed (weapons/computer) rule is unchanged.

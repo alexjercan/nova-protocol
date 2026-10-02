@@ -160,10 +160,12 @@ pub(crate) fn update_turret_point_defense(
             &Transform,
             Option<&LinearVelocity>,
             Option<&Allegiance>,
+            Option<&ProjectileOwner>,
             Option<&TorpedoTargetEntity>,
         ),
         (With<TorpedoProjectileMarker>, With<TorpedoTargetChosen>),
     >,
+    q_retaliation: Query<&RetaliationTarget>,
     q_ship: Query<
         (
             Entity,
@@ -197,11 +199,17 @@ pub(crate) fn update_turret_point_defense(
     for (ship, transform, com, own_allegiance, pd_range) in &q_ship {
         let anchor = live_structure_anchor(transform, com);
         let range = pd_range.map_or(AI_POINT_DEFENSE_RANGE, |range| range.0);
+        let own = RelationParty {
+            entity: ship,
+            allegiance: Some(own_allegiance),
+            retaliation: q_retaliation.get(ship).ok(),
+        };
         let mut ship_threats: Vec<PointDefenseThreat> = q_torpedoes
             .iter()
             .filter_map(
-                |(torpedo, t_transform, velocity, allegiance, torpedo_target)| {
-                    if relation(Some(own_allegiance), allegiance) != Relation::Hostile {
+                |(torpedo, t_transform, velocity, allegiance, owner, torpedo_target)| {
+                    let threat = projectile_party(torpedo, allegiance, owner, &q_retaliation);
+                    if ship_relation(own, threat) != Relation::Hostile {
                         return None;
                     }
                     let position = t_transform.translation;
@@ -375,6 +383,24 @@ mod tests {
             picks.contains(&Some(near)) && picks.contains(&Some(far)),
             "both inbound torpedoes must be engaged, got {picks:?}"
         );
+
+        // A Neutral answering the player engages the player's torpedo; a
+        // bystander Neutral beside it does not.
+        let mut world = World::new();
+        let player = world.spawn(SpaceshipRootMarker).id();
+        let (answering, answering_turrets) = defended_ship(&mut world, 1);
+        let (bystander, bystander_turrets) = defended_ship(&mut world, 1);
+        world
+            .entity_mut(answering)
+            .insert((Allegiance::Neutral, RetaliationTarget(Some(player))));
+        world.entity_mut(bystander).insert(Allegiance::Neutral);
+        let torpedo = inbound(&mut world, answering, Vec3::new(0.0, 10.0, -60.0));
+        world.entity_mut(torpedo).insert(ProjectileOwner(player));
+
+        world.run_system_once(update_turret_point_defense).unwrap();
+
+        assert_eq!(assignment(&world, answering_turrets[0]), Some(torpedo));
+        assert_eq!(assignment(&world, bystander_turrets[0]), None);
     }
 
     #[test]

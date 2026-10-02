@@ -263,8 +263,9 @@ pub(super) fn on_damage_track_threat(
 }
 
 /// Let go of a [`RetaliationTarget`] the ship can no longer answer: the
-/// target is gone or neutralized, the ship itself is out of the fight, or the
-/// ship or its target is beyond the ship's [`AILeash`]. The ship then reads
+/// target is gone or neutralized, the ship itself is out of the fight or no
+/// longer Neutral (a scripted `SetAllegiance`), or the ship or its target is
+/// beyond the ship's [`AILeash`]. The ship then reads
 /// its calm side again and goes back to its routine; another hit may name a
 /// target anew. Runs first in the AI chain, so the same frame's pick no
 /// longer chases a released target.
@@ -273,6 +274,7 @@ pub(super) fn release_retaliation_target(
         (
             &Transform,
             Option<&ComputedCenterOfMass>,
+            &Allegiance,
             &mut RetaliationTarget,
             Option<&AILeash>,
             Has<AINonCombatant>,
@@ -288,11 +290,12 @@ pub(super) fn release_retaliation_target(
         With<SpaceshipRootMarker>,
     >,
 ) {
-    for (transform, com, mut answering, leash, non_combatant) in &mut q_ship {
+    for (transform, com, allegiance, mut answering, leash, non_combatant) in &mut q_ship {
         let Some(target) = answering.0 else {
             continue;
         };
         let keep = !non_combatant
+            && *allegiance == Allegiance::Neutral
             && q_target
                 .get(target)
                 .is_ok_and(|(t_transform, t_com, neutralized)| {
@@ -561,6 +564,7 @@ mod threat_tests {
         let ship = world
             .spawn((
                 AISpaceshipMarker,
+                Allegiance::Neutral,
                 Transform::default(),
                 AILeash {
                     center: Vec3::ZERO,
@@ -600,6 +604,19 @@ mod threat_tests {
 
         world.entity_mut(shooter).despawn();
         assert_eq!(answer(&mut world), None, "the target is gone");
+
+        let shooter = world
+            .spawn((SpaceshipRootMarker, Transform::from_xyz(50.0, 0.0, 0.0)))
+            .id();
+        world
+            .entity_mut(ship)
+            .insert((Allegiance::Enemy, RetaliationTarget(Some(shooter))));
+        world.run_system_once(release_retaliation_target).unwrap();
+        assert_eq!(
+            answering(&world, ship),
+            None,
+            "a scripted side change ends the Neutral answer"
+        );
     }
 
     #[test]

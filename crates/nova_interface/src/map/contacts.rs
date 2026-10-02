@@ -6,7 +6,7 @@
 //!
 //! Touch this module when adding a kind of thing the map can show.
 
-use bevy::{ecs::system::SystemParam, prelude::*};
+use bevy::{ecs::system::SystemParam, platform::collections::HashMap, prelude::*};
 use nova_events::{
     prelude::{EntityId, EntityTypeName, ASTEROID_TYPE_NAME, PLANET_TYPE_NAME},
     units::prelude::*,
@@ -92,8 +92,7 @@ impl MapContactKind {
         }
     }
 
-    /// A dense index for this kind, for the per-kind next-index counters used when
-    /// minting codes.
+    /// A dense index for this kind, the map legend's sort rank.
     pub(crate) fn code_slot(self) -> usize {
         match self {
             MapContactKind::OwnShip => 0,
@@ -435,22 +434,22 @@ impl MapContacts<'_, '_> {
 /// Mint a stable [`MapContactCode`] for every contact that lacks one. Runs as a
 /// system (like `assign_section_codes`) so it sees entities spawned this frame;
 /// existing codes are never reassigned, and a new contact takes the next free
-/// index for its kind. The own ship is always the bare `SELF` prefix (exactly
+/// index for its prefix. The own ship is always the bare `SELF` prefix (exactly
 /// one); every other kind gets `PREFIX-n`.
 pub(crate) fn assign_map_contact_codes(mut commands: Commands, contacts: MapContacts) {
-    // The highest index already handed out per kind, so new contacts continue the
-    // sequence rather than colliding.
-    let mut next: [u32; 7] = [0; 7];
+    // The highest index already handed out per prefix, so new contacts continue
+    // the sequence rather than colliding. Counted by the stored prefix, not the
+    // live kind: a retaliating Neutral reads Hostile but keeps its `NEU-n`.
+    let mut next: HashMap<&str, u32> = HashMap::new();
     let mut unassigned: Vec<(Entity, MapContactKind, String)> = Vec::new();
     for (entity, kind, sort_key) in contacts.classified() {
         if let Ok(existing) = contacts.codes.get(entity) {
-            if let Some(index) = existing
+            if let Some((prefix, index)) = existing
                 .0
-                .rsplit('-')
-                .next()
-                .and_then(|tail| tail.parse::<u32>().ok())
+                .rsplit_once('-')
+                .and_then(|(prefix, tail)| Some((prefix, tail.parse::<u32>().ok()?)))
             {
-                let slot = &mut next[kind.code_slot()];
+                let slot = next.entry(prefix).or_default();
                 *slot = (*slot).max(index);
             }
         } else {
@@ -467,7 +466,7 @@ pub(crate) fn assign_map_contact_codes(mut commands: Commands, contacts: MapCont
             // Exactly one own ship: the bare prefix, no index.
             kind.code_prefix().to_string()
         } else {
-            let slot = &mut next[kind.code_slot()];
+            let slot = next.entry(kind.code_prefix()).or_default();
             *slot += 1;
             format!("{}-{}", kind.code_prefix(), *slot)
         };

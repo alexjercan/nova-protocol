@@ -270,13 +270,19 @@ fn sync_edge_indicators(
     mut commands: Commands,
     q_layer: Query<Entity, With<EdgeIndicatorsHudMarker>>,
     q_player: Query<
-        (&Allegiance, Option<&CombatLock>, Option<&ThreatContacts>),
+        (
+            Entity,
+            &Allegiance,
+            Option<&CombatLock>,
+            Option<&ThreatContacts>,
+        ),
         With<PlayerSpaceshipMarker>,
     >,
     q_torpedoes: Query<
-        (Entity, Option<&Allegiance>),
+        (Entity, Option<&Allegiance>, Option<&ProjectileOwner>),
         (With<TorpedoProjectileMarker>, With<TorpedoTargetChosen>),
     >,
+    q_retaliation: Query<&RetaliationTarget>,
     q_indicators: Query<
         (Entity, &EdgeIndicatorTarget, &EdgeIndicatorKind),
         With<EdgeIndicatorMarker>,
@@ -286,17 +292,36 @@ fn sync_edge_indicators(
         // No layer means no player HUD; its despawn removed the indicators.
         return;
     };
-    let (player_allegiance, lock, threats) = match q_player.single() {
-        Ok((allegiance, lock, threats)) => (Some(allegiance), lock, threats),
-        Err(_) => (None, None, None),
+    let (player, lock, threats) = match q_player.single() {
+        Ok((entity, allegiance, lock, threats)) => (
+            RelationParty {
+                entity,
+                allegiance: Some(allegiance),
+                retaliation: q_retaliation.get(entity).ok(),
+            },
+            lock,
+            threats,
+        ),
+        Err(_) => (
+            RelationParty {
+                entity: Entity::PLACEHOLDER,
+                allegiance: None,
+                retaliation: None,
+            },
+            None,
+            None,
+        ),
     };
     let empty = Vec::new();
     let wanted = tracked_entities(
         lock.and_then(|lock| lock.0),
         threats.map(|threats| &threats.entries).unwrap_or(&empty),
-        q_torpedoes.iter().filter_map(|(torpedo, allegiance)| {
-            (relation(player_allegiance, allegiance) == Relation::Hostile).then_some(torpedo)
-        }),
+        q_torpedoes
+            .iter()
+            .filter_map(|(torpedo, allegiance, owner)| {
+                let threat = projectile_party(torpedo, allegiance, owner, &q_retaliation);
+                (ship_relation(player, threat) == Relation::Hostile).then_some(torpedo)
+            }),
     );
 
     // Despawn indicators whose entity dropped out or whose kind changed.
@@ -451,7 +476,28 @@ mod tests {
 
     #[test]
     fn tracks_lock_candidates_and_hostile_torpedoes_once_each() {
-        let (mut world, _player, locked, other, enemy_torpedo) = tracked_world();
+        let (mut world, player, locked, other, enemy_torpedo) = tracked_world();
+        // A Neutral answering the player fires a threat; a bystander Neutral
+        // does not.
+        let mut neutral_torpedo = |answering: Option<Entity>| {
+            let ship = world
+                .spawn((
+                    SpaceshipRootMarker,
+                    Allegiance::Neutral,
+                    RetaliationTarget(answering),
+                ))
+                .id();
+            world
+                .spawn((
+                    TorpedoProjectileMarker,
+                    TorpedoTargetChosen,
+                    Allegiance::Neutral,
+                    ProjectileOwner(ship),
+                ))
+                .id()
+        };
+        let answering_torpedo = neutral_torpedo(Some(player));
+        neutral_torpedo(None);
 
         world.run_system_once(sync_edge_indicators).unwrap();
 
@@ -459,13 +505,14 @@ mod tests {
             (locked, EdgeIndicatorKind::Lock),
             (other, EdgeIndicatorKind::Candidate),
             (enemy_torpedo, EdgeIndicatorKind::Torpedo),
+            (answering_torpedo, EdgeIndicatorKind::Torpedo),
         ];
         expected.sort();
         assert_eq!(
             indicators(&mut world),
             expected,
-            "the locked candidate gets ONE indicator, as the lock; own and \
-             uncommitted torpedoes are not threats"
+            "the locked candidate gets ONE indicator, as the lock; own, \
+             bystander and uncommitted torpedoes are not threats"
         );
     }
 
