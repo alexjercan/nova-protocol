@@ -76,7 +76,8 @@ pub fn relation(a: Option<&Allegiance>, b: Option<&Allegiance>) -> Relation {
 /// allegiance and its civilization's side stay as they were; [`ship_relation`]
 /// reads the pair as hostile while this names the other ship. The AI sets it
 /// on a hit and clears it when the target is lost or leaves the ship's
-/// territory, or the ship stops being Neutral. Required by the AI ship marker; `None` on every calm ship.
+/// territory, or the ship stops being Neutral. Required by the AI ship
+/// marker; `None` on every calm ship.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct RetaliationTarget(pub Option<Entity>);

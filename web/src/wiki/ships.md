@@ -86,7 +86,7 @@ Every ship, intact or wrecked, starts with goods and credits scaled by its civil
 
 A civilization sides Enemy, Player or Neutral, drawn apart from its status and advancement. An intact ship carries that civilization's crew: it flies the side's AI, patrols a loop of waypoints near where it spawned (holding at each one for a while before flying on), and will not chase a fight more than about 5 km from that loop. A derelict wreck still has nobody aboard and stays Neutral. Travel-lock one and the [target viewfinder](../hud/#target-viewfinder) names it, or select it on the [Map pane](../interface/#the-map): an intact ship reads `<civilization> <role>`, and a wreck reads `<civilization> derelict, former <role>`, for example `Halurmar derelict, former scavenger`. A distant blip on the map shows only its contact code.
 
-An armed Neutral ship you shoot fights back and reads HOSTILE to you until it loses you, is neutralized, or you both leave its reach - see [Factions](../factions/#retaliation).
+An armed Neutral ship you shoot fights back and reads HOSTILE to you until it loses you, is neutralized, changes side, or you both leave its reach - see [Factions](../factions/#retaliation).
 
 To loot a wreck, or a ship you neutralized in combat, [dock](../sections/docking/) with one of its ports: [Take](../interface/#take-and-give) its goods, and **Take credits** moves its whole balance in one click, in the Inventory pane. A calm ally or Neutral ship lets you dock to trade instead; one that is Hostile, Enemy, or fighting refuses the dock until it calms down or you finish it.
 
