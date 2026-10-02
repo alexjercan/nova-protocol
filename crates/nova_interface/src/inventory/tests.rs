@@ -268,6 +268,48 @@ fn undocked_the_partner_slot_is_blank_and_both_columns_keep_equal_width() {
     assert_eq!((docked_own_w, docked_partner_w), (own_w, partner_w));
 }
 
+/// A dock that ends with a trade form open, as the player's hit on a docked
+/// Neutral ends it, hides the partner column and closes its Buy form.
+#[test]
+fn a_dock_ending_mid_trade_hides_the_partner_column_and_closes_its_form() {
+    let (mut rig, player) = inventory_rig();
+    let partner = dock_partner(rig.app.world_mut(), player, "Picket", 40);
+    settle(&mut rig.app);
+    let partner_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
+        *row == InventoryRow {
+            side: InventorySideType::Partner,
+            item: ItemType::HullPlate,
+        }
+    });
+    click_at(&mut rig, partner_row);
+    let runtime = rig.app.world().resource::<InventoryRuntime>();
+    assert_eq!(
+        runtime.draft.map(|draft| draft.action),
+        Some(InventoryActionType::Buy),
+        "the trading partner's row opens Buy"
+    );
+
+    // The release despawns the connection and drops both roots' DockedShip.
+    let connection = rig
+        .app
+        .world()
+        .get::<DockedShip>(player)
+        .expect("docked")
+        .connection;
+    let world = rig.app.world_mut();
+    world.entity_mut(connection).despawn();
+    for ship in [player, partner] {
+        world.entity_mut(ship).remove::<DockedShip>();
+    }
+    settle(&mut rig.app);
+
+    let (_, _, partner_drawn) = panel_of(rig.app.world_mut(), InventorySideType::Partner);
+    assert!(!partner_drawn, "the partner column is hidden");
+    assert!(column_texts(rig.app.world_mut(), InventorySideType::Partner).is_empty());
+    let runtime = rig.app.world().resource::<InventoryRuntime>();
+    assert_eq!((runtime.selected, runtime.draft), (None, None));
+}
+
 #[test]
 fn the_filters_read_all_food_ammo_repair_raw_parts_left_to_right() {
     let (mut rig, _) = inventory_rig();
@@ -1416,6 +1458,7 @@ mod generated_wreck {
                 clearance: wreck.clearance,
                 design: wreck.design.clone(),
                 condition: SectorShipConditionType::Derelict,
+                crew: None,
                 civilization: request.civilization,
                 role: request.role,
                 stock,

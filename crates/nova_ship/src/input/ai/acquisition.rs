@@ -150,16 +150,19 @@ pub(super) fn update_ai_target(
             &AIThreat,
             &mut AITarget,
             Has<AINonCombatant>,
+            Has<DockedShip>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
 ) {
-    for (contacts, threat, mut target, non_combatant) in &mut q_spaceship {
+    for (contacts, threat, mut target, non_combatant, docked) in &mut q_spaceship {
         // A non-combatant never fights: keep its target clear so the behavior
         // FSM holds the passive routine. Cleared defensively in case the ship
         // was armed when it last acquired one (a future critical-damage path
-        // could flip this flag mid-fight).
-        if non_combatant {
+        // could flip this flag mid-fight). A docked ship holds its fire the
+        // same way until it undocks: a retaliation it recorded while docked
+        // waits for the undock.
+        if non_combatant || docked {
             if target.is_some() {
                 **target = None;
             }

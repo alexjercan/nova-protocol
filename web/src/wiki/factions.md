@@ -19,6 +19,19 @@ Every ship carries an allegiance - **Player**, **Enemy** or **Neutral** - and an
 
 </details>
 
+## Retaliation
+
+One exception rides on top of the side-only model. An **armed** Neutral ship that is hit answers whoever hit it, whatever that ship's side: the two read Hostile to each other, and only to each other - everyone else still reads the shooter's and the Neutral's own sides as usual. A later shot from a different ship replaces who it answers.
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+It lets go the moment any of these is true: the ship it was answering is gone or neutralized; the Neutral stops being an armed combatant; or either ship strays beyond the Neutral's leash. A fresh hit can always name a new target. An **unarmed** Neutral never answers this way, and a Player-aligned ship the player hits stays allied - only a Neutral hitting back works like this.
+
+</details>
+
+It shows up everywhere relation is read: acquisition and sensing, the [allegiance marker](../hud/#allegiance-markers) over the Neutral's hull, the [target viewfinder](../hud/#target-viewfinder) caption, the [Map](../interface/#the-map) contact kind, and the threat-lock audio cue. A [dock](../sections/docking/) request reads it too - see [Docking port](../sections/docking/#who-lets-you-dock).
+
 ## What allegiance drives
 
 Relation is the switch behind most of combat:
@@ -30,4 +43,4 @@ Relation is the switch behind most of combat:
 
 ## Reading it on the HUD
 
-The [HUD](../hud/) reads allegiance two ways. An **allegiance marker** - a small filled triangle above every ship - is coloured by side (green ally, red threat, grey neutral) so you can read a whole brawl at a glance; your own ship shows none. Up close, the target viewfinder's faction caption carries the same relation (hostile red, own green, neutral steel) rather than tinting the reticle itself. A player ship spawns Player and an AI ship spawns Enemy automatically - the allegiance rides along with the ship marker at spawn, and a ship re-aligned mid-scenario (a neutral provoked into a threat) recolours its marker on the spot.
+The [HUD](../hud/) reads allegiance two ways. An **allegiance marker** - a small filled triangle above every ship - is coloured by side (green ally, red threat, grey neutral) so you can read a whole brawl at a glance; your own ship shows none. Up close, the target viewfinder's faction caption carries the same relation (hostile red, own green, neutral steel) rather than tinting the reticle itself. A player ship spawns Player and an AI ship spawns Enemy automatically - the allegiance rides along with the ship marker at spawn. A scripted `SetAllegiance` re-alignment changes a ship's own side for good and recolours its marker on the spot; [retaliation](#retaliation) is different - the Neutral's side never changes, but its marker still reddens for you while it is answering your fire, and returns to grey once it lets go.

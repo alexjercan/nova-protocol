@@ -817,6 +817,7 @@ fn report_cluster_plan(world: &mut World) {
     let mut skipped_clearance = 0;
     let mut skipped_companion = 0;
     let mut escorts = 0;
+    let mut routeless_ships = 0;
     let mut scatter_cells = 0;
     for coord in desired_sectors(FEATURE_HOME, config.active_radius) {
         let plan = sector_clusters(&config.generator, config.input(coord))
@@ -868,6 +869,7 @@ fn report_cluster_plan(world: &mut World) {
         skipped_clearance += plan.skipped_clearance;
         skipped_companion += plan.skipped_companion;
         escorts += plan.escorts;
+        routeless_ships += plan.routeless_ships;
 
         if plan.background_rocks > 0 {
             assert!(
@@ -948,6 +950,7 @@ fn report_cluster_plan(world: &mut World) {
             "skipped_clearance": skipped_clearance,
             "skipped_companion": skipped_companion,
             "escorts": escorts,
+            "routeless_ships": routeless_ships,
         }),
     );
     nova_probe::probe_marker(
@@ -958,7 +961,8 @@ fn report_cluster_plan(world: &mut World) {
     info!(
         "world sectors: {} clusters ({}), {shared} of them placed in more than one cell; \
          {skipped_face} face, {skipped_clearance} clearance and {skipped_companion} companion \
-         skips; {escorts} escorts; {scatter_cells} background scatters",
+         skips; {escorts} escorts; {routeless_ships} ships with no patrol loop; \
+         {scatter_cells} background scatters",
         seen.len(),
         ClusterType::ALL
             .iter()

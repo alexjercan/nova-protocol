@@ -144,7 +144,7 @@ Within **100 m**, each canister carries an amber **tag** that reads what it hold
 
 ## Allegiance markers
 
-A small filled triangle floats above every ship in view, pointing down at the hull and coloured by its side: **green** for your allies (your AI wingmen included), **red** for hostiles, **grey** for neutral bystanders. Your own ship shows none - you know where you are. The triangle tracks each ship and hides when it leaves the screen (pointing at off-screen ships is the edge indicators' job); a ship that turns hostile mid-fight (a neutral hauler provoked into a threat) flips its marker red on the spot. It reads at a glance so a mixed brawl - wingmen and enemies tangled together - stays legible. See [Factions](../factions/).
+A small filled triangle floats above every ship in view, pointing down at the hull and coloured by how it stands to YOU: **green** for your allies (your AI wingmen included), **red** for hostiles, **grey** for neutral bystanders. Your own ship shows none - you know where you are. The triangle tracks each ship and hides when it leaves the screen (pointing at off-screen ships is the edge indicators' job); a ship re-aligned mid-scenario flips its marker on the spot, and so does an armed Neutral ship answering your fire - red while it is hitting back at you, grey again once it lets go, even though its side never changed. It reads at a glance so a mixed brawl - wingmen and enemies tangled together - stays legible. See [Factions](../factions/).
 
 ## Target viewfinder
 

@@ -155,6 +155,7 @@ type CandidateQuery<'w, 's> = Query<
         Option<&'static TorpedoProjectileMarker>,
         Option<&'static TorpedoTargetChosen>,
         Option<&'static Allegiance>,
+        Option<&'static RetaliationTarget>,
         Has<NeutralizedMarker>,
     ),
     Without<TurretBulletProjectileMarker>,
@@ -169,6 +170,7 @@ type ObserverQuery<'w, 's> = Query<
         &'static Transform,
         Option<&'static ComputedCenterOfMass>,
         Option<&'static Allegiance>,
+        Option<&'static RetaliationTarget>,
         &'static SensorRange,
         &'static mut SensorContacts,
         Option<&'static TravelLock>,
@@ -223,6 +225,7 @@ pub(crate) fn update_sensor_contacts(
         transform,
         com,
         observer_allegiance,
+        observer_retaliation,
         range,
         mut contacts,
         travel,
@@ -258,6 +261,7 @@ pub(crate) fn update_sensor_contacts(
                 torpedo,
                 committed,
                 allegiance,
+                retaliation,
                 neutralized,
             )| {
                 if entity == observer {
@@ -293,7 +297,18 @@ pub(crate) fn update_sensor_contacts(
                 Some(SensorContact {
                     entity,
                     anchor,
-                    relation: relation(observer_allegiance, allegiance),
+                    relation: ship_relation(
+                        RelationParty {
+                            entity: observer,
+                            allegiance: observer_allegiance,
+                            retaliation: observer_retaliation,
+                        },
+                        RelationParty {
+                            entity,
+                            allegiance,
+                            retaliation,
+                        },
+                    ),
                     is_ship,
                     is_torpedo,
                     neutralized,

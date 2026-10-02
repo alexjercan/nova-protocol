@@ -467,6 +467,7 @@ impl CellPlan {
                     role: ship.role,
                     stock: ship.stock.clone(),
                     credits: ship.credits,
+                    crew: ship.crew.clone(),
                 }),
                 ClusterBody::Hull { .. } => {
                     unreachable!("a cell lays out every hull it owns before it resolves them")

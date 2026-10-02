@@ -12,7 +12,7 @@ use std::{collections::BTreeSet, fmt};
 
 use bevy::{log::info_span, math::Quat};
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::{Fnv32, SeedStream, ShipInventoryStock};
+use nova_gameplay::prelude::{Allegiance, Fnv32, SeedStream, ShipInventoryStock};
 use nova_scenario::prelude::{
     is_asteroid_kind, is_valid_asteroid_mass, prepare_asteroid_geometry, prepare_planet,
     AsteroidKindId, PlanetConfig, PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign,
@@ -191,7 +191,21 @@ impl ShipRoleType {
     }
 }
 
-/// One generated ship: a hull with nobody aboard and nobody's side.
+/// Who flies an intact generated ship, and where.
+#[derive(Clone, Debug)]
+pub struct SectorShipCrew {
+    /// The side it fights for: its civilization's side.
+    pub allegiance: Allegiance,
+    /// The waypoint loop it patrols, in meters from the world origin. Empty
+    /// when no loop fit its cell: the ship then holds its spawn point.
+    pub patrol: Vec<Meters3>,
+    /// Seconds it holds at each waypoint, one per `patrol` entry.
+    pub stops: Vec<f32>,
+    /// How far from its patrol centre, or its spawn point, it may chase.
+    pub leash: Meters,
+}
+
+/// One generated ship: a hull, its civilization, and its crew if it works.
 #[derive(Clone, Debug)]
 pub struct SectorShip {
     /// The ship's scenario id, prefixed with its owning cell's slug.
@@ -208,6 +222,9 @@ pub struct SectorShip {
     pub design: ShipDesign,
     /// Whether it works or is a derelict.
     pub condition: SectorShipConditionType,
+    /// Who flies it: `Some` exactly when it is intact. A derelict has nobody
+    /// aboard and nobody's side.
+    pub crew: Option<SectorShipCrew>,
     /// The civilization it belongs to, or belonged to as a derelict.
     pub civilization: CivilizationId,
     /// What it was built for. A derelict keeps its former role.
@@ -300,7 +317,8 @@ impl SectorDescription {
     /// that reads back to the same f32, and `None` prints apart from every
     /// `Some`. Rounding them would call two different worlds the same one.
     /// A ship's stock prints every stack and count, and its credits their
-    /// balance. Its civilization, role,
+    /// balance. Its crew prints its side, leash, and each waypoint and stop,
+    /// or `none`. Its civilization, role,
     /// design integrity, design presentation and each section's prototype
     /// patch print through `Debug`: field by field in declaration order, a
     /// float as the shortest text that reads back to it, a non-finite float
@@ -355,6 +373,19 @@ impl SectorDescription {
                 ship.design.integrity,
                 ship.design.presentation,
             ));
+            match &ship.crew {
+                Some(crew) => {
+                    out.push_str(&format!(
+                        "  crew {:?} leash {:.2}\n",
+                        crew.allegiance,
+                        crew.leash.get()
+                    ));
+                    for (waypoint, stop) in crew.patrol.iter().zip(&crew.stops) {
+                        out.push_str(&format!("  waypoint {} stop {stop:?}\n", point(*waypoint)));
+                    }
+                }
+                None => out.push_str("  crew none\n"),
+            }
             for section in &ship.design.sections {
                 let p = section.position;
                 out.push_str(&format!(
@@ -603,6 +634,7 @@ pub fn validate_manifest(
             ));
         }
         check_ship_design(ship).map_err(|value| refuse(&ship.id, "design", value))?;
+        check_ship_crew(ship).map_err(|value| refuse(&ship.id, "crew", value))?;
         stand_inside(
             input,
             &mut standing,
@@ -623,6 +655,45 @@ pub fn validate_manifest(
         planets,
         ships,
     })
+}
+
+/// Refuse a crew that does not match the condition, or one the AI could not
+/// fly: a waypoint that is not finite, a stop count that differs from the
+/// waypoint count, a stop that is not a finite positive duration, or a leash
+/// that is not a finite positive distance.
+fn check_ship_crew(ship: &SectorShip) -> Result<(), String> {
+    let crew = match (ship.condition, &ship.crew) {
+        (SectorShipConditionType::Intact, Some(crew)) => crew,
+        (SectorShipConditionType::Derelict, None) => return Ok(()),
+        (SectorShipConditionType::Intact, None) => {
+            return Err("missing on an intact ship".to_string());
+        }
+        (SectorShipConditionType::Derelict, Some(_)) => {
+            return Err("present on a derelict".to_string());
+        }
+    };
+    if !crew.patrol.iter().copied().all(position_is_finite) {
+        return Err("a patrol waypoint is not finite".to_string());
+    }
+    if crew.stops.len() != crew.patrol.len() {
+        return Err(format!(
+            "{} stop(s) for {} waypoint(s)",
+            crew.stops.len(),
+            crew.patrol.len()
+        ));
+    }
+    if let Some(stop) = crew
+        .stops
+        .iter()
+        .find(|stop| !stop.is_finite() || **stop <= 0.0)
+    {
+        return Err(format!("stop {stop} s is not a finite positive duration"));
+    }
+    let leash = crew.leash.get();
+    if !leash.is_finite() || leash <= 0.0 {
+        return Err(format!("leash {leash} m is not a finite positive distance"));
+    }
+    Ok(())
 }
 
 /// Refuse a design the worker can tell is broken without the catalog: no

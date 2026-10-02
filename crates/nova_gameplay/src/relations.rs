@@ -7,12 +7,21 @@
 //! straight from a query and unmarked entities (asteroids, debris) resolve as
 //! neutral. A fuller faction system (alliances, reputation) is deliberately out
 //! of scope.
+//!
+//! One ship-local exception rides beside the allegiance: a
+//! [`RetaliationTarget`] makes a ship and the one ship it answers hostile to
+//! each other without changing either side. [`ship_relation`] is the resolver
+//! for any pair of ships; [`relation`] stays the side-only rule it falls back
+//! to.
 
 use bevy::prelude::*;
 
 /// `Relation`, `Allegiance`, the `relation` helper and `NovaRelationsPlugin`.
 pub mod prelude {
-    pub use super::{relation, Allegiance, NovaRelationsPlugin, Relation};
+    pub use super::{
+        relation, ship_relation, Allegiance, NovaRelationsPlugin, Relation, RelationParty,
+        RetaliationTarget,
+    };
 }
 
 /// Which side an entity fights for. Lives on ship roots (the Player/AI
@@ -60,6 +69,43 @@ pub fn relation(a: Option<&Allegiance>, b: Option<&Allegiance>) -> Relation {
     }
 }
 
+/// The one ship this ship answers with fire although their sides are not
+/// hostile: the most recent ship that damaged an armed Neutral AI ship. Its
+/// allegiance and its civilization's side stay as they were; [`ship_relation`]
+/// reads the pair as hostile while this names the other ship. The AI sets it
+/// on a hit and clears it when the target is lost or leaves the ship's
+/// territory. Required by the AI ship marker; `None` on every calm ship.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct RetaliationTarget(pub Option<Entity>);
+
+/// One side of a [`ship_relation`] question, as taken from a query.
+#[derive(Debug, Clone, Copy)]
+pub struct RelationParty<'a> {
+    /// The entity asked about.
+    pub entity: Entity,
+    /// Its side; `None` is a bystander.
+    pub allegiance: Option<&'a Allegiance>,
+    /// The ship it answers, if it is a ship that can retaliate.
+    pub retaliation: Option<&'a RetaliationTarget>,
+}
+
+/// Resolve the relation between two entities with the ship-local exception:
+/// either one retaliating against the other makes the pair
+/// [`Relation::Hostile`]; otherwise their sides decide through [`relation`].
+/// A Neutral ship answering a third ship stays Neutral to everyone else.
+pub fn ship_relation(a: RelationParty<'_>, b: RelationParty<'_>) -> Relation {
+    let answers = |party: RelationParty<'_>, other: Entity| {
+        party
+            .retaliation
+            .is_some_and(|target| target.0 == Some(other))
+    };
+    if answers(a, b.entity) || answers(b, a.entity) {
+        return Relation::Hostile;
+    }
+    relation(a.allegiance, b.allegiance)
+}
+
 /// Registers the [`Allegiance`] component for reflection so the faction model
 /// serializes and inspects; adds no systems (relation resolution is the pure
 /// [`relation`] function, called on demand).
@@ -70,6 +116,7 @@ impl Plugin for NovaRelationsPlugin {
         trace!("NovaRelationsPlugin: build");
 
         app.register_type::<Allegiance>();
+        app.register_type::<RetaliationTarget>();
     }
 }
 
@@ -96,5 +143,34 @@ mod tests {
         assert_eq!(relation(None, Some(&Player)), Relation::Neutral);
         assert_eq!(relation(Some(&Enemy), None), Relation::Neutral);
         assert_eq!(relation(None, None), Relation::Neutral);
+    }
+
+    #[test]
+    fn retaliation_is_hostile_only_between_the_pair() {
+        let neutral = Entity::from_raw_u32(1).unwrap();
+        let shooter = Entity::from_raw_u32(2).unwrap();
+        let bystander = Entity::from_raw_u32(3).unwrap();
+        let answering = RetaliationTarget(Some(shooter));
+        let party = |entity, allegiance, retaliation| RelationParty {
+            entity,
+            allegiance,
+            retaliation,
+        };
+        let n = party(neutral, Some(&Allegiance::Neutral), Some(&answering));
+
+        assert_eq!(
+            ship_relation(n, party(shooter, Some(&Allegiance::Player), None)),
+            Relation::Hostile
+        );
+        assert_eq!(
+            ship_relation(party(shooter, Some(&Allegiance::Player), None), n),
+            Relation::Hostile,
+            "the shooter sees the ship answering it as hostile"
+        );
+        assert_eq!(
+            ship_relation(party(bystander, Some(&Allegiance::Player), None), n),
+            Relation::Neutral,
+            "a Neutral answering someone else stays Neutral to a third ship"
+        );
     }
 }

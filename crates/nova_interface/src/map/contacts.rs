@@ -107,13 +107,20 @@ impl MapContactKind {
     }
 }
 
-/// Classify a non-player ship by its allegiance, shared by the contact model and
-/// the code-minting pass so the two never disagree on a ship's kind.
-pub(crate) fn ship_contact_kind(allegiance: Option<&Allegiance>) -> MapContactKind {
-    match allegiance {
-        Some(Allegiance::Enemy) => MapContactKind::Hostile,
-        Some(Allegiance::Player) => MapContactKind::Ally,
-        Some(Allegiance::Neutral) | None => MapContactKind::Neutral,
+/// Classify a non-player ship by how it stands to the player's side, shared by
+/// the contact model and the code-minting pass so the two never disagree on a
+/// ship's kind. A Neutral ship answering the `player`'s fire is Hostile while
+/// it does; `player` is a placeholder when no player ship exists.
+pub(crate) fn ship_contact_kind(player: Entity, ship: RelationParty<'_>) -> MapContactKind {
+    let viewer = RelationParty {
+        entity: player,
+        allegiance: Some(&Allegiance::Player),
+        retaliation: None,
+    };
+    match ship_relation(viewer, ship) {
+        Relation::Hostile => MapContactKind::Hostile,
+        Relation::Own => MapContactKind::Ally,
+        Relation::Neutral => MapContactKind::Neutral,
     }
 }
 
@@ -189,6 +196,7 @@ pub struct MapContacts<'w, 's> {
             &'static GlobalTransform,
             Option<&'static Name>,
             Option<&'static Allegiance>,
+            Option<&'static RetaliationTarget>,
         ),
         (With<SpaceshipRootMarker>, Without<PlayerSpaceshipMarker>),
     >,
@@ -268,11 +276,20 @@ impl MapContacts<'_, '_> {
     /// [`ship_contact_kind`]) so labels never disagree with the rendered list.
     pub(crate) fn classified(&self) -> Vec<(Entity, MapContactKind, String)> {
         let mut out = Vec::new();
-        if let Some((player, _, _)) = self.player_frame() {
+        let player = self.player_frame().map(|(player, _, _)| player);
+        if let Some(player) = player {
             out.push((player, MapContactKind::OwnShip, self.sort_key(player)));
         }
-        for (entity, _, _, allegiance) in &self.ships {
-            out.push((entity, ship_contact_kind(allegiance), self.sort_key(entity)));
+        for (entity, _, _, allegiance, retaliation) in &self.ships {
+            let kind = ship_contact_kind(
+                player.unwrap_or(Entity::PLACEHOLDER),
+                RelationParty {
+                    entity,
+                    allegiance,
+                    retaliation,
+                },
+            );
+            out.push((entity, kind, self.sort_key(entity)));
         }
         for (entity, _, _) in &self.objectives {
             out.push((entity, MapContactKind::Objective, self.sort_key(entity)));
@@ -336,10 +353,17 @@ impl MapContacts<'_, '_> {
                 mark_deg: 0.0,
             });
         }
-        for (entity, gt, name, allegiance) in &self.ships {
+        for (entity, gt, name, allegiance, retaliation) in &self.ships {
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
-            let kind = ship_contact_kind(allegiance);
+            let kind = ship_contact_kind(
+                player_entity,
+                RelationParty {
+                    entity,
+                    allegiance,
+                    retaliation,
+                },
+            );
             let Some(code) = self.code_for(entity, kind) else {
                 continue;
             };
