@@ -1,6 +1,6 @@
 # Your first flight
 
-Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario - an asteroid field with gravity wells, salvage, and hostile ships. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, Basic Training beat by beat, and where to go next.
+Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario with asteroids, salvage, hostile ships, and planets that provide static gravity wells. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, Basic Training beat by beat, and where to go next.
 
 ## Launch and start
 
@@ -128,7 +128,7 @@ Ore sells to a docked ship that trades: a living generated ship carries its own 
 That is everything you need to get off the launch pad. The rest of the wiki is the full reference:
 
 - [Flight & autopilot](../flight-autopilot/) - how ships move and what GOTO, ORBIT and STOP each do.
-- [Gravity wells](../gravity-wells/) - the pull every body in a scene exerts, and how to fly it.
+- [Gravity wells](../gravity-wells/) - how static wells on planets and anchors affect mobile asteroids, ships, rounds, and torpedoes.
 - [Ships & damage](../ships/) - what a hull is made of and how it comes apart.
 - [Targeting & radar](../targeting-radar/) - deliberate locking, stances, and per-section fine-lock.
 - [Combat](../combat-weapons/) - the engagement ladder and the rules every weapon shares.

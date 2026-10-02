@@ -60,10 +60,8 @@
 //! is unaffordable, and a hole is precisely the shape a hull cannot hold. Mass
 //! comes from the surface either way, so a carved rock weighs what is left of
 //! it. `BodyRadius` is
-//! re-derived and only ever SHRINKS, which is what keeps gravity spheres of
-//! influence and orbit bands valid without recomputing them: everything sized
-//! off a rock's surface was authored against a bigger rock than the one that is
-//! there now.
+//! re-derived and only ever SHRINKS, so later contact and clearance checks
+//! cannot assume a larger surface than the rock still has.
 
 use avian3d::prelude::{AngularVelocity, Collider, ColliderDensity, LinearVelocity};
 // Bevy's platform Instant, not std's - `std::time::Instant::now` panics
@@ -1182,12 +1180,12 @@ mod tests {
         assert_eq!(field_resolution(half_extent, 0.1), FIELD_RESOLUTION_MIN);
     }
 
-    /// An authored well rock that runs out of material takes everything that
-    /// named it: its node, its well and its scenario id, with one
+    /// An authored mobile rock that runs out of material takes everything that
+    /// named it: its node, gravity marker and scenario id, with one
     /// `OnDestroyed`. The rock dies through the carve chain - seed, carve,
     /// remesh - and not through a despawn the test issues.
     #[test]
-    fn an_exhausted_authored_rock_takes_its_well_and_id_with_it() {
+    fn an_exhausted_authored_rock_removes_its_gravity_marker_and_id() {
         use std::sync::{
             atomic::{AtomicUsize, Ordering},
             Arc,
@@ -1224,7 +1222,7 @@ mod tests {
                 destroy_sound: None,
                 radius: Meters(200.0),
                 texture: AssetRef::default(),
-                mass: Some(45_000.0),
+                initial_velocity: MetersPerSecond3::ZERO,
                 seed: None,
                 lock_signature: None,
             }),
@@ -1239,10 +1237,8 @@ mod tests {
         let [root] = scoped_entities(app.world_mut(), "rock")[..] else {
             panic!("the authored id must resolve to one rock");
         };
-        assert!(
-            app.world().get::<GravityWell>(root).is_some(),
-            "delivery guard: the rock is massive enough to be a well"
-        );
+        assert!(app.world().get::<GravityAffected>(root).is_some());
+        assert!(app.world().get::<GravityWell>(root).is_none());
         let children: Vec<Entity> = app
             .world()
             .get::<Children>(root)
@@ -1287,11 +1283,11 @@ mod tests {
         }
         assert_eq!(
             app.world_mut()
-                .query_filtered::<(), With<GravityWell>>()
+                .query_filtered::<(), With<GravityAffected>>()
                 .iter(app.world())
                 .count(),
             0,
-            "the well dies with its body"
+            "the mobile rock's gravity marker dies with its body"
         );
         assert!(scoped_entities(app.world_mut(), "rock").is_empty());
         assert_eq!(destroyed.load(Ordering::SeqCst), 1);

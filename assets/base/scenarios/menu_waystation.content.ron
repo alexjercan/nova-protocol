@@ -29,7 +29,7 @@
                             radius: 900.0,
                             planet_type: Temperate,
                             seed: 7,
-                            mass: Some(30000.0),
+                            mass: 30000.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -55,6 +55,11 @@
                             controller: AI((
                                 orbit: Some(Authored("menu_planetoid")),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inventory: {},
                             lootable: false,
                             credits: 2000,
@@ -83,6 +88,11 @@
                             controller: AI((
                                 orbit: Some(Authored("menu_planetoid")),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inventory: {},
                             lootable: false,
                             credits: 2000,
@@ -262,62 +272,527 @@
                             0.0,
                         ),
                     )),
-                    ScatterObjects((
-                        id_prefix: "waystation_cargo_",
-                        count: 18,
-                        seed: 433757350076153857,
-                        region: Ring(
-                            center: (
-                                0.0,
-                                0.0,
-                                0.0,
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_0",
+                            name: "Cargo Rock",
+                            position: (
+                                -1864.7748,
+                                -429.0432,
+                                -1188.4957,
                             ),
-                            inner: 1800.0,
-                            outer: 2300.0,
-                            y_min: -600.0,
-                            y_max: -250.0,
-                        ),
-                        template: (
-                            base: (
-                                id: "waystation_cargo_",
-                                name: "Cargo Rock",
-                                position: (
-                                    0.0,
-                                    0.0,
-                                    0.0,
-                                ),
-                                rotation: (
-                                    0.0,
-                                    0.0,
-                                    0.0,
-                                    1.0,
-                                ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
                             ),
-                            kind: Asteroid((
-                                radius: 10.0,
-                                texture: "self://textures/asteroid.png",
-                                kind: "rock",
-                                destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                            )),
                         ),
-                        asteroid_radius: Some((
-                            10.0,
-                            25.0,
+                        kind: Asteroid((
+                            radius: 12.49941,
+                            initial_velocity: (
+                                62.02555,
+                                0.0,
+                                -97.3194,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(3297592068),
                         )),
-                        asteroid_kinds: [
-                            (
-                                "rock",
-                                12,
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_1",
+                            name: "Cargo Rock",
+                            position: (
+                                -826.9489,
+                                -369.04984,
+                                -2089.9993,
                             ),
-                            (
-                                "ice",
-                                5,
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
                             ),
-                            (
-                                "metal",
-                                1,
+                        ),
+                        kind: Asteroid((
+                            radius: 17.77287,
+                            initial_velocity: (
+                                106.7148,
+                                0.0,
+                                -42.223793,
                             ),
-                        ],
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(3864994695),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_2",
+                            name: "Cargo Rock",
+                            position: (
+                                -1476.7327,
+                                -599.35236,
+                                -1286.2676,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 23.92167,
+                            initial_velocity: (
+                                79.49283,
+                                0.0,
+                                -91.263794,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "ice",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(1947664723),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_3",
+                            name: "Cargo Rock",
+                            position: (
+                                1556.9567,
+                                -546.707,
+                                -1562.3416,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 18.56644,
+                            initial_velocity: (
+                                81.385925,
+                                -0.0,
+                                81.105415,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(2168599307),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_4",
+                            name: "Cargo Rock",
+                            position: (
+                                552.37494,
+                                -518.097,
+                                2003.2517,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 12.65928,
+                            initial_velocity: (
+                                -114.097534,
+                                0.0,
+                                31.46116,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(259259152),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_5",
+                            name: "Cargo Rock",
+                            position: (
+                                -1663.1521,
+                                -453.0343,
+                                -790.8806,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 22.51752,
+                            initial_velocity: (
+                                54.012222,
+                                0.0,
+                                -113.58295,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "ice",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(3850304159),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_6",
+                            name: "Cargo Rock",
+                            position: (
+                                -1232.1969,
+                                -579.1598,
+                                -1599.8951,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 13.62021,
+                            initial_velocity: (
+                                94.675285,
+                                0.0,
+                                -72.9164,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(1763786347),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_7",
+                            name: "Cargo Rock",
+                            position: (
+                                -1769.8716,
+                                -490.6195,
+                                623.7265,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 23.70276,
+                            initial_velocity: (
+                                -41.33635,
+                                0.0,
+                                -117.295044,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "ice",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(3003914376),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_8",
+                            name: "Cargo Rock",
+                            position: (
+                                -1131.583,
+                                -301.3091,
+                                -1502.2435,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 10.33877,
+                            initial_velocity: (
+                                100.24281,
+                                0.0,
+                                -75.50912,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "ice",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(1617577883),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_9",
+                            name: "Cargo Rock",
+                            position: (
+                                1263.1505,
+                                -556.8329,
+                                1823.899,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 22.22169,
+                            initial_velocity: (
+                                -94.14825,
+                                0.0,
+                                65.20284,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(4137734546),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_10",
+                            name: "Cargo Rock",
+                            position: (
+                                -272.80994,
+                                -439.71454,
+                                1866.3633,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 17.50573,
+                            initial_velocity: (
+                                -123.148926,
+                                0.0,
+                                -18.00092,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "ice",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(140415615),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_11",
+                            name: "Cargo Rock",
+                            position: (
+                                2147.3362,
+                                -584.1902,
+                                708.62964,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 17.2011,
+                            initial_velocity: (
+                                -35.51769,
+                                0.0,
+                                107.62805,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "ice",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(4257068043),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_12",
+                            name: "Cargo Rock",
+                            position: (
+                                2228.1375,
+                                -407.58734,
+                                411.87048,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 12.69876,
+                            initial_velocity: (
+                                -20.749474,
+                                0.0,
+                                112.25052,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(1106598922),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_13",
+                            name: "Cargo Rock",
+                            position: (
+                                468.61432,
+                                -536.1453,
+                                1779.8889,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 17.29959,
+                            initial_velocity: (
+                                -120.97378,
+                                0.0,
+                                31.850327,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(2518937871),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_14",
+                            name: "Cargo Rock",
+                            position: (
+                                -1077.8923,
+                                -403.44324,
+                                1768.6757,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 16.07594,
+                            initial_velocity: (
+                                -101.81641,
+                                0.0,
+                                -62.050453,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(356607876),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_15",
+                            name: "Cargo Rock",
+                            position: (
+                                -2225.7043,
+                                -596.21747,
+                                172.80734,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 19.17878,
+                            initial_velocity: (
+                                -8.820298,
+                                0.0,
+                                -113.60268,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(1045848126),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_16",
+                            name: "Cargo Rock",
+                            position: (
+                                2015.9606,
+                                -550.9034,
+                                549.0353,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 12.09588,
+                            initial_velocity: (
+                                -30.96245,
+                                0.0,
+                                113.68866,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(304946624),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_cargo_17",
+                            name: "Cargo Rock",
+                            position: (
+                                -1820.5232,
+                                -456.99384,
+                                -602.89606,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 18.09421,
+                            initial_velocity: (
+                                38.780766,
+                                0.0,
+                                -117.10358,
+                            ),
+                            texture: "self://textures/asteroid.png",
+                            kind: "rock",
+                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                            seed: Some(652128792),
+                        )),
                     )),
                     TimerStart((
                         key: "waystation_rotate",

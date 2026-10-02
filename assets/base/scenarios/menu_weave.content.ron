@@ -330,6 +330,11 @@
                                 waypoint_slack: Some(50.0),
                                 arrival_standoff: Some(100.0),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inventory: {},
                             lootable: false,
                             credits: 2000,
@@ -380,6 +385,11 @@
                             ),
                             kind: Asteroid((
                                 radius: 10.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),

@@ -19,7 +19,7 @@ pub(crate) fn spawn_object_action() -> EventActionConfig {
             destroy_sound: None,
             radius: Meters(10.0),
             texture: AssetRef::default(),
-            mass: None,
+            initial_velocity: MetersPerSecond3::ZERO,
             seed: None,
             lock_signature: None,
         }),

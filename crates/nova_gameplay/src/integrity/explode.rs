@@ -46,7 +46,8 @@
 //! structure it was part of. A dynamic body spawned interpenetrating another is
 //! a problem the solver fixes by shoving them apart, hard. So it takes the same
 //! [`ChunkGrace`] a carved rock chunk takes: kinematic and colliderless until it
-//! has drifted clear. See [`chunk`](super::chunk).
+//! has drifted clear, then dynamic and gravity-affected. See
+//! [`chunk`](super::chunk).
 //!
 //! Touch this module to change how wrecks come apart (kick, spin, lifetime).
 //! Health, disable, and destroy bookkeeping lives in the generic
@@ -77,11 +78,11 @@ pub mod prelude {
 
 /// How long a detached piece survives before it despawns.
 ///
-/// Pieces are dynamic rigid bodies and nothing despawns them otherwise until
-/// scenario teardown; an unattended scene that keeps destroying things (a menu
-/// backdrop, a long mission) accumulates physics bodies without bound. Long
-/// enough to watch the wreck drift apart, short enough to keep the body count
-/// flat.
+/// A detached piece starts kinematic and colliderless, then becomes a dynamic
+/// body after its grace. Without this timer, pieces persist until scenario
+/// teardown; an unattended scene that keeps destroying things (a menu backdrop,
+/// a long mission) accumulates physics bodies without bound. Long enough to
+/// watch the wreck drift apart, short enough to keep the body count flat.
 const PIECE_LIFETIME_SECS: f32 = 30.0;
 
 /// How fast a piece born at the SURFACE of a structure is pushed away from its
@@ -426,8 +427,8 @@ fn detach_destroyed_body(
             transform,
             Visibility::Visible,
             // Kinematic and colliderless to begin with - it is standing inside
-            // the structure it was bolted to. `ChunkGrace` makes it physical
-            // once it has drifted clear.
+            // the structure it was bolted to. `ChunkGrace` makes it dynamic and
+            // gravity-affected only once it has drifted clear.
             RigidBody::Kinematic,
             // The shape's own centre, stated because nothing else here can be
             // trusted to give it. Avian turns a body about its centre of mass
@@ -478,8 +479,10 @@ fn detach_destroyed_body(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
-    use crate::integrity::chunk::prelude::CarvedChunkPlugin;
+    use crate::{gravity::prelude::GravityAffected, integrity::chunk::prelude::CarvedChunkPlugin};
 
     #[derive(Resource, Default)]
     struct FiredEvents(Vec<&'static str>);
@@ -699,6 +702,65 @@ mod tests {
         assert!(
             wreckage(&mut app).is_empty(),
             "and nothing randomised is invented to replace it"
+        );
+    }
+
+    #[test]
+    fn a_detached_section_gets_gravity_only_after_grace() {
+        let mut app = finale_app(7);
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            Duration::from_secs_f32(super::super::chunk::CHUNK_GRACE_SECS * 0.6),
+        ));
+        let (body, _) = body_drawing_through_descendants(&mut app, 1);
+
+        app.world_mut()
+            .entity_mut(body)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+
+        let piece = *wreckage(&mut app).first().expect("the section detached");
+        assert_eq!(
+            app.world().get::<RigidBody>(piece),
+            Some(&RigidBody::Kinematic),
+            "a detached section starts kinematic"
+        );
+        assert!(
+            app.world().get::<ChunkGrace>(piece).is_some(),
+            "the section keeps its grace while it drifts clear"
+        );
+        assert!(
+            app.world().get::<GravityAffected>(piece).is_none(),
+            "it does not feel gravity inside the body it left"
+        );
+
+        app.update();
+        assert!(
+            app.world().get::<GravityAffected>(piece).is_none(),
+            "gravity stays off before the grace expires"
+        );
+        for _ in 0..120 {
+            if app.world().get::<ChunkGrace>(piece).is_none() {
+                break;
+            }
+            app.update();
+        }
+
+        assert_eq!(
+            app.world().get::<RigidBody>(piece),
+            Some(&RigidBody::Dynamic),
+            "the grace transition makes the section dynamic"
+        );
+        assert!(
+            app.world().get::<Collider>(piece).is_some(),
+            "and restores its collider"
+        );
+        assert!(
+            app.world().get::<GravityAffected>(piece).is_some(),
+            "it opts into gravity in the same landing transition"
+        );
+        assert!(
+            app.world().get::<ChunkGrace>(piece).is_none(),
+            "the grace ends with the landing"
         );
     }
 

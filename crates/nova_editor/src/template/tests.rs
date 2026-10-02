@@ -2,6 +2,7 @@
 //! document.
 
 use bevy::ui_widgets::{observe, Activate};
+use nova_gameplay::prelude::{GravitySettings, GravityWell};
 
 use super::*;
 use crate::{
@@ -56,6 +57,56 @@ fn the_arena_scatters_its_dressing_rather_than_authoring_it() {
         .filter(|action| matches!(action, EventActionConfig::ScatterObjects(_)))
         .count();
     assert_eq!(scatters, ARENA_RINGS.len(), "one action per ring of rock");
+}
+
+/// Every zero-velocity rock in an arena ring must start outside the planet's
+/// pull, including the outermost rock mesh, not just its nominal radius.
+#[test]
+fn the_arena_rock_rings_clear_the_planet_well() {
+    let planet = arena_planetoid();
+    let ScenarioObjectKind::Planet(config) = &planet.kind else {
+        panic!("the arena landmark must be a planet");
+    };
+    let well = GravityWell::from_mass(
+        config.mass,
+        config.body_radius().to_engine(),
+        &GravitySettings::default(),
+    );
+    let planet_center = planet.base.position.to_engine();
+    for ring in &ARENA_RINGS {
+        let EventActionConfig::ScatterObjects(scatter) = ring_scatter(ring) else {
+            panic!("each arena ring must scatter rocks");
+        };
+        let ScatterRegion::Ring {
+            center,
+            inner,
+            outer,
+            y_min,
+            y_max,
+        } = scatter.region
+        else {
+            panic!("each arena ring must stay a ring");
+        };
+        let relative = planet_center - center.to_engine();
+        let radial = relative.x.hypot(relative.z);
+        let horizontal_gap = (inner.to_engine() - radial)
+            .max(radial - outer.to_engine())
+            .max(0.0);
+        let vertical_gap = (y_min.to_engine() - relative.y)
+            .max(relative.y - y_max.to_engine())
+            .max(0.0);
+        let closest = horizontal_gap.hypot(vertical_gap);
+        let max_radius = scatter
+            .asteroid_radius
+            .expect("arena rock ring has a radius range")
+            .1;
+        let required = well.soi_radius + max_radius.to_engine() * ASTEROID_GEOMETRIC_FACTOR_MAX;
+        assert!(
+            closest > required,
+            "{} ring comes within {closest:.0}u of the planet, under its {required:.0}u well plus maximum rock reach",
+            ring.id_prefix
+        );
+    }
 }
 
 /// And it lights itself. A scenario that authors no light renders black, which

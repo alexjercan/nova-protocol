@@ -29,10 +29,12 @@ pub(super) fn backdrop_planetoid(mass: f32) -> ScenarioObjectConfig {
             position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Planet(
-            PlanetConfig::new(MENU_PLANETOID_TYPE, Meters(900.0), MENU_PLANETOID_SEED)
-                .anchored(mass),
-        ),
+        kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+            MENU_PLANETOID_TYPE,
+            Meters(900.0),
+            MENU_PLANETOID_SEED,
+            mass,
+        )),
     }
 }
 

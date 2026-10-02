@@ -1,6 +1,6 @@
 # Gravity wells
 
-Planetoids and asteroids given a mass carry gravity wells that pull ships, torpedoes and turret rounds with real physics. Wells never pull each other, and the strength is authored so every well is escapable under main drive. Only PILOTED ships feel a well - yours and the AI's; an unpiloted ship (a scripted bystander with no drive to resist the pull) floats where it sits rather than falling in.
+Only a planet (or an invisible authored anchor) carries a gravity well - it is on rails, immovable. Everything else that can feel one is mobile: asteroids, ships and in-flight ordnance. Wells pull with real physics and never pull each other - the strength is authored so every well is escapable under main drive. Every ship feels a well, piloted or not: an unpiloted bystander falls in just like a crewed hull, and an asteroid falls in too - no rock is pinned in place by its own gravity anymore.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-gravity.png -->
@@ -33,16 +33,20 @@ A well accelerates you toward its center by an inverse-square law, `a = mu / r^2
 
 Two rules tame the extremes of the inverse square:
 
-- **Surface clamp** - just below the drawn surface (plus a 10 m margin) the pull is held at its surface value, so grazing the rock is a bump, not a singularity slingshot.
+- **Surface clamp** - just below the drawn surface (plus a 10 m margin) the pull is held at its surface value, so grazing the planet is a bump, not a singularity slingshot.
 - **Faded edge** - across the outer 15% of the sphere of influence the pull follows a smoothstep down to exactly zero at the boundary, and stays zero beyond it, so there is no force discontinuity to bump across.
 
-Who feels it: piloted ships (player and AI alike), torpedoes and turret rounds - a long shot visibly curves near a planetoid. Section debris skips gravity, and an unpiloted scripted ship floats rather than falls. Wells never pull other wells.
+Who feels it: every ship root (player, AI, or an unpiloted bystander alike), every asteroid, torpedoes and turret rounds - a long shot visibly curves near a planetoid. Carved chunks and detached sections join the pull when their collision grace ends and they become dynamic. Wells never pull other wells.
 
 </details>
 
 ## Sphere of influence
 
 A well's reach follows from its mass alone: the sphere of influence is the distance at which the raw pull has decayed to a fixed cutoff of 2.5 m/s^2 - the body's drawn size never sets it, and because the pull is inverse-square, four times the mass buys only twice the reach. The campaign's inspection planetoid reaches 3.29 km; the lighter concealment planetoid it hides a warship behind reaches 2.83 km. Outside it, the well does not exist as far as your ship is concerned.
+
+## How a generated body starts
+
+An open-world sector places its own asteroids and unpiloted ships, and each one is given a real starting velocity rather than scripted motion. A body that starts inside one well's checked band - clear of the surface and fading edge, with its nominal circle within the owning sector - starts with a seeded tangent at circular speed. A single-well body whose nominal circle does not clear those checks starts on an outward escape path instead of falling from rest. A body with no well in reach coasts from rest. A pre-fix census of 512 deterministic seeds (64,000 cells) found 7 overlapping candidates among 95,248 placed mobile bodies. The generator retries each overlapping placement in a checked unique-well orbit band, then in well-free space, keeping the body's identity and count if a position fits. A placed escort and its hull move together to keep their separation. It does not choose the strongest well or coast from rest inside one. If no position fits, a named sector fault stops generation and streaming still fails. These velocities are starting conditions, not a promise that every orbit stays bounded forever - a collision or a shot can send a body anywhere. A generated body remains a child of its spawn sector, even if it moves across a cell face; retiring that sector removes the body. A return regenerates its initial position and velocity, so orbital phase and any damage reset.
 
 ## The dominant well
 

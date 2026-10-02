@@ -752,6 +752,13 @@ const RECOIL_IMPULSE: FieldSpec = floored("recoil_impulse", "", 5.0);
 const CAPTURE_DISTANCE: FieldSpec = floored("capture_distance", "m", 0.5);
 const CAPTURE_ANGLE: FieldSpec = floored("capture_angle", "deg", 0.5);
 const MAXIMUM_RELATIVE_SPEED: FieldSpec = floored("maximum_relative_speed", "m/s", 0.1);
+/// Authored initial motion is signed in every axis; zero is an intentional start.
+const INITIAL_VELOCITY: FieldSpec = FieldSpec {
+    name: "initial_velocity",
+    unit: "m/s",
+    limit: Limit::Free,
+    step: 5.0,
+};
 
 const BODY_RADIUS: FieldSpec = floored("body_radius", "m", 0.5);
 const MASS: FieldSpec = floored("mass", "", 0.5);
@@ -853,7 +860,7 @@ const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
 /// What the rock is MADE of comes second only to how big it is: the kind
 /// decides the whole surface, so a curated panel that showed the radius and hid
 /// the kind would be hiding the thing a builder came to pick.
-const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, KIND, MASS, SEED];
+const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, KIND, INITIAL_VELOCITY, SEED];
 /// A planet's first screen. `planet_type` leads because it is the field that
 /// changes everything else about the body; `seed` is second for the same
 /// reason it is on a rock - it picks WHICH world of that kind.
@@ -861,7 +868,7 @@ const PLANET_PICKS: &[FieldSpec] = &[PLANET_TYPE, SEED, RADIUS, MASS];
 /// The whole point of a spaceship object is WHICH ship and WHO flies it, and a
 /// pick takes the field with everything under it - so the hull's source and the
 /// controller's own fields come along.
-const SPACESHIP_PICKS: &[FieldSpec] = &[DESIGN, CONTROLLER, ALLEGIANCE];
+const SPACESHIP_PICKS: &[FieldSpec] = &[DESIGN, CONTROLLER, INITIAL_VELOCITY, ALLEGIANCE];
 const BEACON_PICKS: &[FieldSpec] = &[LABEL, RADIUS, COLOR, AREA_RADIUS];
 /// No `aim`. The node's ROTATION aims the light (`node.rs`), and two controls
 /// on one output is a builder turning the gizmo and watching nothing happen.
@@ -1069,7 +1076,7 @@ fn quantity_field(info: &TypeInfo) -> Option<&'static TypeInfo> {
 fn quantity_unit(type_path: &str) -> Option<&'static str> {
     match type_path.rsplit("::").next().unwrap_or_default() {
         "Meters" | "Meters3" => Some("m"),
-        "MetersPerSecond" => Some("m/s"),
+        "MetersPerSecond" | "MetersPerSecond3" => Some("m/s"),
         "MetersPerSecondSquared" => Some("m/s2"),
         _ => None,
     }
@@ -1393,7 +1400,7 @@ fn walk(
 /// An `Option` field.
 ///
 /// A scalar one is ONE row whose empty string means `None` - the shortest
-/// gesture for "this rock has no authored mass" that does not need a second
+/// gesture for "this anchor has no authored mass" that does not need a second
 /// widget beside every number. An optional STRUCT cannot be typed into, so a
 /// present one is walked through and an absent one says so.
 fn walk_option(

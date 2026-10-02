@@ -812,7 +812,7 @@ fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
             texture: game_assets.asteroid_texture.clone().into(),
             kind: KIND_ROCK.into(),
             destroy_sound: None,
-            mass: None,
+            initial_velocity: MetersPerSecond3::ZERO,
             lock_signature: None,
             // One seed for the whole row: the only thing that differs between
             // rocks is what has been shot off them.

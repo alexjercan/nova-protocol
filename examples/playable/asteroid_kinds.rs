@@ -134,7 +134,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>) {
                         // same in all fifteen cells.
                         kind: (*kind).into(),
                         destroy_sound: None,
-                        mass: None,
+                        initial_velocity: MetersPerSecond3::ZERO,
                         lock_signature: None,
                         seed: Some(*seed),
                     }),

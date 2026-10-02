@@ -313,7 +313,7 @@ fn rock(game_assets: &GameAssets) -> ScenarioObjectConfig {
             texture: game_assets.asteroid_texture.clone().into(),
             kind: KIND_ROCK.into(),
             destroy_sound: None,
-            mass: None,
+            initial_velocity: MetersPerSecond3::ZERO,
             lock_signature: None,
             seed: Some(ROCK_SEED),
         }),

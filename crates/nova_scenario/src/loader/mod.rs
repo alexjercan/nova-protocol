@@ -886,7 +886,7 @@ mod tests {
                             destroy_sound: None,
                             radius: Meters(50.0),
                             texture: AssetRef::from("textures/rock.png"),
-                            mass: None,
+                            initial_velocity: MetersPerSecond3::ZERO,
                             seed: None,
                             lock_signature: None,
                         }),

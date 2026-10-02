@@ -8,6 +8,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::prelude::MetersPerSecond3;
 use nova_gameplay::{
     prelude::*,
     test_support::{settle, unfinished_integrity_physics_app},
@@ -166,6 +167,7 @@ fn spawn_ship(app: &mut App, design: &str, at: Vec3) -> Entity {
             spaceship_scenario_object(SpaceshipConfig {
                 design: ShipDesignSource::prototype(design),
                 controller: SpaceshipController::None,
+                initial_velocity: MetersPerSecond3::ZERO,
                 allegiance: None,
                 capabilities: default(),
                 inventory: ShipInventoryStock::default(),

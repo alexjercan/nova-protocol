@@ -42,7 +42,7 @@ Depth: [Ship sections internals](sections.md).
 | The bore sight | `nova_hud` | `crates/nova_hud/src/bore_sight.rs` | `BoreSightPlugin` | The lance's line of fire in world space, walked through the same `pierce_remainder` as the round; a ring per section the shot would destroy; gated on `WeaponsHot`, dimmed on an empty magazine. |
 | Flight autopilot verbs (STOP, GOTO, ORBIT), PD attitude controller | `nova_ship` | `crates/nova_ship/src/flight/state.rs`, `crates/nova_ship/src/sections/controller_section.rs`, `crates/nova_ship/src/physics/pd_controller.rs` | `ShipCapabilities`, `Autopilot` | The ship ROOT carries what it is permitted to do; the flight layer flies the maneuvers (`NovaFlightPlugin`); `PDControllerPlugin` is the attitude loop, and a controller section is the attitude hardware it needs. |
 | Radar locking, targeting | `nova_ship` | `crates/nova_ship/src/input/targeting/mod.rs`, `crates/nova_ship/src/input/targeting/state.rs` | `SpaceshipTargetingPlugin` | Radar search writes the two sticky lock slots on the ship root: `TravelLock`, `CombatLock`. |
-| Gravity wells | `nova_gameplay` | `crates/nova_gameplay/src/gravity.rs` | `GravityWell` | Inverse-square wells with an SOI cutoff; anchors and asteroids publish one. |
+| Gravity wells | `nova_gameplay` | `crates/nova_gameplay/src/gravity.rs` | `GravityWell` | Inverse-square wells with an SOI cutoff; only anchored planets and authored anchors publish one. Ships and asteroids feel their pull. |
 
 ## Scenario and modding
 

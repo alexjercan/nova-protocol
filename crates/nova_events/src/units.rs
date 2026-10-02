@@ -1,5 +1,6 @@
 //! The physical quantities Nova authors and reasons in: [`Meters`],
-//! [`MetersPerSecond`], [`MetersPerSecondSquared`] and the [`Meters3`] offset.
+//! [`MetersPerSecond`], [`MetersPerSecondSquared`], the [`Meters3`] offset,
+//! and the [`MetersPerSecond3`] velocity.
 //!
 //! Everything a creator writes into a content file and everything gameplay
 //! code names as a constant is SI. The engine underneath is not: Bevy
@@ -83,11 +84,28 @@ pub struct MetersPerSecondSquared(pub f32);
 #[serde(transparent)]
 pub struct Meters3(pub Vec3);
 
+/// A velocity in meters per second on all three axes.
+///
+/// Each component stays in SI until it crosses an engine boundary. One engine
+/// world unit per second is ten meters per second.
+///
+/// ```
+/// # use nova_events::prelude::MetersPerSecond3;
+/// # use bevy::prelude::Vec3;
+/// let velocity = MetersPerSecond3::new(0.0, 0.0, 2500.0);
+/// assert_eq!(velocity.to_engine(), Vec3::new(0.0, 0.0, 250.0));
+/// assert_eq!(MetersPerSecond3::from_engine(velocity.to_engine()), velocity);
+/// assert!(velocity.is_finite());
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct MetersPerSecond3(pub Vec3);
+
 /// Glob-import surface for the quantity types and the scale they cross at.
 pub mod prelude {
     // `METERS_PER_UNIT` is deliberately NOT here: the quantity types already
     // carry it, and code that names it is code doing a conversion by hand.
-    pub use super::{Meters, Meters3, MetersPerSecond, MetersPerSecondSquared};
+    pub use super::{Meters, Meters3, MetersPerSecond, MetersPerSecond3, MetersPerSecondSquared};
 }
 
 /// Generate the shared scalar surface of a one-component quantity: the
@@ -264,6 +282,37 @@ impl MetersPerSecondSquared {
     /// The speed gained in `seconds` at this acceleration.
     pub fn over(self, seconds: f32) -> MetersPerSecond {
         MetersPerSecond(self.0 * seconds)
+    }
+}
+
+impl MetersPerSecond3 {
+    /// The zero velocity.
+    pub const ZERO: Self = Self(Vec3::ZERO);
+
+    /// Build a velocity from its three meter-per-second components.
+    pub const fn new(x: f32, y: f32, z: f32) -> Self {
+        Self(Vec3::new(x, y, z))
+    }
+
+    /// The same velocity in engine world units per second.
+    pub fn to_engine(self) -> Vec3 {
+        self.0 / METERS_PER_UNIT
+    }
+
+    /// Read a Bevy or avian world-space velocity back into meters per second.
+    pub fn from_engine(engine: Vec3) -> Self {
+        Self(engine * METERS_PER_UNIT)
+    }
+
+    /// The raw SI components. Use it for formatting and for vector math this
+    /// type does not model; never to feed an engine API.
+    pub const fn get(self) -> Vec3 {
+        self.0
+    }
+
+    /// Whether every velocity component is finite.
+    pub fn is_finite(self) -> bool {
+        self.0.is_finite()
     }
 }
 

@@ -134,6 +134,7 @@
                                 input_mapping: {},
                             )),
                             design: Prototype(id: "block_cutter"),
+                            initial_velocity: (0.0, 0.0, 0.0),
                             inventory: {},
                             lootable: false,
                             credits: 2_000,
@@ -271,6 +272,7 @@
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 15.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
                         )),
@@ -286,6 +288,7 @@
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 20.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
                         )),
@@ -300,6 +303,7 @@
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 20.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
                         )),
@@ -314,6 +318,7 @@
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 20.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
                         )),
@@ -328,6 +333,7 @@
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 20.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
                         )),
@@ -353,6 +359,7 @@
                             kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                                 radius: 15.0,
+                                initial_velocity: (0.0, 0.0, 0.0),
                                 texture: "dep://base/textures/asteroid.png",
                                 kind: "rock",
                             )),
@@ -371,6 +378,7 @@
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 25.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
                         )),
@@ -385,6 +393,7 @@
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 20.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
                         )),
@@ -399,6 +408,7 @@
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 20.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "dep://base/textures/asteroid.png",
                             kind: "rock",
                         )),
@@ -418,7 +428,7 @@
                             radius: 100.0,
                             planet_type: BarrenRock,
                             seed: 526656746,
-                            mass: Some(1_900.0),
+                            mass: 1_900.0,
                         )),
                     )),
                     // Race state: `gate` is the index of the gate to thread next

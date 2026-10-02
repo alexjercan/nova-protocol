@@ -449,7 +449,7 @@ impl CellPlan {
                     position,
                     radius: *radius,
                     kind: (*kind).into(),
-                    mass: super::rock_mass(*radius),
+                    initial_velocity: MetersPerSecond3::ZERO,
                 }),
                 ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
                     id,
@@ -460,6 +460,7 @@ impl CellPlan {
                     id,
                     position,
                     rotation: ship.rotation,
+                    initial_velocity: MetersPerSecond3::ZERO,
                     clearance: ship.clearance,
                     design: ship.design.clone(),
                     condition: ship.condition,
@@ -713,7 +714,7 @@ pub fn group_at(
         .map(|_| {
             let radius = across(PLANETOID_RADIUS, stream.unit());
             let planet_type = planet_type(environment, stream.unit());
-            PlanetConfig::new(planet_type, radius, stream.next_u32())
+            PlanetConfig::new(planet_type, radius, stream.next_u32(), 4_000.0)
         })
         .collect();
     let (offset, axis) = if worlds == 2 {
@@ -805,7 +806,12 @@ fn member_clearance_max() -> Meters {
 fn widest_planetoid() -> Meters {
     PlanetType::ALL
         .iter()
-        .map(|planet_type| PlanetConfig::new(*planet_type, PLANETOID_RADIUS.1, 0).body_radius())
+        .map(|planet_type| {
+            // Mass is irrelevant here: this config is never spawned, only
+            // measured for its geometric body radius. Matches
+            // nova_world_base's own `widest_planetoid` idiom.
+            PLANETOID_RADIUS.1 * (1.0 + planet_type.relief())
+        })
         .fold(Meters::ZERO, Meters::max)
 }
 

@@ -77,7 +77,7 @@ object and carries its config - the seven kinds are the
 ```ron
 SpawnScenarioObject((
     base: (id: "rock_1", name: "Rock", position: (100.0, 0.0, -400.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-    kind: Asteroid((radius: 50.0, texture: "dep://base/textures/asteroid.png", kind: "rock")),
+    kind: Asteroid((radius: 50.0, texture: "dep://base/textures/asteroid.png", kind: "rock", initial_velocity: (0.0, 0.0, 0.0))),
 )),
 ```
 
@@ -116,7 +116,7 @@ ScatterObjects((
     region: Box(min: (-1000.0, -200.0, -1000.0), max: (1000.0, 200.0, 1000.0)),
     template: (
         base: (id: "asteroid_", name: "Asteroid", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-        kind: Asteroid((radius: 10.0, texture: "dep://base/textures/asteroid.png", kind: "rock")),
+        kind: Asteroid((radius: 10.0, texture: "dep://base/textures/asteroid.png", kind: "rock", initial_velocity: (0.0, 0.0, 0.0))),
     ),
     asteroid_radius: Some((10.0, 30.0)),
     asteroid_kinds: [("rock", 12), ("carbon", 4), ("ice", 3), ("metal", 1)],
@@ -156,7 +156,12 @@ nominal `radius`, drawn from the same seed the body will use), a planet's
 surface radius, zero for anything with no body - and a candidate is rejected
 inside `existing reach + candidate reach`. A field of mixed sizes is therefore
 packed by the bodies it actually holds, not by one number sized for its
-biggest pair.
+biggest pair. This checks earlier `ScatterObjects` placements only: a planet
+spawned by `SpawnScenarioObject` is not in that set. Keep the entire field
+outside each planet's sphere of influence plus the largest rock's physical
+reach if its template starts at zero velocity. Otherwise a rock can spawn
+inside the planet or start falling toward it; lint cannot infer a safe orbit
+from one velocity shared by every randomly positioned copy.
 
 `min_separation` is what you add ON TOP of that: a spacing you want for
 gameplay rather than for geometry - a belt you can fly through, a picket line

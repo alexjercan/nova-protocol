@@ -183,8 +183,8 @@ const BELTS: [Belt; 2] = [
         name: "Deep Rock",
         seed: 0xDEE9_0C11,
         count: 34,
-        min: Vec3::new(-280.0, -60.0, -840.0),
-        max: Vec3::new(300.0, 60.0, -540.0),
+        min: Vec3::new(-140.0, -60.0, -840.0),
+        max: Vec3::new(440.0, 60.0, -540.0),
         radius: (1.5, 4.0),
         separation: 55.0,
     },
@@ -669,10 +669,12 @@ fn planetoid() -> ScenarioObjectConfig {
             position: Meters3::from_engine(PLANETOID_POSITION),
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Planet(
-            PlanetConfig::new(PlanetType::BarrenRock, PLANETOID_RADIUS, PLANETOID_SEED)
-                .anchored(PLANETOID_MASS),
-        ),
+        kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+            PlanetType::BarrenRock,
+            PLANETOID_RADIUS,
+            PLANETOID_SEED,
+            PLANETOID_MASS,
+        )),
     }
 }
 
@@ -968,8 +970,8 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
                 kind: KIND_ROCK.into(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 radius: Meters::from_engine(belt.radius.0),
+                initial_velocity: MetersPerSecond3::ZERO,
                 texture: AssetRef::from(ASTEROID_TEXTURE),
-                mass: None,
                 seed: None,
                 lock_signature: None,
             }),
@@ -1724,16 +1726,17 @@ mod tests {
             }
         }
 
-        // The planetoid is not a point: its drawn body must clear the boxes
-        // too, or rocks spawn inside the rock.
-        let (body_radius, _) = planetoid_reach();
+        // Zero-velocity mobile rocks cannot start inside the planetoid's
+        // well. Cover the entire box and the widest derived rock collider.
+        let (_, well) = planetoid_reach();
         for belt in &BELTS {
             let nearest = PLANETOID_POSITION.clamp(belt.min, belt.max);
             let gap = PLANETOID_POSITION.distance(nearest);
+            let required = well.soi_radius + belt.radius.1 * ASTEROID_GEOMETRIC_FACTOR_MAX;
             assert!(
-                gap > body_radius,
+                gap > required,
                 "belt '{}' comes within {gap:.0}u of the planetoid's centre, \
-                 inside its {body_radius:.0}u body",
+                 under its {required:.0}u well plus maximum rock reach",
                 belt.id_prefix
             );
         }

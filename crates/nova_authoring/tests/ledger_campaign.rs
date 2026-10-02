@@ -3,6 +3,8 @@
 
 use std::{collections::BTreeSet, path::PathBuf};
 
+use nova_events::prelude::*;
+use nova_gameplay::prelude::{GravitySettings, GravityWell};
 use nova_mod_format::BundleManifest;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
@@ -215,7 +217,10 @@ fn every_map_contains_a_dense_reproducible_field_planets_and_moving_traffic() {
                     let ScenarioObjectKind::Asteroid(rock) = &field.template.kind else {
                         panic!("the counted field must actually contain rocks")
                     };
-                    assert_eq!(rock.mass, Some(0.0));
+                    assert!(
+                        rock.initial_velocity.is_finite(),
+                        "a scattered rock must author physical motion"
+                    );
                     rocks += field.count;
                 }
                 EventActionConfig::SpawnScenarioObject(object) => match &object.kind {
@@ -242,6 +247,62 @@ fn every_map_contains_a_dense_reproducible_field_planets_and_moving_traffic() {
         );
         assert!(planets >= 2, "{}: planetary backdrop", scenario.id);
         assert!(moving >= 2, "{}: real moving traffic", scenario.id);
+    }
+}
+
+/// A box with a zero-velocity dynamic rock inside a planet's reach can seed
+/// interpenetrating bodies. Check the whole box, not only today's RNG draw.
+#[test]
+fn ledger_rock_fields_clear_every_planet_well() {
+    let content = content();
+    let settings = GravitySettings::default();
+    for scenario in activities(&content) {
+        let actions = actions(scenario);
+        let wells: Vec<_> = actions
+            .iter()
+            .filter_map(|action| match *action {
+                EventActionConfig::SpawnScenarioObject(object) => {
+                    let ScenarioObjectKind::Planet(planet) = &object.kind else {
+                        return None;
+                    };
+                    let well = GravityWell::from_mass(
+                        planet.mass,
+                        planet.body_radius().to_engine(),
+                        &settings,
+                    );
+                    Some((object.base.id.as_str(), object.base.position.get(), well))
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !wells.is_empty(),
+            "{} needs authored planet wells",
+            scenario.id
+        );
+        for action in &actions {
+            let EventActionConfig::ScatterObjects(field) = action else {
+                continue;
+            };
+            let ScatterRegion::Box { min, max } = &field.region else {
+                panic!("{}:{} must author a box", scenario.id, field.id_prefix);
+            };
+            let (_, max_radius) = field.asteroid_radius.expect("rock field has radius range");
+            let rock_reach = max_radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX;
+            for (well_id, center, well) in &wells {
+                let nearest = center.distance(center.clamp(min.get(), max.get()));
+                let required = Meters::from_engine(well.soi_radius).get() + rock_reach;
+                assert!(
+                    nearest > required,
+                    "{}:{} reaches well {}: closest {:.1} m, requires {:.1} m",
+                    scenario.id,
+                    field.id_prefix,
+                    well_id,
+                    nearest,
+                    required
+                );
+            }
+        }
     }
 }
 

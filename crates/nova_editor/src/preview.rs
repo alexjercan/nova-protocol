@@ -368,7 +368,7 @@ fn hull_bounds(sections: &[ResolvedSection]) -> (Vec3, Vec3) {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
-    use nova_events::units::prelude::Meters;
+    use nova_events::units::prelude::{Meters, MetersPerSecond3};
     use nova_gameplay::prelude::{
         ControllerSectionMarker, SectionClass, ThrusterSectionMarker, TorpedoSectionMarker,
         TurretSectionMarker,
@@ -425,10 +425,10 @@ mod tests {
     fn a_changed_kind_makes_the_rock_stale() {
         let rock = ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: Meters(30.0),
+            initial_velocity: MetersPerSecond3::ZERO,
             texture: default(),
             kind: KIND_ROCK.into(),
             destroy_sound: None,
-            mass: None,
             seed: None,
             lock_signature: None,
         });

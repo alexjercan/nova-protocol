@@ -7,23 +7,23 @@
 //! cell is not moved, and an unshipped kind id is not skipped. Each of those
 //! would put a world nobody authored in front of a player.
 //!
-//! Two tests materialize a sector: the validator checks a rock's manifest mass
-//! but not that `materialize_sector` hands it on to the spawned rock, and a
-//! ship the observer overlaps is held rather than spawned. One more proves a
-//! ship design the loaded sections do not resolve is refused at spawn.
+//! Materialization proofs check a rock's gravity opt-in and hold a ship the
+//! observer overlaps instead of spawning it. Another proves an unresolved
+//! ship design is refused at spawn.
 //!
 //! The generators here are test-local. The shipped policies live outside this
 //! crate - the base game's in `nova_world_base`, the uniform baseline with the
 //! examples - and are proved where they live.
 
+use avian3d::prelude::{LinearVelocity, RigidBody};
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
-use nova_events::prelude::{Meters, Meters3};
+use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
-    AssetRef, DerelictShipMarker, GravityWell, IntegrityEnvelope, ItemType, LootableShipMarker,
-    ShipCredits, ShipInventoryStock,
+    AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope, ItemType,
+    LootableShipMarker, ShipCredits, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
-    AsteroidMass, AsteroidPlugin, PlanetConfig, PlanetType, SectionSource, ShipDesign,
+    AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType, SectionSource, ShipDesign,
     SpaceshipSectionConfig, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
 };
 use nova_ship::prelude::{
@@ -73,9 +73,9 @@ impl SectorGenerator for Rocks {
                 id: sector_id(input.coord, "body", index),
                 position: input.coord.centre(edge) + Meters3::new(x * quarter, 0.0, z * quarter),
                 radius: self.radius_max,
+                initial_velocity: MetersPerSecond3::ZERO,
                 kind: KIND_ROCK.into(),
                 seed: index as u32,
-                mass: None,
             })
             .collect();
         Ok(empty(input.coord, asteroids))
@@ -113,6 +113,7 @@ fn ship(id: String, position: Meters3, prototype: &str) -> SectorShip {
     SectorShip {
         id,
         position,
+        initial_velocity: MetersPerSecond3::ZERO,
         rotation: Quat::IDENTITY,
         clearance: Meters(20.0),
         design: ShipDesign {
@@ -209,9 +210,9 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             position: input.coord.centre(input.geometry.sector_edge)
                 + Meters3::new(offset, 0.0, 0.0),
             radius: Meters(40.0),
+            initial_velocity: MetersPerSecond3::ZERO,
             kind: KIND_ROCK.into(),
             seed: 7,
-            mass: None,
         }
     }
     let cases: [(
@@ -284,22 +285,38 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
             |fault| matches!(fault, SectorFault::UnknownKind { kind } if kind.as_str() == "obsidian"),
         ),
         (
-            "a rock with a negative mass",
+            "an asteroid with a non-finite initial velocity",
             |input| {
                 let mut body = rock(input, "body_0", 0.0);
-                body.mass = Some(-1.0);
+                body.initial_velocity = MetersPerSecond3::new(f32::NAN, 0.0, 0.0);
                 empty(input.coord, vec![body])
             },
-            |fault| matches!(fault, SectorFault::Manifest { field: "mass", .. }),
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "initial_velocity",
+                        ..
+                    }
+                )
+            },
         ),
         (
-            "a rock with a NaN mass",
+            "a ship with a non-finite initial velocity",
             |input| {
-                let mut body = rock(input, "body_0", 0.0);
-                body.mass = Some(f32::NAN);
-                empty(input.coord, vec![body])
+                let mut manifest = one_ship(input);
+                manifest.ships[0].initial_velocity = MetersPerSecond3::new(0.0, f32::INFINITY, 0.0);
+                manifest
             },
-            |fault| matches!(fault, SectorFault::Manifest { field: "mass", .. }),
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "initial_velocity",
+                        ..
+                    }
+                )
+            },
         ),
         (
             "a planetoid whose well has a NaN mass",
@@ -308,8 +325,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                 manifest.planets.push(SectorPlanet {
                     id: format!("{}_planet_0", input.coord.slug()),
                     position: input.coord.centre(input.geometry.sector_edge),
-                    config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3)
-                        .anchored(f32::NAN),
+                    config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, f32::NAN),
                 });
                 manifest
             },
@@ -400,9 +416,9 @@ fn bodies_closer_than_a_generator_margin_but_not_overlapping_are_accepted() {
                 id: sector_id(input.coord, "body", index),
                 position: centre + Meters3::new(offset, 0.0, 0.0),
                 radius: Meters(40.0),
+                initial_velocity: MetersPerSecond3::ZERO,
                 kind: KIND_ROCK.into(),
                 seed: index as u32,
-                mass: None,
             };
             empty(input.coord, vec![rock(0, 0.0), rock(1, 580.0)])
         }),
@@ -430,16 +446,16 @@ fn populated(input: SectorGenerationInput, rocks: usize, count: usize) -> Sector
             id: sector_id(coord, "body", index),
             position: point(index),
             radius: Meters(40.0),
+            initial_velocity: MetersPerSecond3::ZERO,
             kind: KIND_ROCK.into(),
             seed: index as u32,
-            mass: None,
         })
         .collect();
     let mut manifest = empty(coord, asteroids);
     manifest.planets.push(SectorPlanet {
         id: sector_id(coord, "planet", 0),
         position: point(rocks),
-        config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3),
+        config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, 5.0),
     });
     manifest.ships = (rocks + 1..count)
         .map(|index| SectorShip {
@@ -471,12 +487,12 @@ fn a_manifest_of_many_valid_bodies_is_described_whole() {
     );
 }
 
-/// A planetoid's optional overrides are part of "the same sector": changing
-/// any one of them, setting it where it was unset, or moving mass by less
-/// than a hundredth, changes the canonical description.
+/// A planetoid's authored fields are part of "the same sector": changing
+/// any one of them, including its required mass, changes the canonical
+/// description.
 #[test]
-fn every_planetoid_override_changes_the_canonical_description() {
-    let base = PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3);
+fn every_planetoid_field_changes_the_canonical_description() {
+    let base = PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, 5.0);
     let variants = [
         base.clone(),
         PlanetConfig {
@@ -495,8 +511,8 @@ fn every_planetoid_override_changes_the_canonical_description() {
             sea_level: Some(0.5),
             ..base.clone()
         },
-        base.clone().anchored(5.0),
-        base.clone().anchored(5.004),
+        PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, 5.004),
+        PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, 5.008),
         PlanetConfig {
             lock_signature: Some(Meters(900.0)),
             ..base.clone()
@@ -529,68 +545,65 @@ fn every_planetoid_override_changes_the_canonical_description() {
     }
 }
 
-/// A rock's mass is part of "the same sector": no well, a zero-mass pin and
-/// two masses less than a hundredth apart describe four different cells.
+/// A rock's initial velocity is part of "the same sector": distinct finite
+/// velocities describe distinct cells.
 #[test]
-fn canonical_text_tells_asteroid_masses_apart() {
+fn canonical_text_tells_asteroid_velocities_apart() {
     let input = rocks().input(SectorCoord::ORIGIN);
-    let described: Vec<String> = [None, Some(0.0), Some(4_000.0), Some(4_000.001)]
-        .into_iter()
-        .map(|mass| {
-            let body = SectorAsteroid {
-                id: sector_id(input.coord, "body", 0),
-                position: input.coord.centre(input.geometry.sector_edge),
-                radius: Meters(40.0),
-                kind: KIND_ROCK.into(),
-                seed: 7,
-                mass,
-            };
-            validate_manifest(input, empty(input.coord, vec![body]))
-                .expect("a valid rock must describe")
-                .canonical()
-        })
-        .collect();
+    let described: Vec<String> = [
+        MetersPerSecond3::ZERO,
+        MetersPerSecond3::new(0.0, 0.0, 1.0),
+        MetersPerSecond3::new(0.0, 0.0, 4_000.0),
+        MetersPerSecond3::new(0.0, 0.0, 4_000.001),
+    ]
+    .into_iter()
+    .map(|initial_velocity| {
+        let body = SectorAsteroid {
+            id: sector_id(input.coord, "body", 0),
+            position: input.coord.centre(input.geometry.sector_edge),
+            radius: Meters(40.0),
+            initial_velocity,
+            kind: KIND_ROCK.into(),
+            seed: 7,
+        };
+        validate_manifest(input, empty(input.coord, vec![body]))
+            .expect("a valid rock must describe")
+            .canonical()
+    })
+    .collect();
 
     for (index, text) in described.iter().enumerate() {
         for other in &described[index + 1..] {
-            assert_ne!(text, other, "two different rock masses described the same");
+            assert_ne!(
+                text, other,
+                "two different rock velocities described the same"
+            );
         }
     }
 }
 
-/// A streamed rock is a well only when its manifest gives it a mass.
-/// `materialize_sector` is the one bridge from `SectorAsteroid::mass` to the
-/// spawned rock. That a well is static and a well-less rock dynamic is the
-/// asteroid factory's rule, proved in `nova_scenario`.
+/// A streamed asteroid is dynamic, receives its manifest velocity, retires
+/// with the sector root even after it moves, and returns from the same seed.
 #[test]
-fn a_materialized_rock_is_a_well_only_when_its_manifest_gives_it_mass() {
-    let prepared = prepare_sector(
-        answering(|input| {
-            let centre = input.coord.centre(input.geometry.sector_edge);
-            // By `ASTEROID_GEOMETRIC_FACTOR_MIN`, 60 m derives a surface of at
-            // least 210 m, so the surface-gravity cap stays above 4000 and the
-            // well keeps the mass.
-            let rock = |index: usize, offset: f32, mass: Option<f32>| SectorAsteroid {
-                id: sector_id(input.coord, "body", index),
-                position: centre + Meters3::new(offset, 0.0, 0.0),
-                radius: Meters(60.0),
-                kind: KIND_ROCK.into(),
-                seed: index as u32,
-                mass,
-            };
-            empty(
-                input.coord,
-                vec![rock(0, 0.0, Some(4_000.0)), rock(1, 1_000.0, None)],
-            )
-        }),
-        SectorCoord::ORIGIN,
-    )
-    .expect("two valid rocks must be prepared");
+fn a_materialized_asteroid_opts_into_gravity() {
+    let config = answering(|input| {
+        let rock = SectorAsteroid {
+            id: sector_id(input.coord, "body", 0),
+            position: input.coord.centre(input.geometry.sector_edge),
+            radius: Meters(60.0),
+            initial_velocity: MetersPerSecond3::new(24.0, -8.0, 4.0),
+            kind: KIND_ROCK.into(),
+            seed: 7,
+        };
+        empty(input.coord, vec![rock])
+    });
+    let prepared = prepare_sector(config.clone(), SectorCoord::ORIGIN)
+        .expect("a valid mobile rock must be prepared");
 
     let mut app = App::new();
     app.add_plugins(AsteroidPlugin { render: false });
     let world = app.world_mut();
-    materialize_sector(
+    let root = materialize_sector(
         &mut world.commands(),
         prepared,
         &AssetRef::default(),
@@ -603,25 +616,108 @@ fn a_materialized_rock_is_a_well_only_when_its_manifest_gives_it_mass() {
     world.flush();
     app.update();
 
-    let mut rocks = app
-        .world_mut()
-        .query::<(&Name, &AsteroidMass, Option<&GravityWell>)>();
-    let mut materialized: Vec<(String, Option<f32>, Option<f32>)> = rocks
+    let mut mobile = app.world_mut().query_filtered::<(
+        &Name,
+        &RigidBody,
+        &LinearVelocity,
+        &ChildOf,
+        Has<GravityAffected>,
+        Has<GravityWell>,
+    ), With<AsteroidMarker>>();
+    let materialized: Vec<_> = mobile
         .iter(app.world())
-        .map(|(name, mass, well)| (name.to_string(), **mass, well.map(|well| well.mu)))
+        .map(|(name, body, velocity, owner, affected, well)| {
+            (
+                name.to_string(),
+                *body,
+                **velocity,
+                owner.parent(),
+                affected,
+                well,
+            )
+        })
         .collect();
-    materialized.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(
         materialized,
-        vec![
+        vec![(
+            sector_id(SectorCoord::ORIGIN, "body", 0),
+            RigidBody::Dynamic,
+            Vec3::new(2.4, -0.8, 0.4),
+            root,
+            true,
+            false
+        )],
+        "a materialized asteroid must use the manifest motion and cannot source a well"
+    );
+    let mut rock_query = app
+        .world_mut()
+        .query_filtered::<Entity, With<AsteroidMarker>>();
+    let rock = rock_query
+        .single(app.world())
+        .expect("one materialized asteroid");
+    app.world_mut()
+        .entity_mut(rock)
+        .insert(Transform::from_xyz(2_500.0, 0.0, 0.0));
+    app.update();
+    app.world_mut().entity_mut(root).despawn();
+    app.update();
+    let mut remaining = app
+        .world_mut()
+        .query_filtered::<Entity, With<AsteroidMarker>>();
+    assert_eq!(
+        remaining.iter(app.world()).count(),
+        0,
+        "root retirement takes its moved asteroid with it"
+    );
+
+    let reprepared = prepare_sector(config, SectorCoord::ORIGIN)
+        .expect("the same generator and seed must reprepare after its root retires");
+    let root_again = materialize_sector(
+        &mut app.world_mut().commands(),
+        reprepared,
+        &AssetRef::default(),
+        &GameSections::default(),
+        ObserverBody {
+            position: Meters3::new(0.0, 0.0, 0.0),
+            reach: Meters::ZERO,
+        },
+    );
+    app.world_mut().flush();
+    app.update();
+    assert_ne!(root_again, root, "revisit gets a new owning root");
+
+    let mut rematerialized_query = app.world_mut().query_filtered::<(
+        &Name,
+        &RigidBody,
+        &LinearVelocity,
+        &ChildOf,
+        Has<GravityAffected>,
+        Has<GravityWell>,
+    ), With<AsteroidMarker>>();
+    let rematerialized: Vec<_> = rematerialized_query
+        .iter(app.world())
+        .map(|(name, body, velocity, owner, affected, well)| {
             (
-                sector_id(SectorCoord::ORIGIN, "body", 0),
-                Some(4_000.0),
-                Some(4_000.0)
-            ),
-            (sector_id(SectorCoord::ORIGIN, "body", 1), None, None),
-        ],
-        "each rock must carry its manifest mass, and only the massed one a well"
+                name.to_string(),
+                *body,
+                **velocity,
+                owner.parent(),
+                affected,
+                well,
+            )
+        })
+        .collect();
+    assert_eq!(
+        rematerialized,
+        vec![(
+            sector_id(SectorCoord::ORIGIN, "body", 0),
+            RigidBody::Dynamic,
+            Vec3::new(2.4, -0.8, 0.4),
+            root_again,
+            true,
+            false
+        )],
+        "a rock reprepared from the same generator and seed must rematerialize with its stable id, manifest motion, and gravity opt-in under its new root"
     );
 }
 

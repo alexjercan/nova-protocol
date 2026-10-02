@@ -75,6 +75,10 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
                     ),
                 ],
             ),
+            // The lane entrance sits well outside every moon's SOI (see
+            // `MOON_MASS`): an intentional stationary start, not a well
+            // interaction.
+            initial_velocity: MetersPerSecond3::ZERO,
             inventory: ShipInventoryStock::new([]),
             lootable: false,
             credits: 2_000,
@@ -108,6 +112,9 @@ pub(crate) fn gantry() -> ScenarioObjectConfig {
                     ships::section_health(GANTRY_COLLAR_HEALTH),
                 )],
             ),
+            // Nothing is authored to move Gantry (see the doc comment above):
+            // an intentional stationary start, outside every moon's SOI.
+            initial_velocity: MetersPerSecond3::ZERO,
             inventory: ShipInventoryStock::new([]),
             lootable: false,
             credits: 2_000,
@@ -159,6 +166,9 @@ pub(crate) fn wreckage() -> Vec<ScenarioObjectConfig> {
                 controller: SpaceshipController::None,
                 capabilities: ShipCapabilities::default(),
                 design: ships::design(BLOCK_WRECK_PLATE_SHIP_ID),
+                // Hanging where it was thrown, outside every moon's SOI: an
+                // intentional stationary start.
+                initial_velocity: MetersPerSecond3::ZERO,
                 inventory: ShipInventoryStock::new([]),
                 lootable: false,
                 credits: 2_000,
@@ -315,7 +325,9 @@ fn scatter(
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: radius.0,
                 texture: texture.clone(),
-                mass: None,
+                // Both scattered boxes sit well outside every moon's SOI (see
+                // `MOON_MASS`): an intentional stationary start.
+                initial_velocity: MetersPerSecond3::ZERO,
                 seed: None,
                 lock_signature: None,
             }),
@@ -397,9 +409,12 @@ pub(crate) fn moons() -> Vec<ScenarioObjectConfig> {
                 position: moon.position,
                 rotation: Quat::IDENTITY,
             },
-            kind: ScenarioObjectKind::Planet(
-                PlanetConfig::new(moon.kind, moon.radius, moon.seed).anchored(MOON_MASS),
-            ),
+            kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+                moon.kind,
+                moon.radius,
+                moon.seed,
+                MOON_MASS,
+            )),
         })
         .collect()
 }

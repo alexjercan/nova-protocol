@@ -16,7 +16,8 @@
 //!
 //! So a chunk spends its first [`CHUNK_GRACE_SECS`] as a KINEMATIC body with no
 //! collider - it drifts out under the velocity it was given, touching nothing -
-//! and only then becomes dynamic and grows its collider. By then it is clear.
+//! and only then becomes dynamic, grows its collider, and opts into gravity
+//! wells. By then it is clear.
 //! [`ChunkGrace`] is public for the same reason: a section that detaches when it
 //! dies ([`explode`](super::explode)) is born inside the ship it was bolted to
 //! and needs exactly this window.
@@ -34,18 +35,18 @@
 //!
 //! # A crowd of them lands a few at a time
 //!
-//! Pieces born together at one depth come out of their window together. One collapse sheds hundreds of them in a single command flush, and
-//! half a second later every one of those inserts a collider and a dynamic body
-//! on the SAME frame - still stacked where they were bolted, so the solver
-//! meets the whole population as contacts on that frame as well.
+//! Pieces born together at one depth reach their landing together. A collapse
+//! sheds hundreds in one command flush, still stacked where they were bolted,
+//! so every batch that becomes physical meets the solver as contacts on that
+//! frame.
 //!
 //! [`land_carved_chunks`] therefore lands at most
 //! [`CHUNK_ACTIVATIONS_PER_FRAME`] of them per frame and leaves the rest for
 //! the next. That does not reduce the work, it spreads it, which is what a
 //! frame-time tail cares about - and it is the safe direction to move in,
-//! because a piece that waits is a piece that stays kinematic and colliderless,
-//! which is what the grace was for in the first place. Nothing may LAND EARLY;
-//! landing late costs only that the piece cannot be flown into yet.
+//! because a piece that waits stays kinematic, colliderless, and unaffected by
+//! wells, which is what the grace was for in the first place. Nothing may LAND
+//! EARLY; landing late costs only that the piece cannot be flown into yet.
 //!
 //! # Not the same thing as a shard
 //!
@@ -57,7 +58,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::prelude::*;
 
-use crate::lifetime::TempEntity;
+use crate::{gravity::prelude::GravityAffected, lifetime::TempEntity};
 
 /// `CarvedChunkMarker`, `CarvedChunkPlugin`, `ChunkGrace`, `ChunkSpawn`,
 /// `chunk_collider` and `spawn_carved_chunk`.
@@ -226,7 +227,8 @@ pub struct ChunkSpawn {
 /// drawn as nothing, so it is not a question a caller can forget.
 ///
 /// Kinematic and colliderless to begin with; [`land_carved_chunks`] makes it
-/// physical once it has drifted clear. See the module docs.
+/// physical and opts it into gravity once it has drifted clear. See the module
+/// docs.
 pub fn spawn_carved_chunk(commands: &mut Commands, spawn: ChunkSpawn) -> Entity {
     trace!(
         "spawn_carved_chunk: {} at {}",
@@ -332,8 +334,8 @@ pub fn mesh_bounds(mesh: &Mesh) -> Option<(Vec3, Vec3)> {
     (min.cmple(max).all()).then(|| ((min + max) * 0.5, (max - min) * 0.5))
 }
 
-/// Make chunks physical once they have drifted clear of the body they came
-/// off, at most [`CHUNK_ACTIVATIONS_PER_FRAME`] of them per frame.
+/// Make grace-bearing debris physical once it has drifted clear of its parent,
+/// at most [`CHUNK_ACTIVATIONS_PER_FRAME`] pieces per frame.
 fn land_carved_chunks(
     time: Res<Time>,
     mut commands: Commands,
@@ -358,12 +360,12 @@ fn land_carved_chunks(
         trace!("land_carved_chunks: {entity:?} is clear, going dynamic");
         commands
             .entity(entity)
-            .insert((RigidBody::Dynamic, grace.collider.clone()))
+            .insert((RigidBody::Dynamic, grace.collider.clone(), GravityAffected))
             .remove::<ChunkGrace>();
     }
 }
 
-/// Turns drifting chunks into physical ones.
+/// Turns grace-bearing debris into physical bodies.
 pub struct CarvedChunkPlugin;
 
 impl Plugin for CarvedChunkPlugin {
@@ -435,6 +437,10 @@ mod tests {
             Some(Vec3::X * 4.0),
             "but it is already leaving"
         );
+        assert!(
+            app.world().get::<GravityAffected>(chunk).is_none(),
+            "a kinematic chunk does not feel gravity during its grace"
+        );
     }
 
     /// And it does not stay a ghost: once it is clear it is a real body a ship
@@ -451,6 +457,10 @@ mod tests {
         // a delta of zero, so nothing would come off the grace. Then two steps
         // of 0.6 of the window carries it past.
         app.update();
+        assert!(
+            app.world().get::<GravityAffected>(chunk).is_none(),
+            "gravity stays off while the chunk is in its grace"
+        );
         app.update();
         app.update();
 
@@ -461,6 +471,10 @@ mod tests {
         assert!(
             app.world().get::<Collider>(chunk).is_some(),
             "a landed chunk is something you can hit"
+        );
+        assert!(
+            app.world().get::<GravityAffected>(chunk).is_some(),
+            "gravity starts with the dynamic body, not during its grace"
         );
     }
 

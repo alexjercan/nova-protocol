@@ -6,7 +6,7 @@ A scenario places a world and wires its objectives. It is the same machinery whe
 
 A scenario spawns a handful of object kinds:
 
-- **Asteroids** - rocks with a radar signature and an optional [gravity well](../gravity-wells/). A normal rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see [Shooting rock](../combat-weapons/#shooting-rock)). Every rock can be shot apart, and its gravity well goes with it.
+- **Asteroids** - mobile rocks with a radar signature. They feel [gravity](../gravity-wells/) but never source a well. A rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see [Shooting rock](../combat-weapons/#shooting-rock)). Every rock can be shot apart.
 - **Planets** - whole worlds, and the thing to place when you want a body rather than a big rock. A type and a seed draw the terrain, the biomes and the polar cap; the radius is the real size, not a designation the mesh reaches past. Nothing can destroy a planet - nothing carves one - and it carries a [gravity well](../gravity-wells/) like any other body.
 - **Spaceships** - multi-section [builds](../sections/) under a player or AI controller, each spawn holding what the ship is permitted to do.
 - **Nav beacons** - lockable waypoints visible to radar within 12 km by default, with authorable signatures for longer legs and optional trigger areas.

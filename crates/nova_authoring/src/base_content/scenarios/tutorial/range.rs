@@ -135,6 +135,9 @@ pub(crate) fn trainer_with(capabilities: ShipCapabilities) -> ScenarioObjectConf
                     ships::on_section(TRAINER_GUN, ships::section_health(TRAINER_GUN_HEALTH)),
                 ],
             ),
+            // The range origin sits outside the planetoid's SOI (see
+            // `PLANETOID_MASS`): an intentional stationary start.
+            initial_velocity: MetersPerSecond3::ZERO,
             // The gun's idle reload draws on this finite reserve.
             inventory: ShipInventoryStock::new([(ItemType::PdcRound, 2000)]),
             lootable: false,
@@ -381,10 +384,12 @@ pub(crate) fn planetoid() -> ScenarioObjectConfig {
             position: PLANETOID_POS,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Planet(
-            PlanetConfig::new(PlanetType::BarrenRock, PLANETOID_RADIUS, PLANETOID_SEED)
-                .anchored(PLANETOID_MASS),
-        ),
+        kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+            PlanetType::BarrenRock,
+            PLANETOID_RADIUS,
+            PLANETOID_SEED,
+            PLANETOID_MASS,
+        )),
     }
 }
 
@@ -450,7 +455,10 @@ pub(crate) fn belts(texture: &AssetRef<Image>) -> Vec<EventActionConfig> {
                         destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                         radius: belt.radius.0,
                         texture: texture.clone(),
-                        mass: None,
+                        // Both belts' closest points clear the planetoid's SOI
+                        // (see `PLANETOID_MASS`): an intentional stationary
+                        // start.
+                        initial_velocity: MetersPerSecond3::ZERO,
                         seed: None,
                         lock_signature: None,
                     }),

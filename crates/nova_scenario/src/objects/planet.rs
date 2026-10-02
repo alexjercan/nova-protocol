@@ -48,10 +48,11 @@ pub struct PlanetMarker;
 #[reflect(Component)]
 pub struct PlanetRadius(pub f32);
 
-/// The authored well strength, or `None` to fall back to the global rule.
+/// The authored well strength. Required: a planet is always a static gravity
+/// well, at any radius, so there is no global default mass to fall back to.
 #[derive(Component, Clone, Copy, Debug, Deref, Reflect)]
 #[reflect(Component)]
-pub struct PlanetMass(pub Option<f32>);
+pub struct PlanetMass(pub f32);
 
 /// The built surface, parked on the render child until
 /// [`insert_planet_render`] can reach `Assets` and turn it into handles.
@@ -184,28 +185,23 @@ pub fn planet_scenario_object_prepared(entity: &mut EntityCommands, prepared: Pr
 /// goes on rails (`RigidBody::Static`, overriding the bundle's Dynamic) so a
 /// hit cannot shove a well and drag every orbit in it along.
 ///
-/// Qualification differs in one way and it matters. A rock without an
-/// authored mass has no well. An unmassed planet takes `default_mass` when its
-/// radius, which is its real size, reaches `min_well_radius`.
+/// Qualification differs from a rock's and it matters. A rock without an
+/// authored mass has no well. A planet's mass is required, so every planet
+/// raises a well, at any radius: there is no size threshold and no default
+/// mass to fall back to.
 fn insert_planet_gravity_well(
     add: On<Add, BodyRadius>,
     mut commands: Commands,
     settings: Res<GravitySettings>,
-    q_planet: Query<(&PlanetRadius, &BodyRadius, &PlanetMass), With<PlanetMarker>>,
+    q_planet: Query<(&BodyRadius, &PlanetMass), With<PlanetMarker>>,
 ) {
     let entity = add.entity;
-    let Ok((radius, body_radius, authored)) = q_planet.get(entity) else {
+    let Ok((body_radius, mass)) = q_planet.get(entity) else {
         return;
     };
 
-    let mu = match **authored {
-        Some(mass) => mass,
-        None if **radius >= settings.min_well_radius => settings.default_mass,
-        None => return,
-    };
-
     commands.entity(entity).insert((
-        GravityWell::from_mass(mu, **body_radius, &settings),
+        GravityWell::from_mass(**mass, **body_radius, &settings),
         RigidBody::Static,
     ));
 }
@@ -283,7 +279,7 @@ mod tests {
     /// radius - the well clamp, the SOI and an orbit ring all read it.
     #[test]
     fn a_planet_publishes_its_outer_surface_as_the_body_radius() {
-        let config = PlanetConfig::new(PlanetType::DustWorld, Meters(1_000.0), 7);
+        let config = PlanetConfig::new(PlanetType::DustWorld, Meters(1_000.0), 7, 1_000.0);
         let expected = config.body_radius().to_engine();
         let (app, entity) = planet(config);
 
@@ -303,7 +299,7 @@ mod tests {
     /// a hull would touch, and an author who names one gets that instead.
     #[test]
     fn a_world_returns_a_multiple_of_its_own_surface() {
-        let config = PlanetConfig::new(PlanetType::DustWorld, Meters(1_000.0), 7);
+        let config = PlanetConfig::new(PlanetType::DustWorld, Meters(1_000.0), 7, 1_000.0);
         let expected = PLANET_SIGNATURE_PER_RADIUS * config.body_radius().to_engine();
         let (app, entity) = planet(config.clone());
         assert_eq!(
@@ -352,7 +348,7 @@ mod tests {
     /// the one a scenario authors would be a world nobody could reproduce.
     #[test]
     fn the_same_config_draws_the_same_world_every_load() {
-        let config = PlanetConfig::new(PlanetType::IceWorld, Meters(900.0), 7);
+        let config = PlanetConfig::new(PlanetType::IceWorld, Meters(900.0), 7, 1_000.0);
         let (first, entity) = planet(config.clone());
         let (second, other) = planet(config.clone());
         let (third, prepared) = prepared_planet(prepare_planet(config));
@@ -373,7 +369,12 @@ mod tests {
     /// the lock scanner's ray meets colliders and never the body root.
     #[test]
     fn a_planet_hull_stops_the_radar() {
-        let (app, entity) = planet(PlanetConfig::new(PlanetType::DustWorld, Meters(1_000.0), 7));
+        let (app, entity) = planet(PlanetConfig::new(
+            PlanetType::DustWorld,
+            Meters(1_000.0),
+            7,
+            1_000.0,
+        ));
 
         let hull = child_of(&app, entity);
         assert!(
@@ -395,7 +396,12 @@ mod tests {
     /// so no hit can mark, erode or destroy it.
     #[test]
     fn a_planet_takes_no_damage_state() {
-        let (app, entity) = planet(PlanetConfig::new(PlanetType::DustWorld, Meters(1_000.0), 7));
+        let (app, entity) = planet(PlanetConfig::new(
+            PlanetType::DustWorld,
+            Meters(1_000.0),
+            7,
+            1_000.0,
+        ));
 
         let hull = child_of(&app, entity);
         assert!(
@@ -429,7 +435,7 @@ mod tests {
             let mut entity_commands = commands.entity(entity);
             planet_scenario_object(
                 &mut entity_commands,
-                PlanetConfig::new(PlanetType::BarrenRock, Meters(1_000.0), 7).anchored(27_000.0),
+                PlanetConfig::new(PlanetType::BarrenRock, Meters(1_000.0), 7, 27_000.0),
             );
         }
         app.world_mut().flush();

@@ -11,12 +11,11 @@
 use std::{collections::BTreeSet, fmt};
 
 use bevy::{log::info_span, math::Quat};
-use nova_events::prelude::{Meters, Meters3};
+use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{Fnv32, SeedStream, ShipInventoryStock};
 use nova_scenario::prelude::{
-    is_asteroid_kind, is_valid_asteroid_mass, prepare_asteroid_geometry, prepare_planet,
-    AsteroidKindId, PlanetConfig, PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign,
-    ASTEROID_GEOMETRIC_FACTOR_MAX,
+    is_asteroid_kind, prepare_asteroid_geometry, prepare_planet, AsteroidKindId, PlanetConfig,
+    PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign, ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
 use crate::{SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, WorldConfig};
@@ -34,10 +33,9 @@ pub struct SectorAsteroid {
     pub kind: AsteroidKindId,
     /// Its silhouette seed.
     pub seed: u32,
-    /// Its well mass, as `AsteroidConfig::mass`: `Some` makes a static well,
-    /// `None` a dynamic rock with no well. The generator decides; there is no
-    /// radius rule downstream.
-    pub mass: Option<f32>,
+    /// Explicit initial motion in meters per second. Zero is an intentional
+    /// coasting start and does not disable gravity.
+    pub initial_velocity: MetersPerSecond3,
 }
 
 /// One generated planetoid: a real [`PlanetConfig`], not a big rock.
@@ -200,6 +198,8 @@ pub struct SectorShip {
     pub position: Meters3,
     /// Its full orientation: a finite unit quaternion.
     pub rotation: Quat,
+    /// Explicit initial motion in meters per second.
+    pub initial_velocity: MetersPerSecond3,
     /// The radius around the root that holds the whole hull in any
     /// orientation. At most [`SECTOR_SHIP_CLEARANCE_MAX`].
     pub clearance: Meters,
@@ -294,8 +294,8 @@ impl SectorDescription {
     /// same when this matches. Positions and radii are printed at centimeter
     /// resolution and yaw at a ten-thousandth of a radian, deliberately
     /// rounded, so the comparison is a fact about the generator and not about
-    /// the last bit of an f32. A rock's mass and a planetoid's optional
-    /// overrides - relief, sea level, mass and lock signature - are authoring
+    /// the last bit of an f32. A rock's velocity and a planetoid's
+    /// fields - relief, sea level, mass and lock signature - are authoring
     /// values, not placement: they are printed exact, as the shortest text
     /// that reads back to the same f32, and `None` prints apart from every
     /// `Some`. Rounding them would call two different worlds the same one.
@@ -315,13 +315,13 @@ impl SectorDescription {
         let mut out = format!("{}\n", self.coord);
         for body in &self.asteroids {
             out.push_str(&format!(
-                "asteroid {} {} r{:.2} {} s{} mass {:?}\n",
+                "asteroid {} {} r{:.2} {} s{} velocity {:?}\n",
                 body.id,
                 point(body.position),
                 body.radius.get(),
                 body.kind,
                 body.seed,
-                body.mass
+                body.initial_velocity.get()
             ));
         }
         for planet in &self.planets {
@@ -341,11 +341,12 @@ impl SectorDescription {
         }
         for ship in &self.ships {
             out.push_str(&format!(
-                "ship {} {} {} c{:.2} {} {} {} stock {:?} credits {} integrity {:?} \
+                "ship {} {} {} velocity {:?} c{:.2} {} {} {} stock {:?} credits {} integrity {:?} \
                  presentation {:?}\n",
                 ship.id,
                 point(ship.position),
                 canonical_rotation(ship.rotation),
+                ship.initial_velocity.get(),
                 ship.clearance.get(),
                 ship.condition.label(),
                 ship.civilization,
@@ -474,9 +475,8 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// asked for; finite geometry; ids unique and prefixed with the cell's slug,
 /// so two cells never claim one object; every body standing inside its own
 /// cell with its whole clearance sphere, so retiring a neighbour never takes
-/// it; no two bodies overlapping; shipped asteroid kinds; asteroid masses
-/// that [`is_valid_asteroid_mass`] accepts; and planet configs that
-/// [`PlanetConfig::validate`] accepts. How many bodies a generator places
+/// it; no two bodies overlapping; shipped asteroid kinds; finite initial
+/// velocities; and planet configs that [`PlanetConfig::validate`] accepts. How many bodies a generator places
 /// and how far apart it spaces them is its own policy; this check only refuses
 /// what cannot be materialized. A ship's rotation must be a finite unit
 /// quaternion, its declared clearance positive and at most
@@ -491,8 +491,8 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> String {
 /// positive length, and [`SectorFault::InvalidGeometry`] for a cell whose
 /// centre has no finite position in meters;
 /// [`SectorFault::Manifest`] for the wrong cell, an object outside its cell or
-/// overlapping another, an id another cell owns, an asteroid mass
-/// [`is_valid_asteroid_mass`] refuses, a planet config
+/// overlapping another, an id another cell owns, a non-finite initial
+/// velocity, a planet config
 /// [`PlanetConfig::validate`] refuses, a ship clearance above the maximum, or
 /// a ship design with no sections, a repeated section id, an inline section or
 /// a non-finite section pose;
@@ -557,8 +557,12 @@ pub fn validate_manifest(
                 kind: body.kind.clone(),
             });
         }
-        if let Some(mass) = body.mass.filter(|mass| !is_valid_asteroid_mass(*mass)) {
-            return Err(refuse(&body.id, "mass", mass.to_string()));
+        if !body.initial_velocity.is_finite() {
+            return Err(refuse(
+                &body.id,
+                "initial_velocity",
+                format!("{:?}", body.initial_velocity.get()),
+            ));
         }
         let clearance = Meters(body.radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX);
         stand_inside(input, &mut standing, &body.id, body.position, clearance)?;
@@ -579,6 +583,13 @@ pub fn validate_manifest(
     }
     for ship in &manifest.ships {
         own(&ship.id)?;
+        if !ship.initial_velocity.is_finite() {
+            return Err(refuse(
+                &ship.id,
+                "initial_velocity",
+                format!("{:?}", ship.initial_velocity.get()),
+            ));
+        }
         if !ship.rotation.is_finite()
             || (ship.rotation.length() - 1.0).abs() > ROTATION_LENGTH_TOLERANCE
         {

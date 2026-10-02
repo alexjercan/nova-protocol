@@ -6,9 +6,121 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
 use super::shared::*;
-use crate::base_content::scenarios::SCATTER_SEED;
+/// The original seeded scatter's positions, sizes, materials and silhouette
+/// seeds. Each cargo rock needs its own tangent to orbit the menu planet;
+/// one ScatterObjects template velocity cannot orbit a full ring.
+const CARGO_ROCKS: [(Meters3, Meters, &str, u32); 18] = [
+    (
+        Meters3::new(-1864.77478, -429.04321, -1188.49573),
+        Meters(12.49941),
+        KIND_ROCK,
+        3297592068,
+    ),
+    (
+        Meters3::new(-826.94891, -369.04984, -2089.99927),
+        Meters(17.77287),
+        KIND_ROCK,
+        3864994695,
+    ),
+    (
+        Meters3::new(-1476.73267, -599.35236, -1286.26758),
+        Meters(23.92167),
+        KIND_ICE,
+        1947664723,
+    ),
+    (
+        Meters3::new(1556.95667, -546.70697, -1562.34155),
+        Meters(18.56644),
+        KIND_ROCK,
+        2168599307,
+    ),
+    (
+        Meters3::new(552.37494, -518.09698, 2003.25171),
+        Meters(12.65928),
+        KIND_ROCK,
+        259259152,
+    ),
+    (
+        Meters3::new(-1663.15210, -453.03430, -790.88062),
+        Meters(22.51752),
+        KIND_ICE,
+        3850304159,
+    ),
+    (
+        Meters3::new(-1232.19690, -579.15979, -1599.89514),
+        Meters(13.62021),
+        KIND_ROCK,
+        1763786347,
+    ),
+    (
+        Meters3::new(-1769.87158, -490.61951, 623.72650),
+        Meters(23.70276),
+        KIND_ICE,
+        3003914376,
+    ),
+    (
+        Meters3::new(-1131.58301, -301.30911, -1502.24353),
+        Meters(10.33877),
+        KIND_ICE,
+        1617577883,
+    ),
+    (
+        Meters3::new(1263.15051, -556.83289, 1823.89905),
+        Meters(22.22169),
+        KIND_ROCK,
+        4137734546,
+    ),
+    (
+        Meters3::new(-272.80994, -439.71454, 1866.36328),
+        Meters(17.50573),
+        KIND_ICE,
+        140415615,
+    ),
+    (
+        Meters3::new(2147.33618, -584.19019, 708.62964),
+        Meters(17.20110),
+        KIND_ICE,
+        4257068043,
+    ),
+    (
+        Meters3::new(2228.13745, -407.58734, 411.87048),
+        Meters(12.69876),
+        KIND_ROCK,
+        1106598922,
+    ),
+    (
+        Meters3::new(468.61432, -536.14532, 1779.88892),
+        Meters(17.29959),
+        KIND_ROCK,
+        2518937871,
+    ),
+    (
+        Meters3::new(-1077.89233, -403.44324, 1768.67566),
+        Meters(16.07594),
+        KIND_ROCK,
+        356607876,
+    ),
+    (
+        Meters3::new(-2225.70435, -596.21747, 172.80734),
+        Meters(19.17878),
+        KIND_ROCK,
+        1045848126,
+    ),
+    (
+        Meters3::new(2015.96057, -550.90338, 549.03528),
+        Meters(12.09588),
+        KIND_ROCK,
+        304946624,
+    ),
+    (
+        Meters3::new(-1820.52319, -456.99384, -602.89606),
+        Meters(18.09421),
+        KIND_ROCK,
+        652128792,
+    ),
+];
 
-/// The scatter prefix the cargo drift takes, and the rotation limit this
+/// The cargo prefix, and the rotation limit this
 /// endless scene hands off on.
 const CARGO_ID_PREFIX: &str = "waystation_cargo_";
 const TIMER_ROTATE: &str = "waystation_rotate";
@@ -17,9 +129,18 @@ pub(crate) fn menu_waystation(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioConfig {
+    // Lighter pull for the two heavy haulers to hold their orbit.
+    let planet = backdrop_planetoid(30_000.0);
+    let ScenarioObjectKind::Planet(planet_config) = &planet.kind else {
+        unreachable!("the menu landmark is authored as a planet");
+    };
+    let well = GravityWell::from_mass(
+        planet_config.mass,
+        planet_config.body_radius().to_engine(),
+        &GravitySettings::default(),
+    );
     let mut objects = vec![
-        // Lighter pull for the two heavy haulers to hold their orbit.
-        backdrop_planetoid(30_000.0),
+        planet,
         backdrop_orbiter(
             "waystation_hauler_a",
             "Hauler Biscuit",
@@ -53,49 +174,35 @@ pub(crate) fn menu_waystation(
     ];
     objects.extend(backdrop_rig("waystation").objects());
 
-    // The shipping lane: a flatter, slightly denser band than menu_ambience's
-    // ring, same safety floor (inner past any plausible geometric radius,
-    // whole band below the orbit plane).
-    let lane_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
-        id_prefix: CARGO_ID_PREFIX.to_string(),
-        count: 18,
-        seed: SCATTER_SEED ^ 0x1,
-        region: ScatterRegion::Ring {
-            center: Meters3::ZERO,
-            inner: Meters(1_800.0),
-            outer: Meters(2_300.0),
-            y_min: Meters(-600.0),
-            y_max: Meters(-250.0),
-        },
-        template: ScenarioObjectConfig {
-            base: BaseScenarioObjectConfig {
-                id: CARGO_ID_PREFIX.to_string(),
-                name: "Cargo Rock".to_string(),
-                position: Meters3::ZERO,
-                rotation: Quat::IDENTITY,
-            },
-            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                kind: KIND_ROCK.into(),
-                destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-                radius: Meters(10.0),
-                texture: asteroid_texture,
-                mass: None,
-                seed: None,
-                lock_signature: None,
-            }),
-        },
-        asteroid_radius: Some((Meters(10.0), Meters(25.0))),
-        // A working freight lane, so this one is allowed to say what the lane
-        // is FOR: ice is the propellant and water a waystation exists to move,
-        // at five parts in eighteen, and exactly one metal body in the lane
-        // says the ore is out here without saying it is common.
-        asteroid_kinds: vec![
-            (KIND_ROCK.into(), 12),
-            (KIND_ICE.into(), 5),
-            (KIND_METAL.into(), 1),
-        ],
-        min_separation: None,
-    });
+    // Snapshot the original seeded lane so the cargo keeps its first-frame
+    // layout, while each rock authors the velocity its own radius needs.
+    let cargo = CARGO_ROCKS
+        .iter()
+        .enumerate()
+        .map(|(index, (position, radius, kind, seed))| {
+            let radial = position.to_engine();
+            let tangent = radial.cross(Vec3::Y).normalize();
+            let velocity = MetersPerSecond3::from_engine(
+                tangent * circular_orbit_speed(well.mu, radial.length()),
+            );
+            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: format!("{CARGO_ID_PREFIX}{index}"),
+                    name: "Cargo Rock".to_string(),
+                    position: *position,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    kind: (*kind).into(),
+                    destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
+                    radius: *radius,
+                    texture: asteroid_texture.clone(),
+                    initial_velocity: velocity,
+                    seed: Some(*seed),
+                    lock_signature: None,
+                }),
+            })
+        });
 
     let events = vec![
         ScenarioEventConfig {
@@ -116,7 +223,9 @@ pub(crate) fn menu_waystation(
                     // far arc cannot be brought in without putting the camera
                     // through the rock. Distance is doing the right thing here.
                     backdrop_camera(Meters3::new(0.0, 1_000.0, 3_350.0)),
-                    lane_scatter,
+                ])
+                .chain(cargo)
+                .chain([
                     // The carousel's rotation limit: the waystation's day
                     // never ends on its own, so after a couple of freight
                     // laps the menu turns to the next backdrop.

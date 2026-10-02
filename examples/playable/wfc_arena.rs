@@ -342,7 +342,7 @@ const DERELICT_ID_PREFIX: &str = "arena_derelict_";
 /// The distant landmark, well outside the leash + its own 4 km sphere of
 /// influence (`mu = soi_cutoff_accel * soi^2` at the shipped 0.25 cutoff), so
 /// it is scenery and never a well the fight falls into.
-const PLANETOID_POSITION: Meters3 = Meters3::new(-6_200.0, -1_400.0, -4_200.0);
+const PLANETOID_POSITION: Meters3 = Meters3::new(-7_000.0, -1_400.0, -4_800.0);
 const PLANETOID_RADIUS: Meters = Meters(600.0);
 const PLANETOID_MASS: f32 = 40_000.0;
 /// Pinned surface, so the landmark is the same landmark every load.
@@ -1170,7 +1170,7 @@ fn rock_ring(
                 destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
                 radius: radius.0,
                 texture: AssetRef::from(game_assets.asteroid_texture.clone()),
-                mass: None,
+                initial_velocity: MetersPerSecond3::ZERO,
                 seed: None,
                 lock_signature: None,
             }),
@@ -1409,10 +1409,12 @@ fn planetoid() -> EventActionConfig {
             position: PLANETOID_POSITION,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Planet(
-            PlanetConfig::new(PlanetType::BarrenRock, PLANETOID_RADIUS, PLANETOID_SEED)
-                .anchored(PLANETOID_MASS),
-        ),
+        kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+            PlanetType::BarrenRock,
+            PLANETOID_RADIUS,
+            PLANETOID_SEED,
+            PLANETOID_MASS,
+        )),
     })
 }
 

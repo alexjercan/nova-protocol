@@ -50,6 +50,11 @@
                                     ],
                                 },
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             capabilities: (
                                 stop_enabled: false,
                                 goto_enabled: false,
@@ -84,7 +89,7 @@
                             radius: 600.0,
                             planet_type: BarrenRock,
                             seed: 20260815,
-                            mass: Some(10000.0),
+                            mass: 10000.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -196,6 +201,11 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inventory: {},
                             lootable: false,
                             credits: 2000,
@@ -310,6 +320,11 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inventory: {},
                             lootable: false,
                             credits: 2000,
@@ -424,6 +439,11 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inventory: {},
                             lootable: false,
                             credits: 2000,
@@ -538,6 +558,11 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inventory: {},
                             lootable: false,
                             credits: 2000,
@@ -652,6 +677,11 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inventory: {},
                             lootable: false,
                             credits: 2000,
@@ -830,6 +860,11 @@
                             controller: AI((
                                 leash: Some(3500.0),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
@@ -1009,6 +1044,11 @@
                             controller: AI((
                                 leash: Some(3500.0),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
@@ -1130,6 +1170,11 @@
                             ),
                             kind: Asteroid((
                                 radius: 10.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
@@ -1193,6 +1238,11 @@
                             ),
                             kind: Asteroid((
                                 radius: 15.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
