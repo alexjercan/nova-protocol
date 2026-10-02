@@ -90,6 +90,9 @@ import {
     zoneAllows,
     ZONE_PARTS,
     zonePlacements,
+    cargoIntakeTake,
+    dockingGates,
+    miningBeamChecks,
 } from "../src/widgets";
 
 const HP = 200;
@@ -1026,6 +1029,63 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.equal(small.unchipped, 0);
     assert.equal(small.piecesNew, 1);
     assert.equal(small.shedFrames, 1);
+}
+
+// Intake: the door reads the centre, the take any part in the 1 m slab, and
+// a full hold refuses a touching canister.
+{
+    const endOn = cargoIntakeTake(0.5, 0, 90, true);
+    assert.ok(endOn.doorOpens && endOn.touchesSlab && endOn.taken);
+    assert.ok(cargoIntakeTake(1, 0, 90, true).taken, "the slab is inclusive");
+    assert.ok(!cargoIntakeTake(1.01, 0, 90, true).touchesSlab);
+    const full = cargoIntakeTake(0.5, 0, 90, false);
+    assert.ok(full.touchesSlab && !full.taken, "a full hold takes nothing");
+    // Along the face, 4.7 m half length over a 7.65 m half opening.
+    assert.ok(cargoIntakeTake(0, 12.3, 0, true).taken);
+    assert.ok(
+        !cargoIntakeTake(0, 12.4, 0, true).touchesSlab,
+        "against the face beside the opening is not a take"
+    );
+    // End-on, the centre sits 4.7 m behind the near end.
+    assert.ok(cargoIntakeTake(35, 0, 90, true).doorOpens);
+    const shut = cargoIntakeTake(35.4, 0, 90, true);
+    assert.ok(!shut.doorOpens, "near end inside 40 m, centre past it");
+    assert.ok(!shut.touchesSlab);
+}
+
+// Docking: four inclusive gates; any one past its edge refuses DOCK.
+{
+    assert.ok(dockingGates(10, 15, 5, 5).eligible, "every edge is inclusive");
+    const far = dockingGates(10.5, 5, 2, 1);
+    assert.ok(!far.gap && far.facing && far.speed && far.spin);
+    assert.ok(!far.eligible);
+    assert.ok(!dockingGates(10, 15.5, 5, 5).facing);
+    assert.ok(!dockingGates(10, 15, 5.1, 5).speed);
+    assert.ok(!dockingGates(10, 15, 5, 5.1).spin);
+}
+
+// Mining: the checks in order, 100 m inclusive to the nearest point, and a
+// grazing beam that meets the rock past reach is off target.
+{
+    assert.deepEqual(miningBeamChecks("ore", 100, 0), {
+        refusal: null,
+        hitM: 100,
+    });
+    assert.equal(miningBeamChecks("ore", 101, 0).refusal, "OutOfReach");
+    assert.equal(miningBeamChecks("none", 50, 0).refusal, "NoLock");
+    assert.equal(miningBeamChecks("ship", 50, 0).refusal, "NotAsteroid");
+    assert.equal(
+        miningBeamChecks("plain", 120, 0).refusal,
+        "Barren",
+        "a barren rock is refused before reach is checked"
+    );
+    assert.equal(miningBeamChecks("ore", 50, 20).refusal, "OffTarget");
+    assert.equal(miningBeamChecks("ore", 90, 9).refusal, null);
+    assert.equal(
+        miningBeamChecks("ore", 90, 10).refusal,
+        "OffTarget",
+        "the rock is in reach but the beam meets it past 100 m"
+    );
 }
 
 // eslint-disable-next-line no-console

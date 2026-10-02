@@ -22,7 +22,7 @@
     </figcaption>
 </figure>
 
-A ship is an assembly of sections, each with one job: hull blocks carry the structure, a controller turns it, thrusters push it, the turrets, torpedo bays and the railgun fight with it, a docking port holds it to another ship, a [cargo intake](../interface/#jettison-and-pickup) drops and takes in cargo canisters, and a [mining beam](../keybinds/) cuts ore from a locked rock. There is no hidden ship underneath - what a hull can do is exactly what its parts can do, and what it loses when a part is shot off is exactly that part's job. How a whole ship holds together and comes apart is on [Ships & damage](../ships/). This chapter is the parts themselves, one page per kind.
+A ship is an assembly of sections, each with one job: hull blocks carry the structure, a controller turns it, thrusters push it, the turrets, torpedo bays and the railgun fight with it, a docking port holds it to another ship, a [cargo intake](cargo-intake/) drops and takes in cargo canisters, and a [mining beam](mining-beam/) cuts ore from a locked rock. There is no hidden ship underneath - what a hull can do is exactly what its parts can do, and what it loses when a part is shot off is exactly that part's job. How a whole ship holds together and comes apart is on [Ships & damage](../ships/). This chapter is the parts themselves, one page per kind.
 
 <div id="wiki-children"></div>
 

@@ -12,12 +12,17 @@
 //! - `mining-beam-doors.png`: the doors parting, the tip still in.
 //! - `mining-beam-deploying.png`: the doors open, the tip partway out.
 //! - `mining-beam-deployed.png`: the emitter out, the beam leaving its face.
-//! - `mining-beam-hit.png`: the level view from starboard after three paying
-//!   pulses, the beam clear of the hull and ending on the rock.
+//! - `wiki-section-mining-beam.png`: the level view from starboard after three
+//!   paying pulses, the beam clear of the hull and ending on the rock.
 //! - `mining-beam-sparks.png`: close on the hit 0.15 game seconds after the
 //!   next pulse, its sparks in flight.
 //! - `mining-beam-retracted.png`: the key released and the emitter shut again.
-//! - `mining-beam-rock-after.png`: the carved face once every canister left.
+//! - `wiki-section-mining-beam-carve.png`: the carved face once every
+//!   canister left.
+//!
+//! Then one more press and release, unpaused, recorded as the site's
+//! `loop-section-mining-beam` webm: the doors part, the tip runs out, the beam
+//! pulses with its sparks, and on release the tip and doors go back in.
 //!
 //! The door and tip tracks take 0.3 s each, which one lavapipe frame can
 //! cross. While they move, the script caps a frame at [`TRACK_FRAME_STEP`] of
@@ -31,7 +36,9 @@
 //! disagree, or if the pulse sound did not play once per pulse through the
 //! warship's hull.
 //!
-//! Capture (windowed, real GPU):
+//! Capture (windowed, real GPU). An armed run pins the clock to the loop's
+//! 30 fps, one frame a 1/30 s step - the same step [`TRACK_FRAME_STEP`] caps
+//! a frame at:
 //! ```text
 //! NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_mining_beam --features debug
@@ -80,6 +87,19 @@ const PARKED_DRIFT: f32 = 0.2;
 /// Paying pulses to wait for before the hit shot.
 #[cfg(feature = "debug")]
 const PAID_PULSES: usize = 3;
+
+/// The site's mining beam loop.
+#[cfg(feature = "debug")]
+const MINING_LOOP: &str = "loop-section-mining-beam";
+
+/// Pulses the loop's press fires before the key comes up: the first at once
+/// and one a second after it.
+#[cfg(feature = "debug")]
+const LOOP_PULSES: usize = 2;
+
+/// Game seconds the loop holds the shut emitter at each end.
+#[cfg(feature = "debug")]
+const LOOP_HOLD_SECS: f32 = 0.5;
 
 /// Game seconds after a pulse the sparks shot waits for, so the burst has
 /// left the crater.
@@ -132,6 +152,8 @@ struct MiningProof {
     pulses_before_sparks: Option<usize>,
     /// Game seconds at the last pulse.
     last_pulse_at: f32,
+    /// The pulse count when the loop opened.
+    pulses_before_loop: Option<usize>,
 }
 
 fn main() -> bevy::app::AppExit {
@@ -141,6 +163,7 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_systems(
             Startup,
             (force_capture_resolution, hide_dev_overlays, hide_hud),
@@ -448,6 +471,17 @@ fn frame_hit(world: &mut World) {
     );
 }
 
+/// Frame the emitter face, the beam and its hit together, from above, to
+/// starboard and ahead of the face.
+#[cfg(feature = "debug")]
+fn frame_cycle(world: &mut World) {
+    pose_camera(
+        world,
+        Meters3::from_engine(Vec3::new(7.0, 6.0, -12.0)),
+        Meters3::from_engine(Vec3::new(1.0, 1.0, -10.3)),
+    );
+}
+
 /// Refuse a shot of a warship the rock has pushed off its mark.
 #[cfg(feature = "debug")]
 fn assert_parked(world: &mut World) {
@@ -471,8 +505,9 @@ fn set_paused(world: &mut World, paused: bool) {
 
 /// Shoot the first rendered frame, lock the rock and shoot it, hold the key
 /// and shoot the doors, the deploy and the hit, release and shoot the
-/// retract, wait for the ore to leave the rock, shoot the carve, then check
-/// the pulse log against the rock and the canisters.
+/// retract, wait for the ore to leave the rock, shoot the carve, check the
+/// pulse log against the rock and the canisters, then record one more press
+/// and release as the site's loop.
 #[cfg(feature = "debug")]
 fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
@@ -597,9 +632,9 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             set_paused(world, true);
             let pulses = world.resource::<PulseLog>().0.len();
             info!("mining_beam: hit shot after {pulses} pulse(s)");
-            shoot(world, "mining-beam-hit.png");
+            shoot(world, "wiki-section-mining-beam.png");
         })
-        .until(shot_written("mining-beam-hit.png"))
+        .until(shot_written("wiki-section-mining-beam.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
         .step("wait for the next pulse's sparks")
@@ -683,8 +718,8 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("shoot the carved rock")
-        .on_enter(|world| shoot(world, "mining-beam-rock-after.png"))
-        .until(shot_written("mining-beam-rock-after.png"))
+        .on_enter(|world| shoot(world, "wiki-section-mining-beam-carve.png"))
+        .until(shot_written("wiki-section-mining-beam-carve.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
         .step("check the pulse log against the rock and the canisters")
@@ -748,6 +783,47 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
         })
         .until(frames(1))
+        .add()
+        .step("open the loop on the shut emitter")
+        .on_enter(|world| {
+            frame_cycle(world);
+            let pulses = world.resource::<PulseLog>().0.len();
+            world.resource_mut::<MiningProof>().pulses_before_loop = Some(pulses);
+            loop_start(world, MINING_LOOP);
+        })
+        .until(elapsed(LOOP_HOLD_SECS))
+        .add()
+        .step("hold the mine key through the loop's pulses")
+        .on_enter(press_action("mine"))
+        .until(when(|world| {
+            world
+                .resource::<MiningProof>()
+                .pulses_before_loop
+                .is_some_and(|before| world.resource::<PulseLog>().0.len() >= before + LOOP_PULSES)
+        }))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("release and wait for the emitter to shut")
+        .on_enter(release_action("mine"))
+        .until(when(|world| {
+            emitter_state(world) == Some((1.0, 1.0, false))
+        }))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("hold the shut emitter")
+        .until(elapsed(LOOP_HOLD_SECS))
+        .add()
+        .step("close the loop")
+        .on_enter(|world| {
+            let log = world.resource::<PulseLog>().0.clone();
+            assert!(
+                log.iter().all(Result::is_ok),
+                "a loop pulse was refused: {log:?}"
+            );
+            loop_end(world, MINING_LOOP);
+        })
+        .until(loop_written(MINING_LOOP))
+        .deadline(STEP_DEADLINE_SECS)
         .add()
 }
 

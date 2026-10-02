@@ -30,8 +30,8 @@
 //! until at least five ore is cut, which drops more than one canister, and
 //! tracks the one holding the most ore. It flies the warship with the flight
 //! computer's `MatchVelocity`, the primitive every AI pilot steers with: down
-//! clear of the canisters, level under the tracked one, and up onto it slower
-//! than the intake's capture speed. It then holds the berth beside the trader
+//! clear of the canisters, level under the tracked one, and slowly up onto it.
+//! It then holds the berth beside the trader
 //! and docks with the real key. The other canisters stay in space, so the ore
 //! sold is the ore collected, not the ore mined. It fails loudly if the rock's
 //! lost corners, the pulse log and the ore in canisters, the queue and the
@@ -39,7 +39,8 @@
 //! anything but the tracked canister or adds other than exactly its ore and
 //! mass to the hold, or if the Sell does not move exactly that ore and its
 //! bid between the two ships. `NOVA_CAPTURE=1` also writes the mining, the
-//! pickup, the take and the Sell frames.
+//! pickup, the take and the Sell frames, and records the last meters of the
+//! lift through the take as the site's `loop-section-cargo-intake` webm.
 //!
 //! The walk is long on lavapipe: set `NOVA_AUTOPILOT_DEADLINE` past the
 //! default backstop.
@@ -221,7 +222,7 @@ mod walk {
 
     use avian3d::prelude::LinearVelocity;
     use nova_protocol::{
-        nova_debug::harness::{AutopilotPlugin, Predicate},
+        nova_debug::harness::{hide_status_bar, AutopilotPlugin, LoopCapturePlugin, Predicate},
         nova_interface::pane::InterfacePaneType,
     };
 
@@ -257,7 +258,8 @@ mod walk {
     /// face, before the lift starts, in engine units.
     const LIFT_ALIGN: f32 = 0.1;
     /// The fastest the lift closes on the canister, in engine units per
-    /// second: half the intake's 5 m/s capture speed.
+    /// second: slow, so the canister meets the trigger slab in front of the
+    /// opening and not the hull beside it.
     const LIFT_SPEED: f32 = 0.25;
     /// Velocity per engine unit of position error, per second.
     const GAIN: f32 = 0.8;
@@ -281,9 +283,13 @@ mod walk {
 
     /// The frames the capture path writes.
     const MINING_SHOT: &str = "mine-sell-mining.png";
-    const PICKUP_SHOT: &str = "mine-sell-pickup.png";
+    const PICKUP_SHOT: &str = "wiki-section-cargo-intake.png";
     const TAKEN_SHOT: &str = "mine-sell-taken.png";
     const SOLD_SHOT: &str = "mine-sell-sold.png";
+    /// The site's intake loop: from the pickup shot through the take.
+    const INTAKE_LOOP: &str = "loop-section-cargo-intake";
+    /// Game seconds the loop holds after the take.
+    const INTAKE_LOOP_TAIL_SECS: f32 = 1.0;
 
     /// What the flight computer is asked to do.
     #[derive(Resource, Default, Clone, Copy, PartialEq)]
@@ -315,6 +321,7 @@ mod walk {
 
     pub(super) fn add(app: &mut App) {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        app.add_plugins(LoopCapturePlugin::default());
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
         app.init_resource::<Helm>();
         app.init_resource::<FlowProof>();
@@ -798,6 +805,7 @@ mod walk {
                 };
                 lock(world, rock);
                 frame_beam(world);
+                hide_status_bar(world);
             })
             .until(and(scenario_is_built(), frames(10)))
             .deadline(STEP_DEADLINE)
@@ -871,6 +879,10 @@ mod walk {
             .deadline(FLIGHT_DEADLINE)
             .add();
         let script = shoot_checkpoint(script, "pickup", frame_intake, PICKUP_SHOT)
+            .step("open the intake loop")
+            .on_enter(|world: &mut World| loop_start(world, INTAKE_LOOP))
+            .until(frames(1))
+            .add()
             .step("wait for the take")
             .until(when(|world| {
                 let proof = world.resource::<FlowProof>();
@@ -884,6 +896,14 @@ mod walk {
             .step("check the take")
             .on_enter(check_take)
             .until(frames(1))
+            .add()
+            .step("hold the take to the end of the intake loop")
+            .until(elapsed(INTAKE_LOOP_TAIL_SECS))
+            .add()
+            .step("close the intake loop")
+            .on_enter(|world: &mut World| loop_end(world, INTAKE_LOOP))
+            .until(loop_written(INTAKE_LOOP))
+            .deadline(STEP_DEADLINE)
             .add();
         let script = shoot_checkpoint(script, "take", frame_intake, TAKEN_SHOT)
             .step("fly beside the berth")

@@ -134,6 +134,14 @@ Nothing on it flies for you, and the **roll is not drawn at all** - the ports ar
     </div>
 </figure>
 
+## Pickup sight and canister tags
+
+<!-- Behavior verified against crates/nova_hud/src/pickup_sight.rs (CARGO_PICKUP_SIGHT_RANGE 200 m from the player's ship, no lock needed, a travel-locked canister first, then the nearest intake face) and crates/nova_hud/src/cargo_canister_chips.rs (CARGO_TAG_RANGE 100 m, "Mixed cargo" past one stack, mass line). -->
+
+A hull carrying a [cargo intake](../sections/cargo-intake/#taking-a-canister-in) draws a **pickup sight** for a canister within **200 m** of your ship, with no lock needed: a cross on the intake's face and a line to the canister. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Stand the line perpendicular to the cross, then close the gap. The sight goes with the canister when the intake takes it.
+
+Within **100 m**, each canister carries an amber **tag** that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for more than one item, with its total mass under it.
+
 ## Allegiance markers
 
 A small filled triangle floats above every ship in view, pointing down at the hull and coloured by its side: **green** for your allies (your AI wingmen included), **red** for hostiles, **grey** for neutral bystanders. Your own ship shows none - you know where you are. The triangle tracks each ship and hides when it leaves the screen (pointing at off-screen ships is the edge indicators' job); a ship that turns hostile mid-fight (a neutral hauler provoked into a threat) flips its marker red on the spot. It reads at a glance so a mixed brawl - wingmen and enemies tangled together - stays legible. See [Factions](../factions/).

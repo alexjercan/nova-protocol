@@ -135,8 +135,9 @@ The Ship pane is a schematic 3D viewer of your own hull: one block per section, 
 | `RAIL-1` | Railgun | Weapon |
 | `DOCK-1` | Docking clamp | Docking |
 | `MNG-1` | Mining beam | Mining |
+| `CGO-1` | Cargo intake | Cargo Intake |
 
-The footer shows separate Docking and Mining icons. The Mine (hold), Dock and Helm keys are in **Settings > Controls > FLIGHT**; their defaults are <kbd>V</kbd>, <kbd>D</kbd> and <kbd>H</kbd>. You can rebind each key there.
+The footer legend shows all seven family icons: Weapon, Thruster, Controller, Hull, Docking, Mining and Cargo Intake. The Mine (hold), Dock and Helm keys are in **Settings > Controls > FLIGHT**; their defaults are <kbd>V</kbd>, <kbd>D</kbd> and <kbd>H</kbd>. You can rebind each key there.
 
 Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or with **Prev** / **Next** in the panel. The panel shows its family icon, a condition bar, its status, what it does, its HP, ammunition and current bindings.
 
@@ -215,12 +216,10 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      `ItemType::bid_cr`, balance `ShipCredits` from `SpaceshipConfig::credits`;
      Jettison: `plan_item_jettison`; all applied by
      crates/nova_interface/src/inventory/app.rs
-     `apply_inventory_action_commands`. Intake: crates/nova_ship/src/sections/
-     cargo_intake_section.rs `run_cargo_intakes`; numbers from
-     crates/nova_authoring/src/base_content/sections/cargo_intake.rs. Tag:
-     crates/nova_hud/src/cargo_canister_chips.rs. -->
+     `apply_inventory_action_commands`. The intake's door, drop and pickup
+     live on wiki/sections/cargo-intake.md. -->
 
-The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it and your credits, for example `Line Warship 3520 kg / 13200 kg  2,000 cr`. The docked ship's title shows its credits too. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs, 12 torpedoes - 3,520 kg in all - and 2,000 cr, with a Derelict Tender carrying 8 more hull plates and 0 cr moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A [repair](#the-ship) spends hull plates, and a weapon's idle [reload](../combat-weapons/#magazines) spends matching ammunition. Nothing is saved: spent and moved items and credits return to their starting values when the scenario loads again. With cheats armed, [`item give`](../commands/#cheats) adds items to a ship's hold.
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it and your credits, for example `Line Warship 3520 kg / 13100 kg  2,000 cr`. The docked ship's title shows its credits too. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs, 12 torpedoes - 3,520 kg in all - and 2,000 cr, with a Derelict Tender carrying 8 more hull plates and 0 cr moored 140 m ahead of your port collar. Fly forward and stop beside it to [dock](../sections/docking/). Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A [repair](#the-ship) spends hull plates, and a weapon's idle [reload](../combat-weapons/#magazines) spends matching ammunition. Nothing is saved: spent and moved items and credits return to their starting values when the scenario loads again. With cheats armed, [`item give`](../commands/#cheats) adds items to a ship's hold.
 
 | Filter | Shows |
 | --- | --- |
@@ -266,23 +265,9 @@ Prices are fixed per item and the same on every ship. A Buy pays the ask and a S
 
 ### Jettison and pickup
 
-A **cargo intake** is a 30 x 20 m hold mouth behind an accordion door. The open world's line warship carries one on its top deck, aft of the dorsal guns, door up.
+Undocked, with a working [cargo intake](../sections/cargo-intake/), a click on an item in your column opens a **Jettison** form. **Confirm** takes the whole quantity out of your hold at once and packs it into canisters queued on the intake, and the note line reads `Jettisoned 4 Hull plate: 1 canister queued` with the number of canisters now waiting. A canister holds at most 200 kg across all its stacks, so a larger quantity fills several: one 150 kg torpedo, 10 rail slugs of 20 kg, 20 hull plates of 10 kg or 1000 PDC rounds of 0.2 kg each. A confirmed stack first tops up the last waiting canister where whole items still fit, even in the same frame. A refused jettison changes nothing: `Refused: undock to jettison`, `Refused: no working cargo intake`, `Refused: enter a quantity`, `Refused: quantity is zero`, or `Refused: only 2 Hull plate in Line Warship`.
 
-Undocked, with a working intake, a click on an item in your column opens a **Jettison** form. **Confirm** takes the whole quantity out of your hold at once and packs it into canisters queued on the intake, and the note line reads `Jettisoned 4 Hull plate: 1 canister queued` with the number of canisters now waiting. A canister holds at most 200 kg across all its stacks, so a larger quantity fills several: one 150 kg torpedo, 10 rail slugs of 20 kg, 20 hull plates of 10 kg or 1000 PDC rounds of 0.2 kg each. A confirmed stack first tops up the last waiting canister where whole items still fit, even in the same frame. Once you close the interface, the door folds open, and the canisters leave through it one at a time, in the order you queued them, at 3 m/s relative to your ship. A refused jettison changes nothing: `Refused: undock to jettison`, `Refused: no working cargo intake`, `Refused: enter a quantity`, `Refused: quantity is zero`, or `Refused: only 2 Hull plate in Line Warship`. An intake holds each canister back until its door is fully open and no canister sits within 12.5 m of where it leaves. Canisters still waiting are lost with the intake.
-
-To take a canister in, bring the intake's door to it:
-
-| Canister | What the intake does |
-| --- | --- |
-| In front of the door and within 40 m of it | Opens the door. |
-| Any part of it within 1 m in front of the 22.2 x 15.3 m opening | Takes the whole canister into your hold at once, at any speed and any angle, open door or not. |
-| Touching your ship anywhere else | Is not taken. |
-| Heavier than your hold has room for | Stays out, whole. |
-| Just jettisoned | Leaves without being taken. It is taken back only if it turns and comes within 1 m of the opening again. |
-
-The door, a drop and a take each make a sound at the intake. With a canister within 200 m of your ship, the pickup sight draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap. The sight stays cyan while closing. The take sound and the canister going through the door confirm a take; the sight goes with the canister. An unavailable intake, or no canister within 200 m, draws no sight.
-
-Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for multiple item types, with its total mass in kg. The tag hides while the canister is off-screen. A canister has 20 HP; at zero it and its contents are destroyed, not picked up. Canisters can be designated with a travel lock but cannot enter the combat target slot. Canisters are not saved: they go when the scenario ends, and a jettisoned stack returns to your hold when the scenario loads again.
+Once you close the interface, the intake's door folds open and the canisters leave through it one at a time. To take a canister back in, or one a [mining beam](../sections/mining-beam/) cut loose, fly the intake's door onto it. [Cargo intake](../sections/cargo-intake/) has the door, the pickup sight, the drop and the canister rules.
 
 ## The command shell
 

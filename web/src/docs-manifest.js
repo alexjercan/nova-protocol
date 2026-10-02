@@ -45,6 +45,7 @@ const WIKI_PAGES = [
             "Part 3 - The line",
             "Part 4 - Something that shoots back",
             "The sandbox",
+            "Mining and cargo",
             "Where to go next",
         ],
     },
@@ -177,7 +178,7 @@ const WIKI_PAGES = [
         expanded: true,
         tags: ["ships"],
         summary:
-            "What every part of a ship shares, one page per kind - hull, controller, thruster, turret, torpedo bay and railgun - and the shipped catalog at a glance.",
+            "What every part of a ship shares, one page per kind - hull, controller, thruster, turret, torpedo bay, railgun, docking port, cargo intake and mining beam - and the shipped catalog at a glance.",
         related: ["ships", "combat-weapons", "flight-autopilot"],
         headings: [
             "What every section shares",
@@ -310,7 +311,7 @@ const WIKI_PAGES = [
         icon: "assets/icon-docking.png",
         tags: ["ships"],
         summary:
-            "A sealed hatch that clamps your hull to the ship you have locked: the approach envelope, what the clamp holds, and the first burn that lets go.",
+            "A sealed hatch that clamps your hull to the ship you have locked: the approach envelope, what the clamp holds, the helm, and the second press that lets go.",
         related: ["sections", "flight-autopilot", "keybinds"],
         headings: [
             "Flying the approach",
@@ -318,6 +319,35 @@ const WIKI_PAGES = [
             "Letting go",
             "Variants",
         ],
+    },
+    {
+        slug: "sections/cargo-intake",
+        md: "sections/cargo-intake.md",
+        title: "Cargo intake",
+        category: "Ship sections",
+        parent: "sections",
+        tags: ["ships"],
+        summary:
+            "A hold mouth behind an accordion door: fly it onto a canister to take it whole, or drop cargo through it in canisters.",
+        related: ["sections", "interface", "sections/mining-beam"],
+        headings: [
+            "Taking a canister in",
+            "Dropping cargo",
+            "Canisters",
+            "Variants",
+        ],
+    },
+    {
+        slug: "sections/mining-beam",
+        md: "sections/mining-beam.md",
+        title: "Mining beam",
+        category: "Ship sections",
+        parent: "sections",
+        tags: ["ships"],
+        summary:
+            "A bow emitter the hull aims: lock a rock, hold MINE, and the ore it cuts leaves the rock in canisters for your intake.",
+        related: ["sections", "sections/cargo-intake", "targeting-radar"],
+        headings: ["Cutting ore", "Where the ore goes", "Variants"],
     },
     {
         slug: "keybinds",
@@ -362,6 +392,8 @@ const WIKI_PAGES = [
             "Flight readouts",
             "Locks and reticles",
             "Bore sight",
+            "Docking sight",
+            "Pickup sight and canister tags",
             "Allegiance markers",
             "Target viewfinder",
             "Comms and objectives",
