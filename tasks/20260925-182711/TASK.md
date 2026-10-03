@@ -1,6 +1,6 @@
 # Static-well gravity for all mobile bodies and stable orbit placement
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.15.0,gravity,world,design
 
@@ -9,9 +9,10 @@
 - Research a gravity upgrade for the backlog. Immovable large planet wells pull mobile bodies; do not implement full pairwise N-body simulation or attraction between two mobile bodies.
 - Ships, projectiles, and asteroids should feel gravity, both in authored scenarios and free play. Migrate any broken shipped scenarios; do not add backward-compatible behavior just to keep the old setup.
 - Asteroid placement must not make every object immediately fall into a well. Explore physically credible, stable orbits, including the consequences of streaming and contact.
-- This is research and a decision specification, not permission to implement the physics change.
+- Originally framed as research and a decision specification, not permission to implement the physics change; superseded by the 2026-10-02 implementation approval below.
 - Owner clarification, 2026-09-25: exclusions for unpiloted ships and rocks exist for reasons we must remove, not preserve as the end state. All mobile ships, projectiles and asteroids should respond to the static-well field uniformly. True immovable planet/anchor sources are the intentional exception; no mobile-body attraction or full N-body model.
-- Owner decision, 2026-10-02: prototype seeded dynamic orbits first. Measure drift, collisions and sector retirement before deciding whether analytic rails are needed. This approves a disposable prototype, not an implementation interface, content migration or physics change.
+- Owner decision, 2026-10-02: prototype seeded dynamic orbits first. Measure drift, collisions and sector retirement before deciding whether analytic rails are needed. At the time, this approved only a disposable prototype, not an implementation interface, content migration or physics change; superseded by the same-day decision below.
+- Owner decision, 2026-10-02 (supersedes the prototype-only restriction above): authorized implementation in an isolated Sprout. The source set, required-velocity field, Ledger pin migration, sector policy, and overlapping-candidate handling below are agent-selected defaults recorded via `record_decision`, not owner-dictated.
 
 ## Agent findings (read-only master review, 2026-10-02; recheck after PR #104)
 
@@ -23,33 +24,35 @@
 - Open-world bodies are children of their owning sector root and regenerate after retirement (`crates/nova_world/src/streaming.rs:840-861`); cluster members can belong to a different sector from the cluster (`clusters.rs:950-976`). Moving bodies can cross a cell face, lose their well when its sector retires, or reset phase on revisit. Chunks and detached sections appear to spawn outside the sector root and may outlive it for up to 30 s; this is unverified. Moving ownership/persistence is also tracked in `tasks/20260824-125938/TASK.md`.
 - Content inventory (read-only): the Ledger mod's six hand-authored scenes each have a massed planet and moon; 44 rocks use `mass: Some(0.0)` as pinned props, and Ledger 02/03/05 contain unpiloted ships. Base builders place massed planets in `tutorial/range.rs`, `main_menu/shared.rs`, `season_one/stage.rs`, and unpiloted ships in `season_one/stage.rs`, `duel.rs`, `gauntlet.rs`, `range.rs`. Scenario config has no initial velocity/orbit field. Asteroid mass must be finite and non-negative at lint/load (`crates/nova_scenario/src/lint/scenario.rs:511-521`, `objects/asteroid.rs:310-314`); planet mass must be positive (`lint/scenario.rs:1315-1338`). `GravityWell::from_mass` caps surface gravity (`gravity.rs:96-108`).
 
-## Design options to compare (proposals, not decisions)
+## Historical design options (before the production decision)
 
-1. **Dynamic initial orbit (selected for the first disposable prototype only):** put a chosen mobile body on a seeded tangent velocity inside a well's stable band, then let the current gravity and collisions act. Real impacts and deflections remain; contact, numerical drift, intersecting SOIs, world-seam lifetime, and re-entry must be tested.
+1. **Dynamic initial orbit (prototyped, then selected as an agent default for the production slice):** put a chosen mobile body on a seeded tangent velocity inside a well's stable band, then let the current gravity and collisions act. Real impacts and deflections remain; contact, numerical drift, intersecting SOIs, world-seam lifetime, and re-entry must be tested.
 2. **Analytic/kinematic rails with explicit handoff:** derive position/phase from well and simulation time until near the player or hit, then promote to a dynamic body. This can keep distant scenery stable, but handoff, collision authority, and 'all asteroids feel gravity' need a clear policy.
 3. **Migrate static scenery to explicit immovable sources:** pin *true* authored planet/anchor scenery without claiming a mobile asteroid is exempt. If a pinned asteroid exists only as a visual prop, replace or reclassify it; mobile rocks and unpiloted hulls must still opt into gravity. This may change shipped content and requires a reviewed migration.
 
 Do not infer that a body with no well nearby must orbit. It can coast; the selected rule must say what happens to free-space clusters, stations, debris, and unpiloted hulls.
 
-## Decisions still open
+## Decisions (agent-selected defaults, recorded via `record_decision`; not owner-dictated)
 
-- Exact affected populations: all ship roots including neutral derelicts, every mobile asteroid and carved fragment, swept gun rounds, torpedoes and detached sections; decide whether any future cargo physics body belongs here. Distinguish detached sections from asteroids. Choose whether generated 4000-mass rock wells and authored zero-mass pins remain explicit immovable sources, become planets/anchors or props, or lose their well. Decide whether neutralized AI wrecks and generated derelicts must share the same gravity behavior.
-- Initial velocity ownership: authored placement/velocity versus generated orbital elements; selection of the well, stable radius/plane, eccentricity, SOI overlap and distance from surfaces. Decide whether authored bodies inside a well require explicit velocity/orbit intent and fail lint without it. Do not overwrite authored movement silently.
-- Runtime motion: first prototype fully dynamic; decide from its measurements whether distant rails are needed. If so, specify promotion triggers and collision authority. Independently decide well unload/death, cross-cell ownership, return and no-persistence phase behavior. Verify kinematic debris grace and whether top-level debris outlives a sector.
-- Force model: keep current dominant-well/hysteresis and projectile selection semantics or revise both; preserve the no-N-body rule and document performance bounds.
-- Shipped content and format policy: classify authored massed rock wells (including explicit zero-mass pins), dynamic well-less rocks, bystander ships and backdrop scenarios before changing schemas; regenerate Rust-built base RON and migrate hand-authored mods/fixtures if affected.
+- Planets and anchors are static sources; asteroids, all ship roots, torpedoes, carved chunks and detached sections respond to wells. Gun rounds retain their own curved sweep. No mobile-body mutual gravity, analytic rails, or exemption for an unpiloted body.
+- Authored ships and asteroids require a finite velocity in meters per second, including explicit zero when intentional. Missing fields fail load; invalid finite checks fail at lint and direct spawn. A zero-velocity rock must be authored outside a well unless its resulting motion is intentional; scattered templates cannot give each copy its own orbit.
+- Generated bodies seed a deterministic tangent orbit only for one safe, unfaded, collision-clear well fully within its owning cell. Other single-well bodies get outward escape velocity; no-well bodies explicitly coast at zero. An overlapping-well candidate is rejected and deterministically repositioned/retried within the cluster's shared extent bound for a unique safe band or a well-free placement, translating a placed escort and its hull together to keep their authored band; if none exists, generation fails loudly, naming the seed and sector. Dynamic motion is not an analytic stability guarantee and no placement claims a false stable orbit.
+- Keep existing sector-root ownership, retirement, deterministic regeneration and phase reset on revisit. Orbits that stay in one cell keep their owning well loaded for the sector lifetime; all other trajectories can leave the cell or change on revisit. No persistence contract is added.
+- Open follow-ups outside this slice: future cargo physics opt-in, player-flow cost against a matched reference, and long-term bounded orbits in crowded modded wells. Do not silently infer those from the toy prototype or sampled census.
 
-## Proof and delivery plan
+## Proof plan and completed evidence
 
 - First build a code/content inventory of all gravity-affected and stationary classes and a scenario list with current positions, well reaches and initial velocities. Include Ledger's zero-mass rock pins, season-one and range pinned planets, explicitly massed rock wells, and authored anchors. Preserve before artifacts and reproduce any scenario failure before a fix.
 - Census multiple seeded windows: count rock wells, mobile candidates inside overlapping SOIs, and members whose owning cell differs from the well's; measure actual encounters rather than treating formula estimates as observed frequency. Prove any chosen explicit-mass validation fails loudly for negative or non-finite input.
-- First prototype seeded dynamic tangent orbits in a disposable isolated example against real Avian physics; do not edit production gravity or content yet. Remove the reasons for opt-out: prove a neutral hull and an asteroid both receive pull from the same stationary well, can start safely, remain stable within the selected lifetime policy, and are not exempted merely because of spawn path. Check multi-orbit boundedness, fixed-step drift, SOI switches, collisions, planet retirement and cross-sector return using assertions on state, not timing thresholds. Only prototype analytic rails if measured results justify the extra handoff and ownership subsystem.
+- First prototype seeded dynamic tangent orbits in a disposable isolated example against real Avian physics; production edits followed the later implementation approval. Remove the reasons for opt-out: prove a neutral hull and an asteroid both receive pull from the same stationary well, can start safely, remain stable within the selected lifetime policy, and are not exempted merely because of spawn path. Check multi-orbit boundedness, fixed-step drift, SOI switches, collisions, planet retirement and cross-sector return using assertions on state, not timing thresholds. Only prototype analytic rails if measured results justify the extra handoff and ownership subsystem.
 - Check shipped scenarios, generated sectors, neutral derelicts, projectiles and carved rocks through focused tests and probes; inspect rendered output for appearance. Compare matched repeat sets for physics cost against a named pre-change reference, including contacts.
-- Before implementation, review exact affected interfaces, defaults, error rules and migration paths with the owner. Update code, generated content, lint, wiki and changelog only after that approval.
+- Implementation was later authorized; interface and migration details are agent-selected defaults. Keep before/after artifacts, review findings, and affected checks with the change (`REPORT.md`).
 
 ## Done when
 
-- Existing versus missing behavior is documented with current source and content evidence, including all affected populations and shipped scenarios.
-- A static-well orbit/streaming design is chosen by the owner or left as explicit options with consequences and named prototype proofs; no N-body simulation is proposed.
-- Scenario/content and sector lifetime/persistence impacts are recorded, with owner decisions separated from agent proposals.
-- Follow-up implementation tasks are scoped only after the model is reviewed. This backlog research task does not implement gravity.
+- Static planets/anchors remain the only immovable gravity sources; all mobile ships (including unpiloted/neutralized), projectiles, asteroids, and carved/detached fragments respond to static wells uniformly; no mobile-body attraction or N-body simulation is added.
+- Authored asteroids and ships require finite initial velocity in m/s; missing values fail load and non-finite values fail lint or direct spawn.
+- Generated mobile bodies start with an explicit unique safe-band orbit, single-well outward escape, or free-space coast; an overlapping-well candidate is rejected and deterministically repositioned/retried for a unique safe band or well-free placement, failing loudly by naming the seed and sector when none exists.
+- Existing sector ownership, retirement, and regeneration behavior for moving bodies is preserved unchanged.
+- Every Ledger zero-mass rock pin is migrated off the old pin scheme; shipped scenarios load and lint clean.
+- Verification is by named test/probe assertions on state (orbit boundedness, lint failure cases, affected-population coverage) and inspected rendered output where visual; no performance, visual quality, or long-term orbit-stability claim is asserted without a named matched-repeat-set comparison.

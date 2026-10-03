@@ -1,6 +1,6 @@
 # Add enemy, neutral, and allied ship encounters to the open world
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.15.0,world,encounters,design
 

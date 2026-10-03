@@ -109,9 +109,10 @@ impl GravityWell {
 }
 
 /// Opt-in marker: only entities carrying this feel gravity wells. Inserted
-/// automatically on ship roots (player and AI - one arena, one physics) and on
-/// torpedo projectiles. Section debris still skips (perf; a later flourish).
-/// Never insert this on a well source.
+/// automatically on every ship root - piloted or not, one arena, one physics -
+/// and on torpedo projectiles. Carved chunks and detached sections gain it
+/// when their kinematic grace ends and they become dynamic. Never insert
+/// this on a well source.
 ///
 /// Gun rounds are NOT here, and are not an omission: a round is not a rigid
 /// body, so it has no `Forces` for [`gravity_well_system`] to write through.
@@ -139,20 +140,6 @@ pub struct DominantWell(pub Entity);
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct GravitySettings {
-    /// Mass parameter (`mu`, u^3/s^2) a planet gets when the scenario does
-    /// not author one and its radius clears [`Self::min_well_radius`]. An
-    /// asteroid never takes it: a rock without an authored mass has no well.
-    /// Fixed rather than radius-scaled - reach and strength are properties of
-    /// mass alone - so 4 000 is a ~126 u (1.26 km) SOI on any body. A much
-    /// larger default would be clamped straight to
-    /// [`Self::max_surface_gravity`] on a small body - a fixed mass on a small
-    /// body is a strong body. A body big enough for 4 000 to feel thin is a
-    /// body worth authoring.
-    pub default_mass: f32,
-    /// Planets below this nominal radius (world units - the default 5.0 is
-    /// the 50 m a scenario authors) get no well by default. An asteroid
-    /// ignores it: its well comes from its authored mass alone.
-    pub min_well_radius: f32,
     /// Acceleration (u/s^2) below which a well is treated as having no reach:
     /// the SOI is the distance at which `mu / r^2` decays to this. The one
     /// global knob trading how far wells reach against how strong they are at
@@ -201,8 +188,6 @@ pub struct GravitySettings {
 impl Default for GravitySettings {
     fn default() -> Self {
         Self {
-            default_mass: 4_000.0,
-            min_well_radius: 5.0,
             soi_cutoff_accel: 0.25,
             fade_fraction: 0.15,
             surface_margin: 1.0,
@@ -233,7 +218,7 @@ impl Plugin for NovaGravityPlugin {
             .register_type::<GravityAffected>()
             .register_type::<DominantWell>();
 
-        app.add_observer(insert_gravity_affected_on_player_ship);
+        app.add_observer(insert_gravity_affected_on_ship_root);
         app.add_observer(insert_gravity_affected_on_torpedo);
         app.add_observer(remove_dominant_well_on_well_removed);
 
@@ -244,22 +229,13 @@ impl Plugin for NovaGravityPlugin {
     }
 }
 
-/// PILOTED ships opt into gravity - player and AI alike, one arena, one
-/// physics. Keyed on the pilot markers, NOT the bare ship root, so the
-/// controller kind decides: nova_scenario attaches `PlayerSpaceshipMarker` /
-/// `AISpaceshipMarker` per controller (a `controller: None` ship gets neither).
-/// An unpiloted ship has no drive to resist a well, so gravity would just drag
-/// it in - scripted bystanders (the Broadside Ceres Queen) are meant to FLOAT,
-/// not fall.
-///
-/// Only the PLAYER half is here. The AI half is the identical observer in
-/// `input::ai`, because `AISpaceshipMarker` requires the AI behavior state and
-/// so cannot be named from this layer. Both `try_insert` the same idempotent
-/// marker, so a ship that somehow carried both would just opt in once.
-fn insert_gravity_affected_on_player_ship(
-    add: On<Add, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-) {
+/// Every ship root opts into gravity - player, AI and unpiloted bystanders
+/// alike, one arena, one physics. Keyed on the bare [`SpaceshipRootMarker`],
+/// not a pilot marker: `PlayerSpaceshipMarker` and `AISpaceshipMarker` both
+/// require it, so this one observer covers every controller kind, including
+/// `controller: None`. A dedicated AI-only arm would be redundant: the
+/// marker every piloted and unpiloted ship root already carries is enough.
+fn insert_gravity_affected_on_ship_root(add: On<Add, SpaceshipRootMarker>, mut commands: Commands) {
     commands.entity(add.entity).try_insert(GravityAffected);
 }
 
@@ -638,43 +614,31 @@ mod tests {
         assert_eq!(dominant_well(Some(a), &[(b, 0.01)], 1.1), Some(b));
     }
 
-    /// The AI arm of this opt-in is tested beside its observer, in `input::ai`.
+    /// Any ship root opts in regardless of pilot - player, AI or a bare
+    /// `controller: None` bystander - plus torpedoes through their own
+    /// observer.
     #[test]
-    fn the_player_ship_and_torpedoes_opt_into_gravity() {
+    fn any_ship_root_and_torpedoes_opt_into_gravity() {
         let mut app = App::new();
-        app.add_observer(insert_gravity_affected_on_player_ship);
+        app.add_observer(insert_gravity_affected_on_ship_root);
         app.add_observer(insert_gravity_affected_on_torpedo);
 
         let player = app
             .world_mut()
             .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
             .id();
+        // A bystander: the ship root alone, as nova_scenario spawns a
+        // `controller: None` ship.
+        let bystander = app.world_mut().spawn(SpaceshipRootMarker).id();
         let torpedo = app.world_mut().spawn(TorpedoProjectileMarker).id();
         app.update();
 
         assert!(app.world().get::<GravityAffected>(player).is_some());
-        assert!(app.world().get::<GravityAffected>(torpedo).is_some());
-    }
-
-    /// The Ceres Queen case: a `controller: None` ship carries NO pilot marker,
-    /// so it never opts into gravity - it floats where it is spawned instead of
-    /// falling into a well.
-    #[test]
-    fn an_unpiloted_ship_does_not_opt_into_gravity() {
-        let mut app = App::new();
-        app.add_observer(insert_gravity_affected_on_player_ship);
-
-        // A bystander: the ship root, but no pilot marker (as nova_scenario
-        // spawns a `controller: None` ship). The AI observer lives in
-        // `input::ai` now and keys on a marker this entity also lacks.
-        let bystander = app.world_mut().spawn(SpaceshipRootMarker).id();
-        app.update();
-
         assert!(
-            app.world().get::<GravityAffected>(bystander).is_none(),
-            "an unpiloted ship must not feel gravity - it has no drive to resist \
-             the well, so it would just fall in"
+            app.world().get::<GravityAffected>(bystander).is_some(),
+            "an unpiloted ship root opts into gravity too"
         );
+        assert!(app.world().get::<GravityAffected>(torpedo).is_some());
     }
 
     //
@@ -935,7 +899,7 @@ mod tests {
         let mut app = gravity_app();
         spawn_well(&mut app, Vec3::ZERO);
         // A piloted ship root: GravityAffected must arrive via the plugin's
-        // observer (keyed on the pilot marker), not by hand.
+        // observer (keyed on the bare ship root marker), not by hand.
         let ship = app
             .world_mut()
             .spawn((
@@ -964,21 +928,18 @@ mod tests {
         );
     }
 
-    /// The Ceres Queen, behaviourally: an unpiloted ship (`controller: None`,
-    /// no pilot marker) parked inside a well's SOI holds its position - it
-    /// never opts into gravity, so no force acts on it and it FLOATS instead of
-    /// falling in. Fails before the fix, when every ship root opted in
-    /// regardless of pilot.
+    /// A `controller: None` ship (no pilot marker) parked inside a well's SOI
+    /// falls just like a piloted one: the opt-in is keyed on the bare ship
+    /// root, not a pilot marker.
     #[test]
-    fn an_unpiloted_ship_root_floats_in_a_well() {
+    fn an_unpiloted_ship_root_also_falls_into_a_well() {
         let mut app = gravity_app();
         spawn_well(&mut app, Vec3::ZERO);
-        let start = Vec3::new(50.0, 0.0, 0.0);
         let bystander = app
             .world_mut()
             .spawn((
                 RigidBody::Dynamic,
-                Transform::from_translation(start),
+                Transform::from_translation(Vec3::new(50.0, 0.0, 0.0)),
                 Collider::sphere(0.5),
                 ColliderDensity(1.0),
                 LinearVelocity(Vec3::ZERO),
@@ -988,23 +949,18 @@ mod tests {
             ))
             .id();
         settle(&mut app);
-        for _ in 0..120 {
+        for _ in 0..60 {
             app.update();
         }
 
         assert!(
-            app.world().get::<GravityAffected>(bystander).is_none(),
-            "an unpiloted ship must not opt into gravity"
-        );
-        assert_eq!(
-            velocity_of(&app, bystander),
-            Vec3::ZERO,
-            "an unpiloted ship must not be pulled - it floats where it spawned"
+            app.world().get::<GravityAffected>(bystander).is_some(),
+            "the plugin's observer must opt unpiloted ship roots in too"
         );
         assert!(
-            (position_of(&app, bystander) - start).length() < 0.001,
-            "the bystander held its position, got {:?}",
-            position_of(&app, bystander)
+            velocity_of(&app, bystander).x < -0.1,
+            "an unpiloted ship must fall toward the well, got {:?}",
+            velocity_of(&app, bystander)
         );
     }
 
@@ -1107,5 +1063,104 @@ mod tests {
             .insert((Position(Vec3::new(65.0, 0.0, 0.0)), LinearVelocity::ZERO));
         app.update();
         assert_eq!(**app.world().get::<DominantWell>(probe).unwrap(), b);
+    }
+
+    /// Real Avian dynamics: an asteroid-like body and an unpiloted ship share
+    /// a stationary well, survive contact, then coast without stale ownership
+    /// after its removal. The asteroid spawn itself is tested in nova_scenario.
+    #[test]
+    fn two_mobile_bodies_share_a_well_and_coast_after_removal() {
+        let mut app = gravity_app();
+        let well = spawn_well(&mut app, Vec3::ZERO);
+
+        // Two independent circular orbits in the well's unfaded core (SOI
+        // 160, fade starts at 136): ~64s and ~130s laps, so 8400 fixed ticks
+        // (~131s) covers ~2 laps of the inner orbit and ~1 of the outer.
+        let r_rock = 50.0;
+        let r_hull = 80.0;
+        let v_rock = circular_orbit_speed(MU, r_rock);
+        let v_hull = circular_orbit_speed(MU, r_hull);
+
+        let rock = spawn_probe(
+            &mut app,
+            Vec3::new(r_rock, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, -v_rock),
+        );
+        // Neutral hull: SpaceshipRootMarker alone, no pilot marker.
+        let hull = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::from_translation(Vec3::new(r_hull, 0.0, 0.0)),
+                Collider::sphere(0.5),
+                ColliderDensity(1.0),
+                LinearVelocity(Vec3::new(0.0, 0.0, -v_hull)),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        settle(&mut app);
+        assert!(app.world().get::<GravityAffected>(hull).is_some());
+
+        let (mut rock_min, mut rock_max) = (f32::MAX, f32::MIN);
+        let (mut hull_min, mut hull_max) = (f32::MAX, f32::MIN);
+        for _ in 0..8400 {
+            app.update();
+            let r = position_of(&app, rock).length();
+            rock_min = rock_min.min(r);
+            rock_max = rock_max.max(r);
+            let h = position_of(&app, hull).length();
+            hull_min = hull_min.min(h);
+            hull_max = hull_max.max(h);
+        }
+        assert!(
+            rock_min > 0.8 * r_rock && rock_max < 1.25 * r_rock,
+            "asteroid-like orbit drifted out of bounds: min {rock_min}, max {rock_max}"
+        );
+        assert!(
+            hull_min > 0.8 * r_hull && hull_max < 1.25 * r_hull,
+            "neutral-hull orbit drifted out of bounds: min {hull_min}, max {hull_max}"
+        );
+
+        // Assert actual collider overlap: radial closure alone can miss when
+        // the two bodies have different tangential orbital velocities.
+        let rock_pos = position_of(&app, rock);
+        app.world_mut().entity_mut(hull).insert((
+            Position(rock_pos + Vec3::new(0.8, 0.0, 0.0)),
+            LinearVelocity(Vec3::new(-5.0, 0.0, 0.0)),
+        ));
+        let mut closest = f32::MAX;
+        for _ in 0..30 {
+            app.update();
+            closest = closest.min(position_of(&app, hull).distance(position_of(&app, rock)));
+        }
+        assert!(
+            closest <= 1.05,
+            "the collider pair must actually meet: closest {closest}"
+        );
+        assert!(
+            position_of(&app, hull).is_finite() && position_of(&app, rock).is_finite(),
+            "contact between an asteroid-like body and a neutral hull must not \
+             blow up the simulation"
+        );
+
+        // Well removal: both survivors must drop DominantWell and coast.
+        app.world_mut().entity_mut(well).despawn();
+        app.update();
+        assert!(app.world().get::<DominantWell>(rock).is_none());
+        assert!(app.world().get::<DominantWell>(hull).is_none());
+        let (rock_v, hull_v) = (velocity_of(&app, rock), velocity_of(&app, hull));
+        for _ in 0..30 {
+            app.update();
+        }
+        assert_eq!(
+            velocity_of(&app, rock),
+            rock_v,
+            "the rock coasts once the well dies"
+        );
+        assert_eq!(
+            velocity_of(&app, hull),
+            hull_v,
+            "the hull coasts once the well dies"
+        );
     }
 }

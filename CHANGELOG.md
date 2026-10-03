@@ -31,6 +31,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - RCS pushes at any speed from a 300 m/s magazine that refills 2 s after you
   let go; ten violet pips under the speed chip show it. This replaces the
   100 m/s RCS cap.
+- Every ship, asteroid and landed physical fragment now feels planet and
+  anchor gravity; unpiloted hulls no longer float.
 - DOCK and the dock request refuse a target that is Hostile, Enemy, answering
   anyone's fire, or fighting; a calm ally or Neutral is admitted, and a
   neutralized ship always admits a boarding.
@@ -81,6 +83,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.
+- Generated rocks and unpiloted ships start with an orbit tangent, outward
+  escape, or free-space coast. Overlapping placements retry outside the overlap
+  or fail with a named sector fault.
+- The Ledger's six chapters move scattered rocks outside planet wells, so
+  mobile rocks no longer spawn inside planetary surfaces or fall from rest.
+- The editor range and Arena keep their rock fields outside planet wells while
+  preserving seeded belt and ring counts.
+- Waystation cargo keeps its 18 seeded rocks and starts each on a tangent orbit
+  instead of dropping the menu freight lane into its planet.
 
 ### Modding & Mod Portal
 
@@ -96,9 +107,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `OrbitShip` `well` and AI `orbit` take `Authored("id")` or
   `NearestToShip`: the owning, else nearest, orbitable well. Bare ids fail to
   load; unknown AI `orbit` ids fail lint.
-- **(breaking)** An asteroid without `mass` has no gravity well and stays
-  dynamic at any size. `mass: Some(..)` makes a static well and must be finite
-  and 0 or more.
+- **(breaking)** Asteroids drop `mass`; only planets and anchors source wells.
+  Planets require positive `mass`; ships and rocks require finite
+  `initial_velocity` in m/s, including intentional zero.
 - **(breaking)** Spaceships require `inventory: {HullPlate: 12, PdcRound: 500}`
   of `HullPlate`, `PdcRound`, `RailSlug`, `Torpedo`. Each hull section holds
   100 kg; overstock fails lint, then load.
@@ -179,6 +190,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   canisters, Take and give, and Jettisoning cargo.
 - New Lessons "Generated ships" and "Looting a wreck" teach open-world ship
   identity and a docked Take and Give from a derelict, with captured footage.
+- Turrets no longer draw lead pips, the small squares at each intercept point.
+  Turrets still lead their targets, and the aim and firing reticles are
+  unchanged.
 
 ### Web & Platform
 

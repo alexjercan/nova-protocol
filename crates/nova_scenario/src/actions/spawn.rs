@@ -129,7 +129,7 @@ pub enum ScenarioObjectKind {
     /// An invisible authored point publishing a deterministic gravity well
     /// (camera framing, orbit targets) with no mesh, collider, or BodyRadius.
     Anchor(AnchorConfig),
-    /// A destructible rock; a gravity well when it authors a mass.
+    /// A destructible mobile rock that responds to wells but never sources one.
     Asteroid(AsteroidConfig),
     /// A ship built from sections, with a controller (None/Player/AI).
     Spaceship(SpaceshipConfig),
@@ -159,16 +159,22 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                 );
                 return;
             }
-            // The same gap for a mass: a NaN or negative `mu` would build a
-            // well no integrator can spend.
-            if let Some(mass) = asteroid.mass.filter(|mass| !is_valid_asteroid_mass(*mass)) {
-                error!(
-                    "SpawnScenarioObject: asteroid '{}' authors a mass of {mass}; nothing \
-                     spawned. Author a finite mass of 0 or more, or omit it for no well.",
-                    self.base.id
-                );
-                return;
-            }
+        }
+        // Rust callers can bypass content lint; refuse non-finite motion
+        // before either dynamic body reaches the physics integrator.
+        let motion = match &self.kind {
+            ScenarioObjectKind::Asteroid(asteroid) => Some(("asteroid", asteroid.initial_velocity)),
+            ScenarioObjectKind::Spaceship(ship) => Some(("ship", ship.initial_velocity)),
+            _ => None,
+        };
+        if let Some((object, velocity)) = motion.filter(|(_, velocity)| !velocity.is_finite()) {
+            error!(
+                "SpawnScenarioObject: {object} '{}' authors an initial_velocity of {:?} m/s; \
+                 nothing spawned. Author a finite velocity (including an intentional zero).",
+                self.base.id,
+                velocity.get()
+            );
+            return;
         }
         let config = self.clone();
         // Per OBJECT, so it scales with what a scenario authors. The batch this
@@ -804,7 +810,6 @@ mod tests {
                 }),
                 Collider::cuboid(1.0, 1.0, 1.0),
                 ColliderDensity(1.0),
-                LinearVelocity(Vec3::X * 10.0),
             ))
             .id();
         {
@@ -817,7 +822,7 @@ mod tests {
                     destroy_sound: None,
                     radius: Meters(10.0),
                     texture: AssetRef::default(),
-                    mass: None,
+                    initial_velocity: MetersPerSecond3::new(100.0, 0.0, 0.0),
                     seed: None,
                     lock_signature: None,
                 },
@@ -1089,7 +1094,7 @@ mod tests {
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
-                    mass: None,
+                    initial_velocity: MetersPerSecond3::ZERO,
                     seed: None,
                     lock_signature: None,
                 }),
@@ -1323,7 +1328,7 @@ mod tests {
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::from("textures/asteroid.png"),
-                    mass: None,
+                    initial_velocity: MetersPerSecond3::ZERO,
                     seed: None,
                     lock_signature: None,
                 }),
@@ -1404,7 +1409,7 @@ mod tests {
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
-                    mass: None,
+                    initial_velocity: MetersPerSecond3::ZERO,
                     seed: None,
                     lock_signature: None,
                 }),
@@ -1477,7 +1482,7 @@ mod tests {
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
-                    mass: None,
+                    initial_velocity: MetersPerSecond3::ZERO,
                     seed: template_seed,
                     lock_signature: None,
                 }),
@@ -1551,7 +1556,7 @@ mod tests {
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
-                    mass: None,
+                    initial_velocity: MetersPerSecond3::ZERO,
                     seed: None,
                     lock_signature: None,
                 }),
@@ -1648,7 +1653,7 @@ mod tests {
                 destroy_sound: None,
                 radius: Meters(20.0),
                 texture: nova_gameplay::prelude::AssetRef::default(),
-                mass: None,
+                initial_velocity: MetersPerSecond3::ZERO,
                 seed: None,
                 lock_signature: None,
             }),
@@ -1667,43 +1672,55 @@ mod tests {
         );
     }
 
-    /// A direct spawn refuses a mass no well can be built from, the same way
-    /// it refuses an unknown kind: nothing spawns.
+    /// A Rust direct spawn that skipped lint refuses non-finite motion
+    /// before building either kind of dynamic body.
     #[test]
-    fn spawn_refuses_an_asteroid_with_an_invalid_mass() {
-        for mass in [-1.0, f32::NAN, f32::INFINITY] {
-            let mut world = World::new();
-            world.init_resource::<NovaEventWorld>();
-            world.init_resource::<GameObjectives>();
-            let config = ScenarioObjectConfig {
-                base: BaseScenarioObjectConfig {
-                    id: "rock".to_string(),
-                    name: "Rock".to_string(),
-                    position: Meters3::ZERO,
-                    rotation: Quat::IDENTITY,
-                },
-                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+    fn spawn_refuses_non_finite_motion_on_a_ship_or_asteroid() {
+        for bad in [
+            MetersPerSecond3::new(f32::NAN, 0.0, 0.0),
+            MetersPerSecond3::new(0.0, f32::INFINITY, 0.0),
+        ] {
+            for kind in [
+                ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    controller: SpaceshipController::None,
+                    initial_velocity: bad,
+                    ..default()
+                }),
+                ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    radius: Meters(20.0),
+                    initial_velocity: bad,
+                    texture: AssetRef::default(),
                     kind: KIND_ROCK.into(),
                     destroy_sound: None,
-                    radius: Meters(20.0),
-                    texture: nova_gameplay::prelude::AssetRef::default(),
-                    mass: Some(mass),
-                    seed: None,
                     lock_signature: None,
+                    seed: None,
                 }),
-            };
-            {
-                let mut event_world = world.resource_mut::<NovaEventWorld>();
-                config.action(&mut event_world, &GameEventInfo::default());
-            }
-            drain(&mut world);
+            ] {
+                let mut world = World::new();
+                world.init_resource::<NovaEventWorld>();
+                world.init_resource::<GameObjectives>();
+                let config = ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: "body".to_string(),
+                        name: "Body".to_string(),
+                        position: Meters3::ZERO,
+                        rotation: Quat::IDENTITY,
+                    },
+                    kind,
+                };
+                {
+                    let mut event_world = world.resource_mut::<NovaEventWorld>();
+                    config.action(&mut event_world, &GameEventInfo::default());
+                }
+                drain(&mut world);
 
-            let mut spawned = world.query::<&EntityId>();
-            let ids: Vec<String> = spawned.iter(&world).map(|id| id.0.clone()).collect();
-            assert!(
-                ids.is_empty(),
-                "a rock with a mass of {mass} spawns no entity: {ids:?}"
-            );
+                let mut spawned = world.query::<&EntityId>();
+                let ids: Vec<String> = spawned.iter(&world).map(|id| id.0.clone()).collect();
+                assert!(
+                    ids.is_empty(),
+                    "a body with initial_velocity {bad:?} spawned: {ids:?}"
+                );
+            }
         }
     }
 
@@ -1737,7 +1754,7 @@ mod tests {
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
-                    mass: None,
+                    initial_velocity: MetersPerSecond3::ZERO,
                     seed: None,
                     lock_signature: None,
                 }),

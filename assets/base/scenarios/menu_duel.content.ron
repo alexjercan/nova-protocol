@@ -353,6 +353,11 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Neutral),
                             inventory: {},
                             lootable: false,
@@ -404,6 +409,11 @@
                             ),
                             kind: Asteroid((
                                 radius: 10.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
@@ -511,6 +521,11 @@
                                 engage_delay: Some(6.0),
                                 arrival_standoff: Some(100.0),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Player),
                             inventory: {
                                 PdcRound: 2000,
@@ -1177,6 +1192,11 @@
                                 engage_delay: Some(6.0),
                                 arrival_standoff: Some(100.0),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             inventory: {
                                 PdcRound: 2000,
                             },

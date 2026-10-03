@@ -177,7 +177,6 @@ impl Plugin for SpaceshipAIInputPlugin {
         // resolved before its despawn command applies.
         app.add_observer(on_damage_track_threat);
         app.add_observer(on_neutralized_stand_down);
-        app.add_observer(insert_gravity_affected_on_ai_ship);
         // The lance cadence is burned on the SHOT, not on the decision - see
         // `railgun::on_railgun_fired_burn_ai_cadence`.
         app.add_observer(railgun::on_railgun_fired_burn_ai_cadence);
@@ -341,16 +340,6 @@ fn on_neutralized_stand_down(
     }
 }
 
-/// PILOTED ships opt into gravity, and this is the AI half of that opt-in (the
-/// player half is `gravity`'s own observer). It sits here because
-/// [`AISpaceshipMarker`] requires the AI behavior state and so cannot move down
-/// to the gravity layer. A hauler that GAINS an AI pilot mid-scenario (the
-/// Lifeline loiter) opts in the moment its marker lands; both observers
-/// `try_insert` the same idempotent marker.
-fn insert_gravity_affected_on_ai_ship(add: On<Add, AISpaceshipMarker>, mut commands: Commands) {
-    commands.entity(add.entity).try_insert(GravityAffected);
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -460,12 +449,15 @@ mod tests {
         );
     }
 
-    /// The AI arm of the gravity opt-in; the player, torpedo and turret-round
-    /// arms are tested beside their observers in `gravity`.
+    /// [`AISpaceshipMarker`] requires [`SpaceshipRootMarker`], so `gravity`'s
+    /// `On<Add, SpaceshipRootMarker>` observer covers AI ships too. This
+    /// proves that required-component chain delivers the opt-in through the
+    /// real plugin.
     #[test]
-    fn an_ai_ship_opts_into_gravity() {
-        let mut app = App::new();
-        app.add_observer(insert_gravity_affected_on_ai_ship);
+    fn an_ai_ship_opts_into_gravity_through_the_shared_ship_root_observer() {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(NovaGravityPlugin);
+        app.finish();
 
         let ai = app.world_mut().spawn(AISpaceshipMarker).id();
         app.update();

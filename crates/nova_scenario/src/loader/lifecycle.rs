@@ -1197,7 +1197,7 @@ mod tests {
                 destroy_sound: None,
                 radius: Meters(20.0),
                 texture: AssetRef::from("textures/asteroid.png"),
-                mass: None,
+                initial_velocity: MetersPerSecond3::ZERO,
                 seed: None,
                 lock_signature: None,
             }),

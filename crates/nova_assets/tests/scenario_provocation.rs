@@ -59,6 +59,7 @@ const SCENARIO_RON: &str = r#"[
                     SpawnScenarioObject((
                         base: (id: "spaceship_1", name: "Ship One", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             controller: Player(()),
                             design: Inline((sections: [])),
                             inventory: {},
@@ -69,6 +70,7 @@ const SCENARIO_RON: &str = r#"[
                     SpawnScenarioObject((
                         base: (id: "spaceship_2", name: "Ship Two", position: (600.0, 0.0, -800.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             controller: AI((patrol: [(600.0, 0.0, -800.0), (1000.0, 100.0, -1400.0)])),
                             allegiance: Some(Neutral),
                             design: Inline((sections: [])),
@@ -80,6 +82,7 @@ const SCENARIO_RON: &str = r#"[
                     SpawnScenarioObject((
                         base: (id: "spaceship_3", name: "Ship Three", position: (-600.0, 0.0, -1600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             controller: AI((patrol: [(-600.0, 0.0, -1600.0), (-200.0, 100.0, -2200.0)])),
                             allegiance: Some(Neutral),
                             design: Inline((sections: [])),

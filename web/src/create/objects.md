@@ -10,8 +10,8 @@ type name the `type_name` filters match:
 | kind | type name | body | what it is |
 |---|---|---|---|
 | [`Anchor`](#anchor) | `"anchor"` | static | invisible authored gravity well (framing/orbit target) |
-| [`Asteroid`](#asteroid) | `"asteroid"` | dynamic, static with a `mass` | destructible rock, optional gravity well |
-| [`Planet`](#planet) | `"planet"` | dynamic | a seeded WORLD: biomes, terrain, optional gravity well |
+| [`Asteroid`](#asteroid) | `"asteroid"` | dynamic | destructible rock, always mobile and gravity-affected |
+| [`Planet`](#planet) | `"planet"` | static | a seeded WORLD: biomes, terrain, always a gravity well |
 | [`Spaceship`](#spaceship) | `"spaceship"` | dynamic | a multi-section ship, player- or AI-flown |
 | [`Beacon`](#beacon) | `"beacon"` | static | lockable nav marker with a HUD chip |
 | [`Light`](#light) | `"light"` | static | the scene's own lighting |
@@ -23,18 +23,21 @@ an object kind - and a beacon can be its own area, below.)
 ## Anchor
 
 An invisible authored point that publishes a [gravity
-well](#asteroid) with an AUTHORED radius: no mesh, no collider, and no
-geometric extent for AI [obstacle avoidance](#the-controller) to steer
-around. Use it where a contract needs a position plus well geometry but the
-scene does not want a rock there - an orbit directive's target, or a real
-gravity source with no body. Because the radius is authored (an asteroid's
+well](../../wiki/gravity-wells/) with an AUTHORED radius: no mesh, no
+collider, and no geometric extent for AI [obstacle avoidance](#the-controller)
+to steer around. Use it where a contract needs a position plus well geometry
+but the scene does not want a rock there - an orbit directive's target, or a
+real gravity source with no body. Because the radius is authored (a planet's
 is derived from its generated mesh), everything reading the well sees the
-same geometry on every load.
+same geometry on every load. An anchor is a STATIC well source, same as a
+[planet](#planet): nothing moves it, and nothing but a planet or an anchor
+raises a well at all - every asteroid and ship is mobile and only ever
+responds to one.
 
 | field | type | default | meaning |
 |---|---|---|---|
 | `body_radius` | number | required | the well's published body radius, meters |
-| `mass` | `Option` number | `None` | well STRENGTH: the gravitational parameter mu, same dial as an asteroid's `mass`. NOT an SI mass and not a length - it carries a length cubed over a time squared, so it stays an engine number while the radius beside it is metric. What comes out of the pair IS metric: `soi = 20 * sqrt(mass)` meters of reach. `None` = a zero-strength well: it frames and anchors but never pulls |
+| `mass` | `Option` number | `None` | well STRENGTH: the gravitational parameter mu, same dial as a [planet](#planet)'s `mass`. NOT an SI mass and not a length - it carries a length cubed over a time squared, so it stays an engine number while the radius beside it is metric. What comes out of the pair IS metric: `soi = 20 * sqrt(mass)` meters of reach. `None` = a zero-strength well: it frames and anchors but never pulls |
 
 ```ron
 SpawnScenarioObject((
@@ -53,14 +56,16 @@ fires destruction events.
 
 A noise-generated destructible rock. `radius` drives the mesh, collider
 and radar signature together. Every asteroid can be carved and
-destroyed, its gravity well with it. A body that must last the whole scenario
-is a [planet](#planet).
+destroyed. An asteroid never sources a gravity well - only a [planet](#planet)
+or an [anchor](#anchor) does - but it is always a mobile, dynamic body, so it
+always FEELS one it is near. A body that must last the whole scenario is a
+[planet](#planet).
 
 | field | type | default | meaning |
 |---|---|---|---|
 | `radius` | number | required | nominal radius in meters, and the rock's DURABILITY - see below. The true mesh extent reaches up to 6x this (matters for [`min_separation`](../actions/#scatterobjects)) |
+| `initial_velocity` | 3-tuple | required | explicit initial motion in meters per second, `(x, y, z)`. `(0.0, 0.0, 0.0)` is an authored stationary start, not immunity to gravity - a rock with no velocity inside a well's reach falls in like anything else |
 | `texture` | asset ref | required | the fine crevice GRAIN the kind modulates, not the rock's colour (`dep://base/textures/asteroid.png` is the stock one) |
-| `mass` | `Option` number | `None` | well STRENGTH (the parameter mu), an engine dial rather than an SI mass - see [Anchor](#anchor). `Some` makes this rock a well at any size and pins it static; `Some(0.0)` pins it with no pull. It must be finite and 0 or more, or lint and spawn refuse the rock. Size it by the reach you want, which is metric: `mass = (soi / 20)^2` for an `soi` in meters, so the campaign planetoid's 27,000 buys 3.29 km. `None` = no well at any size: the rock stays dynamic |
 | `kind` | string | required | the rock's KIND: `"rock"`, `"metal"`, `"ice"`, `"carbon"` or `"plain"`. It decides how the rock LOOKS - see [below](#what-a-rock-is-made-of). There is no default and no fallback |
 | `destroy_sound` | `Option` asset ref | `None` | played on destruction (`Some("dep://base/sounds/destroy_rock.wav")`); omitted = silent |
 | `lock_signature` | `Option` number | `None` | radar signature override, meters; `None` = 100 m plus half the rock's TRUE geometric radius (the meshed extent, not the nominal `radius` above), so a pebble is a close-range contact and a belt body a landmark. Lock range is thirty times the signature. Separately, and whatever the signature says, EVERY asteroid blocks radar: nothing behind it can be locked or detected while it is on the line - see [line of sight](#radar-line-of-sight) |
@@ -71,9 +76,9 @@ SpawnScenarioObject((
     base: (id: "boulder", name: "Boulder", position: (2500.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Asteroid((
         radius: 200.0,
+        initial_velocity: (0.0, 0.0, 0.0),
         texture: "dep://base/textures/asteroid.png",
         kind: "rock",
-        mass: Some(45000.0),
     )),
 )),
 ```
@@ -154,7 +159,7 @@ well lasts the whole scenario.
 | `planet_type` | type name | required | `BarrenRock`, `DustWorld`, `IceWorld`, `Volcanic`, `Greenhouse` or `Temperate`. A name outside that list is a LOAD ERROR, not a fallback |
 | `radius` | number | required | MEAN radius in meters, and the body's real size. Unlike a rock's nominal radius, the surface stands only `1 + relief` off this - a few percent - so this is very nearly what everything measures from |
 | `seed` | number | required | which world of that type: the biome in every band, the cap latitude, the palette tint and the terrain itself. Required on purpose - a landmark cannot be a body the engine picked for you |
-| `mass` | `Option` number | `None` | well STRENGTH, exactly as on an [asteroid](#asteroid): `mass = (soi / 20)^2` for an `soi` in meters. `None` = a default 4,000 (a 1.26 km reach) when the radius is 50 m or more, and no well below that |
+| `mass` | number | required | well STRENGTH, exactly as on an [anchor](#anchor): `mass = (soi / 20)^2` for an `soi` in meters. REQUIRED: every planet is a static gravity well, at any radius - there is no size threshold and no default to fall back to |
 | `relief` | `Option` number | `None` | how far the highest ground stands above the mean radius, in meters. `None` = the type's own (2% of the radius on a hazy greenhouse, 6% on a volcanic world). Must be positive and smaller than the radius |
 | `sea_level` | `Option` number | `None` | where the surface flattens into sea, as a fraction 0-1 of the height range. `Some(0.0)` drains a sea; `None` = the type's own (only `IceWorld` and `Temperate` have one) |
 | `lock_signature` | `Option` number | `None` | radar signature override in meters; `None` = ten times the outer surface radius (`radius * (1 + relief)`), which makes any world a landmark from anywhere a scanner reaches. A planet also blocks radar over its whole sphere - the largest piece of cover you can place - see [line of sight](#radar-line-of-sight) |
@@ -166,7 +171,7 @@ SpawnScenarioObject((
         planet_type: DustWorld,
         radius: 950.0,
         seed: 7,
-        mass: Some(27000.0),
+        mass: 27000.0,
     )),
 )),
 ```
@@ -179,8 +184,7 @@ and the geometric surface every rule reads - the gravity well's clamp, the
 sphere of influence, the ring [`OrbitShip`](../actions/#orbitship) flies, a
 [GOTO](../actions/#moveshipto) standoff - is `radius * (1 + relief)`.
 
-That also means porting old content is not a copy of the number. A planetoid
-authored as `Asteroid((radius: 200.0))` drew a body about 1 km across; written
+That also means porting old content is not a copy of the number. An asteroid with `radius: 200.0` draws a body about 1 km across; written
 as a planet it wants `radius: 950.0`, not `200.0`, or every distance around it
 collapses by about five.
 
@@ -215,6 +219,7 @@ id or authored inline.
 |---|---|---|---|
 | `design` | design source | required | `Prototype(id: "block_gunship")` names a [ship design](../ships/) by id, with this spawn's own `section_patches` over it; `Inline((..))` carries a one-off design (below) |
 | `controller` | controller | required | who flies it (below) |
+| `initial_velocity` | 3-tuple | required | explicit initial motion in meters per second, `(x, y, z)`. `(0.0, 0.0, 0.0)` is an authored stationary start, not immunity to gravity - a ship with no velocity inside a well's reach falls in like anything else |
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
 | `capabilities` | capability set | all on | what this spawn is PERMITTED to do (below). Omit it for a ship that can do everything |
 | `inventory` | stock | required | what the ship carries at spawn (below) |
@@ -350,6 +355,7 @@ SpawnScenarioObject((
                 "turret_port": [Mouse(Left)],
             },
         )),
+        initial_velocity: (0.0, 0.0, 0.0),
         // The shipped patrol gunship, by id, with this spawn's own flight
         // computer hardened; every other gunship is untouched.
         design: Prototype(
@@ -370,6 +376,7 @@ A one-off design, authored inline:
 ```ron
 kind: Spaceship((
     controller: None,
+    initial_velocity: (0.0, 0.0, 0.0),
     design: Inline((
         sections: [
             (
@@ -401,6 +408,7 @@ SpawnScenarioObject((
             patrol: [(0.0, 0.0, -3000.0), (800.0, 0.0, -2200.0)],
             engage_delay: Some(8.0),
         )),
+        initial_velocity: (0.0, 0.0, 0.0),
         design: Prototype(id: "block_picket"),
         inventory: {},
         lootable: false,

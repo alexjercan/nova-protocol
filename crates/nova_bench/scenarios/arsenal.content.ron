@@ -40,6 +40,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             design: Inline((
                                 sections: [
                                     (
@@ -161,6 +162,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             radius: 28.0,
                             texture: "base/textures/asteroid.png",
                             kind: "rock",
@@ -176,6 +178,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             design: Prototype(id: "block_hauler"),
                             controller: r#None,
                             allegiance: Some(Enemy),
@@ -192,6 +195,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             design: Prototype(id: "block_hauler"),
                             controller: r#None,
                             allegiance: Some(Enemy),
@@ -208,6 +212,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             design: Prototype(id: "block_picket"),
                             controller: AI((
                                 engage_delay: Some(60.0),

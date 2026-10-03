@@ -1,10 +1,9 @@
 //! The player's heads-up display: the diegetic instruments and overlays drawn
 //! for the player ship (velocity/flight status, lock crosshairs and dwell rings,
-//! turret lead and torpedo target reticles, ammo readouts, edge/threat
-//! indicators, objective markers, the comms panel and the keybind dock). Each
-//! widget lives in its own submodule, and almost every one is a [`HudTier`]
-//! layer: tagged, HUD-managed, and cleared by the level the player's own
-//! hide-HUD toggle sets.
+//! torpedo target reticles, ammo readouts, edge/threat indicators, objective
+//! markers, the comms panel and the keybind dock). Each widget lives in its own
+//! submodule, and almost every one is a [`HudTier`] layer: tagged,
+//! HUD-managed, and cleared by the level the player's own hide-HUD toggle sets.
 //!
 //! The two cinematic surfaces are the deliberate exception. The title card
 //! (`cinematic_title`) and the skip prompt (`cinematic_prompt`) spawn untagged
@@ -70,7 +69,6 @@ pub mod screen_indicator;
 pub mod situation;
 pub mod target_inset;
 pub mod torpedo_target;
-pub mod turret_lead;
 pub mod velocity;
 
 /// Live-tree UI layout rig shared by the world-anchored chip tests.
@@ -91,9 +89,9 @@ pub mod prelude {
         objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
         pickup_sight::prelude::*, readout::prelude::*, screen_indicator::prelude::*,
         situation::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, HudContextGate, HudInterfaceExempt,
-        HudSelfDrivenVisibility, HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets,
-        NovaHudPlugin, NovaHudSystems,
+        velocity::prelude::*, HudContextGate, HudInterfaceExempt, HudSelfDrivenVisibility,
+        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -347,7 +345,6 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(readout::HudReadoutPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
-        app.add_plugins(turret_lead::TurretLeadPlugin);
         app.add_plugins(ammo_readout::AmmoReadoutPlugin);
         app.add_plugins(component_lock::ComponentLockHudPlugin);
         app.add_plugins(lock_dwell_ring::LockDwellRingHudPlugin);
@@ -378,7 +375,6 @@ impl Plugin for NovaHudPlugin {
         // nothing at spawn time are registered whole by `add_player_hud`; the
         // rest keep a setup observer for their resource and pair it with
         // `despawn_player_hud` for the teardown.
-        add_player_hud::<TurretLeadHudMarker, _>(app, HudTier::Instrument, turret_lead_hud);
         add_player_hud::<AmmoReadoutHudMarker, _>(app, HudTier::Instrument, ammo_readout_hud);
         add_player_hud::<ComponentLockHudMarker, _>(app, HudTier::Chrome, component_lock_hud);
         add_player_hud::<EdgeIndicatorsHudMarker, _>(app, HudTier::Chrome, edge_indicators_hud);

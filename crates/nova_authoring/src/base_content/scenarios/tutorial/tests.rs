@@ -240,7 +240,7 @@ fn the_autopilot_is_taught_out_to_the_planetoid_and_home() {
     let ScenarioObjectKind::Planet(planet) = planetoid.kind else {
         panic!("the planetoid is a planet");
     };
-    let mass = planet.mass.expect("the planetoid is anchored, so it pulls");
+    let mass = planet.mass;
     let surface = planet.body_radius().to_engine();
     let gravity = GravitySettings::default();
     let flight = FlightSettings::default();

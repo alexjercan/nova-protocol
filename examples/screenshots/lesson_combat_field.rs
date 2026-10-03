@@ -425,7 +425,7 @@ fn cover_rock(game_assets: &GameAssets) -> EventActionConfig {
             destroy_sound: None,
             // No well: a body strong enough to pull the pinned shooter would
             // drag the whole geometry off its axis over a capture run.
-            mass: None,
+            initial_velocity: MetersPerSecond3::ZERO,
             seed: Some(ROCK_SEED),
             lock_signature: None,
         }),

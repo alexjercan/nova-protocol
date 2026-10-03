@@ -4986,6 +4986,7 @@ dependencies = [
 name = "nova_world"
 version = "0.14.0"
 dependencies = [
+ "avian3d",
  "bevy",
  "nova_assets",
  "nova_events",

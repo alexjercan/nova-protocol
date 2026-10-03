@@ -171,10 +171,10 @@ fn asteroid(config: AsteroidConfig) -> ObjectNode {
 fn stock_asteroid() -> AsteroidConfig {
     AsteroidConfig {
         radius: Meters(30.0),
+        initial_velocity: MetersPerSecond3::ZERO,
         texture: default(),
         kind: KIND_ROCK.into(),
         destroy_sound: None,
-        mass: None,
         seed: None,
         lock_signature: None,
     }
@@ -326,22 +326,26 @@ fn an_optional_number_is_one_row_that_empties_to_none() {
     let mut object = asteroid(stock_asteroid());
     let rows = object_rows(&object, &Transform::default());
 
-    assert_eq!(text_of(&rows, "Mass"), "", "an unauthored mass reads empty");
+    assert_eq!(
+        text_of(&rows, "Lock Signature"),
+        "",
+        "an unset override reads empty"
+    );
 
-    write(&mut object, &rows, "Mass", "8000").expect("a number the field takes");
+    write(&mut object, &rows, "Lock Signature", "8000").expect("a number the field takes");
     let ScenarioObjectKind::Asteroid(authored) = &object.kind else {
         panic!("still an asteroid");
     };
-    assert_eq!(authored.mass, Some(8000.0));
+    assert_eq!(authored.lock_signature, Some(Meters(8000.0)));
 
     let rows = object_rows(&object, &Transform::default());
-    assert_eq!(text_of(&rows, "Mass"), "8000");
+    assert_eq!(text_of(&rows, "Lock Signature"), "8000");
 
-    write(&mut object, &rows, "Mass", "  ").expect("blank clears it");
+    write(&mut object, &rows, "Lock Signature", "  ").expect("blank clears it");
     let ScenarioObjectKind::Asteroid(cleared) = &object.kind else {
         panic!("still an asteroid");
     };
-    assert_eq!(cleared.mass, None);
+    assert_eq!(cleared.lock_signature, None);
 }
 
 #[test]
@@ -785,6 +789,10 @@ fn a_rock_opens_on_its_size_and_not_its_texture() {
         "and by what it is MADE of, which is what decides its whole surface: {labels:?}"
     );
     assert!(
+        labels.contains(&"Initial Velocity".to_string()),
+        "a dynamic rock's starting motion must be visible: {labels:?}"
+    );
+    assert!(
         !labels.contains(&"Texture".to_string()),
         "and not by which image it wears: {labels:?}"
     );
@@ -821,6 +829,10 @@ fn a_seeded_hull_opens_on_its_ship_and_its_driver() {
     assert!(
         said.contains(&("Controller".to_string(), "AI".to_string())),
         "and who is at the controls: {said:?}"
+    );
+    assert!(
+        said.iter().any(|(label, _)| label == "Initial Velocity"),
+        "a ship's starting motion must be visible: {said:?}"
     );
 }
 
@@ -959,11 +971,23 @@ fn a_number_carries_the_unit_it_is_typed_in() {
     let rows = object_rows(&asteroid(stock_asteroid()), &Transform::default());
 
     assert_eq!(row(&rows, "Radius").unit, "m", "a length reads in meters");
+
+    let anchor_rows = object_rows(
+        &ObjectNode {
+            name: "anchor".to_string(),
+            kind: ScenarioObjectKind::Anchor(AnchorConfig {
+                body_radius: Meters(50.0),
+                mass: Some(1_000.0),
+            }),
+        },
+        &Transform::default(),
+    );
     assert_eq!(
-        row(&rows, "Mass").unit,
+        row(&anchor_rows, "Mass").unit,
         "",
         "a mass has a floor, not a unit"
     );
+
     assert_eq!(row(&rows, "Position").unit, "m");
     assert_eq!(row(&rows, "Rotation").unit, "deg, yaw/pitch/roll");
 }
@@ -1028,8 +1052,12 @@ fn a_number_under_its_floor_is_refused_with_the_reason() {
         "and the config is left as it was"
     );
 
+    let mut anchor = AnchorConfig {
+        body_radius: Meters(50.0),
+        mass: None,
+    };
     let refusal = write_field(
-        &mut config,
+        &mut anchor,
         &[PathStep::Field("mass".to_string())],
         true,
         "-1",
@@ -1356,10 +1384,10 @@ fn a_named_field_beats_the_family_it_belongs_to() {
 fn a_scrub_of_a_whole_number_stays_whole() {
     let mut config = AsteroidConfig {
         radius: Meters(30.0),
+        initial_velocity: MetersPerSecond3::ZERO,
         texture: default(),
         kind: KIND_ROCK.into(),
         destroy_sound: None,
-        mass: None,
         seed: Some(7),
         lock_signature: None,
     };
@@ -1383,10 +1411,10 @@ fn a_scrub_of_a_whole_number_stays_whole() {
 fn a_scrub_of_an_unsigned_number_stops_at_zero() {
     let mut config = AsteroidConfig {
         radius: Meters(30.0),
+        initial_velocity: MetersPerSecond3::ZERO,
         texture: default(),
         kind: KIND_ROCK.into(),
         destroy_sound: None,
-        mass: None,
         seed: Some(3),
         lock_signature: None,
     };
@@ -1413,14 +1441,14 @@ fn a_scrub_of_an_unsigned_number_stops_at_zero() {
 fn a_scrub_of_an_empty_optional_says_to_type_one() {
     let mut config = AsteroidConfig {
         radius: Meters(30.0),
+        initial_velocity: MetersPerSecond3::ZERO,
         texture: default(),
         kind: KIND_ROCK.into(),
         destroy_sound: None,
-        mass: None,
         seed: None,
         lock_signature: None,
     };
-    let path = vec![PathStep::Field("mass".to_string())];
+    let path = vec![PathStep::Field("lock_signature".to_string())];
 
     let rule = DragRule {
         step: 0.5,
@@ -1920,6 +1948,10 @@ fn a_wrapper_that_is_not_a_quantity_is_labelled_with_no_unit() {
     assert_eq!(quantity_unit("nova_events::units::Meters3"), Some("m"));
     assert_eq!(
         quantity_unit("nova_events::units::MetersPerSecond"),
+        Some("m/s")
+    );
+    assert_eq!(
+        quantity_unit("nova_events::units::MetersPerSecond3"),
         Some("m/s")
     );
     assert_eq!(

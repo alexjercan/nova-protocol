@@ -191,7 +191,7 @@ fn planet_stage(game_assets: &GameAssets) -> ScenarioConfig {
                 texture: game_assets.asteroid_texture.clone().into(),
                 kind: KIND_ROCK.into(),
                 destroy_sound: None,
-                mass: None,
+                initial_velocity: MetersPerSecond3::ZERO,
                 lock_signature: None,
                 seed: Some(TODAY_SEED),
             }),
@@ -224,9 +224,12 @@ fn load_scene(
 ) {
     commands.trigger(LoadScenario(planet_stage(&game_assets)));
 
+    // Mass is irrelevant to every config on this page: `spawn_row` and
+    // `redraw_focus` draw a `PlanetVisual` surface directly and never spawn a
+    // scenario object or a gravity well.
     let types: Vec<PlanetConfig> = PlanetType::ALL
         .iter()
-        .map(|planet_type| PlanetConfig::new(*planet_type, ROW_RADIUS, TYPE_ROW_SEED))
+        .map(|planet_type| PlanetConfig::new(*planet_type, ROW_RADIUS, TYPE_ROW_SEED, 4_000.0))
         .collect();
     spawn_row(
         &mut commands,
@@ -239,7 +242,7 @@ fn load_scene(
 
     let seeds: Vec<PlanetConfig> = ROW_SEEDS
         .iter()
-        .map(|seed| PlanetConfig::new(SEED_ROW_TYPE, ROW_RADIUS, *seed))
+        .map(|seed| PlanetConfig::new(SEED_ROW_TYPE, ROW_RADIUS, *seed, 4_000.0))
         .collect();
     spawn_row(
         &mut commands,
@@ -273,13 +276,13 @@ fn focus_roster() -> Vec<PlanetEntry> {
         .iter()
         .map(|planet_type| PlanetEntry {
             label: format!("{} - seed {TYPE_ROW_SEED}", planet_type.name()),
-            config: PlanetConfig::new(*planet_type, FOCUS_RADIUS, TYPE_ROW_SEED),
+            config: PlanetConfig::new(*planet_type, FOCUS_RADIUS, TYPE_ROW_SEED, 4_000.0),
         })
         .collect();
     for seed in [4242u32, 20_260_904] {
         entries.push(PlanetEntry {
             label: format!("{} - seed {seed}", SEED_ROW_TYPE.name()),
-            config: PlanetConfig::new(SEED_ROW_TYPE, FOCUS_RADIUS, seed),
+            config: PlanetConfig::new(SEED_ROW_TYPE, FOCUS_RADIUS, seed, 4_000.0),
         });
     }
     entries

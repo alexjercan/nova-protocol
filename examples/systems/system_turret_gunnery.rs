@@ -12,9 +12,7 @@
 //! What it shows:
 //! - Bullet gravity: a planetoid slung below the firing lane bends rounds that
 //!   cross its sphere of influence downward toward it. The shooter's own
-//!   gravity is stripped so it stays a fixed frame; only the rounds curve, so
-//!   the straight-line lead pip visibly misses low as a round nears the
-//!   planetoid.
+//!   gravity is stripped so it stays a fixed frame; only the rounds curve.
 //! - Aim gizmos: a line down the barrel (green when it is on target, yellow while
 //!   it lags) and a red line + sphere at the point the turret is aiming for. The
 //!   gap between the barrel line and the target line is the tracking lag - the
@@ -349,7 +347,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
             destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
             radius: Meters(20.0),
             texture: game_assets.asteroid_texture.clone().into(),
-            mass: None,
+            initial_velocity: MetersPerSecond3::ZERO,
             seed: None,
             lock_signature: None,
         }),
@@ -384,10 +382,12 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 position: Meters3::new(0.0, -220.0, -500.0),
                 rotation: Quat::IDENTITY,
             },
-            kind: ScenarioObjectKind::Planet(
-                PlanetConfig::new(PlanetType::BarrenRock, Meters(400.0), 2_001_383_927)
-                    .anchored(30_000.0),
-            ),
+            kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+                PlanetType::BarrenRock,
+                Meters(400.0),
+                2_001_383_927,
+                30_000.0,
+            )),
         },
     );
 

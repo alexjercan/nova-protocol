@@ -21,7 +21,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **RCS** - reaction-control fine translation for docking: hold <kbd>Shift</kbd> and steer with the mouse and scroll wheel to nudge the hull straight along its own axes, no rotation, paid from a magazine that refills once you let go. A trim a scenario grants rather than standard flight - see [RCS](../flight-autopilot/#rcs-fine-docking-thrusters).
 - **DOCK** - the verb that clamps your hull to the ship you have locked, port face to port face. The two ships stay two ships: nothing merges and neither pilot loses the helm for good. The pair flies as one body: the other ship flies it until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. It needs a docking port on both hulls. See [Docking port](../sections/docking/).
 - **Centre of mass** - the point the flight computer balances every burn through. A section weighs the box it is hit on, so the centre moves as the hull is built and as it is shot apart, and the computer rebalances live. See [Balancing thrust through the hull](../sections/thruster/#balancing-thrust-through-the-hull).
-- **Gravity well** - a planetoid's or massed asteroid's pull: inverse-square, authored per body, felt by piloted ships and by rounds and torpedoes in flight, and always escapable under main drive. See [Gravity wells](../gravity-wells/).
+- **Gravity well** - only planets and anchors are static well sources. Every mobile asteroid and every ship, as well as gun rounds and torpedoes in flight, responds to their pull. See [Gravity wells](../gravity-wells/).
 - **Sphere of influence** - the reach of a [gravity well](../gravity-wells/#sphere-of-influence), set by the body's authored mass alone: the distance where the pull decays to a fixed cutoff. Outside it the well does not pull on you; only the dominant well inside it matters.
 - **Dominant well** - the one well that counts where you are. ORBIT circularises around it and STOP budgets for its pull. See [The dominant well](../gravity-wells/#the-dominant-well).
 - **Hysteresis** - a bit of stickiness that stops a state from flickering at its edge. A lock, a fine-lock section, and the dominant well all hold a little past their switch point so they do not chatter.
@@ -46,7 +46,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Nav lock / combat lock** - the two lock slots. A lowered (white) stance sweeps a nav lock the autopilot flies to; a raised (red) stance sweeps a combat lock the guns aim at. See [Stances and slots](../targeting-radar/#stances-and-slots).
 - **Stance** - whether your weapons are lowered or raised. It picks which slot a sweep fills, and it is one of the two things that make the weapons hot.
 - **Fine-lock** - drilling a combat lock into one specific [section](../sections/) of an enemy hull, so turrets and the viewfinder focus that part. See [Per-section fine-lock](../targeting-radar/#per-section-fine-lock).
-- **"Hot" weapons** - your weapons are hot while you hold a raised (red) combat stance or while a combat lock exists. Hot means turret lead pips and the viewfinder frame go red and you can fire.
+- **"Hot" weapons** - your weapons are hot while you hold a raised (red) combat stance or while a combat lock exists. Hot means the viewfinder frame goes red and you can fire.
 - **Weapons safety** - the lowered state, the opposite of hot: no trigger fires, a bay keeps its iris shut and a railgun will not start a charge. Raise the weapons or take a combat lock and it is off.
 - **Lock range** - how far out the radar will take and hold a lock. See [Lock ranges](../targeting-radar/#lock-ranges).
 - **Clearing** - dropping locks, in stages rather than all at once. See [Clearing locks](../targeting-radar/#clearing-locks).
@@ -60,7 +60,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Kinetic / Pierce** - the two bullet behaviors, told apart by tracer colour. A Kinetic round punches: it stops at the first section it fails to destroy. A Pierce round rakes: it crosses several sections and damages every one on the way through. See [Damage types](../combat-weapons/#damage-types).
 - **Explosive** - the torpedo's damage type: area pressure falling off from the centre of the blast, with no speed term, worked through the hull by structural depth.
 - **Power** - a Pierce round's depth budget. Every section it crosses spends some of it, the tougher the section the more, and the round stops when it is gone. A railgun slug carries 1800. See [How far a round travels](../sections/turret/#how-far-a-round-travels).
-- **Intercept lead** - aiming where the target will be when the round arrives, computed in the shooter's own frame. Every turret does it, and the lead pip shows it. See [Aiming with lead](../sections/turret/#aiming-with-lead).
+- **Intercept lead** - aiming where the target will be when the round arrives, computed in the shooter's own frame. Every turret does it. See [Aiming with lead](../sections/turret/#aiming-with-lead).
 - **Barrel discipline** - a gun fires only while its barrel is actually on the aim point, so it holds through a slew and a mount that cannot bear simply waits. See [Barrel discipline](../sections/turret/#barrel-discipline).
 - **Blind cone** - the sky under a turret's own keel that its barrel cannot depress into: ten degrees below level and everything under that. See [What it can bear on](../sections/turret/#what-it-can-bear-on).
 - **Point defense** - your turrets' automatic close-in fire against inbound torpedoes. Each mount picks and holds its own torpedo, and your flight computer works the mounts you are not using; every intercept costs real ammunition. See [Turret](../sections/turret/#point-defense) for the mount and [Combat](../combat-weapons/#point-defense) for the battery.
@@ -87,7 +87,6 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Diegetic** - part of the world rather than an overlay bolted on top. The HUD instruments read the ship's real state and the autopilot flies the same real thrusters you do, so what you see is what the ship is actually doing.
 - **Velocity sphere** - the flight readout that shows where the ship is going, with the speed chip beside it. It turns violet while RCS is held. See [Flight readouts](../hud/#flight-readouts).
 - **Viewfinder** - the target frame: what you have locked, how far it is and how fast it is closing, and the NEUTRALIZED tag on a wreck. See [Target viewfinder](../hud/#target-viewfinder).
-- **Lead pip** - the marker a turret draws on the point it is actually shooting at, ahead of a moving target. Red while the weapons are hot. See [Locks and reticles](../hud/#locks-and-reticles).
 - **Allegiance markers** - the always-on ship markers, tinted by how each ship stands to you. See [Allegiance markers](../hud/#allegiance-markers).
 - **Keybind dock** - the strip of chips listing the verbs your ship has right now. A chip appears only when the ship has the verb, RCS included. See [Keybinds](../keybinds/).
 - **Interface** - the Tab panel with Map, Ship and Inventory panes over the frozen world. See [Interface](../interface/).
@@ -101,4 +100,4 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Scenario** - a placed world and the events, filters and actions wired over it: the same machinery for a five-minute tutorial and a combat sandbox. See [Scenarios](../scenarios/).
 - **Objective** - what a scenario asks of you, listed on the comms panel and advanced by the scenario's events.
 - **Basic Training** - the first-flight course, the flight [Your first flight](../getting-started/) walks through beat by beat: a Fleet gunnery qualification flown on an armed picket.
-- **Rock** - an asteroid: solid, carvable cover that eats rounds, and a gravity well if it is given a mass. See [Shooting rock](../combat-weapons/#shooting-rock).
+- **Rock** - an asteroid: mobile, carvable cover that eats rounds and responds to gravity wells; asteroids do not create wells. See [Shooting rock](../combat-weapons/#shooting-rock).

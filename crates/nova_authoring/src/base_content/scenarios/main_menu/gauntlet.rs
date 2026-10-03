@@ -193,7 +193,9 @@ pub(crate) fn menu_gauntlet(
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: Meters(10.0),
                 texture: asteroid_texture,
-                mass: None,
+                // This backdrop has no planetoid: an intentional stationary
+                // start, not a well interaction.
+                initial_velocity: MetersPerSecond3::ZERO,
                 seed: None,
                 lock_signature: None,
             }),

@@ -11,7 +11,7 @@
         >
         <span class="figure__placeholder-note"
             >A turret tracking a target, barrel led ahead of
-            it, aim pip on the intercept point.</span
+            it.</span
         >
     </div>
 </figure>

@@ -126,7 +126,7 @@ pub fn asteroid(
             kind: KIND_ROCK.into(),
             radius,
             texture: game_assets.asteroid_texture.clone().into(),
-            mass: None,
+            initial_velocity: MetersPerSecond3::ZERO,
             seed: None,
             lock_signature,
         }),

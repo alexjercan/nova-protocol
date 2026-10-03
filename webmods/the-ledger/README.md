@@ -4,7 +4,7 @@ Six short flight and combat activities. No cast, dialogue scenes, or carried
 story state. Fly through dense asteroid belts, survey instruments, patrol
 relays, and fight around working traffic and planetary backdrops.
 
-This is the **2.0.0 worktree preview**, not a portal publication. It replaces
+This is the **2.1.0 worktree preview**, not a portal publication. It replaces
 the previous campaign. No old progress is required.
 
 ## Play this checkout

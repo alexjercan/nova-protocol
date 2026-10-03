@@ -669,10 +669,10 @@ mod tests {
                     name: "rock".to_string(),
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                         radius: Meters(70.0),
+                        initial_velocity: MetersPerSecond3::ZERO,
                         texture: default(),
                         kind: KIND_ROCK.into(),
                         destroy_sound: None,
-                        mass: None,
                         seed: None,
                         lock_signature: None,
                     }),

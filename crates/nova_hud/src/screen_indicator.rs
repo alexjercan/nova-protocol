@@ -45,7 +45,7 @@ pub enum ScreenIndicatorAnchorKind {
     /// entity no longer resolves (despawned, or not yet spawned).
     Entity(Entity),
     /// Project this fixed world point. Driver systems overwrite it each frame
-    /// for computed anchors (e.g. a turret's lead intercept point).
+    /// for computed anchors (e.g. an autopilot GOTO point).
     Point(Vec3),
 }
 

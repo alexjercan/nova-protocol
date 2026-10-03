@@ -347,8 +347,8 @@ pub struct PointDefenseGizmos;
 /// answering a salvo must still read as a fight rather than as a diagram.
 const POINT_DEFENSE_LINE_WIDTH: f32 = 0.75;
 
-/// Colour of a point-defence line: the HUD's amber gunnery family (the turret
-/// lead pip's `PIP_COLOR`), at the alpha that keeps it ambient.
+/// Colour of a point-defence line: warm gunnery amber, at the alpha that keeps
+/// it ambient.
 const POINT_DEFENSE_LINE_COLOR: Color = Color::srgba(1.0, 0.72, 0.28, 0.35);
 
 /// Draw one thin line from each mount the COMPUTER is working to the torpedo it
@@ -356,8 +356,8 @@ const POINT_DEFENSE_LINE_COLOR: Color = Color::srgba(1.0, 0.72, 0.28, 0.35);
 /// and what each one picked.
 ///
 /// Only those mounts. A player-held mount is the player's aim and already has a
-/// crosshair, a lead pip and an inset; drawing a second line to it would say
-/// the ship was doing something it is not.
+/// crosshair and an inset; drawing a second line to it would say the ship was
+/// doing something it is not.
 pub(super) fn draw_point_defense_lines(
     mut gizmos: Gizmos<PointDefenseGizmos>,
     q_turret: Query<(

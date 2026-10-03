@@ -79,6 +79,7 @@ fn target_mode_lints_one_mod_in_repo_or_external() {
                             inventory: {},
                             lootable: false,
                             credits: 0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                         )),
                     )),
                 ],
@@ -215,6 +216,7 @@ const ACKED_SCENARIO_RON: &str = r#"[
                             inventory: {},
                             lootable: false,
                             credits: 0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                         )),
                     )),
                     SpawnScenarioObject((
@@ -240,6 +242,7 @@ const ACKED_SCENARIO_RON: &str = r#"[
                             inventory: {},
                             lootable: false,
                             credits: 0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                         )),
                     )),
                 ],

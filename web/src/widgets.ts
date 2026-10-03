@@ -690,12 +690,6 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
                     : "lit while weapons are hot"
         ),
         e(
-            "Turret lead pips",
-            "instrument",
-            true,
-            weaponsHot ? "red while hot" : "amber"
-        ),
-        e(
             "Bore sight (a hull with a railgun)",
             "instrument",
             weaponsHot,

@@ -29,6 +29,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             design: Prototype(id: "block_gunship"),
                             controller: Player((
                                 input_mapping: {
@@ -53,6 +54,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             design: Inline((
                                 sections: [
                                     (id: "hull_0", position: (-1.0, 0.0, -2.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "reinforced_hull_section")),

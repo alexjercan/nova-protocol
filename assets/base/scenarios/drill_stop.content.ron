@@ -50,6 +50,11 @@
                                     ],
                                 },
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             capabilities: (
                                 goto_enabled: false,
                                 orbit_enabled: false,
@@ -177,6 +182,11 @@
                             ),
                             kind: Asteroid((
                                 radius: 10.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
@@ -240,6 +250,11 @@
                             ),
                             kind: Asteroid((
                                 radius: 15.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),

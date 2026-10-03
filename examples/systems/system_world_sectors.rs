@@ -1245,10 +1245,7 @@ fn report_places(world: &mut World) {
                 "world sectors: '{}' must not also be an asteroid",
                 planet.id
             );
-            let mass = planet
-                .config
-                .mass
-                .unwrap_or_else(|| panic!("world sectors: '{}' must author its mass", planet.id));
+            let mass = planet.config.mass;
             let well = world
                 .get::<GravityWell>(entity)
                 .unwrap_or_else(|| panic!("world sectors: '{}' must be a gravity well", planet.id));

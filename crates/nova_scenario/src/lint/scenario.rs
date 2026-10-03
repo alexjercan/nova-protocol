@@ -520,19 +520,27 @@ fn check_asteroid_kind(config: &ScenarioObjectConfig, scenario: &str, issues: &m
     }
 }
 
-/// A rock's authored mass is one a well can be built from. `None` is valid:
-/// it is a rock with no well.
-fn check_asteroid_mass(config: &ScenarioObjectConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
-    let ScenarioObjectKind::Asteroid(asteroid) = &config.kind else {
-        return;
+/// A ship or asteroid's authored initial motion must be one the physics step
+/// can integrate. Zero means an authored stationary start; a NaN or infinite
+/// component would hand avian a velocity it cannot advance.
+fn check_initial_velocity(
+    config: &ScenarioObjectConfig,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let (object, velocity) = match &config.kind {
+        ScenarioObjectKind::Spaceship(ship) => ("ship", ship.initial_velocity),
+        ScenarioObjectKind::Asteroid(asteroid) => ("asteroid", asteroid.initial_velocity),
+        _ => return,
     };
-    if let Some(mass) = asteroid.mass.filter(|mass| !is_valid_asteroid_mass(*mass)) {
+    if !velocity.is_finite() {
         issues.push(LintIssue::error(
             scenario,
             format!(
-                "asteroid '{}' authors a mass of {mass}; a well needs a finite mass of 0 or \
-                 more - omit mass for no well",
-                config.base.id
+                "{object} '{}' authors an initial_velocity of {:?} m/s; it must be finite - \
+                 author Vec3::ZERO for a stationary start",
+                config.base.id,
+                velocity.get()
             ),
         ));
     }
@@ -729,7 +737,7 @@ fn check_action(
             check_spawned_arrival_standoff(config, scenario, issues);
             check_spawned_patrol_stops(config, scenario, issues);
             check_asteroid_kind(config, scenario, issues);
-            check_asteroid_mass(config, scenario, issues);
+            check_initial_velocity(config, scenario, issues);
             check_planet(config, scenario, issues);
         }
         EventActionConfig::ScatterObjects(config) => {
@@ -755,7 +763,7 @@ fn check_action(
                 );
             }
             check_scatter_kind_mix(config, scenario, issues);
-            check_asteroid_mass(&config.template, scenario, issues);
+            check_initial_velocity(&config.template, scenario, issues);
             check_planet(&config.template, scenario, issues);
             // The runtime clamps rather than OOMs, but a clamped field is not
             // the field the author wrote - say so before it ships.
@@ -2469,13 +2477,13 @@ mod tests {
                 kind: ScenarioObjectKind::Planet(config),
             })
         };
-        let sound = || PlanetConfig::new(PlanetType::DustWorld, Meters(900.0), 7);
+        let sound = || PlanetConfig::new(PlanetType::DustWorld, Meters(900.0), 7, 1_000.0);
 
         let s = scenario(
             vec![
                 planet(
                     "no_size",
-                    PlanetConfig::new(PlanetType::DustWorld, Meters::ZERO, 7),
+                    PlanetConfig::new(PlanetType::DustWorld, Meters::ZERO, 7, 1_000.0),
                 ),
                 planet(
                     "relief_past_the_radius",
@@ -2494,7 +2502,7 @@ mod tests {
                 planet(
                     "weightless_well",
                     PlanetConfig {
-                        mass: Some(0.0),
+                        mass: 0.0,
                         ..sound()
                     },
                 ),
@@ -2860,7 +2868,7 @@ mod tests {
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
-                    mass: None,
+                    initial_velocity: MetersPerSecond3::ZERO,
                     seed: None,
                     lock_signature: None,
                 }),
@@ -2894,45 +2902,60 @@ mod tests {
         );
     }
 
-    /// A rock's mass is a finite 0 or more on either authored path, a direct
-    /// spawn or a scatter template. No mass is a rock with no well, and says
-    /// nothing.
+    /// Ships and asteroids need finite initial motion on both authored paths:
+    /// a direct spawn and a Scatter template. Zero remains a legal stationary
+    /// start for either kind.
     #[test]
-    fn an_asteroid_mass_must_be_finite_and_non_negative() {
-        fn template(mass: Option<f32>) -> ScenarioObjectConfig {
+    fn ship_and_asteroid_initial_velocity_must_be_finite_on_spawn_and_scatter() {
+        fn template(kind: ScenarioObjectKind) -> ScenarioObjectConfig {
             ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
-                    id: "lone_rock".to_string(),
-                    name: "Lone Rock".to_string(),
+                    id: "object".to_string(),
+                    name: "Object".to_string(),
                     position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
-                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    kind: KIND_ROCK.into(),
-                    destroy_sound: None,
-                    radius: Meters(200.0),
-                    texture: nova_gameplay::prelude::AssetRef::default(),
-                    mass,
-                    seed: None,
-                    lock_signature: None,
-                }),
+                kind,
             }
         }
-        fn spawn(mass: Option<f32>) -> EventActionConfig {
-            EventActionConfig::SpawnScenarioObject(template(mass))
+        fn ship(velocity: MetersPerSecond3) -> ScenarioObjectConfig {
+            template(ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                controller: SpaceshipController::None,
+                initial_velocity: velocity,
+                ..default()
+            }))
         }
-        fn scatter(mass: Option<f32>) -> EventActionConfig {
+        fn asteroid(velocity: MetersPerSecond3) -> ScenarioObjectConfig {
+            template(ScenarioObjectKind::Asteroid(AsteroidConfig {
+                kind: KIND_ROCK.into(),
+                destroy_sound: None,
+                radius: Meters(20.0),
+                initial_velocity: velocity,
+                texture: nova_gameplay::prelude::AssetRef::default(),
+                lock_signature: None,
+                seed: None,
+            }))
+        }
+        fn spawn(template: ScenarioObjectConfig) -> EventActionConfig {
+            EventActionConfig::SpawnScenarioObject(template)
+        }
+        fn scatter(template: ScenarioObjectConfig) -> EventActionConfig {
+            let asteroid_kinds = if matches!(&template.kind, ScenarioObjectKind::Asteroid(_)) {
+                vec![(KIND_ROCK.into(), 1)]
+            } else {
+                vec![]
+            };
             EventActionConfig::ScatterObjects(ScatterObjectsConfig {
-                id_prefix: "rock_".to_string(),
-                count: 8,
+                id_prefix: "object_".to_string(),
+                count: 1,
                 seed: 1,
                 region: ScatterRegion::Box {
                     min: Meters3::new(-100.0, -100.0, -100.0),
                     max: Meters3::new(100.0, 100.0, 100.0),
                 },
-                template: template(mass),
+                template,
                 asteroid_radius: None,
-                asteroid_kinds: vec![(KIND_ROCK.into(), 1)],
+                asteroid_kinds,
                 min_separation: None,
             })
         }
@@ -2940,24 +2963,32 @@ mod tests {
             let s = scenario(vec![action], vec![]);
             lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]))
         };
-        let paths: [(&str, fn(Option<f32>) -> EventActionConfig); 2] =
+        let kinds: [(&str, fn(MetersPerSecond3) -> ScenarioObjectConfig); 2] =
+            [("ship", ship), ("asteroid", asteroid)];
+        let paths: [(&str, fn(ScenarioObjectConfig) -> EventActionConfig); 2] =
             [("spawn", spawn), ("scatter", scatter)];
 
-        for (path, action) in paths {
-            for mass in [-1.0, f32::NAN, f32::INFINITY] {
-                let issues = lint_of(action(Some(mass)));
+        for (kind, build) in kinds {
+            for (path, action) in paths {
+                for bad in [
+                    MetersPerSecond3::new(f32::NAN, 0.0, 0.0),
+                    MetersPerSecond3::new(0.0, f32::INFINITY, 0.0),
+                ] {
+                    let issues = lint_of(action(build(bad)));
+                    assert!(
+                        errors(&issues)
+                            .iter()
+                            .any(|issue| issue.message.contains("initial_velocity")),
+                        "a {kind} {path} with initial_velocity {bad:?} is an error: {issues:?}"
+                    );
+                }
+                let issues = lint_of(action(build(MetersPerSecond3::ZERO)));
                 assert!(
-                    errors(&issues)
+                    !issues
                         .iter()
-                        .any(|i| i.message.contains(&format!("authors a mass of {mass}"))),
-                    "a {path} mass of {mass} is an error: {issues:?}"
-                );
-            }
-            for mass in [None, Some(0.0), Some(4_000.0)] {
-                let issues = lint_of(action(mass));
-                assert!(
-                    !issues.iter().any(|i| i.message.contains("mass")),
-                    "a {path} mass of {mass:?} is clean: {issues:?}"
+                        .any(|issue| issue.message.contains("initial_velocity")),
+                    "a {kind} {path} with zero initial_velocity is a legal stationary start: \
+                     {issues:?}"
                 );
             }
         }
@@ -2989,7 +3020,7 @@ mod tests {
                         destroy_sound: None,
                         radius: Meters(20.0),
                         texture: nova_gameplay::prelude::AssetRef::default(),
-                        mass: None,
+                        initial_velocity: MetersPerSecond3::ZERO,
                         seed: None,
                         lock_signature: None,
                     }),

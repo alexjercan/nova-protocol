@@ -48,8 +48,8 @@ const MARKER_SELECTED_EXTENT_SCALE: f32 = 0.32;
 /// highlight under 2081 dots.
 const MARKER_BUDGET: usize = 64;
 
-/// Unselected marker tint: dim hot metal, distinct from the amber lead pip,
-/// the nav-cyan destination marker and the untinted lock reticle.
+/// Unselected marker tint: dim hot metal, distinct from the nav-cyan
+/// destination marker and the untinted lock reticle.
 const MARKER_COLOR: Color = combat::at(combat::HOT, 0.55);
 
 /// Selected marker tint: the same hue at full presence, which is what the

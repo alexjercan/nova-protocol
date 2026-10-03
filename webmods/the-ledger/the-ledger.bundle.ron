@@ -44,7 +44,7 @@
         name: "The Ledger",
         description: "Six field trials: a Racer time trial, arena combat, survey work, patrols, convoy escort and a gunship assault. Dense belts, planets and moving traffic.",
         author: "Nova Protocol",
-        version: "2.0.0",
+        version: "2.1.0",
         dependencies: ["base"],
     ),
 )

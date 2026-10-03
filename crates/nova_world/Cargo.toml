@@ -27,6 +27,10 @@ nova_scenario = { path = "../nova_scenario" }
 # is resolved against before its sector spawns.
 nova_ship = { path = "../nova_ship" }
 
+[dev-dependencies]
+# Inspect the dynamic body and seeded velocity the scenario factory puts on a streamed rock.
+avian3d = { version = "0.7.0" }
+
 [lints]
 workspace = true
 

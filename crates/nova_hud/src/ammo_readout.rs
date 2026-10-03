@@ -974,7 +974,7 @@ impl Plugin for AmmoReadoutPlugin {
         app.register_type::<AmmoReadoutClusterBadge>();
 
         // Reconcile then light the chunks before the indicator projection
-        // places the nodes, mirroring TurretLeadPlugin's slot.
+        // places the nodes.
         app.add_systems(
             PostUpdate,
             (sync_ammo_readouts, drive_ammo_readouts)

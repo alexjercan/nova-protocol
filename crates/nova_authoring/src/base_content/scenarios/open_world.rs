@@ -68,6 +68,9 @@ fn player() -> ScenarioObjectConfig {
             }),
             capabilities: ShipCapabilities::default(),
             design: ships::design(BLOCK_LINE_WARSHIP_SHIP_ID),
+            // At rest at the bootstrap origin, before any sector streams in:
+            // an intentional stationary start, not a well interaction.
+            initial_velocity: MetersPerSecond3::ZERO,
             // Plates for repair and a finite reserve for every idle reload:
             // point defense, railgun and torpedo bays. 3,520 kg in all.
             inventory: ShipInventoryStock::new([

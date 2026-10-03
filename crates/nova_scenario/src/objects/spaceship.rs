@@ -463,6 +463,9 @@ pub struct SpaceshipConfig {
     pub design: ShipDesignSource,
     /// Who drives the ship: nobody, a player, or an AI bot.
     pub controller: SpaceshipController,
+    /// Explicit initial motion in meters per second. Zero means an intentional
+    /// stationary start, not immunity to gravity.
+    pub initial_velocity: MetersPerSecond3,
     /// Which side the ship fights for. `None` (the authored default - omit
     /// the field) keeps the controller marker's requirement default: Player
     /// ships read `Allegiance::Player`, AI ships `Allegiance::Enemy`.
@@ -512,7 +515,16 @@ pub struct SpaceshipConfig {
 /// voice) are inserted by that observer rather than here: a `Prototype` design
 /// is not known until the catalog is read, and the catalog is a resource only
 /// a system can see.
+///
+/// # Panics
+///
+/// A Rust caller bypassing scenario lint supplied a non-finite initial velocity.
 pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
+    assert!(
+        config.initial_velocity.is_finite(),
+        "spaceship_scenario_object: initial velocity {:?} is not finite",
+        config.initial_velocity
+    );
     trace!("spaceship_scenario_object: config {:?}", config);
 
     (
@@ -524,6 +536,7 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
         config.inventory,
         ShipCredits(config.credits),
         RigidBody::Dynamic,
+        LinearVelocity(config.initial_velocity.to_engine()),
         // Physics advances Transform only on fixed ticks (64 Hz by default);
         // everything watched by the render-rate camera must interpolate between
         // them or it stair-steps. Invisible while the chase camera was bolted
@@ -1488,7 +1501,7 @@ mod tests {
     #[test]
     fn collapse_threshold_ron_parses_defaults_and_stays_unserialized() {
         let authored: SpaceshipConfig = ron::from_str(
-            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))), inventory: {}, lootable: false, credits: 0)"#,
+            r#"(controller: None, design: Inline((integrity: (collapse_threshold: Some(0.1)))), inventory: {}, lootable: false, credits: 0, initial_velocity: (0.0, 0.0, 0.0))"#,
         )
         .expect("the documented syntax parses");
         let ShipDesignSource::Inline(design) = &authored.design else {
@@ -1497,7 +1510,7 @@ mod tests {
         assert_eq!(design.integrity.collapse_threshold, Some(0.1));
 
         let omitted: SpaceshipConfig = ron::from_str(
-            r#"(controller: None, design: Inline(()), inventory: {}, lootable: false, credits: 0)"#,
+            r#"(controller: None, design: Inline(()), inventory: {}, lootable: false, credits: 0, initial_velocity: (0.0, 0.0, 0.0))"#,
         )
         .expect("omitted field parses");
         let ShipDesignSource::Inline(design) = &omitted.design else {

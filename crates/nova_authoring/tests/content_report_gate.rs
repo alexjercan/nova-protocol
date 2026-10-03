@@ -44,6 +44,7 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                     SpawnScenarioObject((
                         base: (id: "player", name: "Player", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             controller: Player((
                                 input_mapping: {
                                     "guns": [ Keyboard(Space) ],
@@ -64,6 +65,7 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                     SpawnScenarioObject((
                         base: (id: "ambush", name: "Ambush", position: (0.0, 0.0, 3.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             controller: AI(()),
                             design: Inline((
                                 sections: [
