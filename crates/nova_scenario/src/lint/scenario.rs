@@ -256,7 +256,18 @@ pub fn lint_scenario(
         }
     }
 
-    check_player_mining_bindings(id, &catalog, &declared, &mut issues);
+    let mut spawned_ships: Vec<_> = declared.spawned_ships.iter().collect();
+    spawned_ships.sort_by_key(|(ship, _)| ship.as_str());
+    for (ship, spawned) in spawned_ships {
+        check_player_mining_bindings(
+            id,
+            &catalog,
+            ship,
+            &spawned.design,
+            &spawned.controller,
+            &mut issues,
+        );
+    }
 
     let satisfiable = |target: &str| {
         object_reference_resolves(target, &declared.spawn_ids, &declared.scatter_prefixes)
@@ -741,6 +752,16 @@ fn check_action(
             );
             check_spawned_arrival_standoff(&config.template, scenario, issues);
             check_spawned_patrol_stops(&config.template, scenario, issues);
+            if let ScenarioObjectKind::Spaceship(ship) = &config.template.kind {
+                check_player_mining_bindings(
+                    scenario,
+                    catalog,
+                    &config.id_prefix,
+                    &ship.design,
+                    &ship.controller,
+                    issues,
+                );
+            }
             check_scatter_kind_mix(config, scenario, issues);
             check_initial_velocity(&config.template, scenario, issues);
             check_planet(&config.template, scenario, issues);
@@ -1456,62 +1477,60 @@ fn check_ship_section(
 fn check_player_mining_bindings(
     scenario: &str,
     catalog: &Catalog,
-    declared: &Declared,
+    ship: &str,
+    design: &ShipDesignSource,
+    controller: &SpaceshipController,
     issues: &mut Vec<LintIssue>,
 ) {
-    let mut ships: Vec<_> = declared.spawned_ships.iter().collect();
-    ships.sort_by_key(|(ship, _)| ship.as_str());
-    for (ship, spawned) in ships {
-        let SpaceshipController::Player(player) = &spawned.controller else {
-            continue;
-        };
-        // An unresolvable design is already an error where the design is
-        // linted; saying so twice from here would only add noise.
-        let design = match &spawned.design {
-            ShipDesignSource::Inline(design) => design,
-            ShipDesignSource::Prototype { id, .. } => match catalog.ships.get(id) {
-                Some(design) => design,
+    let SpaceshipController::Player(player) = controller else {
+        return;
+    };
+    // An unresolvable design is already an error where the design is linted;
+    // saying so twice from here would only add noise.
+    let design = match design {
+        ShipDesignSource::Inline(design) => design,
+        ShipDesignSource::Prototype { id, .. } => match catalog.ships.get(id) {
+            Some(design) => design,
+            None => return,
+        },
+    };
+    let mut held: Vec<(&str, InputSource)> = Vec::new();
+    for placed in &design.sections {
+        let class = match &placed.source {
+            SectionSource::Inline(config) => config.kind.class(),
+            SectionSource::Prototype { id: proto, .. } => match catalog.sections.get(proto) {
+                Some(known) => known.kind.class(),
                 None => continue,
             },
         };
-        let mut held: Vec<(&str, InputSource)> = Vec::new();
-        for placed in &design.sections {
-            let class = match &placed.source {
-                SectionSource::Inline(config) => config.kind.class(),
-                SectionSource::Prototype { id: proto, .. } => match catalog.sections.get(proto) {
-                    Some(known) => known.kind.class(),
-                    None => continue,
-                },
-            };
-            if class != SectionClass::Mining {
-                continue;
-            }
-            let bindings = player
-                .input_mapping
-                .get(&placed.id)
-                .map_or(&[][..], Vec::as_slice);
-            if bindings.is_empty() {
+        if class != SectionClass::Mining {
+            continue;
+        }
+        let bindings = player
+            .input_mapping
+            .get(&placed.id)
+            .map_or(&[][..], Vec::as_slice);
+        if bindings.is_empty() {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "player ship '{ship}' mining section '{}' has no input_mapping entry",
+                    placed.id
+                ),
+            ));
+        }
+        for &source in bindings {
+            if let Some((other, _)) = held.iter().find(|(_, taken)| *taken == source) {
                 issues.push(LintIssue::error(
                     scenario,
                     format!(
-                        "player ship '{ship}' mining section '{}' has no input_mapping entry",
-                        placed.id
+                        "player ship '{ship}' mining sections '{other}' and '{}' share {}",
+                        placed.id,
+                        source.label()
                     ),
                 ));
             }
-            for &source in bindings {
-                if let Some((other, _)) = held.iter().find(|(_, taken)| *taken == source) {
-                    issues.push(LintIssue::error(
-                        scenario,
-                        format!(
-                            "player ship '{ship}' mining sections '{other}' and '{}' share {}",
-                            placed.id,
-                            source.label()
-                        ),
-                    ));
-                }
-                held.push((placed.id.as_str(), source));
-            }
+            held.push((placed.id.as_str(), source));
         }
     }
 }
@@ -2585,7 +2604,8 @@ mod tests {
     }
 
     /// The `input_mapping` errors the lint raises for a player ship carrying a
-    /// mining section per `emitters` id, bound as `mapping` says.
+    /// mining section per `emitters` id, bound as `mapping` says. A scatter
+    /// template spawns through the same path, so it must raise the same ones.
     fn player_miner_mapping_errors(mapping: &[(&str, KeyCode)], emitters: &[&str]) -> Vec<String> {
         use nova_gameplay::prelude::AssetRef;
 
@@ -2613,44 +2633,59 @@ mod tests {
                 ),
             }),
         };
-        let s = scenario(
-            vec![EventActionConfig::SpawnScenarioObject(
-                ScenarioObjectConfig {
-                    base: BaseScenarioObjectConfig {
-                        id: "miner".to_string(),
-                        name: "miner".to_string(),
-                        position: Meters3::ZERO,
-                        rotation: Quat::IDENTITY,
-                    },
-                    kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                        controller: SpaceshipController::Player(PlayerControllerConfig {
-                            input_mapping: mapping
-                                .iter()
-                                .map(|(id, key)| {
-                                    (id.to_string(), vec![InputSource::Keyboard(*key)])
-                                })
-                                .collect(),
-                        }),
-                        design: ShipDesignSource::Inline(ShipDesign {
-                            sections: emitters
-                                .iter()
-                                .enumerate()
-                                .map(|(cell, id)| emitter(id, cell as f32))
-                                .collect(),
-                            ..default()
-                        }),
-                        ..default()
-                    }),
-                },
-            )],
-            vec![],
+        let miner = ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "miner".to_string(),
+                name: "miner".to_string(),
+                position: Meters3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                controller: SpaceshipController::Player(PlayerControllerConfig {
+                    input_mapping: mapping
+                        .iter()
+                        .map(|(id, key)| (id.to_string(), vec![InputSource::Keyboard(*key)]))
+                        .collect(),
+                }),
+                design: ShipDesignSource::Inline(ShipDesign {
+                    sections: emitters
+                        .iter()
+                        .enumerate()
+                        .map(|(cell, id)| emitter(id, cell as f32))
+                        .collect(),
+                    ..default()
+                }),
+                ..default()
+            }),
+        };
+        let errors_of = |action| {
+            let s = scenario(vec![action], vec![]);
+            let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+            errors(&issues)
+                .into_iter()
+                .map(|issue| issue.message.clone())
+                .filter(|message| message.contains("player ship 'miner' mining section"))
+                .collect::<Vec<_>>()
+        };
+        let spawned = errors_of(EventActionConfig::SpawnScenarioObject(miner.clone()));
+        let scattered = errors_of(EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+            id_prefix: "miner".to_string(),
+            count: 2,
+            seed: 1,
+            region: ScatterRegion::Box {
+                min: Meters3::new(-100.0, -100.0, -100.0),
+                max: Meters3::new(100.0, 100.0, 100.0),
+            },
+            template: miner,
+            asteroid_radius: None,
+            asteroid_kinds: vec![],
+            min_separation: None,
+        }));
+        assert_eq!(
+            scattered, spawned,
+            "a scattered player miner is linted like a spawned one"
         );
-        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
-        errors(&issues)
-            .into_iter()
-            .map(|issue| issue.message.clone())
-            .filter(|message| message.contains("player ship 'miner' mining section"))
-            .collect()
+        spawned
     }
 
     /// Each player mining section needs its own key: the bound emitter is
