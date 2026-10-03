@@ -84,7 +84,8 @@ still gets a readable Settings modal with its Back button on screen.
 </figure>
 
 The **Controls** tab is where you REBIND. It shows one binding group at a time -
-FLIGHT, TARGETING, CAMERA, SCENARIO, SYSTEM, INTERFACE, MAP and SHIP -
+FLIGHT, TARGETING, CAMERA, SCENARIO, SYSTEM, INTERFACE, MAP, SHIP and
+INVENTORY -
 with the keyboard and gamepad columns side by side, drawn as the keycaps and pad
 glyphs you actually press. The same table is laid out on the
 [Keybinds](../keybinds/) page.
@@ -103,8 +104,10 @@ listening.
 Two rows are read-only, drawn greyed: <kbd>Esc</kbd> and the pad's pause chord.
 They are the way out of every other screen, including this one.
 
-A section's weapon or thruster trigger is not here - that is per ship, assigned
-in the editor or on the interface's Ship pane.
+A section's weapon, thruster or mining beam key is not here - that is per
+ship, assigned in the editor or on the interface's Ship pane. From the pause
+menu, a flight row cannot take a key that a section of your ship holds:
+`V is already bound to the ship's mining_beam section`.
 
 ### Mouse
 

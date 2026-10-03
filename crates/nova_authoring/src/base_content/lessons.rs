@@ -479,9 +479,9 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  and the beam cuts the rock with a burst of sparks",
             ),
             "MINE cuts ore from the rock you travel lock. The beam fires straight ahead of its \
-             emitter: aim the ship and hold the key within 100 meters. Ore leaves in canisters. No \
+             emitter: aim the ship and hold its key within 100 meters. Ore leaves in canisters. No \
              beam means the rock is out of reach or off the line.",
-            &["radar_hold", "mine"],
+            &["radar_hold"],
             "wiki/sections/mining-beam#cutting-ore",
             None,
             &[],

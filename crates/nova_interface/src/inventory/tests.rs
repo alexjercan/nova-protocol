@@ -6,10 +6,12 @@ use std::collections::VecDeque;
 
 use bevy::{
     ecs::system::RunSystemOnce,
+    state::app::StatesPlugin,
     ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
     ui_widgets::{Activate, ValueChange},
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::RegisterInputActions;
 use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedHelmType, DockedShip,
     DockingConnection,
@@ -19,6 +21,7 @@ use nova_ui::widget::{TextFieldError, TextFieldValue};
 use super::*;
 use crate::{
     icons::InterfaceIcons,
+    pane::InterfacePaneType,
     pointer_rig::{
         click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, settle, take_churn, take_cues,
         track_node_churn, PanePointerRig,
@@ -116,6 +119,32 @@ fn column_title(world: &mut World, side: InventorySideType) -> String {
         .expect("the pane has a title per side")
 }
 
+/// The value of one labelled fact under a column title.
+fn column_fact(world: &mut World, fact: InventoryColumnFact) -> String {
+    world
+        .query::<(&InventoryColumnFact, &Text)>()
+        .iter(world)
+        .find(|(each, _)| **each == fact)
+        .map(|(_, text)| text.0.clone())
+        .expect("the column shows the fact")
+}
+
+/// Press `key` for one run of the pane's key system, then release it and run
+/// a frame so the panel shows the result. The frame's own input pass clears
+/// a press written into `ButtonInput` before any Update system reads it.
+fn press_key(app: &mut App, key: KeyCode) {
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(key);
+    app.world_mut()
+        .run_system_once(inventory_keys)
+        .expect("running the Inventory pane's keys");
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(key);
+    app.update();
+}
+
 /// The window-space centre of the first node matching `pick`.
 fn centre_of<C: Component>(world: &mut World, pick: impl Fn(&C) -> bool) -> Vec2 {
     let (node, xf) = world
@@ -145,11 +174,22 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
     // Undocked: the player's own stack, and no partner to read.
     app.update();
     let world = app.world_mut();
-    // The player's title carries its load against its capacity and its
-    // credits, grouped by thousands.
+    // The player's title is its name; its load against its capacity and its
+    // credits, grouped by thousands, are labelled facts under it.
+    assert_eq!(column_title(world, InventorySideType::Own), "NOVA");
     assert_eq!(
-        column_title(world, InventorySideType::Own),
-        "NOVA 120 kg / 400 kg  2,000 cr"
+        column_fact(
+            world,
+            InventoryColumnFact(InventorySideType::Own, InventoryColumnFactType::Cargo)
+        ),
+        "120 kg / 400 kg"
+    );
+    assert_eq!(
+        column_fact(
+            world,
+            InventoryColumnFact(InventorySideType::Own, InventoryColumnFactType::Credits)
+        ),
+        "2,000 cr"
     );
     assert_eq!(
         column_texts(world, InventorySideType::Own),
@@ -161,9 +201,13 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
     dock_partner(app.world_mut(), player, "Picket", 40);
     app.update();
     let world = app.world_mut();
+    assert_eq!(column_title(world, InventorySideType::Partner), "Picket");
     assert_eq!(
-        column_title(world, InventorySideType::Partner),
-        "Picket  0 cr"
+        column_fact(
+            world,
+            InventoryColumnFact(InventorySideType::Partner, InventoryColumnFactType::Credits)
+        ),
+        "0 cr"
     );
     assert_eq!(
         column_texts(world, InventorySideType::Partner),
@@ -210,6 +254,11 @@ fn panel_of(world: &mut World, side: InventorySideType) -> (f32, f32, bool) {
 /// the cue capture and the churn counter.
 fn inventory_rig() -> (PanePointerRig, Entity) {
     let mut rig = pane_pointer_rig();
+    rig.app.add_plugins(StatesPlugin);
+    rig.app.insert_state(PauseStates::Interface);
+    rig.app.insert_resource(InterfacePaneType::Inventory);
+    rig.app
+        .register_input_actions(crate::bindings::interface_bindings());
     rig.app.insert_resource(InterfaceIcons::blank());
     rig.app.add_plugins(InventoryPanePlugin);
     hear_ui_cues(&mut rig.app);
@@ -378,12 +427,12 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     };
     let total_weight_shown = |world: &mut World| {
         world
-            .query::<(&InspectorPart, &Node)>()
+            .query::<(&InspectorPart, &Visibility)>()
             .iter(world)
             .find(|(part, _)| **part == InspectorPart::TotalWeight)
-            .map(|(_, node)| node.display)
+            .map(|(_, visibility)| *visibility)
             .expect("the inspector has a total weight row")
-            != Display::None
+            != Visibility::Hidden
     };
     let world = rig.app.world_mut();
     assert_eq!(
@@ -403,6 +452,62 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
             .map(|draft| draft.action),
         Some(InventoryActionType::Buy)
     );
+
+    // The player's row opens a Sell to a trader, not a Give.
+    let own_row = centre_of::<InventoryRow>(rig.app.world_mut(), |row| {
+        row.side == InventorySideType::Own
+    });
+    click_at(&mut rig, own_row);
+    assert_eq!(
+        rig.app
+            .world()
+            .resource::<InventoryRuntime>()
+            .draft
+            .map(|draft| draft.action),
+        Some(InventoryActionType::Sell)
+    );
+    take_cues(&mut rig.app);
+    take_churn(&mut rig.app);
+
+    // The keyboard reaches the same rows: the next row after the player's
+    // plates is the partner's plates, opened as its click would.
+    press_key(&mut rig.app, KeyCode::BracketRight);
+    let runtime = rig.app.world().resource::<InventoryRuntime>().clone();
+    assert_eq!(
+        runtime.selected,
+        Some((InventorySideType::Partner, ItemType::HullPlate))
+    );
+    assert_eq!(
+        runtime.draft.map(|draft| draft.action),
+        Some(InventoryActionType::Buy)
+    );
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    // I opens the full description without the pointer, and a new selection
+    // closes it.
+    let full_shown = |world: &mut World| {
+        world
+            .query::<(&InspectorPart, &Node)>()
+            .iter(world)
+            .find(|(part, _)| **part == InspectorPart::AboutFull)
+            .map(|(_, node)| node.display)
+            .expect("the inspector has a full description")
+            != Display::None
+    };
+    assert!(!full_shown(rig.app.world_mut()));
+    press_key(&mut rig.app, KeyCode::KeyI);
+    assert!(full_shown(rig.app.world_mut()));
+    assert_eq!(
+        inspector(rig.app.world_mut(), InventoryInspectorField::AboutFull).as_deref(),
+        Some("Structural plating for hull sections.")
+    );
+    press_key(&mut rig.app, KeyCode::BracketLeft);
+    assert_eq!(
+        rig.app.world().resource::<InventoryRuntime>().selected,
+        Some((InventorySideType::Own, ItemType::HullPlate))
+    );
+    assert!(!full_shown(rig.app.world_mut()));
+    take_cues(&mut rig.app);
+    take_churn(&mut rig.app);
 
     // Ammo hides the hull plates and drops the selection with them.
     let ammo = centre_of::<InventoryFilterChip>(rig.app.world_mut(), |chip| {
@@ -1113,10 +1218,10 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
     // The total weighs the draft's quantity, never the source stack of 8.
     let total_weight = |world: &mut World| {
         let shown = world
-            .query::<(&InspectorPart, &Node)>()
+            .query::<(&InspectorPart, &Visibility)>()
             .iter(world)
-            .any(|(part, node)| {
-                *part == InspectorPart::TotalWeight && node.display != Display::None
+            .any(|(part, visibility)| {
+                *part == InspectorPart::TotalWeight && *visibility != Visibility::Hidden
             });
         let text = world
             .query::<(&InventoryInspectorField, &Text)>()

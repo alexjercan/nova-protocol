@@ -346,7 +346,7 @@ const WIKI_PAGES = [
         parent: "sections",
         tags: ["ships"],
         summary:
-            "A bow emitter the hull aims: lock a rock, hold MINE, and the ore it cuts leaves the rock in canisters for your intake.",
+            "A bow emitter the hull aims: lock a rock, hold the beam's own key, and the ore it cuts leaves the rock in canisters for your intake.",
         related: ["sections", "sections/cargo-intake", "targeting-radar"],
         headings: ["Cutting ore", "Where the ore goes", "Variants"],
     },

@@ -20,8 +20,8 @@ use nova_world_base::prelude::{BLOCK_LINE_WARSHIP_SHIP_ID, OPEN_WORLD_SCENARIO_I
 use crate::base_content::{
     assets::BaseContentAssets,
     ships::{
-        self, BLOCK_LINE_WARSHIP_PDC_IDS, BLOCK_LINE_WARSHIP_RAILGUN_ID,
-        BLOCK_LINE_WARSHIP_TORPEDO_IDS,
+        self, BLOCK_LINE_WARSHIP_MINING_ID, BLOCK_LINE_WARSHIP_PDC_IDS,
+        BLOCK_LINE_WARSHIP_RAILGUN_ID, BLOCK_LINE_WARSHIP_TORPEDO_IDS,
     },
 };
 
@@ -84,7 +84,7 @@ fn player() -> ScenarioObjectConfig {
 
 /// The warship's weapon bindings, on the keys every other player gun uses:
 /// point defense on the primary trigger, the railgun on `R`, and the torpedo
-/// bays on `F`.
+/// bays on `F`. The mining emitter takes `V`.
 fn weapon_bindings() -> BTreeMap<SectionId, Vec<InputSource>> {
     let pdc = vec![
         InputSource::Mouse(MouseButton::Left),
@@ -103,6 +103,10 @@ fn weapon_bindings() -> BTreeMap<SectionId, Vec<InputSource>> {
             .iter()
             .map(|id| (id.to_string(), vec![InputSource::Keyboard(KeyCode::KeyF)])),
     );
+    bindings.insert(
+        BLOCK_LINE_WARSHIP_MINING_ID.to_string(),
+        vec![InputSource::Keyboard(KeyCode::KeyV)],
+    );
     bindings
 }
 
@@ -115,7 +119,7 @@ mod tests {
     #[test]
     fn the_open_world_warship_binds_pdc_to_the_trigger_railgun_to_r_and_torpedoes_to_f() {
         let bindings = weapon_bindings();
-        assert_eq!(bindings.len(), 6 + 1 + 2);
+        assert_eq!(bindings.len(), 6 + 1 + 2 + 1);
         for pdc in BLOCK_LINE_WARSHIP_PDC_IDS {
             assert_eq!(
                 bindings[pdc],
@@ -137,5 +141,9 @@ mod tests {
                 "'{bay}'"
             );
         }
+        assert_eq!(
+            bindings[BLOCK_LINE_WARSHIP_MINING_ID],
+            [InputSource::Keyboard(KeyCode::KeyV)]
+        );
     }
 }

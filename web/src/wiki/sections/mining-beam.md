@@ -17,15 +17,15 @@
     </div>
 </figure>
 
-A mining beam is a **one-cell emitter** behind two sliding doors. Lock a rock, point the emitter at it and hold MINE: the doors part, the tip runs out, and once a second the beam cuts the rock where it hits. The ore it cuts free leaves the rock as canisters, and a [cargo intake](../cargo-intake/) takes them into your hold.
+A mining beam is a **one-cell emitter** behind two sliding doors. Lock a rock, point the emitter at it and hold its key: the doors part, the tip runs out, and once a second the beam cuts the rock where it hits. The ore it cuts free leaves the rock as canisters, and a [cargo intake](../cargo-intake/) takes them into your hold.
 
 The beam does not aim. It runs straight out of the emitter's face, so the **ship** aims it, the way a railgun is aimed. The lock only says which rock you mean.
 
-<!-- Values from crates/nova_authoring/src/base_content/sections/mining_beam.rs: health 90 (MINING_BEAM_BASE_HEALTH), TRACK_SECONDS 0.3 per leg, reach 100 m, pulse_interval_seconds 1.0, carve_radius_cells 1.5 of the rock's field, whose cell is FIELD_CELL_WORLD 0.5 units, about 5 m (crates/nova_scenario/src/objects/asteroid_carve.rs). Binding `mine` V in crates/nova_ship/src/input/bindings.rs. -->
+<!-- Values from crates/nova_authoring/src/base_content/sections/mining_beam.rs: health 90 (MINING_BEAM_BASE_HEALTH), TRACK_SECONDS 0.3 per leg, reach 100 m, pulse_interval_seconds 1.0, carve_radius_cells 1.5 of the rock's field, whose cell is FIELD_CELL_WORLD 0.5 units, about 5 m (crates/nova_scenario/src/objects/asteroid_carve.rs). Per-section key: `input_mapping` entry -> `SpaceshipMiningInputBinding` in crates/nova_ship/src/input/player/weapons.rs; the line warship's `mining_beam` takes V in crates/nova_authoring/src/base_content/scenarios/open_world.rs `weapon_bindings`; the editor default V with no pad button in crates/nova_editor/src/placement.rs `default_binds`. -->
 
 | The mining beam at a glance | |
 |---|---|
-| Key | MINE, held: <kbd>V</kbd> by default |
+| Key | its own, held: <kbd>V</kbd> on the line warship |
 | Deploy | doors **0.3 s**, then the tip **0.3 s** |
 | Reach | **100 m** from the emitter face, straight ahead of it |
 | Rate | a pulse as soon as it is out, then **one a second** |
@@ -44,7 +44,7 @@ The beam does not aim. It runs straight out of the emitter's face, so the **ship
 
 1. **Lock the rock.** Hold the radar on it with weapons lowered, so it takes your **travel lock**. See [Targeting & radar](../../targeting-radar/#stances-and-slots).
 2. **Point the emitter at it.** The Line Warship's emitter sits on the starboard top deck at the bow and looks forward, so put your nose on the rock and close to inside 100 m.
-3. **Hold MINE.** The doors part and the tip runs out. Once the tip is out, the beam fires at once and then once a second for as long as you hold the key.
+3. **Hold the beam's key.** The doors part and the tip runs out. Once the tip is out, the beam fires at once and then once a second for as long as you hold the key.
 4. **Let go.** The tip runs in first, then the doors shut. Pressing or letting go halfway reverses from wherever the parts are.
 
 Every pulse checks five things, in order: your ship has a travel lock; the lock is a rock; the rock holds ore; the rock is within 100 m of the emitter face; the line straight out of that face meets it within 100 m. A pulse that fails any of them does nothing at all: no beam, no sound, no cut. So **no beam means a check is failing** - most often the nose is off the rock or the rock is too far. Nothing else blocks the beam: it is cast against the locked rock alone.

@@ -63,6 +63,7 @@ mod lesson;
 
 use bevy::prelude::*;
 use clap::Parser;
+use nova_input::prelude::InputSource;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -108,7 +109,13 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            controller: SpaceshipController::Player(PlayerControllerConfig::default()),
+            controller: SpaceshipController::Player(PlayerControllerConfig {
+                input_mapping: [(
+                    "mining_beam".to_string(),
+                    vec![InputSource::Keyboard(KeyCode::KeyV)],
+                )]
+                .into(),
+            }),
             design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "block_line_warship")),
             inventory: ShipInventoryStock::new([]),
             ..default()

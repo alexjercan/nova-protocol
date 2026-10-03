@@ -32,6 +32,9 @@
                             ),
                             controller: Player((
                                 input_mapping: {
+                                    "mining_beam": [
+                                        Keyboard(KeyV),
+                                    ],
                                     "pdc_aft_port": [
                                         Mouse(Left),
                                         Gamepad(RightTrigger2),

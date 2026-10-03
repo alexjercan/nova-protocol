@@ -10,8 +10,11 @@
 //! The camera is a `MapOrbit` you drive with the `viewer_orbit_*` and
 //! `viewer_pan_*` actions plus the wheel (zoom). Selecting a contact fills the
 //! contact panel beside the view with its code, name, kind, range and bearing;
-//! `map_goto` sets a flight [`Autopilot`](nova_ship::prelude::Autopilot) GOTO
-//! on the player ship that persists after the interface closes.
+//! `map_goto` or the panel's GOTO button sets a flight
+//! [`Autopilot`](nova_ship::prelude::Autopilot) GOTO and the travel lock on the
+//! player ship, which persist after the interface closes. While that GOTO is
+//! live, the view draws a route from the player ship to its target with a
+//! `GOTO` tag on the target, and the panel names the destination.
 //!
 //! # Module layout
 //!
@@ -146,6 +149,7 @@ impl Plugin for MapPanePlugin {
                 map_focus_follow,
                 drive_map_camera,
                 project_map_blips,
+                project_map_route,
                 refresh_map_legend,
                 update_map_panel,
             )

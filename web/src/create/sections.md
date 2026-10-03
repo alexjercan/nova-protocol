@@ -1164,8 +1164,11 @@ kind: Mining((
 - `carve_radius_cells` - the radius of the sphere one pulse cuts, in cells of
   the rock's own field.
 
-Hold the mine key (`V`) and every emitter on the ship opens its doors, then
-extends its tip. Release it and the tip goes in before the doors shut. Only a
+Each emitter has its own key in the player's `input_mapping`; lint and load
+refuse a player ship with a mining section that has no entry or an empty one,
+or two mining sections that share a button.
+Hold that key and only that emitter opens its doors, then extends its tip.
+Release it and the tip goes in before the doors shut. Only a
 fully deployed emitter pulses, and each one pulses on its own clock. A pulse
 needs a travel-locked asteroid of a kind that yields ore, within `reach`, and a
 straight line out of the face that meets it. A pulse that fails any check

@@ -1,4 +1,4 @@
-//! Content-authored weapon bindings: each section's `input_mapping` becomes a
+//! Content-authored section bindings: each section's `input_mapping` becomes a
 //! rig whose observers hold and release the section trigger.
 //!
 //! The binding a section CARRIES is a Nova [`InputSource`], the same vocabulary
@@ -431,6 +431,95 @@ pub(super) fn on_railgun_input_completed(
     **input = false;
 }
 
+/// The player input bindings that hold one mining emitter out, snapshotted
+/// from its content `input_mapping`. Same rules as
+/// [`SpaceshipThrusterInputBinding`]. A player ship's mining section must
+/// carry one; the lint and the spawn refuse a section without it.
+#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
+pub struct SpaceshipMiningInputBinding(pub Vec<InputSource>);
+
+#[derive(Component, Debug, Clone)]
+pub(super) struct MiningInputMarker;
+
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(super) struct MiningSectionInput;
+
+pub(super) fn on_mining_input_binding(
+    add: On<Insert, SpaceshipMiningInputBinding>,
+    mut commands: Commands,
+    mut q_binding: Query<(&SpaceshipMiningInputBinding, Option<&mut MiningSectionHeld>)>,
+    q_actions: Query<&Actions<MiningInputMarker>>,
+) {
+    let entity = add.entity;
+    trace!("on_mining_input_binding: entity {:?}", entity);
+
+    let Ok((binding, held)) = q_binding.get_mut(entity) else {
+        return;
+    };
+    // The old action is despawned below without a Complete, so a key held
+    // through the rebind would leave the emitter out with nothing to release.
+    if let Some(mut held) = held {
+        **held = false;
+    }
+    if let Ok(actions) = q_actions.get(entity) {
+        for action in actions {
+            commands.entity(action).despawn();
+        }
+    }
+
+    commands.entity(entity).insert((
+        MiningInputMarker,
+        actions!(
+            MiningInputMarker[(
+                Name::new("Input: Mining"),
+                Action::<MiningSectionInput>::new(),
+                ActionSettings {
+                    consume_input: false,
+                    ..default()
+                },
+                source_bindings(binding.0.iter().copied()),
+            )]
+        ),
+    ));
+}
+
+/// Hold this emitter out. Not gated by the weapons safety: a beam cuts the
+/// travel-locked rock only, so a cold ship still mines.
+pub(super) fn on_mining_input(
+    fire: On<Start<MiningSectionInput>>,
+    mut q_input: Query<&mut MiningSectionHeld, With<MiningInputMarker>>,
+    pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
+) {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
+        return;
+    }
+
+    let entity = fire.event().context;
+    trace!("on_mining_input: entity {:?}", entity);
+
+    let Ok(mut held) = q_input.get_mut(entity) else {
+        return;
+    };
+
+    **held = true;
+}
+
+pub(super) fn on_mining_input_completed(
+    fire: On<Complete<MiningSectionInput>>,
+    mut q_input: Query<&mut MiningSectionHeld, With<MiningInputMarker>>,
+) {
+    let entity = fire.event().context;
+    trace!("on_mining_input_completed: entity {:?}", entity);
+
+    let Ok(mut held) = q_input.get_mut(entity) else {
+        return;
+    };
+
+    **held = false;
+}
+
 #[cfg(test)]
 mod tests {
     use nova_input::prelude::{binding_source, InputSource};
@@ -475,5 +564,70 @@ mod tests {
             binding_source(&bindings[0]),
             Some(InputSource::Keyboard(KeyCode::KeyB))
         );
+    }
+
+    /// Each mining section answers its own key alone, and a rebind moves only
+    /// that section: the old key stops holding it and the other emitter's key
+    /// is untouched.
+    #[test]
+    fn two_mining_sections_hold_on_their_own_keys_only() {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<MiningInputMarker>();
+        app.add_observer(on_mining_input_binding);
+        app.add_observer(on_mining_input);
+        app.add_observer(on_mining_input_completed);
+        app.finish();
+        app.cleanup();
+        app.update();
+        let bow = app
+            .world_mut()
+            .spawn((
+                MiningSectionHeld(false),
+                SpaceshipMiningInputBinding(vec![KeyCode::KeyV.into()]),
+            ))
+            .id();
+        let keel = app
+            .world_mut()
+            .spawn((
+                MiningSectionHeld(false),
+                SpaceshipMiningInputBinding(vec![KeyCode::KeyB.into()]),
+            ))
+            .id();
+        app.update();
+
+        let held = |app: &App| {
+            [bow, keel].map(|section| app.world().get::<MiningSectionHeld>(section).unwrap().0)
+        };
+        let tap = |app: &mut App, key: KeyCode| {
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(key);
+            app.update();
+            app.update();
+            let during = held(app);
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .release(key);
+            app.update();
+            app.update();
+            assert_eq!(held(app), [false, false], "{key:?} released both");
+            during
+        };
+
+        assert_eq!(tap(&mut app, KeyCode::KeyV), [true, false]);
+        assert_eq!(tap(&mut app, KeyCode::KeyB), [false, true]);
+
+        app.world_mut()
+            .entity_mut(bow)
+            .insert(SpaceshipMiningInputBinding(vec![KeyCode::KeyJ.into()]));
+        app.update();
+        assert_eq!(tap(&mut app, KeyCode::KeyV), [false, false]);
+        assert_eq!(tap(&mut app, KeyCode::KeyJ), [true, false]);
+        assert_eq!(tap(&mut app, KeyCode::KeyB), [false, true]);
     }
 }

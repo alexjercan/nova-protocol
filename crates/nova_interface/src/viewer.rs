@@ -26,9 +26,10 @@ const ORBIT_TURN_RATE: f32 = 1.6;
 /// view rolls.
 const ORBIT_PHI_MAX: f32 = 1.45;
 
-/// Lowest the eye may be tilted, in radians above the focus plane. Short of the
-/// plane itself, where the scene collapses to an edge-on line.
+/// The Map remains above the focus plane; only Ship needs an underside view.
 const ORBIT_PHI_MIN: f32 = 0.12;
+/// Avoid the opposite look-at pole as the Ship camera moves below the hull.
+const SHIP_PHI_MIN: f32 = -ORBIT_PHI_MAX;
 
 /// Radians of orbit per pixel of right-button drag. Gentle on purpose, so a
 /// small drag is a small turn.
@@ -112,8 +113,17 @@ impl OrbitGesture {
     /// and answer the new `(theta, phi)`.
     ///
     /// Applied straight to the angles, with no smoothing layer between the
-    /// press and the camera.
-    pub fn apply(self, dt: f32, mut theta: f32, mut phi: f32) -> (f32, f32) {
+    /// press and the camera. Map remains above the focus plane.
+    pub fn apply(self, dt: f32, theta: f32, phi: f32) -> (f32, f32) {
+        self.apply_with_floor(dt, theta, phi, ORBIT_PHI_MIN)
+    }
+
+    /// Use the same controls for Ship but let the eye inspect the underside.
+    pub fn apply_ship(self, dt: f32, theta: f32, phi: f32) -> (f32, f32) {
+        self.apply_with_floor(dt, theta, phi, SHIP_PHI_MIN)
+    }
+
+    fn apply_with_floor(self, dt: f32, mut theta: f32, mut phi: f32, floor: f32) -> (f32, f32) {
         let turn = ORBIT_TURN_RATE * dt;
         if self.turn_left {
             theta += turn;
@@ -125,11 +135,11 @@ impl OrbitGesture {
             phi = (phi + turn).min(ORBIT_PHI_MAX);
         }
         if self.tilt_down {
-            phi = (phi - turn).max(ORBIT_PHI_MIN);
+            phi = (phi - turn).max(floor);
         }
         if let Some(drag) = self.drag {
             theta -= drag.x * ORBIT_DRAG_RADIANS_PER_PX;
-            phi = (phi + drag.y * ORBIT_DRAG_RADIANS_PER_PX).clamp(ORBIT_PHI_MIN, ORBIT_PHI_MAX);
+            phi = (phi + drag.y * ORBIT_DRAG_RADIANS_PER_PX).clamp(floor, ORBIT_PHI_MAX);
         }
         (theta, phi)
     }
@@ -282,6 +292,29 @@ mod tests {
         }
         .apply(1.0 / 60.0, theta, 1.0);
         assert!(flung_down >= ORBIT_PHI_MIN, "flung drag down: {flung_down}");
+    }
+
+    #[test]
+    fn ship_tilts_below_the_hull_while_map_keeps_its_positive_floor() {
+        let down = OrbitGesture {
+            tilt_down: true,
+            ..default()
+        };
+        let mut ship = 0.5;
+        let mut map = 0.5;
+        for _ in 0..240 {
+            ship = down.apply_ship(1.0 / 60.0, 0.0, ship).1;
+            map = down.apply(1.0 / 60.0, 0.0, map).1;
+        }
+        assert_eq!(ship, SHIP_PHI_MIN);
+        assert_eq!(map, ORBIT_PHI_MIN);
+        assert!(orbit_eye(1.0, 0.0, ship).y < 0.0);
+        let drag = OrbitGesture {
+            drag: Some(Vec2::new(0.0, -10_000.0)),
+            ..default()
+        };
+        assert_eq!(drag.apply_ship(1.0 / 60.0, 0.0, 0.5).1, SHIP_PHI_MIN);
+        assert_eq!(drag.apply(1.0 / 60.0, 0.0, 0.5).1, ORBIT_PHI_MIN);
     }
 
     /// A frame the player did not touch the orbit on must not write the

@@ -51,6 +51,7 @@ mod kit;
 use bevy::prelude::*;
 use clap::Parser;
 use docking_pair::spar;
+use nova_input::prelude::InputSource;
 use nova_protocol::prelude::*;
 
 #[path = "shared/docking_pair.rs"]
@@ -151,7 +152,13 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
         Vec3::ZERO,
         Quat::IDENTITY,
         SpaceshipConfig {
-            controller: SpaceshipController::Player(PlayerControllerConfig::default()),
+            controller: SpaceshipController::Player(PlayerControllerConfig {
+                input_mapping: [(
+                    "mining_beam".to_string(),
+                    vec![InputSource::Keyboard(KeyCode::KeyV)],
+                )]
+                .into(),
+            }),
             design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "block_line_warship")),
             inventory: ShipInventoryStock::new([]),
             credits: PLAYER_CREDITS,
@@ -221,6 +228,7 @@ mod walk {
     use std::{collections::BTreeMap, sync::Arc};
 
     use avian3d::prelude::LinearVelocity;
+    use nova_input::prelude::{dispatch, InputPhase};
     use nova_protocol::{
         nova_debug::harness::{hide_status_bar, AutopilotPlugin, LoopCapturePlugin, Predicate},
         nova_interface::pane::InterfacePaneType,
@@ -728,6 +736,27 @@ mod walk {
         world.entity_mut(player).insert(TravelLock(Some(target)));
     }
 
+    /// Press or release whatever the warship's mining section is bound to,
+    /// read live rather than hard-coded, so a rebind of the section still
+    /// drives the real key.
+    fn drive_mine_key(world: &mut World, phase: InputPhase) {
+        let source = world
+            .query::<&SpaceshipMiningInputBinding>()
+            .iter(world)
+            .next()
+            .and_then(|binding| binding.0.first().copied())
+            .expect("the warship's mining section is bound to a key");
+        dispatch::press_source(world, source, phase);
+    }
+
+    fn press_mine_key(world: &mut World) {
+        drive_mine_key(world, InputPhase::Press);
+    }
+
+    fn release_mine_key(world: &mut World) {
+        drive_mine_key(world, InputPhase::Release);
+    }
+
     /// Frame the bow, the beam and the rock's near face from starboard, level
     /// with the beam.
     fn frame_beam(world: &mut World) {
@@ -811,7 +840,7 @@ mod walk {
             .deadline(STEP_DEADLINE)
             .add()
             .step("hold the mine key until enough ore is cut")
-            .on_enter(press_action("mine"))
+            .on_enter(press_mine_key)
             .until(when(|world| logged_corners(world) >= MINED_ORE_FLOOR))
             .deadline(STEP_DEADLINE)
             .add()
@@ -832,7 +861,7 @@ mod walk {
             .add()
             .step("release the mine key and wait for the canisters")
             .on_enter(|world: &mut World| {
-                release_action("mine")(world);
+                release_mine_key(world);
                 set_paused(world, false);
             })
             .until(when(|world| {

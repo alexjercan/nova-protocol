@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::Alpha;
 use nova_gameplay::prelude::SectionClass;
+use nova_input::prelude::InputSource;
 
 use super::{ship::check_object_prototypes, KnownSections, KnownShipDesigns, LintIssue};
 use crate::prelude::*;
@@ -254,6 +255,8 @@ pub fn lint_scenario(
             }
         }
     }
+
+    check_player_mining_bindings(id, &catalog, &declared, &mut issues);
 
     let satisfiable = |target: &str| {
         object_reference_resolves(target, &declared.spawn_ids, &declared.scatter_prefixes)
@@ -1438,6 +1441,73 @@ fn check_ship_section(
     }
 }
 
+/// Every mining section on a player ship needs its own `input_mapping` key:
+/// nothing else deploys an emitter, so a missing or empty entry is a section
+/// the player can never use, and a source two mining sections share deploys
+/// both on one press. The spawn refuses the same ship.
+fn check_player_mining_bindings(
+    scenario: &str,
+    catalog: &Catalog,
+    declared: &Declared,
+    issues: &mut Vec<LintIssue>,
+) {
+    let mut ships: Vec<_> = declared.spawned_ships.iter().collect();
+    ships.sort_by_key(|(ship, _)| ship.as_str());
+    for (ship, spawned) in ships {
+        let SpaceshipController::Player(player) = &spawned.controller else {
+            continue;
+        };
+        // An unresolvable design is already an error where the design is
+        // linted; saying so twice from here would only add noise.
+        let design = match &spawned.design {
+            ShipDesignSource::Inline(design) => design,
+            ShipDesignSource::Prototype { id, .. } => match catalog.ships.get(id) {
+                Some(design) => design,
+                None => continue,
+            },
+        };
+        let mut held: Vec<(&str, InputSource)> = Vec::new();
+        for placed in &design.sections {
+            let class = match &placed.source {
+                SectionSource::Inline(config) => config.kind.class(),
+                SectionSource::Prototype { id: proto, .. } => match catalog.sections.get(proto) {
+                    Some(known) => known.kind.class(),
+                    None => continue,
+                },
+            };
+            if class != SectionClass::Mining {
+                continue;
+            }
+            let bindings = player
+                .input_mapping
+                .get(&placed.id)
+                .map_or(&[][..], Vec::as_slice);
+            if bindings.is_empty() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "player ship '{ship}' mining section '{}' has no input_mapping entry",
+                        placed.id
+                    ),
+                ));
+            }
+            for &source in bindings {
+                if let Some((other, _)) = held.iter().find(|(_, taken)| *taken == source) {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "player ship '{ship}' mining sections '{other}' and '{}' share {}",
+                            placed.id,
+                            source.label()
+                        ),
+                    ));
+                }
+                held.push((placed.id.as_str(), source));
+            }
+        }
+    }
+}
+
 fn check_filter(
     filter: &EventFilterConfig,
     scenario: &str,
@@ -2503,6 +2573,106 @@ mod tests {
             errs[2].message.contains("Railgun") && errs[2].message.contains("Torpedo"),
             "{:?}",
             errs[2].message
+        );
+    }
+
+    /// The `input_mapping` errors the lint raises for a player ship carrying a
+    /// mining section per `emitters` id, bound as `mapping` says.
+    fn player_miner_mapping_errors(mapping: &[(&str, KeyCode)], emitters: &[&str]) -> Vec<String> {
+        use nova_gameplay::prelude::AssetRef;
+
+        let emitter = |id: &str, cell: f32| SpaceshipSectionConfig {
+            id: id.to_string(),
+            position: Vec3::new(0.0, 0.0, cell),
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Inline(nova_ship::prelude::SectionConfig {
+                base: nova_ship::prelude::BaseSectionConfig {
+                    id: id.to_string(),
+                    link_points: nova_ship::prelude::unit_cube_link_points(),
+                    ..default()
+                },
+                kind: nova_ship::prelude::SectionKind::Mining(
+                    nova_ship::prelude::MiningSectionConfig {
+                        render_mesh: AssetRef::default(),
+                        render_mesh_transform: None,
+                        pulse_sound: AssetRef::default(),
+                        door_open_sound: AssetRef::default(),
+                        door_close_sound: AssetRef::default(),
+                        reach: Meters(100.0),
+                        pulse_interval_seconds: 1.0,
+                        carve_radius_cells: 1.5,
+                    },
+                ),
+            }),
+        };
+        let s = scenario(
+            vec![EventActionConfig::SpawnScenarioObject(
+                ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: "miner".to_string(),
+                        name: "miner".to_string(),
+                        position: Meters3::ZERO,
+                        rotation: Quat::IDENTITY,
+                    },
+                    kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                        controller: SpaceshipController::Player(PlayerControllerConfig {
+                            input_mapping: mapping
+                                .iter()
+                                .map(|(id, key)| {
+                                    (id.to_string(), vec![InputSource::Keyboard(*key)])
+                                })
+                                .collect(),
+                        }),
+                        design: ShipDesignSource::Inline(ShipDesign {
+                            sections: emitters
+                                .iter()
+                                .enumerate()
+                                .map(|(cell, id)| emitter(id, cell as f32))
+                                .collect(),
+                            ..default()
+                        }),
+                        ..default()
+                    }),
+                },
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        errors(&issues)
+            .into_iter()
+            .map(|issue| issue.message.clone())
+            .filter(|message| message.contains("player ship 'miner' mining section"))
+            .collect()
+    }
+
+    /// Each player mining section needs its own key: the bound emitter is
+    /// clean and the unbound one is refused by name.
+    #[test]
+    fn a_player_mining_section_without_an_input_mapping_entry_is_an_error() {
+        assert_eq!(
+            player_miner_mapping_errors(&[("bow_beam", KeyCode::KeyV)], &["bow_beam", "keel_beam"]),
+            vec!["player ship 'miner' mining section 'keel_beam' has no input_mapping entry"]
+        );
+    }
+
+    /// One press must not deploy two emitters: a key two player mining
+    /// sections share is refused, and distinct keys are clean.
+    #[test]
+    fn two_player_mining_sections_sharing_a_key_are_an_error() {
+        let emitters = ["bow_beam", "keel_beam"];
+        assert_eq!(
+            player_miner_mapping_errors(
+                &[("bow_beam", KeyCode::KeyV), ("keel_beam", KeyCode::KeyV)],
+                &emitters
+            ),
+            vec!["player ship 'miner' mining sections 'bow_beam' and 'keel_beam' share V"]
+        );
+        assert_eq!(
+            player_miner_mapping_errors(
+                &[("bow_beam", KeyCode::KeyV), ("keel_beam", KeyCode::KeyB)],
+                &emitters
+            ),
+            Vec::<String>::new()
         );
     }
 

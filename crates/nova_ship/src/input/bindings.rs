@@ -5,7 +5,7 @@
 //! resource. Kept as pure functions because the content lint has no world and
 //! still has to know which sources flight reserves.
 //!
-//! Per-section weapon actions are absent on purpose: they are built from
+//! Per-section actions are absent on purpose: they are built from
 //! content `input_mapping` at spawn, keyed by section entity, and their names
 //! are derived rather than fixed.
 
@@ -57,9 +57,6 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         // joint stays with `D`, so handing the helm over can never undock.
         // Keyboard only, for the reason `dock` gives.
         ActionBinding::new("dock_helm", "FLIGHT", "Helm").keyboard([Keyboard(KeyCode::KeyH)]),
-        // `V` holds the ship's mining beams on the travel-locked rock. Keyboard only,
-        // for the reason `dock` gives.
-        ActionBinding::new("mine", "FLIGHT", "Mine (hold)").keyboard([Keyboard(KeyCode::KeyV)]),
         // Hold and tap share the key and the threshold constant so the
         // boundary frame cannot fall between them. `radar_clear` FOLLOWS the
         // hold: one settings row, one rebind, and the tap cannot be left
@@ -180,10 +177,10 @@ mod tests {
         assert_eq!(before, names.len(), "duplicate action name in {names:?}");
     }
 
-    /// The fixed rigs: 16 on the flight rig, 3 camera.
+    /// The fixed rigs: 15 on the flight rig, 3 camera.
     #[test]
-    fn the_fixed_rigs_name_nineteen_actions() {
-        assert_eq!(flight_bindings().len(), 16);
+    fn the_fixed_rigs_name_eighteen_actions() {
+        assert_eq!(flight_bindings().len(), 15);
         assert_eq!(camera_bindings().len(), 3);
     }
 
@@ -206,7 +203,6 @@ mod tests {
                 "autopilot_off",
                 "dock",
                 "dock_helm",
-                "mine",
                 "radar_hold",
                 "radar_clear",
                 "component_next",
@@ -284,7 +280,6 @@ mod tests {
                 ("Autopilot: Off", "Z", "X"),
                 ("Dock", "D", "Unbound"),
                 ("Helm", "H", "Unbound"),
-                ("Mine (hold)", "V", "Unbound"),
                 ("Radar (hold / tap)", "Ctrl", "D-Pad Up"),
                 ("Radar (tap clear)", "Ctrl", "D-Pad Up"),
                 ("Lock Next Component", "]", "D-Pad Right"),

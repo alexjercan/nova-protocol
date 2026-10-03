@@ -579,6 +579,12 @@ fn section_bindings(world: &mut World) -> SectionBindings {
             .iter(world)
             .map(|(section, binding)| (section, binding.0.clone())),
     );
+    bound.extend(
+        world
+            .query::<(Entity, &SpaceshipMiningInputBinding)>()
+            .iter(world)
+            .map(|(section, binding)| (section, binding.0.clone())),
+    );
     bound.sort_by_key(|(section, _)| *section);
     SectionBindings(bound)
 }

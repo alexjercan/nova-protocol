@@ -50,6 +50,9 @@ use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
 use lesson::{lesson_profile, LESSON_GRID};
+use nova_input::prelude::InputSource;
+#[cfg(feature = "debug")]
+use nova_input::prelude::{dispatch, InputPhase};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -128,7 +131,13 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            controller: SpaceshipController::Player(PlayerControllerConfig::default()),
+            controller: SpaceshipController::Player(PlayerControllerConfig {
+                input_mapping: [(
+                    "mining_beam".to_string(),
+                    vec![InputSource::Keyboard(KeyCode::KeyV)],
+                )]
+                .into(),
+            }),
             design: ShipDesignSource::Inline(kit::catalog_ship(&ships, "block_line_warship")),
             inventory: ShipInventoryStock::new([]),
             ..default()
@@ -204,6 +213,30 @@ fn pulses_past(pulses: usize) -> std::sync::Arc<nova_protocol::nova_debug::harne
     when(move |world| world.resource::<PulseLog>().0.len() > pulses)
 }
 
+/// Press or release whatever the warship's mining section is bound to, read
+/// live rather than hard-coded, so a rebind of the section still drives the
+/// real key.
+#[cfg(feature = "debug")]
+fn drive_mine_key(world: &mut World, phase: InputPhase) {
+    let source = world
+        .query::<&SpaceshipMiningInputBinding>()
+        .iter(world)
+        .next()
+        .and_then(|binding| binding.0.first().copied())
+        .expect("the warship's mining section is bound to a key");
+    dispatch::press_source(world, source, phase);
+}
+
+#[cfg(feature = "debug")]
+fn press_mine_key(world: &mut World) {
+    drive_mine_key(world, InputPhase::Press);
+}
+
+#[cfg(feature = "debug")]
+fn release_mine_key(world: &mut World) {
+    drive_mine_key(world, InputPhase::Release);
+}
+
 /// Lock the rock and hold the camera beside the beam.
 #[cfg(feature = "debug")]
 fn lock_the_rock(world: &mut World) {
@@ -271,13 +304,13 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(frames(1))
         .add()
         .step("prime the rock: hold the mine key until the seed pulse")
-        .on_enter(press_action("mine"))
+        .on_enter(press_mine_key)
         .until(pulses_past(0))
         .deadline(WAIT_DEADLINE_SECS)
         .add()
         .step("release and wait for the emitter to shut")
         .on_enter(|world: &mut World| {
-            release_action("mine")(world);
+            release_mine_key(world);
             check_the_seed(world);
         })
         .until(emitter_shut())
@@ -288,7 +321,7 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(frames(LEAD_CELLS))
         .add()
         .step("hold the mine key until the beam cuts")
-        .on_enter(press_action("mine"))
+        .on_enter(press_mine_key)
         .until(and(
             pulses_past(1),
             when(|world| emitter_state(world).is_some_and(|(_, _, hit)| hit)),
@@ -300,7 +333,7 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .deadline(60.0)
         .add()
         .step("release and wait for the emitter to shut")
-        .on_enter(release_action("mine"))
+        .on_enter(release_mine_key)
         .until(emitter_shut())
         .deadline(WAIT_DEADLINE_SECS)
         .add()
