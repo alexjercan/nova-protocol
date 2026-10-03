@@ -1241,7 +1241,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
 /// docking systems and looted and restocked through the pane's own transfer
 /// system.
 mod generated_wreck {
-    use nova_events::prelude::{Meters, Meters3};
+    use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
     use nova_gameplay::test_support::{settle as settle_physics, unfinished_integrity_physics_app};
     use nova_scenario::prelude::{
         resolve_ship_design, spaceship_scenario_object, GameShipDesigns, ShipDesignPrototype,
@@ -1413,6 +1413,7 @@ mod generated_wreck {
                 id: sector_id(SectorCoord::ORIGIN, "ship", 0),
                 position: centre,
                 rotation: Quat::IDENTITY,
+                initial_velocity: MetersPerSecond3::ZERO,
                 clearance: wreck.clearance,
                 design: wreck.design.clone(),
                 condition: SectorShipConditionType::Derelict,
@@ -1481,6 +1482,7 @@ mod generated_wreck {
                 spaceship_scenario_object(SpaceshipConfig {
                     design: ShipDesignSource::prototype(WARSHIP),
                     controller: SpaceshipController::None,
+                    initial_velocity: MetersPerSecond3::ZERO,
                     allegiance: None,
                     capabilities: default(),
                     inventory: ShipInventoryStock::new([(ItemType::HullPlate, PLAYER_PLATES)]),

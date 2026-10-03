@@ -749,7 +749,7 @@ fn no_moon_can_reach_the_lane_it_stands_off() {
         let ScenarioObjectKind::Planet(planet) = &moon.kind else {
             panic!("a moon is a planet");
         };
-        let mass = planet.mass.expect("every moon authors its own mass");
+        let mass = planet.mass;
         // Engine units: one world unit is ten metres, and the well is built
         // from the body's radius in those units.
         let well = GravityWell::from_mass(mass, planet.radius.to_engine(), &settings);

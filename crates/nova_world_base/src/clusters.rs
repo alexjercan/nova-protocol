@@ -512,6 +512,7 @@ impl Cluster {
     }
 
     /// Every body it plans, every escort included.
+    #[cfg(test)]
     fn bodies(&self) -> impl Iterator<Item = &ClusterMember> {
         self.parents.iter().chain(&self.rocks).chain(
             self.hulls
@@ -522,6 +523,7 @@ impl Cluster {
 
     /// How far its farthest clearance sphere reaches from the anchor, every
     /// escort included.
+    #[cfg(test)]
     fn extent(&self) -> Meters {
         self.bodies().fold(Meters::ZERO, |widest, member| {
             widest.max(member.position.distance(self.anchor) + member.body.clearance())
