@@ -31,6 +31,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - RCS pushes at any speed from a 300 m/s magazine that refills 2 s after you
   let go; ten violet pips under the speed chip show it. This replaces the
   100 m/s RCS cap.
+- DOCK and the dock request refuse a target that is Hostile, Enemy, answering
+  anyone's fire, or fighting; a calm ally or Neutral is admitted, and a
+  neutralized ship always admits a boarding.
+- The player hitting a docked, AI-flown Neutral ends the dock at once; another
+  ship's fire on it does not.
 
 ### Combat & Weapons
 
@@ -39,6 +44,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
   The free Reload Section key (L) is gone.
 - AI raiders and tutorial drones carry no reserve: once their magazines are
   spent they stay dry. The ammo gauge previews only what the reserve can load.
+- An armed Neutral ship answers whoever last hit it: the pair and their
+  torpedoes read Hostile to each other until the target is lost or
+  neutralized, the ship changes side, or either ship leaves its leash.
+- An unarmed ship of any side is now neutralized when it loses the last
+  working thruster it had; a hull that never had one is still only destroyed.
+  The armed (weapons/computer) rule is unchanged.
 
 ### Ships & Sections
 
@@ -64,15 +75,18 @@ does NOT get an entry. Another page that states a different rule is wrong.
   Retry keeps the seed.
 - The open-world warship starts with 12 hull plates, 6000 PDC rounds, 20 rail
   slugs, 12 torpedoes and 2000 cr. Stock resets when the scenario loads.
-- Open-world ships come from the civilizations in reach: unpiloted intact
-  ships and lootable derelicts, each with role-specific goods and credits
-  scaled by advancement. An unloaded sector restocks.
+- Open-world ships come from nearby civilizations, each Enemy, ally or
+  Neutral: intact ships fly a patrolling AI crew, derelicts are lootable. All
+  carry goods and credits; an unloaded sector restocks.
 - Basic Training starts from the first-launch card, the top Lessons row and
   the Scenarios list. The base `new_game_scenario` is now `open_world`, a new
   `role: OpenWorld` scenario kept off the picker.
 
 ### Modding & Mod Portal
 
+- New AI `patrol_stops`: seconds held at each patrol waypoint on arrival, one
+  per waypoint, empty for none. A mismatched length or a negative or
+  non-finite stop fails lint and panics at spawn.
 - **(breaking)** Lesson category `NovaOs` is now `Interface`; content that still
   uses `NovaOs` fails lint and load. Six interface and command lessons replace
   the NOVA OS lessons.

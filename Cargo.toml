@@ -279,6 +279,19 @@ path = "examples/playable/world_civilizations.rs"
 name = "world_ships"
 path = "examples/playable/world_ships.rs"
 
+# A player and seven cast ships, every hull the world's own `generate_ship` for
+# its role at its lowest eligible advancement: an Enemy raider that arrives on
+# an engage-delay grace, two armed Neutral ships, an unarmed Neutral trader, an
+# unarmed Enemy hulk, and a live-fire pair far from the player - an armed
+# Player-aligned escort and an armed Enemy marauder. Fourteen harnessed beats
+# prove arrival grace, patrol holds, calm and refused docking, target-only
+# retaliation and its release, an ally in a real fight, unarmed Enemy restraint,
+# boarding after the last thruster, and taking cargo and credits through the
+# real relation, AI, docking, integrity, and inventory systems.
+[[example]]
+name = "world_encounters"
+path = "examples/playable/world_encounters.rs"
+
 # One generated sector of the base game's world at a time, with no streaming:
 # a cell is prepared off the frame, swapped in for the one on screen once it
 # is ready, and its objects are orbited or flown around. Arrow keys and Page

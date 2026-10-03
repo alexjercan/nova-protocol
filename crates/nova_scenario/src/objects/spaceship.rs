@@ -30,9 +30,9 @@ use crate::{
 /// configs, and `SpaceshipPlugin`.
 pub mod prelude {
     pub use super::{
-        spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig, SectionId,
-        SectionSource, SpaceshipConfig, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
-        SpaceshipSectionConfig, SpaceshipSectionConfigPatch,
+        patrol_stops_fault, spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig,
+        SectionId, SectionSource, SpaceshipConfig, SpaceshipController, SpaceshipDesign,
+        SpaceshipPlugin, SpaceshipSectionConfig, SpaceshipSectionConfigPatch,
     };
 }
 
@@ -100,6 +100,15 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
     pub patrol: Vec<Meters3>,
+    /// Seconds the ship station-keeps at each `patrol` waypoint on arrival
+    /// before it flies the next leg, in waypoint order. Empty = no stops. A
+    /// list of another length than `patrol`, or a stop that is negative or
+    /// not finite, is a lint error and a spawn panic.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
+    pub patrol_stops: Vec<f32>,
     /// Gravity well to orbit while nothing hostile is in detection range.
     /// Takes precedence over `patrol` when both are set (passive fallback:
     /// orbit > patrol > idle). A target that matches no loaded well leaves
@@ -264,6 +273,25 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub arrival_standoff: Option<Meters>,
+}
+
+/// Why `config`'s patrol stops cannot be flown, or `None` when they can: the
+/// list must be empty or name one stop per waypoint, and every stop must be a
+/// finite non-negative number of seconds. The scenario lint and the spawn
+/// share it.
+pub fn patrol_stops_fault(config: &AIControllerConfig) -> Option<String> {
+    let stops = &config.patrol_stops;
+    if !stops.is_empty() && stops.len() != config.patrol.len() {
+        return Some(format!(
+            "{} patrol stop(s) for {} waypoint(s); give one stop per waypoint or none",
+            stops.len(),
+            config.patrol.len()
+        ));
+    }
+    stops
+        .iter()
+        .find(|stop| !stop.is_finite() || **stop < 0.0)
+        .map(|stop| format!("patrol stop {stop} s is not a finite non-negative duration"))
 }
 
 /// `skip_serializing_if` predicate for a `bool` that defaults to false, so an
@@ -744,17 +772,23 @@ fn insert_spaceship_sections(
             if !has_weapon || config.non_combatant {
                 commands.entity(entity).insert(AINonCombatant);
             }
+            if let Some(fault) = patrol_stops_fault(config) {
+                panic!("spaceship: {fault}");
+            }
             if !config.patrol.is_empty() {
                 // Engine boundary: the route is steered against avian
                 // positions, so the waypoints cross once, at the spawn that
                 // authored them. Every AI directive below does the same.
-                commands.entity(entity).insert(AIPatrolRoute::new(
-                    config
-                        .patrol
-                        .iter()
-                        .map(|point| point.to_engine())
-                        .collect(),
-                ));
+                commands.entity(entity).insert(AIPatrolRoute {
+                    stops: config.patrol_stops.clone(),
+                    ..AIPatrolRoute::new(
+                        config
+                            .patrol
+                            .iter()
+                            .map(|point| point.to_engine())
+                            .collect(),
+                    )
+                });
             }
             if let Some(well) = &config.orbit {
                 commands
@@ -923,6 +957,7 @@ mod tests {
             &mut world,
             AIControllerConfig {
                 patrol: vec![Meters3::ZERO, Meters3::new(10.0, 0.0, 0.0)],
+                patrol_stops: Vec::new(),
                 orbit: Some(WellTargetType::Authored("planetoid".to_string())),
                 leash: None,
                 engage_delay: None,

@@ -2,7 +2,6 @@
 //! ([`AIThreat`]) and where the evade cycle is ([`AIEvade`]). The behavior
 //! state machine reads both to decide when to jink.
 
-#[cfg(test)]
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -178,27 +177,55 @@ fn resolve_damage_attacker(
     }
 }
 
-/// Record hostile hits into the damaged ship's [`AIThreat`].
+/// Record hostile hits into the damaged ship's [`AIThreat`], and point an
+/// armed Neutral ship's [`RetaliationTarget`] at the ship that hit it.
 ///
 /// `HealthApplyDamage` propagates from the hit section up through `ChildOf`
 /// to the ship root, so this fires once the event reaches an entity
-/// carrying `AIThreat` - the AI root. Only hits whose resolved allegiance is
+/// carrying `AIThreat` - the AI root. Only hits whose resolved relation is
 /// hostile count: the ship's own torpedo blast catching it (blast damage
 /// deliberately affects the owner) must not spook it into evading itself.
+///
+/// An armed Neutral ship answers any other ship that damages it, whatever
+/// that ship's side: the most recent shooter replaces the one before, and the
+/// hit then counts as hostile through [`ship_relation`]. An unarmed one stays
+/// out of the fight and answers nobody. Any other side keeps its allegiance
+/// rule: a Player-aligned ship hit by the player does not turn on it.
+///
+/// A docked Neutral ship hit by a third ship records it and stays docked; its
+/// fire waits for the undock. Hit by the player, armed or not, it lets go of
+/// the dock at once, which ends the trade: the inventory pair is read from
+/// the dock every frame, and a transfer applies whole or not at all.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one hit resolved to its shooter, its relation and the dock it ends"
+)]
 pub(super) fn on_damage_track_threat(
     damage: On<HealthApplyDamage>,
-    mut q_ship: Query<(&Allegiance, &mut AIThreat), With<AISpaceshipMarker>>,
+    mut commands: Commands,
+    mut q_ship: Query<
+        (
+            &Allegiance,
+            &mut AIThreat,
+            Has<AINonCombatant>,
+            Has<DockedShip>,
+        ),
+        With<AISpaceshipMarker>,
+    >,
+    mut q_retaliation: Query<&mut RetaliationTarget>,
     q_owner: Query<&ProjectileOwner>,
     q_allegiance: Query<&Allegiance>,
     q_parent: Query<&ChildOf>,
     q_ship_root: Query<(), With<SpaceshipRootMarker>>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
 ) {
     // A zero amount is a hit on a corpse (`on_damage` zeroes absorbed damage), not
     // fire worth reacting to.
     if damage.amount <= 0.0 {
         return;
     }
-    let Ok((own_allegiance, mut threat)) = q_ship.get_mut(damage.entity) else {
+    let ship = damage.entity;
+    let Ok((own_allegiance, mut threat, non_combatant, docked)) = q_ship.get_mut(ship) else {
         return;
     };
     let Some(source) = damage.source else {
@@ -206,10 +233,83 @@ pub(super) fn on_damage_track_threat(
     };
     let (attacker, attacker_allegiance) =
         resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
-    if relation(Some(own_allegiance), attacker_allegiance.as_ref()) != Relation::Hostile {
-        return;
+    let shooter = attacker.filter(|attacker| *attacker != ship && q_ship_root.contains(*attacker));
+    if *own_allegiance == Allegiance::Neutral {
+        if !non_combatant {
+            if let (Some(shooter), Ok(mut answering)) = (shooter, q_retaliation.get_mut(ship)) {
+                if answering.0 != Some(shooter) {
+                    answering.0 = Some(shooter);
+                }
+            }
+        }
+        if docked && shooter.is_some_and(|shooter| q_player.contains(shooter)) {
+            commands.trigger(DockingReleaseRequest { entity: ship });
+        }
     }
-    threat.record(attacker);
+    let own = RelationParty {
+        entity: ship,
+        allegiance: Some(own_allegiance),
+        retaliation: q_retaliation.get(ship).ok(),
+    };
+    let other = RelationParty {
+        entity: attacker.unwrap_or(Entity::PLACEHOLDER),
+        allegiance: attacker_allegiance.as_ref(),
+        retaliation: attacker.and_then(|attacker| q_retaliation.get(attacker).ok()),
+    };
+    let hostile = ship_relation(own, other) == Relation::Hostile;
+    if hostile {
+        threat.record(attacker);
+    }
+}
+
+/// Let go of a [`RetaliationTarget`] the ship can no longer answer: the
+/// target is gone or neutralized, the ship itself is out of the fight or no
+/// longer Neutral (a scripted `SetAllegiance`), or the ship or its target is
+/// beyond the ship's [`AILeash`]. The ship then reads
+/// its calm side again and goes back to its routine; another hit may name a
+/// target anew. Runs first in the AI chain, so the same frame's pick no
+/// longer chases a released target.
+pub(super) fn release_retaliation_target(
+    mut q_ship: Query<
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            &Allegiance,
+            &mut RetaliationTarget,
+            Option<&AILeash>,
+            Has<AINonCombatant>,
+        ),
+        With<AISpaceshipMarker>,
+    >,
+    q_target: Query<
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            Has<NeutralizedMarker>,
+        ),
+        With<SpaceshipRootMarker>,
+    >,
+) {
+    for (transform, com, allegiance, mut answering, leash, non_combatant) in &mut q_ship {
+        let Some(target) = answering.0 else {
+            continue;
+        };
+        let keep = !non_combatant
+            && *allegiance == Allegiance::Neutral
+            && q_target
+                .get(target)
+                .is_ok_and(|(t_transform, t_com, neutralized)| {
+                    let inside = |anchor: Vec3| {
+                        leash.is_none_or(|leash| anchor.distance(leash.center) <= leash.radius)
+                    };
+                    !neutralized
+                        && inside(live_structure_anchor(transform, com))
+                        && inside(live_structure_anchor(t_transform, t_com))
+                });
+        if !keep {
+            answering.0 = None;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -340,6 +440,183 @@ mod threat_tests {
         hit(&mut world, ship, rammer_section);
 
         assert_eq!(recent_attacker(&world, ship), Some(rammer));
+    }
+
+    fn answering(world: &World, ship: Entity) -> Option<Entity> {
+        world.entity(ship).get::<RetaliationTarget>().unwrap().0
+    }
+
+    fn shot(world: &mut World, owner: Entity, side: Allegiance) -> Entity {
+        world.spawn((ProjectileOwner(owner), side)).id()
+    }
+
+    /// An armed Neutral ship answers the ship that hit it, whatever that
+    /// ship's side, and the latest shooter replaces the one before.
+    #[test]
+    fn an_armed_neutral_answers_the_latest_ship_that_hit_it() {
+        let (mut world, ship) = threat_world();
+        world.entity_mut(ship).insert(Allegiance::Neutral);
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let raider = world.spawn((SpaceshipRootMarker, Allegiance::Enemy)).id();
+
+        let bullet = shot(&mut world, player, Allegiance::Player);
+        hit(&mut world, ship, bullet);
+        assert_eq!(answering(&world, ship), Some(player));
+        assert_eq!(
+            recent_attacker(&world, ship),
+            Some(player),
+            "the hit it answers counts as hostile"
+        );
+
+        let round = shot(&mut world, raider, Allegiance::Enemy);
+        hit(&mut world, ship, round);
+        assert_eq!(
+            answering(&world, ship),
+            Some(raider),
+            "the latest shooter replaces the one before"
+        );
+    }
+
+    /// An unarmed Neutral stays out of the fight, and a Player-aligned ship
+    /// the player hits stays allied: neither answers.
+    #[test]
+    fn an_unarmed_neutral_and_an_ally_hit_by_the_player_answer_nobody() {
+        let (mut world, hauler) = threat_world();
+        world
+            .entity_mut(hauler)
+            .insert((Allegiance::Neutral, AINonCombatant));
+        let ally = world
+            .spawn((
+                AISpaceshipMarker,
+                Allegiance::Player,
+                RigidBody::Dynamic,
+                Transform::default(),
+            ))
+            .id();
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+
+        for ship in [hauler, ally] {
+            let bullet = shot(&mut world, player, Allegiance::Player);
+            hit(&mut world, ship, bullet);
+            assert_eq!(answering(&world, ship), None, "{ship:?} answers nobody");
+            assert_eq!(
+                recent_attacker(&world, ship),
+                None,
+                "{ship:?} reads no hostile hit"
+            );
+        }
+    }
+
+    #[derive(Resource, Default)]
+    struct Released(Vec<Entity>);
+
+    /// A docked Neutral keeps its dock under a third ship's fire and records
+    /// the shooter; the player's hit ends the dock at once.
+    #[test]
+    fn the_player_hitting_a_docked_neutral_ends_the_dock() {
+        let (mut world, hauler) = threat_world();
+        world.entity_mut(hauler).insert((
+            Allegiance::Neutral,
+            DockedShip {
+                connection: Entity::PLACEHOLDER,
+                helm: Quat::IDENTITY,
+                drives: false,
+            },
+        ));
+        world.init_resource::<Released>();
+        world.add_observer(
+            |request: On<DockingReleaseRequest>, mut released: ResMut<Released>| {
+                released.0.push(request.entity);
+            },
+        );
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let raider = world.spawn((SpaceshipRootMarker, Allegiance::Enemy)).id();
+
+        let round = shot(&mut world, raider, Allegiance::Enemy);
+        hit(&mut world, hauler, round);
+        world.flush();
+        assert!(
+            world.resource::<Released>().0.is_empty(),
+            "a third ship's fire leaves the dock"
+        );
+        assert_eq!(answering(&world, hauler), Some(raider), "and is recorded");
+
+        let bullet = shot(&mut world, player, Allegiance::Player);
+        hit(&mut world, hauler, bullet);
+        world.flush();
+        assert_eq!(world.resource::<Released>().0, vec![hauler]);
+        assert_eq!(answering(&world, hauler), Some(player));
+    }
+
+    /// A retaliation lasts while its target is alive, in the fight and inside
+    /// the ship's territory.
+    #[test]
+    fn a_retaliation_is_released_on_target_loss_or_beyond_the_leash() {
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut world = World::new();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                Allegiance::Neutral,
+                Transform::default(),
+                AILeash {
+                    center: Vec3::ZERO,
+                    radius: 100.0,
+                },
+            ))
+            .id();
+        let shooter = world
+            .spawn((SpaceshipRootMarker, Transform::from_xyz(50.0, 0.0, 0.0)))
+            .id();
+        let answer = |world: &mut World| {
+            world
+                .entity_mut(ship)
+                .insert(RetaliationTarget(Some(shooter)));
+            world.run_system_once(release_retaliation_target).unwrap();
+            answering(world, ship)
+        };
+
+        assert_eq!(answer(&mut world), Some(shooter), "inside the territory");
+
+        world
+            .entity_mut(shooter)
+            .insert(Transform::from_xyz(150.0, 0.0, 0.0));
+        assert_eq!(answer(&mut world), None, "the target left the territory");
+
+        world
+            .entity_mut(shooter)
+            .insert(Transform::from_xyz(50.0, 0.0, 0.0));
+        world
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(-120.0, 0.0, 0.0));
+        assert_eq!(answer(&mut world), None, "the ship left its territory");
+
+        world.entity_mut(ship).insert(Transform::default());
+        world.entity_mut(shooter).insert(NeutralizedMarker);
+        assert_eq!(answer(&mut world), None, "the target is out of the fight");
+
+        world.entity_mut(shooter).despawn();
+        assert_eq!(answer(&mut world), None, "the target is gone");
+
+        let shooter = world
+            .spawn((SpaceshipRootMarker, Transform::from_xyz(50.0, 0.0, 0.0)))
+            .id();
+        world
+            .entity_mut(ship)
+            .insert((Allegiance::Enemy, RetaliationTarget(Some(shooter))));
+        world.run_system_once(release_retaliation_target).unwrap();
+        assert_eq!(
+            answering(&world, ship),
+            None,
+            "a scripted side change ends the Neutral answer"
+        );
     }
 
     #[test]

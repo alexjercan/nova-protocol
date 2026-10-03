@@ -713,6 +713,7 @@ fn check_action(
         EventActionConfig::SpawnScenarioObject(config) => {
             check_object_prototypes(config, scenario, catalog.sections, catalog.ships, issues);
             check_spawned_arrival_standoff(config, scenario, issues);
+            check_spawned_patrol_stops(config, scenario, issues);
             check_asteroid_kind(config, scenario, issues);
             check_asteroid_mass(config, scenario, issues);
             check_planet(config, scenario, issues);
@@ -728,6 +729,7 @@ fn check_action(
                 issues,
             );
             check_spawned_arrival_standoff(&config.template, scenario, issues);
+            check_spawned_patrol_stops(&config.template, scenario, issues);
             check_scatter_kind_mix(config, scenario, issues);
             check_asteroid_mass(&config.template, scenario, issues);
             check_planet(&config.template, scenario, issues);
@@ -1308,6 +1310,27 @@ fn check_spawned_arrival_standoff(
         scenario,
         issues,
     );
+}
+
+/// An AI ship's patrol stops must be flyable: the spawn panics on the same
+/// fault this reports.
+fn check_spawned_patrol_stops(
+    config: &ScenarioObjectConfig,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
+        return;
+    };
+    let SpaceshipController::AI(ai) = &ship.controller else {
+        return;
+    };
+    if let Some(fault) = patrol_stops_fault(ai) {
+        issues.push(LintIssue::error(
+            scenario,
+            format!("ship '{}' {fault}", config.base.id),
+        ));
+    }
 }
 
 /// Every authored figure on a planet has to be one the generator can use.

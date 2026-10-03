@@ -205,9 +205,10 @@ pub(super) fn play_dry_fire_cue(
 /// remember what it had already announced. Reading the live set every frame
 /// and latching the EDGE puts that memory in one place.
 ///
-/// Hostility is the [`Allegiance`] test the rest of combat uses, not "is not
-/// the player": a neutral freighter that happens to carry a lock slot is not a
-/// threat, and a scripted defection changes the answer for free.
+/// Hostility is the [`ship_relation`] test the rest of combat uses, not "is
+/// not the player": a neutral freighter that happens to carry a lock slot is
+/// not a threat until it answers the player's fire, and a scripted defection
+/// changes the answer for free.
 ///
 /// Player-only. An AI being locked is not news to anybody in the seat, and the
 /// alarm is a cockpit instrument - it plays on [`AudioRoute::Hull`] with the
@@ -217,7 +218,12 @@ pub(super) fn play_threat_lock_cue(
     asset_server: Res<AssetServer>,
     q_player_sounds: PlayerShipSounds,
     q_player: Query<(Entity, Option<&Allegiance>), With<PlayerSpaceshipMarker>>,
-    q_lockers: Query<(&CombatLock, Option<&Allegiance>)>,
+    q_lockers: Query<(
+        Entity,
+        &CombatLock,
+        Option<&Allegiance>,
+        Option<&RetaliationTarget>,
+    )>,
     mut latched: Local<bool>,
 ) {
     let Some((player, mine)) = q_player.iter().next() else {
@@ -226,8 +232,18 @@ pub(super) fn play_threat_lock_cue(
         *latched = false;
         return;
     };
-    let locked = q_lockers.iter().any(|(lock, theirs)| {
-        lock.0 == Some(player) && relation(theirs, mine) == Relation::Hostile
+    let locked = q_lockers.iter().any(|(locker, lock, theirs, answering)| {
+        let them = RelationParty {
+            entity: locker,
+            allegiance: theirs,
+            retaliation: answering,
+        };
+        let us = RelationParty {
+            entity: player,
+            allegiance: mine,
+            retaliation: None,
+        };
+        lock.0 == Some(player) && ship_relation(them, us) == Relation::Hostile
     });
     let was = std::mem::replace(&mut *latched, locked);
     if !locked || was {

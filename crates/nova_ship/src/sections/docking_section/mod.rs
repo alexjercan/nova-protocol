@@ -9,8 +9,9 @@
 //! roots, created the instant the pair is accepted - before the sleeves move -
 //! so the hulls cannot drift apart while the art plays.
 //!
-//! `DOCK` is offered only while a candidate pair exists ([`port`]), the pair
-//! is revalidated when the command executes, and `DOCK` pressed again by
+//! `DOCK` is offered only while a candidate pair exists ([`port`]) and the
+//! target's combat state admits a dock ([`admission`]), both are revalidated
+//! when the command executes, and `DOCK` pressed again by
 //! either ship takes the joint away ([`connection`]). There is no station
 //! service here: two ships are held in the pose they met in.
 //!
@@ -26,11 +27,13 @@ use nova_gameplay::{asset_ref::AssetRef, prelude::*};
 
 use crate::prelude::*;
 
+mod admission;
 mod assembly;
 mod connection;
 mod port;
 mod render;
 
+pub use admission::DockAdmission;
 pub use assembly::DockedAssembly;
 use assembly::{apply_docked_helm_wrench, measure_docked_assemblies};
 use connection::{
@@ -48,8 +51,8 @@ use render::insert_docking_section_render;
 /// helm, assembly, candidate search and `DockingSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        docking_section, preview_docking_section, DockedAssembly, DockedHelmType, DockedPort,
-        DockedShip, DockingConnection, DockingConnectionRequest, DockingEnvelope,
+        docking_section, preview_docking_section, DockAdmission, DockedAssembly, DockedHelmType,
+        DockedPort, DockedShip, DockingConnection, DockingConnectionRequest, DockingEnvelope,
         DockingHelmRequest, DockingPair, DockingPorts, DockingReleaseRequest, DockingSectionConfig,
         DockingSectionConfigHelper, DockingSectionMarker, DockingSectionPlugin,
         DockingSectionState, DockingSystems, PortPose,

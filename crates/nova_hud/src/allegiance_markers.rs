@@ -321,13 +321,27 @@ fn despawn_player_allegiance_markers(
     }
 }
 
-/// Recolour a ship's triangle whenever its `Allegiance` changes. `Changed`
-/// fires when the requirement-default allegiance lands at spawn-settle (so
-/// the grey spawn default becomes the real colour) AND on a runtime
-/// `SetAllegiance` flip (a neutral-until-provoked hauler turning red). A
-/// ship that never carries an `Allegiance` keeps the grey spawn default.
+/// Recolour a ship's triangle whenever its `Allegiance` or its
+/// [`RetaliationTarget`] changes. `Changed` fires when the requirement-default
+/// allegiance lands at spawn-settle (so the grey spawn default becomes the
+/// real colour) AND on a runtime `SetAllegiance` flip (a neutral-until-provoked
+/// hauler turning red). A Neutral ship answering the player's fire reads red
+/// to the player through [`ship_relation`] while it does, and grey again once
+/// it lets go; one answering another ship stays grey. A ship that never
+/// carries an `Allegiance` keeps the grey spawn default.
+#[expect(
+    clippy::type_complexity,
+    reason = "one change filter over the two components the tint reads"
+)]
 fn recolor_allegiance_markers(
-    q_ships: Query<(Entity, &Allegiance), (Changed<Allegiance>, With<SpaceshipRootMarker>)>,
+    q_player: Query<Entity, With<PlayerSpaceshipMarker>>,
+    q_ships: Query<
+        (Entity, &Allegiance, Option<&RetaliationTarget>),
+        (
+            Or<(Changed<Allegiance>, Changed<RetaliationTarget>)>,
+            With<SpaceshipRootMarker>,
+        ),
+    >,
     mut q_triangles: Query<
         (&AllegianceMarkerTargetEntity, &mut BorderColor),
         With<AllegianceMarkerTriangleMarker>,
@@ -337,8 +351,23 @@ fn recolor_allegiance_markers(
         With<AllegianceMarkerWreckStrokeMarker>,
     >,
 ) {
-    for (ship, allegiance) in &q_ships {
-        let color = allegiance_color(Some(allegiance));
+    // The tint is the player's view. With no player in the scene it is the
+    // view from the player's side, which is the side colours alone.
+    let viewer = RelationParty {
+        entity: q_player.iter().next().unwrap_or(Entity::PLACEHOLDER),
+        allegiance: Some(&Allegiance::Player),
+        retaliation: None,
+    };
+    for (ship, allegiance, retaliation) in &q_ships {
+        let contact = RelationParty {
+            entity: ship,
+            allegiance: Some(allegiance),
+            retaliation,
+        };
+        let color = match ship_relation(viewer, contact) {
+            Relation::Hostile => THREAT_RED,
+            Relation::Own | Relation::Neutral => allegiance_color(Some(allegiance)),
+        };
         for (target, mut border) in &mut q_triangles {
             if **target == ship && border.top != color {
                 border.top = color;
@@ -587,6 +616,56 @@ mod tests {
         assert!(
             !marker_targets(&mut app).contains(&enemy),
             "a despawned ship's marker is gone"
+        );
+    }
+
+    /// A Neutral ship answering fire reads as a threat only to the ship it
+    /// answers: red while it answers the player, grey while it answers
+    /// another ship and after it lets go. Its side never changes.
+    #[test]
+    fn a_neutral_reads_red_only_while_it_answers_the_player() {
+        let mut app = marker_app();
+        let player = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        let raider = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Allegiance::Enemy))
+            .id();
+        let hauler = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                Allegiance::Neutral,
+                RetaliationTarget(None),
+            ))
+            .id();
+        app.update();
+        app.update();
+        assert_eq!(triangle_color(&mut app, hauler), Some(NEUTRAL_GREY));
+
+        app.world_mut()
+            .entity_mut(hauler)
+            .insert(RetaliationTarget(Some(raider)));
+        app.update();
+        assert_eq!(
+            triangle_color(&mut app, hauler),
+            Some(NEUTRAL_GREY),
+            "answering another ship is not a threat to the player"
+        );
+
+        app.world_mut()
+            .entity_mut(hauler)
+            .insert(RetaliationTarget(Some(player)));
+        app.update();
+        assert_eq!(triangle_color(&mut app, hauler), Some(THREAT_RED));
+
+        app.world_mut()
+            .entity_mut(hauler)
+            .insert(RetaliationTarget(None));
+        app.update();
+        assert_eq!(
+            triangle_color(&mut app, hauler),
+            Some(NEUTRAL_GREY),
+            "letting go of the player turns it grey again"
         );
     }
 }

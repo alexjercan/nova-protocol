@@ -107,6 +107,7 @@ pub struct AIAvoidanceDetour(pub Vec3);
 /// over, so a ship whose route is removed mid-leg (not a supported flow
 /// today) flies out its stale GOTO once before settling into its routine.
 pub(super) fn update_passive_flight(
+    time: Res<Time>,
     settings: Res<FlightSettings>,
     mut commands: Commands,
     mut q_spaceship: Query<
@@ -172,19 +173,16 @@ pub(super) fn update_passive_flight(
     ) in &mut q_spaceship
     {
         // A docked hull that does not drive its pair keeps its maneuver
-        // frozen until it drives again or undocks. A driver plans on the
-        // pair's reach, centre of mass and velocity, the numbers the
-        // autopilot flies it on. With no assembly it plans nothing: the
-        // flight writers log that state once they are asked to move it.
+        // frozen until it drives again or undocks. A driver holds the pair
+        // on its centre of mass and velocity, the numbers the autopilot flies
+        // it on. With no assembly it plans nothing: the flight writers log
+        // that state once they are asked to move it.
         if docked.is_some_and(|docked| !docked.drives || assembly.is_none()) {
             continue;
         }
         let has_autopilot = autopilot.is_some();
         let waypoint_slack = slack.map_or(AI_WAYPOINT_SLACK, |slack| slack.0);
-        let hull_arm = match assembly {
-            Some(assembly) => assembly.reach,
-            None => hull_radius.map_or(0.0, |radius| **radius),
-        };
+        let hull_arm = hull_radius.map_or(0.0, |radius| **radius);
         // The gate mirrors the autopilot's own arrival rule, per-ship override
         // and hull size included: the leg comes to rest one resolved margin off
         // this hull's own face, so a gate that counted only the margin would
@@ -211,6 +209,19 @@ pub(super) fn update_passive_flight(
                 velocity.0,
             ),
         };
+        // A docked driver holds the pair still for its partner: no patrol,
+        // orbit or stop runs until the undock, and the route picks up where it
+        // was. A maneuver left from the routine is replaced by a STOP.
+        if docked.is_some() {
+            let routine = autopilot
+                .is_some_and(|autopilot| !matches!(autopilot.action, AutopilotAction::Stop));
+            if routine || (!has_autopilot && velocity.length() > AI_IDLE_DRIFT_SPEED) {
+                commands
+                    .entity(ship)
+                    .insert(Autopilot::engage(AutopilotAction::Stop));
+            }
+            continue;
+        }
         match *state {
             AIBehaviorState::Patrol => {
                 // Patrol without a route cannot happen through the
@@ -229,10 +240,39 @@ pub(super) fn update_passive_flight(
                 let arrive_radius = rest_radius + waypoint_slack;
                 let stored = detour.map(|detour| detour.0);
                 let mut held = stored;
-                if position.distance(waypoint) <= arrive_radius {
-                    route.advance();
+                // A running stop: station-keep at the waypoint until it runs
+                // out, then turn onto the next leg. An engaged GOTO is left to
+                // park on the waypoint it was flying to, as Idle lets a
+                // maneuver finish.
+                if let Some(hold) = route.hold.as_mut() {
+                    hold.tick(time.delta_secs());
+                    if hold.ready() {
+                        route.hold = None;
+                        route.advance();
+                        held = None;
+                    } else {
+                        if detour.is_some() {
+                            commands.entity(ship).remove::<AIAvoidanceDetour>();
+                        }
+                        if !has_autopilot && velocity.length() > AI_IDLE_DRIFT_SPEED {
+                            commands
+                                .entity(ship)
+                                .insert(Autopilot::engage(AutopilotAction::Stop));
+                        }
+                        continue;
+                    }
+                } else if position.distance(waypoint) <= arrive_radius {
                     // A corner belongs to the leg it was planned for.
                     held = None;
+                    let stop = route.current_stop();
+                    if stop > 0.0 {
+                        route.hold = Some(Cooldown::started(stop));
+                        if detour.is_some() {
+                            commands.entity(ship).remove::<AIAvoidanceDetour>();
+                        }
+                        continue;
+                    }
+                    route.advance();
                 }
                 let Some(raw_goal) = route.current_waypoint() else {
                     continue;
@@ -282,6 +322,7 @@ pub(super) fn update_passive_flight(
                 }
             }
             AIBehaviorState::Orbit => {
+                drop_hold(route);
                 // The ORBIT autopilot plans its own ring; a leftover patrol
                 // detour has no meaning here.
                 if detour.is_some() {
@@ -310,15 +351,10 @@ pub(super) fn update_passive_flight(
                 // and disengages itself if the well dies, so a bare engage
                 // is enough; re-resolve and retry every calm frame (also
                 // covers a well that spawns or streams in later than the
-                // ship). A docked driver ranks from the pair's centre of
-                // mass, the point the ORBIT autopilot flies it from.
-                let ranked_from = match assembly {
-                    Some(assembly) => assembly.center_of_mass,
-                    None => transform.translation,
-                };
+                // ship).
                 let well = match wells.resolve(
                     &directive.well,
-                    ranked_from,
+                    transform.translation,
                     dominant.map(|dominant| **dominant),
                 ) {
                     Ok(well) => well,
@@ -351,6 +387,7 @@ pub(super) fn update_passive_flight(
                 }
             }
             AIBehaviorState::Idle => {
+                drop_hold(route);
                 if detour.is_some() {
                     commands.entity(ship).remove::<AIAvoidanceDetour>();
                 }
@@ -362,12 +399,25 @@ pub(super) fn update_passive_flight(
             }
             // Combat: `update_combat_flight` owns the helm, and takes it from
             // whatever passive leg was still flying. Clearing the maneuver here
-            // would only churn the component it is about to write.
+            // would only churn the component it is about to write. Combat
+            // also ends a running stop: the ship holds it again once it is
+            // back at the waypoint.
             _ => {
+                drop_hold(route);
                 if detour.is_some() {
                     commands.entity(ship).remove::<AIAvoidanceDetour>();
                 }
             }
+        }
+    }
+}
+
+/// End a running patrol stop. Written only when one runs, so a route is not
+/// marked changed every frame a ship spends off its patrol.
+fn drop_hold(route: Option<Mut<AIPatrolRoute>>) {
+    if let Some(mut route) = route {
+        if route.hold.is_some() {
+            route.hold = None;
         }
     }
 }
@@ -923,6 +973,94 @@ mod patrol_idle_tests {
         );
     }
 
+    #[test]
+    fn a_patrol_stop_holds_the_waypoint_before_the_next_leg() {
+        let (mut world, ship) = patrol_world();
+        world
+            .entity_mut(ship)
+            .get_mut::<AIPatrolRoute>()
+            .unwrap()
+            .stops = vec![2.0, 0.0];
+        world
+            .entity_mut(ship)
+            .get_mut::<Transform>()
+            .unwrap()
+            .translation = W1 + Vec3::new(0.0, 0.0, 60.0);
+        let current = |world: &World| world.entity(ship).get::<AIPatrolRoute>().unwrap().current;
+
+        run_pipeline(&mut world);
+        assert_eq!(
+            current(&world),
+            0,
+            "arrival starts the stop, not the next leg"
+        );
+        assert!(
+            world
+                .entity(ship)
+                .get::<AIPatrolRoute>()
+                .unwrap()
+                .hold
+                .is_some(),
+            "the stop runs at the waypoint"
+        );
+
+        world
+            .resource_mut::<Time>()
+            .advance_by(std::time::Duration::from_secs_f32(1.5));
+        run_pipeline(&mut world);
+        assert_eq!(current(&world), 0, "the ship holds until the stop runs out");
+
+        world
+            .resource_mut::<Time>()
+            .advance_by(std::time::Duration::from_secs_f32(1.0));
+        run_pipeline(&mut world);
+        assert_eq!(
+            current(&world),
+            1,
+            "a finished stop turns onto the next leg"
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: W2 }),
+            "the next leg is engaged as the stop ends"
+        );
+    }
+
+    /// A docked AI ship that drives its pair holds it still for its partner
+    /// instead of flying its patrol.
+    #[test]
+    fn a_docked_driver_holds_the_pair_instead_of_patrolling() {
+        let (mut world, ship) = patrol_world();
+        run_pipeline(&mut world);
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: W1 }),
+            "the ship was flying its patrol when the dock was made"
+        );
+        world.entity_mut(ship).insert((
+            DockedShip {
+                connection: Entity::PLACEHOLDER,
+                helm: Quat::IDENTITY,
+                drives: true,
+            },
+            DockedAssembly {
+                mass: 1.0,
+                center_of_mass: Vec3::ZERO,
+                linear_velocity: Vec3::ZERO,
+                inertia: ComputedAngularInertia::default(),
+                reach: 1.0,
+            },
+        ));
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Stop),
+            "the docked driver stops rather than flying to its waypoint"
+        );
+    }
+
     /// Regression: the gate spends a COM-relative radius, so it must measure
     /// a COM-relative position. The menu weave authors 50 m of slack
     /// (`main_menu/weave.rs`) and the block warship's centre of mass is about
@@ -1394,66 +1532,6 @@ mod orbit_directive_tests {
                 plan: None
             }),
             "a nearer well loading later does not retarget the engaged ring"
-        );
-    }
-
-    /// A docked driver's nearest-well routine ranks from its pair's centre
-    /// of mass, the point the ORBIT autopilot flies it from. The root sits
-    /// nearer one well and the pair's centre of mass nearer the other. With
-    /// no assembly it engages nothing rather than rank from the root alone.
-    #[test]
-    fn a_docked_driver_ranks_its_nearest_well_from_the_pair_centre_of_mass() {
-        let (mut world, ship) = orbit_world();
-        world
-            .entity_mut(ship)
-            .get_mut::<AIOrbitDirective>()
-            .unwrap()
-            .well = WellTargetType::NearestToShip;
-        let mut spawn_well = |id: &str, x: f32| {
-            world
-                .spawn((
-                    GravityWell {
-                        mu: 2400.0,
-                        body_radius: 20.0,
-                        soi_radius: 400.0,
-                    },
-                    EntityId::new(id),
-                    Position(Vec3::new(x, 0.0, 0.0)),
-                ))
-                .id()
-        };
-        spawn_well("west", -500.0);
-        let east = spawn_well("east", 500.0);
-        world.entity_mut(ship).insert((
-            Transform::from_translation(Vec3::new(-400.0, 0.0, 0.0)),
-            DockedShip {
-                connection: Entity::PLACEHOLDER,
-                helm: Quat::IDENTITY,
-                drives: true,
-            },
-        ));
-
-        run_pipeline(&mut world);
-        assert!(
-            world.entity(ship).get::<Autopilot>().is_none(),
-            "no assembly, no engage from the root alone"
-        );
-
-        world.entity_mut(ship).insert(DockedAssembly {
-            mass: 2.0,
-            center_of_mass: Vec3::new(400.0, 0.0, 0.0),
-            linear_velocity: Vec3::ZERO,
-            inertia: ComputedAngularInertia::new(Vec3::ONE),
-            reach: 10.0,
-        });
-        run_pipeline(&mut world);
-        assert_eq!(
-            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
-            Some(AutopilotAction::Orbit {
-                well: east,
-                plan: None
-            }),
-            "the measured pair ranks from its centre of mass, not the root"
         );
     }
 

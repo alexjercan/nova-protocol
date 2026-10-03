@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, panic::AssertUnwindSafe};
 
 use bevy::ecs::system::RunSystemOnce;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
+use nova_events::prelude::Meters3;
 use nova_gameplay::prelude::{Fnv64, ItemType};
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, ScenarioConfig, SectionSource, ShipDesign,
@@ -140,7 +141,7 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
             .map(|part| part.config.clone())
             .collect(),
     );
-    let (mut intact, mut wrecks, mut plateless_wrecks) = (0, 0, 0);
+    let (mut intact, mut wrecks, mut plateless_wrecks, mut patrolling) = (0, 0, 0, 0);
     for coord in desired_sectors(SectorCoord::ORIGIN, config.active_radius) {
         let description = generate_sector(&config, coord)
             .unwrap_or_else(|fault| panic!("sector {coord:?}: {fault}"));
@@ -161,6 +162,26 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
             let credits = match ship.condition {
                 SectorShipConditionType::Intact => {
                     intact += 1;
+                    let crew = ship.crew.as_ref().expect("an intact ship has a crew");
+                    patrolling += usize::from(!crew.patrol.is_empty());
+                    for (waypoint, stop) in crew.patrol.iter().zip(&crew.stops) {
+                        let reach = (waypoint.get() - ship.position.get()).length();
+                        assert!(
+                            (reach - 1_500.0).abs() < 1.0,
+                            "ship {} patrols {reach} m out",
+                            ship.id
+                        );
+                        assert!(
+                            SectorCoord::containing(*waypoint, config.sector_edge) == coord,
+                            "ship {} patrols out of its cell",
+                            ship.id
+                        );
+                        assert!(
+                            (30.0..=60.0).contains(stop),
+                            "ship {} stops {stop} s",
+                            ship.id
+                        );
+                    }
                     50..=2_000
                 }
                 SectorShipConditionType::Derelict => {
@@ -179,6 +200,7 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
         }
     }
     assert!(intact > 0, "the window must hold an intact ship");
+    assert!(patrolling > 0, "the window must hold a patrolling ship");
     assert!(wrecks > 0, "the window must hold a wreck");
     assert!(
         plateless_wrecks > 0,
@@ -221,6 +243,33 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
     }
 }
 
+/// A ship gets a loop only where at least two waypoints fit: one that fits
+/// alone gives no loop, and the holds of the kept waypoints do not shift when
+/// another is refused.
+#[test]
+fn a_patrol_needs_two_fitting_waypoints() {
+    let plan = |fits: &dyn Fn(Meters3) -> bool| {
+        crate::sector_ships::plan_patrol(7, [1, 0, -1], 2, Meters3::ZERO, Quat::IDENTITY, fits)
+    };
+    let (all, all_stops) = plan(&|_| true);
+    assert_eq!((all.len(), all_stops.len()), (4, 4));
+    for waypoint in &all {
+        assert!(
+            waypoint.get().y.abs() < 1e-3,
+            "{waypoint:?} leaves the level plane"
+        );
+    }
+
+    let first = all[0];
+    let (alone, alone_stops) = plan(&|waypoint| waypoint == first);
+    assert!(alone.is_empty() && alone_stops.is_empty());
+
+    let refused = all[1];
+    let (three, three_stops) = plan(&|waypoint| waypoint != refused);
+    assert_eq!(three, [all[0], all[2], all[3]]);
+    assert_eq!(three_stops, [all_stops[0], all_stops[2], all_stops[3]]);
+}
+
 /// A pinned window generates the bodies it was recorded with: every rock,
 /// planetoid and ship, to the canonical text, in the window the examples fly.
 ///
@@ -249,7 +298,7 @@ fn a_pinned_window_generates_the_recorded_bodies() {
         .collect();
     assert_eq!(
         Fnv64::new().write(canonical.as_bytes()).finish(),
-        0xde62_925f_8289_e4cb,
+        0x9eae_7dbc_74d3_c5eb,
         "the pinned window's bodies changed"
     );
 }

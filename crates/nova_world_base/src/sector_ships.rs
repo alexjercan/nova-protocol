@@ -62,6 +62,22 @@ pub const SHIP_ADVANCEMENT_CURVE: AdvancementCurveType = AdvancementCurveType::L
 /// civilization in reach rather than the cluster's primary.
 const SECONDARY_CIVILIZATION_CHANCE: f32 = 0.1;
 
+/// How far each waypoint of a generated patrol loop stands from its ship.
+const PATROL_RADIUS: Meters = Meters(1_500.0);
+
+/// How many waypoints a generated patrol loop tries, evenly around its ship.
+const PATROL_WAYPOINTS: usize = 4;
+
+/// The fewest waypoints that make a loop. A ship with fewer that fit holds
+/// its spawn point.
+const PATROL_WAYPOINTS_MIN: usize = 2;
+
+/// The shortest and longest seeded hold at a waypoint, in seconds.
+const PATROL_STOP: (f32, f32) = (30.0, 60.0);
+
+/// How far a generated crew chases from its patrol centre.
+const CREW_LEASH: Meters = Meters(5_000.0);
+
 /// The share of its hold an intact ship's stock aims for, as a `(least,
 /// most)` band at advancement 0 and at advancement 1, interpolated linearly
 /// between. A target, not a fill: item masses round it down.
@@ -123,6 +139,9 @@ pub struct PlannedShip {
     pub stock: ShipInventoryStock,
     /// Its credit balance.
     pub credits: u32,
+    /// Who flies it: `Some` exactly when it is intact, with no patrol until
+    /// the cell gives it one with `plan_patrol` after it places every body.
+    pub crew: Option<SectorShipCrew>,
 }
 
 /// Lay out the ship `hull` stands for.
@@ -146,16 +165,7 @@ pub fn plan_ship(
         field,
         value,
     };
-    let key = |aspect: &[u8]| {
-        Fnv32::new()
-            .write(&seed.to_le_bytes())
-            .write(aspect)
-            .write(&hull.node[0].to_le_bytes())
-            .write(&hull.node[1].to_le_bytes())
-            .write(&hull.node[2].to_le_bytes())
-            .write(&(hull.slot as u64).to_le_bytes())
-            .finish()
-    };
+    let key = |aspect: &[u8]| ship_key(seed, aspect, hull.node, hull.slot);
     let mut stream = SeedStream::new(key(b"sector_ship"));
     // A fixed number of draws, in a fixed order, whatever they decide.
     let civilization_draw = stream.unit();
@@ -262,6 +272,13 @@ pub fn plan_ship(
         SectorShipConditionType::Derelict => uniform_rotation(turn),
     };
 
+    let crew = (condition == SectorShipConditionType::Intact).then(|| SectorShipCrew {
+        allegiance: civilization.allegiance,
+        patrol: Vec::new(),
+        stops: Vec::new(),
+        leash: CREW_LEASH,
+    });
+
     Ok(PlannedShip {
         design: layout.design,
         rotation,
@@ -271,7 +288,58 @@ pub fn plan_ship(
         role,
         stock,
         credits,
+        crew,
     })
+}
+
+/// The seed of one `aspect` of the hull in `slot` of the cluster at `node`.
+fn ship_key(seed: u32, aspect: &[u8], node: [i32; 3], slot: usize) -> u32 {
+    Fnv32::new()
+        .write(&seed.to_le_bytes())
+        .write(aspect)
+        .write(&node[0].to_le_bytes())
+        .write(&node[1].to_le_bytes())
+        .write(&node[2].to_le_bytes())
+        .write(&(slot as u64).to_le_bytes())
+        .finish()
+}
+
+/// The patrol loop and its holds for the placed ship in `slot` of the cluster
+/// at `node`, standing at `position` turned by `rotation`.
+///
+/// [`PATROL_WAYPOINTS`] waypoints at [`PATROL_RADIUS`], evenly around the
+/// ship in its own level plane from a seeded phase, each with a seeded hold
+/// in [`PATROL_STOP`]. A waypoint is kept only where `fits` accepts it: the
+/// cell checks the ship's whole clearance there against every body it
+/// placed. Fewer than [`PATROL_WAYPOINTS_MIN`] that fit give an empty loop.
+/// A fixed number of draws, so a refused waypoint never shifts a later hold.
+pub(crate) fn plan_patrol(
+    seed: u32,
+    node: [i32; 3],
+    slot: usize,
+    position: Meters3,
+    rotation: Quat,
+    fits: impl Fn(Meters3) -> bool,
+) -> (Vec<Meters3>, Vec<f32>) {
+    let mut stream = SeedStream::new(ship_key(seed, b"sector_ship_patrol", node, slot));
+    let phase = stream.unit() * std::f32::consts::TAU;
+    let holds: [f32; PATROL_WAYPOINTS] =
+        std::array::from_fn(|_| PATROL_STOP.0 + (PATROL_STOP.1 - PATROL_STOP.0) * stream.unit());
+    let step = std::f32::consts::TAU / PATROL_WAYPOINTS as f32;
+    let (patrol, stops): (Vec<Meters3>, Vec<f32>) = holds
+        .into_iter()
+        .enumerate()
+        .map(|(index, hold)| {
+            let angle = phase + step * index as f32;
+            let offset = rotation * Vec3::new(angle.cos(), 0.0, angle.sin());
+            (Meters3(position.get() + offset * PATROL_RADIUS.get()), hold)
+        })
+        .filter(|(waypoint, _)| fits(*waypoint))
+        .unzip();
+    if patrol.len() < PATROL_WAYPOINTS_MIN {
+        return (Vec::new(), Vec::new());
+    }
+    (patrol, stops)
 }
 
 /// The stock a ship of `role` and `condition`, laid out as `design`, starts

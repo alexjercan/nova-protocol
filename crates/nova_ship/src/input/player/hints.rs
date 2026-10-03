@@ -130,6 +130,7 @@ pub(super) fn update_flight_verb_hints(
     q_thruster: Query<&ChildOf, (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>)>,
     q_rig: Query<(), With<Action<AutopilotStopInput>>>,
     ports: DockingPorts,
+    admission: DockAdmission,
     bindings: Option<Res<InputBindings>>,
 ) {
     // The rig is the gate, not the source: a row is drawn only while the rig
@@ -272,7 +273,10 @@ pub(super) fn update_flight_verb_hints(
             available: docked.is_some()
                 || ship.is_some_and(|ship| {
                     capabilities.dock_enabled
-                        && travel.is_some_and(|target| ports.best_candidate(ship, target).is_some())
+                        && travel.is_some_and(|target| {
+                            admission.admits(ship, target)
+                                && ports.best_candidate(ship, target).is_some()
+                        })
                 }),
             anchor: travel,
             ..default()

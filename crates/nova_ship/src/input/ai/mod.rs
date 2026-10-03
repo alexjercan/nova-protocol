@@ -40,7 +40,7 @@ use maneuver::update_combat_flight;
 use mission::interrupt_ai_ship_orders;
 use passive::update_passive_flight;
 use railgun::update_railgun_section_input;
-use threat::on_damage_track_threat;
+use threat::{on_damage_track_threat, release_retaliation_target};
 use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 
 // The allocator that reads the point-defence envelope sits outside the AI
@@ -204,6 +204,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.add_systems(
             Update,
             (
+                release_retaliation_target,
                 update_ai_target,
                 update_point_defense_target,
                 update_behavior_state,
@@ -253,15 +254,17 @@ impl Plugin for SpaceshipAIInputPlugin {
 /// Marker component to identify the ai's spaceship.
 ///
 /// This should be added to the root entity of the ai's spaceship.
-/// Carries [`Allegiance::Enemy`], an [`AIBehaviorState`], an [`AITarget`] and
-/// the sensing pair ([`SensorRange`] + [`SensorContacts`]) by requirement, so
-/// every AI-marked root participates in the relation model, the behavior state
-/// machine and target selection without extra spawn wiring. The AI sees
+/// Carries [`Allegiance::Enemy`], an empty [`RetaliationTarget`], an
+/// [`AIBehaviorState`], an [`AITarget`] and the sensing pair
+/// ([`SensorRange`] + [`SensorContacts`]) by requirement, so every AI-marked
+/// root participates in the relation model, the behavior state machine and
+/// target selection without extra spawn wiring. The AI sees
 /// through the same pass the player does; only the reach differs.
 #[derive(Component, Debug, Clone, Reflect)]
 #[require(
     SpaceshipRootMarker,
     Allegiance = Allegiance::Enemy,
+    RetaliationTarget,
     AIBehaviorState,
     AITarget,
     AIPointDefenseTarget,

@@ -1,21 +1,25 @@
-//! Combat-death (neutralized) detection: a ship that was an armed combatant
-//! is "out of the fight" when it loses ALL working weapons OR (if it ever had
-//! one) its last working flight computer - a brain-dead ship cannot aim or
-//! fly, so live guns on a computer-less hulk do not keep it in the fight, and
-//! thrusters play no part in the rule (a disarmed ship that can still run is
-//! beaten, not fighting). Unlike destruction (see [`explode`] and [`glue`]),
-//! a neutralized ship is NOT despawned - it lingers as a powerless drifting
-//! wreck. This module inserts [`NeutralizedMarker`], switches an AI
-//! [`NeutralizedMarker`] and fires the distinct [`OnNeutralizedEvent`] so
-//! scenarios can treat it as beaten.
+//! Combat-death (neutralized) detection covers two independent rules. An
+//! ARMED ship (one that was ever a combatant) is "out of the fight" when it
+//! loses ALL working weapons OR (if it ever had one) its last working flight
+//! computer - a brain-dead ship cannot aim or fly, so live guns on a
+//! computer-less hulk do not keep it in the fight. Thrusters play no part in
+//! the armed rule (a disarmed ship that can still run is beaten, not
+//! fighting). An UNARMED ship (of any allegiance) is instead neutralized when
+//! it loses the last working thruster it ever had - a hull that never had a
+//! thruster is never neutralized by this rule, only destroyed. Unlike
+//! destruction (see [`explode`] and [`glue`]), a neutralized ship is NOT
+//! despawned - it lingers as a powerless drifting wreck. This module inserts
+//! [`NeutralizedMarker`], switches an AI [`NeutralizedMarker`] and fires the
+//! distinct [`OnNeutralizedEvent`] so scenarios can treat it as beaten.
 //!
 //! It does NOT know about AI. Taking a neutralized enemy out of combat is the
 //! AI's own reaction to [`NeutralizedMarker`] landing (`input::ai`), which is
 //! what keeps this module free of the AI vocabulary.
 //!
-//! The "was armed" guard ([`WasArmedCombatant`]) is what keeps this honest: an
-//! unarmed hull losing its engines is not out of a fight it was never in, and
-//! the guard also avoids a false neutralize during the frames after spawn before
+//! The "was armed" guard ([`WasArmedCombatant`]) and its thruster-side
+//! sibling ([`HadThruster`]) are what keep this honest: a ship losing
+//! capability it never had is not out of a fight it was never in, and both
+//! guards also avoid a false neutralize during the frames after spawn before
 //! a ship's sections have attached to its root.
 //!
 //! [`explode`]: super::explode
@@ -27,12 +31,14 @@ use nova_events::prelude::{CommandsGameEventExt, *};
 use super::core::prelude::*;
 use crate::prelude::{
     ControllerSectionMarker, DerelictShipMarker, RailgunSectionMarker, SectionInactiveMarker,
-    SpaceshipRootMarker, TorpedoSectionMarker, TurretSectionMarker,
+    SpaceshipRootMarker, ThrusterSectionMarker, TorpedoSectionMarker, TurretSectionMarker,
 };
 
 /// Defeat and neutralization state markers.
 pub mod prelude {
-    pub use super::{DefeatedMarker, HadFlightComputer, NeutralizedMarker, WasArmedCombatant};
+    pub use super::{
+        DefeatedMarker, HadFlightComputer, HadThruster, NeutralizedMarker, WasArmedCombatant,
+    };
 }
 
 /// Marks a ship that has already crossed the unified scenario defeat edge.
@@ -42,21 +48,23 @@ pub mod prelude {
 #[reflect(Component)]
 pub struct DefeatedMarker;
 
-/// Marks a ship root that has been NEUTRALIZED - it was an armed combatant
-/// and now has zero working weapon sections, or lost the flight computer it
-/// once had (no brain: nothing aims or flies the ship). The ship stays in the
-/// world (a drifting wreck); this marker is inserted once and never removed.
-/// Its presence gates the detection system so a ship is only neutralized
-/// once.
+/// Marks a ship root that has been NEUTRALIZED - either it was an armed
+/// combatant and now has zero working weapon sections, or lost the flight
+/// computer it once had (no brain: nothing aims or flies the ship); or it was
+/// an unarmed hull and lost the last working thruster it once had. The ship
+/// stays in the world (a drifting wreck); this marker is inserted once and
+/// never removed. Its presence gates the detection system so a ship is only
+/// neutralized once.
 #[derive(Component, Debug, Clone, Copy, Default, Reflect)]
 #[reflect(Component)]
 pub struct NeutralizedMarker;
 
 /// Internal guard: stamped on a ship root the first time it is seen carrying at
-/// least one weapon (turret/torpedo) section. Only a `WasArmedCombatant` root
-/// can be neutralized, so an unarmed ship (which never had a weapon) is never
-/// "out of the fight" - it can only be destroyed - and a freshly spawned ship
-/// whose sections have not yet attached is not neutralized in that window.
+/// least one weapon (turret/torpedo) section. A `WasArmedCombatant` root is
+/// neutralized by the armed (weapon/computer) rule; an unarmed root instead
+/// falls to the thruster rule gated by [`HadThruster`]. Stamping also avoids a
+/// freshly spawned ship, whose sections have not yet attached, being
+/// neutralized in that same-frame window.
 #[derive(Component, Debug, Clone, Copy, Default, Reflect)]
 #[reflect(Component)]
 pub struct WasArmedCombatant;
@@ -70,6 +78,15 @@ pub struct WasArmedCombatant;
 #[derive(Component, Debug, Clone, Copy, Default, Reflect)]
 #[reflect(Component)]
 pub struct HadFlightComputer;
+
+/// Internal guard, the thruster-side history stamp: stamped on a ship root
+/// the first frame it is seen carrying a [`ThrusterSectionMarker`] section.
+/// Only an unarmed root that HAD a thruster can be neutralized by losing its
+/// last working one - a thrusterless hull never had one to lose, so it is
+/// only destroyed, never neutralized by this rule.
+#[derive(Component, Debug, Clone, Copy, Default, Reflect)]
+#[reflect(Component)]
+pub struct HadThruster;
 
 pub(super) struct NeutralizePlugin;
 
@@ -90,13 +107,14 @@ impl Plugin for NeutralizePlugin {
     }
 }
 
-/// Per-frame predicate: for every armed ship root not already neutralized,
-/// count its working weapon and flight-computer sections; no working weapon -
-/// or a lost computer the ship once had - neutralizes it. A
+/// Per-frame predicate, covering two independent rules. An armed ship root
+/// (one with `WasArmedCombatant`): no working weapon left - or a lost
+/// computer the ship once had - neutralizes it; thrusters play no part here.
+/// An unarmed ship root (one that never carried a weapon): losing the last
+/// working thruster it once had (`HadThruster`) neutralizes it instead; a
+/// hull that never had a thruster is never neutralized by this rule. A
 /// [`DerelictShipMarker`] root is skipped: its sections spawned inactive, and
-/// a wreck was never in the fight. Thrusters play no part (owner direction,
-/// 2026-08-14): a disarmed runner is beaten, and a computer-less hulk with
-/// live guns cannot aim them.
+/// a wreck was never in the fight.
 fn detect_neutralized(
     mut commands: Commands,
     q_root: Query<
@@ -107,6 +125,7 @@ fn detect_neutralized(
             Option<&EntityTypeName>,
             Has<WasArmedCombatant>,
             Has<HadFlightComputer>,
+            Has<HadThruster>,
         ),
         (
             With<SpaceshipRootMarker>,
@@ -128,12 +147,15 @@ fn detect_neutralized(
         )>,
     >,
     q_controller: Query<Has<SectionInactiveMarker>, With<ControllerSectionMarker>>,
+    q_thruster: Query<Has<SectionInactiveMarker>, With<ThrusterSectionMarker>>,
 ) {
-    for (root, children, id, type_name, was_armed, had_computer) in &q_root {
+    for (root, children, id, type_name, was_armed, had_computer, had_thruster) in &q_root {
         let mut has_weapon_section = false;
         let mut working_weapon = false;
         let mut has_controller_section = false;
         let mut working_controller = false;
+        let mut has_thruster_section = false;
+        let mut working_thruster = false;
 
         for child in children.iter() {
             if let Ok(inactive) = q_weapon.get(child) {
@@ -144,22 +166,39 @@ fn detect_neutralized(
                 has_controller_section = true;
                 working_controller |= !inactive;
             }
+            if let Ok(inactive) = q_thruster.get(child) {
+                has_thruster_section = true;
+                working_thruster |= !inactive;
+            }
         }
 
-        // History stamps. The computer stamp lands even on a not-yet-armed
-        // hull: history is history, whichever section attaches first.
-        // try_insert, for the reason the neutralization write below states:
-        // the root can be despawned earlier in this same command flush, and a
-        // history stamp that missed its entity is not worth a panic.
+        // History stamps. Both land even on a not-yet-armed hull: history is
+        // history, whichever section attaches first. try_insert, for the
+        // reason the neutralization write below states: the root can be
+        // despawned earlier in this same command flush, and a history stamp
+        // that missed its entity is not worth a panic.
         if !had_computer && has_controller_section {
             commands.entity(root).try_insert(HadFlightComputer);
         }
-        // Arming guard: a root only becomes eligible once it has carried a
-        // weapon section. Stamp it the first frame we see one, and never
-        // neutralize on that same frame (nor for a ship that was never armed).
+        if !had_thruster && has_thruster_section {
+            commands.entity(root).try_insert(HadThruster);
+        }
+
+        // Arming guard: a root only becomes eligible for the armed rule once
+        // it has carried a weapon section. Stamp it the first frame we see
+        // one, and never neutralize on that same frame.
         if !was_armed {
             if has_weapon_section {
                 commands.entity(root).try_insert(WasArmedCombatant);
+                continue;
+            }
+            // Confirmed unarmed this frame: the thruster rule applies
+            // instead. `had_thruster` is this frame's EARLIER-frame read, so
+            // a thruster seen inactive for the first time this frame does not
+            // neutralize until the next frame - the same same-frame spawn
+            // guard the computer stamp gives the armed rule.
+            if had_thruster && !working_thruster {
+                neutralize(&mut commands, root, id, type_name);
             }
             continue;
         }
@@ -170,40 +209,49 @@ fn detect_neutralized(
             continue;
         }
 
-        // Combat-dead: disarmed, or brain-dead. Stamp the unified edge before
-        // the persistent wreck state.
-        // The integrity root can be destroyed later in this same command flush.
-        // A stale neutralization reaction must not turn that valid race into a panic.
-        commands
-            .entity(root)
-            .try_insert((DefeatedMarker, NeutralizedMarker));
+        neutralize(&mut commands, root, id, type_name);
+    }
+}
 
-        // Fire the scenario-facing signal, mirroring the destroy path's use of
-        // the ship's scenario id/type name.
-        if let (Some(id), Some(type_name)) = (id, type_name) {
-            debug!(
-                "detect_neutralized: entity {:?} neutralized (id: {:?}, type: {:?})",
-                root, id, type_name
-            );
-            let defeated = OnDefeatedEventInfo {
-                id: id.to_string(),
-                type_name: type_name.to_string(),
-            };
-            commands.fire::<OnDefeatedEvent>(defeated.clone());
-            commands.fire::<OnNeutralizedEvent>(OnNeutralizedEventInfo {
-                id: defeated.id,
-                type_name: defeated.type_name,
-            });
-        } else {
-            // A shipped scenario ship always carries both, so this is a
-            // mis-spawned ship: mark it neutralized but leave a trace so the
-            // silently-un-neutralized-at-the-scenario-layer case is diagnosable.
-            debug!(
-                "detect_neutralized: entity {:?} neutralized but has no EntityId/EntityTypeName - \
-                 no OnNeutralizedEvent fired",
-                root
-            );
-        }
+/// Stamps the unified defeat edge and the persistent wreck state, then fires
+/// the scenario-facing signal, mirroring the destroy path's use of the ship's
+/// scenario id/type name. Shared by both neutralization rules so neither
+/// duplicates the event-firing code.
+fn neutralize(
+    commands: &mut Commands,
+    root: Entity,
+    id: Option<&EntityId>,
+    type_name: Option<&EntityTypeName>,
+) {
+    // The integrity root can be destroyed later in this same command flush.
+    // A stale neutralization reaction must not turn that valid race into a panic.
+    commands
+        .entity(root)
+        .try_insert((DefeatedMarker, NeutralizedMarker));
+
+    if let (Some(id), Some(type_name)) = (id, type_name) {
+        debug!(
+            "detect_neutralized: entity {:?} neutralized (id: {:?}, type: {:?})",
+            root, id, type_name
+        );
+        let defeated = OnDefeatedEventInfo {
+            id: id.to_string(),
+            type_name: type_name.to_string(),
+        };
+        commands.fire::<OnDefeatedEvent>(defeated.clone());
+        commands.fire::<OnNeutralizedEvent>(OnNeutralizedEventInfo {
+            id: defeated.id,
+            type_name: defeated.type_name,
+        });
+    } else {
+        // A shipped scenario ship always carries both, so this is a
+        // mis-spawned ship: mark it neutralized but leave a trace so the
+        // silently-un-neutralized-at-the-scenario-layer case is diagnosable.
+        debug!(
+            "detect_neutralized: entity {:?} neutralized but has no EntityId/EntityTypeName - \
+             no OnNeutralizedEvent fired",
+            root
+        );
     }
 }
 
@@ -454,35 +502,84 @@ mod tests {
         );
     }
 
+    /// The thruster half of the rule: an
+    /// unarmed ship of any allegiance is out of the fight when it loses the
+    /// last working thruster it once had, even though a spare thruster keeps
+    /// it running (the mirror of the computer stack curve test above).
     #[test]
-    fn unarmed_ship_losing_everything_is_not_neutralized() {
+    fn an_unarmed_ship_losing_its_last_thruster_is_neutralized() {
         let mut app = neutralize_app();
-        // No weapon sections: an unarmed hull with a thruster and a computer.
-        let (root, _weapons, thrusters, controllers, _hull) = spawn_ship(&mut app, 0, 1, 1);
+        // No weapon sections: an unarmed hull with two thrusters and a computer.
+        let (root, _weapons, thrusters, _controllers, _hull) = spawn_ship(&mut app, 0, 2, 1);
         app.update();
 
-        // Stimulus: kill the thruster AND the computer (asserted applied).
         disable(&mut app, thrusters[0]);
-        disable(&mut app, controllers[0]);
-        app.update();
-        assert!(
-            app.world()
-                .entity(controllers[0])
-                .contains::<SectionInactiveMarker>(),
-            "the computer-kill stimulus really fired"
-        );
-
         for _ in 0..3 {
             app.update();
         }
         assert!(
             !is_neutralized(&app, root),
-            "a ship that was never armed is never neutralized, only destroyed"
+            "a spare thruster keeps an unarmed ship running"
+        );
+        assert!(fired(&app).is_empty(), "and fires no defeat edge");
+
+        disable(&mut app, thrusters[1]);
+        app.update();
+        assert!(
+            is_neutralized(&app, root),
+            "the LAST thruster dying takes an unarmed ship out of the fight"
+        );
+        assert_eq!(
+            fired(&app),
+            [OnDefeatedEvent::name(), OnNeutralizedEvent::name()],
+            "unified defeat precedes the detailed neutralization edge"
+        );
+    }
+
+    /// A ship that NEVER had a thruster (a stationary unarmed hull) is not
+    /// neutralized by the thruster rule - only a ship that HAD one and lost
+    /// it is.
+    #[test]
+    fn an_unarmed_ship_that_never_had_a_thruster_is_not_neutralized() {
+        let mut app = neutralize_app();
+        // No weapon and no thruster sections: a stationary unarmed hull.
+        let (root, _weapons, _thrusters, controllers, _hull) = spawn_ship(&mut app, 0, 0, 1);
+        app.update();
+
+        disable(&mut app, controllers[0]);
+        for _ in 0..3 {
+            app.update();
+        }
+        assert!(
+            !is_neutralized(&app, root),
+            "no thruster to lose - a hull that never ran is never neutralized by this rule"
         );
         assert!(
             fired(&app).is_empty(),
             "no defeat event for an unarmed ship"
         );
+    }
+
+    /// Thrusters play no part in the armed rule: an armed ship keeping a
+    /// working weapon and computer is not neutralized by losing every
+    /// thruster, however it runs.
+    #[test]
+    fn an_armed_ship_losing_all_thrusters_is_not_neutralized() {
+        let mut app = neutralize_app();
+        let (root, _weapons, thrusters, _controllers, _hull) = spawn_ship(&mut app, 1, 2, 1);
+        app.update();
+
+        for thruster in thrusters {
+            disable(&mut app, thruster);
+        }
+        for _ in 0..3 {
+            app.update();
+        }
+        assert!(
+            !is_neutralized(&app, root),
+            "thrusters play no part for an armed ship with a working weapon and computer"
+        );
+        assert!(fired(&app).is_empty(), "no defeat event");
     }
 
     /// The brain-death half of the rule (owner direction, 2026-08-14): an

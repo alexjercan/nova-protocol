@@ -73,7 +73,7 @@ use nova_world::prelude::*;
 use crate::{
     civilizations::CivilizationField,
     environment::{Environment, EnvironmentFields},
-    sector_ships::{plan_ship, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
+    sector_ships::{plan_patrol, plan_ship, HullSlot, PlannedShip, SHIP_ADVANCEMENT_CURVE},
     ship_parts::ShipPartSnapshot,
     NovaLayeredWorld, CLEARANCE_MARGIN,
 };
@@ -352,6 +352,9 @@ pub struct SectorClusters {
     pub skipped_companion: usize,
     /// How many escort rocks this sector placed. Counted in `placed` too.
     pub escorts: usize,
+    /// How many intact ships this sector placed with no patrol loop, because
+    /// too few waypoints fit around them. Each holds its spawn point.
+    pub routeless_ships: usize,
 }
 
 /// What one sector's plan did, from the same plan `world` streams.
@@ -636,6 +639,7 @@ impl SectorPlan {
                     role: ship.role,
                     stock: ship.stock.clone(),
                     credits: ship.credits,
+                    crew: ship.crew.clone(),
                 }),
                 ClusterBody::Hull { .. } => {
                     unreachable!("a cell lays out every hull it owns before it resolves them")
@@ -691,6 +695,18 @@ impl SectorPlan {
             skipped_clearance: count(None, Some(SkipType::Clearance)),
             skipped_companion: count(None, Some(SkipType::Companion)),
             escorts: escorts(None),
+            routeless_ships: self
+                .bodies
+                .iter()
+                .filter(|body| body.skipped.is_none())
+                .filter(|body| match &body.body {
+                    ClusterBody::Ship(ship) => ship
+                        .crew
+                        .as_ref()
+                        .is_some_and(|crew| crew.patrol.is_empty()),
+                    _ => false,
+                })
+                .count(),
         }
     }
 }
@@ -1303,12 +1319,51 @@ pub(crate) fn plan_sector(
         .chain(rocks)
         .chain(hulls)
         .chain(background);
+    let mut bodies = resolve(input, candidates)?;
+    plan_patrols(input, &mut bodies);
     Ok(SectorPlan {
         coord,
         environment,
         clusters,
-        bodies: resolve(input, candidates)?,
+        bodies,
     })
+}
+
+/// Give every placed intact ship its patrol loop, now that every body of the
+/// cell stands: a waypoint must fit the ship's whole clearance inside the
+/// cell and clear of every other placed body by [`CLEARANCE_MARGIN`].
+fn plan_patrols(input: SectorGenerationInput, bodies: &mut [PlannedBody]) {
+    let standing: Vec<(usize, Meters3, Meters)> = bodies
+        .iter()
+        .enumerate()
+        .filter(|(_, body)| body.skipped.is_none())
+        .map(|(index, body)| (index, body.position, body.body.clearance()))
+        .collect();
+    for (index, body) in bodies.iter_mut().enumerate() {
+        let (None, BodySource::Hull(node, slot), ClusterBody::Ship(ship)) =
+            (body.skipped, body.source, &mut body.body)
+        else {
+            continue;
+        };
+        let clearance = ship.clearance;
+        let rotation = ship.rotation;
+        let Some(crew) = ship.crew.as_mut() else {
+            continue;
+        };
+        let others: Vec<(Meters3, Meters)> = standing
+            .iter()
+            .filter(|(other, ..)| *other != index)
+            .map(|&(_, position, clearance)| (position, clearance))
+            .collect();
+        (crew.patrol, crew.stops) = plan_patrol(
+            input.seed,
+            node,
+            slot,
+            body.position,
+            rotation,
+            |waypoint| fits(input, &others, waypoint, clearance).is_none(),
+        );
+    }
 }
 
 /// One body a cell owns, before it is resolved.
@@ -1320,6 +1375,36 @@ struct Candidate {
     /// A hull's escorts, in the order they are tried. Empty for every other
     /// body.
     escorts: Vec<Candidate>,
+}
+
+/// Why a body with `clearance` at `position` does not fit the cell beside
+/// the `standing` bodies, or `None` when it does: the whole clearance sphere
+/// inside the cell, and [`CLEARANCE_MARGIN`] of daylight to each.
+fn fits(
+    input: SectorGenerationInput,
+    standing: &[(Meters3, Meters)],
+    position: Meters3,
+    clearance: Meters,
+) -> Option<SkipType> {
+    let edge = input.geometry.sector_edge;
+    let centre = input.coord.centre(edge).get();
+    let inside = SectorCoord::containing(position, edge) == input.coord
+        && (position.get() - centre).abs().max_element() + clearance.get() <= edge.get() * 0.5;
+    if !inside {
+        Some(SkipType::Face)
+    } else if !standing.iter().all(|&(other, other_clearance)| {
+        bodies_clear(
+            other,
+            other_clearance,
+            position,
+            clearance,
+            CLEARANCE_MARGIN,
+        )
+    }) {
+        Some(SkipType::Clearance)
+    } else {
+        None
+    }
 }
 
 /// Place or skip every candidate, in the order given.
@@ -1340,27 +1425,6 @@ fn resolve(
     input: SectorGenerationInput,
     candidates: impl IntoIterator<Item = Candidate>,
 ) -> Result<Vec<PlannedBody>, SectorFault> {
-    let edge = input.geometry.sector_edge;
-    let centre = input.coord.centre(edge).get();
-    let fits = |standing: &[(Meters3, Meters)], position: Meters3, clearance: Meters| {
-        let inside = SectorCoord::containing(position, edge) == input.coord
-            && (position.get() - centre).abs().max_element() + clearance.get() <= edge.get() * 0.5;
-        if !inside {
-            Some(SkipType::Face)
-        } else if !standing.iter().all(|&(other, other_clearance)| {
-            bodies_clear(
-                other,
-                other_clearance,
-                position,
-                clearance,
-                CLEARANCE_MARGIN,
-            )
-        }) {
-            Some(SkipType::Clearance)
-        } else {
-            None
-        }
-    };
     let mut standing: Vec<(Meters3, Meters)> = Vec::new();
     let mut planned: Vec<PlannedBody> = Vec::new();
     for Candidate {
@@ -1375,7 +1439,7 @@ fn resolve(
             return Err(SectorFault::InvalidGeometry { id });
         }
         let clearance = body.clearance();
-        let mut skipped = fits(&standing, position, clearance);
+        let mut skipped = fits(input, &standing, position, clearance);
         if let (BodySource::Parent(..), Some(reason)) = (source, skipped) {
             return Err(SectorFault::Generation {
                 id,
@@ -1397,7 +1461,7 @@ fn resolve(
                     }
                     let escort_clearance = escort.body.clearance();
                     // `validate` keeps the escort band clear of its hull.
-                    let escort_skipped = fits(&standing, escort.position, escort_clearance);
+                    let escort_skipped = fits(input, &standing, escort.position, escort_clearance);
                     if escort_skipped.is_none() {
                         standing.push((escort.position, escort_clearance));
                     }
