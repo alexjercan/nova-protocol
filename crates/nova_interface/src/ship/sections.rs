@@ -290,6 +290,7 @@ pub(crate) type SectionBindingQuery = (
     Option<&'static SpaceshipTurretInputBinding>,
     Option<&'static SpaceshipTorpedoInputBinding>,
     Option<&'static SpaceshipRailgunInputBinding>,
+    Option<&'static SpaceshipMiningInputBinding>,
 );
 
 pub(crate) type SectionKindQuery = (
@@ -330,7 +331,13 @@ impl ShipSections<'_, '_> {
                     health,
                     ammo,
                     (class, hull, controller, thruster, turret, torpedo),
-                    (thruster_bindings, turret_bindings, torpedo_bindings, railgun_bindings),
+                    (
+                        thruster_bindings,
+                        turret_bindings,
+                        torpedo_bindings,
+                        railgun_bindings,
+                        mining_bindings,
+                    ),
                     (inactive, zero_health, disabled),
                 )| {
                     let kind = section_kind_from_markers(
@@ -354,7 +361,8 @@ impl ShipSections<'_, '_> {
                             .map(|bindings| bindings.0.clone())
                             .or_else(|| turret_bindings.map(|bindings| bindings.0.clone()))
                             .or_else(|| torpedo_bindings.map(|bindings| bindings.0.clone()))
-                            .or_else(|| railgun_bindings.map(|bindings| bindings.0.clone())),
+                            .or_else(|| railgun_bindings.map(|bindings| bindings.0.clone()))
+                            .or_else(|| mining_bindings.map(|bindings| bindings.0.clone())),
                         inactive,
                         zero_health,
                         disabled,
@@ -387,16 +395,21 @@ pub(crate) fn panel_status_text(view: &ShipSectionView) -> String {
     )
 }
 
-/// The multi-line body of the section panel: what the kind does, HP text,
-/// ammo for weapons and the bindings. The family, integrity and status sit in
-/// [`panel_status_text`] above it.
+/// Labelled facts and a short explanation of the selected section's role.
 pub(crate) fn panel_detail_text(view: &ShipSectionView) -> String {
-    let mut text = format!("{}\n{}", kind_description(view.kind), view.health_text());
+    let mut text = format!(
+        "Integrity: {}\nRole: {}",
+        view.health_text(),
+        kind_description(view.kind)
+    );
     if let Some(ammo) = view.ammo.as_ref() {
-        text.push_str(&format!("\nammo: {}/{}", ammo.rounds, ammo.capacity));
+        text.push_str(&format!(
+            "\nAmmunition: {} / {} rounds",
+            ammo.rounds, ammo.capacity
+        ));
     }
     if let Some(bindings) = view.binding_text() {
-        text.push_str(&format!("\nbindings: {bindings}"));
+        text.push_str(&format!("\nControl: {bindings}"));
     }
     text
 }
@@ -419,9 +432,24 @@ impl PanelActions {
     }
 }
 
-/// The panel state for `view` with `plates` hull plates on the player ship.
-pub(crate) fn panel_action_state(view: &ShipSectionView, plates: u32) -> PanelActions {
-    let repair = plan_plate_repair(view.health.as_ref(), view.disabled, plates);
+/// The maximum whole-plate request supported by current integrity and stock.
+pub(crate) fn plate_repair_limit(health: Option<&Health>, disabled: bool, stock: u32) -> u32 {
+    let Some(health) = health.filter(|health| health.max > 0.0 && health.current > 0.0) else {
+        return 0;
+    };
+    if disabled || health.current >= health.max {
+        return 0;
+    }
+    stock.min(((health.max - health.current) / HULL_PLATE_HEALTH).ceil() as u32)
+}
+
+/// The panel state for a selected whole-plate request against live stock.
+pub(crate) fn panel_action_state(
+    view: &ShipSectionView,
+    requested_plates: u32,
+    stock: u32,
+) -> PanelActions {
+    let repair = plan_plate_repair(view.health.as_ref(), view.disabled, requested_plates, stock);
     PanelActions {
         repair_enabled: repair.is_ok(),
         reason: repair
@@ -436,6 +464,8 @@ pub(crate) fn panel_action_state(view: &ShipSectionView, plates: u32) -> PanelAc
 pub struct SectionRepairCommand {
     /// The target section entity.
     pub target: Entity,
+    /// Exact whole plates selected when the command was raised.
+    pub requested_plates: u32,
 }
 
 /// The note line for a refused repair; the panel and the handler share it.
@@ -446,7 +476,15 @@ fn repair_refusal_text(code: &str, refusal: PlateRepairRefusalType) -> String {
         }
         PlateRepairRefusalType::Destroyed => format!("repair: {code} is destroyed"),
         PlateRepairRefusalType::Full => format!("repair: {code} is at full integrity"),
-        PlateRepairRefusalType::NoPlates => "repair: no hull plates".to_string(),
+        PlateRepairRefusalType::NoPlates => {
+            "repair: no hull plates selected or in stock".to_string()
+        }
+        PlateRepairRefusalType::InsufficientPlates => {
+            format!("repair: {code} request exceeds live hull plate stock")
+        }
+        PlateRepairRefusalType::ExcessPlates => {
+            format!("repair: {code} request exceeds live missing integrity")
+        }
     }
 }
 
@@ -458,6 +496,7 @@ pub(crate) fn repair_section(
     code: &str,
     health: Option<&mut Health>,
     disabled: bool,
+    requested_plates: u32,
     inventory: &mut ShipInventory,
 ) -> TerminalRow {
     let refused = |refusal| TerminalRow {
@@ -467,7 +506,12 @@ pub(crate) fn repair_section(
     let Some(health) = health else {
         return refused(PlateRepairRefusalType::NoIntegrity);
     };
-    match plan_plate_repair(Some(health), disabled, inventory.count(ItemType::HullPlate)) {
+    match plan_plate_repair(
+        Some(health),
+        disabled,
+        requested_plates,
+        inventory.count(ItemType::HullPlate),
+    ) {
         Ok(repair) => {
             inventory.remove(ItemType::HullPlate, repair.plates);
             health.current = repair.current;

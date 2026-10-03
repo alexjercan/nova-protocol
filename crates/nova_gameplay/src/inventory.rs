@@ -755,20 +755,23 @@ pub enum PlateRepairRefusalType {
     Destroyed,
     /// Already at max Health.
     Full,
-    /// The ship carries no hull plates.
+    /// The requested quantity is zero or live stock is empty.
     NoPlates,
+    /// Live stock is below the selected quantity.
+    InsufficientPlates,
+    /// Live missing integrity needs fewer plates than selected.
+    ExcessPlates,
 }
 
-/// Plan a plate repair of one section from `plates` in stock.
+/// Plan a plate repair for a selected whole-plate quantity against live stock.
 ///
-/// Spends `min(plates, ceil((max - current) / HULL_PLATE_HEALTH))` and ends at
-/// `min(max, current + HULL_PLATE_HEALTH * spent)`. The section's own state is
-/// checked before the stock, in [`PlateRepairRefusalType`] order. `disabled`
-/// is true when the section carries `IntegrityDisabledMarker`.
+/// Refuse an outdated selection rather than silently spending fewer plates.
+/// `disabled` is true when the section carries `IntegrityDisabledMarker`.
 pub fn plan_plate_repair(
     health: Option<&Health>,
     disabled: bool,
-    plates: u32,
+    requested_plates: u32,
+    stock: u32,
 ) -> Result<PlateRepair, PlateRepairRefusalType> {
     let health = health
         .filter(|health| health.max > 0.0)
@@ -779,16 +782,21 @@ pub fn plan_plate_repair(
     if health.current >= health.max {
         return Err(PlateRepairRefusalType::Full);
     }
-    if plates == 0 {
+    if requested_plates == 0 || stock == 0 {
         return Err(PlateRepairRefusalType::NoPlates);
     }
+    if requested_plates > stock {
+        return Err(PlateRepairRefusalType::InsufficientPlates);
+    }
     let needed = ((health.max - health.current) / HULL_PLATE_HEALTH).ceil() as u32;
-    let spent = plates.min(needed);
+    if requested_plates > needed {
+        return Err(PlateRepairRefusalType::ExcessPlates);
+    }
     Ok(PlateRepair {
-        plates: spent,
+        plates: requested_plates,
         current: health
             .max
-            .min(health.current + HULL_PLATE_HEALTH * spent as f32),
+            .min(health.current + HULL_PLATE_HEALTH * requested_plates as f32),
     })
 }
 
@@ -866,29 +874,28 @@ mod tests {
     }
 
     #[test]
-    fn plate_repair_spends_one_plate_per_20_missing_health_within_stock() {
-        let plan = |current: f32, max: f32, disabled: bool, plates: u32| {
-            plan_plate_repair(Some(&Health { current, max }), disabled, plates)
+    fn plate_repair_spends_selected_whole_plates_or_refuses_stale_selection() {
+        let plan = |current: f32, max: f32, disabled: bool, selected: u32, stock: u32| {
+            plan_plate_repair(Some(&Health { current, max }), disabled, selected, stock)
         };
         let repaired = |plates, current| Ok(PlateRepair { plates, current });
 
-        // Understock: 60 missing needs 3, 2 in stock.
-        assert_eq!(plan(40.0, 100.0, false, 2), repaired(2, 80.0));
-        // A scratch or a fraction of HP still costs one whole plate.
-        assert_eq!(plan(99.0, 100.0, false, 12), repaired(1, 100.0));
-        assert_eq!(plan(99.5, 100.0, false, 12), repaired(1, 100.0));
-        // The last plate's leftover capacity is lost: 45 missing, 3 plates, 100.
-        assert_eq!(plan(55.0, 100.0, false, 3), repaired(3, 100.0));
+        assert_eq!(plan(40.0, 100.0, false, 1, 3), repaired(1, 60.0));
+        assert_eq!(plan(40.0, 100.0, false, 2, 3), repaired(2, 80.0));
+        assert_eq!(plan(40.0, 100.0, false, 3, 3), repaired(3, 100.0));
+        assert_eq!(plan(99.5, 100.0, false, 1, 12), repaired(1, 100.0));
+        assert_eq!(plan(55.0, 100.0, false, 3, 3), repaired(3, 100.0));
 
         use PlateRepairRefusalType::*;
-        assert_eq!(plan(100.0, 100.0, false, 12), Err(Full));
-        assert_eq!(plan(0.0, 100.0, false, 12), Err(Destroyed));
-        assert_eq!(plan(50.0, 100.0, true, 12), Err(Destroyed));
-        assert_eq!(plan(50.0, 100.0, false, 0), Err(NoPlates));
-        assert_eq!(plan(0.0, 0.0, false, 12), Err(NoIntegrity));
-        assert_eq!(plan_plate_repair(None, false, 12), Err(NoIntegrity));
-        // The section's state wins over the stock.
-        assert_eq!(plan(100.0, 100.0, false, 0), Err(Full));
+        assert_eq!(plan(100.0, 100.0, false, 1, 12), Err(Full));
+        assert_eq!(plan(0.0, 100.0, false, 1, 12), Err(Destroyed));
+        assert_eq!(plan(50.0, 100.0, true, 1, 12), Err(Destroyed));
+        assert_eq!(plan(50.0, 100.0, false, 1, 0), Err(NoPlates));
+        assert_eq!(plan(50.0, 100.0, false, 2, 1), Err(InsufficientPlates));
+        assert_eq!(plan(90.0, 100.0, false, 2, 12), Err(ExcessPlates));
+        assert_eq!(plan(0.0, 0.0, false, 1, 12), Err(NoIntegrity));
+        assert_eq!(plan_plate_repair(None, false, 1, 12), Err(NoIntegrity));
+        assert_eq!(plan(100.0, 100.0, false, 1, 0), Err(Full));
     }
 }
 

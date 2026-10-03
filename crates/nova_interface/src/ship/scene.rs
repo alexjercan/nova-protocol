@@ -16,7 +16,7 @@ use bevy::{
     mesh::PrimitiveTopology,
     prelude::*,
     ui::InteractionDisabled,
-    ui_widgets::{Activate, Button},
+    ui_widgets::{Activate, Button, SliderRange, SliderValue, ValueChange},
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints};
@@ -45,9 +45,9 @@ pub(crate) enum ShipPanelField {
     Title,
     Status,
     Detail,
+    RepairPreview,
+    RepairQuantity,
     Note,
-    /// The selection summary on the right of the pane footer.
-    Summary,
 }
 /// The selected section's family icon in the panel head.
 #[derive(Component)]
@@ -56,6 +56,9 @@ pub(crate) struct ShipPreviewIcon;
 /// integrity.
 #[derive(Component)]
 pub(crate) struct ShipConditionFill;
+/// The whole-plate selector for the current repair draft.
+#[derive(Component)]
+pub(crate) struct ShipRepairQuantity;
 /// The status dot in a section badge's corner.
 #[derive(Component)]
 pub(crate) struct ShipStatusPip;
@@ -141,6 +144,9 @@ pub struct ShipRuntime {
     /// disabled action without re-deriving the section's validity.
     pub(crate) panel_repair_enabled: bool,
     pub(crate) panel_rebind_enabled: bool,
+    /// Draft quantity belongs to this section; changing selection starts at All.
+    pub(crate) repair_target: Option<Entity>,
+    pub(crate) requested_plates: u32,
     /// Section waiting for a replacement keyboard or mouse binding.
     pub(crate) rebinding: Option<Entity>,
     /// Holds the capture until every button is up, so the key or click that
@@ -194,6 +200,8 @@ pub(crate) fn manage_ship_scene(
         }
         runtime.image = None;
         runtime.selected = None;
+        runtime.repair_target = None;
+        runtime.requested_plates = 0;
         runtime.note = None;
         runtime.rebinding = None;
         runtime.rebind_awaiting_release = false;
@@ -439,6 +447,7 @@ pub(crate) fn ship_input(
     mut runtime: ResMut<ShipRuntime>,
     sections: ShipSections,
     mut commands: MessageWriter<SectionRepairCommand>,
+    q_inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
     mut q_mates: Query<&mut Visibility, With<ShipMateOverlay>>,
 ) {
@@ -463,7 +472,7 @@ pub(crate) fn ship_input(
         // Turn, tilt and RMB-drag are the shared viewer's feel, not the ship's.
         let gesture = OrbitGesture::read(&input, motion_delta);
         if !gesture.is_idle() {
-            let (theta, phi) = gesture.apply(dt, orbit.theta, orbit.phi);
+            let (theta, phi) = gesture.apply_ship(dt, orbit.theta, orbit.phi);
             orbit.theta = theta;
             orbit.phi = phi;
         }
@@ -521,6 +530,23 @@ pub(crate) fn ship_input(
         }
     }
 
+    // A changed selection starts at its own current All, before either P or a
+    // panel click can reuse a quantity from the previous section.
+    if runtime.repair_target != runtime.selected {
+        runtime.repair_target = runtime.selected;
+        runtime.requested_plates = runtime
+            .selected
+            .and_then(|sel| list.iter().find(|view| view.entity == sel))
+            .map_or(0, |view| {
+                // Mid-transition the pane can be active a frame before the
+                // player ship's ShipInventory exists; treat it as empty
+                // stock rather than panicking, same as `update_ship_panel`.
+                let stock = q_inventory
+                    .single()
+                    .map_or(0, |stock| stock.count(ItemType::HullPlate));
+                plate_repair_limit(view.health.as_ref(), view.disabled, stock)
+            });
+    }
     // What the app does to the section it has selected. Route mutation actions
     // through their shared seams.
     if let Some(sel) = runtime.selected {
@@ -528,7 +554,11 @@ pub(crate) fn ship_input(
             && list
                 .iter()
                 .find(|view| view.entity == sel)
-                .is_some_and(|view| view.bindings.is_some())
+                .is_some_and(|view| {
+                    view.bindings
+                        .as_ref()
+                        .is_some_and(|bindings| !bindings.is_empty())
+                })
         {
             runtime.rebinding = Some(sel);
             runtime.rebind_awaiting_release = true;
@@ -536,7 +566,10 @@ pub(crate) fn ship_input(
             return;
         }
         if input.just_pressed("ship_repair") {
-            commands.write(SectionRepairCommand { target: sel });
+            commands.write(SectionRepairCommand {
+                target: sel,
+                requested_plates: runtime.requested_plates,
+            });
         }
     }
 }
@@ -908,12 +941,71 @@ pub(crate) fn on_ship_repair_button(
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
-    if *pause.get() != PauseStates::Interface || !runtime.panel_repair_enabled {
+    if *pause.get() != PauseStates::Interface
+        || !runtime.panel_repair_enabled
+        || runtime.repair_target != runtime.selected
+    {
         return;
     }
     if let Some(target) = runtime.selected {
-        section_commands.write(SectionRepairCommand { target });
+        section_commands.write(SectionRepairCommand {
+            target,
+            requested_plates: runtime.requested_plates,
+        });
         play_menu_select(&mut commands, bank.as_deref());
+    }
+}
+
+/// Reset the selected section's draft to the current affordable maximum.
+pub(crate) fn on_ship_repair_all_button(
+    _activate: On<Activate>,
+    mut runtime: ResMut<ShipRuntime>,
+    sections: ShipSections,
+    inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
+) {
+    let Some(view) = runtime.selected.and_then(|selected| {
+        sections
+            .collect()
+            .into_iter()
+            .find(|view| view.entity == selected)
+    }) else {
+        return;
+    };
+    let Ok(stock) = inventory.single() else {
+        return;
+    };
+    runtime.requested_plates = plate_repair_limit(
+        view.health.as_ref(),
+        view.disabled,
+        stock.count(ItemType::HullPlate),
+    );
+}
+
+/// Use a whole slider step, never a fractional hull plate.
+pub(crate) fn on_ship_repair_slider(
+    change: On<ValueChange<f32>>,
+    mut runtime: ResMut<ShipRuntime>,
+    sections: ShipSections,
+    inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
+) {
+    let Some(view) = runtime.selected.and_then(|selected| {
+        sections
+            .collect()
+            .into_iter()
+            .find(|view| view.entity == selected)
+    }) else {
+        return;
+    };
+    let Ok(stock) = inventory.single() else {
+        return;
+    };
+    let max = plate_repair_limit(
+        view.health.as_ref(),
+        view.disabled,
+        stock.count(ItemType::HullPlate),
+    );
+    if max > 0 {
+        runtime.requested_plates = change.value.round().clamp(1.0, max as f32) as u32;
     }
 }
 
@@ -952,9 +1044,28 @@ pub(crate) fn update_ship_panel(
     sections: ShipSections,
     icons: Res<InterfaceIcons>,
     mut q_text: Query<(&ShipPanelField, &mut Text, &mut ThemedText)>,
-    q_button: Query<(Entity, &ShipPanelButton, Has<InteractionDisabled>)>,
+    mut q_button: Query<
+        (
+            Entity,
+            &ShipPanelButton,
+            Has<InteractionDisabled>,
+            &mut Node,
+        ),
+        (Without<ShipConditionFill>, Without<ShipRepairQuantity>),
+    >,
     mut q_preview: Query<(&mut ImageNode, &mut ThemedImageTint), With<ShipPreviewIcon>>,
-    mut q_bar: Query<(&mut Node, &mut ThemedFill), With<ShipConditionFill>>,
+    mut q_bar: Query<
+        (&mut Node, &mut ThemedFill),
+        (
+            With<ShipConditionFill>,
+            Without<ShipRepairQuantity>,
+            Without<ShipPanelButton>,
+        ),
+    >,
+    mut q_slider: Query<
+        (Entity, &SliderRange, &SliderValue, &mut Node),
+        (With<ShipRepairQuantity>, Without<ShipPanelButton>),
+    >,
     q_inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
 ) {
     if !runtime.active {
@@ -964,40 +1075,83 @@ pub(crate) fn update_ship_panel(
         .selected
         .and_then(|sel| sections.collect().into_iter().find(|v| v.entity == sel));
 
-    let (title, status, detail, detail_color, actions) = match &selected {
-        Some(view) => (
-            format!("{}  {}", view.code, view.name),
-            panel_status_text(view),
-            panel_detail_text(view),
-            UiColor::Body,
-            panel_action_state(
-                view,
-                q_inventory
-                    .single()
-                    .expect("the player ship carries a ShipInventory")
-                    .count(ItemType::HullPlate),
-            ),
-        ),
+    // Mid-transition (e.g. a fresh spawn or a ship swap) the pane can be
+    // active a frame before the player ship's ShipInventory exists; render the
+    // no-section state rather than panicking on a query the scene hasn't
+    // caught up to yet.
+    let inventory = q_inventory.single().ok();
+    let stock = inventory.map_or(0, |inventory| inventory.count(ItemType::HullPlate));
+    let selected = inventory.and(selected);
+    if runtime.repair_target != runtime.selected {
+        runtime.repair_target = runtime.selected;
+        runtime.requested_plates = selected.as_ref().map_or(0, |view| {
+            plate_repair_limit(view.health.as_ref(), view.disabled, stock)
+        });
+    }
+    let requested = runtime.requested_plates;
+    let (title, status, detail, preview, quantity, detail_color, actions) = match &selected {
+        Some(view) => {
+            let actions = panel_action_state(view, requested, stock);
+            let prediction =
+                plan_plate_repair(view.health.as_ref(), view.disabled, requested, stock)
+                    .ok()
+                    .map_or_else(
+                        // The refused-request case shares the same reason the note
+                        // line already shows, so the preview never claims a
+                        // quantity/stock mismatch for a Full, Destroyed, or
+                        // NoIntegrity section.
+                        || actions.reason.clone().unwrap_or_default(),
+                        |repair| {
+                            format!(
+                                "Predicted integrity: {:.0}/{:.0} HP",
+                                repair.current,
+                                view.health.as_ref().map_or(0.0, |h| h.max)
+                            )
+                        },
+                    );
+            // The live max can drop below a stale selection (e.g. right after a
+            // repair command fills the section): show what a press would now
+            // submit, not the outstanding request itself, so the quantity never
+            // outlives the integrity or stock it was chosen against.
+            let limit = plate_repair_limit(view.health.as_ref(), view.disabled, stock);
+            let shown_plates = if limit == 0 {
+                0
+            } else {
+                requested.clamp(1, limit)
+            };
+            (
+                format!("{}  {}", view.code, view.name),
+                panel_status_text(view),
+                panel_detail_text(view),
+                format!(
+                    "Repair: 1 hull plate restores up to {:.0} HP. Stock: {stock}.\n{prediction}",
+                    HULL_PLATE_HEALTH
+                ),
+                format!(
+                    "Selected: {shown_plates} hull plate{}",
+                    if shown_plates == 1 { "" } else { "s" }
+                ),
+                UiColor::Body,
+                actions,
+            )
+        }
         None => (
             "No section".to_string(),
             String::new(),
             "Select a section:\nclick a badge or use Prev / Next.".to_string(),
+            String::new(),
+            String::new(),
             UiColor::Label,
             PanelActions::none(),
         ),
     };
-    let (summary, summary_color) = match &selected {
-        Some(view) => (
-            format!("{title}  {}  {}", view.integrity_pct(), view.status()),
-            view.status_color(),
-        ),
-        None => (title.clone(), UiColor::Label),
-    };
 
     runtime.panel_repair_enabled = actions.repair_enabled;
-    runtime.panel_rebind_enabled = selected
-        .as_ref()
-        .is_some_and(|view| view.bindings.is_some());
+    runtime.panel_rebind_enabled = selected.as_ref().is_some_and(|view| {
+        view.bindings
+            .as_ref()
+            .is_some_and(|bindings| !bindings.is_empty())
+    });
 
     // Note line: a transient action result wins; else the disabled reason.
     let (note, note_color) = if runtime.rebinding.is_some() {
@@ -1018,8 +1172,9 @@ pub(crate) fn update_ship_panel(
             ShipPanelField::Title => (&title, UiColor::Primary),
             ShipPanelField::Status => (&status, UiColor::Body),
             ShipPanelField::Detail => (&detail, detail_color),
+            ShipPanelField::RepairPreview => (&preview, UiColor::Body),
+            ShipPanelField::RepairQuantity => (&quantity, UiColor::Primary),
             ShipPanelField::Note => (&note, note_color),
-            ShipPanelField::Summary => (&summary, summary_color),
         };
         if text.0 != *value {
             text.0 = value.clone();
@@ -1029,17 +1184,49 @@ pub(crate) fn update_ship_panel(
         }
     }
 
-    for (entity, button, disabled) in &q_button {
+    for (entity, button, disabled, mut node) in &mut q_button {
         let enabled = match button {
             ShipPanelButton::Repair => actions.repair_enabled,
             ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
         };
+        if *button == ShipPanelButton::Rebind {
+            let wanted = if enabled {
+                Display::Flex
+            } else {
+                Display::None
+            };
+            if node.display != wanted {
+                node.display = wanted;
+            }
+        }
         // Runs every frame the pane owns the screen, so only a change in the
         // enabled state touches the button.
         if enabled && disabled {
             commands.entity(entity).remove::<InteractionDisabled>();
         } else if !enabled && !disabled {
             commands.entity(entity).insert(InteractionDisabled);
+        }
+    }
+
+    for (entity, range, value, mut node) in &mut q_slider {
+        let limit = selected.as_ref().map_or(0, |view| {
+            plate_repair_limit(view.health.as_ref(), view.disabled, stock)
+        });
+        let display = if limit > 1 {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+        let wanted = SliderRange::new(1.0, limit.max(1) as f32);
+        if *range != wanted {
+            commands.entity(entity).insert(wanted);
+        }
+        let shown = requested.clamp(1, limit.max(1)) as f32;
+        if value.0 != shown {
+            commands.entity(entity).insert(SliderValue(shown));
         }
     }
 

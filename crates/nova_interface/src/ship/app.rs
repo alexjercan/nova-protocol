@@ -4,12 +4,18 @@
 //! Touch this module when changing the ship panel or what the repair action
 //! does.
 
-use bevy::prelude::*;
+use bevy::{
+    prelude::{
+        default, AlignItems, BackgroundColor, BorderRadius, ChildOf, ChildSpawnerCommands, Color,
+        Entity, FlexDirection, FlexWrap, Has, MessageReader, Name, Node, Overflow, Query, ResMut,
+        Val, With,
+    },
+    ui_widgets::{Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick},
+};
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    prelude::*,
     theme::UiColor,
-    widget::{ButtonSpec, ThemedFill},
+    widget::{button, slider_track, ButtonSpec, ThemedFill},
 };
 
 use super::{scene::*, sections::*};
@@ -107,6 +113,41 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         .observe(on_ship_step_button(step));
                     }
                 });
+            panel.spawn((
+                ShipPanelField::RepairPreview,
+                themed_label("", 12.0, UiColor::Body),
+            ));
+            panel
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(8.0),
+                    row_gap: Val::Px(8.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    row.spawn((
+                        ShipPanelField::RepairQuantity,
+                        themed_label("", 13.0, UiColor::Primary),
+                    ));
+                    row.spawn(button(ButtonSpec::new("All").fit()))
+                        .observe(on_ship_repair_all_button);
+                });
+            panel
+                .spawn((
+                    ShipRepairQuantity,
+                    Slider {
+                        track_click: TrackClick::Snap,
+                        ..default()
+                    },
+                    SliderValue(1.0),
+                    SliderRange::new(1.0, 1.0),
+                    SliderStep(1.0),
+                    SliderPrecision(0),
+                    slider_track(0.0),
+                ))
+                .observe(on_ship_repair_slider);
             panel
                 .spawn(Node {
                     flex_direction: FlexDirection::Row,
@@ -161,6 +202,7 @@ pub(crate) fn apply_ship_section_commands(
             &code.0,
             q_health.get_mut(command.target).ok().as_deref_mut(),
             disabled,
+            command.requested_plates,
             &mut inventory,
         );
         runtime.note = Some((row.text, 2.5));

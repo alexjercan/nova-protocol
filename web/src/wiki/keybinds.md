@@ -110,17 +110,14 @@ A dash means the action has no binding on that device.
             <td><kbd>H</kbd></td>
             <td>unbound</td>
         </tr>
-        <tr>
-            <td>MINE (hold) - run the mining beams out at the rock you have locked</td>
-            <td><kbd>V</kbd></td>
-            <td>unbound</td>
-        </tr>
     </tbody>
 </table>
 
 DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the `docking_approach` example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. See [Docking port](../sections/docking/).
 
-MINE needs a mining beam section: the line warship carries one at its bow. Hold <kbd>V</kbd> with an ore rock travel-locked, in front of the emitter and within 100 m; each beam opens, runs its tip out and cuts the rock once a second where it hits. Release <kbd>V</kbd> and the beams retract. See [Mining beam](../sections/mining-beam/). Dock, Helm and Mine (hold) appear in **Settings > Controls > FLIGHT** with <kbd>D</kbd>, <kbd>H</kbd> and <kbd>V</kbd> as rebindable defaults.
+Dock and Helm appear in **Settings > Controls > FLIGHT** with <kbd>D</kbd> and <kbd>H</kbd> as rebindable defaults.
+
+Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: the line warship's bow beam answers <kbd>V</kbd>, and a beam placed in the editor starts on <kbd>V</kbd> with no gamepad button. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the [Ship pane](../interface/#rebinding-a-section). See [Mining beam](../sections/mining-beam/).
 
 RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the training range hands it over for one leg of its pattern. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 
@@ -295,10 +292,15 @@ RCS is a docking aid, not standard flight: it appears only when a scenario grant
                 ></span>
             </td>
         </tr>
+        <tr>
+            <td>Run a mining beam out (hold)</td>
+            <td><kbd>V</kbd> (default)</td>
+            <td>-</td>
+        </tr>
     </tbody>
 </table>
 
-One weapon, one button. A gun takes its own key the moment it is placed or generated, so a hull you never drew can be flown as it comes: the thrusters answer <kbd>Space</kbd>, the PDC turrets the left mouse button, the tubes <kbd>F</kbd>, a [railgun](../sections/railgun/) <kbd>R</kbd>. The railgun key is a tap that commits the charge rather than a burst you hold, and a torpedo only launches while you hold a raised (red) combat lock.
+One weapon, one button. A gun takes its own key the moment it is placed or generated, so a hull you never drew can be flown as it comes: the thrusters answer <kbd>Space</kbd>, the PDC turrets the left mouse button, the tubes <kbd>F</kbd>, a [railgun](../sections/railgun/) <kbd>R</kbd>, a [mining beam](../sections/mining-beam/) <kbd>V</kbd> with no gamepad button. The railgun key is a tap that commits the charge rather than a burst you hold, and a torpedo only launches while you hold a raised (red) combat lock.
 
 None of this is fixed: in the editor, click a section to bind it to any key or mouse button, so a ship's controls are whatever its build assigns.
 
@@ -339,7 +341,7 @@ None of this is fixed: in the editor, click a section to bind it to any key or m
             </td>
         </tr>
         <tr>
-            <td>Switch interface pane (Map / Ship)</td>
+            <td>Switch interface pane (Map / Ship / Inventory)</td>
             <td><kbd>M</kbd></td>
             <td>
                 <span

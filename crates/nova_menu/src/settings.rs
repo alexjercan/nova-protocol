@@ -17,8 +17,8 @@ use nova_gameplay::prelude::*;
 use nova_hud::prelude::{KeyGlyphs, NovaHudAssets};
 use nova_input::prelude::*;
 use nova_ship::prelude::{
-    SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
-    SpaceshipTurretInputBinding,
+    SpaceshipMiningInputBinding, SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding,
+    SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
 };
 use nova_ui::{
     theme::{GameUiThemes, SelectedUiTheme, UiColor, UiThemeDiagnostic},
@@ -1183,12 +1183,14 @@ type SectionBindings<'w, 's> = Query<
         Option<&'static SpaceshipTurretInputBinding>,
         Option<&'static SpaceshipTorpedoInputBinding>,
         Option<&'static SpaceshipRailgunInputBinding>,
+        Option<&'static SpaceshipMiningInputBinding>,
     ),
     Or<(
         With<SpaceshipThrusterInputBinding>,
         With<SpaceshipTurretInputBinding>,
         With<SpaceshipTorpedoInputBinding>,
         With<SpaceshipRailgunInputBinding>,
+        With<SpaceshipMiningInputBinding>,
     )>,
 >;
 
@@ -1216,7 +1218,7 @@ fn section_conflict(
     }
     sections
         .iter()
-        .find(|(_, thruster, turret, torpedo, railgun)| {
+        .find(|(_, thruster, turret, torpedo, railgun, mining)| {
             let held = |binds: Option<&Vec<InputSource>>| {
                 binds.is_some_and(|binds| binds.contains(&source))
             };
@@ -1224,6 +1226,7 @@ fn section_conflict(
                 || held(turret.map(|b| &b.0))
                 || held(torpedo.map(|b| &b.0))
                 || held(railgun.map(|b| &b.0))
+                || held(mining.map(|b| &b.0))
         })
         .map(|(id, ..)| format!("the ship's {} section", id.0))
 }

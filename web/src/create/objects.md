@@ -432,7 +432,7 @@ crashing, so a missing dependency is visible instead of fatal.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
+| `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only. Every `Mining` section on the ship needs its own non-empty entry, and no two of them may share a button: lint and load refuse the ship |
 
 `Player((..))` is STRICT: a key that is not in that table is a load error
 naming the key, not a key quietly dropped.
