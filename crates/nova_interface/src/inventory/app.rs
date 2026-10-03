@@ -26,8 +26,8 @@ use nova_ship::prelude::{
 use nova_ui::{
     theme::UiColor,
     widget::{
-        button, slider_track, text_field, ButtonSpec, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText,
+        slider_track, text_field, ButtonSpec, TextFieldError, TextFieldFocused, TextFieldSpec,
+        TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText,
     },
 };
 
@@ -37,7 +37,10 @@ use super::{
 };
 use crate::{
     icons::{icon_node, InterfaceIcons},
-    pane::{play_menu_select, themed_label, InterfacePaneType},
+    pane::{
+        compact_button, control_row, divider, play_menu_select, themed_label, InterfacePaneType,
+        SUMMARY_LINES,
+    },
     terminal::NovaOsAppInput,
     viewer::cycle_index,
 };
@@ -56,9 +59,6 @@ pub(crate) const ABOUT_LINES: f32 = 4.0;
 /// Height of the reserved description box, in logical px, at Bevy's default
 /// line height of 1.2 font sizes.
 const ABOUT_PX: f32 = ABOUT_FONT_PX * 1.2 * ABOUT_LINES;
-/// Lines the draft summary reserves, so a one-line result and a two-line
-/// refusal leave Confirm in place. A longer refusal still shows in full.
-const SUMMARY_LINES: f32 = 3.0;
 
 /// The category filters left to right, after All. Display order only: icon
 /// masks stay stored in [`ItemCategoryType`] declaration order.
@@ -282,31 +282,6 @@ fn chip_paint(current: bool) -> (UiColor, f32, f32) {
         (UiColor::Accent, 0.25, 1.0)
     } else {
         (UiColor::Secondary, 0.08, 0.4)
-    }
-}
-
-/// A one-pixel rule between groups of a panel.
-fn divider() -> impl Bundle {
-    (
-        Node {
-            height: px(1),
-            flex_shrink: 0.0,
-            ..default()
-        },
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.35),
-    )
-}
-
-/// A row of controls.
-fn control_row(justify: JustifyContent) -> Node {
-    Node {
-        flex_direction: FlexDirection::Row,
-        align_items: AlignItems::Center,
-        justify_content: justify,
-        column_gap: px(12),
-        flex_shrink: 0.0,
-        ..default()
     }
 }
 
@@ -900,15 +875,6 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
             ))
             .observe(confirm_inventory_draft);
         });
-}
-
-/// A button sized for the narrow inspector.
-fn compact_button(spec: ButtonSpec) -> impl Bundle {
-    button(ButtonSpec {
-        min_height: 22.0,
-        font_size: 12.0,
-        ..spec
-    })
 }
 
 /// One stack's row: the category icon, the item name and the count.

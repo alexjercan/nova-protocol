@@ -22,7 +22,10 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints};
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
-    widget::{ThemedBorder, ThemedFill, ThemedImageTint, ThemedText},
+    widget::{
+        TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder, ThemedFill,
+        ThemedImageTint, ThemedText,
+    },
 };
 
 use super::{sections::*, *};
@@ -38,15 +41,25 @@ pub(crate) struct ShipViewportMarker;
 /// The section-panel container.
 #[derive(Component)]
 pub(crate) struct ShipPanelMarker;
-/// Which live text line of the panel or the footer a node is, so one system
-/// refreshes them all.
+/// Which live part of the panel a node is, so one system refreshes them all.
+/// On a text node the field is the text it shows; on a node without text it
+/// is the part that holds that text, shown only while the selection has it.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ShipPanelField {
     Title,
     Status,
-    Detail,
+    /// What the section kind does.
+    About,
+    Integrity,
+    Ammo,
+    /// The section's input binding.
+    Control,
+    /// The repair form, shown only while the selection has repairable damage.
+    RepairForm,
+    /// The live hull plate stock beside the typed quantity.
+    RepairStock,
+    /// The predicted integrity, or why the repair is refused.
     RepairPreview,
-    RepairQuantity,
     Note,
 }
 /// The selected section's family icon in the panel head.
@@ -56,7 +69,8 @@ pub(crate) struct ShipPreviewIcon;
 /// integrity.
 #[derive(Component)]
 pub(crate) struct ShipConditionFill;
-/// The whole-plate selector for the current repair draft.
+/// A whole-plate selector for the current repair draft: the typed field and
+/// the slider.
 #[derive(Component)]
 pub(crate) struct ShipRepairQuantity;
 /// The status dot in a section badge's corner.
@@ -146,7 +160,9 @@ pub struct ShipRuntime {
     pub(crate) panel_rebind_enabled: bool,
     /// Draft quantity belongs to this section; changing selection starts at All.
     pub(crate) repair_target: Option<Entity>,
-    pub(crate) requested_plates: u32,
+    /// The repair draft in whole plates. `None` while the field holds text
+    /// that is not a whole number, which Repair refuses.
+    pub(crate) requested_plates: Option<u32>,
     /// Section waiting for a replacement keyboard or mouse binding.
     pub(crate) rebinding: Option<Entity>,
     /// Holds the capture until every button is up, so the key or click that
@@ -201,7 +217,7 @@ pub(crate) fn manage_ship_scene(
         runtime.image = None;
         runtime.selected = None;
         runtime.repair_target = None;
-        runtime.requested_plates = 0;
+        runtime.requested_plates = None;
         runtime.note = None;
         runtime.rebinding = None;
         runtime.rebind_awaiting_release = false;
@@ -537,7 +553,7 @@ pub(crate) fn ship_input(
         runtime.requested_plates = runtime
             .selected
             .and_then(|sel| list.iter().find(|view| view.entity == sel))
-            .map_or(0, |view| {
+            .map(|view| {
                 // Mid-transition the pane can be active a frame before the
                 // player ship's ShipInventory exists; treat it as empty
                 // stock rather than panicking, same as `update_ship_panel`.
@@ -566,10 +582,26 @@ pub(crate) fn ship_input(
             return;
         }
         if input.just_pressed("ship_repair") {
-            commands.write(SectionRepairCommand {
-                target: sel,
-                requested_plates: runtime.requested_plates,
-            });
+            let repairable = list
+                .iter()
+                .find(|view| view.entity == sel)
+                .is_some_and(|view| {
+                    plate_repair_limit(view.health.as_ref(), view.disabled, u32::MAX) > 0
+                });
+            // With the form shown, an empty, invalid or zero quantity is not
+            // sent. Without it, P still sends, so the refusal reaches the
+            // note line.
+            let requested = if repairable {
+                runtime.requested_plates.filter(|plates| *plates > 0)
+            } else {
+                Some(runtime.requested_plates.unwrap_or(0))
+            };
+            if let Some(requested_plates) = requested {
+                commands.write(SectionRepairCommand {
+                    target: sel,
+                    requested_plates,
+                });
+            }
         }
     }
 }
@@ -947,10 +979,10 @@ pub(crate) fn on_ship_repair_button(
     {
         return;
     }
-    if let Some(target) = runtime.selected {
+    if let (Some(target), Some(requested_plates)) = (runtime.selected, runtime.requested_plates) {
         section_commands.write(SectionRepairCommand {
             target,
-            requested_plates: runtime.requested_plates,
+            requested_plates,
         });
         play_menu_select(&mut commands, bank.as_deref());
     }
@@ -974,11 +1006,11 @@ pub(crate) fn on_ship_repair_all_button(
     let Ok(stock) = inventory.single() else {
         return;
     };
-    runtime.requested_plates = plate_repair_limit(
+    runtime.requested_plates = Some(plate_repair_limit(
         view.health.as_ref(),
         view.disabled,
         stock.count(ItemType::HullPlate),
-    );
+    ));
 }
 
 /// Use a whole slider step, never a fractional hull plate.
@@ -1005,7 +1037,7 @@ pub(crate) fn on_ship_repair_slider(
         stock.count(ItemType::HullPlate),
     );
     if max > 0 {
-        runtime.requested_plates = change.value.round().clamp(1.0, max as f32) as u32;
+        runtime.requested_plates = Some(change.value.round().clamp(1.0, max as f32) as u32);
     }
 }
 
@@ -1031,9 +1063,16 @@ pub(crate) fn on_ship_rebind_button(
 }
 
 /// Refresh the section panel from the current selection: title, status line,
-/// family icon, condition bar, detail, button enabled-state, and the note line
-/// (a transient action result, or the reason a button is disabled). Caches the
-/// enabled flags for the observers.
+/// family icon, condition bar, description, fact rows, the repair form,
+/// button enabled-state, and the note line (the rebind prompt or a transient
+/// action result). Caches the enabled flags for the observers.
+///
+/// The repair form shows only while the selection has repairable damage, and
+/// disables Repair with the reason in its summary while the draft is refused.
+/// Typed text becomes the draft before a selection change resets it to All.
+/// The field is rewritten only when the draft holds a number its text does not
+/// read as, so invalid text stays for the player to fix, focused or not; a
+/// hidden form lets go of the keyboard.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system writing every live part of the panel"
@@ -1044,6 +1083,15 @@ pub(crate) fn update_ship_panel(
     sections: ShipSections,
     icons: Res<InterfaceIcons>,
     mut q_text: Query<(&ShipPanelField, &mut Text, &mut ThemedText)>,
+    mut q_part: Query<
+        (&ShipPanelField, &mut Node),
+        (
+            Without<Text>,
+            Without<ShipPanelButton>,
+            Without<ShipConditionFill>,
+            Without<ShipRepairQuantity>,
+        ),
+    >,
     mut q_button: Query<
         (
             Entity,
@@ -1066,6 +1114,15 @@ pub(crate) fn update_ship_panel(
         (Entity, &SliderRange, &SliderValue, &mut Node),
         (With<ShipRepairQuantity>, Without<ShipPanelButton>),
     >,
+    mut q_field: Query<
+        (
+            Entity,
+            &mut TextFieldValue,
+            Has<TextFieldFocused>,
+            Has<TextFieldError>,
+        ),
+        With<ShipRepairQuantity>,
+    >,
     q_inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
 ) {
     if !runtime.active {
@@ -1082,69 +1139,71 @@ pub(crate) fn update_ship_panel(
     let inventory = q_inventory.single().ok();
     let stock = inventory.map_or(0, |inventory| inventory.count(ItemType::HullPlate));
     let selected = inventory.and(selected);
+    // This system's own rewrite below does not read as a change on its next
+    // run, so only the player's typing lands here.
+    for (_, value, _, _) in &mut q_field {
+        if value.is_changed() && !value.is_added() {
+            runtime.requested_plates = value.trim().parse::<u32>().ok();
+        }
+    }
     if runtime.repair_target != runtime.selected {
         runtime.repair_target = runtime.selected;
-        runtime.requested_plates = selected.as_ref().map_or(0, |view| {
-            plate_repair_limit(view.health.as_ref(), view.disabled, stock)
-        });
+        runtime.requested_plates = selected
+            .as_ref()
+            .map(|view| plate_repair_limit(view.health.as_ref(), view.disabled, stock));
     }
     let requested = runtime.requested_plates;
-    let (title, status, detail, preview, quantity, detail_color, actions) = match &selected {
-        Some(view) => {
-            let actions = panel_action_state(view, requested, stock);
-            let prediction =
-                plan_plate_repair(view.health.as_ref(), view.disabled, requested, stock)
-                    .ok()
-                    .map_or_else(
-                        // The refused-request case shares the same reason the note
-                        // line already shows, so the preview never claims a
-                        // quantity/stock mismatch for a Full, Destroyed, or
-                        // NoIntegrity section.
-                        || actions.reason.clone().unwrap_or_default(),
-                        |repair| {
+    let limit = selected.as_ref().map_or(0, |view| {
+        plate_repair_limit(view.health.as_ref(), view.disabled, stock)
+    });
+    let actions = match (&selected, requested) {
+        (Some(view), Some(requested)) => panel_action_state(view, requested, stock),
+        _ => PanelActions::none(),
+    };
+    // The form's stock line and summary, while the selection has repairable
+    // damage. A refused summary is the same reason the handler would note.
+    let form = selected
+        .as_ref()
+        .filter(|view| plate_repair_limit(view.health.as_ref(), view.disabled, u32::MAX) > 0)
+        .map(|view| {
+            let summary = match requested {
+                None => Err("Type a whole number".to_string()),
+                Some(requested) => {
+                    plan_plate_repair(view.health.as_ref(), view.disabled, requested, stock)
+                        .map(|repair| {
                             format!(
-                                "Predicted integrity: {:.0}/{:.0} HP",
+                                "Predicted integrity: {:.0}/{:.0} HP\n1 hull plate restores up to {:.0} HP.",
                                 repair.current,
-                                view.health.as_ref().map_or(0.0, |h| h.max)
+                                view.health.as_ref().map_or(0.0, |h| h.max),
+                                HULL_PLATE_HEALTH
                             )
-                        },
-                    );
-            // The live max can drop below a stale selection (e.g. right after a
-            // repair command fills the section): show what a press would now
-            // submit, not the outstanding request itself, so the quantity never
-            // outlives the integrity or stock it was chosen against.
-            let limit = plate_repair_limit(view.health.as_ref(), view.disabled, stock);
-            let shown_plates = if limit == 0 {
-                0
-            } else {
-                requested.clamp(1, limit)
+                        })
+                        .map_err(|_| actions.reason.clone().unwrap_or_default())
+                }
             };
-            (
-                format!("{}  {}", view.code, view.name),
-                panel_status_text(view),
-                panel_detail_text(view),
-                format!(
-                    "Repair: 1 hull plate restores up to {:.0} HP. Stock: {stock}.\n{prediction}",
-                    HULL_PLATE_HEALTH
-                ),
-                format!(
-                    "Selected: {shown_plates} hull plate{}",
-                    if shown_plates == 1 { "" } else { "s" }
-                ),
-                UiColor::Body,
-                actions,
-            )
-        }
+            let noun = if stock == 1 { "plate" } else { "plates" };
+            (format!("{stock} {noun} in stock"), summary)
+        });
+    let (title, status, about, about_color) = match &selected {
+        Some(view) => (
+            format!("{}  {}", view.code, view.name),
+            panel_status_text(view),
+            kind_description(view.kind).to_string(),
+            UiColor::Body,
+        ),
         None => (
             "No section".to_string(),
             String::new(),
             "Select a section:\nclick a badge or use Prev / Next.".to_string(),
-            String::new(),
-            String::new(),
             UiColor::Label,
-            PanelActions::none(),
         ),
     };
+    let integrity = selected.as_ref().map(ShipSectionView::health_text);
+    let ammo = selected
+        .as_ref()
+        .and_then(|view| view.ammo)
+        .map(|ammo| format!("{} / {} rounds", ammo.rounds, ammo.capacity));
+    let control = selected.as_ref().and_then(ShipSectionView::binding_text);
 
     runtime.panel_repair_enabled = actions.repair_enabled;
     runtime.panel_rebind_enabled = selected.as_ref().is_some_and(|view| {
@@ -1153,7 +1212,8 @@ pub(crate) fn update_ship_panel(
             .is_some_and(|bindings| !bindings.is_empty())
     });
 
-    // Note line: a transient action result wins; else the disabled reason.
+    // Note line: the rebind prompt, else a transient action result. A
+    // disabled Repair gives its reason in the form summary.
     let (note, note_color) = if runtime.rebinding.is_some() {
         (
             "PRESS A KEY OR MOUSE BUTTON - ESC CANCELS".to_string(),
@@ -1161,23 +1221,48 @@ pub(crate) fn update_ship_panel(
         )
     } else if let Some((note, _)) = &runtime.note {
         (note.clone(), UiColor::Accent)
-    } else if let Some(reason) = &actions.reason {
-        (reason.clone(), UiColor::Label)
     } else {
         (String::new(), UiColor::Label)
     };
 
+    for (field, mut node) in &mut q_part {
+        let shown = match field {
+            ShipPanelField::Integrity => integrity.is_some(),
+            ShipPanelField::Ammo => ammo.is_some(),
+            ShipPanelField::Control => control.is_some(),
+            ShipPanelField::RepairForm => form.is_some(),
+            _ => true,
+        };
+        let display = if shown { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+
     for (field, mut text, mut themed) in &mut q_text {
         let (value, tint) = match field {
-            ShipPanelField::Title => (&title, UiColor::Primary),
-            ShipPanelField::Status => (&status, UiColor::Body),
-            ShipPanelField::Detail => (&detail, detail_color),
-            ShipPanelField::RepairPreview => (&preview, UiColor::Body),
-            ShipPanelField::RepairQuantity => (&quantity, UiColor::Primary),
-            ShipPanelField::Note => (&note, note_color),
+            ShipPanelField::Title => (title.as_str(), UiColor::Primary),
+            ShipPanelField::Status => (status.as_str(), UiColor::Body),
+            ShipPanelField::About => (about.as_str(), about_color),
+            ShipPanelField::Integrity => {
+                (integrity.as_deref().unwrap_or_default(), UiColor::Primary)
+            }
+            ShipPanelField::Ammo => (ammo.as_deref().unwrap_or_default(), UiColor::Primary),
+            ShipPanelField::Control => (control.as_deref().unwrap_or_default(), UiColor::Primary),
+            ShipPanelField::RepairStock => (
+                form.as_ref().map_or("", |(stock, _)| stock.as_str()),
+                UiColor::Primary,
+            ),
+            ShipPanelField::RepairPreview => match form.as_ref().map(|(_, summary)| summary) {
+                Some(Ok(summary)) => (summary.as_str(), UiColor::Body),
+                Some(Err(reason)) => (reason.as_str(), UiColor::Danger),
+                None => ("", UiColor::Body),
+            },
+            ShipPanelField::Note => (note.as_str(), note_color),
+            ShipPanelField::RepairForm => continue,
         };
-        if text.0 != *value {
-            text.0 = value.clone();
+        if text.0 != value {
+            text.0 = value.to_string();
         }
         if themed.color != tint {
             themed.color = tint;
@@ -1209,9 +1294,6 @@ pub(crate) fn update_ship_panel(
     }
 
     for (entity, range, value, mut node) in &mut q_slider {
-        let limit = selected.as_ref().map_or(0, |view| {
-            plate_repair_limit(view.health.as_ref(), view.disabled, stock)
-        });
         let display = if limit > 1 {
             Display::Flex
         } else {
@@ -1224,9 +1306,41 @@ pub(crate) fn update_ship_panel(
         if *range != wanted {
             commands.entity(entity).insert(wanted);
         }
-        let shown = requested.clamp(1, limit.max(1)) as f32;
-        if value.0 != shown {
-            commands.entity(entity).insert(SliderValue(shown));
+        // Invalid text keeps the last whole number on the slider.
+        if let Some(requested) = requested {
+            let shown = requested.clamp(1, limit.max(1)) as f32;
+            if value.0 != shown {
+                commands.entity(entity).insert(SliderValue(shown));
+            }
+        }
+    }
+
+    for (entity, mut value, focused, marked) in &mut q_field {
+        if form.is_none() {
+            if focused {
+                commands.entity(entity).remove::<TextFieldFocused>();
+            }
+            continue;
+        }
+        let Some(requested) = requested else {
+            if !marked {
+                commands
+                    .entity(entity)
+                    .insert(TextFieldError(String::new()));
+            }
+            continue;
+        };
+        if marked {
+            commands.entity(entity).remove::<TextFieldError>();
+        }
+        if value.trim().parse::<u32>().ok() == Some(requested) {
+            continue;
+        }
+        value.0 = requested.to_string();
+        if focused {
+            commands
+                .entity(entity)
+                .insert(TextFieldFocused::at_end(&value.0));
         }
     }
 

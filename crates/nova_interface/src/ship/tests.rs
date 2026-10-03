@@ -6,7 +6,7 @@ use bevy::{
     ecs::system::RunSystemOnce,
     input::InputPlugin,
     state::app::StatesPlugin,
-    ui::{ComputedNode, UiGlobalTransform},
+    ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
     ui_widgets::Activate,
 };
 use nova_events::prelude::EntityId;
@@ -15,7 +15,7 @@ use nova_input::prelude::RegisterInputActions;
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
-    widget::{ThemedFill, ThemedImageTint},
+    widget::{TextFieldError, TextFieldFocused, TextFieldValue, ThemedFill, ThemedImageTint},
 };
 
 use super::{app::*, scene::*, sections::*, *};
@@ -793,7 +793,8 @@ fn ship_input_selection_repair_reset_survives_a_missing_player_inventory() {
     let runtime = app.world().resource::<ShipRuntime>();
     assert_eq!(runtime.repair_target, Some(hull));
     assert_eq!(
-        runtime.requested_plates, 0,
+        runtime.requested_plates,
+        Some(0),
         "no inventory means no plates to request, not a panic"
     );
 }
@@ -1177,35 +1178,6 @@ fn panel_action_state_gates_repair() {
 }
 
 #[test]
-fn panel_detail_text_covers_live_fields() {
-    let mut turret = view_fixture(
-        SectionClass::Turret,
-        Some(Health {
-            current: 12.0,
-            max: 60.0,
-        }),
-        Some(SectionAmmo {
-            rounds: 2,
-            capacity: 6,
-        }),
-    );
-    turret.bindings = Some(vec![KeyCode::KeyK.into(), MouseButton::Left.into()]);
-    assert_eq!(
-        panel_status_text(&turret),
-        "Weapon  Condition 20%  critical",
-        "12/60 -> 20%"
-    );
-    let text = panel_detail_text(&turret);
-    assert!(
-        text.contains(kind_description(SectionClass::Turret)),
-        "{text}"
-    );
-    assert!(text.contains("12/60 HP"), "{text}");
-    assert!(text.contains("Ammunition: 2 / 6 rounds"), "{text}");
-    assert!(text.contains("Control: K / LMB"), "{text}");
-}
-
-#[test]
 fn panel_buttons_raise_section_repair_command() {
     // Each button's `Activate` observer routes a SectionRepairCommand for the
     // selected section, or arms a rebind, and clicks once - but only when the
@@ -1241,7 +1213,7 @@ fn panel_buttons_raise_section_repair_command() {
         let mut runtime = app.world_mut().resource_mut::<ShipRuntime>();
         runtime.selected = Some(hull);
         runtime.repair_target = Some(hull);
-        runtime.requested_plates = 1;
+        runtime.requested_plates = Some(1);
         runtime.panel_repair_enabled = false;
     }
     app.world_mut().trigger(Activate { entity: repair });
@@ -1307,17 +1279,24 @@ fn panel_buttons_raise_section_repair_command() {
 fn update_ship_panel_reflects_selection() {
     // The live refresh system wires the pure helpers into the panel tree and
     // caches the button-enabled flags the observers read. Reverting it to a
-    // no-op must fail this (the detail text would stay the placeholder and the
-    // flags stay false).
+    // no-op must fail this (the fact rows would stay empty and the flags stay
+    // false). Scheduled rather than run once, so typing reads as a change.
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
     app.insert_resource(InterfaceIcons::blank());
-    let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
+    app.add_systems(Update, update_ship_panel);
+    let (ship, hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .entity_mut(ship)
         .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 1)]));
+    app.world_mut()
+        .entity_mut(turret)
+        .insert(SpaceshipTurretInputBinding(vec![
+            KeyCode::KeyK.into(),
+            MouseButton::Left.into(),
+        ]));
     app.world_mut()
         .run_system_once(assign_section_codes)
         .unwrap();
@@ -1337,9 +1316,9 @@ fn update_ship_panel_reflects_selection() {
         runtime.active = true;
         runtime.selected = Some(hull);
         runtime.repair_target = Some(hull);
-        runtime.requested_plates = 1;
+        runtime.requested_plates = Some(1);
     }
-    app.world_mut().run_system_once(update_ship_panel).unwrap();
+    app.update();
 
     let field_text = |app: &mut App, want: ShipPanelField| -> String {
         app.world_mut()
@@ -1349,6 +1328,14 @@ fn update_ship_panel_reflects_selection() {
             .map(|(_, text)| text.0.clone())
             .expect("panel field text")
     };
+    let shown = |app: &mut App, want: ShipPanelField| -> bool {
+        app.world_mut()
+            .query_filtered::<(&ShipPanelField, &Node), Without<Text>>()
+            .iter(app.world())
+            .find(|(field, _)| **field == want)
+            .map(|(_, node)| node.display != Display::None)
+            .expect("panel part")
+    };
     let status = field_text(&mut app, ShipPanelField::Status);
     assert!(
         status.starts_with("Hull  Condition"),
@@ -1356,6 +1343,24 @@ fn update_ship_panel_reflects_selection() {
     );
     let title = field_text(&mut app, ShipPanelField::Title);
     assert!(title.contains("HULL-1"), "title reflects the code: {title}");
+    assert_eq!(field_text(&mut app, ShipPanelField::Integrity), "80/100 HP");
+    assert!(shown(&mut app, ShipPanelField::Integrity));
+    assert!(
+        !shown(&mut app, ShipPanelField::Ammo),
+        "a hull has no ammo row"
+    );
+    assert!(
+        !shown(&mut app, ShipPanelField::Control),
+        "a hull has no control row"
+    );
+    assert!(
+        shown(&mut app, ShipPanelField::RepairForm),
+        "a damaged hull shows the repair form"
+    );
+    assert_eq!(
+        field_text(&mut app, ShipPanelField::RepairStock),
+        "1 plate in stock"
+    );
 
     // A damaged hull with plates caches repair ENABLED for the observer.
     let runtime = app.world().resource::<ShipRuntime>();
@@ -1363,6 +1368,64 @@ fn update_ship_panel_reflects_selection() {
         runtime.panel_repair_enabled,
         "a damaged hull with plates is repairable -> repair enabled",
     );
+
+    // The turret's live facts each take their own labelled row.
+    app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
+    app.update();
+    assert_eq!(
+        field_text(&mut app, ShipPanelField::Status),
+        "Weapon  Condition 20%  critical",
+        "12/60 -> 20%"
+    );
+    assert_eq!(
+        field_text(&mut app, ShipPanelField::About),
+        kind_description(SectionClass::Turret)
+    );
+    assert_eq!(field_text(&mut app, ShipPanelField::Integrity), "12/60 HP");
+    assert_eq!(field_text(&mut app, ShipPanelField::Ammo), "2 / 6 rounds");
+    assert_eq!(field_text(&mut app, ShipPanelField::Control), "K / LMB");
+    assert!(shown(&mut app, ShipPanelField::Ammo));
+    assert!(shown(&mut app, ShipPanelField::Control));
+
+    // Typed text that is not a whole number empties the draft, marks the
+    // field, disables Repair, and stays as typed while the field is focused.
+    let field = app
+        .world_mut()
+        .query_filtered::<Entity, (With<ShipRepairQuantity>, With<TextFieldValue>)>()
+        .single(app.world())
+        .unwrap();
+    // Written in place, as the widget types: a re-insert could read as added.
+    app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = "x".to_string();
+    app.world_mut()
+        .entity_mut(field)
+        .insert(TextFieldFocused::at_end("x"));
+    app.update();
+    let repair = app
+        .world_mut()
+        .query_filtered::<(Entity, &ShipPanelButton), Without<Text>>()
+        .iter(app.world())
+        .find(|(_, button)| **button == ShipPanelButton::Repair)
+        .map(|(entity, _)| entity)
+        .expect("repair button");
+    assert_eq!(app.world().resource::<ShipRuntime>().requested_plates, None);
+    assert!(!app.world().resource::<ShipRuntime>().panel_repair_enabled);
+    assert!(app.world().entity(repair).contains::<InteractionDisabled>());
+    assert!(app.world().entity(field).contains::<TextFieldError>());
+    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "x");
+    assert_eq!(
+        field_text(&mut app, ShipPanelField::RepairPreview),
+        "Type a whole number"
+    );
+
+    app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = "1".to_string();
+    app.update();
+    assert_eq!(
+        app.world().resource::<ShipRuntime>().requested_plates,
+        Some(1)
+    );
+    assert!(app.world().resource::<ShipRuntime>().panel_repair_enabled);
+    assert!(!app.world().entity(repair).contains::<InteractionDisabled>());
+    assert!(!app.world().entity(field).contains::<TextFieldError>());
 }
 
 /// Build the same panel subtree as [`update_ship_panel_reflects_selection`],
@@ -1422,14 +1485,14 @@ fn update_ship_panel_shows_no_section_without_a_player_inventory() {
 
 #[test]
 fn update_ship_panel_preview_names_the_exact_repair_refusal() {
-    // A section already at full integrity refuses on `Full`, not on a
-    // quantity/stock mismatch the preview used to claim unconditionally.
+    // A section already at full integrity has no repair form; a damaged one
+    // names the exact refusal of its draft in the form summary.
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.init_asset::<Font>();
     app.init_resource::<ShipRuntime>();
     app.insert_resource(InterfaceIcons::blank());
-    let (ship, _hull, _turret, thruster) = spawn_scripted_ship(app.world_mut());
+    let (ship, hull, _turret, thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .entity_mut(ship)
         .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 1)]));
@@ -1451,10 +1514,27 @@ fn update_ship_panel_preview_names_the_exact_repair_refusal() {
         runtime.active = true;
         runtime.selected = Some(thruster);
         runtime.repair_target = Some(thruster);
-        runtime.requested_plates = 1;
+        runtime.requested_plates = Some(1);
     }
     app.world_mut().run_system_once(update_ship_panel).unwrap();
+    let form_display = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<(&ShipPanelField, &Node), Without<Text>>()
+            .iter(app.world())
+            .find(|(field, _)| **field == ShipPanelField::RepairForm)
+            .map(|(_, node)| node.display)
+            .expect("repair form")
+    };
+    assert_eq!(form_display(&mut app), Display::None);
 
+    {
+        let mut runtime = app.world_mut().resource_mut::<ShipRuntime>();
+        runtime.selected = Some(hull);
+        runtime.repair_target = Some(hull);
+        runtime.requested_plates = Some(2);
+    }
+    app.world_mut().run_system_once(update_ship_panel).unwrap();
+    assert_eq!(form_display(&mut app), Display::Flex);
     let preview = app
         .world_mut()
         .query::<(&ShipPanelField, &Text)>()
@@ -1462,17 +1542,17 @@ fn update_ship_panel_preview_names_the_exact_repair_refusal() {
         .find(|(field, _)| **field == ShipPanelField::RepairPreview)
         .map(|(_, text)| text.0.clone())
         .expect("preview field text");
-    assert!(
-        preview.ends_with("repair: THR-1 is at full integrity"),
-        "preview names the Full refusal instead of a generic mismatch: {preview}"
+    assert_eq!(
+        preview, "repair: HULL-1 request exceeds live hull plate stock",
+        "the summary names the exact refusal of the draft"
     );
 }
 
 #[test]
-fn update_ship_panel_quantity_drops_with_the_live_max_after_a_full_repair() {
+fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
     // A full repair processed by `apply_ship_section_commands` fills the
-    // section but leaves `requested_plates` untouched; the panel's displayed
-    // quantity must track the new (zero) live max rather than restate the
+    // section but leaves `requested_plates` untouched; the panel hides the
+    // form, and its field lets go of the keyboard, rather than restate the
     // outstanding request.
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -1503,7 +1583,7 @@ fn update_ship_panel_quantity_drops_with_the_live_max_after_a_full_repair() {
         runtime.active = true;
         runtime.selected = Some(hull);
         runtime.repair_target = Some(hull);
-        runtime.requested_plates = 1;
+        runtime.requested_plates = Some(1);
     }
     // Hull starts at 80/100: one plate (20 HP) fills it exactly.
     app.world_mut().write_message(SectionRepairCommand {
@@ -1514,26 +1594,35 @@ fn update_ship_panel_quantity_drops_with_the_live_max_after_a_full_repair() {
     assert_eq!(app.world().get::<Health>(hull).unwrap().current, 100.0);
     assert_eq!(
         app.world().resource::<ShipRuntime>().requested_plates,
-        1,
+        Some(1),
         "the processed command's quantity is not silently rewritten"
     );
 
+    let field = app
+        .world_mut()
+        .query_filtered::<Entity, (With<ShipRepairQuantity>, With<TextFieldValue>)>()
+        .single(app.world())
+        .unwrap();
+    app.world_mut()
+        .entity_mut(field)
+        .insert(TextFieldFocused::at_end("1"));
     app.world_mut().run_system_once(update_ship_panel).unwrap();
 
-    let quantity = app
+    let form = app
         .world_mut()
-        .query::<(&ShipPanelField, &Text)>()
+        .query_filtered::<(&ShipPanelField, &Node), Without<Text>>()
         .iter(app.world())
-        .find(|(field, _)| **field == ShipPanelField::RepairQuantity)
-        .map(|(_, text)| text.0.clone())
-        .expect("quantity field text");
-    assert_eq!(
-        quantity, "Selected: 0 hull plates",
-        "quantity reflects the new live max (0), not the stale request"
+        .find(|(field, _)| **field == ShipPanelField::RepairForm)
+        .map(|(_, node)| node.display)
+        .expect("repair form");
+    assert_eq!(form, Display::None, "a full section has no repair form");
+    assert!(
+        !app.world().entity(field).contains::<TextFieldFocused>(),
+        "a hidden form's field lets go of the keyboard"
     );
     assert_eq!(
         app.world().resource::<ShipRuntime>().requested_plates,
-        1,
+        Some(1),
         "the panel refresh must not mutate the outstanding request state"
     );
 }

@@ -395,25 +395,6 @@ pub(crate) fn panel_status_text(view: &ShipSectionView) -> String {
     )
 }
 
-/// Labelled facts and a short explanation of the selected section's role.
-pub(crate) fn panel_detail_text(view: &ShipSectionView) -> String {
-    let mut text = format!(
-        "Integrity: {}\nRole: {}",
-        view.health_text(),
-        kind_description(view.kind)
-    );
-    if let Some(ammo) = view.ammo.as_ref() {
-        text.push_str(&format!(
-            "\nAmmunition: {} / {} rounds",
-            ammo.rounds, ammo.capacity
-        ));
-    }
-    if let Some(bindings) = view.binding_text() {
-        text.push_str(&format!("\nControl: {bindings}"));
-    }
-    text
-}
-
 /// Whether Repair is valid for a section, plus a reason for a disabled
 /// action. Uses the same [`plan_plate_repair`] check as [`repair_section`], so
 /// the panel button never disagrees with the handler.

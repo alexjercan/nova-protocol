@@ -841,6 +841,89 @@ fn the_goto_route_follows_the_live_autopilot_across_a_reopen() {
     assert_route_meets_blips(&mut app);
     assert_ne!(route_ends(&mut app), before, "the route follows the resize");
 
+    // Zoomed close with both ends outside: the crossing stroke must stop at
+    // the viewport rather than rotating an offscreen-wide UI node through it.
+    {
+        let world = app.world_mut();
+        let mut global = world
+            .query_filtered::<&mut GlobalTransform, With<MapCameraMarker>>()
+            .single_mut(world)
+            .unwrap();
+        *global = GlobalTransform::from(
+            Transform::from_xyz(0.0, 20.0, -25.0).looking_at(Vec3::new(0.0, 0.0, -25.0), Vec3::Z),
+        );
+    }
+    project(&mut app);
+    let (raw_start, raw_end) = {
+        let world = app.world_mut();
+        let (camera, global) = world
+            .query_filtered::<(&Camera, &GlobalTransform), With<MapCameraMarker>>()
+            .single(world)
+            .unwrap();
+        (
+            camera.world_to_viewport(global, Vec3::ZERO).unwrap() * 0.5,
+            camera
+                .world_to_viewport(global, Vec3::new(0.0, 0.0, -50.0))
+                .unwrap()
+                * 0.5,
+        )
+    };
+    assert!(
+        (raw_start.y < 0.0 && raw_end.y > 600.0) || (raw_end.y < 0.0 && raw_start.y > 600.0),
+        "both projected endpoints cross the viewport: {raw_start:?}, {raw_end:?}"
+    );
+    let (start, end) = route_ends(&mut app);
+    let inset = 1.0; // Half the 2 px route stroke.
+    assert!(
+        [start, end]
+            .iter()
+            .all(|p| p.x >= inset && p.y >= inset && p.x <= 600.0 - inset && p.y <= 600.0 - inset),
+        "the zoomed route escapes the viewport: {start:?} to {end:?}"
+    );
+    assert!(start.distance(end) > 100.0, "the crossing stays drawn");
+
+    // Pan beyond both ends on the same side: the line vanishes, but the tag
+    // remains tied to the live GOTO target.
+    {
+        let world = app.world_mut();
+        let mut global = world
+            .query_filtered::<&mut GlobalTransform, With<MapCameraMarker>>()
+            .single_mut(world)
+            .unwrap();
+        *global = GlobalTransform::from(
+            Transform::from_xyz(0.0, 20.0, -150.0).looking_at(Vec3::new(0.0, 0.0, -150.0), Vec3::Z),
+        );
+    }
+    project(&mut app);
+    let world = app.world_mut();
+    let (camera, global) = world
+        .query_filtered::<(&Camera, &GlobalTransform), With<MapCameraMarker>>()
+        .single(world)
+        .unwrap();
+    let projected: Vec<_> = [Vec3::ZERO, Vec3::new(0.0, 0.0, -50.0)]
+        .into_iter()
+        .map(|pos| camera.world_to_viewport(global, pos).unwrap() * 0.5)
+        .collect();
+    assert!(
+        projected.iter().all(|p| p.y < 0.0) || projected.iter().all(|p| p.y > 600.0),
+        "both ends lie beyond the same edge: {projected:?}"
+    );
+    let world = app.world_mut();
+    let line_vis = world
+        .query_filtered::<&Visibility, With<MapRouteLine>>()
+        .single(world)
+        .unwrap();
+    assert_eq!(*line_vis, Visibility::Hidden, "no viewport intersection");
+    let marker_vis = world
+        .query_filtered::<&Visibility, With<MapGotoMarker>>()
+        .single(world)
+        .unwrap();
+    assert_eq!(
+        *marker_vis,
+        Visibility::Inherited,
+        "the target keeps its tag"
+    );
+
     // Cancelled, then replaced by another order: no route, lock untouched.
     let shown = |app: &mut App| {
         let world = app.world_mut();
