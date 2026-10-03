@@ -544,27 +544,40 @@ pub(crate) fn project_map_blips(
     }
 }
 
-/// Thickness of the GOTO route line, in logical px.
-const MAP_ROUTE_PX: f32 = 2.0;
+/// Thickness of the GOTO route stroke, in logical px.
+pub(crate) const MAP_ROUTE_PX: f32 = 2.0;
+/// Most segments the GOTO route draws: the size of the pooled stroke nodes.
+pub(crate) const MAP_ROUTE_SEGMENTS: usize = 32;
 /// Height of the `GOTO` tag over the target blip, in logical px.
-const MAP_GOTO_MARKER_PX: f32 = 18.0;
+pub(crate) const MAP_GOTO_MARKER_PX: f32 = 18.0;
 
-/// Draw the route line from the player ship to its live GOTO target and the
-/// `GOTO` tag over that target, through the same camera projection as the
-/// blips. Both follow the player's `Autopilot` GOTO, not the selection or the
-/// travel lock, so they hide when the GOTO is cancelled, arrives or is
-/// replaced by another order. A target the map does not plot draws nothing.
-/// Spawns both nodes under the viewport on first run; route endpoints are
-/// clipped before sizing the rotated line so its stroke stays in the viewport.
+/// Draw the player's predicted GOTO path and the `GOTO` tag over its target,
+/// through the same camera projection as the blips.
+///
+/// The tag follows the live `Autopilot` GOTO target, not the selection, the
+/// travel lock or the prediction, so it hides when the GOTO is cancelled,
+/// arrives or is replaced by another order, and a target the map does not plot
+/// draws nothing. The path draws only while that GOTO has a
+/// [`FlightPrediction`]: it starts at the player blip, skips the points
+/// `Time<Fixed>` has already flown past, follows the predicted centre of mass
+/// and stops where the prediction stops, with no stroke on to the target. It
+/// is decimated to at most [`MAP_ROUTE_SEGMENTS`] pooled stroke nodes, and
+/// each stroke is clipped before it is sized and rotated so it stays in the
+/// viewport. Spawns the strokes and the tag under the viewport on first run.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the route strokes, the marker, the prediction and the scene"
+)]
 #[expect(
     clippy::type_complexity,
-    reason = "the route line and the marker are two disjoint node queries"
+    reason = "the route strokes and the marker are two disjoint node queries"
 )]
 pub(crate) fn project_map_route(
     mut commands: Commands,
     runtime: Res<MapRuntime>,
     contacts: MapContacts,
-    q_autopilot: Query<&Autopilot>,
+    time: Res<Time<Fixed>>,
+    q_autopilot: Query<(&Autopilot, Option<&FlightPrediction>)>,
     q_camera: Query<(&Camera, &GlobalTransform), With<MapCameraMarker>>,
     q_viewport: Query<(Entity, &ComputedNode), With<MapViewportMarker>>,
     mut q_line: Query<
@@ -580,67 +593,185 @@ pub(crate) fn project_map_route(
     else {
         return;
     };
-    let (Ok((mut line, mut transform, mut line_vis)), Ok((mut marker, mut marker_vis))) =
-        (q_line.single_mut(), q_marker.single_mut())
-    else {
+    let Ok((mut marker, mut marker_vis)) = q_marker.single_mut() else {
         spawn_map_route(&mut commands, viewport);
         return;
     };
-    let route = contacts.player_frame().and_then(|(player, from, _)| {
-        let Ok(Autopilot {
-            action: AutopilotAction::Goto { target },
-            ..
-        }) = q_autopilot.get(player)
+    let goto = contacts.player_frame().and_then(|(player, from, _)| {
+        let Ok((
+            Autopilot {
+                action: AutopilotAction::Goto { target },
+                ..
+            },
+            prediction,
+        )) = q_autopilot.get(player)
         else {
             return None;
         };
-        contacts
+        let to = contacts
             .collect()
             .into_iter()
-            .find(|contact| contact.entity == *target)
-            .map(|contact| (from, contact.world_pos))
+            .find(|contact| contact.entity == *target)?
+            .world_pos;
+        Some((from, to, prediction))
     });
     // The same stale-target rule as the blips: the route must meet them.
     let stale_camera = camera.physical_target_size() != Some(computed.size().round().as_uvec2());
-    if route.is_some() && stale_camera {
+    if goto.is_some() && stale_camera {
         return;
     }
     let to_logical = computed.inverse_scale_factor();
-    // Off-viewport ends still project; only a point behind the camera fails.
-    let Some((from, to)) = route.and_then(|(from, to)| {
-        let from = camera.world_to_viewport(cam_gt, from).ok()?;
-        let to = camera.world_to_viewport(cam_gt, to).ok()?;
-        Some((from * to_logical, to * to_logical))
-    }) else {
-        line_vis.set_if_neq(Visibility::Hidden);
-        marker_vis.set_if_neq(Visibility::Hidden);
-        return;
+    let project = |world: Vec3| {
+        camera
+            .world_to_viewport(cam_gt, world)
+            .ok()
+            .map(|p| p * to_logical)
     };
 
     // The tag sits on the target tile's top edge, so it never covers the tile
     // or the code label beside it. It follows the target even when the route
-    // misses the viewport.
-    let (left, top) = (
-        Val::Px(to.x - MAP_BLIP_PX * 0.5),
-        Val::Px(to.y - MAP_BLIP_PX * 0.5 - MAP_GOTO_MARKER_PX),
-    );
-    if marker.left != left || marker.top != top {
-        marker.left = left;
-        marker.top = top;
+    // misses the viewport or stops short of it.
+    match goto.and_then(|(_, to, _)| project(to)) {
+        Some(to) => {
+            let (left, top) = (
+                Val::Px(to.x - MAP_BLIP_PX * 0.5),
+                Val::Px(to.y - MAP_BLIP_PX * 0.5 - MAP_GOTO_MARKER_PX),
+            );
+            if marker.left != left || marker.top != top {
+                marker.left = left;
+                marker.top = top;
+            }
+            marker_vis.set_if_neq(Visibility::Inherited);
+        }
+        None => {
+            marker_vis.set_if_neq(Visibility::Hidden);
+        }
     }
-    marker_vis.set_if_neq(Visibility::Inherited);
 
+    // The path from the player blip through the points still ahead of the
+    // ship. Point `i` is the state `i` sample intervals after the seed, except
+    // the last, which is at the off-grid tick the leg ends at. The points are
+    // the predicted centre of mass but the blip is the root origin, so the
+    // first stroke is an icon-to-COM connector, not a predicted path: on a
+    // hull whose centre of mass sits off its origin it can kink.
+    let vertices = goto
+        .and_then(|(from, _, prediction)| {
+            let prediction = prediction?;
+            let flown = time
+                .elapsed()
+                .saturating_sub(prediction.seed_time)
+                .as_secs_f32();
+            let last = prediction.points.len().saturating_sub(1);
+            let ahead = prediction
+                .points
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| {
+                    let at = if *i == last {
+                        prediction.final_point_time
+                    } else {
+                        *i as f32 * prediction.sample_interval
+                    };
+                    at > flown
+                })
+                .map(|(_, point)| *point);
+            Some(decimate_route(
+                &std::iter::once(from).chain(ahead).collect::<Vec<_>>(),
+                MAP_ROUTE_SEGMENTS + 1,
+            ))
+        })
+        .unwrap_or_default();
     let size = computed.size() * to_logical;
-    let inset = MAP_ROUTE_PX * 0.5;
-    let max = size - Vec2::splat(inset);
-    let span = to - from;
-    if !size.is_finite() || !from.is_finite() || !to.is_finite() || max.min_element() <= inset {
-        line_vis.set_if_neq(Visibility::Hidden);
-        return;
+    // A vertex behind the camera does not project, so both strokes that meet
+    // it are dropped: a close orbit can show a gap, never a wrong stroke.
+    let mut strokes = vertices.windows(2).filter_map(|pair| {
+        let (from, to) =
+            clip_route_segment(project(pair[0])?, project(pair[1])?, size, MAP_ROUTE_PX)?;
+        let span = to - from;
+        let length = span.length();
+        (length.is_finite() && length > f32::EPSILON).then_some((from, span, length))
+    });
+    for (mut line, mut transform, mut line_vis) in &mut q_line {
+        let Some((from, span, length)) = strokes.next() else {
+            line_vis.set_if_neq(Visibility::Hidden);
+            continue;
+        };
+        // `UiTransform` rotates a horizontal bar about its centre, clockwise
+        // in screen space, so the angle is read with y down.
+        let mid = from + span * 0.5;
+        let (left, top, width) = (
+            Val::Px(mid.x - length * 0.5),
+            Val::Px(mid.y - MAP_ROUTE_PX * 0.5),
+            Val::Px(length),
+        );
+        if line.left != left || line.top != top || line.width != width {
+            line.left = left;
+            line.top = top;
+            line.width = width;
+        }
+        let rotation = Rot2::radians(span.y.atan2(span.x));
+        if transform.rotation != rotation {
+            transform.rotation = rotation;
+        }
+        line_vis.set_if_neq(Visibility::Inherited);
     }
-    // Clip the logical-pixel segment against the stroke-inset viewport. A
-    // rotated UI node can escape the parent's clip even if its drawn pixels do
-    // not; bound the drawn endpoints before deriving its size and rotation.
+}
+
+/// Reduce a polyline to at most `max` vertices, keeping its ends and its
+/// sharpest bends: starting from the two ends, repeatedly keep the vertex that
+/// lies furthest from the chord between its kept neighbours (top-N
+/// Ramer-Douglas-Peucker). It works in world space, so the kept bends do not
+/// change while the map camera orbits. A polyline already within `max` is
+/// returned whole.
+pub(crate) fn decimate_route(points: &[Vec3], max: usize) -> Vec<Vec3> {
+    if points.len() <= max.max(2) {
+        return points.to_vec();
+    }
+    let deviation = |i: usize, a: usize, b: usize| {
+        let chord = points[b] - points[a];
+        let offset = points[i] - points[a];
+        let length_squared = chord.length_squared();
+        if length_squared <= f32::EPSILON {
+            offset.length()
+        } else {
+            offset
+                .reject_from_normalized(chord / length_squared.sqrt())
+                .length()
+        }
+    };
+    let mut kept = vec![0, points.len() - 1];
+    while kept.len() < max {
+        let Some((at, index, _)) = kept
+            .windows(2)
+            .enumerate()
+            .filter_map(|(at, pair)| {
+                (pair[0] + 1..pair[1])
+                    .map(|i| (at + 1, i, deviation(i, pair[0], pair[1])))
+                    .max_by(|a, b| a.2.total_cmp(&b.2))
+            })
+            .max_by(|a, b| a.2.total_cmp(&b.2))
+        else {
+            break;
+        };
+        kept.insert(at, index);
+    }
+    kept.into_iter().map(|i| points[i]).collect()
+}
+
+/// Clip a logical-pixel route segment to a `size` viewport inset by half of
+/// `stroke_px`, so a stroke drawn along the result stays inside the viewport.
+/// A rotated UI node can escape the parent's clip even if its drawn pixels do
+/// not, so callers bound the drawn endpoints before deriving size and rotation.
+/// Returns `None` when the segment misses the inset viewport, an input is not
+/// finite, or the viewport is too small for the stroke.
+fn clip_route_segment(from: Vec2, to: Vec2, size: Vec2, stroke_px: f32) -> Option<(Vec2, Vec2)> {
+    let inset = stroke_px * 0.5;
+    let max = size - Vec2::splat(inset);
+    if !size.is_finite() || !from.is_finite() || !to.is_finite() || max.min_element() <= inset {
+        return None;
+    }
+    // Liang-Barsky against the four inset edges.
+    let span = to - from;
     let mut enter = 0.0_f32;
     let mut exit = 1.0_f32;
     for (p, q) in [
@@ -651,8 +782,7 @@ pub(crate) fn project_map_route(
     ] {
         if p == 0.0 {
             if q < 0.0 {
-                line_vis.set_if_neq(Visibility::Hidden);
-                return;
+                return None;
             }
         } else {
             let t = q / p;
@@ -664,55 +794,31 @@ pub(crate) fn project_map_route(
         }
     }
     if enter >= exit || !enter.is_finite() || !exit.is_finite() {
-        line_vis.set_if_neq(Visibility::Hidden);
-        return;
+        return None;
     }
-    let clipped_from = from + span * enter;
-    let clipped_to = from + span * exit;
-    let clipped_span = clipped_to - clipped_from;
-    let length = clipped_span.length();
-    if !length.is_finite() || length <= f32::EPSILON {
-        line_vis.set_if_neq(Visibility::Hidden);
-        return;
-    }
-    // `UiTransform` rotates a horizontal bar about its centre, clockwise in
-    // screen space, so the angle is read with y down.
-    let mid = (clipped_from + clipped_to) * 0.5;
-    let (left, top, width) = (
-        Val::Px(mid.x - length * 0.5),
-        Val::Px(mid.y - MAP_ROUTE_PX * 0.5),
-        Val::Px(length),
-    );
-    if line.left != left || line.top != top || line.width != width {
-        line.left = left;
-        line.top = top;
-        line.width = width;
-    }
-    let rotation = Rot2::radians(clipped_span.y.atan2(clipped_span.x));
-    if transform.rotation != rotation {
-        transform.rotation = rotation;
-    }
-    line_vis.set_if_neq(Visibility::Inherited);
+    Some((from + span * enter, from + span * exit))
 }
 
-/// Spawn the hidden route line and `GOTO` tag under the viewport, below the
+/// Spawn the hidden route strokes and `GOTO` tag under the viewport, below the
 /// blips (which sit at `ZIndex` 0 and up), and out of picking.
 fn spawn_map_route(commands: &mut Commands, viewport: Entity) {
-    commands.spawn((
-        MapRouteLine,
-        Node {
-            position_type: PositionType::Absolute,
-            height: Val::Px(MAP_ROUTE_PX),
-            ..default()
-        },
-        UiTransform::default(),
-        Visibility::Hidden,
-        ZIndex(-1),
-        Pickable::IGNORE,
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Accent, 0.8),
-        ChildOf(viewport),
-    ));
+    for _ in 0..MAP_ROUTE_SEGMENTS {
+        commands.spawn((
+            MapRouteLine,
+            Node {
+                position_type: PositionType::Absolute,
+                height: Val::Px(MAP_ROUTE_PX),
+                ..default()
+            },
+            UiTransform::default(),
+            Visibility::Hidden,
+            ZIndex(-1),
+            Pickable::IGNORE,
+            BackgroundColor(Color::NONE),
+            ThemedFill::alpha(UiColor::Accent, 0.8),
+            ChildOf(viewport),
+        ));
+    }
     commands.spawn((
         MapGotoMarker,
         Node {

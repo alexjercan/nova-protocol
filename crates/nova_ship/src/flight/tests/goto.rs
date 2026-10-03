@@ -2,7 +2,7 @@
 //! standoff, the ORBIT handoff at a well body, and a quiet arrival.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{prelude::*, time::TimeUpdateStrategy};
 use nova_gameplay::{prelude::*, test_support::settle};
 
 use super::support::*;
@@ -61,6 +61,103 @@ fn goto_arrives_at_standoff_and_disengages() {
         }),
         "a successful player GOTO reports its physical completion"
     );
+}
+
+#[test]
+fn goto_passes_an_off_axis_well_and_arrives_at_rest_with_slow_or_fast_turns() {
+    // The target is not the well. Every run uses the same gravity-enabled
+    // rig advanced one fixed physics tick per update (FixedUpdate runs at
+    // 1/64s, the shared rig's default is 1/60s); only the off-axis well and
+    // the turn authority differ between runs.
+    let goal = Vec3::new(0.0, 0.0, -600.0);
+    let well_center = Vec3::new(95.0, 0.0, -300.0);
+    let gravity = GravitySettings::default();
+    let well_data = nova_gameplay::gravity::GravityWell::from_mass(8000.0, 40.0, &gravity);
+    for (with_well, low_turn_authority) in
+        [(false, false), (true, false), (false, true), (true, true)]
+    {
+        let mut app = orbit_app();
+        let fixed_step = app.world().resource::<Time<Fixed>>().timestep();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(fixed_step));
+        if with_well {
+            app.world_mut().spawn((
+                RigidBody::Static,
+                Transform::from_translation(well_center),
+                well_data.clone(),
+            ));
+        }
+        let (ship, _, controller) = spawn_ship(&mut app);
+        if low_turn_authority {
+            // The generic rig uses 100 rad/s^2, at its turn-rate ceiling;
+            // this run uses the shipped-scale authority instead (see
+            // flight/tests/manual.rs), to prove arrival survives it too.
+            app.world_mut()
+                .get_mut::<PDController>(controller)
+                .unwrap()
+                .max_angular_acceleration = 0.5;
+        }
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(PlayerSpaceshipMarker);
+        let target = app
+            .world_mut()
+            .spawn((
+                Transform::from_translation(goal),
+                GlobalTransform::from(Transform::from_translation(goal)),
+            ))
+            .id();
+        settle(&mut app);
+        assert!(app.world().get::<GravityAffected>(ship).is_some());
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+        let mut released = false;
+        let mut entered_well = false;
+        let mut min_well_distance = f32::MAX;
+        for _ in 0..6000 {
+            app.update();
+            // Physics pose, not the transform that can lag behind Avian.
+            let position = app.world().get::<Position>(ship).unwrap().0;
+            min_well_distance = min_well_distance.min(position.distance(well_center));
+            entered_well |= app.world().get::<DominantWell>(ship).is_some();
+            if app.world().get::<Autopilot>(ship).is_none() {
+                released = true;
+                break;
+            }
+        }
+
+        let case = format!("well={with_well} low_turn={low_turn_authority}");
+        assert_eq!(
+            entered_well, with_well,
+            "{case}: the ship must enter only the present well's SOI"
+        );
+        assert!(
+            released,
+            "{case}: GOTO must complete and disengage in budget"
+        );
+        assert_eq!(
+            app.world().get::<PlayerAutopilotCompleted>(ship),
+            Some(&PlayerAutopilotCompleted {
+                action: AutopilotAction::Goto { target },
+            }),
+            "{case}: a successful GOTO reports its physical completion"
+        );
+        let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+        let distance = app.world().get::<Position>(ship).unwrap().0.distance(goal);
+        let speed = velocity_of(&app, ship).length();
+        assert!(
+            distance <= standoff + 6.0 && distance >= standoff - 45.0,
+            "{case}: arrival must be near the {standoff}u standoff, got {distance}"
+        );
+        assert!(speed < 0.5, "{case}: arrival must be at rest, got {speed}");
+        if with_well {
+            assert!(
+                min_well_distance > well_data.body_radius + gravity.surface_margin,
+                "{case}: the off-axis flight must clear the well body, got {min_well_distance}u"
+            );
+        }
+    }
 }
 
 #[test]

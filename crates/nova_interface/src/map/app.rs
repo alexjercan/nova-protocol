@@ -51,8 +51,8 @@ pub(crate) struct MapPanelIcon;
 #[derive(Component)]
 pub(crate) struct MapGotoButton;
 
-/// The route line from the player ship to its live GOTO target, drawn under
-/// the blips. It takes no clicks.
+/// One pooled stroke of the predicted GOTO path, drawn under the blips. The
+/// strokes are interchangeable; unused ones stay hidden. It takes no clicks.
 #[derive(Component)]
 pub(crate) struct MapRouteLine;
 
