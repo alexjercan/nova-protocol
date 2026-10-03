@@ -169,7 +169,9 @@ fn update_controller_root_torque(
     }
 }
 
-fn compute_pd_torque(
+/// The world torque a loop applies to turn a body at `from_rotation`, spinning
+/// at `angular_velocity`, toward `to_rotation`.
+pub(crate) fn compute_pd_torque(
     frequency: f32,
     damping_ratio: f32,
     max_angular_acceleration: f32,

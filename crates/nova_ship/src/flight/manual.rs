@@ -251,8 +251,9 @@ pub(super) fn rcs_burn_system(
     >,
     q_connections: Query<&DockingConnection>,
     q_capabilities: ShipCapabilityQuery,
-    // Commanded drivers this tick: the driver, its partner, and the push.
-    mut requests: Local<Vec<(Entity, Option<Entity>, Vec3)>>,
+    // Commanded drivers this tick: the driver, its partner, its body-frame
+    // command and its attitude.
+    mut requests: Local<Vec<(Entity, Option<Entity>, Vec3, Rotation)>>,
     mut pushes: Local<Vec<(Entity, Vec3)>>,
     // Docked drivers whose missing assembly is already logged, so the error
     // is said once per loss, not at the fixed rate.
@@ -318,19 +319,10 @@ pub(super) fn rcs_burn_system(
         if !mass.is_finite() || mass <= 0.0 {
             continue;
         }
-
-        // One acceleration budget for every direction: each axis is a unit
-        // command, and the whole vector is clamped to unit length, so a
-        // three-axis diagonal pushes exactly as hard as a single axis.
-        let command = command
-            .clamp(Vec3::splat(-1.0), Vec3::splat(1.0))
-            .clamp_length_max(1.0);
-        let step = force.rotation().mul_vec3(command) * settings.rcs_accel * dt;
-        requests.push((ship, partner, step));
+        requests.push((ship, partner, command, *force.rotation()));
     }
 
-    let full_step = settings.rcs_accel * dt;
-    for &(ship, partner, step) in requests.iter() {
+    for &(ship, partner, command, rotation) in requests.iter() {
         // A partner that cannot take its share refuses the whole push, before
         // the driver pays for it.
         if partner.is_some_and(|partner| !q_ship.contains(partner)) {
@@ -339,16 +331,9 @@ pub(super) fn rcs_burn_system(
         let Ok((_, _, mut budget, ..)) = q_ship.get_mut(ship) else {
             continue;
         };
-        let wanted = step.length();
-        if wanted <= 0.0 || full_step <= 0.0 {
+        let Some(delta_v) = rcs_push(command, rotation, &mut budget, &settings, dt) else {
             continue;
-        }
-        let delivered = budget.spend(wanted, &settings);
-        if delivered <= 0.0 {
-            continue;
-        }
-        budget.applied = (delivered / full_step).min(1.0);
-        let delta_v = step * (delivered / wanted);
+        };
         pushes.push((ship, delta_v));
         pushes.extend(partner.map(|partner| (partner, delta_v)));
     }
@@ -363,6 +348,37 @@ pub(super) fn rcs_burn_system(
         let mass = mass.value();
         force.apply_linear_impulse(delta_v * mass);
     }
+}
+
+/// One tick of a body-frame RCS `command` on a root at `rotation`: the world
+/// delta-v the magazine delivers, or `None` when it delivers nothing. Draws the
+/// push from `budget` and records the delivered fraction in
+/// [`RcsBudget::applied`].
+pub(super) fn rcs_push(
+    command: Vec3,
+    rotation: Rotation,
+    budget: &mut RcsBudget,
+    settings: &FlightSettings,
+    dt: f32,
+) -> Option<Vec3> {
+    // One acceleration budget for every direction: each axis is a unit
+    // command, and the whole vector is clamped to unit length, so a
+    // three-axis diagonal pushes exactly as hard as a single axis.
+    let command = command
+        .clamp(Vec3::splat(-1.0), Vec3::splat(1.0))
+        .clamp_length_max(1.0);
+    let step = rotation.mul_vec3(command) * settings.rcs_accel * dt;
+    let full_step = settings.rcs_accel * dt;
+    let wanted = step.length();
+    if wanted <= 0.0 || full_step <= 0.0 {
+        return None;
+    }
+    let delivered = budget.spend(wanted, settings);
+    if delivered <= 0.0 {
+        return None;
+    }
+    budget.applied = (delivered / full_step).min(1.0);
+    Some(step * (delivered / wanted))
 }
 
 /// Per-tick decay of the PLAYER's `RcsIntent`, so RCS fine-adjust is

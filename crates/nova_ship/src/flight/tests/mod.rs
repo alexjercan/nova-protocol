@@ -16,6 +16,7 @@ mod goto;
 mod manual;
 mod match_velocity;
 mod orbit;
+mod prediction;
 mod rcs;
 mod scripted;
 mod stacking;

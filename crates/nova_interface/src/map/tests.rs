@@ -683,13 +683,9 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     );
 }
 
-/// The route and its `GOTO` tag follow the player's live autopilot GOTO: they
-/// draw again after the map closes and reopens, meet the player and target
-/// blips in logical px at 2x scale and across a resize while another contact
-/// is selected, and hide when the GOTO is cancelled or replaced while the
-/// travel lock stays.
-#[test]
-fn the_goto_route_follows_the_live_autopilot_across_a_reopen() {
+/// A Map with a live GOTO from the player at the origin to a raider 50 units
+/// ahead, a trader off to the side, and a laid-out viewport.
+fn goto_route_app() -> (App, Entity, Entity, Entity) {
     let mut app = map_input_app();
     app.insert_resource(InterfaceIcons::blank());
     let player = app
@@ -706,15 +702,12 @@ fn the_goto_route_follows_the_live_autopilot_across_a_reopen() {
             Name::new("RAIDER"),
         ))
         .id();
-    let trader = app
-        .world_mut()
-        .spawn((
-            SpaceshipRootMarker,
-            Allegiance::Neutral,
-            GlobalTransform::from(Transform::from_xyz(60.0, 0.0, 0.0)),
-            Name::new("TRADER"),
-        ))
-        .id();
+    app.world_mut().spawn((
+        SpaceshipRootMarker,
+        Allegiance::Neutral,
+        GlobalTransform::from(Transform::from_xyz(60.0, 0.0, 0.0)),
+        Name::new("TRADER"),
+    ));
     app.world_mut()
         .run_system_once(assign_map_contact_codes)
         .unwrap();
@@ -723,6 +716,171 @@ fn the_goto_route_follows_the_live_autopilot_across_a_reopen() {
         .resource_mut::<ButtonInput<KeyCode>>()
         .press(KeyCode::KeyG);
     app.world_mut().run_system_once(map_input).unwrap();
+    let viewport = app
+        .world_mut()
+        .spawn((MapViewportMarker, Node::default(), ComputedNode::DEFAULT))
+        .id();
+    app.world_mut().run_system_once(drive_map_camera).unwrap();
+    (app, player, raider, viewport)
+}
+
+/// Lay the viewport out at `physical` px and 2x scale. With `camera_too` the
+/// camera projects into it 1:1 in physical px, as the render target reconciler
+/// leaves them; without, the camera is stale.
+fn lay_out_map(app: &mut App, viewport: Entity, physical: UVec2, camera_too: bool) {
+    let mut computed = app.world_mut().get_mut::<ComputedNode>(viewport).unwrap();
+    computed.size = physical.as_vec2();
+    computed.inverse_scale_factor = 0.5;
+    if !camera_too {
+        return;
+    }
+    let world = app.world_mut();
+    let (mut camera, transform, mut global) = world
+        .query_filtered::<(&mut Camera, &Transform, &mut GlobalTransform), With<MapCameraMarker>>()
+        .single_mut(world)
+        .unwrap();
+    *global = GlobalTransform::from(*transform);
+    camera.computed = ComputedCameraValues {
+        clip_from_view: PerspectiveProjection {
+            aspect_ratio: physical.x as f32 / physical.y as f32,
+            ..default()
+        }
+        .get_clip_from_view(),
+        target_info: Some(RenderTargetInfo {
+            physical_size: physical,
+            scale_factor: 2.0,
+        }),
+        ..default()
+    };
+}
+
+/// Look straight down on `focus` from 20 units above it.
+fn look_down_on(app: &mut App, focus: Vec3) {
+    let world = app.world_mut();
+    let mut global = world
+        .query_filtered::<&mut GlobalTransform, With<MapCameraMarker>>()
+        .single_mut(world)
+        .unwrap();
+    *global = GlobalTransform::from(
+        Transform::from_translation(focus + Vec3::Y * 20.0).looking_at(focus, Vec3::Z),
+    );
+}
+
+fn project_map_route_nodes(app: &mut App) {
+    // The first pass spawns the nodes; the second places them.
+    for _ in 0..2 {
+        app.world_mut().run_system_once(project_map_blips).unwrap();
+        app.world_mut().run_system_once(project_map_route).unwrap();
+    }
+}
+
+fn px(val: Val) -> f32 {
+    match val {
+        Val::Px(px) => px,
+        other => panic!("expected px, got {other:?}"),
+    }
+}
+
+fn blip_centre(app: &App, contact: Entity) -> Vec2 {
+    let blip = app.world().resource::<MapRuntime>().blips[&contact];
+    let node = app.world().get::<Node>(blip).unwrap();
+    Vec2::new(px(node.left), px(node.top)) + MAP_BLIP_PX * 0.5
+}
+
+/// A world point through the map camera, in logical px.
+fn map_px(app: &mut App, world_pos: Vec3) -> Vec2 {
+    let world = app.world_mut();
+    let (camera, global) = world
+        .query_filtered::<(&Camera, &GlobalTransform), With<MapCameraMarker>>()
+        .single(world)
+        .unwrap();
+    camera.world_to_viewport(global, world_pos).unwrap() * 0.5
+}
+
+/// The drawn ends of every shown route stroke, in no order.
+fn route_strokes(app: &mut App) -> Vec<(Vec2, Vec2)> {
+    let world = app.world_mut();
+    world
+        .query_filtered::<(&Node, &UiTransform, &Visibility), With<MapRouteLine>>()
+        .iter(world)
+        .filter(|(_, _, visibility)| **visibility != Visibility::Hidden)
+        .map(|(line, transform, _)| {
+            let centre = Vec2::new(
+                px(line.left) + px(line.width) * 0.5,
+                px(line.top) + px(line.height) * 0.5,
+            );
+            let half =
+                Vec2::new(transform.rotation.cos, transform.rotation.sin) * px(line.width) * 0.5;
+            (centre - half, centre + half)
+        })
+        .collect()
+}
+
+/// Every expected stroke is drawn, end to end within 0.01 px, and nothing
+/// else is.
+fn assert_strokes(app: &mut App, expected: &[(Vec2, Vec2)]) {
+    let strokes = route_strokes(app);
+    assert_eq!(
+        strokes.len(),
+        expected.len(),
+        "drawn {strokes:?}, expected {expected:?}"
+    );
+    for (from, to) in expected {
+        assert!(
+            strokes
+                .iter()
+                .any(|(a, b)| a.distance(*from) < 0.01 && b.distance(*to) < 0.01),
+            "no stroke runs {from:?} to {to:?}: {strokes:?}"
+        );
+    }
+}
+
+fn goto_tag(app: &mut App) -> (Vec2, Visibility) {
+    let world = app.world_mut();
+    let (marker, visibility) = world
+        .query_filtered::<(&Node, &Visibility), With<MapGotoMarker>>()
+        .single(world)
+        .unwrap();
+    (Vec2::new(px(marker.left), px(marker.top)), *visibility)
+}
+
+/// The `GOTO` tag's top-left for a target blip centred on `blip`.
+fn tag_on(blip: Vec2) -> Vec2 {
+    blip - Vec2::new(MAP_BLIP_PX * 0.5, MAP_BLIP_PX * 0.5 + MAP_GOTO_MARKER_PX)
+}
+
+fn predict(app: &mut App, ship: Entity, points: Vec<Vec3>, end: FlightPredictionEndType) {
+    let sample_interval = 0.125;
+    app.world_mut().entity_mut(ship).insert(FlightPrediction {
+        final_point_time: points.len().saturating_sub(1) as f32 * sample_interval,
+        points,
+        flip_index: None,
+        seed_time: std::time::Duration::ZERO,
+        sample_interval,
+        end,
+    });
+}
+
+/// The route starts at the player blip and runs through the projected
+/// prediction points still ahead of the ship, dropping those `Time<Fixed>` has
+/// flown past. It draws again after the map closes and reopens, at 2x scale,
+/// and across a resize while another contact is selected, and the `GOTO` tag
+/// stays on the target.
+#[test]
+fn the_goto_route_draws_the_predicted_path_from_the_ship_blip() {
+    let (mut app, player, raider, viewport) = goto_route_app();
+    let points = vec![
+        Vec3::new(1.0, 0.0, -2.0),
+        Vec3::new(5.0, 0.0, -10.0),
+        Vec3::new(12.0, 0.0, -20.0),
+        Vec3::new(15.0, 0.0, -35.0),
+    ];
+    predict(
+        &mut app,
+        player,
+        points.clone(),
+        FlightPredictionEndType::Horizon,
+    );
 
     // Close and reopen: the selection does not survive, the GOTO does.
     for pane in [InterfacePaneType::Ship, InterfacePaneType::Map] {
@@ -730,230 +888,220 @@ fn the_goto_route_follows_the_live_autopilot_across_a_reopen() {
         app.world_mut().run_system_once(manage_map_scene).unwrap();
     }
     assert_eq!(app.world().resource::<MapRuntime>().selected, None);
-    app.world_mut().resource_mut::<MapRuntime>().selected = Some(trader);
-
-    // A laid-out viewport at 2x scale and a camera that projects into it 1:1
-    // in physical px, as the render target reconciler leaves them. The blips
-    // and the route both convert to logical px, so they meet only if both do.
-    let viewport = app
+    let trader = app
         .world_mut()
-        .spawn((MapViewportMarker, Node::default(), ComputedNode::DEFAULT))
-        .id();
+        .query::<(Entity, &Name)>()
+        .iter(app.world())
+        .find_map(|(entity, name)| (name.as_str() == "TRADER").then_some(entity));
+    app.world_mut().resource_mut::<MapRuntime>().selected = trader;
     app.world_mut().run_system_once(drive_map_camera).unwrap();
-    let lay_out = |app: &mut App, physical: UVec2, camera_too: bool| {
-        let mut computed = app.world_mut().get_mut::<ComputedNode>(viewport).unwrap();
-        computed.size = physical.as_vec2();
-        computed.inverse_scale_factor = 0.5;
-        if !camera_too {
-            return;
-        }
-        let world = app.world_mut();
-        let (mut camera, transform, mut global) = world
-            .query_filtered::<(&mut Camera, &Transform, &mut GlobalTransform), With<MapCameraMarker>>()
-            .single_mut(world)
-            .unwrap();
-        *global = GlobalTransform::from(*transform);
-        camera.computed = ComputedCameraValues {
-            clip_from_view: PerspectiveProjection {
-                aspect_ratio: physical.x as f32 / physical.y as f32,
-                ..default()
-            }
-            .get_clip_from_view(),
-            target_info: Some(RenderTargetInfo {
-                physical_size: physical,
-                scale_factor: 2.0,
-            }),
-            ..default()
-        };
-    };
-    let project = |app: &mut App| {
-        // The first pass spawns the nodes; the second places them.
-        for _ in 0..2 {
-            app.world_mut().run_system_once(project_map_blips).unwrap();
-            app.world_mut().run_system_once(project_map_route).unwrap();
-        }
-    };
-    let px = |val: Val| match val {
-        Val::Px(px) => px,
-        other => panic!("expected px, got {other:?}"),
-    };
-    let blip_centre = |app: &App, contact: Entity| {
-        let blip = app.world().resource::<MapRuntime>().blips[&contact];
-        let node = app.world().get::<Node>(blip).unwrap();
-        Vec2::new(px(node.left), px(node.top)) + MAP_BLIP_PX * 0.5
-    };
-    let route_ends = |app: &mut App| {
-        let world = app.world_mut();
-        let (line, transform, visibility) = world
-            .query_filtered::<(&Node, &UiTransform, &Visibility), With<MapRouteLine>>()
-            .single(world)
-            .unwrap();
-        assert_eq!(*visibility, Visibility::Inherited, "the route draws");
-        let centre = Vec2::new(
-            px(line.left) + px(line.width) * 0.5,
-            px(line.top) + px(line.height) * 0.5,
-        );
-        let half = Vec2::new(transform.rotation.cos, transform.rotation.sin) * px(line.width) * 0.5;
-        (centre - half, centre + half)
-    };
-    let assert_route_meets_blips = |app: &mut App| {
-        let blips = (blip_centre(app, player), blip_centre(app, raider));
-        let ends = route_ends(app);
-        assert!(
-            ends.0.distance(blips.0) < 0.01 && ends.1.distance(blips.1) < 0.01,
-            "the route runs {ends:?}, the blips sit at {blips:?}"
-        );
-        assert!(
-            blips.0.distance(blips.1) > 20.0,
-            "the rig spreads the blips"
-        );
-    };
 
-    lay_out(&mut app, UVec2::new(1600, 1200), true);
-    project(&mut app);
-    assert_route_meets_blips(&mut app);
-    let to_blip = blip_centre(&app, raider);
-    let world = app.world_mut();
-    let (marker, marker_vis, children) = world
-        .query_filtered::<(&Node, &Visibility, &Children), With<MapGotoMarker>>()
-        .single(world)
-        .unwrap();
-    assert_eq!(*marker_vis, Visibility::Inherited);
-    assert_eq!(
-        px(marker.left),
-        to_blip.x - MAP_BLIP_PX * 0.5,
-        "the tag sits on the GOTO target, not the selection"
-    );
-    let tag: Vec<String> = children
-        .iter()
-        .filter_map(|child| world.get::<Text>(child).map(|text| text.0.clone()))
-        .collect();
-    assert_eq!(tag, ["GOTO"], "the destination is named in text");
-
-    // A resize: while the camera still projects into the old size the route
-    // holds, then it meets the blips in the new layout.
-    let before = route_ends(&mut app);
-    lay_out(&mut app, UVec2::new(1200, 1200), false);
-    project(&mut app);
-    assert_eq!(route_ends(&mut app), before, "a stale camera moves nothing");
-    lay_out(&mut app, UVec2::new(1200, 1200), true);
-    project(&mut app);
-    assert_route_meets_blips(&mut app);
-    assert_ne!(route_ends(&mut app), before, "the route follows the resize");
-
-    // Zoomed close with both ends outside: the crossing stroke must stop at
-    // the viewport rather than rotating an offscreen-wide UI node through it.
-    {
-        let world = app.world_mut();
-        let mut global = world
-            .query_filtered::<&mut GlobalTransform, With<MapCameraMarker>>()
-            .single_mut(world)
-            .unwrap();
-        *global = GlobalTransform::from(
-            Transform::from_xyz(0.0, 20.0, -25.0).looking_at(Vec3::new(0.0, 0.0, -25.0), Vec3::Z),
-        );
-    }
-    project(&mut app);
-    let (raw_start, raw_end) = {
-        let world = app.world_mut();
-        let (camera, global) = world
-            .query_filtered::<(&Camera, &GlobalTransform), With<MapCameraMarker>>()
-            .single(world)
-            .unwrap();
-        (
-            camera.world_to_viewport(global, Vec3::ZERO).unwrap() * 0.5,
-            camera
-                .world_to_viewport(global, Vec3::new(0.0, 0.0, -50.0))
-                .unwrap()
-                * 0.5,
-        )
-    };
-    assert!(
-        (raw_start.y < 0.0 && raw_end.y > 600.0) || (raw_end.y < 0.0 && raw_start.y > 600.0),
-        "both projected endpoints cross the viewport: {raw_start:?}, {raw_end:?}"
-    );
-    let (start, end) = route_ends(&mut app);
-    let inset = 1.0; // Half the 2 px route stroke.
-    assert!(
-        [start, end]
-            .iter()
-            .all(|p| p.x >= inset && p.y >= inset && p.x <= 600.0 - inset && p.y <= 600.0 - inset),
-        "the zoomed route escapes the viewport: {start:?} to {end:?}"
-    );
-    assert!(start.distance(end) > 100.0, "the crossing stays drawn");
-
-    // Pan beyond both ends on the same side: the line vanishes, but the tag
-    // remains tied to the live GOTO target.
-    {
-        let world = app.world_mut();
-        let mut global = world
-            .query_filtered::<&mut GlobalTransform, With<MapCameraMarker>>()
-            .single_mut(world)
-            .unwrap();
-        *global = GlobalTransform::from(
-            Transform::from_xyz(0.0, 20.0, -150.0).looking_at(Vec3::new(0.0, 0.0, -150.0), Vec3::Z),
-        );
-    }
-    project(&mut app);
-    let world = app.world_mut();
-    let (camera, global) = world
-        .query_filtered::<(&Camera, &GlobalTransform), With<MapCameraMarker>>()
-        .single(world)
-        .unwrap();
-    let projected: Vec<_> = [Vec3::ZERO, Vec3::new(0.0, 0.0, -50.0)]
-        .into_iter()
-        .map(|pos| camera.world_to_viewport(global, pos).unwrap() * 0.5)
-        .collect();
-    assert!(
-        projected.iter().all(|p| p.y < 0.0) || projected.iter().all(|p| p.y > 600.0),
-        "both ends lie beyond the same edge: {projected:?}"
-    );
-    let world = app.world_mut();
-    let line_vis = world
-        .query_filtered::<&Visibility, With<MapRouteLine>>()
-        .single(world)
-        .unwrap();
-    assert_eq!(*line_vis, Visibility::Hidden, "no viewport intersection");
-    let marker_vis = world
-        .query_filtered::<&Visibility, With<MapGotoMarker>>()
-        .single(world)
-        .unwrap();
-    assert_eq!(
-        *marker_vis,
-        Visibility::Inherited,
-        "the target keeps its tag"
-    );
-
-    // Cancelled, then replaced by another order: no route, lock untouched.
-    let shown = |app: &mut App| {
-        let world = app.world_mut();
-        world
-            .query_filtered::<&Visibility, Or<(With<MapRouteLine>, With<MapGotoMarker>)>>()
-            .iter(world)
-            .map(|visibility| *visibility != Visibility::Hidden)
+    // Point `i` is `i` sample intervals after the seed; the seed itself is
+    // where the ship is now, so the blip stands in for it.
+    let expected = |app: &mut App, ahead: &[Vec3]| {
+        let mut ends = vec![blip_centre(app, player)];
+        ends.extend(ahead.iter().map(|point| map_px(app, *point)));
+        ends.windows(2)
+            .map(|pair| (pair[0], pair[1]))
             .collect::<Vec<_>>()
     };
-    app.world_mut().entity_mut(player).remove::<Autopilot>();
-    project(&mut app);
-    assert_eq!(
-        shown(&mut app),
-        [false, false],
-        "a cancelled GOTO draws no route"
+    lay_out_map(&mut app, viewport, UVec2::new(1600, 1200), true);
+    project_map_route_nodes(&mut app);
+    let path = expected(&mut app, &points[1..]);
+    assert_strokes(&mut app, &path);
+    assert!(
+        blip_centre(&app, player).distance(map_px(&mut app, points[3])) > 20.0,
+        "the rig spreads the path"
     );
+    let raider_blip = blip_centre(&app, raider);
+    assert_eq!(
+        goto_tag(&mut app),
+        (tag_on(raider_blip), Visibility::Inherited),
+        "the tag sits on the GOTO target, not the selection"
+    );
+
+    // One sample interval flown: the first point ahead is behind the ship.
+    app.world_mut()
+        .resource_mut::<Time<Fixed>>()
+        .advance_by(std::time::Duration::from_millis(130));
+    project_map_route_nodes(&mut app);
+    let path = expected(&mut app, &points[2..]);
+    assert_strokes(&mut app, &path);
+
+    // A resize: while the camera still projects into the old size the route
+    // holds, then it follows the prediction in the new layout.
+    lay_out_map(&mut app, viewport, UVec2::new(1200, 1200), false);
+    project_map_route_nodes(&mut app);
+    assert_strokes(&mut app, &path);
+    lay_out_map(&mut app, viewport, UVec2::new(1200, 1200), true);
+    project_map_route_nodes(&mut app);
+    let resized = expected(&mut app, &points[2..]);
+    assert_ne!(resized, path, "the resize moves the projection");
+    assert_strokes(&mut app, &resized);
+}
+
+/// Zoomed close with the path running through the view: every stroke stops
+/// at the viewport rather than rotating an offscreen-wide UI node through it.
+#[test]
+fn the_goto_route_strokes_stay_inside_a_zoomed_viewport() {
+    let (mut app, player, _, viewport) = goto_route_app();
+    let points: Vec<Vec3> = (0..=6)
+        .map(|i| Vec3::new(0.0, 0.0, -10.0 * i as f32))
+        .collect();
+    predict(&mut app, player, points, FlightPredictionEndType::Completed);
+    lay_out_map(&mut app, viewport, UVec2::new(1200, 1200), true);
+    look_down_on(&mut app, Vec3::new(0.0, 0.0, -25.0));
+    project_map_route_nodes(&mut app);
+
+    let (start, end) = (
+        map_px(&mut app, Vec3::ZERO),
+        map_px(&mut app, Vec3::new(0.0, 0.0, -60.0)),
+    );
+    assert!(
+        (start.y < 0.0 && end.y > 600.0) || (end.y < 0.0 && start.y > 600.0),
+        "the path crosses the viewport: {start:?} to {end:?}"
+    );
+    let strokes = route_strokes(&mut app);
+    let inset = MAP_ROUTE_PX * 0.5;
+    assert!(
+        strokes
+            .iter()
+            .flat_map(|(a, b)| [a, b])
+            .all(|p| p.x >= inset && p.y >= inset && p.x <= 600.0 - inset && p.y <= 600.0 - inset),
+        "a zoomed stroke escapes the viewport: {strokes:?}"
+    );
+    let drawn: f32 = strokes.iter().map(|(a, b)| a.distance(*b)).sum();
+    assert!(drawn > 500.0, "the crossing stays drawn: {drawn} px");
+}
+
+/// A prediction that reaches its horizon short of the target ends where it
+/// ends: no stroke runs on to the target, and the `GOTO` tag still sits on
+/// the target blip.
+#[test]
+fn a_horizon_route_stops_short_and_the_tag_stays_on_the_target() {
+    let (mut app, player, raider, viewport) = goto_route_app();
+    let points = vec![
+        Vec3::ZERO,
+        Vec3::new(2.0, 0.0, -8.0),
+        Vec3::new(3.0, 0.0, -20.0),
+    ];
+    predict(
+        &mut app,
+        player,
+        points.clone(),
+        FlightPredictionEndType::Horizon,
+    );
+    lay_out_map(&mut app, viewport, UVec2::new(1600, 1200), true);
+    project_map_route_nodes(&mut app);
+
+    let ends = [
+        blip_centre(&app, player),
+        map_px(&mut app, points[1]),
+        map_px(&mut app, points[2]),
+    ];
+    assert_strokes(&mut app, &[(ends[0], ends[1]), (ends[1], ends[2])]);
+    let raider_blip = blip_centre(&app, raider);
+    assert!(
+        ends[2].distance(raider_blip) > 20.0,
+        "the horizon falls short"
+    );
+    assert_eq!(
+        goto_tag(&mut app),
+        (tag_on(raider_blip), Visibility::Inherited)
+    );
+}
+
+/// No prediction, or one flown past its off-grid final point, draws no path
+/// while the tag stays on the live GOTO target; a cancelled GOTO, or another
+/// order with a prediction of its own, draws neither, and the travel lock
+/// outlives the GOTO.
+#[test]
+fn the_goto_route_hides_without_a_prediction_or_a_goto() {
+    let (mut app, player, raider, viewport) = goto_route_app();
+    let points = vec![Vec3::ZERO, Vec3::new(0.0, 0.0, -10.0)];
+    predict(
+        &mut app,
+        player,
+        points.clone(),
+        FlightPredictionEndType::Completed,
+    );
+    lay_out_map(&mut app, viewport, UVec2::new(1600, 1200), true);
+    project_map_route_nodes(&mut app);
+    assert_eq!(route_strokes(&mut app).len(), 1, "the rig draws a path");
+
+    // The leg ends at 0.0625 s, between two samples. Past that tick the end
+    // point is flown although its grid time, 0.125 s, is still ahead.
+    app.world_mut()
+        .get_mut::<FlightPrediction>(player)
+        .unwrap()
+        .final_point_time = 0.0625;
+    app.world_mut()
+        .resource_mut::<Time<Fixed>>()
+        .advance_by(std::time::Duration::from_millis(70));
+    project_map_route_nodes(&mut app);
+    assert_eq!(
+        route_strokes(&mut app),
+        [],
+        "a flown end point draws no path"
+    );
+    let raider_blip = blip_centre(&app, raider);
+    assert_eq!(
+        goto_tag(&mut app),
+        (tag_on(raider_blip), Visibility::Inherited),
+        "the tag does not follow the prediction"
+    );
+
+    app.world_mut()
+        .entity_mut(player)
+        .remove::<FlightPrediction>();
+    project_map_route_nodes(&mut app);
+    assert_eq!(route_strokes(&mut app), [], "no prediction, no path");
+    assert_eq!(
+        goto_tag(&mut app),
+        (tag_on(raider_blip), Visibility::Inherited),
+        "the GOTO is still live"
+    );
+
+    predict(
+        &mut app,
+        player,
+        points.clone(),
+        FlightPredictionEndType::Completed,
+    );
+    app.world_mut().entity_mut(player).remove::<Autopilot>();
+    project_map_route_nodes(&mut app);
+    assert_eq!(
+        route_strokes(&mut app),
+        [],
+        "a cancelled GOTO draws no path"
+    );
+    assert_eq!(goto_tag(&mut app).1, Visibility::Hidden);
+
     app.world_mut()
         .entity_mut(player)
         .insert(Autopilot::engage(AutopilotAction::Stop));
-    project(&mut app);
-    assert_eq!(
-        shown(&mut app),
-        [false, false],
-        "another order draws no route"
-    );
+    project_map_route_nodes(&mut app);
+    assert_eq!(route_strokes(&mut app), [], "another order draws no path");
+    assert_eq!(goto_tag(&mut app).1, Visibility::Hidden);
     assert_eq!(
         app.world().get::<TravelLock>(player),
         Some(&TravelLock(Some(raider))),
         "the travel lock outlives the GOTO"
     );
+}
+
+#[test]
+fn decimate_route_keeps_the_ends_and_the_sharpest_bend_within_the_cap() {
+    let corner = Vec3::new(120.0, 0.0, 0.0);
+    let points: Vec<Vec3> = (0..120)
+        .map(|i| Vec3::new(i as f32, 0.0, 0.0))
+        .chain((0..120).map(|i| corner + Vec3::new(0.0, 0.0, -(i as f32))))
+        .collect();
+    let kept = decimate_route(&points, MAP_ROUTE_SEGMENTS + 1);
+    assert_eq!(kept.len(), MAP_ROUTE_SEGMENTS + 1);
+    assert_eq!(kept.first(), points.first());
+    assert_eq!(kept.last(), points.last());
+    assert!(kept.contains(&corner), "the corner survives: {kept:?}");
 }
 
 /// LMB is the contact-SELECT click (the blip `Button` widget's Primary

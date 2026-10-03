@@ -14,6 +14,8 @@ mod attitude;
 mod pd_controller;
 mod rigid_body;
 
+pub(crate) use self::pd_controller::compute_pd_torque;
+
 /// The PD controller types and plugin, the attitude envelope, and the
 /// rigid-body point-velocity helper.
 pub mod prelude {
