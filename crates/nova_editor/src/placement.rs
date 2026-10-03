@@ -168,6 +168,14 @@ impl HeldBind<'_, '_> {
             mining_taken,
         )
     }
+
+    /// The keyboard key a click would bind, filtered exactly as
+    /// [`placement_binds`] filters it: a camera key held alongside the click
+    /// never counts as "held". `None` with no keyboard resource or nothing
+    /// just pressed.
+    fn captured_key(&self) -> Option<InputSource> {
+        capture_binding(self.keyboard.as_deref()?, &EDITOR_CAMERA_KEYS).map(InputSource::from)
+    }
 }
 
 /// The desk keys mining sections take, in order. A new mining section takes the
@@ -1020,6 +1028,22 @@ pub(crate) fn on_click_spaceship_section(
                     .filter(|(_, child_of)| child_of.parent() == owner)
                     .map(|(section, _)| section),
             );
+            // `binds_for` below only ever answers "no mining key is left" -
+            // it falls back to the free default rather than naming a clash,
+            // so a held key that duplicates another mining section's own key
+            // would otherwise double that key up unnoticed.
+            if matches!(config.kind, SectionKind::Mining(_)) {
+                if let Some(key) = held.captured_key() {
+                    if taken.contains(&key) {
+                        says.refuse(format!(
+                            "{} already drives another mining section on this ship - hold a free key instead",
+                            key.label()
+                        ));
+                        cues.deny();
+                        return;
+                    }
+                }
+            }
             let Some(binds) = held.binds_for(&config.kind, &taken) else {
                 says.refuse(MINING_KEYS_TAKEN);
                 cues.deny();
@@ -2212,6 +2236,159 @@ mod tests {
             taken.extend(binds);
         }
         assert_eq!(default_binds(&mining, &taken), None);
+    }
+
+    fn mining_section_config(id: &str) -> SectionConfig {
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                name: id.to_string(),
+                ..default()
+            },
+            kind: SectionKind::Mining(nova_ship::prelude::MiningSectionConfig {
+                render_mesh: nova_gameplay::prelude::AssetRef::default(),
+                render_mesh_transform: None,
+                pulse_sound: nova_gameplay::prelude::AssetRef::default(),
+                door_open_sound: nova_gameplay::prelude::AssetRef::default(),
+                door_close_sound: nova_gameplay::prelude::AssetRef::default(),
+                reach: nova_events::units::prelude::Meters(100.0),
+                pulse_interval_seconds: 1.0,
+                carve_radius_cells: 1.5,
+            }),
+        }
+    }
+
+    /// A held key only ever falls BACK to the free default - it must never
+    /// silently take a key another mining section already answers to. A
+    /// builder holding V while placing a second emitter, with V already
+    /// spoken for and B still free, must be refused by name rather than
+    /// handed a doubled-up V or the free B they never asked for.
+    #[test]
+    fn a_held_key_that_duplicates_a_mining_sections_own_key_refuses_placement() {
+        use bevy::{
+            camera::NormalizedRenderTarget,
+            picking::{
+                backend::HitData,
+                pointer::{Location, PointerId},
+            },
+            window::{Window, WindowRef},
+        };
+
+        let mut app = document_only(vec![hull_config("hull"), mining_section_config("miner")]);
+        app.init_resource::<SelectedNode>();
+        app.init_resource::<LastClick>();
+        app.init_resource::<FrameRequest>();
+        app.init_resource::<EditorRebind>();
+        app.insert_resource(SectionChoice::Section("miner".to_string()));
+        app.insert_resource(Time::<Real>::default());
+        app.add_observer(on_click_spaceship_section);
+
+        let scenario = app
+            .world()
+            .resource::<EditContext>()
+            .scenario()
+            .expect("the document exists");
+        let ship = app
+            .world_mut()
+            .spawn((
+                ShipNode::default(),
+                NextChildOrdinal::default(),
+                ChildOf(scenario),
+            ))
+            .id();
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+
+        // The section the click lands on, to mate the new part against.
+        let hull_node = app
+            .world_mut()
+            .spawn((
+                SectionNode {
+                    source: SectionSource::Prototype {
+                        id: "hull".to_string(),
+                        patch: SectionConfigPatch::EMPTY,
+                    },
+                    binds: vec![],
+                },
+                NodeId("hull_1".to_string()),
+                Transform::IDENTITY,
+                ChildOf(ship),
+            ))
+            .id();
+        let view = app.world_mut().spawn((NodeView, ChildOf(hull_node))).id();
+
+        // A mining section already placed, holding V - the first free key an
+        // empty ship would have handed it.
+        app.world_mut().spawn((
+            SectionNode {
+                source: SectionSource::Prototype {
+                    id: "miner".to_string(),
+                    patch: SectionConfigPatch::EMPTY,
+                },
+                binds: vec![InputSource::from(KeyCode::KeyV)],
+            },
+            NodeId("miner_1".to_string()),
+            Transform::IDENTITY,
+            ChildOf(ship),
+        ));
+
+        app.insert_resource(PlacementPreview {
+            placement: Some(Placement {
+                prototype: "miner".to_string(),
+                target_section: hull_node,
+                solve: crate::snap::Placement {
+                    transform: Transform::IDENTITY,
+                    source: 0,
+                    target: 0,
+                    refusal: None,
+                },
+            }),
+        });
+
+        let mut keyboard = ButtonInput::<KeyCode>::default();
+        keyboard.press(KeyCode::KeyV);
+        app.insert_resource(keyboard);
+
+        let screen = app.world_mut().spawn(Window::default()).id();
+        let target = NormalizedRenderTarget::Window(
+            WindowRef::Entity(screen)
+                .normalize(None)
+                .expect("a named window normalizes"),
+        );
+        app.world_mut().trigger(Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target,
+                position: Vec2::ZERO,
+            },
+            Press {
+                button: PointerButton::Primary,
+                hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+                count: 1,
+            },
+            view,
+        ));
+        app.update();
+
+        let sections_on_ship = app
+            .world_mut()
+            .query::<(&SectionNode, &ChildOf)>()
+            .iter(app.world())
+            .filter(|(_, child_of)| child_of.parent() == ship)
+            .count();
+        assert_eq!(
+            sections_on_ship, 2,
+            "the held V duplicate must not spawn a second mining section"
+        );
+        assert!(
+            app.world()
+                .resource::<EditorStatus>()
+                .line()
+                .is_some_and(|(line, _)| {
+                    line.contains("V already drives another mining section")
+                        && !line.contains(MINING_KEYS_TAKEN)
+                }),
+            "the refusal names the held key, not the generic exhaustion message"
+        );
     }
 
     /// F29: placing a turret while a camera key is held falls back to the
