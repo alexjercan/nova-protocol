@@ -3,10 +3,14 @@
 //! Touch this module when changing what the map pane remembers between frames
 //! or how its contact panel is laid out.
 
-use bevy::prelude::*;
-use nova_ui::theme::UiColor;
+use bevy::{prelude::*, ui::InteractionDisabled};
+use nova_ui::{
+    prelude::{button, ButtonSpec},
+    theme::UiColor,
+    widget::ThemedFill,
+};
 
-use super::MapContactKind;
+use super::{on_map_goto_button, MapContactKind};
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
     pane::{panel_preview_frame, side_panel, themed_label, PANEL_PREVIEW_PX},
@@ -16,7 +20,7 @@ use crate::{
 #[derive(Component)]
 pub(crate) struct MapViewportMarker;
 
-/// Which live text line of the contact panel or the footer a node is, so
+/// Which live text line of the contact panel a node is, so
 /// [`update_map_panel`](super::update_map_panel) refreshes them all in place.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum MapPanelField {
@@ -32,8 +36,9 @@ pub(crate) enum MapPanelField {
     Bearing,
     /// A GOTO result while it shows, else what the contact is.
     Note,
-    /// The selection summary on the right of the pane footer.
-    Summary,
+    /// The player ship's live GOTO destination, read from its autopilot, not
+    /// from the selection.
+    Destination,
 }
 
 /// The selected contact's body icon in the panel head, hidden with nothing
@@ -41,8 +46,24 @@ pub(crate) enum MapPanelField {
 #[derive(Component)]
 pub(crate) struct MapPanelIcon;
 
+/// The contact panel's GOTO button. It is disabled with no contact or the own
+/// ship selected; [`update_map_panel`](super::update_map_panel) toggles it.
+#[derive(Component)]
+pub(crate) struct MapGotoButton;
+
+/// The route line from the player ship to its live GOTO target, drawn under
+/// the blips. It takes no clicks.
+#[derive(Component)]
+pub(crate) struct MapRouteLine;
+
+/// The `GOTO` text tag over the live GOTO target, so the destination does not
+/// rely on colour alone. It takes no clicks.
+#[derive(Component)]
+pub(crate) struct MapGotoMarker;
+
 /// Build the contact panel beside the map view: the selection's icon over its
-/// code, name and kind, then its range, bearing and note.
+/// code, name and kind; a rule; its range and bearing; a rule; its note; a
+/// rule; and the live GOTO destination over the GOTO button.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent.spawn(side_panel()).with_children(|panel| {
@@ -57,17 +78,55 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
                 Visibility::Hidden,
             ));
         });
-        for (field, size, color) in [
-            (MapPanelField::Code, 16.0, UiColor::Primary),
-            (MapPanelField::Name, 12.0, UiColor::Body),
-            (MapPanelField::Kind, 12.0, UiColor::Body),
-            (MapPanelField::Range, 12.0, UiColor::Body),
-            (MapPanelField::Bearing, 12.0, UiColor::Body),
-            (MapPanelField::Note, 12.0, UiColor::Label),
-        ] {
-            panel.spawn((field, themed_label("", size, color)));
+        panel
+            .spawn(Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: px(4),
+                ..default()
+            })
+            .with_children(|identity| {
+                for (field, size, color) in [
+                    (MapPanelField::Code, 18.0, UiColor::Primary),
+                    (MapPanelField::Name, 13.0, UiColor::Body),
+                    (MapPanelField::Kind, 12.0, UiColor::Body),
+                ] {
+                    identity.spawn((field, themed_label("", size, color)));
+                }
+            });
+        panel.spawn(panel_rule());
+        for field in [MapPanelField::Range, MapPanelField::Bearing] {
+            panel.spawn((field, themed_label("", 13.0, UiColor::Primary)));
         }
+        panel.spawn(panel_rule());
+        panel.spawn((MapPanelField::Note, themed_label("", 12.0, UiColor::Label)));
+        panel.spawn(panel_rule());
+        panel.spawn((
+            MapPanelField::Destination,
+            themed_label("", 12.0, UiColor::Label),
+        ));
+        // Disabled at spawn: the map opens with nothing selected.
+        panel
+            .spawn((
+                MapGotoButton,
+                button(ButtonSpec::new("GOTO").fit()),
+                InteractionDisabled,
+                Name::new("MapGoto"),
+            ))
+            .observe(on_map_goto_button);
     });
+}
+
+/// A one-pixel rule between groups of the contact panel.
+fn panel_rule() -> impl Bundle {
+    (
+        Node {
+            height: px(1),
+            flex_shrink: 0.0,
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        ThemedFill::alpha(UiColor::Secondary, 0.35),
+    )
 }
 
 /// The slot [`refresh_map_legend`](super::refresh_map_legend) fills with the
@@ -136,4 +195,7 @@ pub(crate) struct MapRuntime {
     pub(crate) focused_on: Option<Entity>,
     /// A transient GOTO result shown on the panel note for a short time.
     pub(crate) goto_note: Option<(String, f32)>,
+    /// The GOTO button was activated. [`map_input`](super::map_input) takes it
+    /// on its next run and validates it with the `map_goto` key.
+    pub(crate) goto_requested: bool,
 }

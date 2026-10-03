@@ -28,12 +28,14 @@ pub(crate) fn apply_ship_rebind(
     mut runtime: ResMut<ShipRuntime>,
     mut commands: Commands,
     targets: Query<(
+        Entity,
         &ChildOf,
         &EntityId,
         Option<&SpaceshipThrusterInputBinding>,
         Option<&SpaceshipTurretInputBinding>,
         Option<&SpaceshipTorpedoInputBinding>,
         Option<&SpaceshipRailgunInputBinding>,
+        Option<&SpaceshipMiningInputBinding>,
     )>,
     mut changed: MessageWriter<SectionInputBindingChanged>,
 ) {
@@ -61,7 +63,8 @@ pub(crate) fn apply_ship_rebind(
     let Some(source) = sources.captured_desk() else {
         return;
     };
-    let Ok((parent, id, thruster, turret, torpedo, railgun)) = targets.get(target) else {
+    let Ok((_, parent, id, thruster, turret, torpedo, railgun, mining)) = targets.get(target)
+    else {
         runtime.rebinding = None;
         return;
     };
@@ -74,6 +77,29 @@ pub(crate) fn apply_ship_rebind(
     if let RebindVerdict::Refuse(line) = verdict {
         runtime.note = Some((line, 2.5));
         return;
+    }
+    // Each mining section deploys on its own key, so a key another emitter on
+    // this ship holds would deploy both on one press. The lint and the spawn
+    // refuse the same. Other section kinds may still share a key on purpose.
+    if mining.is_some() {
+        let other = targets
+            .iter()
+            .find(|(entity, other_parent, .., other_mining)| {
+                *entity != target
+                    && other_parent.parent() == ship
+                    && other_mining.is_some_and(|binding| binding.0.contains(&source))
+            });
+        if let Some((_, _, other_id, ..)) = other {
+            runtime.note = Some((
+                format!(
+                    "mining section {} already holds {}",
+                    other_id.0,
+                    source.readout_label()
+                ),
+                2.5,
+            ));
+            return;
+        }
     }
 
     // The captured key replaces the DESK half of the trigger and the pad half
@@ -104,6 +130,12 @@ pub(crate) fn apply_ship_rebind(
         commands
             .entity(target)
             .insert(SpaceshipRailgunInputBinding(binds.clone()));
+        binds
+    } else if let Some(mining) = mining {
+        let binds = rebound(&mining.0);
+        commands
+            .entity(target)
+            .insert(SpaceshipMiningInputBinding(binds.clone()));
         binds
     } else {
         runtime.rebinding = None;
@@ -230,6 +262,65 @@ mod tests {
             .note
             .as_ref()
             .is_some_and(|(note, _)| note.contains("flight control")));
+    }
+
+    /// One press must not deploy two emitters: a key another mining section
+    /// on the ship holds is refused and the capture stays armed, while the
+    /// same key shared with a non-mining section is still allowed.
+    #[test]
+    fn a_mining_rebind_refuses_a_key_another_mining_section_holds() {
+        let (mut world, gun) = rebind_world();
+        let ship = world.get::<ChildOf>(gun).unwrap().parent();
+        world.spawn((
+            ChildOf(ship),
+            EntityId("bow_beam".to_string()),
+            SpaceshipMiningInputBinding(vec![KeyCode::KeyV.into()]),
+        ));
+        let keel = world
+            .spawn((
+                ChildOf(ship),
+                EntityId("keel_beam".to_string()),
+                SpaceshipMiningInputBinding(vec![KeyCode::KeyB.into()]),
+            ))
+            .id();
+        world.resource_mut::<ShipRuntime>().rebinding = Some(keel);
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyV);
+
+        world.run_system_once(apply_ship_rebind).unwrap();
+
+        assert_eq!(
+            world.get::<SpaceshipMiningInputBinding>(keel).unwrap().0,
+            vec![InputSource::Keyboard(KeyCode::KeyB)]
+        );
+        let runtime = world.resource::<ShipRuntime>();
+        assert_eq!(runtime.rebinding, Some(keel), "the capture stays armed");
+        assert!(
+            runtime
+                .note
+                .as_ref()
+                .is_some_and(|(note, _)| note.contains("bow_beam")),
+            "{:?}",
+            runtime.note
+        );
+
+        // The gun fires on F; a mining key may share it.
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyV);
+        world.resource_mut::<ButtonInput<KeyCode>>().clear();
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyF);
+
+        world.run_system_once(apply_ship_rebind).unwrap();
+
+        assert_eq!(
+            world.get::<SpaceshipMiningInputBinding>(keel).unwrap().0,
+            vec![InputSource::Keyboard(KeyCode::KeyF)]
+        );
+        assert!(world.resource::<ShipRuntime>().rebinding.is_none());
     }
 
     /// A key pressed at this panel says nothing about the controller the

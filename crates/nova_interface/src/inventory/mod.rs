@@ -5,8 +5,10 @@
 //! of the player ship and of the partner its `DockingConnection` names: category
 //! filters, one column per ship with its credits, the player's load against its
 //! capacity, and an inspector for the clicked row. While docked, the inspector
-//! opens an action form. The player's row opens Give, and switches to Sell when
-//! the partner trades: it is neither neutralized nor lootable. The partner's row
+//! opens an action form. The player's row opens Sell when the partner trades:
+//! it is neither neutralized nor lootable. The form switches a Sell to Give and
+//! back. The player's row opens Give when the partner is neutralized or
+//! lootable. The partner's row
 //! opens Take when the partner is neutralized or lootable, and Buy otherwise.
 //! While undocked with a live cargo intake, the player's row opens a Jettison
 //! form. Confirm writes an [`InventoryActionCommand`], and
@@ -23,6 +25,10 @@
 //! [`plan_credit_take`](nova_gameplay::prelude::plan_credit_take) rule, or
 //! refuses with no change.
 //!
+//! The keyboard reaches the same selection: `viewer_next` and `viewer_prev`
+//! step through the shown rows as a click would, and `inventory_details`
+//! opens the full description the inspector clips to four lines.
+//!
 //! # Module layout
 //!
 //! | Module | Concern |
@@ -36,6 +42,7 @@ mod tests;
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{ItemCategoryType, ItemTradeType, ItemTransferType, ItemType};
+use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::app::*;
 
@@ -50,10 +57,12 @@ impl Plugin for InventoryPanePlugin {
         app.add_systems(
             Update,
             (
+                inventory_keys.run_if(in_input_mode(InputMode::Normal)),
                 apply_inventory_action_commands,
                 apply_credit_take_commands,
                 type_inventory_draft,
                 update_inventory_panel,
+                update_inventory_about,
                 sync_inventory_draft_controls,
             )
                 .chain()
@@ -91,6 +100,9 @@ pub(crate) struct InventoryRuntime {
     pub(crate) draft: Option<InventoryDraft>,
     /// The last action result and its remaining seconds on screen.
     pub(crate) note: Option<(String, f32)>,
+    /// Whether `inventory_details` holds the selected item's full description
+    /// open. A new selection closes it.
+    pub(crate) details: bool,
 }
 
 /// What an Inventory pane form does with its items.

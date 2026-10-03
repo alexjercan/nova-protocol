@@ -36,7 +36,7 @@ use crate::{
         insert_lifted_section, resume_ordinals, EditContext, NextChildOrdinal, NodeId, SectionNode,
         ShipNode,
     },
-    placement::default_binds,
+    placement::{default_binds, MINING_KEYS_TAKEN},
 };
 
 /// The seed the next Generate collapses, as the builder last left it.
@@ -183,6 +183,28 @@ pub(crate) fn generate_ship(
         }
     };
 
+    // The keys the flight HUD names, on the parts that answer to them. A
+    // generated ship is one the builder can set to Player and fly, and an
+    // unbound battery is a ship with no trigger. Each mining section takes its
+    // own key, so a hull with more emitters than mining keys is refused here,
+    // before the old hull goes.
+    let mut mining_taken = Vec::new();
+    let mut binds = Vec::with_capacity(hull.sections.len());
+    for section in &hull.sections {
+        let Some(config) = section.source.resolve(Some(sections)) else {
+            binds.push(vec![]);
+            continue;
+        };
+        let Some(section_binds) = default_binds(&config.kind, &mining_taken) else {
+            says.refuse(MINING_KEYS_TAKEN);
+            return;
+        };
+        if matches!(config.kind, SectionKind::Mining(_)) {
+            mining_taken.extend(section_binds.iter().copied());
+        }
+        binds.push(section_binds);
+    }
+
     // Only now, with a hull in hand that the lint accepts.
     for child in held
         .iter_descendants(ship)
@@ -193,23 +215,16 @@ pub(crate) fn generate_ship(
 
     let parts = hull.sections.len();
     let ordinal = resume_ordinal(hull.sections.iter().map(|section| section.id.as_str()));
-    for section in hull.sections {
-        let bare = SectionNode {
-            source: section.source,
-            binds: vec![],
-        };
-        // The keys the flight HUD names, on the parts that answer to them. A
-        // generated ship is one the builder can set to Player and fly, and an
-        // unbound battery is a ship with no trigger.
-        let binds = bare
-            .resolve(Some(sections))
-            .map_or_else(Vec::new, |config| default_binds(&config.kind));
+    for (section, binds) in hull.sections.into_iter().zip(binds) {
         insert_lifted_section(
             &mut commands,
             Some(sections),
             ship,
             NodeId(section.id),
-            SectionNode { binds, ..bare },
+            SectionNode {
+                source: section.source,
+                binds,
+            },
             Transform::from_translation(section.position).with_rotation(section.rotation),
         );
     }

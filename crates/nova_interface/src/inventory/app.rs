@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use bevy::{
     ecs::system::SystemParam,
+    picking::hover::Hovered,
     prelude::*,
     ui::InteractionDisabled,
     ui_widgets::{
@@ -18,14 +19,15 @@ use bevy::{
     },
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputBindings;
 use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedShip, DockingConnection,
 };
 use nova_ui::{
     theme::UiColor,
     widget::{
-        button, slider_track, text_field, ButtonSpec, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText,
+        slider_track, text_field, ButtonSpec, TextFieldError, TextFieldFocused, TextFieldSpec,
+        TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText,
     },
 };
 
@@ -35,7 +37,12 @@ use super::{
 };
 use crate::{
     icons::{icon_node, InterfaceIcons},
-    pane::{play_menu_select, themed_label},
+    pane::{
+        compact_button, control_row, divider, play_menu_select, themed_label, InterfacePaneType,
+        SUMMARY_LINES,
+    },
+    terminal::NovaOsAppInput,
+    viewer::cycle_index,
 };
 
 /// Height of one inventory row, in logical px.
@@ -44,6 +51,14 @@ const ROW_PX: f32 = 28.0;
 const QTY_PX: f32 = 64.0;
 /// Seconds a transfer result stays on the note line, as on the Ship pane.
 const NOTE_SECONDS: f32 = 2.5;
+/// Font size of the item description, in logical px.
+const ABOUT_FONT_PX: f32 = 12.0;
+/// Lines of description the inspector reserves. A longer text is clipped, so
+/// the facts and the form under it keep their place as the selection changes.
+pub(crate) const ABOUT_LINES: f32 = 4.0;
+/// Height of the reserved description box, in logical px, at Bevy's default
+/// line height of 1.2 font sizes.
+const ABOUT_PX: f32 = ABOUT_FONT_PX * 1.2 * ABOUT_LINES;
 
 /// The category filters left to right, after All. Display order only: icon
 /// masks stay stored in [`ItemCategoryType`] declaration order.
@@ -70,6 +85,23 @@ pub(crate) struct InventoryColumn {
 /// The heading over one side's rows: the ship's name.
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct InventoryColumnTitle(pub(crate) InventorySideType);
+
+/// One labelled number under a column title. The player's column shows its
+/// cargo and credits; the partner's shows its credits.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct InventoryColumnFact(
+    pub(crate) InventorySideType,
+    pub(crate) InventoryColumnFactType,
+);
+
+/// Which number an [`InventoryColumnFact`] shows.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum InventoryColumnFactType {
+    /// The load against the capacity.
+    Cargo,
+    /// The credit balance.
+    Credits,
+}
 
 /// The partner column header's Take credits button: a click moves its whole
 /// balance in one confirmation, no item and no quantity. Shown only while the
@@ -104,6 +136,11 @@ pub(crate) enum InspectorPart {
     ActionChips,
     /// The draft quantity's total weight, while the quantity is a whole number.
     TotalWeight,
+    /// The full description over the clipped one, while the pointer is on it
+    /// and it is clipped, or while `inventory_details` holds it open.
+    AboutFull,
+    /// The cue that the description is clipped, and the key that shows it.
+    AboutMore,
 }
 
 /// A text of the inspector that [`update_inventory_panel`] fills.
@@ -113,8 +150,14 @@ pub(crate) enum InventoryInspectorField {
     Name,
     /// The item's category.
     Category,
-    /// What the item is.
+    /// What the item is, clipped to [`ABOUT_LINES`] lines.
     About,
+    /// What the item is, in full, in the [`InspectorPart::AboutFull`] overlay.
+    AboutFull,
+    /// The key that selects the next or previous row, from the live bindings.
+    SelectCue,
+    /// The key that shows the full description, from the live bindings.
+    DetailsCue,
     /// How many the selected side carries, and which ship that is.
     Stock,
     /// The mass of one item.
@@ -157,6 +200,11 @@ pub(crate) struct InventoryDraftConfirm;
 /// The selected item's category icon in the inspector.
 #[derive(Component)]
 pub(crate) struct InventoryInspectorIcon;
+
+/// The fixed-height description box. Its `Hovered` shows the full text when
+/// the text is clipped.
+#[derive(Component)]
+pub(crate) struct InventoryAboutBox;
 
 /// What one column's rows show.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -234,18 +282,6 @@ fn chip_paint(current: bool) -> (UiColor, f32, f32) {
         (UiColor::Accent, 0.25, 1.0)
     } else {
         (UiColor::Secondary, 0.08, 0.4)
-    }
-}
-
-/// A row of controls.
-fn control_row(justify: JustifyContent) -> Node {
-    Node {
-        flex_direction: FlexDirection::Row,
-        align_items: AlignItems::Center,
-        justify_content: justify,
-        column_gap: px(12),
-        flex_shrink: 0.0,
-        ..default()
     }
 }
 
@@ -388,6 +424,42 @@ fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType)
                 });
             panel
                 .spawn(Node {
+                    flex_wrap: FlexWrap::Wrap,
+                    row_gap: px(2),
+                    column_gap: px(16),
+                    ..control_row(JustifyContent::FlexStart)
+                })
+                .with_children(|facts| {
+                    let shown: &[InventoryColumnFactType] = match side {
+                        InventorySideType::Own => &[
+                            InventoryColumnFactType::Cargo,
+                            InventoryColumnFactType::Credits,
+                        ],
+                        InventorySideType::Partner => &[InventoryColumnFactType::Credits],
+                    };
+                    for &fact in shown {
+                        let label = match fact {
+                            InventoryColumnFactType::Cargo => "Cargo",
+                            InventoryColumnFactType::Credits => "Credits",
+                        };
+                        facts
+                            .spawn(Node {
+                                column_gap: px(6),
+                                ..control_row(JustifyContent::FlexStart)
+                            })
+                            .with_children(|pair| {
+                                pair.spawn(themed_label(label, 11.0, UiColor::Label));
+                                pair.spawn((
+                                    InventoryColumnFact(side, fact),
+                                    themed_label("", 13.0, UiColor::Primary),
+                                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                                ));
+                            });
+                    }
+                });
+            panel.spawn(divider());
+            panel
+                .spawn(Node {
                     flex_direction: FlexDirection::Row,
                     padding: UiRect::axes(px(8), px(0)),
                     column_gap: px(8),
@@ -427,7 +499,9 @@ fn inventory_column(columns: &mut ChildSpawnerCommands, side: InventorySideType)
 
 /// The inspector: a hint with nothing selected, else the item's icon, name,
 /// category, description and stock. It takes 20% of the row beside the
-/// stores, so the stock line wraps at words.
+/// stores. Each part keeps its height as the selection changes: the name and
+/// the stock clip on one line, the description clips to [`ABOUT_LINES`], and
+/// rows that come and go with the draft hide without giving up their space.
 fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     split
         .spawn((
@@ -449,10 +523,26 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
             ThemedBorder::new(UiColor::Secondary),
         ))
         .with_children(|panel| {
-            panel.spawn((
-                InspectorPart::Hint,
-                themed_label("Click an item to inspect it.", 13.0, UiColor::Body),
-            ));
+            panel
+                .spawn((
+                    InspectorPart::Hint,
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(4),
+                        ..default()
+                    },
+                ))
+                .with_children(|hint| {
+                    hint.spawn(themed_label(
+                        "Click an item to inspect it.",
+                        13.0,
+                        UiColor::Body,
+                    ));
+                    hint.spawn((
+                        InventoryInspectorField::SelectCue,
+                        themed_label("", 12.0, UiColor::Label),
+                    ));
+                });
             panel
                 .spawn((
                     InspectorPart::Item,
@@ -493,14 +583,18 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                                 ));
                             });
                             head.spawn(Node {
+                                flex_grow: 1.0,
+                                min_width: px(0),
                                 flex_direction: FlexDirection::Column,
                                 row_gap: px(4),
+                                overflow: Overflow::clip(),
                                 ..default()
                             })
                             .with_children(|names| {
                                 names.spawn((
                                     InventoryInspectorField::Name,
                                     themed_label("", 16.0, UiColor::Primary),
+                                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                 ));
                                 names.spawn((
                                     InventoryInspectorField::Category,
@@ -508,38 +602,22 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                                 ));
                             });
                         });
-                    item.spawn((
-                        InventoryInspectorField::About,
-                        themed_label("", 12.0, UiColor::Body),
-                    ));
-                    item.spawn(control_row(JustifyContent::SpaceBetween))
-                        .with_children(|fact| {
-                            fact.spawn(themed_label("Stock", 12.0, UiColor::Label));
-                            fact.spawn((
-                                InventoryInspectorField::Stock,
-                                themed_label("", 13.0, UiColor::Body),
-                                TextLayout::new(Justify::Right, LineBreak::WordBoundary),
-                            ));
-                        });
-                    item.spawn(control_row(JustifyContent::SpaceBetween))
-                        .with_children(|fact| {
-                            fact.spawn(themed_label("Weight", 12.0, UiColor::Label));
-                            fact.spawn((
-                                InventoryInspectorField::Weight,
-                                themed_label("", 13.0, UiColor::Body),
-                                TextLayout::new(Justify::Right, LineBreak::WordBoundary),
-                            ));
-                        });
+                    item.spawn(divider());
+                    about_box(item);
+                    item.spawn(divider());
+                    fact_row(item, "Stock", InventoryInspectorField::Stock);
+                    fact_row(item, "Weight", InventoryInspectorField::Weight);
                     item.spawn((
                         InspectorPart::TotalWeight,
                         control_row(JustifyContent::SpaceBetween),
+                        Visibility::Hidden,
                     ))
                     .with_children(|fact| {
                         fact.spawn(themed_label("Total weight", 12.0, UiColor::Label));
                         fact.spawn((
                             InventoryInspectorField::TotalWeight,
-                            themed_label("", 13.0, UiColor::Body),
-                            TextLayout::new(Justify::Right, LineBreak::WordBoundary),
+                            themed_label("", 13.0, UiColor::Primary),
+                            TextLayout::new(Justify::Right, LineBreak::NoWrap),
                         ));
                     });
                     item.spawn((
@@ -564,22 +642,141 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
         });
 }
 
+/// The description box: [`ABOUT_LINES`] lines of the description, clipped,
+/// with the [`InspectorPart::AboutMore`] cue over its last line while the
+/// text runs past them, and the [`InspectorPart::AboutFull`] overlay that
+/// shows the whole text over the facts below without moving them. The box is
+/// drawn above its later siblings so the overlay covers them.
+fn about_box(item: &mut ChildSpawnerCommands) {
+    item.spawn((
+        InventoryAboutBox,
+        Hovered::default(),
+        Node {
+            height: px(ABOUT_PX),
+            flex_shrink: 0.0,
+            ..default()
+        },
+        ZIndex(1),
+    ))
+    .with_children(|about| {
+        about
+            .spawn(Node {
+                width: percent(100),
+                height: percent(100),
+                flex_direction: FlexDirection::Column,
+                overflow: Overflow::clip(),
+                ..default()
+            })
+            .with_children(|clip| {
+                clip.spawn((
+                    InventoryInspectorField::About,
+                    themed_label("", ABOUT_FONT_PX, UiColor::Body),
+                    // At its full height, so the panel can compare it with
+                    // the box and tell a clipped text.
+                    Node {
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                ));
+            });
+        about
+            .spawn((
+                InspectorPart::AboutMore,
+                Node {
+                    position_type: PositionType::Absolute,
+                    right: px(0),
+                    bottom: px(0),
+                    padding: UiRect::left(px(6)),
+                    ..default()
+                },
+                BackgroundColor(Color::NONE),
+                ThemedFill::new(UiColor::Surface),
+                Pickable::IGNORE,
+                Visibility::Hidden,
+            ))
+            .with_children(|more| {
+                more.spawn((
+                    InventoryInspectorField::DetailsCue,
+                    themed_label("", 11.0, UiColor::Accent),
+                    TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                ));
+            });
+        about
+            .spawn((
+                InspectorPart::AboutFull,
+                Node {
+                    display: Display::None,
+                    position_type: PositionType::Absolute,
+                    top: px(-4),
+                    left: px(-4),
+                    right: px(-4),
+                    min_height: percent(100),
+                    padding: UiRect::all(px(4)),
+                    border: UiRect::all(px(1)),
+                    border_radius: BorderRadius::all(px(4)),
+                    ..default()
+                },
+                BackgroundColor(Color::NONE),
+                ThemedFill::new(UiColor::Surface),
+                BorderColor::all(Color::NONE),
+                ThemedBorder::new(UiColor::Accent),
+            ))
+            .with_children(|full| {
+                full.spawn((
+                    InventoryInspectorField::AboutFull,
+                    themed_label("", ABOUT_FONT_PX, UiColor::Body),
+                ));
+            });
+    });
+}
+
+/// A labelled fact of the selected item: the word on the left and the value,
+/// clipped on one line, on the right.
+fn fact_row(item: &mut ChildSpawnerCommands, label: &str, field: InventoryInspectorField) {
+    item.spawn(control_row(JustifyContent::SpaceBetween))
+        .with_children(|fact| {
+            fact.spawn((
+                themed_label(label, 12.0, UiColor::Label),
+                Node {
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+            ));
+            fact.spawn((
+                field,
+                themed_label("", 13.0, UiColor::Primary),
+                TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                Node {
+                    min_width: px(0),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+            ));
+        });
+}
+
 /// The action form: the draft's direction; the Give and Sell switch; the
 /// typed quantity, the source stock and All on a row the wheel steps; the
 /// quantity slider; the result of the move or why it is refused; and Confirm,
 /// disabled while the form shows a refusal.
 fn draft_form(form: &mut ChildSpawnerCommands) {
+    form.spawn(divider());
     form.spawn((
         InventoryInspectorField::DraftTitle,
         themed_label("", 13.0, UiColor::Accent),
+        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+        Node {
+            overflow: Overflow::clip(),
+            ..default()
+        },
     ));
     form.spawn((
         InspectorPart::ActionChips,
         Node {
-            display: Display::None,
             column_gap: px(6),
             ..control_row(JustifyContent::FlexStart)
         },
+        Visibility::Hidden,
     ))
     .with_children(|chips| {
         for action in [InventoryActionType::Give, InventoryActionType::Sell] {
@@ -664,6 +861,10 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
     form.spawn((
         InventoryInspectorField::DraftSummary,
         themed_label("", 13.0, UiColor::Body),
+        Node {
+            min_height: px(13.0 * 1.2 * SUMMARY_LINES),
+            ..default()
+        },
     ));
     form.spawn(control_row(JustifyContent::FlexStart))
         .with_children(|row| {
@@ -674,15 +875,6 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
             ))
             .observe(confirm_inventory_draft);
         });
-}
-
-/// A button sized for the narrow inspector.
-fn compact_button(spec: ButtonSpec) -> impl Bundle {
-    button(ButtonSpec {
-        min_height: 22.0,
-        font_size: 12.0,
-        ..spec
-    })
 }
 
 /// One stack's row: the category icon, the item name and the count.
@@ -758,9 +950,7 @@ fn on_inventory_filter_chip(
     }
 }
 
-/// Select the clicked row for the inspector and open the action it offers
-/// at one unit, with one click if either changes. The selected row again
-/// keeps its open draft and its quantity.
+/// Select the clicked row for the inspector.
 fn on_inventory_row(
     activate: On<Activate>,
     q_row: Query<&InventoryRow>,
@@ -772,6 +962,20 @@ fn on_inventory_row(
     let Ok(row) = q_row.get(activate.entity) else {
         return;
     };
+    if select_inventory_row(&mut runtime, &ships, *row) {
+        play_menu_select(&mut commands, bank.as_deref());
+    }
+}
+
+/// Select `row` for the inspector and open the action it offers at one unit;
+/// returns whether either changed, so the caller clicks once. A different row
+/// closes the full description. The selected row again keeps its open draft,
+/// its quantity and its full description.
+fn select_inventory_row(
+    runtime: &mut InventoryRuntime,
+    ships: &InventoryShips,
+    row: InventoryRow,
+) -> bool {
     let picked = Some((row.side, row.item));
     let pair = ships.pair();
     let partner_lootable = pair.and_then(|pair| ships.partner_lootable(pair));
@@ -786,7 +990,10 @@ fn on_inventory_row(
         _ => false,
     };
     if runtime.selected == picked && kept {
-        return;
+        return false;
+    }
+    if runtime.selected != picked {
+        runtime.details = false;
     }
     runtime.selected = picked;
     runtime.draft = offer.map(|action| InventoryDraft {
@@ -794,10 +1001,101 @@ fn on_inventory_row(
         item: row.item,
         quantity: Some(1),
     });
-    play_menu_select(&mut commands, bank.as_deref());
+    true
 }
 
-/// The action a row opens: Give from the player's row while docked, Jettison
+/// The pane's keys while it owns the interface: `viewer_next` and
+/// `viewer_prev` step the selection through the shown rows, the player's
+/// column first, as a click on the row would; `inventory_details` opens or
+/// closes the selected item's full description. Also writes the key cues from
+/// the live bindings, so a rebind moves them with the key. The plugin runs it
+/// in `InputMode::Normal` only, so the quantity field types the key instead.
+///
+/// # Panics
+///
+/// When an action it reads is not registered: the cues and
+/// [`interface_bindings`](crate::bindings::interface_bindings) are one
+/// vocabulary.
+pub(crate) fn inventory_keys(
+    input: NovaOsAppInput,
+    bindings: Res<InputBindings>,
+    ships: InventoryShips,
+    mut runtime: ResMut<InventoryRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+    mut q_cue: Query<(&InventoryInspectorField, &mut Text)>,
+) {
+    let key = |names: &[&str]| {
+        names
+            .iter()
+            .map(|name| {
+                bindings
+                    .get(name)
+                    .unwrap_or_else(|| {
+                        panic!("the Inventory pane reads `{name}`, which is not registered")
+                    })
+                    .keyboard_display()
+            })
+            .collect::<Vec<_>>()
+            .join("/")
+    };
+    for (field, mut text) in &mut q_cue {
+        let wanted = match field {
+            InventoryInspectorField::SelectCue => {
+                format!("{} Select", key(&["viewer_prev", "viewer_next"]))
+            }
+            InventoryInspectorField::DetailsCue => {
+                format!("{} Full text", key(&["inventory_details"]))
+            }
+            _ => continue,
+        };
+        if text.0 != wanted {
+            text.0 = wanted;
+        }
+    }
+    if !input.app_is_active(InterfacePaneType::Inventory) {
+        return;
+    }
+    let forward = input.just_pressed("viewer_next");
+    if forward || input.just_pressed("viewer_prev") {
+        let Some(pair) = ships.pair() else {
+            return;
+        };
+        let filter = runtime.filter;
+        let rows: Vec<InventoryRow> = [
+            (InventorySideType::Own, Some(pair.own)),
+            (InventorySideType::Partner, pair.partner),
+        ]
+        .into_iter()
+        .filter_map(|(side, ship)| ship.map(|ship| (side, ship)))
+        .flat_map(|(side, ship)| {
+            ships
+                .ship(ship)
+                .1
+                .stacks()
+                .map(move |(item, _)| InventoryRow { side, item })
+                .collect::<Vec<_>>()
+        })
+        .filter(|row| filter.is_none_or(|category| row.item.category() == category))
+        .collect();
+        let current = runtime.selected.and_then(|(side, item)| {
+            rows.iter()
+                .position(|row| *row == InventoryRow { side, item })
+        });
+        if let Some(next) = cycle_index(current, rows.len(), forward) {
+            if select_inventory_row(&mut runtime, &ships, rows[next]) {
+                play_menu_select(&mut commands, bank.as_deref());
+            }
+        }
+    }
+    if input.just_pressed("inventory_details") && runtime.selected.is_some() {
+        runtime.details = !runtime.details;
+        play_menu_select(&mut commands, bank.as_deref());
+    }
+}
+
+/// The action a row opens: Sell from the player's row while the partner
+/// trades, Give from it while the partner is neutralized or lootable, Jettison
 /// from it while undocked with a live cargo intake, Take from the partner's
 /// row while the partner is neutralized or lootable, and Buy from it while the
 /// partner trades. `partner_lootable` is `None` while undocked.
@@ -807,7 +1105,8 @@ fn offered_action(
     has_intake: bool,
 ) -> Option<InventoryActionType> {
     match (side, partner_lootable) {
-        (InventorySideType::Own, Some(_)) => Some(InventoryActionType::Give),
+        (InventorySideType::Own, Some(true)) => Some(InventoryActionType::Give),
+        (InventorySideType::Own, Some(false)) => Some(InventoryActionType::Sell),
         (InventorySideType::Own, None) if has_intake => Some(InventoryActionType::Jettison),
         (InventorySideType::Partner, Some(true)) => Some(InventoryActionType::Take),
         (InventorySideType::Partner, Some(false)) => Some(InventoryActionType::Buy),
@@ -816,15 +1115,16 @@ fn offered_action(
 }
 
 /// Whether an open draft of `action` still fits a row that opens `offer`: the
-/// same action, or Sell where Give opens and the partner trades.
+/// same action, or Give where Sell opens, since a trading partner also takes
+/// gifts.
 fn draft_fits(
     offer: InventoryActionType,
     action: InventoryActionType,
     partner_lootable: Option<bool>,
 ) -> bool {
     offer == action
-        || (offer == InventoryActionType::Give
-            && action == InventoryActionType::Sell
+        || (offer == InventoryActionType::Sell
+            && action == InventoryActionType::Give
             && partner_lootable == Some(false))
 }
 
@@ -1529,12 +1829,11 @@ fn jettison_items(
     ))
 }
 
-/// One side as the pane draws it: the heading and its stacks, or `None` for a
-/// partner that is not there. `heading` is the column title: the player's
-/// adds its load against its capacity.
+/// One side as the pane draws it: its title, its credits and its stacks, or
+/// `None` for a partner that is not there.
 struct SideView {
     title: String,
-    heading: String,
+    credits: String,
     stacks: Option<Vec<(ItemType, u32)>>,
 }
 
@@ -1571,8 +1870,11 @@ pub(crate) fn update_inventory_panel(
     time: Res<Time<Real>>,
     ships: InventoryShips,
     mut q_column: Query<(Entity, &mut InventoryColumn)>,
-    mut q_panel: Query<(&InventoryColumnPanel, &mut Visibility)>,
-    mut q_title: Query<(&InventoryColumnTitle, &mut Text), Without<InventoryInspectorField>>,
+    mut q_panel: Query<(&InventoryColumnPanel, &mut Visibility), Without<InspectorPart>>,
+    mut q_heading: ParamSet<(
+        Query<(&InventoryColumnTitle, &mut Text), Without<InventoryInspectorField>>,
+        Query<(&InventoryColumnFact, &mut Text), Without<InventoryInspectorField>>,
+    )>,
     mut q_row: Query<(&InventoryRow, &mut ThemedFill, &mut ThemedBorder)>,
     mut q_chip: Query<
         (&InventoryFilterChip, &mut ThemedFill, &mut ThemedBorder),
@@ -1586,7 +1888,7 @@ pub(crate) fn update_inventory_panel(
         ),
         (Without<InventoryRow>, Without<InventoryFilterChip>),
     >,
-    mut q_part: Query<(&InspectorPart, &mut Node)>,
+    mut q_part: Query<(&InspectorPart, &mut Node, &mut Visibility)>,
     mut q_take_credits: Query<
         &mut Node,
         (With<InventoryTakeCreditsButton>, Without<InspectorPart>),
@@ -1609,14 +1911,14 @@ pub(crate) fn update_inventory_panel(
     }
     let (_, own_inventory, _, own_cr) = ships.ship(pair.own);
     let own_title = ships.title(pair.own, InventorySideType::Own);
+    let own_cargo = format!(
+        "{} / {}",
+        kg_text(u64::from(own_inventory.used_g())),
+        kg_text(u64::from(own_inventory.capacity_g())),
+    );
     let own = SideView {
-        heading: format!(
-            "{own_title} {} / {}  {}",
-            kg_text(u64::from(own_inventory.used_g())),
-            kg_text(u64::from(own_inventory.capacity_g())),
-            cr_text(own_cr)
-        ),
         title: own_title,
+        credits: cr_text(own_cr),
         stacks: Some(own_inventory.stacks().collect()),
     };
     let mut partner_credits = None;
@@ -1626,14 +1928,14 @@ pub(crate) fn update_inventory_panel(
             let (_, inventory, _, credits) = ships.ship(other);
             partner_credits = Some(credits);
             SideView {
-                heading: format!("{title}  {}", cr_text(credits)),
                 title,
+                credits: cr_text(credits),
                 stacks: Some(inventory.stacks().collect()),
             }
         }
         None => SideView {
             title: "Docked ship".to_string(),
-            heading: "Docked ship".to_string(),
+            credits: String::new(),
             stacks: None,
         },
     };
@@ -1650,6 +1952,7 @@ pub(crate) fn update_inventory_panel(
     if let Some((which, item)) = runtime.selected {
         if side(which).count(item).is_none() || !shown(item) {
             runtime.selected = None;
+            runtime.details = false;
         }
     }
     let selected = runtime.selected;
@@ -1716,8 +2019,23 @@ pub(crate) fn update_inventory_panel(
         }
     }
 
-    for (title, mut text) in &mut q_title {
-        let wanted = &side(title.0).heading;
+    for (title, mut text) in &mut q_heading.p0() {
+        let wanted = &side(title.0).title;
+        if text.0 != *wanted {
+            text.0.clone_from(wanted);
+        }
+    }
+
+    for (fact, mut text) in &mut q_heading.p1() {
+        let wanted = match fact {
+            InventoryColumnFact(InventorySideType::Own, InventoryColumnFactType::Cargo) => {
+                &own_cargo
+            }
+            InventoryColumnFact(which, InventoryColumnFactType::Credits) => &side(*which).credits,
+            InventoryColumnFact(InventorySideType::Partner, InventoryColumnFactType::Cargo) => {
+                unreachable!("the partner column spawns no cargo fact")
+            }
+        };
         if text.0 != *wanted {
             text.0.clone_from(wanted);
         }
@@ -1758,25 +2076,41 @@ pub(crate) fn update_inventory_panel(
         }
     }
 
-    for (part, mut node) in &mut q_part {
-        let shown = match part {
-            InspectorPart::Hint => selected.is_none(),
-            InspectorPart::Item => selected.is_some(),
-            InspectorPart::Form => draft.is_some(),
-            InspectorPart::ActionChips => {
+    for (part, mut node, mut visibility) in &mut q_part {
+        // The draft's own rows hide in place, so switching between a Sell and
+        // a Buy, or typing a quantity that is not a number, does not move the
+        // rows under them.
+        let (shown, keeps_space) = match part {
+            InspectorPart::Hint => (selected.is_none(), false),
+            InspectorPart::Item => (selected.is_some(), false),
+            InspectorPart::Form => (draft.is_some(), false),
+            InspectorPart::ActionChips => (
                 partner_lootable == Some(false)
                     && draft.is_some_and(|draft| {
                         matches!(
                             draft.action,
                             InventoryActionType::Give | InventoryActionType::Sell
                         )
-                    })
+                    }),
+                true,
+            ),
+            InspectorPart::TotalWeight => {
+                (draft.is_some_and(|draft| draft.quantity.is_some()), true)
             }
-            InspectorPart::TotalWeight => draft.is_some_and(|draft| draft.quantity.is_some()),
+            // `update_inventory_about` owns the description's parts.
+            InspectorPart::AboutFull | InspectorPart::AboutMore => continue,
         };
-        let display = if shown { Display::Flex } else { Display::None };
-        if node.display != display {
-            node.display = display;
+        if keeps_space {
+            visibility.set_if_neq(if shown {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            });
+        } else {
+            let display = if shown { Display::Flex } else { Display::None };
+            if node.display != display {
+                node.display = display;
+            }
         }
     }
 
@@ -1904,15 +2238,19 @@ pub(crate) fn update_inventory_panel(
                 category_label(item.category()).to_string(),
                 category_color(item.category()),
             ),
-            (InventoryInspectorField::About, Some((item, _)), _) => {
-                (item_about(*item).to_string(), UiColor::Body)
+            (
+                InventoryInspectorField::About | InventoryInspectorField::AboutFull,
+                Some((item, _)),
+                _,
+            ) => (item_about(*item).to_string(), UiColor::Body),
+            (InventoryInspectorField::Stock, Some((_, stock)), _) => {
+                (stock.clone(), UiColor::Primary)
             }
-            (InventoryInspectorField::Stock, Some((_, stock)), _) => (stock.clone(), UiColor::Body),
             (InventoryInspectorField::Weight, Some((item, _)), _) => {
-                (kg_text(u64::from(item.mass_g())), UiColor::Body)
+                (kg_text(u64::from(item.mass_g())), UiColor::Primary)
             }
             (InventoryInspectorField::TotalWeight, ..) => match &total_weight {
-                Some(total) => (total.clone(), UiColor::Body),
+                Some(total) => (total.clone(), UiColor::Primary),
                 None => continue,
             },
             (InventoryInspectorField::DraftTitle, _, Some((title, ..))) => {
@@ -1955,6 +2293,45 @@ pub(crate) fn update_inventory_panel(
         }
         if tint.color != tone {
             tint.color = tone;
+        }
+    }
+}
+
+/// Show the description's clipped cue while the text runs past the box, and
+/// its full text while the pointer is on a clipped text or while
+/// `inventory_details` holds it open. Reads last frame's layout, so a new
+/// description is measured one frame late.
+pub(crate) fn update_inventory_about(
+    runtime: Res<InventoryRuntime>,
+    q_box: Query<(&ComputedNode, &Hovered), With<InventoryAboutBox>>,
+    q_text: Query<(&InventoryInspectorField, &ComputedNode)>,
+    mut q_part: Query<(&InspectorPart, &mut Node, &mut Visibility)>,
+) {
+    let Ok((about_box, hovered)) = q_box.single() else {
+        return;
+    };
+    let clipped = q_text
+        .iter()
+        .find(|(field, _)| **field == InventoryInspectorField::About)
+        .is_some_and(|(_, text)| text.size().y > about_box.size().y + 0.5);
+    let full = runtime.details || (hovered.get() && clipped);
+    for (part, mut node, mut visibility) in &mut q_part {
+        match part {
+            InspectorPart::AboutFull => {
+                let display = if full { Display::Flex } else { Display::None };
+                if node.display != display {
+                    node.display = display;
+                }
+            }
+            // Hidden in place over the last line, so it never moves the text.
+            InspectorPart::AboutMore => {
+                visibility.set_if_neq(if clipped {
+                    Visibility::Inherited
+                } else {
+                    Visibility::Hidden
+                });
+            }
+            _ => {}
         }
     }
 }

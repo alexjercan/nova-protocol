@@ -107,7 +107,9 @@ fn an_emitter_opens_doors_before_the_tip_and_retracts_in_reverse() {
         assert_eq!((frame.doors, frame.tip, frame.deployed), (1.0, 1.0, false));
     }
 
-    app.world_mut().entity_mut(ship).insert(MiningHeld);
+    app.world_mut()
+        .entity_mut(emitter)
+        .insert(MiningSectionHeld(true));
     let deploy = run(&mut app, emitter, 20);
     for frame in &deploy {
         assert!(frame.doors == 0.0 || frame.tip == 1.0, "{deploy:?}");
@@ -117,7 +119,9 @@ fn an_emitter_opens_doors_before_the_tip_and_retracts_in_reverse() {
     }
     assert!(deploy.last().unwrap().deployed, "{deploy:?}");
 
-    app.world_mut().entity_mut(ship).remove::<MiningHeld>();
+    app.world_mut()
+        .entity_mut(emitter)
+        .insert(MiningSectionHeld(false));
     let retract = run(&mut app, emitter, 3);
     for frame in &retract {
         assert!(!frame.deployed, "{retract:?}");
@@ -126,14 +130,18 @@ fn an_emitter_opens_doors_before_the_tip_and_retracts_in_reverse() {
     let partway = retract.last().unwrap().tip;
     assert!(partway > 0.0 && partway < 1.0, "{retract:?}");
 
-    app.world_mut().entity_mut(ship).insert(MiningHeld);
+    app.world_mut()
+        .entity_mut(emitter)
+        .insert(MiningSectionHeld(true));
     let back = run(&mut app, emitter, 10);
     for frame in &back {
         assert_eq!(frame.doors, 0.0, "{back:?}");
     }
     assert!(back.last().unwrap().deployed, "{back:?}");
 
-    app.world_mut().entity_mut(ship).remove::<MiningHeld>();
+    app.world_mut()
+        .entity_mut(emitter)
+        .insert(MiningSectionHeld(false));
     let stow = run(&mut app, emitter, 20);
     for frame in &stow {
         assert!(frame.tip == 1.0 || frame.doors == 0.0, "{stow:?}");
@@ -168,13 +176,17 @@ fn an_emitter_reports_a_door_turn_only_when_the_door_target_changes() {
     run(&mut app, emitter, 10);
     assert_eq!(app.world().resource::<DoorTurns>().0, Vec::<bool>::new());
 
-    app.world_mut().entity_mut(ship).insert(MiningHeld);
+    app.world_mut()
+        .entity_mut(emitter)
+        .insert(MiningSectionHeld(true));
     let parting = run(&mut app, emitter, 3);
     assert_eq!(app.world().resource::<DoorTurns>().0, vec![true]);
     let doors = parting.last().unwrap().doors;
     assert!(doors > 0.0 && doors < 1.0, "{parting:?}");
 
-    app.world_mut().entity_mut(ship).remove::<MiningHeld>();
+    app.world_mut()
+        .entity_mut(emitter)
+        .insert(MiningSectionHeld(false));
     run(&mut app, emitter, 10);
     assert_eq!(app.world().resource::<DoorTurns>().0, vec![true, false]);
 }

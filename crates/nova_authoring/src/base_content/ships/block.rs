@@ -72,7 +72,7 @@ pub(crate) const BLOCK_LINE_WARSHIP_TORPEDO_IDS: [&str; 2] = ["torpedo_port", "t
 pub(crate) const BLOCK_LINE_WARSHIP_INTAKE_ID: &str = "cargo_intake";
 
 /// The line warship's mining emitter.
-const BLOCK_LINE_WARSHIP_MINING_ID: &str = "mining_beam";
+pub(crate) const BLOCK_LINE_WARSHIP_MINING_ID: &str = "mining_beam";
 
 /// The top-deck bow cell the line warship's emitter replaces, starboard of
 /// the lance. The deck cell below it would put the lance beside the beam lane

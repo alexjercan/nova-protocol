@@ -1230,7 +1230,11 @@ mod tests {
         let ship = spawn_player(&mut app, root, node, 5.0);
         let upper = spawn_emitter(&mut app, ship, Vec3::Y, 0.0, 1.0);
         let lower = spawn_emitter(&mut app, ship, Vec3::NEG_Y, 0.0, 1.0);
-        app.world_mut().entity_mut(ship).insert(MiningHeld);
+        for emitter in [upper, lower] {
+            app.world_mut()
+                .entity_mut(emitter)
+                .insert(MiningSectionHeld(true));
+        }
 
         app.update();
         assert_eq!(
@@ -1254,7 +1258,9 @@ mod tests {
                 );
             }
             if paid > 0 && !released {
-                world.entity_mut(ship).remove::<MiningHeld>();
+                for emitter in [upper, lower] {
+                    world.entity_mut(emitter).insert(MiningSectionHeld(false));
+                }
                 released = true;
             }
             let pending = world.query::<&MinedOre>().iter(world).count()
@@ -1310,7 +1316,11 @@ mod tests {
         app.world_mut()
             .entity_mut(destroyed)
             .insert(SectionInactiveMarker);
-        app.world_mut().entity_mut(ship).insert(MiningHeld);
+        for emitter in [aimed, turned, destroyed] {
+            app.world_mut()
+                .entity_mut(emitter)
+                .insert(MiningSectionHeld(true));
+        }
 
         for _ in 0..FRAME_CAP {
             app.update();
@@ -1341,7 +1351,11 @@ mod tests {
         assert!(app.world().get::<MiningBeamHit>(turned).is_none());
         assert!(app.world().get::<MiningBeamHit>(destroyed).is_none());
 
-        app.world_mut().entity_mut(ship).remove::<MiningHeld>();
+        for emitter in [aimed, turned, destroyed] {
+            app.world_mut()
+                .entity_mut(emitter)
+                .insert(MiningSectionHeld(false));
+        }
         let before = app.world().resource::<Pulses>().0.len();
         for _ in 0..120 {
             app.update();
@@ -1359,9 +1373,13 @@ mod tests {
         let mut app = mining_app();
         let (root, node) = spawn_rock(&mut app, KIND_ROCK);
         let ship = spawn_player(&mut app, root, node, 5.0);
-        spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
-        spawn_emitter(&mut app, ship, Vec3::Y, std::f32::consts::PI, 0.5);
-        app.world_mut().entity_mut(ship).insert(MiningHeld);
+        let aimed = spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
+        let turned = spawn_emitter(&mut app, ship, Vec3::Y, std::f32::consts::PI, 0.5);
+        for emitter in [aimed, turned] {
+            app.world_mut()
+                .entity_mut(emitter)
+                .insert(MiningSectionHeld(true));
+        }
 
         // Three game seconds and a little: four pulses from the aimed
         // emitter and seven from the turned one.
@@ -1425,14 +1443,14 @@ mod tests {
     /// field, owes nothing and leaves no beam hit.
     #[test]
     fn a_refused_pulse_changes_nothing() {
-        fn pulse_once(
-            app: &mut App,
-            ship: Entity,
-            emitter: Entity,
-        ) -> Result<u32, MiningRefusalType> {
-            app.world_mut().entity_mut(ship).remove::<MiningHeld>();
+        fn pulse_once(app: &mut App, emitter: Entity) -> Result<u32, MiningRefusalType> {
+            app.world_mut()
+                .entity_mut(emitter)
+                .insert(MiningSectionHeld(false));
             app.update();
-            app.world_mut().entity_mut(ship).insert(MiningHeld);
+            app.world_mut()
+                .entity_mut(emitter)
+                .insert(MiningSectionHeld(true));
             app.update();
             *app.world()
                 .resource::<Pulses>()
@@ -1453,12 +1471,12 @@ mod tests {
         let ship = spawn_player(&mut app, root, node, 5.0);
         let emitter = spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
         assert_eq!(
-            pulse_once(&mut app, ship, emitter),
+            pulse_once(&mut app, emitter),
             Err(MiningRefusalType::Barren)
         );
         app.world_mut().entity_mut(ship).insert(TravelLock(None));
         assert_eq!(
-            pulse_once(&mut app, ship, emitter),
+            pulse_once(&mut app, emitter),
             Err(MiningRefusalType::NoLock)
         );
         untouched(&mut app, node, emitter);
@@ -1469,7 +1487,7 @@ mod tests {
         let ship = spawn_player(&mut app, root, node, reach + 5.0);
         let emitter = spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
         assert_eq!(
-            pulse_once(&mut app, ship, emitter),
+            pulse_once(&mut app, emitter),
             Err(MiningRefusalType::OutOfReach)
         );
         untouched(&mut app, node, emitter);
@@ -1479,7 +1497,7 @@ mod tests {
         let ship = spawn_player(&mut app, root, node, 5.0);
         let emitter = spawn_emitter(&mut app, ship, Vec3::ZERO, std::f32::consts::PI, 1.0);
         assert_eq!(
-            pulse_once(&mut app, ship, emitter),
+            pulse_once(&mut app, emitter),
             Err(MiningRefusalType::OffTarget)
         );
         untouched(&mut app, node, emitter);

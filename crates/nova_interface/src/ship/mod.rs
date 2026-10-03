@@ -14,11 +14,13 @@
 //! foremost block marks the bow. The interactive SECTIONS ride on top as
 //! projected clickable badges: the family icon, a status pip and the code.
 //! The section panel beside the view shows the selection's condition bar,
-//! detail and actions. Orbit the camera with the `viewer_orbit_*` actions +
+//! description, labelled facts, the Rebind action and, while the selection has
+//! repairable damage, the repair form. Orbit the camera with the `viewer_orbit_*` actions +
 //! drag + wheel; `[`/`]` or Prev/Next cycle the selection; Fit frames the whole
 //! ship at the current angles, and Reset also restores the opening angles;
 //! `G` toggles structural mates; `P` repairs, and `B` replaces the selected
-//! bindable section's input.
+//! bindable section's input. While the form's quantity field has the caret,
+//! these keys type into it instead.
 //!
 //! Repair applies at once through a single `SectionRepairCommand` seam (pane
 //! key or panel button -> message), spending hull plates from the player
@@ -41,6 +43,7 @@ mod sections;
 mod tests;
 
 use bevy::prelude::*;
+use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::{app::*, rebind::*, scene::*, sections::*};
 pub use self::{
@@ -95,7 +98,8 @@ impl Plugin for ShipPanePlugin {
                 manage_ship_scene,
                 reconcile_ship_target,
                 apply_ship_rebind,
-                ship_input,
+                // A focused repair field types P, B and the selection keys.
+                ship_input.run_if(in_input_mode(InputMode::Normal)),
                 drive_ship_camera,
                 update_ship_blocks,
                 project_ship_blips,

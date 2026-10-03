@@ -9,6 +9,7 @@
 use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
     prelude::*,
+    ui::InteractionDisabled,
     // The activatable Button (fires `Activate` on click or keyboard
     // activation), matching the terminal's own buttons.
     ui_widgets::{Activate, Button},
@@ -64,6 +65,7 @@ pub(crate) fn manage_map_scene(
         runtime.selected = None;
         runtime.focused_on = None;
         runtime.goto_note = None;
+        runtime.goto_requested = false;
         return;
     }
 
@@ -94,7 +96,8 @@ pub(crate) fn manage_map_scene(
         .iter()
         .map(|r| meshes.add(Torus::new(r - half_width, r + half_width)))
         .collect();
-    let ring_mat = materials.add(unlit(theme.color_alpha(UiColor::Secondary, 0.6)));
+    // Under the blips: the rings are a scale reference, not a contact.
+    let ring_mat = materials.add(unlit(theme.color_alpha(UiColor::Secondary, 0.45)));
     // A UNIT sphere: `map_focus_follow` scales it to whatever is focused, and
     // a sphere is the one shape uniform scaling cannot distort.
     let hub_mesh = meshes.add(Sphere::new(1.0));
@@ -284,7 +287,8 @@ pub(crate) fn map_focus_follow(
 /// Read mouse + actions while the map owns the screen: RMB-drag look and wheel
 /// zoom are raw pointer gestures; everything else is a named action -
 /// `viewer_pan_*`, `viewer_orbit_*`, `viewer_reframe`, `viewer_next` /
-/// `viewer_prev`, and `map_goto`.
+/// `viewer_prev`, and `map_goto`. The GOTO button's request joins `map_goto`
+/// here, so both pass the same checks.
 pub(crate) fn map_input(
     mut input: NovaOsAppInput,
     mut runtime: ResMut<MapRuntime>,
@@ -294,6 +298,12 @@ pub(crate) fn map_input(
     q_docked: Query<&DockedShip>,
     q_connections: Query<&DockingConnection>,
 ) {
+    // Taken before the gate: a request the map cannot act on now is dropped,
+    // not held for a later frame.
+    let button_goto = runtime.goto_requested;
+    if button_goto {
+        runtime.goto_requested = false;
+    }
     // Only touch input while the map owns the screen; at the terminal the mouse
     // and keys belong to the prompt (history scroll, PageUp/PageDown, etc.).
     if !input.app_is_active(InterfacePaneType::Map) {
@@ -369,13 +379,13 @@ pub(crate) fn map_input(
         }
     }
 
-    // GOTO on the selected contact (skip own ship). Sets a flight autopilot on
-    // the player ship directly - this intentionally bypasses the normal
-    // GOTO capability check (fine for the PoC nav computer). The docked rule
-    // is NOT bypassed: a GOTO set without the helm would fly the pair the
-    // moment the player takes it, and a pair that cannot be measured is
-    // flown by no one.
-    if input.just_pressed("map_goto") {
+    // GOTO on the selected contact (skip own ship). Sets a flight autopilot
+    // and the travel lock on the player ship directly - this intentionally
+    // bypasses the normal GOTO capability check (fine for the PoC nav
+    // computer). The docked rule is NOT bypassed: a GOTO set without the helm
+    // would fly the pair the moment the player takes it, and a pair that
+    // cannot be measured is flown by no one. A refusal writes only the note.
+    if input.just_pressed("map_goto") || button_goto {
         if let (Some(sel), Some((player, _, _))) = (runtime.selected, contacts.player_frame()) {
             if let Some(contact) = list.iter().find(|c| c.entity == sel) {
                 if contact.kind != MapContactKind::OwnShip {
@@ -390,9 +400,10 @@ pub(crate) fn map_input(
                     } else if connection.is_some_and(|connection| connection.joins(sel)) {
                         "GOTO REFUSED: DOCKED PARTNER".to_string()
                     } else {
-                        commands
-                            .entity(player)
-                            .insert(Autopilot::engage(AutopilotAction::Goto { target: sel }));
+                        commands.entity(player).insert((
+                            Autopilot::engage(AutopilotAction::Goto { target: sel }),
+                            TravelLock(Some(sel)),
+                        ));
                         format!("GOTO SET: {}", contact.name)
                     };
                     runtime.goto_note = Some((note, 2.5));
@@ -495,8 +506,9 @@ pub(crate) fn project_map_blips(
             }
         }
         let selected = runtime.selected == Some(contact.entity);
-        let alpha = if selected { 1.0 } else { 0.0 };
-        if border.alpha != alpha {
+        let (color, alpha) = blip_border(selected);
+        if border.color != color || border.alpha != alpha {
+            border.color = color;
             border.alpha = alpha;
         }
         let labelled = selected || contact.kind != MapContactKind::Terrain;
@@ -529,6 +541,212 @@ pub(crate) fn project_map_blips(
         if let Some(blip) = runtime.blips.remove(&contact) {
             commands.entity(blip).try_despawn();
         }
+    }
+}
+
+/// Thickness of the GOTO route line, in logical px.
+const MAP_ROUTE_PX: f32 = 2.0;
+/// Height of the `GOTO` tag over the target blip, in logical px.
+const MAP_GOTO_MARKER_PX: f32 = 18.0;
+
+/// Draw the route line from the player ship to its live GOTO target and the
+/// `GOTO` tag over that target, through the same camera projection as the
+/// blips. Both follow the player's `Autopilot` GOTO, not the selection or the
+/// travel lock, so they hide when the GOTO is cancelled, arrives or is
+/// replaced by another order. A target the map does not plot draws nothing.
+/// Spawns both nodes under the viewport on first run; route endpoints are
+/// clipped before sizing the rotated line so its stroke stays in the viewport.
+#[expect(
+    clippy::type_complexity,
+    reason = "the route line and the marker are two disjoint node queries"
+)]
+pub(crate) fn project_map_route(
+    mut commands: Commands,
+    runtime: Res<MapRuntime>,
+    contacts: MapContacts,
+    q_autopilot: Query<&Autopilot>,
+    q_camera: Query<(&Camera, &GlobalTransform), With<MapCameraMarker>>,
+    q_viewport: Query<(Entity, &ComputedNode), With<MapViewportMarker>>,
+    mut q_line: Query<
+        (&mut Node, &mut UiTransform, &mut Visibility),
+        (With<MapRouteLine>, Without<MapGotoMarker>),
+    >,
+    mut q_marker: Query<(&mut Node, &mut Visibility), (With<MapGotoMarker>, Without<MapRouteLine>)>,
+) {
+    if !runtime.active {
+        return;
+    }
+    let (Ok((camera, cam_gt)), Ok((viewport, computed))) = (q_camera.single(), q_viewport.single())
+    else {
+        return;
+    };
+    let (Ok((mut line, mut transform, mut line_vis)), Ok((mut marker, mut marker_vis))) =
+        (q_line.single_mut(), q_marker.single_mut())
+    else {
+        spawn_map_route(&mut commands, viewport);
+        return;
+    };
+    let route = contacts.player_frame().and_then(|(player, from, _)| {
+        let Ok(Autopilot {
+            action: AutopilotAction::Goto { target },
+            ..
+        }) = q_autopilot.get(player)
+        else {
+            return None;
+        };
+        contacts
+            .collect()
+            .into_iter()
+            .find(|contact| contact.entity == *target)
+            .map(|contact| (from, contact.world_pos))
+    });
+    // The same stale-target rule as the blips: the route must meet them.
+    let stale_camera = camera.physical_target_size() != Some(computed.size().round().as_uvec2());
+    if route.is_some() && stale_camera {
+        return;
+    }
+    let to_logical = computed.inverse_scale_factor();
+    // Off-viewport ends still project; only a point behind the camera fails.
+    let Some((from, to)) = route.and_then(|(from, to)| {
+        let from = camera.world_to_viewport(cam_gt, from).ok()?;
+        let to = camera.world_to_viewport(cam_gt, to).ok()?;
+        Some((from * to_logical, to * to_logical))
+    }) else {
+        line_vis.set_if_neq(Visibility::Hidden);
+        marker_vis.set_if_neq(Visibility::Hidden);
+        return;
+    };
+
+    // The tag sits on the target tile's top edge, so it never covers the tile
+    // or the code label beside it. It follows the target even when the route
+    // misses the viewport.
+    let (left, top) = (
+        Val::Px(to.x - MAP_BLIP_PX * 0.5),
+        Val::Px(to.y - MAP_BLIP_PX * 0.5 - MAP_GOTO_MARKER_PX),
+    );
+    if marker.left != left || marker.top != top {
+        marker.left = left;
+        marker.top = top;
+    }
+    marker_vis.set_if_neq(Visibility::Inherited);
+
+    let size = computed.size() * to_logical;
+    let inset = MAP_ROUTE_PX * 0.5;
+    let max = size - Vec2::splat(inset);
+    let span = to - from;
+    if !size.is_finite() || !from.is_finite() || !to.is_finite() || max.min_element() <= inset {
+        line_vis.set_if_neq(Visibility::Hidden);
+        return;
+    }
+    // Clip the logical-pixel segment against the stroke-inset viewport. A
+    // rotated UI node can escape the parent's clip even if its drawn pixels do
+    // not; bound the drawn endpoints before deriving its size and rotation.
+    let mut enter = 0.0_f32;
+    let mut exit = 1.0_f32;
+    for (p, q) in [
+        (-span.x, from.x - inset),
+        (span.x, max.x - from.x),
+        (-span.y, from.y - inset),
+        (span.y, max.y - from.y),
+    ] {
+        if p == 0.0 {
+            if q < 0.0 {
+                line_vis.set_if_neq(Visibility::Hidden);
+                return;
+            }
+        } else {
+            let t = q / p;
+            if p < 0.0 {
+                enter = enter.max(t);
+            } else {
+                exit = exit.min(t);
+            }
+        }
+    }
+    if enter >= exit || !enter.is_finite() || !exit.is_finite() {
+        line_vis.set_if_neq(Visibility::Hidden);
+        return;
+    }
+    let clipped_from = from + span * enter;
+    let clipped_to = from + span * exit;
+    let clipped_span = clipped_to - clipped_from;
+    let length = clipped_span.length();
+    if !length.is_finite() || length <= f32::EPSILON {
+        line_vis.set_if_neq(Visibility::Hidden);
+        return;
+    }
+    // `UiTransform` rotates a horizontal bar about its centre, clockwise in
+    // screen space, so the angle is read with y down.
+    let mid = (clipped_from + clipped_to) * 0.5;
+    let (left, top, width) = (
+        Val::Px(mid.x - length * 0.5),
+        Val::Px(mid.y - MAP_ROUTE_PX * 0.5),
+        Val::Px(length),
+    );
+    if line.left != left || line.top != top || line.width != width {
+        line.left = left;
+        line.top = top;
+        line.width = width;
+    }
+    let rotation = Rot2::radians(clipped_span.y.atan2(clipped_span.x));
+    if transform.rotation != rotation {
+        transform.rotation = rotation;
+    }
+    line_vis.set_if_neq(Visibility::Inherited);
+}
+
+/// Spawn the hidden route line and `GOTO` tag under the viewport, below the
+/// blips (which sit at `ZIndex` 0 and up), and out of picking.
+fn spawn_map_route(commands: &mut Commands, viewport: Entity) {
+    commands.spawn((
+        MapRouteLine,
+        Node {
+            position_type: PositionType::Absolute,
+            height: Val::Px(MAP_ROUTE_PX),
+            ..default()
+        },
+        UiTransform::default(),
+        Visibility::Hidden,
+        ZIndex(-1),
+        Pickable::IGNORE,
+        BackgroundColor(Color::NONE),
+        ThemedFill::alpha(UiColor::Accent, 0.8),
+        ChildOf(viewport),
+    ));
+    commands.spawn((
+        MapGotoMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            height: Val::Px(MAP_GOTO_MARKER_PX),
+            padding: UiRect::horizontal(Val::Px(4.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        Visibility::Hidden,
+        ZIndex(-1),
+        Pickable::IGNORE,
+        BackgroundColor(Color::NONE),
+        ThemedFill::alpha(UiColor::Void, 0.85),
+        BorderColor::all(Color::NONE),
+        ThemedBorder::alpha(UiColor::Accent, 1.0),
+        ChildOf(viewport),
+        children![(
+            themed_label("GOTO", 11.0, UiColor::Accent),
+            Pickable::IGNORE
+        )],
+    ));
+}
+
+/// Colour and alpha of a blip tile's border. An unselected tile keeps a faint
+/// edge so it reads against a bright body behind it; the selection is a full
+/// accent edge, and its label also shows on an asteroid, so it does not rely
+/// on colour alone.
+fn blip_border(selected: bool) -> (UiColor, f32) {
+    if selected {
+        (UiColor::Accent, 1.0)
+    } else {
+        (UiColor::Secondary, 0.20)
     }
 }
 
@@ -567,9 +785,12 @@ pub(crate) fn spawn_blip(
             // Hidden until the first projection places it.
             Visibility::Hidden,
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Void, 0.55),
+            ThemedFill::alpha(UiColor::Void, 0.75),
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Accent, 0.0),
+            {
+                let (color, alpha) = blip_border(false);
+                ThemedBorder::alpha(color, alpha)
+            },
             children![icon_node(
                 icons.body(contact.body),
                 contact.kind.color(),
@@ -595,7 +816,7 @@ pub(crate) fn spawn_blip(
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Void, 0.8),
+        ThemedFill::alpha(UiColor::Void, 0.85),
         ChildOf(blip),
         // The blip carries its unique CODE, not the freeform name, so the
         // label you read is the label the contact panel shows.
@@ -622,22 +843,56 @@ pub(crate) fn on_map_blip_click(
     }
 }
 
-/// Fill the contact panel and the footer summary from the selection, with a
-/// GOTO result on the note while it shows. Rewrites text, colour and the icon
-/// in place and only on a difference, so a held selection writes nothing.
+/// Request a GOTO on the selection when the GOTO button is activated.
+/// [`map_input`] takes the request with the `map_goto` key, so the button
+/// passes the same checks.
+pub(crate) fn on_map_goto_button(_activate: On<Activate>, mut runtime: ResMut<MapRuntime>) {
+    runtime.goto_requested = true;
+}
+
+/// Fill the contact panel from the selection, with a GOTO result on the note
+/// while it shows, the player's live GOTO destination, and the GOTO button
+/// enabled only on a contact other than the own ship. Rewrites text, colour,
+/// the icon and the button state in place and only on a difference, so a held
+/// selection writes nothing.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the panel's text, icon and button, and the autopilot it reads"
+)]
 pub(crate) fn update_map_panel(
+    mut commands: Commands,
     runtime: Res<MapRuntime>,
     icons: Res<InterfaceIcons>,
     contacts: MapContacts,
+    q_autopilot: Query<&Autopilot>,
     mut q_field: Query<(&MapPanelField, &mut Text, &mut ThemedText)>,
     mut q_icon: Query<(&mut ImageNode, &mut ThemedImageTint, &mut Visibility), With<MapPanelIcon>>,
+    q_goto_button: Query<(Entity, Has<InteractionDisabled>), With<MapGotoButton>>,
 ) {
     if !runtime.active {
         return;
     }
+    let list = contacts.collect();
     let selected = runtime
         .selected
-        .and_then(|sel| contacts.collect().into_iter().find(|c| c.entity == sel));
+        .and_then(|sel| list.iter().find(|c| c.entity == sel));
+    let destination =
+        contacts
+            .player_frame()
+            .and_then(|(player, _, _)| match q_autopilot.get(player) {
+                Ok(Autopilot {
+                    action: AutopilotAction::Goto { target },
+                    ..
+                }) => list.iter().find(|c| c.entity == *target),
+                _ => None,
+            });
+    let destination = match destination {
+        Some(contact) => (
+            format!("GOTO {}  {}", contact.code, contact.range_text()),
+            UiColor::Accent,
+        ),
+        None => ("No GOTO set".to_string(), UiColor::Label),
+    };
     let note = match (&runtime.goto_note, &selected) {
         (Some((goto, _)), _) => (goto.clone(), UiColor::Accent),
         (None, Some(contact)) => (contact.kind.note().to_string(), UiColor::Label),
@@ -647,27 +902,17 @@ pub(crate) fn update_map_panel(
     for (field, mut text, mut themed) in &mut q_field {
         let (value, color) = match (&selected, field) {
             (_, MapPanelField::Note) => note.clone(),
+            (_, MapPanelField::Destination) => destination.clone(),
             (Some(contact), MapPanelField::Code) => (contact.code.clone(), UiColor::Primary),
             (Some(contact), MapPanelField::Name) => (contact.name.clone(), UiColor::Body),
             (Some(contact), MapPanelField::Kind) => {
                 (contact.kind.label().to_string(), contact.kind.color())
             }
             (Some(contact), MapPanelField::Range) => {
-                (format!("Range {}", contact.range_text()), UiColor::Body)
+                (format!("Range {}", contact.range_text()), UiColor::Primary)
             }
-            (Some(contact), MapPanelField::Bearing) => (contact.bearing_text(), UiColor::Body),
-            (Some(contact), MapPanelField::Summary) => (
-                format!(
-                    "{}  {}  {}",
-                    contact.code,
-                    contact.name,
-                    contact.range_text()
-                ),
-                contact.kind.color(),
-            ),
-            (None, MapPanelField::Code | MapPanelField::Summary) => {
-                ("No contact".to_string(), UiColor::Label)
-            }
+            (Some(contact), MapPanelField::Bearing) => (contact.bearing_text(), UiColor::Primary),
+            (None, MapPanelField::Code) => ("No contact".to_string(), UiColor::Label),
             (
                 None,
                 MapPanelField::Name
@@ -684,8 +929,17 @@ pub(crate) fn update_map_panel(
         }
     }
 
+    let goto_ready = selected.is_some_and(|contact| contact.kind != MapContactKind::OwnShip);
+    for (button, disabled) in &q_goto_button {
+        if goto_ready && disabled {
+            commands.entity(button).remove::<InteractionDisabled>();
+        } else if !goto_ready && !disabled {
+            commands.entity(button).insert(InteractionDisabled);
+        }
+    }
+
     for (mut image, mut tint, mut visibility) in &mut q_icon {
-        let Some(contact) = &selected else {
+        let Some(contact) = selected else {
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         };

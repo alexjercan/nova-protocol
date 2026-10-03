@@ -419,10 +419,9 @@
             frames_per_second: 10.0,
             alt: "a line warship\'s bow emitter on a locked rock: the doors part, the tip runs out, and the beam cuts the rock with a burst of sparks",
         ),
-        body: "MINE cuts ore from the rock you travel lock. The beam fires straight ahead of its emitter: aim the ship and hold the key within 100 meters. Ore leaves in canisters. No beam means the rock is out of reach or off the line.",
+        body: "MINE cuts ore from the rock you travel lock. The beam fires straight ahead of its emitter: aim the ship and hold its key within 100 meters. Ore leaves in canisters. No beam means the rock is out of reach or off the line.",
         actions: [
             "radar_hold",
-            "mine",
         ],
         wiki_path: "wiki/sections/mining-beam#cutting-ore",
         field_notes: [

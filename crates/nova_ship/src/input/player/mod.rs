@@ -1,7 +1,8 @@
 //! Human piloting: turns keyboard/mouse/gamepad input into ship intent. The
 //! always-on flight rig drives the flight verbs (burn, the STOP/GOTO/ORBIT
-//! autopilot commands, RCS fine-adjust), and per-weapon `input_mapping` bindings
-//! (thruster/turret/torpedo) fire the sections. Keys off the human's ship marker
+//! autopilot commands, RCS fine-adjust), and per-section `input_mapping`
+//! bindings (thruster/turret/torpedo/railgun/mining) drive the sections. Keys
+//! off the human's ship marker
 //! ([`PlayerSpaceshipMarker`](nova_gameplay::markers::PlayerSpaceshipMarker)) and
 //! maintains [`FlightVerbHints`] for the verb-hint HUD.
 //!
@@ -28,10 +29,9 @@ use control::player_control_is_suspended;
 use flight_rig::{
     on_autopilot_goto_input, on_autopilot_off_input, on_autopilot_orbit_input,
     on_autopilot_stop_input, on_dock_helm_input, on_dock_input, on_flight_burn_input,
-    on_flight_burn_input_completed, on_mine_released, on_mine_start,
-    on_player_added_spawn_flight_input, on_player_removed_despawn_flight_input, on_rcs_aim,
-    on_rcs_modifier_released, on_rcs_modifier_start, rebuild_flight_input_on_rebind,
-    release_rcs_without_the_helm,
+    on_flight_burn_input_completed, on_player_added_spawn_flight_input,
+    on_player_removed_despawn_flight_input, on_rcs_aim, on_rcs_modifier_released,
+    on_rcs_modifier_start, rebuild_flight_input_on_rebind, release_rcs_without_the_helm,
 };
 use hints::update_flight_verb_hints;
 use intent::{
@@ -39,22 +39,22 @@ use intent::{
     update_turret_target_input,
 };
 use weapons::{
-    on_railgun_input, on_railgun_input_binding, on_railgun_input_completed, on_thruster_input,
+    on_mining_input, on_mining_input_binding, on_mining_input_completed, on_railgun_input,
+    on_railgun_input_binding, on_railgun_input_completed, on_thruster_input,
     on_thruster_input_binding, on_thruster_input_completed, on_torpedo_input,
     on_torpedo_input_binding, on_torpedo_input_completed, on_turret_input, on_turret_input_binding,
-    on_turret_input_completed, RailgunInputMarker, ThrusterInputMarker, TorpedoInputMarker,
-    TurretInputMarker,
+    on_turret_input_completed, MiningInputMarker, RailgunInputMarker, ThrusterInputMarker,
+    TorpedoInputMarker, TurretInputMarker,
 };
 use wheel::{on_wheel_step, on_wheel_zoom, WheelDownInput, WheelUpInput};
 
 pub(crate) use self::flight_rig::FlightInputMarker;
 pub use self::{
     control::{resume_player_control, suspend_player_control, PlayerControlSuspended},
-    flight_rig::MiningHeld,
     hints::{FlightVerbHints, VerbHint},
     weapons::{
-        SectionInputBindingChanged, SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding,
-        SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+        SectionInputBindingChanged, SpaceshipMiningInputBinding, SpaceshipRailgunInputBinding,
+        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
     },
 };
 use crate::input::bindings::flight_bindings;
@@ -63,8 +63,8 @@ use crate::input::bindings::flight_bindings;
 /// `SpaceshipPlayerInputPlugin`.
 pub mod prelude {
     pub use super::{
-        resume_player_control, suspend_player_control, FlightVerbHints, MiningHeld,
-        PlayerControlSuspended, SectionInputBindingChanged, SpaceshipPlayerInputPlugin,
+        resume_player_control, suspend_player_control, FlightVerbHints, PlayerControlSuspended,
+        SectionInputBindingChanged, SpaceshipMiningInputBinding, SpaceshipPlayerInputPlugin,
         SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
         SpaceshipTurretInputBinding, VerbHint,
     };
@@ -124,9 +124,6 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_observer(on_autopilot_off_input);
         app.add_observer(on_dock_input);
         app.add_observer(on_dock_helm_input);
-        app.add_observer(on_mine_start);
-        app.add_observer(on_mine_released);
-        app.register_type::<MiningHeld>();
         app.add_observer(on_rcs_modifier_start);
         app.add_observer(on_rcs_modifier_released);
         app.add_observer(on_rcs_aim);
@@ -154,6 +151,11 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_observer(on_railgun_input_binding);
         app.add_observer(on_railgun_input);
         app.add_observer(on_railgun_input_completed);
+
+        app.add_input_context::<MiningInputMarker>();
+        app.add_observer(on_mining_input_binding);
+        app.add_observer(on_mining_input);
+        app.add_observer(on_mining_input_completed);
 
         app.init_resource::<FlightVerbHints>();
         app.register_type::<FlightVerbHints>();

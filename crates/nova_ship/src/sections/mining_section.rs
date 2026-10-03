@@ -6,12 +6,12 @@
 //! `nova_scenario`'s mining plugin, which reads [`MiningEmitter::is_deployed`],
 //! aims down the emitter's local -Z face ([`mining_emitter_face`]) and carves.
 //!
-//! While its ship holds [`MiningHeld`], an emitter parts its
+//! While its own [`MiningSectionHeld`] is set, an emitter parts its
 //! [`SectionAnimationCue::StowDoors`] doors and, once they are fully open,
 //! extends its [`SectionAnimationCue::StowLift`] tip. On release the tip
 //! retracts first and the doors shut after it. A press or a release during
 //! travel reverses from where the parts are. The emitter is deployed only
-//! while its ship holds the key and both tracks are at progress 0.
+//! while its key is held and both tracks are at progress 0.
 //!
 //! The art rests deployed, which is what an editor preview shows. A live
 //! emitter starts stowed by snap, as a retractable turret does.
@@ -28,7 +28,7 @@ pub mod prelude {
     pub use super::{
         mining_emitter_face, mining_section, preview_mining_section, MiningDoorsMoved,
         MiningEmitter, MiningSectionConfig, MiningSectionConfigFault, MiningSectionConfigHelper,
-        MiningSectionMarker, MiningSectionPlugin, MiningSectionSystems,
+        MiningSectionHeld, MiningSectionMarker, MiningSectionPlugin, MiningSectionSystems,
     };
 }
 
@@ -130,12 +130,18 @@ pub struct MiningEmitter {
 }
 
 impl MiningEmitter {
-    /// True while the ship holds the key and the doors and tip are fully out.
+    /// True while the emitter's key is held and the doors and tip are fully out.
     /// The one gate the beam reads.
     pub fn is_deployed(&self) -> bool {
         self.deployed
     }
 }
+
+/// True while the player holds this emitter's own bound key. Only the
+/// section's input observers write it, so each emitter deploys alone.
+#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct MiningSectionHeld(pub bool);
 
 /// An emitter's doors were told to move the other way: the change of their
 /// target, not of their progress. The spawn snap and a held key report
@@ -163,7 +169,11 @@ pub fn mining_section(config: MiningSectionConfig) -> impl Bundle {
     if let Err(fault) = config.validate() {
         panic!("mining_section: {fault}");
     }
-    (preview_mining_section(config), MiningEmitter::default())
+    (
+        preview_mining_section(config),
+        MiningEmitter::default(),
+        MiningSectionHeld(false),
+    )
 }
 
 /// The render-only half of an emitter, for editor views.
@@ -209,20 +219,23 @@ fn steer(animations: &mut Mut<SectionAnimations>, cue: SectionAnimationCue, targ
     redirect
 }
 
-/// Sequence every live emitter from its ship's key: doors then tip out while
+/// Sequence every live emitter from its own key: doors then tip out while
 /// held, tip then doors in once released. An absent track reads as already
 /// at its end, as the turret stow machine reads one. Each door redirect
 /// reports [`MiningDoorsMoved`].
 fn drive_mining_emitters(
     mut q_emitters: Query<
-        (Entity, &ChildOf, &mut MiningEmitter, &mut SectionAnimations),
+        (
+            Entity,
+            &MiningSectionHeld,
+            &mut MiningEmitter,
+            &mut SectionAnimations,
+        ),
         (With<MiningSectionMarker>, Without<SectionInactiveMarker>),
     >,
-    q_held: Query<(), With<MiningHeld>>,
     mut commands: Commands,
 ) {
-    for (entity, &ChildOf(ship), mut emitter, mut animations) in &mut q_emitters {
-        let held = q_held.contains(ship);
+    for (entity, &MiningSectionHeld(held), mut emitter, mut animations) in &mut q_emitters {
         let doors = animations.cue_progress(SectionAnimationCue::StowDoors);
         let tip = animations.cue_progress(SectionAnimationCue::StowLift);
         let doors_open = doors.is_none_or(|doors| doors == 0.0);
@@ -298,6 +311,7 @@ impl Plugin for MiningSectionPlugin {
 
         app.register_type::<MiningSectionMarker>();
         app.register_type::<MiningEmitter>();
+        app.register_type::<MiningSectionHeld>();
 
         app.configure_sets(Update, MiningSectionSystems.before(SectionAnimationSystems));
         app.add_systems(

@@ -4,27 +4,37 @@
 //! Touch this module when changing the ship panel or what the repair action
 //! does.
 
-use bevy::prelude::*;
+use bevy::{
+    prelude::{
+        default, BackgroundColor, BorderRadius, ChildOf, ChildSpawnerCommands, Color, Display,
+        Entity, FlexDirection, FlexWrap, Has, Justify, JustifyContent, LineBreak, MessageReader,
+        Name, Node, Overflow, Query, ResMut, TextLayout, Val, With,
+    },
+    ui_widgets::{Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick},
+};
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    prelude::*,
     theme::UiColor,
-    widget::{ButtonSpec, ThemedFill},
+    widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill},
 };
 
 use super::{scene::*, sections::*};
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::{panel_preview_frame, side_panel, themed_label, PANEL_PREVIEW_PX},
+    pane::{
+        compact_button, control_row, divider, panel_preview_frame, side_panel, themed_label,
+        PANEL_PREVIEW_PX, SUMMARY_LINES,
+    },
 };
 
 /// Build the section panel: the selected section's icon over its code, name,
-/// status and condition bar, its detail, Prev and Next, the Repair
-/// and Rebind buttons, and the note line, beside the view.
-/// [`update_ship_panel`] fills it. The texts carry a
-/// [`ShipPanelField`] so one system refreshes them; the buttons carry a
-/// [`ShipPanelButton`] and route through the [`SectionRepairCommand`] seam via
-/// `Activate` observers.
+/// status and condition bar; its description; its labelled facts; Prev, Next
+/// and Rebind; the repair form; and the note line, beside the view.
+/// [`update_ship_panel`] fills it. The texts carry a [`ShipPanelField`] so one
+/// system refreshes them, and a fact row or the form carries the field it
+/// holds so the same system hides it. The buttons carry a [`ShipPanelButton`]
+/// and route through the [`SectionRepairCommand`] seam via `Activate`
+/// observers.
 pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
         .spawn((ShipPanelMarker, side_panel()))
@@ -88,14 +98,44 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             });
                     });
                 });
-            panel.spawn((
-                ShipPanelField::Detail,
-                themed_label("", 12.0, UiColor::Body),
-            ));
+            panel.spawn(divider());
+            panel.spawn((ShipPanelField::About, themed_label("", 12.0, UiColor::Body)));
+            panel.spawn(divider());
+            // The Inventory inspector's fact rows: the word on the left and
+            // the value, clipped on one line, on the right.
+            for (label, field) in [
+                ("Integrity", ShipPanelField::Integrity),
+                ("Ammunition", ShipPanelField::Ammo),
+                ("Control", ShipPanelField::Control),
+            ] {
+                panel
+                    .spawn((field, control_row(JustifyContent::SpaceBetween)))
+                    .with_children(|fact| {
+                        fact.spawn((
+                            themed_label(label, 12.0, UiColor::Label),
+                            Node {
+                                flex_shrink: 0.0,
+                                ..default()
+                            },
+                        ));
+                        fact.spawn((
+                            field,
+                            themed_label("", 13.0, UiColor::Primary),
+                            TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                            Node {
+                                min_width: Val::Px(0.0),
+                                overflow: Overflow::clip(),
+                                ..default()
+                            },
+                        ));
+                    });
+            }
             panel
                 .spawn(Node {
                     flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
                     column_gap: Val::Px(8.0),
+                    row_gap: Val::Px(8.0),
                     ..default()
                 })
                 .with_children(|row| {
@@ -106,26 +146,88 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         ))
                         .observe(on_ship_step_button(step));
                     }
-                });
-            panel
-                .spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    flex_wrap: FlexWrap::Wrap,
-                    column_gap: Val::Px(8.0),
-                    row_gap: Val::Px(8.0),
-                    ..default()
-                })
-                .with_children(|row| {
-                    row.spawn((
-                        ShipPanelButton::Repair,
-                        button(ButtonSpec::new("Repair").fit()),
-                    ))
-                    .observe(on_ship_repair_button);
                     row.spawn((
                         ShipPanelButton::Rebind,
                         button(ButtonSpec::new("Rebind").fit()),
                     ))
                     .observe(on_ship_rebind_button);
+                });
+            panel
+                .spawn((
+                    ShipPanelField::RepairForm,
+                    Node {
+                        display: Display::None,
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(10.0),
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                ))
+                .with_children(|form| {
+                    form.spawn(divider());
+                    form.spawn(themed_label("Repair", 13.0, UiColor::Accent));
+                    form.spawn(Node {
+                        flex_wrap: FlexWrap::Wrap,
+                        row_gap: Val::Px(6.0),
+                        ..control_row(JustifyContent::FlexStart)
+                    })
+                    .with_children(|row| {
+                        row.spawn(Node {
+                            width: Val::Px(72.0),
+                            flex_shrink: 0.0,
+                            ..default()
+                        })
+                        .with_children(|cell| {
+                            cell.spawn((
+                                ShipRepairQuantity,
+                                text_field(TextFieldSpec::new("1").max_chars(5).dense()),
+                            ));
+                        });
+                        row.spawn((
+                            ShipPanelField::RepairStock,
+                            themed_label("", 15.0, UiColor::Primary),
+                            Node {
+                                flex_grow: 1.0,
+                                ..default()
+                            },
+                            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                        ));
+                        row.spawn((
+                            Name::new("ShipRepairAll"),
+                            compact_button(ButtonSpec::new("All").fit().ghost()),
+                        ))
+                        .observe(on_ship_repair_all_button);
+                    });
+                    form.spawn((
+                        ShipRepairQuantity,
+                        Slider {
+                            track_click: TrackClick::Snap,
+                            ..default()
+                        },
+                        SliderValue(1.0),
+                        SliderRange::new(1.0, 1.0),
+                        SliderStep(1.0),
+                        SliderPrecision(0),
+                        slider_track(0.0),
+                    ))
+                    .observe(on_ship_repair_slider);
+                    form.spawn((
+                        ShipPanelField::RepairPreview,
+                        themed_label("", 13.0, UiColor::Body),
+                        Node {
+                            min_height: Val::Px(13.0 * 1.2 * SUMMARY_LINES),
+                            ..default()
+                        },
+                    ));
+                    form.spawn(control_row(JustifyContent::FlexStart))
+                        .with_children(|row| {
+                            row.spawn((
+                                Name::new("ShipRepair"),
+                                ShipPanelButton::Repair,
+                                compact_button(ButtonSpec::new("Repair").fit().primary()),
+                            ))
+                            .observe(on_ship_repair_button);
+                        });
                 });
             panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
         });
@@ -161,6 +263,7 @@ pub(crate) fn apply_ship_section_commands(
             &code.0,
             q_health.get_mut(command.target).ok().as_deref_mut(),
             disabled,
+            command.requested_plates,
             &mut inventory,
         );
         runtime.note = Some((row.text, 2.5));
