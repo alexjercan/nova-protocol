@@ -333,8 +333,11 @@ cannot tell a fault from a hull off the helm. The HELM chip reads it through
 `FlightVerbHints::helm_fault`, and no verb is `helm_blocked` while it is set,
 because HELM cannot take the helm. The interface's Map GOTO refuses on it before it
 asks for the helm. On the driver, the autopilot, the
-flight authority, the manual balancer, the RCS budget and the AI patrol and
-combat planning read the assembly, never the root alone. A driver with no
+flight authority, the manual balancer and the RCS budget read the assembly,
+never the root alone. An AI driver does not patrol, orbit or fight while
+docked: `update_passive_flight` holds the pair on a `Stop` maneuver instead,
+and `update_ai_target` clears its target, until the undock hands its route
+back where it left off. A driver with no
 `DockedAssembly` moves nothing: `thruster_impulse_system` skips it, and the
 autopilot, scripted align, manual balancer and RCS writer each log an error
 once and skip it. Scripted align aims from the assembly's centre of mass.
@@ -408,7 +411,10 @@ engine world units and sections stack by whole cells of 10 m. It comes with a
 `source` (`Inline`, or `Prototype` with its own `SectionConfigPatch`). The
 player config carries the input mapping (section id -> key/gamepad bindings)
 and nothing else, and refuses an unknown key rather than dropping it; the AI
-config carries `patrol`/`orbit`/`leash`/`engage_delay`.
+config carries `patrol`/`patrol_stops`/`orbit`/`leash`/`engage_delay`.
+`patrol_stops` names, one per `patrol` waypoint, the seconds the AI holds
+station there before the next leg; `patrol_stops_fault` is the shared check
+lint and the spawn both run against a mismatched length or a negative or non-finite stop.
 
 Spawning: the base scenario bundle gives the root `RigidBody::Dynamic`; the
 spaceship object adds `SpaceshipRootMarker`, and an observer

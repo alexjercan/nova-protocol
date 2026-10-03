@@ -155,6 +155,7 @@ type CandidateQuery<'w, 's> = Query<
         Option<&'static TorpedoProjectileMarker>,
         Option<&'static TorpedoTargetChosen>,
         Option<&'static Allegiance>,
+        Option<&'static ProjectileOwner>,
         Has<NeutralizedMarker>,
     ),
     Without<TurretBulletProjectileMarker>,
@@ -169,6 +170,7 @@ type ObserverQuery<'w, 's> = Query<
         &'static Transform,
         Option<&'static ComputedCenterOfMass>,
         Option<&'static Allegiance>,
+        Option<&'static RetaliationTarget>,
         &'static SensorRange,
         &'static mut SensorContacts,
         Option<&'static TravelLock>,
@@ -216,6 +218,7 @@ pub(crate) fn update_sensor_contacts(
     scan: RadarScan,
     settings: Res<TargetingSettings>,
     q_candidates: CandidateQuery,
+    q_retaliation: Query<&RetaliationTarget>,
     mut q_observers: ObserverQuery,
 ) {
     for (
@@ -223,6 +226,7 @@ pub(crate) fn update_sensor_contacts(
         transform,
         com,
         observer_allegiance,
+        observer_retaliation,
         range,
         mut contacts,
         travel,
@@ -258,6 +262,7 @@ pub(crate) fn update_sensor_contacts(
                 torpedo,
                 committed,
                 allegiance,
+                owner,
                 neutralized,
             )| {
                 if entity == observer {
@@ -293,7 +298,14 @@ pub(crate) fn update_sensor_contacts(
                 Some(SensorContact {
                     entity,
                     anchor,
-                    relation: relation(observer_allegiance, allegiance),
+                    relation: ship_relation(
+                        RelationParty {
+                            entity: observer,
+                            allegiance: observer_allegiance,
+                            retaliation: observer_retaliation,
+                        },
+                        projectile_party(entity, allegiance, owner, &q_retaliation),
+                    ),
                     is_ship,
                     is_torpedo,
                     neutralized,
@@ -404,6 +416,28 @@ mod tests {
                 SensorContacts::default(),
             ))
             .id();
+        // A Neutral answering the observer: its committed torpedo is hostile.
+        let answering = world
+            .spawn((
+                Transform::from_xyz(50.0, 0.0, -150.0),
+                RigidBody::Dynamic,
+                SpaceshipRootMarker,
+                Allegiance::Neutral,
+                RetaliationTarget(Some(observer)),
+                loud,
+            ))
+            .id();
+        let torpedo = world
+            .spawn((
+                Transform::from_xyz(50.0, 0.0, -120.0),
+                RigidBody::Dynamic,
+                TorpedoProjectileMarker,
+                TorpedoTargetChosen,
+                LockSignature(82.0),
+                Allegiance::Neutral,
+                ProjectileOwner(answering),
+            ))
+            .id();
 
         world
             .run_system_once(crate::sections::signature::publish_ship_signatures)
@@ -426,6 +460,11 @@ mod tests {
             contacts.get(near).map(|contact| contact.relation),
             Some(Relation::Hostile),
             "and the relation is resolved once, on the contact"
+        );
+        assert_eq!(
+            contacts.get(torpedo).map(|contact| contact.relation),
+            Some(Relation::Hostile),
+            "a torpedo answers as its owner ship"
         );
     }
 }

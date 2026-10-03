@@ -182,6 +182,31 @@ fn map_contact_codes_are_unique_and_stable() {
     before.sort();
     after.sort();
     assert_eq!(before, after, "codes are stable across minting passes");
+
+    // A Neutral answering the player reads Hostile but keeps its NEU code, so
+    // the next Neutral must not mint that code again.
+    let player = world
+        .run_system_once(|c: MapContacts| c.player_frame().unwrap().0)
+        .unwrap();
+    let neutral = |world: &mut World| {
+        world
+            .spawn((
+                SpaceshipRootMarker,
+                Allegiance::Neutral,
+                GlobalTransform::default(),
+            ))
+            .id()
+    };
+    let answering = neutral(&mut world);
+    world.run_system_once(assign_map_contact_codes).unwrap();
+    world
+        .entity_mut(answering)
+        .insert(RetaliationTarget(Some(player)));
+    let streamed = neutral(&mut world);
+    world.run_system_once(assign_map_contact_codes).unwrap();
+    let code = |world: &World, entity| world.get::<MapContactCode>(entity).unwrap().0.clone();
+    assert_eq!(code(&world, answering), "NEU-1");
+    assert_eq!(code(&world, streamed), "NEU-2");
 }
 
 /// The scene lives while the Map pane is on screen, including under the

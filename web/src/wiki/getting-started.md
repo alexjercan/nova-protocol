@@ -121,7 +121,7 @@ The line warship New Game gives you carries a docking port on each shoulder, a c
 3. **Pick up a canister.** Fly your top-deck [cargo intake](../sections/cargo-intake/#taking-a-canister-in) up onto a canister, door first. It goes into your hold whole.
 4. **Drop cargo.** Undocked, click an item in the Inventory pane and **Confirm** a [Jettison](../interface/#jettison-and-pickup). Close the pane and the intake drops it as canisters, which you can pick up again.
 
-Ore sells to a docked ship that trades: a living generated ship carries its own goods and credits, so Buy and Sell work once you dock with one you have not neutralized. Mined ore stays in your hold until you find one.
+Ore sells to a docked ship that trades: a living generated ship carries its own goods and credits, so Buy and Sell work once you dock with a calm one you have not neutralized. Mined ore stays in your hold until you find one.
 
 ## Where to go next
 

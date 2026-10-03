@@ -150,16 +150,19 @@ pub(super) fn update_ai_target(
             &AIThreat,
             &mut AITarget,
             Has<AINonCombatant>,
+            Has<DockedShip>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
 ) {
-    for (contacts, threat, mut target, non_combatant) in &mut q_spaceship {
+    for (contacts, threat, mut target, non_combatant, docked) in &mut q_spaceship {
         // A non-combatant never fights: keep its target clear so the behavior
         // FSM holds the passive routine. Cleared defensively in case the ship
         // was armed when it last acquired one (a future critical-damage path
-        // could flip this flag mid-fight).
-        if non_combatant {
+        // could flip this flag mid-fight). A docked ship holds its fire the
+        // same way until it undocks: a retaliation it recorded while docked
+        // waits for the undock.
+        if non_combatant || docked {
             if target.is_some() {
                 **target = None;
             }
@@ -270,10 +273,12 @@ pub(super) fn update_point_defense_target(
             Entity,
             &Transform,
             Option<&Allegiance>,
+            Option<&ProjectileOwner>,
             Option<&TorpedoTargetEntity>,
         ),
         (With<TorpedoProjectileMarker>, With<TorpedoTargetChosen>),
     >,
+    q_retaliation: Query<&RetaliationTarget>,
     mut q_spaceship: Query<
         (
             Entity,
@@ -297,16 +302,21 @@ pub(super) fn update_point_defense_target(
             continue;
         }
         let own_anchor = live_structure_anchor(transform, com);
-        let candidates =
-            q_torpedoes
-                .iter()
-                .filter_map(|(entity, t_transform, allegiance, torpedo_target)| {
-                    if relation(Some(own_allegiance), allegiance) != Relation::Hostile {
-                        return None;
-                    }
-                    let targeting_me = torpedo_target.map(|t| **t) == Some(ship);
-                    Some((entity, t_transform.translation, targeting_me))
-                });
+        let own = RelationParty {
+            entity: ship,
+            allegiance: Some(own_allegiance),
+            retaliation: q_retaliation.get(ship).ok(),
+        };
+        let candidates = q_torpedoes.iter().filter_map(
+            |(entity, t_transform, allegiance, owner, torpedo_target)| {
+                let threat = projectile_party(entity, allegiance, owner, &q_retaliation);
+                if ship_relation(own, threat) != Relation::Hostile {
+                    return None;
+                }
+                let targeting_me = torpedo_target.map(|t| **t) == Some(ship);
+                Some((entity, t_transform.translation, targeting_me))
+            },
+        );
 
         let next = pick_point_defense_target(
             own_anchor,
@@ -1090,7 +1100,7 @@ mod point_defense_tests {
 
     #[test]
     fn an_idle_ship_still_defends_itself() {
-        let (mut world, ai_ship, _, torpedo, turret) = defended_world();
+        let (mut world, ai_ship, player, torpedo, turret) = defended_world();
         world.entity_mut(ai_ship).insert(AIBehaviorState::Idle);
 
         world.run_system_once(update_point_defense_target).unwrap();
@@ -1105,6 +1115,20 @@ mod point_defense_tests {
             Some(Vec3::new(0.0, 0.0, -150.0)),
             "point defense applies in every behavior state"
         );
+
+        // A Neutral answering the player defends against the player's
+        // torpedo; once it lets go, the torpedo is no threat to it.
+        world
+            .entity_mut(ai_ship)
+            .insert((Allegiance::Neutral, RetaliationTarget(Some(player))));
+        world.entity_mut(torpedo).insert(ProjectileOwner(player));
+        let defending = |world: &mut World| {
+            world.run_system_once(update_point_defense_target).unwrap();
+            **world.entity(ai_ship).get::<AIPointDefenseTarget>().unwrap()
+        };
+        assert_eq!(defending(&mut world), Some(torpedo));
+        world.entity_mut(ai_ship).insert(RetaliationTarget(None));
+        assert_eq!(defending(&mut world), None);
     }
 
     /// One defense frame, in the production chain order.

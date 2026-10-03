@@ -24,7 +24,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
-use super::{DockingPorts, DockingSectionMarker, DockingSectionState};
+use super::{DockAdmission, DockingPorts, DockingSectionMarker, DockingSectionState};
 use crate::prelude::*;
 
 /// Ordering handle for docking's own fixed-clock work.
@@ -177,6 +177,7 @@ pub(super) fn on_docking_connection_request(
     request: On<DockingConnectionRequest>,
     mut commands: Commands,
     ports: DockingPorts,
+    admission: DockAdmission,
     mut q_states: Query<&mut DockingSectionState>,
     q_controllers: Query<
         (&ChildOf, &ControllerSectionRotationInput),
@@ -189,6 +190,10 @@ pub(super) fn on_docking_connection_request(
     let (first_ship, second_ship) = (request.entity, request.target);
     trace!("on_docking_connection_request: {first_ship:?} -> {second_ship:?}");
 
+    if !admission.admits(first_ship, second_ship) {
+        debug!("on_docking_connection_request: {second_ship:?} refuses a dock now");
+        return;
+    }
     let Some(candidate) = ports.best_candidate(first_ship, second_ship) else {
         debug!("on_docking_connection_request: no eligible port pair, refused");
         return;

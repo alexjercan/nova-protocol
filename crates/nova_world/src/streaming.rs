@@ -24,14 +24,15 @@ use nova_gameplay::prelude::{
 };
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
-    resolve_ship_design, spaceship_scenario_object, AsteroidConfig, BaseScenarioObjectConfig,
-    GameShipDesigns, ShipDesignSource, SpaceshipConfig, SpaceshipController,
+    resolve_ship_design, spaceship_scenario_object, AIControllerConfig, AsteroidConfig,
+    BaseScenarioObjectConfig, GameShipDesigns, ShipDesignSource, SpaceshipConfig,
+    SpaceshipController,
 };
 use nova_ship::prelude::GameSections;
 
 use crate::{
     bodies_clear, prepare_sector, PreparedSector, SectorCoord, SectorFault, SectorGenerator,
-    SectorShip, SectorShipConditionType, WorldConfig,
+    SectorShip, SectorShipConditionType, SectorShipCrew, WorldConfig,
 };
 
 /// Marks the entity the desired set is centred on.
@@ -313,6 +314,9 @@ fn require_resolved(ship: &SectorShip, sections: &GameSections) {
     }
 }
 
+/// Seconds an Enemy crew of a streamed ship holds fire after it spawns.
+const SECTOR_ENEMY_ENGAGE_DELAY: f32 = 8.0;
+
 /// Spawn one generated ship under `root`, where and as its manifest entry
 /// says, its hold filled with the entry's stock and its balance the entry's
 /// credits.
@@ -321,15 +325,19 @@ fn require_resolved(ship: &SectorShip, sections: &GameSections) {
 /// <role>` or `<civilization> derelict, former <role>`. Inspection and the
 /// selected target show it; a distant map blip shows a minted code instead.
 ///
-/// Nobody aboard and nobody's side: a generated ship is unpiloted, and an AI
-/// that shot it would be shooting the furniture. The allegiance is inserted
-/// beside the bundle for the same reason the scenario loader does it - the
-/// controller marker's requirement default would otherwise decide. A derelict
-/// also carries [`DerelictShipMarker`] in the same bundle, so the section spawn
-/// sees it and every section but hull and docking port spawns inactive, and
-/// [`LootableShipMarker`], so a ship docked to it may Take its stock. The
-/// scenario spawn action inserts that marker from `lootable`; this spawn does
-/// not run through it.
+/// An intact ship carries an AI crew on its civilization's side: it patrols
+/// its manifest loop, holding at each waypoint, and fights inside its leash.
+/// An Enemy crew waits [`SECTOR_ENEMY_ENGAGE_DELAY`] before it first engages,
+/// so a cell that streams in around the player does not open fire on the
+/// spawn frame. A derelict has nobody aboard and nobody's side.
+///
+/// The allegiance is inserted beside the bundle for the same reason the
+/// scenario loader does it - the controller marker's requirement default would
+/// otherwise decide. A derelict also carries [`DerelictShipMarker`] in the
+/// same bundle, so the section spawn sees it and every section but hull and
+/// docking port spawns inactive, and [`LootableShipMarker`], so a ship docked
+/// to it may Take its stock. The scenario spawn action inserts that marker
+/// from `lootable`; this spawn does not run through it.
 fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
     let SectorShip {
         id,
@@ -339,6 +347,7 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
         clearance: _,
         design,
         condition,
+        crew,
         civilization,
         role,
         stock,
@@ -351,6 +360,25 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
             format!("{} derelict, former {}", civilization.name(), role.label())
         }
     };
+    let (controller, allegiance) = match crew {
+        Some(SectorShipCrew {
+            allegiance,
+            patrol,
+            stops,
+            leash,
+        }) => (
+            SpaceshipController::AI(AIControllerConfig {
+                patrol,
+                patrol_stops: stops,
+                leash: Some(leash),
+                engage_delay: (allegiance == Allegiance::Enemy)
+                    .then_some(SECTOR_ENEMY_ENGAGE_DELAY),
+                ..default()
+            }),
+            allegiance,
+        ),
+        None => (SpaceshipController::None, Allegiance::Neutral),
+    };
     let ship = (
         base_scenario_object(&BaseScenarioObjectConfig {
             id,
@@ -360,15 +388,15 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
         }),
         spaceship_scenario_object(SpaceshipConfig {
             design: ShipDesignSource::Inline(design),
-            controller: SpaceshipController::None,
+            controller,
             initial_velocity,
-            allegiance: Some(Allegiance::Neutral),
+            allegiance: Some(allegiance),
             inventory: stock,
             lootable: derelict,
             credits,
             ..default()
         }),
-        Allegiance::Neutral,
+        allegiance,
         ChildOf(root),
     );
     if derelict {

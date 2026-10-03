@@ -873,6 +873,7 @@ fn drive_inset_camera(
 fn drive_inset_frame_state(
     q_player: Query<
         (
+            Entity,
             Option<&Allegiance>,
             &WeaponsHot,
             &CombatLock,
@@ -886,6 +887,7 @@ fn drive_inset_frame_state(
     q_target: Query<(
         Option<&Name>,
         Option<&Allegiance>,
+        Option<&RetaliationTarget>,
         Has<NeutralizedMarker>,
         &GlobalTransform,
         Option<&LinearVelocity>,
@@ -901,7 +903,7 @@ fn drive_inset_frame_state(
     >,
     mut q_caption: Query<(&mut Text, &mut TextColor), With<TargetInsetCaptionMarker>>,
 ) {
-    let Some((player_allegiance, hot, combat, travel, ship_transform, ship_vel)) =
+    let Some((player, player_allegiance, hot, combat, travel, ship_transform, ship_vel)) =
         q_player.iter().next()
     else {
         return;
@@ -935,9 +937,14 @@ fn drive_inset_frame_state(
     } else {
         None
     };
-    let details = subject.and_then(|(slot, target)| Some((slot, q_target.get(target).ok()?)));
+    let details =
+        subject.and_then(|(slot, target)| Some((slot, target, q_target.get(target).ok()?)));
     let (caption, caption_color) = match details {
-        Some((slot, (name, allegiance, neutralized, target_transform, target_vel))) => {
+        Some((
+            slot,
+            target,
+            (name, allegiance, retaliation, neutralized, target_transform, target_vel),
+        )) => {
             let name = name.map_or_else(|| "CONTACT".to_string(), |name| name.to_string());
             let ship_pos = ship_transform.translation();
             let target_pos = target_transform.translation();
@@ -954,7 +961,17 @@ fn drive_inset_frame_state(
             );
             match slot {
                 InsetSlotType::Combat => {
-                    let (relation_tag, color) = match relation(player_allegiance, allegiance) {
+                    let viewer = RelationParty {
+                        entity: player,
+                        allegiance: player_allegiance,
+                        retaliation: None,
+                    };
+                    let contact = RelationParty {
+                        entity: target,
+                        allegiance,
+                        retaliation,
+                    };
+                    let (relation_tag, color) = match ship_relation(viewer, contact) {
                         Relation::Hostile => ("HOSTILE", FACTION_HOSTILE_COLOR),
                         Relation::Own => ("OWN", FACTION_OWN_COLOR),
                         Relation::Neutral => ("NEUTRAL", FACTION_NEUTRAL_COLOR),

@@ -13,6 +13,7 @@
 //! here is provisional until the diagnostic maps are reviewed.
 
 use nova_events::prelude::{Meters, Meters3};
+use nova_gameplay::prelude::Allegiance;
 use nova_world::prelude::*;
 
 use crate::{
@@ -125,6 +126,9 @@ pub struct Civilization {
     /// Its seeded preference for each role, in [`ShipRoleType::ALL`] order.
     /// Each is at least zero; only fighter roles can be zero.
     pub role_preference: [f32; 4],
+    /// The side its crews fight for, drawn independently of every other
+    /// trait: Enemy, Player, or Neutral with one chance in three each.
+    pub allegiance: Allegiance,
 }
 
 impl Civilization {
@@ -226,12 +230,17 @@ impl CivilizationField {
             role_preference[3] = 0.0;
         }
 
+        let sides = [Allegiance::Enemy, Allegiance::Player, Allegiance::Neutral];
+        let side = ((id.stream(b"allegiance").unit() * 3.0) as usize).min(2);
+        let allegiance = sides[side];
+
         Civilization {
             id,
             centroid,
             status,
             advancement,
             role_preference,
+            allegiance,
         }
     }
 
@@ -495,15 +504,52 @@ mod tests {
                     smooth.id,
                     smooth.centroid,
                     smooth.status,
-                    smooth.role_preference
+                    smooth.role_preference,
+                    smooth.allegiance
                 ),
                 (
                     direct.id,
                     direct.centroid,
                     direct.status,
-                    direct.role_preference
+                    direct.role_preference,
+                    direct.allegiance
                 )
             );
+        }
+    }
+
+    /// Each side holds about a third of the civilizations, whatever their
+    /// status: the side is its own draw, not a reading of another trait.
+    #[test]
+    fn a_civilization_side_is_an_even_draw_of_its_own() {
+        for seed in SEEDS {
+            let field = field(seed);
+            let mut counts = [[0_usize; 3]; 2];
+            for x in -6..6 {
+                for y in -6..6 {
+                    for z in -2..2 {
+                        let civilization = field.civilization([x, y, z]);
+                        let side = match civilization.allegiance {
+                            Allegiance::Enemy => 0,
+                            Allegiance::Player => 1,
+                            Allegiance::Neutral => 2,
+                        };
+                        let status =
+                            usize::from(civilization.status == CivilizationStatusType::Extinct);
+                        counts[status][side] += 1;
+                    }
+                }
+            }
+            for (status, sides) in counts.iter().enumerate() {
+                let total: usize = sides.iter().sum();
+                for (side, count) in sides.iter().enumerate() {
+                    let share = *count as f32 / total as f32;
+                    assert!(
+                        (0.25..0.42).contains(&share),
+                        "seed {seed} status {status} side {side}: {count} of {total}"
+                    );
+                }
+            }
         }
     }
 

@@ -154,6 +154,89 @@ fn a_pair_beyond_the_face_gap_is_refused() {
     );
 }
 
+/// The target's combat state, not only the geometry, decides a new dock: an
+/// active Enemy, a ship answering fire and a fighting ally refuse it; a calm
+/// ally or Neutral admits it, and any neutralized ship admits a boarding.
+#[test]
+fn a_fighting_or_enemy_target_refuses_a_dock_and_a_calm_or_neutralized_one_admits_it() {
+    let other = Entity::from_raw_u32(999).unwrap();
+    let cases: [(
+        &str,
+        Allegiance,
+        Option<Entity>,
+        AIBehaviorState,
+        bool,
+        bool,
+    ); 6] = [
+        (
+            "active enemy",
+            Allegiance::Enemy,
+            None,
+            AIBehaviorState::Patrol,
+            false,
+            false,
+        ),
+        (
+            "neutralized enemy",
+            Allegiance::Enemy,
+            None,
+            AIBehaviorState::Patrol,
+            true,
+            true,
+        ),
+        (
+            "calm neutral",
+            Allegiance::Neutral,
+            None,
+            AIBehaviorState::Patrol,
+            false,
+            true,
+        ),
+        (
+            "answering neutral",
+            Allegiance::Neutral,
+            Some(other),
+            AIBehaviorState::Patrol,
+            false,
+            false,
+        ),
+        (
+            "fighting ally",
+            Allegiance::Player,
+            None,
+            AIBehaviorState::Engage,
+            false,
+            false,
+        ),
+        (
+            "calm ally",
+            Allegiance::Player,
+            None,
+            AIBehaviorState::Patrol,
+            false,
+            true,
+        ),
+    ];
+    for (case, side, answering, state, neutralized, admitted) in cases {
+        let mut app = docking_app();
+        let (first, _, second, _) = facing_pair(&mut app, NOMINAL_GAP);
+        app.world_mut().entity_mut(first).insert(Allegiance::Player);
+        let mut target = app.world_mut().entity_mut(second);
+        target.insert((side, RetaliationTarget(answering), state));
+        if neutralized {
+            target.insert(NeutralizedMarker);
+        }
+
+        request_dock(&mut app, first, second);
+
+        assert_eq!(
+            connections(&mut app).len(),
+            usize::from(admitted),
+            "{case}: admitted {admitted}"
+        );
+    }
+}
+
 #[test]
 fn a_pair_whose_axes_are_not_opposed_is_refused() {
     let mut app = docking_app();

@@ -49,13 +49,21 @@ Inside 80 m the **docking sight** draws itself: a flat cross over each port face
 
 Nothing flies the roll for you, and nothing is going to. Lining a port up on the roll axis by hand is the hard part of an approach, and it is meant to be.
 
-The DOCK chip lights on the [keybind dock](../../hud/) only while a pair of ports is genuinely eligible, so the chip is the readout: if it is dark, something in the envelope is still wrong. Three things have to be true at once.
+The DOCK chip lights on the [keybind dock](../../hud/) only while a pair of ports is genuinely eligible, so the chip is the readout: if it is dark, something in the envelope is still wrong (or the target itself refuses - see [Who lets you dock](#who-lets-you-dock)). Three things have to be true at once for the envelope alone.
 
 - **The gap.** Ten meters or less, measured **face to face** between the two retracted ports - not between the two ships, and not between their centres. A port buried behind a wing measures from its own face like any other.
 - **The facing.** The two ports have to look at each other within fifteen degrees. Roll does not count: the collar is a circle, so meeting one upside down is the same as meeting it level, and the clamp simply keeps whatever twist you arrived with.
 - **The speed.** Five meters a second or less of RELATIVE motion, and five degrees a second or less of relative spin. Absolute speed is nothing here: two ships running together at 2 km/s are standing still as far as the other one is concerned.
 
 You do not choose the ports. The game pairs the nearest eligible ones on the two hulls and picks the same pair every time for the same approach, so a ship carrying four ports docks on the one you flew to.
+
+## Who lets you dock
+
+<!-- Behavior verified against crates/nova_ship/src/sections/docking_section/admission.rs DockAdmission::admits, read by the DOCK chip (input/player/hints.rs) and on_docking_connection_request (connection.rs). -->
+
+The geometry is only half of it: the DOCK chip also goes dark, and a request refuses, while the target itself will not have you. A target refuses while it reads [Hostile](../../factions/) to you, while it is on the Enemy side, while it is [answering](../../factions/#retaliation) any ship's fire, or while its AI is actively fighting. A calm ally or Neutral lets you in, and a **neutralized** ship always admits a boarding, whatever side it was.
+
+A dock already made is never re-judged this way - a ship under fire from someone else stays docked with you. Only you hitting a docked Neutral with a crew aboard forces the undock, at once (see [Letting go](#letting-go)).
 
 ## What the clamp holds
 
@@ -65,7 +73,7 @@ The clamp is a single joint between the two hulls, made the instant you press th
 
 Your drift comes with you. A dock never brings either ship to a halt: two hulls that met while coasting keep coasting, together, and a pair caught in a well falls the way one hull would. The clamp only takes away the motion of one hull relative to the OTHER.
 
-A docked pair flies as **one body**, and exactly one ship flies it. Every dock starts **neutral**: the other ship keeps the helm, its autopilot and its orders fly the pair, and your drive, your helm, your RCS and your maneuver keys stand down. RCS mode ends too, even with <kbd>Shift</kbd> still held: release it and press it again once you have the helm. The mode chip reads **NEUTRAL**, and the blocked chips stay on the dock, dark.
+A docked pair flies as **one body**, and exactly one ship flies it. Every dock starts **neutral**: the other ship keeps the helm, its autopilot and its orders fly the pair, and your drive, your helm, your RCS and your maneuver keys stand down. RCS mode ends too, even with <kbd>Shift</kbd> still held: release it and press it again once you have the helm. The mode chip reads **NEUTRAL**, and the blocked chips stay on the dock, dark. An AI partner holding the helm does not fly its patrol or orbit while docked - it holds the pair still for you instead, and picks its route up where it left off once you let go.
 
 <kbd>H</kbd> takes the helm, and the chip reads **RELEASE HELM**. Now your throttle, your RCS, your mouse and <kbd>G</kbd>, <kbd>O</kbd> and <kbd>X</kbd> fly the pair, and the other ship stands down: its orders pause where they are, and pick up again when you hand the helm back with <kbd>H</kbd>. Whoever flies, the pair is flown from its combined mass and balance point: the turn is shared over both hulls, the drive is trimmed about the pair's balance point, and the autopilot brakes for the whole pair, so it turns and stops like one ship rather than one hull dragging the other. Only the flying ship's engines burn. <kbd>Z</kbd> still drops a maneuver without letting go of the clamp. Your guns, your radar and your point defense are untouched either way.
 
@@ -92,13 +100,13 @@ Only then do the sleeves move. Both ports reach 5 m out over about a second, whi
 
 ## Letting go
 
-<!-- Behavior verified against crates/nova_ship/src/sections/docking_section/connection.rs: on_docking_release_request is ungated and addressed to a ship; release_connection removes DockedShip and DockedAssembly from both roots; plus a destroyed port and a destroyed ship. -->
+<!-- Behavior verified against crates/nova_ship/src/sections/docking_section/connection.rs: on_docking_release_request is ungated and addressed to a ship; release_connection removes DockedShip and DockedAssembly from both roots; plus a destroyed port and a destroyed ship. Player-hit-ends-dock: crates/nova_ship/src/input/ai/threat.rs on_damage_track_threat (triggers DockingReleaseRequest). -->
 
 **<kbd>D</kbd> again lets go**, the same way <kbd>O</kbd> again drops an orbit. Either ship can press it, and neither needs the other's permission - the ship you docked with can leave while you are still sitting there. Each ship flies itself again the moment the clamp goes, and the helm goes with it: the next dock starts neutral.
 
-A dock has no timer and no drift. A pair stays docked indefinitely, because nothing you do at the controls can end it - only the verb can. A maneuver does not end it either: [ORBIT](../../flight-autopilot/#the-autopilot-flies-the-hull), GOTO and STOP fly the whole pair.
+A dock has no timer and no drift. A pair stays docked indefinitely, because nothing you do at the controls can end it - only the verb can, or damage. A maneuver does not end it either: [ORBIT](../../flight-autopilot/#the-autopilot-flies-the-hull), GOTO and STOP fly the whole pair.
 
-The last two endings are damage. Shoot the port off either hull, or kill either ship, and the clamp goes with it; the surviving port stows its sleeve and is free to dock again. A port is the lightest thing on a hull at 90 health, so a dock in a firefight is a dock on borrowed time.
+The other endings are damage. Shoot the port off either hull, or kill either ship, and the clamp goes with it; the surviving port stows its sleeve and is free to dock again. A port is the lightest thing on a hull at 90 health, so a dock in a firefight is a dock on borrowed time. A crewed Neutral is an exception: it holds the dock while a third ship shoots at it, but YOUR hit on it ends the dock at once, whole port or not. A derelict has nobody aboard to let go.
 
 ## Variants
 

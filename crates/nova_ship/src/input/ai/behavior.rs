@@ -4,6 +4,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_gameplay::prelude::Cooldown;
 
 #[cfg(test)]
 use super::guns::{on_projectile_input, update_turret_target_input};
@@ -28,7 +29,7 @@ pub enum AIBehaviorState {
     /// Station-keeping: kill drift, hold position loosely, no fire.
     Idle,
     /// Fly the ship's [`AIPatrolRoute`] waypoint loop through the GOTO
-    /// autopilot; no fire.
+    /// autopilot, holding each waypoint's stop on arrival; no fire.
     Patrol,
     /// Circle the [`AIOrbitDirective`]'s gravity well through the ORBIT
     /// autopilot; no fire. Passive like Patrol/Idle: combat pulls the ship
@@ -67,6 +68,11 @@ impl AIBehaviorState {
 /// fallback state becomes `Patrol` instead of `Idle`
 /// (`next_behavior_state`). Spawn-configured (scenario/editor); flown by
 /// `update_passive_flight` through the real GOTO autopilot, leg by leg.
+///
+/// A waypoint with a stop is a timed hold: on arrival the ship station-keeps
+/// there for the stop before it turns onto the next leg. Leaving `Patrol`
+/// drops a running hold, so a ship that fought flies back to the waypoint it
+/// was holding at and holds its whole stop again.
 #[derive(Component, Debug, Clone, PartialEq, Reflect)]
 #[reflect(Component)]
 pub struct AIPatrolRoute {
@@ -74,18 +80,33 @@ pub struct AIPatrolRoute {
     /// arrival radius (arrival_standoff + `AI_WAYPOINT_SLACK`) are all
     /// "arrived" at once and collapse into station keeping at the cluster.
     pub waypoints: Vec<Vec3>,
+    /// Seconds held on station at each waypoint, in waypoint order. Empty is
+    /// a route without stops. The spawn refuses a list of another length; a
+    /// waypoint an inspector edit left without a stop holds none.
+    pub stops: Vec<f32>,
     /// Index of the waypoint currently being flown to. Out-of-range values
     /// (both fields are inspector-editable) self-heal by wrapping.
     pub current: usize,
+    /// The stop running at the current waypoint; `None` while a leg is flown.
+    pub hold: Option<Cooldown>,
 }
 
 impl AIPatrolRoute {
-    /// A route starting at its first waypoint.
+    /// A route without stops, starting at its first waypoint.
     pub fn new(waypoints: Vec<Vec3>) -> Self {
         Self {
             waypoints,
+            stops: Vec::new(),
             current: 0,
+            hold: None,
         }
+    }
+
+    /// The stop at the current waypoint in seconds; zero without one.
+    pub(crate) fn current_stop(&self) -> f32 {
+        self.wrapped_current()
+            .and_then(|current| self.stops.get(current).copied())
+            .unwrap_or(0.0)
     }
 
     /// `current` wrapped into range; `None` for an empty route. An edited

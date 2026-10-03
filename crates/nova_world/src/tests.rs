@@ -19,12 +19,13 @@ use avian3d::prelude::{LinearVelocity, RigidBody};
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
-    AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope, ItemType,
-    LootableShipMarker, ShipCredits, ShipInventoryStock,
+    Allegiance, AssetRef, DerelictShipMarker, GravityAffected, GravityWell, IntegrityEnvelope,
+    ItemType, LootableShipMarker, ShipCredits, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
-    AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType, SectionSource, ShipDesign,
-    SpaceshipSectionConfig, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
+    AIControllerConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType, SectionSource,
+    ShipDesign, SpaceshipController, SpaceshipSectionConfig, ASTEROID_GEOMETRIC_FACTOR_MAX,
+    KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, HullSectionConfig, SectionConfig, SectionKind,
@@ -34,8 +35,9 @@ use crate::{
     generate_sector, materialize_pending_ships, materialize_sector, prepare_sector, sector_id,
     validate_manifest, CivilizationId, NovaWorldPlugin, ObserverBody, PendingSectorShip,
     SectorAsteroid, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator,
-    SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, ShipRoleType, WorldConfig,
-    WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX, SECTOR_SHIP_CLEARANCE_MAX,
+    SectorManifest, SectorPlanet, SectorShip, SectorShipConditionType, SectorShipCrew,
+    ShipRoleType, WorldConfig, WorldGeometry, WorldObserver, ACTIVE_WINDOW_SECTORS_MAX,
+    SECTOR_SHIP_CLEARANCE_MAX,
 };
 
 /// The section prototype every test ship is built from.
@@ -126,6 +128,12 @@ fn ship(id: String, position: Meters3, prototype: &str) -> SectorShip {
             ..default()
         },
         condition: SectorShipConditionType::Intact,
+        crew: Some(SectorShipCrew {
+            allegiance: Allegiance::Neutral,
+            patrol: Vec::new(),
+            stops: Vec::new(),
+            leash: Meters(5_000.0),
+        }),
         civilization: CivilizationId {
             world_seed: 0,
             node: [0, 0, 0],
@@ -219,7 +227,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 14] = [
+    ); 18] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
@@ -391,6 +399,50 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                     }
                 )
             },
+        ),
+        (
+            "an intact ship with no crew",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0].crew = None;
+                manifest
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "crew", .. }),
+        ),
+        (
+            "a derelict with a crew",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0].condition = SectorShipConditionType::Derelict;
+                manifest
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "crew", .. }),
+        ),
+        (
+            "a crew with a stop for a missing waypoint",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0]
+                    .crew
+                    .as_mut()
+                    .expect("the fixture ship is crewed")
+                    .stops = vec![30.0];
+                manifest
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "crew", .. }),
+        ),
+        (
+            "a crew with a zero leash",
+            |input| {
+                let mut manifest = one_ship(input);
+                manifest.ships[0]
+                    .crew
+                    .as_mut()
+                    .expect("the fixture ship is crewed")
+                    .leash = Meters(0.0);
+                manifest
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "crew", .. }),
         ),
     ];
     for (what, answer, expected) in cases {
@@ -896,13 +948,24 @@ fn a_ship_the_observer_overlaps_is_held_until_the_observer_is_clear() {
     );
 }
 
-/// A manifest of `input`'s cell holding an intact [`ship`] at its centre and a
-/// derelict one 1 km off carrying five hull plates and 15 credits.
+/// A manifest of `input`'s cell holding an intact [`ship`] at its centre with
+/// an Enemy crew on a two-waypoint loop, and a derelict one 1 km off carrying
+/// five hull plates and 15 credits.
 fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
     let centre = input.coord.centre(input.geometry.sector_edge);
     let mut manifest = one_ship(input);
+    manifest.ships[0].crew = Some(SectorShipCrew {
+        allegiance: Allegiance::Enemy,
+        patrol: vec![
+            centre + Meters3::new(0.0, 0.0, 1_500.0),
+            centre + Meters3::new(0.0, 0.0, -1_500.0),
+        ],
+        stops: vec![30.0, 45.0],
+        leash: Meters(5_000.0),
+    });
     manifest.ships.push(SectorShip {
         condition: SectorShipConditionType::Derelict,
+        crew: None,
         stock: ShipInventoryStock::new([(ItemType::HullPlate, 5)]),
         credits: 15,
         ..ship(
@@ -915,10 +978,12 @@ fn intact_and_derelict(input: SectorGenerationInput) -> SectorManifest {
 }
 
 /// A derelict spawns lootable with its manifest stock, so a docked ship may
-/// Take it; an intact ship spawns neither lootable nor stocked. Each spawns
+/// Take it, and flown by nobody on nobody's side; an intact ship spawns
+/// neither lootable nor stocked, flown by an AI on its crew's side along its
+/// crew's loop, an Enemy crew holding fire for its arrival grace. Each spawns
 /// with its manifest credits.
 #[test]
-fn a_materialized_derelict_is_lootable_with_its_manifest_stock_and_an_intact_ship_is_not() {
+fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_by_its_crew() {
     let config = answering(intact_and_derelict);
     let prepared =
         prepare_sector(config.clone(), SectorCoord::ORIGIN).expect("two valid ships must prepare");
@@ -965,6 +1030,40 @@ fn a_materialized_derelict_is_lootable_with_its_manifest_stock_and_an_intact_shi
             ),
         ]
     );
+
+    let mut flown: Vec<(String, Allegiance, Option<AIControllerConfig>)> = world
+        .query::<(&Name, &Allegiance, &SpaceshipController)>()
+        .iter(&world)
+        .map(|(name, allegiance, controller)| {
+            let crew = match controller {
+                SpaceshipController::AI(config) => Some(config.clone()),
+                SpaceshipController::None => None,
+                SpaceshipController::Player(_) => panic!("{name} spawned player-flown"),
+            };
+            (name.to_string(), *allegiance, crew)
+        })
+        .collect();
+    flown.sort_by(|a, b| a.0.cmp(&b.0));
+    let [(_, intact_side, Some(crew)), (_, derelict_side, None)] = flown.as_slice() else {
+        panic!("the intact ship must be AI-flown and the derelict unflown: {flown:?}");
+    };
+    let centre = SectorCoord::ORIGIN.centre(config.geometry().sector_edge);
+    assert_eq!(*intact_side, Allegiance::Enemy);
+    assert_eq!(
+        crew.patrol,
+        [
+            centre + Meters3::new(0.0, 0.0, 1_500.0),
+            centre + Meters3::new(0.0, 0.0, -1_500.0),
+        ]
+    );
+    assert_eq!(crew.patrol_stops, [30.0, 45.0]);
+    assert_eq!(crew.leash, Some(Meters(5_000.0)));
+    assert_eq!(
+        crew.engage_delay,
+        Some(8.0),
+        "an Enemy crew arrives holding fire"
+    );
+    assert_eq!(*derelict_side, Allegiance::Neutral);
 }
 
 /// A held ship is part of its cell: retiring the root takes it too.
