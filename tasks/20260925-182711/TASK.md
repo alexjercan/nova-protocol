@@ -1,6 +1,6 @@
 # Static-well gravity for all mobile bodies and stable orbit placement
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.15.0,gravity,world,design
 
