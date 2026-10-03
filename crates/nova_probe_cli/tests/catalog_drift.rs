@@ -319,7 +319,6 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "every visible indicator lands on the live window",
             "the markers count one per section until the budget caps them",
             "the inset frames the capital's whole hull",
-            "the lead pip holds the projected intercept at capital scale",
         ],
     ),
     (
@@ -600,7 +599,6 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the dwell ring rides the dwell",
             "the reticle sits on the locked target",
             "the readout carries distance and health",
-            "the lead pip sits on the aim point",
             "one component marker per section",
             "the target inset films the lock",
             "the safety is hot while combat-locked",
@@ -918,7 +916,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 449;
+const SYSTEMS_INVARIANTS: usize = 447;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

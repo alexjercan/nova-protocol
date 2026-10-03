@@ -19,12 +19,12 @@ mod test_support;
 #[cfg(test)]
 pub(crate) use aim::lead_intercept_point;
 pub use aim::{
-    muzzle_aim_error, muzzle_on_target, on_target_cone, update_turret_aim_point,
-    TurretSectionAimSystems, TurretSectionTargetTrack, CLOSE_ENGAGEMENT_RANGE,
-    POINT_AIM_ON_TARGET_RAD, POINT_AIM_RADIUS,
+    muzzle_aim_error, muzzle_on_target, on_target_cone, TurretSectionAimSystems,
+    TurretSectionTargetTrack, CLOSE_ENGAGEMENT_RANGE, POINT_AIM_ON_TARGET_RAD, POINT_AIM_RADIUS,
 };
 use aim::{
-    sync_turret_joint_rotation, update_turret_target_joints_system, update_turret_target_track,
+    sync_turret_joint_rotation, update_turret_aim_point, update_turret_target_joints_system,
+    update_turret_target_track,
 };
 pub use arc::TurretSectionArc;
 use bevy::prelude::*;
@@ -185,8 +185,8 @@ pub struct TurretSectionTargetRadius(pub Option<f32>);
 /// the bullet `muzzle_speed`, and the shooter's own muzzle velocity that the
 /// bullet inherits on launch (see `update_turret_aim_point` - the solve runs in
 /// the shooter's frame). `None` when there is no target. Read by the yaw/pitch
-/// systems to steer, and exposed so tooling (aim gizmos, the HUD lead pip) can
-/// show where the turret leads.
+/// systems to steer, and exposed so tooling (aim gizmos) can show where the
+/// turret leads.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
 pub struct TurretSectionAimPoint(pub Option<Vec3>);
 
@@ -345,8 +345,8 @@ pub struct TurretSectionMuzzleEntity(pub Entity);
 
 /// Every muzzle (fire point) of a turret, in tree DFS order. The section-wide
 /// fire/aim path iterates these; [`TurretSectionMuzzleEntity`] stays as the
-/// PRIMARY muzzle (the first) for the single-point consumers (lead HUD pip, the
-/// aim-point lead solve, AI alignment gate).
+/// PRIMARY muzzle (the first) for the single-point consumers (the aim-point
+/// lead solve, AI alignment gate).
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TurretSectionMuzzles(pub Vec<Entity>);
 

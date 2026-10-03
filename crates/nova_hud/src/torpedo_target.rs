@@ -83,8 +83,7 @@ const FOCUS_METER_COLOR: Color = combat::at(combat::LOCK, 0.9);
 /// purely slot-colored - red bracket = combat lock, white bracket = travel
 /// lock. This retires the relation tint and the reticle's four armed corner
 /// pips: a visible combat reticle already IMPLIES weapons-hot (lock => hot,
-/// the safety truth table), and the raised-manual hot cue lives on the lead
-/// pips.
+/// the safety truth table).
 const RETICLE_COMBAT_COLOR: Color = nova_ui::theme::semantic::THREAT;
 
 /// The `torpedo_target_hud` spawner, its config, the reticle, health-bar, focus-meter and readout

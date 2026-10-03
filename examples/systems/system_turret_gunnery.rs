@@ -12,9 +12,7 @@
 //! What it shows:
 //! - Bullet gravity: a planetoid slung below the firing lane bends rounds that
 //!   cross its sphere of influence downward toward it. The shooter's own
-//!   gravity is stripped so it stays a fixed frame; only the rounds curve, so
-//!   the straight-line lead pip visibly misses low as a round nears the
-//!   planetoid.
+//!   gravity is stripped so it stays a fixed frame; only the rounds curve.
 //! - Aim gizmos: a line down the barrel (green when it is on target, yellow while
 //!   it lags) and a red line + sphere at the point the turret is aiming for. The
 //!   gap between the barrel line and the target line is the tracking lag - the

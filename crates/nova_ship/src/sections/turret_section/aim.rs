@@ -13,9 +13,8 @@ use bevy::prelude::*;
 use super::{firing::MUZZLE_SPREAD_RAD, *};
 use crate::physics::prelude::rigid_body_point_velocity;
 
-/// System set for the PostUpdate aim chain (intercept solve + rotator
-/// targets), so HUD consumers can order same-frame readers after it (the
-/// turret lead pips do).
+/// System set for the FixedUpdate aim chain (target track, intercept solve and
+/// joint targets).
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TurretSectionAimSystems;
 
@@ -287,11 +286,7 @@ pub(super) fn update_turret_target_track(
 /// dir*s*t = (target - muzzle) + (v_target - v_muzzle)*t. Solving in the
 /// world frame instead makes every shot drift off by the shooter's own
 /// motion.
-// `pub` so the turret-lead pip regression in `nova_hud` can register the real
-// aim system with its production set constraints (the full TurretSectionPlugin
-// drags render-material plugins into headless tests). Crossing the HUD seam is
-// what widened it past `pub(crate)`.
-pub fn update_turret_aim_point(
+pub(crate) fn update_turret_aim_point(
     mut q_turret: Query<
         (
             &TurretSectionTargetInput,

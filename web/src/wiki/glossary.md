@@ -46,7 +46,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Nav lock / combat lock** - the two lock slots. A lowered (white) stance sweeps a nav lock the autopilot flies to; a raised (red) stance sweeps a combat lock the guns aim at. See [Stances and slots](../targeting-radar/#stances-and-slots).
 - **Stance** - whether your weapons are lowered or raised. It picks which slot a sweep fills, and it is one of the two things that make the weapons hot.
 - **Fine-lock** - drilling a combat lock into one specific [section](../sections/) of an enemy hull, so turrets and the viewfinder focus that part. See [Per-section fine-lock](../targeting-radar/#per-section-fine-lock).
-- **"Hot" weapons** - your weapons are hot while you hold a raised (red) combat stance or while a combat lock exists. Hot means turret lead pips and the viewfinder frame go red and you can fire.
+- **"Hot" weapons** - your weapons are hot while you hold a raised (red) combat stance or while a combat lock exists. Hot means the viewfinder frame goes red and you can fire.
 - **Weapons safety** - the lowered state, the opposite of hot: no trigger fires, a bay keeps its iris shut and a railgun will not start a charge. Raise the weapons or take a combat lock and it is off.
 - **Lock range** - how far out the radar will take and hold a lock. See [Lock ranges](../targeting-radar/#lock-ranges).
 - **Clearing** - dropping locks, in stages rather than all at once. See [Clearing locks](../targeting-radar/#clearing-locks).
@@ -60,7 +60,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Kinetic / Pierce** - the two bullet behaviors, told apart by tracer colour. A Kinetic round punches: it stops at the first section it fails to destroy. A Pierce round rakes: it crosses several sections and damages every one on the way through. See [Damage types](../combat-weapons/#damage-types).
 - **Explosive** - the torpedo's damage type: area pressure falling off from the centre of the blast, with no speed term, worked through the hull by structural depth.
 - **Power** - a Pierce round's depth budget. Every section it crosses spends some of it, the tougher the section the more, and the round stops when it is gone. A railgun slug carries 1800. See [How far a round travels](../sections/turret/#how-far-a-round-travels).
-- **Intercept lead** - aiming where the target will be when the round arrives, computed in the shooter's own frame. Every turret does it, and the lead pip shows it. See [Aiming with lead](../sections/turret/#aiming-with-lead).
+- **Intercept lead** - aiming where the target will be when the round arrives, computed in the shooter's own frame. Every turret does it. See [Aiming with lead](../sections/turret/#aiming-with-lead).
 - **Barrel discipline** - a gun fires only while its barrel is actually on the aim point, so it holds through a slew and a mount that cannot bear simply waits. See [Barrel discipline](../sections/turret/#barrel-discipline).
 - **Blind cone** - the sky under a turret's own keel that its barrel cannot depress into: ten degrees below level and everything under that. See [What it can bear on](../sections/turret/#what-it-can-bear-on).
 - **Point defense** - your turrets' automatic close-in fire against inbound torpedoes. Each mount picks and holds its own torpedo, and your flight computer works the mounts you are not using; every intercept costs real ammunition. See [Turret](../sections/turret/#point-defense) for the mount and [Combat](../combat-weapons/#point-defense) for the battery.
@@ -87,7 +87,6 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Diegetic** - part of the world rather than an overlay bolted on top. The HUD instruments read the ship's real state and the autopilot flies the same real thrusters you do, so what you see is what the ship is actually doing.
 - **Velocity sphere** - the flight readout that shows where the ship is going, with the speed chip beside it. It turns violet while RCS is held. See [Flight readouts](../hud/#flight-readouts).
 - **Viewfinder** - the target frame: what you have locked, how far it is and how fast it is closing, and the NEUTRALIZED tag on a wreck. See [Target viewfinder](../hud/#target-viewfinder).
-- **Lead pip** - the marker a turret draws on the point it is actually shooting at, ahead of a moving target. Red while the weapons are hot. See [Locks and reticles](../hud/#locks-and-reticles).
 - **Allegiance markers** - the always-on ship markers, tinted by how each ship stands to you. See [Allegiance markers](../hud/#allegiance-markers).
 - **Keybind dock** - the strip of chips listing the verbs your ship has right now. A chip appears only when the ship has the verb, RCS included. See [Keybinds](../keybinds/).
 - **Interface** - the Tab panel with Map, Ship and Inventory panes over the frozen world. See [Interface](../interface/).

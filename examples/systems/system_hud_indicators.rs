@@ -1,17 +1,17 @@
 //! system_hud_indicators: the screen-projected HUD indicators, verified live.
 //!
-//! The torpedo-lock reticle, the locked-target readout, the autopilot
-//! destination marker and the turret lead pips are consumers of the generic
-//! screen-indicator widget (`hud/screen_indicator.rs`). This range checks the
-//! whole wiring in the real app: the camera glue observer tags the chase
-//! camera, the aim-assist lock drives the reticle anchor and fills the readout
-//! (distance, closing speed, health bar), the engaged GOTO drives the
-//! destination marker, the turret's computed intercept point drives its pip,
-//! and every indicator hides again when its anchor dies.
+//! The torpedo-lock reticle, the locked-target readout and the autopilot
+//! destination marker are consumers of the generic screen-indicator widget
+//! (`hud/screen_indicator.rs`). This range checks the whole wiring in the real
+//! app: the camera glue observer tags the chase camera, the aim-assist lock
+//! drives the reticle anchor and fills the readout (distance, closing speed,
+//! health bar), the lock feed aims the turret at the locked ship, the engaged
+//! GOTO drives the destination marker, and every indicator hides again when
+//! its anchor dies.
 //!
-//! One player ship at the origin facing -Z (with one turret, so exactly one
-//! lead pip exists), one uncontrolled target ship parked dead ahead at
-//! z = -150 - inside the aim-assist cone, so the lock acquires by itself.
+//! One player ship at the origin facing -Z (with one turret), one uncontrolled
+//! target ship parked dead ahead at z = -150 - inside the aim-assist cone, so
+//! the lock acquires by itself.
 //!
 //! Controls: none needed; fly and look around freely in interactive runs.
 //!
@@ -25,13 +25,12 @@
 //! # inject a half-charged dwell and assert the acquisition ring rides it;
 //! # assert the reticle is centered on the locked target's projection, the
 //! # readout carries the real distance and a full health bar, the turret feed
-//! # aims at the locked ship's live structure (not the camera-ray point), the
-//! # lead pip sits on the projected TurretSectionAimPoint and the completed
-//! # dwell replaced the meter with one component marker per section; engage a
-//! # GOTO, pin a component lock on the tail section, and assert the
-//! # destination marker, the positive closing speed and the highlighted
-//! # pinned marker; despawn the target and disable the turret, then assert
-//! # every indicator hid again. The last beat reports done, so the run ends on
+//! # aims at the locked ship's live structure (not the camera-ray point) and
+//! # the completed dwell replaced the meter with one component marker per
+//! # section; engage a GOTO, pin a component lock on the tail section, and
+//! # assert the destination marker, the positive closing speed and the
+//! # highlighted pinned marker; despawn the target, then assert every
+//! # indicator hid again. The last beat reports done, so the run ends on
 //! # the assertion rather than idling out a runway. A beat that never resolves
 //! # inside its deadline is an error exit naming the BEAT.
 //! ```
@@ -863,9 +862,9 @@ fn assert_dwell_ring(world: &mut World) {
 
 /// The lock's whole HUD surface at once: the reticle centered on the target's
 /// projection, the readout's real distance and full health bar, the turret feed
-/// aimed at the locked ship's live structure, the lead pip on the projected aim
-/// point, and the completed focus dwell (meter gone, one component marker per
-/// section) with the inset viewfinder still single and visible.
+/// aimed at the locked ship's live structure, and the completed focus dwell
+/// (meter gone, one component marker per section) with the inset viewfinder
+/// still single and visible.
 #[cfg(feature = "debug")]
 fn assert_lock_indicators(world: &mut World) {
     let player = player_root(world);
@@ -955,7 +954,7 @@ fn assert_lock_indicators(world: &mut World) {
 
     // The turret aims where the player aims (a point 1 km down the
     // camera ray), so its intercept point exists from the first Playing
-    // frame and its pip must be visible on that point's projection.
+    // frame.
     let turret = player_turret(world);
     let aim_point = (**world
         .entity(turret)
@@ -978,27 +977,6 @@ fn assert_lock_indicators(world: &mut World) {
              driving the turret (camera-ray point would be ~500 m short)",
         feed_error.get()
     );
-
-    let expected_pip = project_through_indicator_camera(world, aim_point);
-    let (pip_center, _, pip_visibility) =
-        indicator_state::<TurretLeadPipMarker>(world, "turret lead pip");
-    assert_eq!(
-        pip_visibility,
-        Visibility::Visible,
-        "hud range: the lead pip is not visible while the turret tracks"
-    );
-    let pip_drift = pip_center.distance(expected_pip);
-    assert!(
-        pip_drift < CENTER_TOLERANCE_PX,
-        "hud range: lead pip center {pip_center:?} is {pip_drift:.1} px \
-             from the projected aim point {expected_pip:?}"
-    );
-    nova_probe::probe_marker(
-        world,
-        "outcome: the lead pip sits on the aim point",
-        serde_json::json!({}),
-    );
-    info!("hud range: turret lead pip OK (drift {pip_drift:.1} px)");
 
     // Dwell complete by now (lock held since ~+0s, FOCUS_TIME 1.5 s):
     // the meter yields to one marker per attached target section.
@@ -1237,19 +1215,13 @@ fn assert_goto_indicators(world: &mut World) {
     );
 }
 
-/// Despawn the target and disable the turret section, so every indicator loses
-/// its anchor at once.
+/// Despawn the target, so every indicator loses its anchor at once.
 #[cfg(feature = "debug")]
 fn kill_target(world: &mut World) {
     let target = target_root(world).expect("hud range: target ship vanished before the kill");
     // Physical destruction is the kill-cam seam; generic despawn can be cleanup.
     world.entity_mut(target).insert(IntegrityDestroyMarker);
-    // The turret keeps aiming at the camera ray even with no enemy, so
-    // its anchor only clears through the disabled path: mark the section
-    // inactive like the health pipeline does.
-    let turret = player_turret(world);
-    world.entity_mut(turret).insert(SectionInactiveMarker);
-    info!("hud range: target ship despawned, turret section disabled");
+    info!("hud range: target ship despawned");
 }
 
 /// The script's last beat: every indicator hid when its anchor died, the
@@ -1270,12 +1242,6 @@ fn assert_indicators_hid(world: &mut World) {
         marker_visibility,
         Visibility::Hidden,
         "hud range: the destination marker is still visible after the GOTO target died"
-    );
-    let (_, _, pip_visibility) = indicator_state::<TurretLeadPipMarker>(world, "turret lead pip");
-    assert_eq!(
-        pip_visibility,
-        Visibility::Hidden,
-        "hud range: the lead pip is still visible after the turret was disabled"
     );
     let markers = world
         .query_filtered::<(), With<ComponentLockSectionMarker>>()

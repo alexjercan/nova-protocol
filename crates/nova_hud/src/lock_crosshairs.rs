@@ -22,9 +22,9 @@
 //!   capability; pairs with the deny buzz).
 //!
 //! The old "WEAPONS HOT ..." status text block is GONE: the inset frame
-//! (+ the hot-shifted lead pips) carries the safety state, the inset's
-//! presence is the guided-torpedo signal, and "TORP: DUMB" died without
-//! replacement (the red reticle's presence anywhere IS the guided cue).
+//! carries the safety state, the inset's presence is the guided-torpedo
+//! signal, and "TORP: DUMB" died without replacement (the red reticle's
+//! presence anywhere IS the guided cue).
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;

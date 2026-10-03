@@ -184,6 +184,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   canisters, Take and give, and Jettisoning cargo.
 - New Lessons "Generated ships" and "Looting a wreck" teach open-world ship
   identity and a docked Take and Give from a derelict, with captured footage.
+- Turrets no longer draw lead pips, the small squares at each intercept point.
+  Turrets still lead their targets, and the aim and firing reticles are
+  unchanged.
 
 ### Web & Platform
 

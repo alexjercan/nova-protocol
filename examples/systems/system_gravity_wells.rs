@@ -23,7 +23,7 @@
 //! inward pull, SOI release, well removal, orbit laps
 //! (`nova_gameplay/src/gravity.rs`), and a gun round curving under a well
 //! against a straight control (`a_round_curves_under_a_well_and_flies_straight_without_one`,
-//! `nova_gameplay/src/rounds.rs`). It says nothing at all about the lead pip.
+//! `nova_gameplay/src/rounds.rs`).
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text

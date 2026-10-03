@@ -11,7 +11,7 @@
 //!
 //! One gunship flies. Two things are locked in turn: a one-section drone - the
 //! minimum a ship can be - and the carrier fixture, 2 081 sections and 194 m of
-//! containment radius. Four claims:
+//! containment radius. Three claims:
 //!
 //! - Every visible screen indicator lands on the LIVE window, at both hull
 //!   sizes and both shapes. The widget clamps against the camera's viewport;
@@ -22,8 +22,6 @@
 //!   every one of them on a distinct live section of the locked hull.
 //! - The target inset frames the capital's WHOLE live hull - every corner of
 //!   the union of its section colliders lands inside the panel's texture.
-//! - The turret's lead pip holds the projected intercept at capital scale, and
-//!   holds it again after the reshape moves that projection.
 //!
 //! Controls: none needed; fly and look around freely in interactive runs.
 //!
@@ -33,7 +31,6 @@
 //! # look for: `hud scales: 4:3 / one-section drone: ... indicators on the window`,
 //! #           `hud scales: the capital's 2081 sections read as 64 markers`,
 //! #           `hud scales: the inset frames the whole hull`,
-//! #           `hud scales: the lead pip holds the intercept`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -106,13 +103,6 @@ const MARKER_BUDGET: usize = 64;
 #[cfg(feature = "debug")]
 const INSET_TEXTURE_PX: f32 = 256.0;
 
-/// How far (px) the lead pip's centre may sit from the fresh projection of the
-/// turret's intercept point. The HUD places nodes from last frame's propagated
-/// transforms, so a frame of motion is expected slack; the scene is parked, so
-/// the measured drift is a fraction of a pixel.
-#[cfg(feature = "debug")]
-const PIP_TOLERANCE_PX: f32 = 10.0;
-
 /// Seconds of dwell written onto the focus timer when the range takes a lock.
 ///
 /// The range stages the dwell instead of waiting it out. What the dwell itself
@@ -157,7 +147,6 @@ fn main() -> bevy::app::AppExit {
 
     #[cfg(feature = "debug")]
     {
-        app.init_resource::<ScaleLog>();
         // No frame-time pass: a capital hull plus a second full render of the
         // scene is not a frame budget anyone should read, and this range claims
         // nothing about one.
@@ -175,15 +164,6 @@ fn range_plugin(app: &mut App) {
 
 fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
     commands.trigger(LoadScenario(scales_range(&game_assets, &sections)));
-}
-
-/// What a beat measured, so the next beat can compare against a matched
-/// reading of this run instead of a number somebody typed.
-#[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct ScaleLog {
-    /// Where the capital's intercept point projected, per shape.
-    pip: Vec<(&'static str, Vec2)>,
 }
 
 /// The scene: a gunship at the origin, the minimum hull off one bow and the
@@ -412,15 +392,14 @@ fn assert_the_markers_match_the_hull(
     }
 }
 
-/// The capital's reading: the capped marker set, the framing, the pip, and
-/// every visible indicator on the window.
+/// The capital's reading: the capped marker set, the framing, and every
+/// visible indicator on the window.
 #[cfg(feature = "debug")]
 fn assert_the_capital_reads(shape: &'static str) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| {
         assert_markers(world, shape, CARRIER_ID);
         assert_indicators_are_on_the_window(world, shape, CARRIER_ID);
         assert_the_inset_frames_the_whole_hull(world, shape);
-        assert_the_pip_holds_the_intercept(world, shape);
     }
 }
 
@@ -620,88 +599,6 @@ fn assert_the_inset_frames_the_whole_hull(world: &mut World, shape: &'static str
     );
 }
 
-/// The lead pip holds the projected intercept at capital scale, in both shapes.
-///
-/// The second reading is the one the shape buys: the same world point projects
-/// to a different pixel in a 1024 x 768 window than in a 1280 x 600 one, and
-/// the range asserts the two expectations really did move before it believes
-/// the pip followed them.
-#[cfg(feature = "debug")]
-fn assert_the_pip_holds_the_intercept(world: &mut World, shape: &'static str) {
-    let turret = section_by_id(world, PLAYER_GUN).expect("hud scales: the gunship has one turret");
-    let aim = (**world
-        .get::<TurretSectionAimPoint>(turret)
-        .expect("hud scales: the turret carries no aim point"))
-    .expect("hud scales: the turret never computed an intercept point");
-    let expected = project_through_indicator_camera(world, aim)
-        .expect("hud scales: the intercept point does not project onto the viewport");
-    let (centre, visible) = indicator_box::<TurretLeadPipMarker>(world, "lead pip");
-    assert_eq!(
-        visible,
-        Visibility::Visible,
-        "hud scales: {shape}: the lead pip is not visible while the turret tracks a capital"
-    );
-    let drift = centre.distance(expected);
-    assert!(
-        drift < PIP_TOLERANCE_PX,
-        "hud scales: {shape}: the lead pip sits at {centre:?}, {drift:.1} px from the projected \
-         intercept {expected:?}"
-    );
-
-    // The turret is aiming at the CAPITAL, not at the camera-ray point a
-    // feedless turret falls back to. On a 420 m hull that is a claim worth
-    // making in world space: a lock feed that dropped would still project to
-    // roughly the same pixel, because the hull is dead ahead of the gun.
-    let hull = hull_box(
-        world,
-        object_by_id(world, CARRIER_ID).expect("hud scales: the capital"),
-    );
-    assert!(
-        aim.cmpge(hull.min).all() && aim.cmple(hull.max).all(),
-        "hud scales: {shape}: the turret's intercept {aim:?} is outside the capital's live hull \
-         box ({:?} to {:?}) - the gun is not being fed by the lock",
-        hull.min,
-        hull.max
-    );
-
-    let moved = world
-        .resource::<ScaleLog>()
-        .pip
-        .iter()
-        .map(|(_, at)| at.distance(expected))
-        .fold(f32::NEG_INFINITY, f32::max);
-    if moved.is_finite() {
-        assert!(
-            moved > PIP_TOLERANCE_PX,
-            "hud scales: {shape}: the intercept projects {moved:.1} px from where it did at the \
-             other shape - the two readings are the same measurement twice, not a cross product"
-        );
-    }
-    world.resource_mut::<ScaleLog>().pip.push((shape, expected));
-
-    nova_probe::probe_marker(
-        world,
-        "outcome: the lead pip holds the projected intercept at capital scale",
-        serde_json::json!({
-            "shape": shape,
-            "aim_point": [aim.x, aim.y, aim.z],
-            "expected_px": [expected.x, expected.y],
-            "pip_px": [centre.x, centre.y],
-            "drift_px": drift,
-            "moved_from_other_shape_px": moved.is_finite().then_some(moved),
-        }),
-    );
-    info!(
-        "hud scales: {shape}: the lead pip holds the intercept inside the capital's hull, \
-         {drift:.2} px off a projection that {}",
-        if moved.is_finite() {
-            format!("moved {moved:.0} px with the shape")
-        } else {
-            "this shape is the first to read".to_string()
-        }
-    );
-}
-
 // --- Predicates --------------------------------------------------------------
 
 /// A scenario object with `id` is in the sky.
@@ -794,23 +691,6 @@ fn indicator_boxes(world: &mut World) -> Vec<IndicatorBox> {
         .collect()
 }
 
-/// The centre and visibility of the one indicator node marked `M`.
-#[cfg(feature = "debug")]
-fn indicator_box<M: Component>(world: &mut World, what: &str) -> (Vec2, Visibility) {
-    let (node, computed, visibility) = world
-        .query_filtered::<(&Node, &bevy::ui::ComputedNode, &Visibility), With<M>>()
-        .iter(world)
-        .next()
-        .unwrap_or_else(|| panic!("hud scales: no {what} node"));
-    let px = |val: Val| match val {
-        Val::Px(px) => px,
-        other => panic!("hud scales: the {what} is placed at {other:?}, not in pixels"),
-    };
-    let size = computed.size() * computed.inverse_scale_factor();
-    let centre = Vec2::new(px(node.left), px(node.top)) + size / 2.0;
-    (centre, *visibility)
-}
-
 /// The live window's logical size.
 #[cfg(feature = "debug")]
 fn window_size(world: &mut World) -> Vec2 {
@@ -844,18 +724,6 @@ fn project_through(world: &mut World, camera: Entity, point: Vec3) -> Option<Vec
         .get::<GlobalTransform>(camera)
         .copied()
         .zip(world.get::<Camera>(camera).cloned())?;
-    camera.world_to_viewport(&transform, point).ok()
-}
-
-/// Project `point` through the camera the HUD's indicators project through.
-#[cfg(feature = "debug")]
-fn project_through_indicator_camera(world: &mut World, point: Vec3) -> Option<Vec2> {
-    let (transform, camera) = world
-        .query_filtered::<(&GlobalTransform, &Camera), With<ScreenIndicatorCamera>>()
-        .iter(world)
-        .next()
-        .map(|(transform, camera)| (*transform, camera.clone()))
-        .expect("hud scales: no ScreenIndicatorCamera - the HUD camera glue broke");
     camera.world_to_viewport(&transform, point).ok()
 }
 
@@ -960,16 +828,6 @@ fn object_by_id(world: &World, id: &str) -> Option<Entity> {
                 .find(|(_, entity_id)| ***entity_id == *id)
                 .map(|(entity, _)| entity)
         })
-}
-
-/// The section slot `id` on whatever hull carries it.
-#[cfg(feature = "debug")]
-fn section_by_id(world: &mut World, id: &str) -> Option<Entity> {
-    world
-        .query_filtered::<(Entity, &EntityId), With<SectionMarker>>()
-        .iter(world)
-        .find(|(_, entity_id)| ***entity_id == *id)
-        .map(|(entity, _)| entity)
 }
 
 /// The player ship root.

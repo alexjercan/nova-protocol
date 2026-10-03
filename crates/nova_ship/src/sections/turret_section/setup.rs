@@ -124,8 +124,8 @@ pub(super) fn insert_turret_section(
     let root = spawn_turret_joint(&mut commands, turret, &config.root, &mut muzzles);
 
     // The section-wide fire/aim path drives ALL muzzles; the FIRST is the
-    // PRIMARY, kept in `TurretSectionMuzzleEntity` for the
-    // single-point consumers (lead HUD pip, the aim-point lead solve, AI gate).
+    // PRIMARY, kept in `TurretSectionMuzzleEntity` for the single-point
+    // consumers (the aim-point lead solve, AI gate).
     // A well-formed tree has at least one muzzle joint.
     let Some((&muzzle, _)) = muzzles.split_first() else {
         error!(
