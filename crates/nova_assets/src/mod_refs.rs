@@ -406,9 +406,9 @@ mod tests {
                             ),
                             kind: Asteroid((
                                 radius: 2.0,
+                                initial_velocity: (0.0, 0.0, 0.0),
                                 texture: "self://textures/rock.png",
                                 kind: "rock",
-                                mass: None,
                                 seed: None,
                                 lock_signature: None,
                             )),

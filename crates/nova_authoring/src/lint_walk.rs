@@ -1468,6 +1468,7 @@ mod tests {
                                         SpawnScenarioObject((
                                             base: (id: "player", name: "Player", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                                             kind: Spaceship((
+                                                initial_velocity: (0.0, 0.0, 0.0),
                                                 controller: Player((
                                                     input_mapping: {
                                                         "guns": [ Keyboard(Space) ],

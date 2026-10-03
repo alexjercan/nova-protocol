@@ -427,9 +427,9 @@ fn a_nested_dep_ref_is_rewritten() {
                         ),
                         kind: Asteroid((
                             radius: 20.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "dep://art/textures/rock.png",
                             kind: "rock",
-                            mass: None,
                             seed: None,
                             lock_signature: None,
                         )),

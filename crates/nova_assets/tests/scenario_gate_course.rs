@@ -51,6 +51,7 @@ const SCENARIO_RON: &str = r#"[
                     SpawnScenarioObject((
                         base: (id: "spaceship_1", name: "Ship One", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             controller: Player(()),
                             design: Inline((sections: [])),
                             inventory: {},
