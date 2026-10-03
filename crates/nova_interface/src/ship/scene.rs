@@ -159,6 +159,9 @@ pub struct ShipRuntime {
     pub(crate) panel_repair_enabled: bool,
     pub(crate) panel_rebind_enabled: bool,
     /// Draft quantity belongs to this section; changing selection starts at All.
+    /// A full section, or any section before the player ship's inventory
+    /// exists, does not take the draft, so damage or arriving stock starts it
+    /// at All instead of the 0 snapshot taken before.
     pub(crate) repair_target: Option<Entity>,
     /// The repair draft in whole plates. `None` while the field holds text
     /// that is not a whole number, which Repair refuses.
@@ -549,19 +552,27 @@ pub(crate) fn ship_input(
     // A changed selection starts at its own current All, before either P or a
     // panel click can reuse a quantity from the previous section.
     if runtime.repair_target != runtime.selected {
-        runtime.repair_target = runtime.selected;
-        runtime.requested_plates = runtime
+        let view = runtime
             .selected
-            .and_then(|sel| list.iter().find(|view| view.entity == sel))
-            .map(|view| {
-                // Mid-transition the pane can be active a frame before the
-                // player ship's ShipInventory exists; treat it as empty
-                // stock rather than panicking, same as `update_ship_panel`.
-                let stock = q_inventory
-                    .single()
-                    .map_or(0, |stock| stock.count(ItemType::HullPlate));
-                plate_repair_limit(view.health.as_ref(), view.disabled, stock)
-            });
+            .and_then(|sel| list.iter().find(|view| view.entity == sel));
+        // Mid-transition the pane can be active a frame before the player
+        // ship's ShipInventory exists; treat it as empty stock rather than
+        // panicking, and leave the draft unowned until the stock arrives.
+        let stock = q_inventory
+            .single()
+            .ok()
+            .map(|stock| stock.count(ItemType::HullPlate));
+        runtime.requested_plates = view.map(|view| {
+            plate_repair_limit(view.health.as_ref(), view.disabled, stock.unwrap_or(0))
+        });
+        if runtime.selected.is_none()
+            || (stock.is_some()
+                && view.is_none_or(|view| {
+                    plate_repair_limit(view.health.as_ref(), view.disabled, u32::MAX) > 0
+                }))
+        {
+            runtime.repair_target = runtime.selected;
+        }
     }
     // What the app does to the section it has selected. Route mutation actions
     // through their shared seams.
@@ -1069,7 +1080,8 @@ pub(crate) fn on_ship_rebind_button(
 ///
 /// The repair form shows only while the selection has repairable damage, and
 /// disables Repair with the reason in its summary while the draft is refused.
-/// Typed text becomes the draft before a selection change resets it to All.
+/// Typed text becomes the draft before a selection change, damage to a full
+/// selected section, or the player ship's inventory arriving resets it to All.
 /// The field is rewritten only when the draft holds a number its text does not
 /// read as, so invalid text stays for the player to fix, focused or not; a
 /// hidden form lets go of the keyboard.
@@ -1147,10 +1159,17 @@ pub(crate) fn update_ship_panel(
         }
     }
     if runtime.repair_target != runtime.selected {
-        runtime.repair_target = runtime.selected;
         runtime.requested_plates = selected
             .as_ref()
             .map(|view| plate_repair_limit(view.health.as_ref(), view.disabled, stock));
+        if runtime.selected.is_none()
+            || (inventory.is_some()
+                && selected.as_ref().is_none_or(|view| {
+                    plate_repair_limit(view.health.as_ref(), view.disabled, u32::MAX) > 0
+                }))
+        {
+            runtime.repair_target = runtime.selected;
+        }
     }
     let requested = runtime.requested_plates;
     let limit = selected.as_ref().map_or(0, |view| {
