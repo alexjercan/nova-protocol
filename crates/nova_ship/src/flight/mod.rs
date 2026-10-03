@@ -32,6 +32,7 @@
 //! pure helpers, unit-tested, shared-shaped so the AI brain (input/ai/,
 //! today a cruder version of the same idea) can adopt it later.
 
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
@@ -44,6 +45,7 @@ mod guidance;
 mod manual;
 mod navigation;
 mod order;
+mod prediction;
 mod state;
 mod thrusters;
 mod well_target;
@@ -64,6 +66,7 @@ pub use self::{
         ShipOrderEngaged, ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport,
         ShipOrderReported, ShipOrderReports, SuspendedArrivalStandoff,
     },
+    prediction::{FlightPrediction, FlightPredictionEndType},
     state::{
         resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
         FlightArrivalStandoff, FlightIntent, FlightSettings, MainDriveCommanded, ManeuverTelemetry,
@@ -76,6 +79,7 @@ use self::{
     autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
     manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
     order::{drive_scripted_align, drive_ship_orders},
+    prediction::predict_flight_path,
     state::remove_maneuver_telemetry,
 };
 pub(crate) use self::{
@@ -96,12 +100,13 @@ pub mod prelude {
         cancel_ship_order, capability::prelude::*, interrupt_ship_order, orbit_radius_band,
         plan_leg, resolved_arrival_standoff, resume_ship_order, retire_ship_order_execution,
         AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy,
-        FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightSettings, LegPlan,
-        MainDriveCommanded, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
-        PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, ScriptedAlign,
-        ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
-        ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
-        ShipOrderReports, SuspendedArrivalStandoff, WellTargetType,
+        FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightPrediction,
+        FlightPredictionEndType, FlightSettings, LegPlan, MainDriveCommanded, ManeuverTelemetry,
+        NovaFlightPlugin, NovaFlightSystems, OrbitPlan, PlayerAutopilotCompleted, RcsActive,
+        RcsBudget, RcsIntent, ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder,
+        ShipOrderDirective, ShipOrderEngaged, ShipOrderHelmAuthority, ShipOrderOutcome,
+        ShipOrderReport, ShipOrderReported, ShipOrderReports, SuspendedArrivalStandoff,
+        WellTargetType,
     };
 }
 
@@ -135,6 +140,8 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<AutopilotPhase>()
             .register_type::<OrbitPlan>()
             .register_type::<ManeuverTelemetry>()
+            .register_type::<FlightPrediction>()
+            .register_type::<FlightPredictionEndType>()
             .register_type::<PlayerAutopilotCompleted>()
             .register_type::<BodyRadius>()
             .register_type::<FlightAuthority>()
@@ -203,6 +210,19 @@ impl Plugin for NovaFlightPlugin {
             )
                 .chain()
                 .in_set(NovaFlightSystems),
+        );
+        // After avian's writeback, so a prediction seeds from the state the
+        // next tick's autopilot starts from.
+        app.add_systems(
+            FixedPostUpdate,
+            predict_flight_path.after(PhysicsSystems::Writeback),
+        );
+        // A paused clock runs no fixed tick, so a leg ordered on the paused
+        // map is predicted here instead: after Update applied the order, from
+        // the frozen state the first unpaused tick starts from.
+        app.add_systems(
+            PostUpdate,
+            predict_flight_path.run_if(|time: Res<Time<Virtual>>| time.is_paused()),
         );
     }
 }

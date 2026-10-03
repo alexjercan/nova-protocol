@@ -907,9 +907,9 @@ retires - on completion as well as on a cancel or an interruption - so a
 cinematic's tight staging does not silently retune every later GOTO the hull
 flies. `None` uses the ship's own standoff.
 
-A margin is a PARKING rule, not a route guarantee. The leg flies a straight
-line and nothing is dodged on the way in; stage the approach yourself if
-something is in it.
+A margin is a PARKING rule, not a route guarantee. The autopilot plans no
+route and dodges nothing on the way in, and gravity can bend the leg; stage
+the approach yourself if something is in it.
 
 </details>
 

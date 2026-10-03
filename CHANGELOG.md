@@ -174,10 +174,13 @@ does NOT get an entry. Another page that states a different rule is wrong.
   shows each action's bare `bind` name. Lookups accept either name.
 - The Map labels an asteroid only while it is selected, so a belt of rocks no
   longer buries ship and planet labels. Every blip stays clickable.
-- Map GOTO sets the travel lock by G or the panel button. Its route clips to
-  the viewport or hides when offscreen; the GOTO tag and destination name
-  follow the target. A refusal changes nothing.
+- Map GOTO sets the travel lock by G or the panel button. Its route is the
+  predicted flight up to 30 s ahead, clipped to the view; its GOTO tag and
+  destination track the target. Refusals change nothing.
 - Objective notification rebuilding now survives same-frame ship teardown.
+- The GOTO and STOP path line curves along the autopilot's predicted flight,
+  gravity included, up to 30 s ahead; the flip gate sits on it. It hides while
+  the target or a well moves.
 - A HELM chip reads TAKE HELM, RELEASE HELM or HELM FAULT while docked. Off a
   measured helm, blocked verbs stay on the dock dark. The mode chip reads
   NEUTRAL or HELM FAULT.
