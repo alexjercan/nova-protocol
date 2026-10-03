@@ -16,7 +16,7 @@ trap 'rm -rf -- "$profile"' EXIT
 mkdir -p "$profile/cache/mods" "$profile/config/nova-protocol"
 cp -R webmods/the-ledger "$profile/cache/mods/the-ledger"
 printf '%s\n' \
-    '[(id:"the-ledger",version:"2.0.0",bundle:"the-ledger.bundle.ron")]' \
+    '[(id:"the-ledger",version:"2.1.0",bundle:"the-ledger.bundle.ron")]' \
     > "$profile/cache/installed.mods.ron"
 printf '%s\n' '["base","the-ledger"]' \
     > "$profile/config/nova-protocol/enabled_mods.ron"
