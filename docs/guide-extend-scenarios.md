@@ -317,11 +317,14 @@ integrity graph entirely.
    are static).
 
    Every distance, speed or acceleration the config carries is `Meters`,
-   `MetersPerSecond` or `MetersPerSecondSquared` (`nova_events::units`), never a
-   bare `f32`: the TYPE is what says what the number means, it is what the
-   editor stamps a row's unit from, and `to_engine()` at the spawn site is the
-   one place it becomes a Bevy or avian number. A vector position is `Meters3`.
-   The exception, and the only one, is a value the engine owns outright - a
+   `MetersPerSecond`, `MetersPerSecondSquared`, or `MetersPerSecond3`
+   (`nova_events::units`), never a bare `f32`: the TYPE is what says what the
+   number means, it is what the editor stamps a row's unit from, and
+   `to_engine()` at the spawn site is the one place it becomes a Bevy or avian
+   number. Vector positions are `Meters3`; vector velocities are
+   `MetersPerSecond3`. Mobile asteroids and all ship roots are gravity-affected;
+   planets are static gravity wells with required mass. The exception, and the
+   only one, is a value the engine owns outright - a
    build-grid cell, a collider extent. See
    [Units and scale](architecture.md#units-and-scale).
 
@@ -331,11 +334,12 @@ integrity graph entirely.
    first, a loud refusal on the load path second. It is never resolved to a
    house answer. An `Option` is right only where absence is a documented
    OVERRIDE with runtime-derived behavior behind it, and the field's own doc
-   comment says what the absence MEANS: `AsteroidConfig::mass` (absent = no
-   well, and the rock stays dynamic) and `lock_signature` (absent = the
-   radius) are the shipped precedent. `AsteroidConfig::kind` is the
-   counter-example: it is a plain required `String`, because "how is this rock
-   shaded" has no runtime answer to fall back on.
+   comment says what the absence MEANS. `lock_signature` (absent = the radius)
+   is one shipped precedent. `PlanetConfig::mass` is required because every
+   planet is a static gravity well. There is no `AsteroidConfig::mass` field:
+   mobile asteroids and ship roots respond to gravity rather than authoring
+   wells. `AsteroidConfig::kind` is a plain required `AsteroidKindId`, because
+   shading has no runtime answer to fall back on.
 
    ```rust
    #[derive(Component, Clone, Debug, Reflect)]

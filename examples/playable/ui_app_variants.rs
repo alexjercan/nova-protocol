@@ -726,7 +726,7 @@ fn rock(
             texture: game_assets.asteroid_texture.clone().into(),
             kind: KIND_ROCK.into(),
             destroy_sound: None,
-            mass: None,
+            initial_velocity: MetersPerSecond3::ZERO,
             seed: None,
             lock_signature: None,
         }),
@@ -760,9 +760,6 @@ fn load_scenario(mut commands: Commands, game_assets: Res<GameAssets>) {
                 SpaceshipController::None,
                 Allegiance::Player,
             ),
-            // Both rocks stay under `GravitySettings::min_well_radius`, so
-            // neither would pull the parked ships off the map framing if the
-            // simulation ran.
             rock(
                 "rock_near",
                 Meters3::new(500.0, -80.0, 800.0),

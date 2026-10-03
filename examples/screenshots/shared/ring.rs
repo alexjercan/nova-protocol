@@ -249,10 +249,12 @@ pub fn planetoid() -> EventActionConfig {
             position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Planet(
-            PlanetConfig::new(PlanetType::IceWorld, PLANETOID_RADIUS, PLANETOID_SEED)
-                .anchored(PLANETOID_MASS),
-        ),
+        kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+            PlanetType::IceWorld,
+            PLANETOID_RADIUS,
+            PLANETOID_SEED,
+            PLANETOID_MASS,
+        )),
     })
 }
 

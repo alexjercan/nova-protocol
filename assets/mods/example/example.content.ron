@@ -369,6 +369,7 @@
                                     ),
                                 ],
                             )),
+                            initial_velocity: (0.0, 0.0, 0.0),
                             inventory: {},
                             lootable: false,
                             credits: 2_000,
@@ -429,9 +430,9 @@
                         kind: Asteroid((
                             // Small size, not hidden health, keeps this tutorial target brief.
                             radius: 2.5,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "self://textures/rock.png",
                             kind: "rock",
-                            mass: None,
                             lock_signature: None,
                         )),
                     )),
@@ -444,12 +445,12 @@
                         ),
                         kind: Asteroid((
                             radius: 3.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "self://textures/rock.png",
                             // The same texture, a different kind. Put this one
                             // beside `example_target_1` in the range and the
                             // pair is the whole feature in one look.
                             kind: "ice",
-                            mass: None,
                             lock_signature: None,
                         )),
                     )),
@@ -634,11 +635,11 @@
                         ),
                         kind: Asteroid((
                             radius: 20.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "self://textures/rock.png",
                             // Nickel-iron: the rare one, so the bonus target is
                             // worth flying out to.
                             kind: "metal",
-                            mass: None,
                             lock_signature: None,
                         )),
                     )),
@@ -760,7 +761,7 @@
                             radius: 450.0,
                             planet_type: Temperate,
                             seed: 1729727263,
-                            mass: Some(36_000.0),
+                            mass: 36_000.0,
                             lock_signature: None,
                         )),
                     )),
@@ -797,6 +798,7 @@
                                     ),
                                 ],
                             )),
+                            initial_velocity: (0.0, 0.0, 0.0),
                             inventory: {},
                             lootable: false,
                             credits: 2_000,

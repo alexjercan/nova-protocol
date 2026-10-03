@@ -142,7 +142,7 @@ impl SectorGenerator for NovaLayeredWorld {
     }
 
     fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
-        Ok(plan_sector(&EnvironmentFields::new(input.seed), &self.parts, input)?.manifest())
+        plan_sector(&EnvironmentFields::new(input.seed), &self.parts, input)?.manifest()
     }
 }
 

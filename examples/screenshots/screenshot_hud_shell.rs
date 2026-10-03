@@ -155,10 +155,12 @@ fn hud_shell_set(game_assets: &GameAssets) -> ScenarioConfig {
             position: PLANETOID_POSITION,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Planet(
-            PlanetConfig::new(PlanetType::IceWorld, PLANETOID_RADIUS, PLANETOID_SEED)
-                .anchored(PLANETOID_MASS),
-        ),
+        kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+            PlanetType::IceWorld,
+            PLANETOID_RADIUS,
+            PLANETOID_SEED,
+            PLANETOID_MASS,
+        )),
     });
 
     ScenarioConfig {

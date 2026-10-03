@@ -148,7 +148,7 @@ pub const AMBIENT_MIX: [(&str, u32); 3] = [(KIND_ROCK, 6), (KIND_CARBON, 3), (KI
 pub const ID_INSPECTION: &str = "inspection_planetoid";
 pub const ID_CONCEALMENT: &str = "concealment_planetoid";
 
-/// One belt rock: collidable, destructible, and carrying no well of its own.
+/// One belt rock: collidable and destructible.
 ///
 /// `kind` is what it is made of - the id that decides how it is shaded. Drawn
 /// per body from a mix rather than authored per rock, because the belt is 60
@@ -174,7 +174,7 @@ fn rock(
             destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
             radius,
             texture: texture.clone().into(),
-            mass: None,
+            initial_velocity: MetersPerSecond3::ZERO,
             seed: None,
             lock_signature: None,
         }),
@@ -202,9 +202,7 @@ fn planetoid(
             position,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Planet(
-            PlanetConfig::new(planet_type, radius, seed).anchored(mass),
-        ),
+        kind: ScenarioObjectKind::Planet(PlanetConfig::new(planet_type, radius, seed, mass)),
     }
 }
 

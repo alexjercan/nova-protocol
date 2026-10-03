@@ -349,7 +349,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
             destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
             radius: Meters(20.0),
             texture: game_assets.asteroid_texture.clone().into(),
-            mass: None,
+            initial_velocity: MetersPerSecond3::ZERO,
             seed: None,
             lock_signature: None,
         }),
@@ -384,10 +384,12 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 position: Meters3::new(0.0, -220.0, -500.0),
                 rotation: Quat::IDENTITY,
             },
-            kind: ScenarioObjectKind::Planet(
-                PlanetConfig::new(PlanetType::BarrenRock, Meters(400.0), 2_001_383_927)
-                    .anchored(30_000.0),
-            ),
+            kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+                PlanetType::BarrenRock,
+                Meters(400.0),
+                2_001_383_927,
+                30_000.0,
+            )),
         },
     );
 

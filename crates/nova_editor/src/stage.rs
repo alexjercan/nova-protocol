@@ -494,10 +494,10 @@ mod tests {
         assert_eq!(
             trigger_radius(&ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: Meters(30.0),
+                initial_velocity: MetersPerSecond3::ZERO,
                 texture: AssetRef::from("self://textures/rock.png"),
                 kind: KIND_ROCK.into(),
                 destroy_sound: None,
-                mass: None,
                 seed: None,
                 lock_signature: None,
             })),

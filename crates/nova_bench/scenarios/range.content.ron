@@ -52,6 +52,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             design: Prototype(id: "block_gunship"),
                             controller: Player((
                                 input_mapping: {
@@ -79,7 +80,7 @@
                             radius: 600.0,
                             planet_type: BarrenRock,
                             seed: 20260906,
-                            mass: Some(40000.0),
+                            mass: 40000.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -90,6 +91,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             radius: 12.0,
                             texture: "base/textures/asteroid.png",
                             kind: "rock",
@@ -104,6 +106,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             radius: 45.0,
                             texture: "base/textures/asteroid.png",
                             kind: "rock",
@@ -132,6 +135,7 @@
                             rotation: (0.0, 0.38268343, 0.0, 0.92387953),
                         ),
                         kind: Spaceship((
+                            initial_velocity: (0.0, 0.0, 0.0),
                             design: Prototype(id: "block_hauler"),
                             controller: r#None,
                             allegiance: Some(Enemy),

@@ -42,6 +42,9 @@
 //! [`SkipType::Companion`]. Escorts are drawn at the node like every other
 //! body, so they count toward the cluster's extent, the halo and the gap
 //! between clusters, and a cell never looks past its own faces for one.
+//! An overlap retry moves an ambiguous mobile body, or translates a placed
+//! escort and its paired hull together. It preserves the same-cell companion
+//! rule and their authored separation, or fails with a named sector fault.
 //!
 //! # Every hull is a generated ship
 //!
@@ -62,8 +65,10 @@
 //! small background scatter instead, so open space is not always empty.
 
 use bevy::prelude::{Quat, Vec3};
-use nova_events::prelude::{Meters, Meters3, MetersPerSecondSquared};
-use nova_gameplay::prelude::{unit_sphere_point, Fnv32, GravitySettings, SeedStream};
+use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
+use nova_gameplay::prelude::{
+    circular_orbit_speed, unit_sphere_point, Fnv32, GravitySettings, GravityWell, SeedStream,
+};
 use nova_scenario::prelude::{
     asteroid_seed_from_id, PlanetConfig, PlanetType, ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_CARBON,
     KIND_ICE, KIND_METAL, KIND_ROCK,
@@ -110,15 +115,6 @@ const ROCK_RADIUS: (Meters, Meters) = (Meters(25.0), Meters(120.0));
 /// The power a rock's radius draw is raised to before it crosses
 /// [`ROCK_RADIUS`]: above one, most rocks stay small and a few are large.
 const ROCK_RADIUS_SKEW: i32 = 3;
-
-/// The nominal radius from which a generated rock is a gravity well. Smaller
-/// rocks carry no mass and stay dynamic.
-const ROCK_WELL_RADIUS: Meters = Meters(50.0);
-
-/// The well mass (`mu`) a rock of [`ROCK_WELL_RADIUS`] or more carries: up
-/// to a ~1.26 km sphere of influence. The surface-gravity cap shortens it on
-/// a rock whose meshed surface is under 200 m.
-const ROCK_WELL_MASS: f32 = 4_000.0;
 
 /// The mean radius band a planetoid is drawn from.
 ///
@@ -211,7 +207,8 @@ const HULL_ESCORTS: usize = 3;
 ///
 /// The inner edge has to clear a hull, the widest rock and
 /// [`CLEARANCE_MARGIN`]; `validate` refuses it otherwise, so a cell never
-/// checks an escort against its own hull.
+/// checks an escort against its own hull. An overlap retry keeps a placed
+/// pair within this authored band.
 const ESCORT_DISTANCE: (Meters, Meters) = (Meters(1_650.0), Meters(2_200.0));
 
 /// The highest chance an asteroid-rich cluster places its one hull, at full
@@ -308,8 +305,8 @@ pub struct ClusterSummary {
     pub anchor: Meters3,
     /// The cell the anchor is in, which owns every planetoid of the cluster.
     pub home: SectorCoord,
-    /// How far the farthest clearance sphere of the whole cluster reaches from
-    /// the anchor, in every cell. At most 8 km.
+    /// A shared upper bound on the cluster's clearance reach from its anchor,
+    /// including repositioned mobile bodies. At most 8 km.
     pub extent: Meters,
     /// How many of its bodies this sector placed.
     pub placed: usize,
@@ -518,6 +515,7 @@ impl Cluster {
     }
 
     /// Every body it plans, every escort included.
+    #[cfg(test)]
     fn bodies(&self) -> impl Iterator<Item = &ClusterMember> {
         self.parents.iter().chain(&self.rocks).chain(
             self.hulls
@@ -528,6 +526,7 @@ impl Cluster {
 
     /// How far its farthest clearance sphere reaches from the anchor, every
     /// escort included.
+    #[cfg(test)]
     fn extent(&self) -> Meters {
         self.bodies().fold(Meters::ZERO, |widest, member| {
             widest.max(member.position.distance(self.anchor) + member.body.clearance())
@@ -591,10 +590,115 @@ struct PlannedBody {
     skipped: Option<SkipType>,
 }
 
+#[derive(Debug)]
+enum OrbitSeedError {
+    AmbiguousWells(usize),
+    InvalidGeometry,
+}
+
+/// A unique well gets a seeded tangent only inside its unfaded, collision-clear
+/// band and only if the nominal circle stays in the well's owning sector. The
+/// owning root retains both bodies until retirement and regeneration restarts
+/// the initial phase; later motion is not guaranteed to remain bounded. A nearby but unsafe well gets an outward escape
+/// trajectory, not an unpowered fall. No reachable well means an explicit
+/// free-space coasting start at zero velocity.
+fn generated_initial_velocity(
+    id: &str,
+    position: Meters3,
+    clearance: Meters,
+    sector: SectorCoord,
+    edge: Meters,
+    wells: &[(Vec3, SectorCoord, GravityWell)],
+    settings: &GravitySettings,
+) -> Result<MetersPerSecond3, SectorFault> {
+    let origin = position.to_engine();
+    let reachable: Vec<_> = wells
+        .iter()
+        .filter(|(center, _, well)| origin.distance(*center) < well.soi_radius)
+        .collect();
+    let velocity = match reachable.as_slice() {
+        [] => Ok(MetersPerSecond3::ZERO),
+        [(center, owner, well)] => {
+            let radius = origin.distance(*center);
+            let clearance = clearance.to_engine();
+            let cell_offset = (*center - sector.centre(edge).to_engine())
+                .abs()
+                .max_element();
+            let whole_orbit_has_one_well = wells.iter().all(|(other_center, _, other)| {
+                other_center == center
+                    || center.distance(*other_center) > radius + clearance + other.soi_radius
+            });
+            if *owner == sector
+                && whole_orbit_has_one_well
+                && radius > well.body_radius + clearance * 2.0
+                && radius + clearance < well.soi_radius * (1.0 - settings.fade_fraction)
+                && cell_offset + radius + clearance < edge.to_engine() * 0.5
+            {
+                seeded_orbit_velocity(id, origin, *center, well)
+            } else {
+                (origin - *center)
+                    .try_normalize()
+                    .ok_or(OrbitSeedError::InvalidGeometry)
+                    .and_then(|direction| {
+                        let speed = (2.0 * well.mu / radius).sqrt();
+                        let velocity = MetersPerSecond3::from_engine(direction * speed);
+                        velocity
+                            .is_finite()
+                            .then_some(velocity)
+                            .ok_or(OrbitSeedError::InvalidGeometry)
+                    })
+            }
+        }
+        _ => Err(OrbitSeedError::AmbiguousWells(reachable.len())),
+    };
+    velocity.map_err(|error| SectorFault::Generation {
+        id: id.to_string(),
+        field: "initial_velocity",
+        value: match error {
+            OrbitSeedError::AmbiguousWells(count) => format!("{count} wells overlap this body"),
+            OrbitSeedError::InvalidGeometry => {
+                "no finite seeded orbit or escape vector".to_string()
+            }
+        },
+    })
+}
+
+/// Seed an orthogonal tangent deterministically, independent of generation
+/// order; use the same unclamped inverse-square mu as the FixedUpdate force.
+fn seeded_orbit_velocity(
+    id: &str,
+    position: Vec3,
+    center: Vec3,
+    well: &GravityWell,
+) -> Result<MetersPerSecond3, OrbitSeedError> {
+    let radial = (position - center)
+        .try_normalize()
+        .ok_or(OrbitSeedError::InvalidGeometry)?;
+    let axis = if radial.y.abs() < 0.8 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
+    let mut tangent = radial
+        .cross(axis)
+        .try_normalize()
+        .ok_or(OrbitSeedError::InvalidGeometry)?;
+    if asteroid_seed_from_id(id) & 1 != 0 {
+        tangent = -tangent;
+    }
+    let speed = circular_orbit_speed(well.mu, position.distance(center));
+    let velocity = MetersPerSecond3::from_engine(tangent * speed);
+    velocity
+        .is_finite()
+        .then_some(velocity)
+        .ok_or(OrbitSeedError::InvalidGeometry)
+}
+
 /// Everything one cell planned.
 #[derive(Clone, Debug)]
 pub(crate) struct SectorPlan {
     coord: SectorCoord,
+    edge: Meters,
     environment: Environment,
     /// Every cluster with at least one body this cell owns, in node order.
     clusters: Vec<Cluster>,
@@ -603,8 +707,238 @@ pub(crate) struct SectorPlan {
 }
 
 impl SectorPlan {
+    /// Move candidates inside multiple wells and any placed escort/hull pair
+    /// together. Both must fit the cell, cluster reach, and other bodies.
+    fn reposition_overlaps(&mut self, seed: u32) -> Result<(), SectorFault> {
+        let settings = GravitySettings::default();
+        let wells: Vec<_> = self
+            .clusters
+            .iter()
+            .flat_map(|cluster| {
+                cluster.parents.iter().filter_map(|parent| {
+                    let ClusterBody::Planetoid(config) = &parent.body else {
+                        return None;
+                    };
+                    Some((
+                        parent.position.to_engine(),
+                        parent.owner,
+                        GravityWell::from_mass(
+                            config.mass,
+                            config.body_radius().to_engine(),
+                            &settings,
+                        ),
+                    ))
+                })
+            })
+            .collect();
+        let centre = self.coord.centre(self.edge).get();
+        for index in 0..self.bodies.len() {
+            let body = &self.bodies[index];
+            if body.skipped.is_some() || matches!(body.body, ClusterBody::Planetoid(_)) {
+                continue;
+            }
+            let original = body.position.to_engine();
+            if wells
+                .iter()
+                .filter(|(center, _, well)| original.distance(*center) < well.soi_radius)
+                .count()
+                < 2
+            {
+                continue;
+            }
+            let Some(cluster) = self
+                .clusters
+                .iter()
+                .find(|cluster| body.source.node() == Some(cluster.node))
+            else {
+                return Err(SectorFault::Generation {
+                    id: body.id.clone(),
+                    field: "placement",
+                    value: format!(
+                        "seed {seed} sector {} has no owning cluster for an overlapped body",
+                        self.coord
+                    ),
+                });
+            };
+            let clearance = body.body.clearance();
+            let limit = extent(cluster.cluster_type).get() - clearance.get();
+            let paired = match body.source {
+                BodySource::Escort(node, hull_index, _) => self
+                    .bodies
+                    .iter()
+                    .enumerate()
+                    .find(|(_, other)| {
+                        other.skipped.is_none()
+                            && other.source == BodySource::Hull(node, hull_index)
+                    })
+                    .map(|(index, other)| (index, other.position)),
+                BodySource::Hull(node, hull_index) => self
+                    .bodies
+                    .iter()
+                    .enumerate()
+                    .find(|(_, other)| {
+                        other.skipped.is_none()
+                            && matches!(other.source, BodySource::Escort(escort_node, escort_hull, _)
+                                if escort_node == node && escort_hull == hull_index)
+                    })
+                    .map(|(index, other)| (index, other.position)),
+                _ => None,
+            };
+            let available = |position: Meters3, well_free: bool| {
+                let companion = paired.map(|(paired_index, paired_position)| {
+                    (
+                        paired_index,
+                        Meters3::from_engine(
+                            paired_position.to_engine() + position.to_engine() - original,
+                        ),
+                    )
+                });
+                let pair_clear = companion.is_none_or(|(paired_index, paired_position)| {
+                    let distance = position.distance(paired_position).get();
+                    (ESCORT_DISTANCE.0.get()..=ESCORT_DISTANCE.1.get()).contains(&distance)
+                        && bodies_clear(
+                            position,
+                            clearance,
+                            paired_position,
+                            self.bodies[paired_index].body.clearance(),
+                            CLEARANCE_MARGIN,
+                        )
+                });
+                pair_clear
+                    && std::iter::once((index, position)).chain(companion).all(
+                        |(candidate_index, candidate)| {
+                            let candidate_clearance = self.bodies[candidate_index].body.clearance();
+                            candidate.get().is_finite()
+                                && SectorCoord::containing(candidate, self.edge) == self.coord
+                                && (candidate.get() - centre).abs().max_element()
+                                    + candidate_clearance.get()
+                                    <= self.edge.get() * 0.5
+                                && candidate.distance(cluster.anchor).get()
+                                    <= extent(cluster.cluster_type).get()
+                                        - candidate_clearance.get()
+                                && self.bodies.iter().enumerate().all(|(other_index, other)| {
+                                    other_index == index
+                                        || companion.is_some_and(|(paired_index, _)| {
+                                            paired_index == other_index
+                                        })
+                                        || other.skipped.is_some()
+                                        || bodies_clear(
+                                            other.position,
+                                            other.body.clearance(),
+                                            candidate,
+                                            candidate_clearance,
+                                            CLEARANCE_MARGIN,
+                                        )
+                                })
+                                && wells
+                                    .iter()
+                                    .filter(|(center, _, well)| {
+                                        candidate.to_engine().distance(*center) < well.soi_radius
+                                    })
+                                    .count()
+                                    <= 1
+                                && (!well_free
+                                    || wells.iter().all(|(center, _, well)| {
+                                        candidate.to_engine().distance(*center) >= well.soi_radius
+                                    }))
+                        },
+                    )
+            };
+            let mut stream = SeedStream::new(
+                Fnv32::new()
+                    .write(&seed.to_le_bytes())
+                    .write(b"overlap-placement")
+                    .write(body.id.as_bytes())
+                    .finish(),
+            );
+            let mut replacement = None;
+            // A full orbit must remain clear of all other wells, not just
+            // start at a point where one well happens to dominate.
+            for (center, owner, well) in &wells {
+                if *owner != self.coord {
+                    continue;
+                }
+                let cell_offset = (*center - self.coord.centre(self.edge).to_engine())
+                    .abs()
+                    .max_element();
+                let low = well.body_radius + clearance.to_engine() * 2.0 + 0.01;
+                let high = (well.soi_radius * (1.0 - settings.fade_fraction)
+                    - clearance.to_engine())
+                .min(self.edge.to_engine() * 0.5 - cell_offset - clearance.to_engine());
+                if high <= low {
+                    continue;
+                }
+                for _ in 0..256 {
+                    let direction = unit_sphere_point(stream.next_u32());
+                    let radius = low + (high - low) * stream.unit();
+                    let position = Meters3::from_engine(*center + direction * radius);
+                    if available(position, false)
+                        && wells.iter().all(|(other_center, _, other)| {
+                            other_center == center
+                                || center.distance(*other_center)
+                                    > radius + clearance.to_engine() + other.soi_radius
+                        })
+                    {
+                        replacement = Some(position);
+                        break;
+                    }
+                }
+                if replacement.is_some() {
+                    break;
+                }
+            }
+            if replacement.is_none() {
+                // A body outside every well coasts; zero is never used inside
+                // an overlap merely to make generation appear successful.
+                for _ in 0..65_536 {
+                    let direction = unit_sphere_point(stream.next_u32());
+                    let distance = limit * stream.unit().cbrt();
+                    let position =
+                        Meters3::from_engine(cluster.anchor.to_engine() + direction * distance);
+                    if available(position, true) {
+                        replacement = Some(position);
+                        break;
+                    }
+                }
+            }
+            let position = replacement.ok_or_else(|| SectorFault::Generation {
+                id: self.bodies[index].id.clone(),
+                field: "placement",
+                value: format!("seed {seed} sector {} has no unique-well safe-band or well-free position after deterministic retries", self.coord),
+            })?;
+            if let Some((paired_index, paired_position)) = paired {
+                self.bodies[paired_index].position = Meters3::from_engine(
+                    paired_position.to_engine() + position.to_engine() - original,
+                );
+            }
+            self.bodies[index].position = position;
+        }
+        Ok(())
+    }
+
     /// The placed bodies as the manifest `nova_world` checks.
-    pub(crate) fn manifest(&self) -> SectorManifest {
+    pub(crate) fn manifest(&self) -> Result<SectorManifest, SectorFault> {
+        let settings = GravitySettings::default();
+        let wells: Vec<_> = self
+            .clusters
+            .iter()
+            .flat_map(|cluster| {
+                cluster.parents.iter().filter_map(|parent| {
+                    let ClusterBody::Planetoid(config) = &parent.body else {
+                        return None;
+                    };
+                    Some((
+                        parent.position.to_engine(),
+                        parent.owner,
+                        GravityWell::from_mass(
+                            config.mass,
+                            config.body_radius().to_engine(),
+                            &settings,
+                        ),
+                    ))
+                })
+            })
+            .collect();
         let mut manifest = SectorManifest {
             coord: self.coord,
             asteroids: Vec::new(),
@@ -621,7 +955,15 @@ impl SectorPlan {
                     position,
                     radius: *radius,
                     kind: (*kind).into(),
-                    mass: rock_mass(*radius),
+                    initial_velocity: generated_initial_velocity(
+                        &planned.id,
+                        position,
+                        Meters(radius.get() * ASTEROID_GEOMETRIC_FACTOR_MAX),
+                        self.coord,
+                        self.edge,
+                        &wells,
+                        &settings,
+                    )?,
                 }),
                 ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
                     id,
@@ -632,6 +974,15 @@ impl SectorPlan {
                     id,
                     position,
                     rotation: ship.rotation,
+                    initial_velocity: generated_initial_velocity(
+                        &planned.id,
+                        position,
+                        ship.clearance,
+                        self.coord,
+                        self.edge,
+                        &wells,
+                        &settings,
+                    )?,
                     clearance: ship.clearance,
                     design: ship.design.clone(),
                     condition: ship.condition,
@@ -646,7 +997,7 @@ impl SectorPlan {
                 }
             }
         }
-        manifest
+        Ok(manifest)
     }
 
     fn summary(&self) -> SectorClusters {
@@ -677,7 +1028,7 @@ impl SectorPlan {
                     cluster_type: cluster.cluster_type,
                     anchor: cluster.anchor,
                     home: cluster.home,
-                    extent: cluster.extent(),
+                    extent: extent(cluster.cluster_type),
                     placed: count(Some(cluster.node), None),
                     skipped_face: count(Some(cluster.node), Some(SkipType::Face)),
                     skipped_clearance: count(Some(cluster.node), Some(SkipType::Clearance)),
@@ -826,12 +1177,6 @@ fn rock(environment: Environment, stream: &mut SeedStream) -> ClusterBody {
     }
 }
 
-/// The well mass of a generated rock of nominal `radius`: this generator's
-/// policy, written out because a rock without a mass has no well.
-fn rock_mass(radius: Meters) -> Option<f32> {
-    (radius >= ROCK_WELL_RADIUS).then_some(ROCK_WELL_MASS)
-}
-
 fn hull(stream: &mut SeedStream) -> ClusterBody {
     let yaw = stream.unit() * std::f32::consts::TAU;
     ClusterBody::Hull {
@@ -919,9 +1264,9 @@ fn cluster_at(
         .map(|_| {
             let radius = across(PLANETOID_RADIUS, stream.unit());
             let planet_type = planet_type(environment, stream.unit());
-            let mut config = PlanetConfig::new(planet_type, radius, stream.next_u32());
-            config.mass = Some(planetoid_mass(config.body_radius()));
-            config
+            let seed = stream.next_u32();
+            let body_radius = radius * (1.0 + planet_type.relief());
+            PlanetConfig::new(planet_type, radius, seed, planetoid_mass(body_radius))
         })
         .collect();
     let offsets: Vec<Vec3> = if worlds >= 2 {
@@ -1053,7 +1398,7 @@ fn rock_clearance_max() -> Meters {
 fn widest_planetoid() -> Meters {
     PlanetType::ALL
         .iter()
-        .map(|planet_type| PlanetConfig::new(*planet_type, PLANETOID_RADIUS.1, 0).body_radius())
+        .map(|planet_type| PLANETOID_RADIUS.1 * (1.0 + planet_type.relief()))
         .fold(Meters::ZERO, Meters::max)
 }
 
@@ -1319,14 +1664,16 @@ pub(crate) fn plan_sector(
         .chain(rocks)
         .chain(hulls)
         .chain(background);
-    let mut bodies = resolve(input, candidates)?;
-    plan_patrols(input, &mut bodies);
-    Ok(SectorPlan {
+    let mut plan = SectorPlan {
         coord,
+        edge,
         environment,
         clusters,
-        bodies,
-    })
+        bodies: resolve(input, candidates)?,
+    };
+    plan.reposition_overlaps(input.seed)?;
+    plan_patrols(input, &mut plan.bodies);
+    Ok(plan)
 }
 
 /// Give every placed intact ship its patrol loop, now that every body of the
@@ -2176,7 +2523,7 @@ mod tests {
                         Cluster::slug(cluster.node)
                     );
                 };
-                let mass = config.mass.expect("a planetoid must author its mass");
+                let mass = config.mass;
                 let body_radius = config.body_radius().to_engine();
                 let well = GravityWell::from_mass(mass, body_radius, &settings);
                 assert_eq!(well.mu, mass, "the surface gravity cap clamped {mass}");
@@ -2191,22 +2538,309 @@ mod tests {
         assert!(planetoids > 0, "the scan must hold planetoids");
     }
 
-    /// A streamed rock of 50 m or more carries the 4 000 well mass and a
-    /// smaller one carries none, and the window holds both.
+    /// An ambiguous escort cannot leave its companion behind: both placed
+    /// bodies must fit after the same translation, not just the escort.
     #[test]
-    fn generated_rocks_carry_a_well_from_50_m() {
-        let (mut wells, mut free) = (0, 0);
-        for plan in window_plans().values() {
-            for rock in plan.manifest().asteroids {
-                if rock.radius >= Meters(50.0) {
-                    assert_eq!(rock.mass, Some(4_000.0), "{} at {:?}", rock.id, rock.radius);
-                    wells += 1;
-                } else {
-                    assert_eq!(rock.mass, None, "{} at {:?}", rock.id, rock.radius);
-                    free += 1;
+    fn an_overlapping_escort_and_its_hull_move_together_into_one_safe_sector() {
+        let seed = 20_625_196;
+        let coord = SectorCoord::new(2, 0, 1);
+        let mut world = config();
+        world.seed = seed;
+        let fields = EnvironmentFields::new(seed);
+        let original = cluster_at(&fields, seed, world.sector_edge, [1, 0, 1])
+            .unwrap()
+            .unwrap()
+            .rocks[1]
+            .position;
+        let mut plan = plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
+        let escort_index = plan
+            .bodies
+            .iter()
+            .position(|body| body.id == "sector_2_0_1_cluster_1_0_1_rock_1")
+            .unwrap();
+        let misplaced = plan.bodies[escort_index].position;
+        let hull_position =
+            Meters3::from_engine(original.to_engine() + Vec3::X * Meters(1_900.0).to_engine());
+        assert!(misplaced.distance(hull_position).get() > ESCORT_DISTANCE.1.get());
+        plan.bodies[escort_index].source = BodySource::Escort([1, 0, 1], 0, 0);
+        plan.bodies[escort_index].position = original;
+        plan.bodies.push(PlannedBody {
+            id: "artificial_paired_hull".to_string(),
+            source: BodySource::Hull([1, 0, 1], 0),
+            body: ClusterBody::Hull {
+                yaw: 0.0,
+                lineage: 0.0,
+            },
+            position: hull_position,
+            skipped: None,
+        });
+        let mut repeated = plan.clone();
+        plan.reposition_overlaps(seed).unwrap();
+        repeated.reposition_overlaps(seed).unwrap();
+        let escort = &plan.bodies[escort_index];
+        let hull = plan.bodies.last().unwrap();
+        assert_ne!(escort.position, original);
+        assert_ne!(hull.position, hull_position);
+        assert_eq!(escort.position, repeated.bodies[escort_index].position);
+        assert_eq!(hull.position, repeated.bodies.last().unwrap().position);
+        let separation = escort.position.distance(hull.position).get();
+        assert!((ESCORT_DISTANCE.0.get()..=ESCORT_DISTANCE.1.get()).contains(&separation));
+        assert!((separation - 1_900.0).abs() < 0.1);
+        let settings = GravitySettings::default();
+        for body in [escort, hull] {
+            let reachable = plan
+                .clusters
+                .iter()
+                .flat_map(|cluster| &cluster.parents)
+                .filter(|parent| {
+                    let ClusterBody::Planetoid(config) = &parent.body else {
+                        return false;
+                    };
+                    body.position
+                        .to_engine()
+                        .distance(parent.position.to_engine())
+                        < GravityWell::from_mass(
+                            config.mass,
+                            config.body_radius().to_engine(),
+                            &settings,
+                        )
+                        .soi_radius
+                })
+                .count();
+            assert!(
+                reachable <= 1,
+                "{} still starts inside overlapping wells",
+                body.id
+            );
+        }
+    }
+
+    #[test]
+    fn a_reproduced_overlapping_rock_keeps_its_identity_and_moves_deterministically() {
+        let seed = 20_625_196;
+        let coord = SectorCoord::new(2, 0, 1);
+        let mut world = config();
+        world.seed = seed;
+        let fields = EnvironmentFields::new(seed);
+        let original = cluster_at(&fields, seed, world.sector_edge, [1, 0, 1])
+            .unwrap()
+            .unwrap()
+            .rocks[1]
+            .position;
+        let first = plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
+        let second = plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
+        let id = "sector_2_0_1_cluster_1_0_1_rock_1";
+        let placed = first.bodies.iter().find(|body| body.id == id).unwrap();
+        assert!(placed.skipped.is_none());
+        assert_ne!(placed.position, original, "overlapping candidate must move");
+        assert_eq!(
+            placed.position,
+            second
+                .bodies
+                .iter()
+                .find(|body| body.id == id)
+                .unwrap()
+                .position
+        );
+        assert_eq!(first.summary(), second.summary());
+        let manifest = first.manifest().unwrap();
+        assert_eq!(
+            manifest
+                .asteroids
+                .iter()
+                .filter(|rock| rock.id == id)
+                .count(),
+            1
+        );
+        let settings = GravitySettings::default();
+        let reachable = first
+            .clusters
+            .iter()
+            .flat_map(|cluster| &cluster.parents)
+            .filter(|parent| {
+                let ClusterBody::Planetoid(config) = &parent.body else {
+                    return false;
+                };
+                placed
+                    .position
+                    .to_engine()
+                    .distance(parent.position.to_engine())
+                    < GravityWell::from_mass(
+                        config.mass,
+                        config.body_radius().to_engine(),
+                        &settings,
+                    )
+                    .soi_radius
+            })
+            .count();
+        assert!(
+            reachable <= 1,
+            "relocated rock must not start inside overlapping wells"
+        );
+        if reachable == 0 {
+            assert_eq!(
+                manifest
+                    .asteroids
+                    .iter()
+                    .find(|rock| rock.id == id)
+                    .unwrap()
+                    .initial_velocity,
+                MetersPerSecond3::ZERO
+            );
+        }
+    }
+
+    /// Reject an ambiguous starting well instead of silently choosing one
+    /// orbit or freezing a rock at zero velocity within both fields.
+    #[test]
+    fn overlapping_wells_refuse_a_generated_velocity() {
+        let settings = GravitySettings::default();
+        let well = GravityWell {
+            mu: 1_200.0,
+            body_radius: 5.0,
+            soi_radius: 160.0,
+        };
+        let wells = [
+            (Vec3::ZERO, SectorCoord::ORIGIN, well.clone()),
+            (Vec3::new(60.0, 0.0, 0.0), SectorCoord::ORIGIN, well),
+        ];
+        let fault = generated_initial_velocity(
+            "overlap",
+            Meters3::new(300.0, 0.0, 0.0),
+            Meters(5.0),
+            SectorCoord::ORIGIN,
+            Meters(32_000.0),
+            &wells,
+            &settings,
+        )
+        .expect_err("two reachable wells cannot seed one orbit");
+        assert!(
+            matches!(
+                fault,
+                SectorFault::Generation {
+                    field: "initial_velocity",
+                    ..
+                }
+            ),
+            "{fault}"
+        );
+    }
+
+    /// Real generated positions, not a synthetic circular-orbit fixture:
+    /// seed a tangent only in a unique, unfaded, collision-clear band in
+    /// the well's owning cell; nearby unsafe starts escape, free space coasts.
+    #[test]
+    fn generated_velocity_selects_checked_tangent_escape_or_free_space() {
+        let settings = GravitySettings::default();
+        let mut counts = [0usize; 3];
+        for seed in [20_260_922, 314_159, 20_261_002] {
+            let mut world = config();
+            world.seed = seed;
+            let fields = EnvironmentFields::new(seed);
+            for coord in desired_sectors(SectorCoord::ORIGIN, world.active_radius) {
+                let plan =
+                    plan_sector(&fields, world.generator.parts(), world.input(coord)).unwrap();
+                let manifest = plan.manifest().unwrap();
+                let wells: Vec<_> = plan
+                    .clusters
+                    .iter()
+                    .flat_map(|cluster| {
+                        cluster.parents.iter().filter_map(|parent| {
+                            let ClusterBody::Planetoid(config) = &parent.body else {
+                                return None;
+                            };
+                            let well = GravityWell::from_mass(
+                                config.mass,
+                                config.body_radius().to_engine(),
+                                &settings,
+                            );
+                            Some((parent.position.to_engine(), parent.owner, well))
+                        })
+                    })
+                    .collect();
+                for body in plan.bodies.iter().filter(|body| body.skipped.is_none()) {
+                    let clearance = match &body.body {
+                        ClusterBody::Rock { radius, .. } => {
+                            radius.to_engine() * ASTEROID_GEOMETRIC_FACTOR_MAX
+                        }
+                        ClusterBody::Ship(ship) => ship.clearance.to_engine(),
+                        ClusterBody::Planetoid(_) | ClusterBody::Hull { .. } => continue,
+                    };
+                    let velocity = manifest
+                        .asteroids
+                        .iter()
+                        .find(|rock| rock.id == body.id)
+                        .map(|rock| rock.initial_velocity)
+                        .or_else(|| {
+                            manifest
+                                .ships
+                                .iter()
+                                .find(|ship| ship.id == body.id)
+                                .map(|ship| ship.initial_velocity)
+                        })
+                        .expect("every placed mobile body is in the manifest");
+                    assert!(velocity.is_finite(), "{} velocity", body.id);
+                    let position = body.position.to_engine();
+                    let reachable: Vec<_> = wells
+                        .iter()
+                        .filter(|(center, _, well)| position.distance(*center) < well.soi_radius)
+                        .collect();
+                    if reachable.is_empty() {
+                        assert_eq!(
+                            velocity,
+                            MetersPerSecond3::ZERO,
+                            "{} in free space",
+                            body.id
+                        );
+                        counts[0] += 1;
+                        continue;
+                    }
+                    assert_eq!(reachable.len(), 1, "{} overlaps wells", body.id);
+                    let (center, owner, well) = reachable[0];
+                    let radial = position - *center;
+                    let radius = radial.length();
+                    let offset = (*center - coord.centre(world.sector_edge).to_engine())
+                        .abs()
+                        .max_element();
+                    let whole_orbit_has_one_well = wells.iter().all(|(other_center, _, other)| {
+                        other_center == center
+                            || center.distance(*other_center)
+                                > radius + clearance + other.soi_radius
+                    });
+                    let safe = *owner == coord
+                        && whole_orbit_has_one_well
+                        && radius > well.body_radius + clearance * 2.0
+                        && radius + clearance < well.soi_radius * (1.0 - settings.fade_fraction)
+                        && offset + radius + clearance < world.sector_edge.to_engine() * 0.5;
+                    if safe {
+                        assert!(
+                            velocity.to_engine().dot(radial).abs() < 0.01,
+                            "{} tangent",
+                            body.id
+                        );
+                        assert!(
+                            (velocity.to_engine().length() - circular_orbit_speed(well.mu, radius))
+                                .abs()
+                                < 0.01,
+                            "{} orbit speed",
+                            body.id
+                        );
+                        counts[1] += 1;
+                    } else {
+                        assert!(
+                            velocity.to_engine().dot(radial) > 0.0,
+                            "{} escapes outward",
+                            body.id
+                        );
+                        counts[2] += 1;
+                    }
                 }
             }
         }
-        assert!(wells > 0 && free > 0, "{wells} wells, {free} free rocks");
+        println!(
+            "ORBIT_CENSUS 3 seeded windows (375 cells): free={} orbit={} escape={}",
+            counts[0], counts[1], counts[2]
+        );
+        assert!(counts.iter().all(|count| *count > 0), "{counts:?}");
     }
 }

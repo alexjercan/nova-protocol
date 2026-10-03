@@ -1101,7 +1101,7 @@ mod tests {
                 destroy_sound: None,
                 radius: Meters(200.0),
                 texture: AssetRef::default(),
-                mass: Some(45_000.0),
+                initial_velocity: MetersPerSecond3::ZERO,
                 seed: None,
                 lock_signature: None,
             }),

@@ -308,13 +308,10 @@ impl PlanetType {
 /// The scenario surface for a planet: what kind of world it is, which one of
 /// that kind, how big it is, and the gameplay it carries.
 ///
-/// Deliberately shaped like
-/// [`AsteroidConfig`](super::asteroid::AsteroidConfig): radius in meters, an
-/// optional seed that pins the body across loads, a mass and a lock
-/// signature, so an author who can place a rock can place a planet.
-///
-/// The one field that does NOT carry over is `texture`: a planet samples no
-/// texture at all. Its whole surface comes from the type and the seed.
+/// Like an [`AsteroidConfig`](super::asteroid::AsteroidConfig), its radius is
+/// in meters and it may override its radar lock signature. Unlike a mobile
+/// asteroid, a planet requires a mass and a surface seed, never authors an
+/// initial velocity, and samples no texture: its type and seed shape it.
 ///
 /// A planet is never destructible, and that is the type's rule, not an
 /// authored field: its collider child never gets the `DamageMarks` and
@@ -361,18 +358,13 @@ pub struct PlanetConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub sea_level: Option<f32>,
-    /// Well STRENGTH: the mass parameter making this body a gravity well.
-    /// Same meaning and same units as
-    /// [`AsteroidConfig::mass`](super::asteroid::AsteroidConfig::mass). `None`
-    /// differs from a rock's: it is `GravitySettings::default_mass` when the
-    /// radius reaches `GravitySettings::min_well_radius`, and no well below
-    /// it. Tune it by the sphere of influence you want, not by a number that
+    /// Well STRENGTH: the mass parameter that makes this body a gravity well.
+    /// Tune it by the sphere of influence you want, not by a number that
     /// means anything on its own.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub mass: Option<f32>,
+    ///
+    /// REQUIRED: a planet is always a static gravity well, at any radius.
+    /// There is no size threshold and no default mass to fall back to.
+    pub mass: f32,
     /// Override how loud this body reads to the lock scanner. `None` is the
     /// mean radius, so a planet locks from proportionally far out.
     #[cfg_attr(
@@ -383,25 +375,19 @@ pub struct PlanetConfig {
 }
 
 impl PlanetConfig {
-    /// The simplest planet an author can write: a type, a radius and a seed.
-    /// Everything else is an override with a per-type default behind it.
-    pub fn new(planet_type: PlanetType, radius: Meters, seed: u32) -> Self {
+    /// The simplest planet an author can write: a type, a radius, a seed and
+    /// the well's mass. Everything else is an override with a per-type
+    /// default behind it.
+    pub fn new(planet_type: PlanetType, radius: Meters, seed: u32, mass: f32) -> Self {
         Self {
             radius,
             planet_type,
             seed,
             relief: None,
             sea_level: None,
-            mass: None,
+            mass,
             lock_signature: None,
         }
-    }
-
-    /// This config as a gravity well of `mass`. The shape every authored
-    /// planetoid takes today.
-    pub fn anchored(mut self, mass: f32) -> Self {
-        self.mass = Some(mass);
-        self
     }
 
     /// The outer surface radius: what the derived `BodyRadius` becomes, and so
@@ -434,10 +420,10 @@ impl PlanetConfig {
     ///
     /// # Errors
     ///
-    /// The first field at fault: a radius that is not positive and finite; a
-    /// relief that is not positive, finite and smaller than the radius; a sea
-    /// level outside 0 to 1; a mass or lock signature that is not positive
-    /// and finite.
+    /// The first field at fault: a radius or mass that is not positive and
+    /// finite; a relief that is not positive, finite and smaller than the
+    /// radius; a sea level outside 0 to 1; a lock signature that is not
+    /// positive and finite.
     pub fn validate(&self) -> Result<(), PlanetConfigFault> {
         let fault = |field, value| Err(PlanetConfigFault { field, value });
         let radius = self.radius.get();
@@ -457,10 +443,8 @@ impl PlanetConfig {
                 return fault("sea_level", sea_level.to_string());
             }
         }
-        if let Some(mass) = self.mass {
-            if !mass.is_finite() || mass <= 0.0 {
-                return fault("mass", mass.to_string());
-            }
+        if !self.mass.is_finite() || self.mass <= 0.0 {
+            return fault("mass", self.mass.to_string());
         }
         if let Some(signature) = self.lock_signature {
             if !signature.get().is_finite() || signature.get() <= 0.0 {
@@ -865,7 +849,7 @@ mod tests {
     fn the_same_type_and_seed_draw_the_same_planet() {
         for planet_type in PlanetType::ALL {
             for seed in [0u32, 1, 7, 4242, 20_260_904, u32::MAX] {
-                let config = PlanetConfig::new(planet_type, Meters(200.0), seed);
+                let config = PlanetConfig::new(planet_type, Meters(200.0), seed, 1_000.0);
                 let once = PlanetSurface::generate(&config);
                 let again = PlanetSurface::generate(&config);
 
@@ -887,8 +871,13 @@ mod tests {
         for planet_type in PlanetType::ALL {
             let summaries: Vec<String> = (0..24)
                 .map(|seed| {
-                    PlanetSurface::generate(&PlanetConfig::new(planet_type, Meters(200.0), seed))
-                        .summary()
+                    PlanetSurface::generate(&PlanetConfig::new(
+                        planet_type,
+                        Meters(200.0),
+                        seed,
+                        1_000.0,
+                    ))
+                    .summary()
                 })
                 .collect();
             let distinct = summaries
@@ -991,11 +980,11 @@ mod tests {
     fn authored_relief_reads_as_a_fraction_of_the_radius() {
         let config = PlanetConfig {
             relief: Some(Meters(40.0)),
-            ..PlanetConfig::new(PlanetType::DustWorld, Meters(800.0), 0)
+            ..PlanetConfig::new(PlanetType::DustWorld, Meters(800.0), 0, 1_000.0)
         };
         assert!((config.relief_fraction() - 0.05).abs() < 1e-6);
 
-        let defaulted = PlanetConfig::new(PlanetType::DustWorld, Meters(800.0), 0);
+        let defaulted = PlanetConfig::new(PlanetType::DustWorld, Meters(800.0), 0, 1_000.0);
         assert!((defaulted.relief_fraction() - PlanetType::DustWorld.relief()).abs() < 1e-6);
     }
 
@@ -1008,14 +997,16 @@ mod tests {
     /// can still tell the author which file was wrong.
     #[test]
     fn a_planet_must_name_a_type_the_build_knows() {
-        let missing = r#"(radius: 800.0, seed: 1)"#;
-        let unknown = r#"(radius: 800.0, planet_type: WaterWorld, seed: 1)"#;
-        let unseeded = r#"(radius: 800.0, planet_type: DustWorld)"#;
+        let missing = r#"(radius: 800.0, seed: 1, mass: 1000.0)"#;
+        let unknown = r#"(radius: 800.0, planet_type: WaterWorld, seed: 1, mass: 1000.0)"#;
+        let unseeded = r#"(radius: 800.0, planet_type: DustWorld, mass: 1000.0)"#;
+        let unmassed = r#"(radius: 800.0, planet_type: DustWorld, seed: 1)"#;
 
         for (authored, why) in [
             (missing, "a planet with no type"),
             (unknown, "a planet claiming a type the build does not have"),
             (unseeded, "a planet with no seed"),
+            (unmassed, "a planet with no mass"),
         ] {
             assert!(
                 ron::from_str::<PlanetConfig>(authored).is_err(),
@@ -1024,8 +1015,10 @@ mod tests {
         }
 
         assert!(
-            ron::from_str::<PlanetConfig>(r#"(radius: 800.0, planet_type: DustWorld, seed: 1)"#)
-                .is_ok(),
+            ron::from_str::<PlanetConfig>(
+                r#"(radius: 800.0, planet_type: DustWorld, seed: 1, mass: 1000.0)"#
+            )
+            .is_ok(),
             "the minimum honest planet still parses"
         );
     }
@@ -1036,7 +1029,8 @@ mod tests {
     #[cfg(feature = "serde")]
     #[test]
     fn a_planet_refuses_the_removed_invulnerable_key() {
-        let stale = r#"(radius: 800.0, planet_type: DustWorld, seed: 1, invulnerable: true)"#;
+        let stale =
+            r#"(radius: 800.0, planet_type: DustWorld, seed: 1, mass: 1000.0, invulnerable: true)"#;
 
         let error = ron::from_str::<PlanetConfig>(stale)
             .expect_err("a stale `invulnerable:` key must fail the load")
@@ -1049,8 +1043,12 @@ mod tests {
     /// is invisible in a screenshot until you compare two.
     #[test]
     fn band_colours_are_converted_to_linear() {
-        let surface =
-            PlanetSurface::generate(&PlanetConfig::new(PlanetType::Temperate, Meters(800.0), 0));
+        let surface = PlanetSurface::generate(&PlanetConfig::new(
+            PlanetType::Temperate,
+            Meters(800.0),
+            0,
+            1_000.0,
+        ));
         let ocean = surface.bands[0].color;
         let authored = LinearRgba::from(Color::srgb(0.09, 0.22, 0.31));
         // Tinted, so not equal - but far below the sRGB values it came from.
@@ -1073,6 +1071,7 @@ mod tests {
             planet_type: DustWorld,
             seed: 4242,
             relief: Some(40.0),
+            mass: 1000.0,
         )"#;
         let config: PlanetConfig = ron::from_str(authored).expect("authored planet config parses");
 
@@ -1081,6 +1080,7 @@ mod tests {
         assert!((config.radius.get() - 800.0).abs() < 1e-6);
         assert!((config.relief_fraction() - 0.05).abs() < 1e-6);
         assert_eq!(config.sea_level, None);
+        assert!((config.mass - 1000.0).abs() < 1e-6);
 
         let written = ron::to_string(&config).expect("a planet config serializes");
         let again: PlanetConfig = ron::from_str(&written).expect("and parses back");

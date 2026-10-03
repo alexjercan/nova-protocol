@@ -27,7 +27,7 @@ pub struct AnchorConfig {
     /// camera framing, orbit rings) sees the same value on every load.
     pub body_radius: Meters,
     /// Well STRENGTH: the gravitational parameter `mu`, same authoring unit as
-    /// asteroid mass. `None` = an inert anchor: the well exists with zero
+    /// planet mass. `None` = an inert anchor: the well exists with zero
     /// strength, so it frames and anchors without pulling anything.
     ///
     /// A designer dial, not an SI mass. `mu` carries a length CUBED over a time
@@ -90,7 +90,7 @@ impl Plugin for AnchorPlugin {
 }
 
 /// Give each anchor its authored well. [`GravityWell::from_mass`] keeps the
-/// same strength cap and SOI derivation as asteroid wells; a mass of `None`
+/// same strength cap and SOI derivation as planet wells; a mass of `None`
 /// authors `mu = 0` - a well that frames (radius, SOI = radius) but never
 /// pulls.
 fn insert_anchor_well(
@@ -164,7 +164,7 @@ mod tests {
     }
 
     /// An authored mass makes a real well through the same derivation as
-    /// asteroid mass, so per-scene gravity stays one authoring vocabulary.
+    /// planet mass, so per-scene gravity stays one authoring vocabulary.
     #[test]
     fn an_authored_mass_makes_a_real_well() {
         let mut app = app();

@@ -391,16 +391,21 @@ impl ObjectChoice {
             }),
             ObjectChoice::Asteroid => ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: Meters(30.0),
+                // Stationary start: a placed rock is a rock you can see, not
+                // one already moving somewhere the builder did not choose.
+                initial_velocity: MetersPerSecond3::ZERO,
                 texture: AssetRef::from(ASTEROID_TEXTURE),
                 kind: KIND_ROCK.into(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
-                mass: None,
                 seed: None,
                 lock_signature: None,
             }),
-            // Small, light and destructible-by-default like the stock rock:
-            // a placed planet is a planet you can see, not a well that starts
-            // bending the scene the moment it lands.
+            // Small, so a placed planet is a planet you can see, not a
+            // backdrop that fills the frame the moment it lands. Every planet
+            // is a well now, so the mass is authored here too, scaled to this
+            // radius the same way the arena's own planetoid scales its mass
+            // to its own (`ARENA_PLANETOID_MASS` at `ARENA_PLANETOID_RADIUS`
+            // in `template.rs`) - a weak well at this size, not a silent zero.
             //
             // The seed is written out rather than left at zero, because the
             // template is what teaches the form: a planet names WHICH world of
@@ -409,6 +414,7 @@ impl ObjectChoice {
                 PlanetType::DustWorld,
                 Meters(120.0),
                 7,
+                8_000.0,
             )),
             ObjectChoice::Beacon => ScenarioObjectKind::Beacon(BeaconConfig {
                 label: "BEACON".to_string(),
@@ -1813,10 +1819,10 @@ mod tests {
                 name: "rock".to_string(),
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: Meters(30.0),
+                    initial_velocity: MetersPerSecond3::ZERO,
                     texture: default(),
                     kind: KIND_ROCK.into(),
                     destroy_sound: None,
-                    mass: None,
                     seed: None,
                     lock_signature: None,
                 }),
@@ -1846,10 +1852,10 @@ mod tests {
                 name: "rock".to_string(),
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: Meters(30.0),
+                    initial_velocity: MetersPerSecond3::ZERO,
                     texture: default(),
                     kind: KIND_ROCK.into(),
                     destroy_sound: None,
-                    mass: None,
                     seed: None,
                     lock_signature: None,
                 }),

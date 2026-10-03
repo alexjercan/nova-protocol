@@ -544,7 +544,7 @@ mod tests {
     use super::*;
 
     fn shape_of(planet_type: PlanetType, seed: u32) -> PlanetShapeNoise {
-        let config = PlanetConfig::new(planet_type, Meters(800.0), seed);
+        let config = PlanetConfig::new(planet_type, Meters(800.0), seed, 1_000.0);
         PlanetShapeNoise::new(&PlanetShape::from(&PlanetSurface::generate(&config)))
     }
 
@@ -577,7 +577,7 @@ mod tests {
     fn every_band_is_reached_on_every_type_and_seed() {
         for planet_type in PlanetType::ALL {
             for seed in [0u32, 3, 4242, 20_260_904] {
-                let config = PlanetConfig::new(planet_type, Meters(800.0), seed);
+                let config = PlanetConfig::new(planet_type, Meters(800.0), seed, 1_000.0);
                 let surface = PlanetSurface::generate(&config);
                 let shape = PlanetShapeNoise::new(&PlanetShape::from(&surface));
 
@@ -686,7 +686,7 @@ mod tests {
     /// same body, not only the same palette.
     #[test]
     fn the_same_config_meshes_the_same_planet() {
-        let config = PlanetConfig::new(PlanetType::IceWorld, Meters(800.0), 31);
+        let config = PlanetConfig::new(PlanetType::IceWorld, Meters(800.0), 31, 1_000.0);
         let once = PlanetVisual::build(&config, 24);
         let again = PlanetVisual::build(&config, 24);
 

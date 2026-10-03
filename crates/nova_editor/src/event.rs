@@ -875,10 +875,10 @@ fn stock_object() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: Meters(30.0),
+            initial_velocity: MetersPerSecond3::ZERO,
             texture: AssetRef::from(crate::node::ASTEROID_TEXTURE),
             kind: KIND_ROCK.into(),
             destroy_sound: Some(AssetRef::from(crate::node::DESTROY_SOUND)),
-            mass: None,
             seed: None,
             lock_signature: None,
         }),

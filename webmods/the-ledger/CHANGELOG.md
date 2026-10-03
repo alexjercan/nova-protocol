@@ -3,7 +3,7 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
-## [Unreleased] - 2.0.0 preview
+## [Unreleased] - 2.1.0 preview
 
 ### Scenarios
 
@@ -15,6 +15,9 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
 - **(breaking)** The six trials drop the body `invulnerable` key, which base
   now refuses at load. Needs a base game where the body type decides: rocks
   break, planets do not.
+- **(breaking)** Ships and rocks now require `initial_velocity` in m/s;
+  asteroids drop `mass`. Move scattered rocks outside planet wells. Old 2.0.0
+  content fails to load.
 
 ### Balance
 

@@ -1,0 +1,209 @@
+warning: methods `bodies` and `extent` are never used
+   --> crates/nova_world_base/src/clusters.rs:515:8
+    |
+502 | impl Cluster {
+    | ------------ methods in this implementation
+...
+515 |     fn bodies(&self) -> impl Iterator<Item = &ClusterMember> {
+    |        ^^^^^^
+...
+525 |     fn extent(&self) -> Meters {
+    |        ^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `nova_world_base` (lib) generated 1 warning
+    Finished `dev` profile [optimized + debuginfo] target(s) in 0.41s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `target/debug/nova-protocol --scenario menu_waystation --mute`
+[2m2026-10-02T23:42:26.137233Z[0m [32m INFO[0m [2mbevy_diagnostic::system_information_diagnostics_plugin::internal[0m[2m:[0m SystemInfo { os: "Linux (NixOS 26.11)", kernel: "6.18.40", cpu: "12th Gen Intel(R) Core(TM) i9-12900F", core_count: "16", memory: "31.2 GiB" }
+[2m2026-10-02T23:42:26.137562Z[0m [32m INFO[0m [2mbevy_app::terminal_ctrl_c_handler[0m[2m:[0m Skipping installing `Ctrl+C` handler as one was already installed. Please call `TerminalCtrlCHandlerPlugin::gracefully_exit` in your own `Ctrl+C` handler if you want Bevy to gracefully exit on `Ctrl+C`.
+[2m2026-10-02T23:42:26.140560Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::x11::xdisplay[0m[2m:[0m error setting XSETTINGS; Xft options won't reload automatically
+[2m2026-10-02T23:42:26.617495Z[0m [32m INFO[0m [2mbevy_render::renderer[0m[2m:[0m AdapterInfo { name: "NVIDIA GeForce RTX 3060 Ti", vendor: 4318, device: 9417, device_type: DiscreteGpu, device_pci_bus_id: "0000:01:00.0", driver: "NVIDIA", driver_info: "595.84", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: false }
+[2m2026-10-02T23:42:26.996503Z[0m [32m INFO[0m [2mbevy_pbr::cluster[0m[2m:[0m GPU clustering is supported on this device.
+[2m2026-10-02T23:42:26.996532Z[0m [32m INFO[0m [2mbevy_render::batching::gpu_preprocessing[0m[2m:[0m GPU preprocessing is fully supported on this device.
+[2m2026-10-02T23:42:26.996965Z[0m [32m INFO[0m [2mbevy_hanabi::plugin[0m[2m:[0m Initializing Hanabi for GPU adapter NVIDIA GeForce RTX 3060 Ti
+[2m2026-10-02T23:42:27.004210Z[0m [32m INFO[0m [2mbevy_egui::render[0m[2m:[0m Using bindless_mode_array_size 16 (Device maximum 1048576)
+[2m2026-10-02T23:42:27.004457Z[0m [32m INFO[0m [2mbevy_winit::system[0m[2m:[0m Creating new window NovaProtocol - 0.14.0 (66v0)
+[2m2026-10-02T23:42:27.004878Z[0m [33m WARN[0m [2mwinit::platform_impl::linux::x11::util::randr[0m[2m:[0m XRandR reported that the display's 0mm in size, which is certifiably insane
+[2m2026-10-02T23:42:27.004990Z[0m [32m INFO[0m [2mwinit::platform_impl::linux::x11::window[0m[2m:[0m Guessed window scale factor: 1
+[2m2026-10-02T23:42:27.006841Z[0m [32m INFO[0m [2mnova_gameplay::settings[0m[2m:[0m nova audio: output muted for this run
+[2m2026-10-02T23:42:27.009574Z[0m [31mERROR[0m [2mbevy_asset::server[0m[2m:[0m Failed to load asset 'mods://the-ledger/ledger_01_drift_run.content.ron' with asset loader 'nova_modding::ContentAssetLoader': failed to parse modding RON: 38:25: Unexpected missing field named `initial_velocity` in `SpaceshipConfig`
+   0: from<nova_modding::ModdingLoaderError>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.19.0/src/error/bevy_error.rs:411:28
+   1: into<nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/convert/mod.rs:780:9
+   2: call_once<fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError, (nova_modding::ModdingLoaderError)>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+   3: map_err<nova_modding::ContentAsset, nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError, fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/result.rs:966:27
+   4: {async_block#0}<nova_modding::ContentAssetLoader>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_asset-0.19.0/src/loader.rs:97:18
+   5: <bevy_asset::server::AssetServer>::load_internal::{closure#0}
+   6: <async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}> as core::future::future::Future>::poll
+   7: <async_task::raw::RawTask<async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}>, (), <async_executor::Executor>::schedule::{closure#0}, ()>>::run
+   8: <futures_lite::future::Or<futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>, <async_executor::State>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}::{closure#0}> as core::future::future::Future>::poll
+   9: <std::thread::local::LocalKey<core::cell::RefCell<(parking::Parker, core::task::wake::Waker)>>>::with::<futures_lite::future::block_on<core::result::Result<(), async_channel::RecvError>, <async_executor::Executor>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}>::{closure#0}, core::result::Result<(), async_channel::RecvError>>
+  10: <std::thread::local::LocalKey<bevy_tasks::executor::LocalExecutor>>::with::<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}, ()>
+note: Some "noisy" backtrace lines have been filtered out. Run with `BEVY_BACKTRACE=full` for a verbose backtrace.
+
+[2m2026-10-02T23:42:27.009594Z[0m [31mERROR[0m [2mbevy_asset::server[0m[2m:[0m Failed to load asset 'mods://the-ledger/ledger_03_blue_survey.content.ron' with asset loader 'nova_modding::ContentAssetLoader': failed to parse modding RON: 38:25: Unexpected missing field named `initial_velocity` in `SpaceshipConfig`
+   0: from<nova_modding::ModdingLoaderError>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.19.0/src/error/bevy_error.rs:411:28
+   1: into<nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/convert/mod.rs:780:9
+   2: call_once<fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError, (nova_modding::ModdingLoaderError)>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+   3: map_err<nova_modding::ContentAsset, nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError, fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/result.rs:966:27
+   4: {async_block#0}<nova_modding::ContentAssetLoader>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_asset-0.19.0/src/loader.rs:97:18
+   5: <bevy_asset::server::AssetServer>::load_internal::{closure#0}
+   6: <async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}> as core::future::future::Future>::poll
+   7: <async_task::raw::RawTask<async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}>, (), <async_executor::Executor>::schedule::{closure#0}, ()>>::run
+   8: <futures_lite::future::Or<futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>, <async_executor::State>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}::{closure#0}> as core::future::future::Future>::poll
+   9: <std::thread::local::LocalKey<core::cell::RefCell<(parking::Parker, core::task::wake::Waker)>>>::with::<futures_lite::future::block_on<core::result::Result<(), async_channel::RecvError>, <async_executor::Executor>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}>::{closure#0}, core::result::Result<(), async_channel::RecvError>>
+  10: <std::thread::local::LocalKey<bevy_tasks::executor::LocalExecutor>>::with::<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}, ()>
+note: Some "noisy" backtrace lines have been filtered out. Run with `BEVY_BACKTRACE=full` for a verbose backtrace.
+
+[2m2026-10-02T23:42:27.009609Z[0m [31mERROR[0m [2mbevy_asset::server[0m[2m:[0m Failed to load asset 'mods://the-ledger/ledger_06_siege_line.content.ron' with asset loader 'nova_modding::ContentAssetLoader': failed to parse modding RON: 40:25: Unexpected missing field named `initial_velocity` in `SpaceshipConfig`
+   0: from<nova_modding::ModdingLoaderError>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.19.0/src/error/bevy_error.rs:411:28
+   1: into<nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/convert/mod.rs:780:9
+   2: call_once<fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError, (nova_modding::ModdingLoaderError)>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+   3: map_err<nova_modding::ContentAsset, nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError, fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/result.rs:966:27
+   4: {async_block#0}<nova_modding::ContentAssetLoader>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_asset-0.19.0/src/loader.rs:97:18
+   5: <bevy_asset::server::AssetServer>::load_internal::{closure#0}
+   6: <async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}> as core::future::future::Future>::poll
+   7: <async_task::raw::RawTask<async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}>, (), <async_executor::Executor>::schedule::{closure#0}, ()>>::run
+   8: <futures_lite::future::Or<futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>, <async_executor::State>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}::{closure#0}> as core::future::future::Future>::poll
+   9: <std::thread::local::LocalKey<core::cell::RefCell<(parking::Parker, core::task::wake::Waker)>>>::with::<futures_lite::future::block_on<core::result::Result<(), async_channel::RecvError>, <async_executor::Executor>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}>::{closure#0}, core::result::Result<(), async_channel::RecvError>>
+  10: <std::thread::local::LocalKey<bevy_tasks::executor::LocalExecutor>>::with::<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}, ()>
+note: Some "noisy" backtrace lines have been filtered out. Run with `BEVY_BACKTRACE=full` for a verbose backtrace.
+
+[2m2026-10-02T23:42:27.052163Z[0m [31mERROR[0m [2mbevy_asset::server[0m[2m:[0m Failed to load asset 'mods://the-ledger/ledger_04_cold_patrol.content.ron' with asset loader 'nova_modding::ContentAssetLoader': failed to parse modding RON: 41:25: Unexpected missing field named `initial_velocity` in `SpaceshipConfig`
+   0: from<nova_modding::ModdingLoaderError>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.19.0/src/error/bevy_error.rs:411:28
+   1: into<nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/convert/mod.rs:780:9
+   2: call_once<fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError, (nova_modding::ModdingLoaderError)>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+   3: map_err<nova_modding::ContentAsset, nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError, fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/result.rs:966:27
+   4: {async_block#0}<nova_modding::ContentAssetLoader>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_asset-0.19.0/src/loader.rs:97:18
+   5: <bevy_asset::server::AssetServer>::load_internal::{closure#0}
+   6: <async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}> as core::future::future::Future>::poll
+   7: <async_task::raw::RawTask<async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}>, (), <async_executor::Executor>::schedule::{closure#0}, ()>>::run
+   8: <futures_lite::future::Or<futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>, <async_executor::State>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}::{closure#0}> as core::future::future::Future>::poll
+   9: <std::thread::local::LocalKey<core::cell::RefCell<(parking::Parker, core::task::wake::Waker)>>>::with::<futures_lite::future::block_on<core::result::Result<(), async_channel::RecvError>, <async_executor::Executor>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}>::{closure#0}, core::result::Result<(), async_channel::RecvError>>
+  10: <std::thread::local::LocalKey<bevy_tasks::executor::LocalExecutor>>::with::<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}, ()>
+note: Some "noisy" backtrace lines have been filtered out. Run with `BEVY_BACKTRACE=full` for a verbose backtrace.
+
+[2m2026-10-02T23:42:27.052289Z[0m [31mERROR[0m [2mbevy_asset::server[0m[2m:[0m Failed to load asset 'mods://the-ledger/ledger_05_freight_lane.content.ron' with asset loader 'nova_modding::ContentAssetLoader': failed to parse modding RON: 41:25: Unexpected missing field named `initial_velocity` in `SpaceshipConfig`
+   0: from<nova_modding::ModdingLoaderError>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.19.0/src/error/bevy_error.rs:411:28
+   1: into<nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/convert/mod.rs:780:9
+   2: call_once<fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError, (nova_modding::ModdingLoaderError)>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+   3: map_err<nova_modding::ContentAsset, nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError, fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/result.rs:966:27
+   4: {async_block#0}<nova_modding::ContentAssetLoader>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_asset-0.19.0/src/loader.rs:97:18
+   5: <bevy_asset::server::AssetServer>::load_internal::{closure#0}
+   6: <async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}> as core::future::future::Future>::poll
+   7: <async_task::raw::RawTask<async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}>, (), <async_executor::Executor>::schedule::{closure#0}, ()>>::run
+   8: <futures_lite::future::Or<futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>, <async_executor::State>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}::{closure#0}> as core::future::future::Future>::poll
+   9: <std::thread::local::LocalKey<core::cell::RefCell<(parking::Parker, core::task::wake::Waker)>>>::with::<futures_lite::future::block_on<core::result::Result<(), async_channel::RecvError>, <async_executor::Executor>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}>::{closure#0}, core::result::Result<(), async_channel::RecvError>>
+  10: <std::thread::local::LocalKey<bevy_tasks::executor::LocalExecutor>>::with::<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}, ()>
+note: Some "noisy" backtrace lines have been filtered out. Run with `BEVY_BACKTRACE=full` for a verbose backtrace.
+
+[2m2026-10-02T23:42:27.052044Z[0m [31mERROR[0m [2mbevy_asset::server[0m[2m:[0m Failed to load asset 'mods://the-ledger/ledger_02_rock_garden.content.ron' with asset loader 'nova_modding::ContentAssetLoader': failed to parse modding RON: 41:25: Unexpected missing field named `initial_velocity` in `SpaceshipConfig`
+   0: from<nova_modding::ModdingLoaderError>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.19.0/src/error/bevy_error.rs:411:28
+   1: into<nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/convert/mod.rs:780:9
+   2: call_once<fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError, (nova_modding::ModdingLoaderError)>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+   3: map_err<nova_modding::ContentAsset, nova_modding::ModdingLoaderError, bevy_ecs::error::bevy_error::BevyError, fn(nova_modding::ModdingLoaderError) -> bevy_ecs::error::bevy_error::BevyError>
+             at /nix/store/vdmha5nqsb17vbabxfi4bnm22s160sfz-rust-default-1.98.0-nightly-2026-07-03/lib/rustlib/src/rust/library/core/src/result.rs:966:27
+   4: {async_block#0}<nova_modding::ContentAssetLoader>
+             at /home/alex/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_asset-0.19.0/src/loader.rs:97:18
+   5: <bevy_asset::server::AssetServer>::load_internal::{closure#0}
+   6: <async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}> as core::future::future::Future>::poll
+   7: <async_task::raw::RawTask<async_executor::AsyncCallOnDrop<<bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}, <async_executor::Executor>::spawn_inner<(), <bevy_asset::server::AssetServer>::spawn_load_task<()>::{closure#0}>::{closure#0}>, (), <async_executor::Executor>::schedule::{closure#0}, ()>>::run
+   8: <futures_lite::future::Or<futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>, <async_executor::State>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}::{closure#0}> as core::future::future::Future>::poll
+   9: <std::thread::local::LocalKey<core::cell::RefCell<(parking::Parker, core::task::wake::Waker)>>>::with::<futures_lite::future::block_on<core::result::Result<(), async_channel::RecvError>, <async_executor::Executor>::run<core::result::Result<(), async_channel::RecvError>, futures_lite::future::Or<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}::{closure#0}::{closure#0}, async_channel::Recv<()>>>::{closure#0}>::{closure#0}, core::result::Result<(), async_channel::RecvError>>
+  10: <std::thread::local::LocalKey<bevy_tasks::executor::LocalExecutor>>::with::<<bevy_tasks::task_pool::TaskPool>::new_internal::{closure#0}::{closure#0}::{closure#0}, ()>
+note: Some "noisy" backtrace lines have been filtered out. Run with `BEVY_BACKTRACE=full` for a verbose backtrace.
+
+[2m2026-10-02T23:42:27.061855Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout held: a root UI target has no area
+[2m2026-10-02T23:42:27.251999Z[0m [32m INFO[0m [2mbevy_asset_loader::loading_state::systems[0m[2m:[0m Loading state 'nova_assets::plugin::GameAssetsStates::Boot' is done
+[2m2026-10-02T23:42:27.265091Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout resumed: every root UI target has area
+[2m2026-10-02T23:42:27.437007Z[0m [32m INFO[0m [2mbevy_asset_loader::loading_state::systems[0m[2m:[0m Loading state 'nova_assets::plugin::GameAssetsStates::Loading' is done
+[2m2026-10-02T23:42:27.453253Z[0m [33m WARN[0m [2mnova_assets::mod_set[0m[2m:[0m build_mod_catalog: bundle for mod 'example' not loaded; using its id as the name
+[2m2026-10-02T23:42:27.454937Z[0m [33m WARN[0m [2mnova_assets::safe_mode[0m[2m:[0m safe mode: mod 'the-ledger' is disabled because its content failed to load: Failed to load asset 'mods://the-ledger/ledger_05_freight_lane.content.ron' with asset loader 'nova_modding::ContentAssetLoader': failed to parse modding RON: 4...
+[2m2026-10-02T23:42:27.519491Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout held: a root UI target has no area
+[2m2026-10-02T23:42:27.527594Z[0m [34mDEBUG[0m [2mnova_scenario::loader::lifecycle[0m[2m:[0m on_load_scenario: scenario "Waystation Traffic"
+[2m2026-10-02T23:42:27.527627Z[0m [34mDEBUG[0m [2mnova_scenario::loader::lifecycle[0m[2m:[0m on_load_scenario: loaded scenario 'menu_waystation' with 2 handler(s) and 27 object(s)
+[2m2026-10-02T23:42:27.528300Z[0m [34mDEBUG[0m [2mnova_scenario::loader::preload[0m[2m:[0m preload_scenario_render_meshes: 'menu_waystation' warms 3 render mesh(es)
+[2m2026-10-02T23:42:27.528308Z[0m [34mDEBUG[0m [2mnova_scenario::loader::gate[0m[2m:[0m hold_for_scenario_load: holding the world while the scenario builds
+[2m2026-10-02T23:42:27.528854Z[0m [34mDEBUG[0m [2mnova_scenario::actions::view[0m[2m:[0m SetSkybox: cubemap loaded, installing (brightness 1000)
+[2m2026-10-02T23:42:27.532022Z[0m [34mDEBUG[0m [2mnova_scenario::actions::view[0m[2m:[0m SetCamera: position Meters3(Vec3(0.0, 1000.0, 3350.0)) look_at Meters3(Vec3(0.0, 0.0, 0.0))
+[2m2026-10-02T23:42:27.585196Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout resumed: every root UI target has area
+[2m2026-10-02T23:42:27.601462Z[0m [34mDEBUG[0m [2mnova_scenario::loader::preload[0m[2m:[0m track_scenario_preload: 3 render mesh(es) warm after 0.002s
+[2m2026-10-02T23:42:27.669707Z[0m [34mDEBUG[0m [2mnova_ship::sections::shell_skin[0m[2m:[0m spawn_ship_skin: ship 1621v0 clad in 93 plate(s) over 14 shape(s); relief flat x12, step x20, ridge x4, peak x1, bevel x4, brink x15, spur x37; decoration industrial_stack x1 of 2, industrial_crane x0 of 0, industrial_hazard_band x0 of 0, industrial_umbilical x0 of 0, industrial_plate_rack x0 of 3, industrial_cells x1 of 3, industrial_radiator x1 of 6, industrial_duct x9 of 11, industrial_winch x0 of 0, industrial_floodlight x0 of 0, industrial_louvre x0 of 0, industrial_hatch x3 of 16, industrial_stencil x6 of 16, industrial_ribbing x1 of 16; 93 plate(s): 37 flat-topped (40%), 0 saddle(s) (0%), 56 leaning; mean flat area 0.548 cell^2; 33 bare hull face(s) over 33 bare cell(s); 22 piece(s), 10 off flat (45%), 10 on a creased top, mean tilt under a piece 0.218 rad
+[2m2026-10-02T23:42:27.670813Z[0m [34mDEBUG[0m [2mnova_ship::sections::shell_skin[0m[2m:[0m spawn_ship_skin: ship 1510v0 clad in 93 plate(s) over 14 shape(s); relief flat x12, step x20, ridge x4, peak x1, bevel x4, brink x15, spur x37; decoration industrial_stack x1 of 2, industrial_crane x0 of 0, industrial_hazard_band x0 of 0, industrial_umbilical x0 of 0, industrial_plate_rack x0 of 3, industrial_cells x1 of 3, industrial_radiator x1 of 6, industrial_duct x9 of 11, industrial_winch x0 of 0, industrial_floodlight x0 of 0, industrial_louvre x0 of 0, industrial_hatch x3 of 16, industrial_stencil x6 of 16, industrial_ribbing x1 of 16; 93 plate(s): 37 flat-topped (40%), 0 saddle(s) (0%), 56 leaning; mean flat area 0.548 cell^2; 33 bare hull face(s) over 33 bare cell(s); 22 piece(s), 10 off flat (45%), 10 on a creased top, mean tilt under a piece 0.218 rad
+[2m2026-10-02T23:42:28.033670Z[0m [34mDEBUG[0m [2mnova_scenario::loader::gate[0m[2m:[0m release_when_scenario_is_built: the scenario is built; the world runs
+[2m2026-10-02T23:42:58.849119Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 249.76 damage (worst 124.88 on Some(3148v0))
+[2m2026-10-02T23:43:32.193559Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 308.25 damage (worst 154.13 on Some(3146v0))
+[2m2026-10-02T23:44:02.389526Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 17.98 damage (worst 8.99 on Some(3058v0))
+[2m2026-10-02T23:44:05.899318Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 64.23 damage (worst 32.11 on Some(3000v0))
+[2m2026-10-02T23:44:07.917648Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 35.10 damage (worst 17.55 on Some(2940v0))
+[2m2026-10-02T23:44:58.040641Z[0m [34mDEBUG[0m [2mnova_scenario::actions::flow[0m[2m:[0m NextScenario: queuing scenario 'menu_gauntlet' (linger: false, delay: Some(1.0))
+[2m2026-10-02T23:44:59.031635Z[0m [34mDEBUG[0m [2mnova_scenario::world[0m[2m:[0m state_to_world: switching to next scenario 'menu_gauntlet'
+[2m2026-10-02T23:44:59.032137Z[0m [34mDEBUG[0m [2mnova_scenario::loader::lifecycle[0m[2m:[0m on_load_scenario: scenario "Torpedo Gauntlet"
+[2m2026-10-02T23:44:59.032165Z[0m [34mDEBUG[0m [2mnova_scenario::loader::lifecycle[0m[2m:[0m on_load_scenario: loaded scenario 'menu_gauntlet' with 8 handler(s) and 11 object(s)
+[2m2026-10-02T23:44:59.034646Z[0m [34mDEBUG[0m [2mnova_scenario::loader::preload[0m[2m:[0m preload_scenario_render_meshes: 'menu_gauntlet' warms 8 render mesh(es)
+[2m2026-10-02T23:44:59.034655Z[0m [34mDEBUG[0m [2mnova_scenario::loader::gate[0m[2m:[0m hold_for_scenario_load: holding the world while the scenario builds
+[2m2026-10-02T23:44:59.035562Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout held: a root UI target has no area
+[2m2026-10-02T23:44:59.049872Z[0m [34mDEBUG[0m [2mnova_scenario::loader::preload[0m[2m:[0m track_scenario_preload: 8 render mesh(es) warm after 0.019s
+[2m2026-10-02T23:44:59.049882Z[0m [34mDEBUG[0m [2mnova_scenario::actions::view[0m[2m:[0m SetSkybox: cubemap loaded, installing (brightness 1000)
+[2m2026-10-02T23:44:59.050941Z[0m [34mDEBUG[0m [2mnova_scenario::actions::view[0m[2m:[0m SetCamera: position Meters3(Vec3(0.0, 800.0, 2600.0)) look_at Meters3(Vec3(0.0, 0.0, 0.0))
+[2m2026-10-02T23:44:59.069100Z[0m [34mDEBUG[0m [2mnova_scenario::actions::spawn[0m[2m:[0m ScatterObjects: scattered 26 of 26 'gauntlet_rock_' object(s), 0 dropped for separation (seed 433757350076153859)
+[2m2026-10-02T23:44:59.091397Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout resumed: every root UI target has area
+[2m2026-10-02T23:44:59.596706Z[0m [34mDEBUG[0m [2mnova_scenario::loader::gate[0m[2m:[0m release_when_scenario_is_built: the scenario is built; the world runs
+[2m2026-10-02T23:44:59.598124Z[0m [34mDEBUG[0m [2mnova_ship::sections::shell_skin[0m[2m:[0m spawn_ship_skin: ship 1710v1 clad in 61 plate(s) over 15 shape(s); relief flat x2, step x33, ridge x2, peak x1, brink x5, spur x18; decoration armoured_sensor x0 of 1, armoured_mast x0 of 1, armoured_cap x10 of 10, armoured_strake x2 of 2, armoured_intake x1 of 1, armoured_chaff x0 of 1, armoured_hatch x0 of 1, armoured_ammo_stripes x2 of 10, armoured_magazine x3 of 5, armoured_applique x9 of 17; 61 plate(s): 27 flat-topped (44%), 0 saddle(s) (0%), 48 leaning; mean flat area 0.582 cell^2; 49 bare hull face(s) over 47 bare cell(s); 27 piece(s), 26 off flat (96%), 17 on a creased top, mean tilt under a piece 0.530 rad
+[2m2026-10-02T23:45:02.610683Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m SetInfiniteAmmo: 'gauntlet_battery_w1' -> true
+[2m2026-10-02T23:45:02.610708Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m ForceTorpedoFire: 'gauntlet_battery_w1' section 'bay' -> 'gauntlet_ship'
+[2m2026-10-02T23:45:02.904479Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::scripted[0m[2m:[0m commit_scripted_torpedo: committing torpedo 1603v1 to target Some(1710v1)
+[2m2026-10-02T23:45:03.503340Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::projectile[0m[2m:[0m ignite_cold_torpedoes: torpedo 1603v1 lights its drive
+[2m2026-10-02T23:45:07.606728Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m SetInfiniteAmmo: 'gauntlet_battery_w2' -> true
+[2m2026-10-02T23:45:07.606750Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m ForceTorpedoFire: 'gauntlet_battery_w2' section 'bay' -> 'gauntlet_ship'
+[2m2026-10-02T23:45:07.896407Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::scripted[0m[2m:[0m commit_scripted_torpedo: committing torpedo 2045v1 to target Some(1710v1)
+[2m2026-10-02T23:45:08.483277Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::projectile[0m[2m:[0m ignite_cold_torpedoes: torpedo 2045v1 lights its drive
+[2m2026-10-02T23:45:11.612215Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m SetInfiniteAmmo: 'gauntlet_battery_e1' -> true
+[2m2026-10-02T23:45:11.612236Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m ForceTorpedoFire: 'gauntlet_battery_e1' section 'bay' -> 'gauntlet_ship'
+[2m2026-10-02T23:45:11.805096Z[0m [34mDEBUG[0m [2mnova_ship::flight::autopilot[0m[2m:[0m autopilot_system: ship 1710v1 maneuver complete, disengaging
+[2m2026-10-02T23:45:11.905400Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::scripted[0m[2m:[0m commit_scripted_torpedo: committing torpedo 2681v1 to target Some(1710v1)
+[2m2026-10-02T23:45:12.498517Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::projectile[0m[2m:[0m ignite_cold_torpedoes: torpedo 2681v1 lights its drive
+[2m2026-10-02T23:45:15.606610Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m SetInfiniteAmmo: 'gauntlet_battery_e2' -> true
+[2m2026-10-02T23:45:15.606635Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m ForceTorpedoFire: 'gauntlet_battery_e2' section 'bay' -> 'gauntlet_ship'
+[2m2026-10-02T23:45:15.906553Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::scripted[0m[2m:[0m commit_scripted_torpedo: committing torpedo 2541v1 to target Some(1710v1)
+[2m2026-10-02T23:45:16.499941Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::projectile[0m[2m:[0m ignite_cold_torpedoes: torpedo 2541v1 lights its drive
+[2m2026-10-02T23:45:17.615266Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m SetInfiniteAmmo: 'gauntlet_battery_w1' -> true
+[2m2026-10-02T23:45:17.615295Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m ForceTorpedoFire: 'gauntlet_battery_w1' section 'bay' -> 'gauntlet_ship'
+[2m2026-10-02T23:45:17.909869Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::scripted[0m[2m:[0m commit_scripted_torpedo: committing torpedo 3323v1 to target Some(1710v1)
+[2m2026-10-02T23:45:18.499321Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::projectile[0m[2m:[0m ignite_cold_torpedoes: torpedo 3323v1 lights its drive
+[2m2026-10-02T23:45:25.617430Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m SetInfiniteAmmo: 'gauntlet_battery_w2' -> true
+[2m2026-10-02T23:45:25.617458Z[0m [34mDEBUG[0m [2mnova_scenario::actions::ship[0m[2m:[0m ForceTorpedoFire: 'gauntlet_battery_w2' section 'bay' -> 'gauntlet_ship'
+[2m2026-10-02T23:45:25.917143Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::scripted[0m[2m:[0m commit_scripted_torpedo: committing torpedo 2501v1 to target Some(1710v1)
+[2m2026-10-02T23:45:26.073266Z[0m [34mDEBUG[0m [2mnova_ship::input::point_defense::assignment[0m[2m:[0m update_turret_point_defense: mount 2211v1 -> Some(1603v1)
+[2m2026-10-02T23:45:26.073292Z[0m [34mDEBUG[0m [2mnova_ship::input::point_defense::assignment[0m[2m:[0m update_turret_point_defense: mount 2210v1 -> Some(1603v1)
+[2m2026-10-02T23:45:26.510239Z[0m [34mDEBUG[0m [2mnova_ship::sections::torpedo_section::projectile[0m[2m:[0m ignite_cold_torpedoes: torpedo 2501v1 lights its drive

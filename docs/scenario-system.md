@@ -713,23 +713,28 @@ Four engine facts the object configs do not show:
   `ScatterObjects` writes a kind into every copy from an authored weighted mix.
 - **A rock has no `health` field, and that is not an omission.** What an
   asteroid is made of IS its durability; the mechanism is
-  [below](#how-an-asteroid-carves). Its `radius` is `Meters` like every other
-  authored length; its `mass` is not, and that is deliberate. `mass` is the
-  body's `mu`, an L^3/T^2 quantity - an SI one would be a THOUSAND times the
+  [below](#how-an-asteroid-carves). It has no `mass` field either: an asteroid
+  never SOURCES a gravity well - only a `Planet` or an `Anchor` does - it only
+  ever FEELS one, as a plain dynamic body. What it requires instead is an
+  explicit `initial_velocity` (`MetersPerSecond3`), same as a `Spaceship`'s:
+  checked finite at lint and again at load, with `MetersPerSecond3::ZERO` an authored
+  stationary start, not an exemption from gravity. The base-world generator seeds a
+  circular orbit only when its full path stays clear of other wells and within
+  the well's owning sector. Otherwise it seeds an outward escape inside one
+  well or a zero-velocity coast in free space, by the body's position
+  (`nova_world_base/clusters.rs::generated_initial_velocity`); a body reachable
+  by two wells at once fails generation outright rather than blending them.
+  `mass` moved to `Planet` (now REQUIRED) and stayed optional on `Anchor`
+  (`None` is a zero-strength well, pure geometry). Both still carry the same
+  `mu`, an L^3/T^2 quantity - an SI one would be a THOUSAND times the
   world-unit one - so it stays engine-side in u^3/s^2 with the
   `GravitySettings` cutoff it is measured against. It sets both the pull
   `a = mu / r^2` and the sphere of influence, the distance where that decays to
   `GravitySettings::soi_cutoff_accel` (0.25 u/s^2, which is 2.5 m/s^2), so a
   well is authored by the SOI it should have: `mu = soi_cutoff_accel * soi^2`,
   both terms engine-side. The inspection planetoid's 27 000 buys a 328.6 u
-  sphere of influence, and 328.6 u is the 3.29 km the HUD reads. An asteroid
-  without a `mass` has no well at any radius and stays dynamic; any `Some`,
-  `Some(0.0)` included, makes a static well, and a negative or non-finite one
-  is a `content lint` error and a spawn refusal. A world generator writes the
-  mass of every rock it places. An `Anchor`
-  publishes the same `GravityWell` from an AUTHORED radius instead of a
-  mesh-derived one, which is what makes it deterministic where a carved rock is
-  not.
+  sphere of influence, and 328.6 u is the 3.29 km the HUD reads. A negative or
+  non-finite mass is a `content lint` error and a spawn refusal.
 - **Ship section geometry is LINTED, not clamped.** Overlapping unit-cube cells
   and a turret or torpedo mount whose base (local -Y under its rotation) faces
   an empty neighbour cell are `content lint` ERRORS, so a bad hull fails

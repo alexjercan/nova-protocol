@@ -11,7 +11,7 @@
 pub mod anchor;
 /// Scenario trigger areas: sensor volumes that fire `OnEnter`/`OnExit` events.
 pub mod area;
-/// Asteroid scenario object: noise-generated rocks that can act as gravity wells.
+/// Asteroid scenario object: mobile noise-generated rocks that feel gravity wells.
 pub mod asteroid;
 /// The signed field behind a carvable rock, and the remesh that follows a hit.
 pub mod asteroid_carve;
