@@ -412,7 +412,7 @@ fn view_split() -> Node {
 }
 
 /// A row of controls.
-fn control_row(justify: JustifyContent) -> Node {
+pub(crate) fn control_row(justify: JustifyContent) -> Node {
     Node {
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
@@ -473,6 +473,33 @@ pub(crate) fn panel_preview_frame() -> impl Bundle {
         BorderColor::all(Color::NONE),
         ThemedBorder::new(UiColor::Secondary),
     )
+}
+
+/// Lines an action form's summary reserves, so a one-line result and a
+/// two-line refusal leave the form's action button in place. A longer refusal
+/// still shows in full.
+pub(crate) const SUMMARY_LINES: f32 = 3.0;
+
+/// A one-pixel rule between groups of a panel.
+pub(crate) fn divider() -> impl Bundle {
+    (
+        Node {
+            height: px(1),
+            flex_shrink: 0.0,
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        ThemedFill::alpha(UiColor::Secondary, 0.35),
+    )
+}
+
+/// A button sized for a narrow side panel or inspector.
+pub(crate) fn compact_button(spec: ButtonSpec) -> impl Bundle {
+    button(ButtonSpec {
+        min_height: 22.0,
+        font_size: 12.0,
+        ..spec
+    })
 }
 
 /// Height of the Map and Ship footer, in logical px. Fixed, so a legend or a

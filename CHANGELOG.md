@@ -144,7 +144,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   and keyed-section Rebind are keys and buttons.
 - The Inventory pane lists your and a docked ship's cargo, load, credits and
   weights; [ ] step, I shows full text. Docked, Give, or Take if neutralized
-  or lootable. Repair spends 1 to All hull plates.
+  or lootable.
+- Ship Repair spends 1 to All hull plates set by typed field, slider or All.
+  Invalid counts disable it; no plates shows it disabled with the refusal;
+  full, destroyed or unrestorable sections hide it.
 - Docked with a lootable or neutralized ship, Take credits moves its full
   balance at once; an overflow or ineligible partner changes nothing.
 - Docked with a live ship, Buy at a fixed ask or Sell at a fixed bid; your
@@ -171,9 +174,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   shows each action's bare `bind` name. Lookups accept either name.
 - The Map labels an asteroid only while it is selected, so a belt of rocks no
   longer buries ship and planet labels. Every blip stays clickable.
-- Map GOTO, by G or the panel button, also sets the travel lock. While it
-  flies, the Map draws a route and a GOTO tag and the panel names the
-  destination. A refusal changes nothing.
+- Map GOTO sets the travel lock by G or the panel button. Its route clips to
+  the viewport or hides when offscreen; the GOTO tag and destination name
+  follow the target. A refusal changes nothing.
 - Objective notification rebuilding now survives same-frame ship teardown.
 - A HELM chip reads TAKE HELM, RELEASE HELM or HELM FAULT while docked. Off a
   measured helm, blocked verbs stay on the dock dark. The mode chip reads

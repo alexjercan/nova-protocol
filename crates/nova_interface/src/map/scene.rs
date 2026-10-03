@@ -554,8 +554,8 @@ const MAP_GOTO_MARKER_PX: f32 = 18.0;
 /// blips. Both follow the player's `Autopilot` GOTO, not the selection or the
 /// travel lock, so they hide when the GOTO is cancelled, arrives or is
 /// replaced by another order. A target the map does not plot draws nothing.
-/// Spawns both nodes under the viewport on first run; the viewport clips
-/// a route that runs off it.
+/// Spawns both nodes under the viewport on first run; route endpoints are
+/// clipped before sizing the rotated line so its stroke stays in the viewport.
 #[expect(
     clippy::type_complexity,
     reason = "the route line and the marker are two disjoint node queries"
@@ -617,12 +617,67 @@ pub(crate) fn project_map_route(
         return;
     };
 
-    // A horizontal bar of the route's length centred on its midpoint, turned
-    // onto the route. `UiTransform` rotates about the node centre, clockwise in
-    // screen space, so the angle is read with y down.
+    // The tag sits on the target tile's top edge, so it never covers the tile
+    // or the code label beside it. It follows the target even when the route
+    // misses the viewport.
+    let (left, top) = (
+        Val::Px(to.x - MAP_BLIP_PX * 0.5),
+        Val::Px(to.y - MAP_BLIP_PX * 0.5 - MAP_GOTO_MARKER_PX),
+    );
+    if marker.left != left || marker.top != top {
+        marker.left = left;
+        marker.top = top;
+    }
+    marker_vis.set_if_neq(Visibility::Inherited);
+
+    let size = computed.size() * to_logical;
+    let inset = MAP_ROUTE_PX * 0.5;
+    let max = size - Vec2::splat(inset);
     let span = to - from;
-    let length = span.length();
-    let mid = (from + to) * 0.5;
+    if !size.is_finite() || !from.is_finite() || !to.is_finite() || max.min_element() <= inset {
+        line_vis.set_if_neq(Visibility::Hidden);
+        return;
+    }
+    // Clip the logical-pixel segment against the stroke-inset viewport. A
+    // rotated UI node can escape the parent's clip even if its drawn pixels do
+    // not; bound the drawn endpoints before deriving its size and rotation.
+    let mut enter = 0.0_f32;
+    let mut exit = 1.0_f32;
+    for (p, q) in [
+        (-span.x, from.x - inset),
+        (span.x, max.x - from.x),
+        (-span.y, from.y - inset),
+        (span.y, max.y - from.y),
+    ] {
+        if p == 0.0 {
+            if q < 0.0 {
+                line_vis.set_if_neq(Visibility::Hidden);
+                return;
+            }
+        } else {
+            let t = q / p;
+            if p < 0.0 {
+                enter = enter.max(t);
+            } else {
+                exit = exit.min(t);
+            }
+        }
+    }
+    if enter >= exit || !enter.is_finite() || !exit.is_finite() {
+        line_vis.set_if_neq(Visibility::Hidden);
+        return;
+    }
+    let clipped_from = from + span * enter;
+    let clipped_to = from + span * exit;
+    let clipped_span = clipped_to - clipped_from;
+    let length = clipped_span.length();
+    if !length.is_finite() || length <= f32::EPSILON {
+        line_vis.set_if_neq(Visibility::Hidden);
+        return;
+    }
+    // `UiTransform` rotates a horizontal bar about its centre, clockwise in
+    // screen space, so the angle is read with y down.
+    let mid = (clipped_from + clipped_to) * 0.5;
     let (left, top, width) = (
         Val::Px(mid.x - length * 0.5),
         Val::Px(mid.y - MAP_ROUTE_PX * 0.5),
@@ -633,23 +688,11 @@ pub(crate) fn project_map_route(
         line.top = top;
         line.width = width;
     }
-    let rotation = Rot2::radians(span.y.atan2(span.x));
+    let rotation = Rot2::radians(clipped_span.y.atan2(clipped_span.x));
     if transform.rotation != rotation {
         transform.rotation = rotation;
     }
     line_vis.set_if_neq(Visibility::Inherited);
-
-    // The tag sits on the target tile's top edge, so it never covers the tile
-    // or the code label beside it.
-    let (left, top) = (
-        Val::Px(to.x - MAP_BLIP_PX * 0.5),
-        Val::Px(to.y - MAP_BLIP_PX * 0.5 - MAP_GOTO_MARKER_PX),
-    );
-    if marker.left != left || marker.top != top {
-        marker.left = left;
-        marker.top = top;
-    }
-    marker_vis.set_if_neq(Visibility::Inherited);
 }
 
 /// Spawn the hidden route line and `GOTO` tag under the viewport, below the
