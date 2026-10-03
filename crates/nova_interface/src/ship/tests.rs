@@ -776,7 +776,8 @@ fn ship_orbit_recenters_on_selected_section() {
 
 /// Selecting a section with no `ShipInventory` on the player ship (mid
 /// transition, same window `update_ship_panel` already guards) must not panic
-/// a `single().expect(..)` on the missing inventory; it treats stock as empty.
+/// a `single().expect(..)` on the missing inventory; it treats stock as empty
+/// and starts the draft at All once the inventory arrives.
 #[test]
 fn ship_input_selection_repair_reset_survives_a_missing_player_inventory() {
     let (mut app, hull, _turret, _thruster) = offset_ship_app();
@@ -791,11 +792,23 @@ fn ship_input_selection_repair_reset_survives_a_missing_player_inventory() {
     app.world_mut().run_system_once(ship_input).unwrap();
 
     let runtime = app.world().resource::<ShipRuntime>();
-    assert_eq!(runtime.repair_target, Some(hull));
+    assert_eq!(runtime.repair_target, None);
     assert_eq!(
         runtime.requested_plates,
         Some(0),
         "no inventory means no plates to request, not a panic"
+    );
+
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 10)]));
+    app.world_mut().run_system_once(ship_input).unwrap();
+    let runtime = app.world().resource::<ShipRuntime>();
+    assert_eq!(runtime.repair_target, Some(hull));
+    assert_eq!(
+        runtime.requested_plates,
+        Some(1),
+        "20 missing HP at 20 HP a plate"
     );
 }
 
@@ -1287,7 +1300,7 @@ fn update_ship_panel_reflects_selection() {
     app.init_resource::<ShipRuntime>();
     app.insert_resource(InterfaceIcons::blank());
     app.add_systems(Update, update_ship_panel);
-    let (ship, hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
+    let (ship, hull, turret, thruster) = spawn_scripted_ship(app.world_mut());
     app.world_mut()
         .entity_mut(ship)
         .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 1)]));
@@ -1426,6 +1439,57 @@ fn update_ship_panel_reflects_selection() {
     assert!(app.world().resource::<ShipRuntime>().panel_repair_enabled);
     assert!(!app.world().entity(repair).contains::<InteractionDisabled>());
     assert!(!app.world().entity(field).contains::<TextFieldError>());
+
+    // A section selected at full integrity has no draft of its own yet. The
+    // damage that makes it repairable starts its draft at All, as in the
+    // Ship lesson where the turret is hurt after the pane selects it.
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 10)]));
+    app.world_mut().resource_mut::<ShipRuntime>().selected = Some(thruster);
+    app.update();
+    assert!(!shown(&mut app, ShipPanelField::RepairForm));
+    app.world_mut().get_mut::<Health>(thruster).unwrap().current = 8.0;
+    app.update();
+    assert_eq!(
+        app.world().resource::<ShipRuntime>().requested_plates,
+        Some(5),
+        "92 missing HP at 20 HP a plate"
+    );
+    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "5");
+    assert!(app.world().resource::<ShipRuntime>().panel_repair_enabled);
+
+    // Later damage keeps the player's draft, even text that is not a number.
+    app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = "x".to_string();
+    app.update();
+    app.world_mut().get_mut::<Health>(thruster).unwrap().current = 4.0;
+    app.update();
+    assert_eq!(app.world().resource::<ShipRuntime>().requested_plates, None);
+    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "x");
+
+    // A damaged section selected before the player ship's inventory exists
+    // starts at All once the inventory arrives, then keeps the player's text.
+    app.world_mut().entity_mut(ship).remove::<ShipInventory>();
+    app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
+    app.update();
+    assert!(!shown(&mut app, ShipPanelField::RepairForm));
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(ShipInventory::new(400_000, [(ItemType::HullPlate, 10)]));
+    app.update();
+    assert_eq!(
+        app.world().resource::<ShipRuntime>().requested_plates,
+        Some(3),
+        "48 missing HP at 20 HP a plate"
+    );
+    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "3");
+    assert!(app.world().resource::<ShipRuntime>().panel_repair_enabled);
+    app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = "x".to_string();
+    app.update();
+    app.world_mut().get_mut::<Health>(turret).unwrap().current = 6.0;
+    app.update();
+    assert_eq!(app.world().resource::<ShipRuntime>().requested_plates, None);
+    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "x");
 }
 
 /// Build the same panel subtree as [`update_ship_panel_reflects_selection`],
