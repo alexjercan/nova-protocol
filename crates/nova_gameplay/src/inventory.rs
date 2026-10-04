@@ -632,13 +632,13 @@ pub struct CargoCanisterRuntimeId(pub u64);
 pub struct CargoCanisterIdAllocator(u64);
 
 impl CargoCanisterIdAllocator {
-    /// The next id, unused by any earlier call.
+    /// Mints an id unused by any earlier call.
     ///
     /// # Panics
     ///
     /// On exhausting `u64`: an id is never reused, so a counter that wrapped
     /// would silently collide with a still-live canister instead.
-    pub fn next(&mut self) -> CargoCanisterRuntimeId {
+    pub fn mint(&mut self) -> CargoCanisterRuntimeId {
         let id = self.0;
         self.0 = self
             .0
@@ -853,16 +853,16 @@ mod tests {
     #[test]
     fn cargo_canister_id_allocator_mints_unique_increasing_ids() {
         let mut allocator = CargoCanisterIdAllocator::default();
-        assert_eq!(allocator.next(), CargoCanisterRuntimeId(0));
-        assert_eq!(allocator.next(), CargoCanisterRuntimeId(1));
-        assert_eq!(allocator.next(), CargoCanisterRuntimeId(2));
+        assert_eq!(allocator.mint(), CargoCanisterRuntimeId(0));
+        assert_eq!(allocator.mint(), CargoCanisterRuntimeId(1));
+        assert_eq!(allocator.mint(), CargoCanisterRuntimeId(2));
     }
 
     #[test]
     #[should_panic(expected = "exhausted u64 ids")]
     fn cargo_canister_id_allocator_panics_rather_than_wrap_and_reuse_an_id() {
         let mut allocator = CargoCanisterIdAllocator(u64::MAX);
-        allocator.next();
+        allocator.mint();
     }
 
     #[test]

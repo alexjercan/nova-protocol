@@ -926,7 +926,7 @@ fn eject_mined_canisters(
                 rock_velocity + normal * MINED_CANISTER_SPEED,
                 AssetRef::from(MINED_CANISTER_MESH),
             ),
-            canister_ids.next(),
+            canister_ids.mint(),
             ScenarioScopedMarker,
         ));
         born.push(birth);

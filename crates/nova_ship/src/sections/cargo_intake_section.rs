@@ -522,7 +522,7 @@ fn run_cargo_intakes(
                     velocity,
                     config.canister_mesh.clone(),
                 ),
-                canister_ids.next(),
+                canister_ids.mint(),
             ));
             commands.trigger(CargoCanisterEjected { entity: intake });
         }

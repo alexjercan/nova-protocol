@@ -1581,7 +1581,7 @@ fn offer_canister_to(world: &mut World, ship: Entity) {
         .get::<LinearVelocity>(ship)
         .map(|velocity| velocity.0)
         .unwrap_or_default();
-    let id = world.resource_mut::<CargoCanisterIdAllocator>().next();
+    let id = world.resource_mut::<CargoCanisterIdAllocator>().mint();
     world.spawn((
         cargo_canister(
             CargoCanister::new(ItemType::HullPlate, 1),
