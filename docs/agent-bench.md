@@ -101,18 +101,18 @@ are comparable, which is as close to reproducible as an agent play gets.
 | `--ui` | `log` | `log` prints one line per event to stderr; `quiet` prints nothing |
 | `--audit-raw` | off | keep the full snapshot in every `channel_in` event |
 
-New Game's initial observation has no player ship. The agent's view includes
-the visible named UI targets so it can find the New Game button, seed field
-and Create button. The agent must replace the modal's prefilled seed; merely
-appending digits does not select the requested world. Menu actions use the
-same `pointer`, `text` and `key` gestures as other UI actions. The referee
-checks the world's actual session seed before gameplay scoring. A missing
-player at menu start is expected; a wrong seed or scenario fails setup, and
-a run that ends before setup completes does not count as a completed play.
-Menu-backdrop ships do not count as combat kills. The audit retains menu
-steps and the launch target; replay starts at the menu and checks world-seed
-identity as well as the final flight state. A free-mode goal has no authored
-Victory: judge the world state and the score, not the agent's report alone.
+New Game's initial observation has no player ship. On the main menu the
+agent's view includes the visible named UI targets so it can find the New Game
+button, seed field and Create button. The agent must replace the modal's
+prefilled seed; merely appending digits does not select the requested
+world. Menu actions use the same `pointer`, `text` and `key` gestures as
+other UI actions. The referee checks the world's actual session seed before
+gameplay scoring. A missing player at menu start is expected; a wrong seed or
+scenario fails setup, and a run that ends before setup completes does not
+count as a completed play. Menu-backdrop ships do not count as combat kills.
+The audit retains menu steps and the launch target; replay starts at the menu
+and checks world-seed identity as well as the final flight state. A free-mode
+goal has no authored Victory: judge the world state and the score, not the agent's report alone.
 
 The run directory holds `audit.jsonl`, `score.json`, `game.log`, `agent.log`
 (a `cmd:` agent's stdout and stderr) and `profile/`, an empty settings
@@ -179,11 +179,14 @@ second and degrees:
 
 - `tick`, `game_seconds`, `game_state`, `world_seed` (null until New Game
   creates a world), `over`, `ended_by`, `budget_left`, `game_errors`; `ui.targets`
-  lists visible named pointer targets.
+  lists visible named pointer targets, only on the main menu and while the
+  Tab interface is open (`ui.pause` is `Interface`).
 - `objectives`, `outcome` (`null` until Victory or Defeat), `comms` (the last
   twelve radio lines).
 - `me`: id, `position_m`, `speed_mps`, `velocity_bearing_deg`,
-  `turn_rate_dps`, `health`, `weapons_hot`, `combat_lock`, `travel_lock`,
+  `turn_rate_dps`, `health`, `cargo` (`capacity_g`, `used_g` and `free_g` in
+  grams, `credits`, and `items` as `{item, count}` in the game's item order,
+  empty for an empty hold), `weapons_hot`, `combat_lock`, `travel_lock`,
   `radar` (the acquisition dwell while the radar gesture is held: the
   candidate, the dwell target, `dwell_secs` of `dwell_needed` and the
   `dwell_fill` a player watches on the ring, itself null when no dwell is
@@ -214,17 +217,18 @@ second and degrees:
 - `objective_log`: every objective card posted and completed, in order.
 - `cinematic` (only while a scene plays) as `{playing, skippable}`, and
   `cheats_marked` (only when the run armed cheats).
-- `inputs.live` (the wire names that are not locked out), `inputs.held`, and
-  `inputs.shared`: the pairs of wire names that read one physical key. The
-  game declares that relation (`ActionBinding::follows`) and the channel
+- `inputs.live` (registry wire names that are not locked out, never
+  `section.<id>`), `inputs.held`, and `inputs.shared`: the pairs of wire names
+  that read one physical key. The game declares that relation (`ActionBinding::follows`) and the channel
   publishes it, so the referee refuses an act driving both sides of a pair
   without the bench holding a table of its own.
 - `commands` (answers to `command` gestures).
 
 `bearing_deg` is `[azimuth, elevation]` from the nose: azimuth positive to
-starboard, elevation positive up. The wire names come from the live set in
-the view, never from a copy in the prompt, so a renamed input cannot go
-stale.
+starboard, elevation positive up. Registry wire names come from the live
+set in the view. For `section.<id>` weapon triggers, use an ID in
+`me.sections[]` whose `weapon` is not null; section selectors do not appear
+in `inputs.live`. Section responders can also be thrusters.
 
 There is no `refused` list, because an input has no verdict to give. Every
 gate a pilot meets - needs a lock, needs a well, needs the stance, needs
@@ -237,8 +241,27 @@ parse is still an error, in `game_errors`, and always carries a message.
 
 The snapshot itself grew a `mission` block (objectives, outcome, comms, the
 objective log, the cinematic and the cheat mark), a `beacons` list, a
-`bodies` list and the ship's `autopilot`, `radar` and `gravity_well` for
-this; see `nova_probe::capabilities::snapshot`.
+`bodies` list and the ship's `autopilot`, `radar`, `cargo` and `gravity_well`
+for this; see `nova_probe::capabilities::snapshot`.
+
+### Mining and cargo
+
+`flight.mine` is one ship-level hold: while it is held, each working mining
+emitter deploys and, once deployed, attempts pulses at the travel-locked
+rock. The agent view has no carve result, canister position, or intake
+position. It cannot accurately steer the intake into a canister by snapshot
+alone. The intake takes a whole canister on trigger contact when hold mass
+permits; only an increase in the relevant `me.cargo.items` count proves pickup.
+Jettison (undocked) and Buy and Sell (docked to a trader) are Inventory pane
+buttons, driven with `pointer` gestures on the `ui.targets` the interface
+shows. Read every result off `me.cargo`.
+
+An agent finds registry wires in `inputs.live`; it gets a weapon section
+selector from `me.sections[].id` when `weapon` is not null, not from that
+live list. Mining uses `flight.mine`, not a section selector. The command
+`bindings flight.mine` reports that action's keys and whether its context is
+live; `bindings` alone lists every action by its wire name. `bind` and
+`bind reset` take the bare registry name, such as `mine`.
 
 ### Why the bodies are tiered
 

@@ -20,6 +20,12 @@ use crate::{
     source::{modifier_pair, InputSource},
 };
 
+/// The canonical wire name for an action: the lowercased settings group with
+/// spaces replaced by underscores, then its registry name (`flight.mine`).
+pub fn wire_name(group: &str, name: &str) -> String {
+    format!("{}.{name}", group.to_lowercase().replace(' ', "_"))
+}
+
 /// One named action and the discrete sources bound to it.
 ///
 /// Axis bindings - mouse motion, the wheel, gamepad sticks - are NOT here.

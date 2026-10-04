@@ -259,7 +259,7 @@ pub fn variable(world: &mut World, name: &str) -> CommandResult {
     }
 }
 
-/// `bindings` / `bindings <action>`.
+/// `bindings` / `bindings <action>`: list and inspect canonical wire names.
 pub fn bindings(world: &mut World, action: Option<&str>) -> CommandResult {
     let Some(table) = world.get_resource::<InputBindings>() else {
         return CommandResult::error("bindings", Some(CLASS), "no input registry is loaded");
@@ -268,7 +268,7 @@ pub fn bindings(world: &mut World, action: Option<&str>) -> CommandResult {
     let Some(name) = action else {
         let width = table
             .iter()
-            .map(|action| action.name.len())
+            .map(|action| wire_name(action.group, action.name).len())
             .max()
             .unwrap_or(0);
         let rows: Vec<TerminalRow> = table
@@ -283,7 +283,7 @@ pub fn bindings(world: &mut World, action: Option<&str>) -> CommandResult {
                 });
                 TerminalRow::output(format!(
                     "{mark} {:width$}  {}",
-                    action.name,
+                    wire_name(action.group, action.name),
                     action.keyboard_display()
                 ))
             })
@@ -293,9 +293,19 @@ pub fn bindings(world: &mut World, action: Option<&str>) -> CommandResult {
             .with_rows(rows)
             .and_rows([TerminalRow::dim("* can fire right now.")]);
     };
-    let Some(action) = table.get(name) else {
+    // Existing console scripts can use bare names; qualified lookups must
+    // match the action's actual group, not only its suffix.
+    let found = if name.contains('.') {
+        name.split_once('.')
+            .and_then(|(_, action)| table.get(action))
+            .filter(|action| wire_name(action.group, action.name) == name)
+    } else {
+        table.get(name)
+    };
+    let Some(action) = found else {
         return CommandResult::error("bindings", Some(CLASS), format!("no action named '{name}'"));
     };
+    let canonical = wire_name(action.group, action.name);
     let context = live.map_or("unknown", |live| {
         if live.is_live(action.context) {
             "live"
@@ -306,10 +316,12 @@ pub fn bindings(world: &mut World, action: Option<&str>) -> CommandResult {
     CommandResult::ok(
         "bindings",
         CLASS,
-        format!("{name}: {}", action.keyboard_display()),
+        format!("{canonical}: {}", action.keyboard_display()),
     )
     .with_rows(vec![
-        TerminalRow::info(format!("{} - {}", action.name, action.label)),
+        TerminalRow::info(format!("{canonical} - {}", action.label)),
+        // `bind` and `bind reset` take the bare action name, not the wire name.
+        TerminalRow::output(format!("BIND NAME .... {}", action.name)),
         TerminalRow::output(format!("GROUP ........ {}", action.group)),
         TerminalRow::output(format!("KEYBOARD ..... {}", action.keyboard_display())),
         TerminalRow::output(format!("GAMEPAD ...... {}", action.gamepad_display())),
@@ -344,6 +356,43 @@ pub fn cheats_status(world: &mut World) -> CommandResult {
             ),
         ),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bindings_list_and_lookup_use_wire_names_and_reject_unknown_groups() {
+        let mut world = World::new();
+        world.insert_resource(InputBindings::from_actions([
+            ActionBinding::new("mine", "FLIGHT", "Mine (hold)")
+                .keyboard([InputSource::Keyboard(KeyCode::KeyV)]),
+            ActionBinding::new("viewer_next", "NOVA OS", "Next"),
+        ]));
+
+        let list = bindings(&mut world, None);
+        assert_eq!(list.status, CommandStatus::Ok);
+        assert!(list.rows[0].text.contains("flight.mine"));
+        assert!(list.rows[1].text.contains("nova_os.viewer_next"));
+
+        let qualified = bindings(&mut world, Some("flight.mine"));
+        assert_eq!(qualified.status, CommandStatus::Ok);
+        assert_eq!(qualified.detail, "flight.mine: V");
+        assert_eq!(qualified.rows[0].text, "flight.mine - Mine (hold)");
+        assert_eq!(qualified.rows[1].text, "BIND NAME .... mine");
+
+        // Existing console scripts can still use bare action names.
+        let bare = bindings(&mut world, Some("mine"));
+        assert_eq!(bare.status, CommandStatus::Ok);
+        assert_eq!(bare.detail, qualified.detail);
+
+        for unknown in ["targeting.mine", "flight.unknown"] {
+            let result = bindings(&mut world, Some(unknown));
+            assert_eq!(result.status, CommandStatus::Error);
+            assert_eq!(result.detail, format!("no action named '{unknown}'"));
+        }
+    }
 }
 
 /// One ship's listing line: side, hull and section count.

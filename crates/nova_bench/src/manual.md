@@ -13,7 +13,8 @@ need to think; the game waits.
   ticks and return the view after. 60 ticks is one second. `ticks` defaults
   to 30. Use 60 to 300 while flying, 5 to 15 while aiming.
 - `page {name}`: read one page of the flight manual. Free. The pages are
-  `targeting`, `weapons`, `travel`, `orbit`, `fighting` and `docking`. They
+  `targeting`, `weapons`, `travel`, `orbit`, `fighting`, `docking`, `mining`
+  and `cargo`. They
   hold what a player learns about the game; THIS document holds how to
   drive it from a terminal. Read the page before you attempt the thing for
   the first time.
@@ -32,8 +33,9 @@ All lengths are meters, speeds meters per second, angles degrees.
 - `tick`, `game_seconds`: the clock. `game_state` is `MainMenu` before New Game;
   `me` is `null` until a player ship exists. `scenario` identifies the loaded
   world and `world_seed` is the seed confirmed by the game, not a seed claimed
-  by an agent. In MainMenu, `ui.targets` lists visible named nodes and their
-  logical-pixel rectangles. Use these exact names for pointer movement.
+  by an agent. In MainMenu or while `ui.pause` is `Interface`, `ui.targets`
+  lists visible named nodes and their logical-pixel rectangles. It is absent
+  outside these screens. Use only visible names for pointer movement.
 - `objectives`: what the scenario asks of you now. An objective disappears
   when it is met. `objective_log` is every card posted and completed so far,
   in order, so a card that came and went between two acts still shows.
@@ -54,7 +56,8 @@ All lengths are meters, speeds meters per second, angles degrees.
   (the body whose gravity you are inside, or `null`), `sections` (the bridge,
   the drives and each mount, with its `weapon`: `kind`, `ammo`, `on_target`,
   `firing`), `hull_plates` (the armour, as a count of `total`, `damaged` and
-  `lost`) and
+  `lost`), `cargo` (`capacity_g`, `used_g`, `free_g` in grams, `credits`,
+  `items` with each item's debug `item` name and `count`) and
   `withheld_capabilities` (what the scenario has NOT handed over yet -
   `Dock`, `Goto`, `Lock`, `Orbit`, `PointDefense`, `Rcs`, `Stop`. A withheld
   capability does nothing however well you drive it: a tutorial grants them
@@ -82,10 +85,11 @@ All lengths are meters, speeds meters per second, angles degrees.
     rather than assuming the expansion landed.
 - `ordnance`: rounds and torpedoes in flight, `inbound` (not yours) and
   `outbound` (yours).
-- `inputs.live`: the wire names that are not locked out right now. It is a
-  coarse list: an input that IS live can still do nothing, because the gates
-  that matter (a lock, a well, the stance, the range) sit above the input
-  layer. `inputs.held`: what you are holding down. `inputs.shared`: pairs of
+- `inputs.live`: the registry wire names that are not locked out right now;
+  it never lists `section.<id>`. It is a coarse list: an input that IS live
+  can still do nothing, because the gates that matter (a lock, a well, the
+  stance, the range) sit above the input layer. `inputs.held`: what you are
+  holding down. `inputs.shared`: pairs of
   wire names that read one physical key; an act driving both sides of a pair
   is refused, and so is driving one side while the other is still in
   `inputs.held`. Release the held side in its own act first.
@@ -154,6 +158,9 @@ Flight:
 - `flight.dock_helm`: tap while docked to take the pair's helm, and again to
   hand it back. `me.docking.connection.helm` reads `neutral` or `held`. A pair
   the game cannot measure refuses the take, and `helm` stays `neutral`.
+- `flight.mine`: hold to deploy working mining emitters toward a travel-locked
+  rock. Read `page {"name": "mining"}` before mining; this is the live held
+  flight wire, not a `section.<id>` trigger.
 - `flight.rcs_modifier`: hold to engage the RCS, the fine translation jets.
   While it is held `camera.camera_rotate` is frozen; release it to steer.
 - `flight.rcs_aim` (aim, only while `flight.rcs_modifier` is held): pushes
@@ -189,13 +196,18 @@ Targeting:
 
 Weapons:
 
-- `section.<id>`: hold to fire that mount, for each `me.sections[].id` with
-  a `weapon`. Needs the stance raised, and a turret needs a combat lock to
+- `section.<id>`: hold to fire a weapon section. Choose `<id>` from a
+  `me.sections[]` record whose `weapon` is not null; do not look for this
+  selector in `inputs.live`, which lists only registry wires. Section
+  responders can also belong to thrusters, so not every section ID is a
+  weapon trigger. Mining emitters use `flight.mine`, not `section.<id>`.
+  A weapon needs the stance raised, and a turret needs a combat lock to
   point at anything.
 
 Read `page {"name": "targeting"}` and `page {"name": "weapons"}` before your
 first fight, `travel` and `orbit` before your first long leg, and `docking`
-before your first approach.
+before your first approach. Read `mining` before your first carve and `cargo`
+before handling stock or trading.
 
 ## Discipline
 
@@ -212,6 +224,8 @@ before your first approach.
     `velocity_bearing_deg`.
   - Lined up? `me.docking.pair` and its `gap_ok`, `facing_ok`, `motion_ok`
     and `eligible`. Docked? `me.docking.docked`.
+  - Cargo picked up or transferred? Compare `me.cargo.items` and
+    `me.cargo.credits` before and after. A carved rock alone proves no pickup.
   - Objective met? `objectives` and `objective_log`.
   - Nothing at all happening? Check `me.withheld_capabilities` before you
     conclude you drove it wrong.

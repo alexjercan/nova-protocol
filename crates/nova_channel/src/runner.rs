@@ -33,10 +33,10 @@ use std::{
 
 use bevy::{app::PluginsState, prelude::*};
 use nova_gameplay::GameStates;
-use nova_input::prelude::{ActionContext, ActiveContexts, InputBindings};
+use nova_input::prelude::{wire_name, ActionContext, ActiveContexts, InputBindings};
 
 use crate::{
-    apply::{drain_acks, wire_name, ChannelFrame},
+    apply::{drain_acks, ChannelFrame},
     protocol::{parse_line, Envelope, Lane},
     ChannelMode,
 };

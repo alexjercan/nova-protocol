@@ -118,7 +118,7 @@ Every command belongs to one of four classes, and the class is the whole permiss
 | `log` | the flight log: comms, objective updates and ship events |
 | `variables` | the scenario's variables |
 | `variable <name>` | one of them |
-| `bindings [action]` | every input action and what it is bound to, or one of them |
+| `bindings [action]` | every input action by its qualified name, such as `flight.mine`, and what it is bound to, or one of them |
 | `settings` | every current setting |
 | `cheats status` | whether cheats are armed, and whether the run is marked |
 
@@ -149,7 +149,7 @@ One rule: the command **without** a value prints the setting, the command **with
 | `graphics [low\|medium\|high]` | the graphics-quality preset |
 | `volume [master\|music\|world\|interface [0..1]]` | one mixer channel |
 | `window [windowed\|borderless]` | the window mode |
-| `bind <action> <source>` | rebind one action, e.g. `bind interface_toggle F1` |
+| `bind <action> <source>` | rebind one action by its bare name, e.g. `bind interface_toggle F1` |
 | `bind reset <action>` | put an action back on its default |
 
 ### Cheats

@@ -167,6 +167,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   item to one ship when the whole quantity fits its hold.
 - Keybinds saved under `novaos_*` IDs load onto `interface_toggle` and
   `viewer_*`.
+- Console `bindings` lists actions by qualified name, such as `flight.mine`, and
+  shows each action's bare `bind` name. Lookups accept either name.
 - The Map labels an asteroid only while it is selected, so a belt of rocks no
   longer buries ship and planet labels. Every blip stays clickable.
 - Objective notification rebuilding now survives same-frame ship teardown.
@@ -228,6 +230,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Channel recording keeps zero-based PNGs, sampled SFX and PCM, encodes an Opus WebM, and muxes audio into Agent Bench's action-rail MP4; capture and encode failures fail the run.
 - Agent Bench can play New Game through its menu, verify the chosen world seed, exclude menu ships from scoring, and replay the open-world session.
+- Agent Bench views carry `me.cargo` (hold grams, credits, items) and the Tab interface's UI targets.
 - New `trade_loop` playable example docks with a demo-only trader and checks Buy, Sell and refusal through the Inventory pane, with rendered checkpoints.
 - New `mine_and_sell` playable example mines ore, takes a canister through the intake and sells its ore to a docked demo trader, checking the ore and credit ledger.
 - New `world_sector_inspector` playable example shows one generated sector at a time: step cells with the arrow keys, orbit each object with [ and ], or fly free with WASD.

@@ -23,6 +23,10 @@
 //! - `ships[].capabilities` - what the root is permitted to do (stop, goto,
 //!   orbit, lock, rcs, point_defense), as the flight gate reads it. A root
 //!   carrying no component is the all-enabled default.
+//! - `ships[].cargo` - the hold and the purse: `capacity_g`, `used_g`,
+//!   `free_g` (grams), `credits`, and `items` as `{item, count}` in
+//!   [`ItemType`](nova_gameplay::prelude::ItemType) order, empty when the hold
+//!   is.
 //! - `ships[].docking` - whether a clamp holds the hull and to whom, and the
 //!   approach: the nearest pair of free ports between the ship and its travel
 //!   lock, measured the way the docking sight draws it and graded against the
@@ -125,8 +129,9 @@ use nova_gameplay::{
     prelude::{
         Allegiance, BeaconLabel, BeaconMarker, DefeatedMarker, DominantWell, GameObjectives,
         Health, HealthZeroMarker, IntegrityDisabledMarker, NeutralizedMarker, ProjectileDamage,
-        ProjectileOwner, RunCheats, SectionClass, SectionMarker, SpaceshipRootMarker, TempEntity,
-        TempEntityState, TorpedoProjectileMarker, TurretBulletProjectileMarker,
+        ProjectileOwner, RunCheats, SectionClass, SectionMarker, ShipCredits, ShipInventory,
+        SpaceshipRootMarker, TempEntity, TempEntityState, TorpedoProjectileMarker,
+        TurretBulletProjectileMarker,
     },
     GameStates, PauseStates,
 };
@@ -1002,6 +1007,13 @@ fn ship_record(
 ) -> (String, serde_json::Value) {
     let id = label(world, entity);
     let transform = world.get::<Transform>(entity).copied().unwrap_or_default();
+    // `SpaceshipRootMarker` requires both, so a root without one is a bug.
+    let inventory = world
+        .get::<ShipInventory>(entity)
+        .expect("a ship root carries a ShipInventory");
+    let credits = world
+        .get::<ShipCredits>(entity)
+        .expect("a ship root carries ShipCredits");
     let skin = skin_index(world, entity);
     let sections = ordered(
         world
@@ -1036,6 +1048,18 @@ fn ship_record(
         "neutralized": world.get::<NeutralizedMarker>(entity).is_some(),
         "weapons_hot": world.get::<WeaponsHot>(entity).map(|hot| hot.0),
         "capabilities": capabilities(world, entity),
+        "cargo": {
+            "capacity_g": inventory.capacity_g(),
+            "used_g": inventory.used_g(),
+            "free_g": inventory.free_g(),
+            "credits": credits.0,
+            "items": inventory
+                .stacks()
+                .map(|(item, count)| {
+                    serde_json::json!({ "item": format!("{item:?}"), "count": count })
+                })
+                .collect::<Vec<_>>(),
+        },
         "travel_lock": label_of(world, world.get::<TravelLock>(entity).and_then(|lock| lock.0)),
         "combat_lock": label_of(world, world.get::<CombatLock>(entity).and_then(|lock| lock.0)),
         "ai_target": label_of(world, world.get::<AITarget>(entity).and_then(|target| target.0)),
@@ -1825,6 +1849,55 @@ mod tests {
         assert_eq!(round["damage"]["kind"], "Kinetic");
         assert_eq!(round["damage"]["amount"], 4.0);
         assert_eq!(round["lifetime"]["total"], 3.0);
+    }
+
+    /// The cargo record is what a driver reads a trade, a transfer, or a
+    /// mining haul off: the hold and the purse before and after one change.
+    #[test]
+    fn the_cargo_record_follows_the_hold_and_the_purse_through_a_change() {
+        let mut app = rig();
+        let player = ship(&mut app, "player", Vec3::ZERO);
+        app.world_mut().entity_mut(player).insert((
+            ShipInventory::new(100_000, [(ItemType::IronOre, 3), (ItemType::HullPlate, 2)]),
+            ShipCredits(250),
+        ));
+        app.update();
+
+        assert_eq!(
+            capture_snapshot(app.world_mut(), "before")["ships"][0]["cargo"],
+            serde_json::json!({
+                "capacity_g": 100_000,
+                "used_g": 50_000,
+                "free_g": 50_000,
+                "credits": 250,
+                "items": [
+                    { "item": "HullPlate", "count": 2 },
+                    { "item": "IronOre", "count": 3 },
+                ],
+            }),
+        );
+
+        let mut entity = app.world_mut().entity_mut(player);
+        let mut inventory = entity.get_mut::<ShipInventory>().unwrap();
+        inventory.remove(ItemType::HullPlate, 2);
+        inventory.add(ItemType::PdcRound, 5);
+        entity.get_mut::<ShipCredits>().unwrap().0 = 330;
+        app.update();
+
+        assert_eq!(
+            capture_snapshot(app.world_mut(), "after")["ships"][0]["cargo"],
+            serde_json::json!({
+                "capacity_g": 100_000,
+                "used_g": 31_000,
+                "free_g": 69_000,
+                "credits": 330,
+                "items": [
+                    { "item": "PdcRound", "count": 5 },
+                    { "item": "IronOre", "count": 3 },
+                ],
+            }),
+            "an emptied stack leaves the list and items keep ItemType order",
+        );
     }
 
     /// The whole point of the artifact: one state, one set of bytes. Two

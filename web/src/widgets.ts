@@ -10960,7 +10960,7 @@ export const COMMAND_ROWS: CommandRow[] = [
         name: "bindings",
         usage: "bindings [action]",
         cls: "ReadOnly",
-        what: "every input action and what it is bound to, or one of them",
+        what: "every input action by its qualified name, such as flight.mine, and what it is bound to, or one of them",
     },
     {
         name: "settings",
@@ -10996,7 +10996,7 @@ export const COMMAND_ROWS: CommandRow[] = [
         name: "bind",
         usage: "bind <action> <source>",
         cls: "Setting",
-        what: "rebind one action",
+        what: "rebind one action by its bare name",
     },
     {
         name: "bind reset",
@@ -11036,10 +11036,15 @@ export const COMMAND_ROWS: CommandRow[] = [
     },
 ];
 
-// v0.13.0 shipped every row above except `item give`.
+// v0.13.0 shipped every row above except `item give`, and `bindings` then
+// listed bare action names.
+const V0130_COMMAND_WHAT: Partial<Record<string, string>> = {
+    bindings: "every input action and what it is bound to, or one of them",
+    bind: "rebind one action",
+};
 export const V0130_COMMAND_ROWS: CommandRow[] = COMMAND_ROWS.filter(
     (row) => row.name !== "item give"
-);
+).map((row) => ({ ...row, what: V0130_COMMAND_WHAT[row.name] ?? row.what }));
 
 // Whether the dispatcher runs the command: every class but Cheat always,
 // `cheats enable` always, any other cheat only once armed (dispatch.rs:21-25).

@@ -40,6 +40,8 @@ pub const PAGES: &[(&str, &str)] = &[
     ("orbit", include_str!("pages/orbit.md")),
     ("fighting", include_str!("pages/fighting.md")),
     ("docking", include_str!("pages/docking.md")),
+    ("mining", include_str!("pages/mining.md")),
+    ("cargo", include_str!("pages/cargo.md")),
 ];
 
 /// One page by name, or `None` for a name that is not a page.

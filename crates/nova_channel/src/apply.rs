@@ -36,7 +36,7 @@ use nova_command::prelude::{
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker};
 use nova_input::prelude::{
-    dispatch, ActiveContexts, DispatchError, InputBindings, InputPhase, InputSource,
+    dispatch, wire_name, ActiveContexts, DispatchError, InputBindings, InputPhase, InputSource,
 };
 use nova_ship::prelude::{
     SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
@@ -141,13 +141,6 @@ fn refuse(world: &mut World, line: usize, message: String) {
         .resource_mut::<ChannelAck>()
         .errors
         .push((line, message));
-}
-
-/// The wire name an action answers to: its settings group, lowercased with
-/// spaces as underscores, then its registry name - `flight.main_drive`,
-/// `nova_os.viewer_orbit_left`.
-pub fn wire_name(group: &str, name: &str) -> String {
-    format!("{}.{name}", group.to_lowercase().replace(' ', "_"))
 }
 
 // -- command ------------------------------------------------------------------

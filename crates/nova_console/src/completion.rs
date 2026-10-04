@@ -74,6 +74,12 @@ pub(crate) fn publish_live_values(
             .collect();
         names.sort_unstable();
         entries.push((live::ACTION.to_string(), names));
+        let mut wire_names: Vec<String> = bindings
+            .iter()
+            .map(|action| wire_name(action.group, action.name))
+            .collect();
+        wire_names.sort_unstable();
+        entries.push((live::WIRE_ACTION.to_string(), wire_names));
         // Every source `bind` accepts, spelled the way the game prints it -
         // which is one of the spellings `InputSource::parse` reads back.
         entries.push((
@@ -84,4 +90,37 @@ pub(crate) fn publish_live_values(
         ));
     }
     terminal.merge_live_values(entries);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bindings_complete_wire_names_while_bind_completes_bare_names() {
+        let mut app = App::new();
+        app.insert_resource(CommandTerminal::default());
+        app.insert_resource(InputBindings::from_actions([ActionBinding::new(
+            "mine",
+            "FLIGHT",
+            "Mine (hold)",
+        )]));
+        app.add_systems(Update, publish_live_values);
+        app.update();
+
+        let mut terminal = app.world_mut().resource_mut::<CommandTerminal>();
+        terminal.insert_text("bindings fl");
+        assert!(terminal.complete());
+        assert_eq!(terminal.prompt(), "bindings flight.mine");
+
+        terminal.reset_prompt();
+        terminal.insert_text("bind mi");
+        assert!(terminal.complete());
+        assert_eq!(terminal.prompt(), "bind mine");
+
+        terminal.reset_prompt();
+        terminal.insert_text("bind reset mi");
+        assert!(terminal.complete());
+        assert_eq!(terminal.prompt(), "bind reset mine");
+    }
 }

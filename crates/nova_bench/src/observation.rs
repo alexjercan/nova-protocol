@@ -173,7 +173,7 @@ pub fn condense(snapshot: &Value, held: &BTreeSet<String>, expand: &[String]) ->
         },
         "commands": commands,
     });
-    if snapshot["game_state"] == "MainMenu" {
+    if snapshot["game_state"] == "MainMenu" || snapshot["ui"]["pause"] == "Interface" {
         view["ui"]["targets"] = snapshot["ui"]["targets"].clone();
     }
     // Both of these are absent far more often than they are present, and an
@@ -500,6 +500,7 @@ fn self_record(me: &Value, frame: Option<&Frame>) -> Value {
         "velocity_bearing_deg": velocity_bearing,
         "turn_rate_dps": round1(length(angular).to_degrees()),
         "health": me["health"],
+        "cargo": me["cargo"],
         "weapons_hot": me["weapons_hot"],
         "combat_lock": me["combat_lock"],
         "travel_lock": me["travel_lock"],
@@ -965,6 +966,47 @@ mod tests {
         let docking = &condense(&bare, &BTreeSet::new(), &[])["me"]["docking"];
         assert_eq!(docking["docked"], false);
         assert_eq!(docking["pair"], Value::Null);
+    }
+
+    #[test]
+    fn cargo_passes_through_with_its_gram_and_credit_values() {
+        let mut snapshot = snapshot();
+        let cargo = json!({
+            "capacity_g": 400_000, "used_g": 75_000, "free_g": 325_000,
+            "credits": 42, "items": [{ "item": "StoneOre", "count": 3 }]
+        });
+        snapshot["ships"][0]["cargo"] = cargo.clone();
+        assert_eq!(
+            condense(&snapshot, &BTreeSet::new(), &[])["me"]["cargo"],
+            cargo
+        );
+    }
+
+    #[test]
+    fn ui_targets_are_visible_in_main_menu_or_interface_only() {
+        let mut snapshot = snapshot();
+        let targets = json!([{ "name": "InterfaceTabInventory", "rect": [10, 20, 30, 40] }]);
+        snapshot["ui"]["targets"] = targets.clone();
+        let view = condense(&snapshot, &BTreeSet::new(), &[]);
+        assert!(view["ui"].get("targets").is_none());
+
+        snapshot["game_state"] = json!("MainMenu");
+        assert_eq!(
+            condense(&snapshot, &BTreeSet::new(), &[])["ui"]["targets"],
+            targets
+        );
+
+        snapshot["game_state"] = json!("Playing");
+        snapshot["ui"]["pause"] = json!("Interface");
+        assert_eq!(
+            condense(&snapshot, &BTreeSet::new(), &[])["ui"]["targets"],
+            targets
+        );
+
+        snapshot["ui"]["pause"] = json!("Menu");
+        assert!(condense(&snapshot, &BTreeSet::new(), &[])["ui"]
+            .get("targets")
+            .is_none());
     }
 
     #[test]

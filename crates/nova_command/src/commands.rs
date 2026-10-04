@@ -98,8 +98,10 @@ pub mod live {
     pub const SCENARIO: &str = "scenario";
     /// The live scenario's variable names.
     pub const VARIABLE: &str = "variable";
-    /// Registered input action names.
+    /// Bare registry action names accepted by `bind` and `bind reset`.
     pub const ACTION: &str = "action";
+    /// Canonical qualified action names accepted by `bindings`.
+    pub const WIRE_ACTION: &str = "wire_action";
     /// The input sources `bind` accepts.
     pub const SOURCE: &str = "source";
     /// Command names, for `help <command>`. Published by the terminal itself
@@ -110,7 +112,15 @@ pub mod live {
 
     /// Every token, so [`noun`] can be pinned against the list by test.
     pub const ALL: &[&str] = &[
-        SHIP, SECTION, SCENARIO, VARIABLE, ACTION, SOURCE, COMMAND, CONTACT,
+        SHIP,
+        SECTION,
+        SCENARIO,
+        VARIABLE,
+        ACTION,
+        WIRE_ACTION,
+        SOURCE,
+        COMMAND,
+        CONTACT,
     ];
 
     /// What the player is being ASKED for, as `help` phrases it. Tab is what
@@ -122,6 +132,7 @@ pub mod live {
             SCENARIO => "a scenario id",
             VARIABLE => "a scenario variable name",
             ACTION => "an input action name",
+            WIRE_ACTION => "a qualified input action name",
             SOURCE => "a key, mouse button or pad button",
             COMMAND => "a command name",
             CONTACT => "a contact label on the map",
@@ -347,8 +358,8 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::Between(0, 1),
         arg_hint: Some("[action]"),
-        args: &[CommandArg::Live(live::ACTION)],
-        examples: &["bindings", "bindings interface_toggle"],
+        args: &[CommandArg::Live(live::WIRE_ACTION)],
+        examples: &["bindings", "bindings system.interface_toggle"],
     },
     CommandSpec {
         name: "settings",
