@@ -551,18 +551,22 @@ pub(crate) const MAP_ROUTE_SEGMENTS: usize = 32;
 /// Height of the `GOTO` tag over the target blip, in logical px.
 pub(crate) const MAP_GOTO_MARKER_PX: f32 = 18.0;
 
-/// Draw the player's predicted GOTO path and the `GOTO` tag over its target,
-/// through the same camera projection as the blips.
+/// Draw the player's predicted GOTO path, a guide on to its target, and the
+/// `GOTO` tag over that target, through the same camera projection as the
+/// blips.
 ///
 /// The tag follows the live `Autopilot` GOTO target, not the selection, the
 /// travel lock or the prediction, so it hides when the GOTO is cancelled,
 /// arrives or is replaced by another order, and a target the map does not plot
-/// draws nothing. The path draws only while that GOTO has a
-/// [`FlightPrediction`]: it starts at the player blip, skips the points
-/// `Time<Fixed>` has already flown past, follows the predicted centre of mass
-/// and stops where the prediction stops, with no stroke on to the target. It
-/// is decimated to at most [`MAP_ROUTE_SEGMENTS`] pooled stroke nodes, and
-/// each stroke is clipped before it is sized and rotated so it stays in the
+/// draws nothing. While that GOTO has a [`FlightPrediction`] with points still
+/// ahead, the path starts at the player blip, skips the points `Time<Fixed>`
+/// has already flown past and follows the predicted centre of mass, decimated
+/// to at most one stroke fewer than [`MAP_ROUTE_SEGMENTS`]. The stroke left
+/// over is a dim straight guide from the last point ahead to the live target,
+/// so a forecast that stops short still points at the target without claiming
+/// a predicted path there. With no prediction, or every point flown,
+/// the guide runs from the player blip instead, so a fresh GOTO draws at once.
+/// Each stroke is clipped before it is sized and rotated so it stays in the
 /// viewport. Spawns the strokes and the tag under the viewport on first run.
 #[expect(
     clippy::too_many_arguments,
@@ -581,7 +585,12 @@ pub(crate) fn project_map_route(
     q_camera: Query<(&Camera, &GlobalTransform), With<MapCameraMarker>>,
     q_viewport: Query<(Entity, &ComputedNode), With<MapViewportMarker>>,
     mut q_line: Query<
-        (&mut Node, &mut UiTransform, &mut Visibility),
+        (
+            &mut Node,
+            &mut UiTransform,
+            &mut ThemedFill,
+            &mut Visibility,
+        ),
         (With<MapRouteLine>, Without<MapGotoMarker>),
     >,
     mut q_marker: Query<(&mut Node, &mut Visibility), (With<MapGotoMarker>, Without<MapRouteLine>)>,
@@ -630,7 +639,7 @@ pub(crate) fn project_map_route(
 
     // The tag sits on the target tile's top edge, so it never covers the tile
     // or the code label beside it. It follows the target even when the route
-    // misses the viewport or stops short of it.
+    // misses the viewport.
     match goto.and_then(|(_, to, _)| project(to)) {
         Some(to) => {
             let (left, top) = (
@@ -662,7 +671,7 @@ pub(crate) fn project_map_route(
                 .saturating_sub(prediction.seed_time)
                 .as_secs_f32();
             let last = prediction.points.len().saturating_sub(1);
-            let ahead = prediction
+            let ahead: Vec<Vec3> = prediction
                 .points
                 .iter()
                 .enumerate()
@@ -674,25 +683,35 @@ pub(crate) fn project_map_route(
                     };
                     at > flown
                 })
-                .map(|(_, point)| *point);
-            Some(decimate_route(
-                &std::iter::once(from).chain(ahead).collect::<Vec<_>>(),
-                MAP_ROUTE_SEGMENTS + 1,
-            ))
+                .map(|(_, point)| *point)
+                .collect();
+            // One pooled stroke stays free for the guide.
+            (!ahead.is_empty()).then(|| {
+                decimate_route(
+                    &std::iter::once(from).chain(ahead).collect::<Vec<_>>(),
+                    MAP_ROUTE_SEGMENTS,
+                )
+            })
         })
         .unwrap_or_default();
+    // The guide starts where the path ends, or at the blip with no path.
+    let guide = goto.map(|(from, to, _)| (vertices.last().copied().unwrap_or(from), to));
     let size = computed.size() * to_logical;
     // A vertex behind the camera does not project, so both strokes that meet
-    // it are dropped: a close orbit can show a gap, never a wrong stroke.
-    let mut strokes = vertices.windows(2).filter_map(|pair| {
-        let (from, to) =
-            clip_route_segment(project(pair[0])?, project(pair[1])?, size, MAP_ROUTE_PX)?;
-        let span = to - from;
-        let length = span.length();
-        (length.is_finite() && length > f32::EPSILON).then_some((from, span, length))
-    });
-    for (mut line, mut transform, mut line_vis) in &mut q_line {
-        let Some((from, span, length)) = strokes.next() else {
+    // it are dropped: a close orbit can show a gap, never a wrong stroke. A
+    // target behind the camera hides the guide the same way.
+    let mut strokes = vertices
+        .windows(2)
+        .map(|pair| (pair[0], pair[1], 0.8))
+        .chain(guide.map(|(from, to)| (from, to, 0.3)))
+        .filter_map(|(from, to, alpha)| {
+            let (from, to) = clip_route_segment(project(from)?, project(to)?, size, MAP_ROUTE_PX)?;
+            let span = to - from;
+            let length = span.length();
+            (length.is_finite() && length > f32::EPSILON).then_some((from, span, length, alpha))
+        });
+    for (mut line, mut transform, mut fill, mut line_vis) in &mut q_line {
+        let Some((from, span, length, alpha)) = strokes.next() else {
             line_vis.set_if_neq(Visibility::Hidden);
             continue;
         };
@@ -712,6 +731,10 @@ pub(crate) fn project_map_route(
         let rotation = Rot2::radians(span.y.atan2(span.x));
         if transform.rotation != rotation {
             transform.rotation = rotation;
+        }
+        // A pooled stroke moves between path and guide as the path grows.
+        if fill.alpha != alpha {
+            fill.alpha = alpha;
         }
         line_vis.set_if_neq(Visibility::Inherited);
     }

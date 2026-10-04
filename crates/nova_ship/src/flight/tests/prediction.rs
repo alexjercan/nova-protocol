@@ -23,7 +23,10 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
     // predictor after avian's writeback. Each published prediction is laid
     // over the live centre of mass at every fixed tick it spans, the drawn
     // polyline between its points included. The GOTO legs outlast the 30 s
-    // horizon, so their early predictions end at it.
+    // horizon, so their early predictions end at it. A GOTO order consumes
+    // its FLIP on its first braking tick and keeps it consumed through every
+    // replan; the same GOTO re-engaged on that tick is a new order that
+    // consumes its own FLIP on its own braking tick. STOP never consumes one.
     let goal = Vec3::new(0.0, 0.0, -5000.0);
     let well_center = Vec3::new(95.0, 0.0, -300.0);
     let gravity = GravitySettings::default();
@@ -97,11 +100,38 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
         let mut predictions: Vec<FlightPrediction> = Vec::new();
         let mut released_at = None;
         let mut entered_well = false;
+        let mut order_braked = false;
+        let mut was_braking = false;
+        let mut braking_entries = 0;
+        let mut reengaged_at = None;
         for update in 1..=8000 {
             app.update();
             entered_well |= app.world().get::<DominantWell>(ship).is_some();
             coms.push(com_of(&app));
             elapsed.push(app.world().resource::<Time<Fixed>>().elapsed());
+            if let Some(autopilot) = app.world().get::<Autopilot>(ship) {
+                let braking = app
+                    .world()
+                    .get::<ManeuverTelemetry>(ship)
+                    .is_some_and(|numbers| numbers.braking);
+                braking_entries += usize::from(braking && !was_braking);
+                was_braking = braking;
+                order_braked |= goto && braking;
+                assert_eq!(
+                    autopilot.flip_marker_consumed, order_braked,
+                    "{case}: after update {update} the order's FLIP is consumed exactly when \
+                     its leg has braked"
+                );
+                // GOTO reads the phase only as output, so re-engaging the same
+                // leg changes nothing the ship flies or the predictor seeds.
+                if order_braked && reengaged_at.is_none() {
+                    reengaged_at = Some(update);
+                    order_braked = false;
+                    app.world_mut()
+                        .entity_mut(ship)
+                        .insert(Autopilot::engage(action));
+                }
+            }
             if let Some(prediction) = app.world().get::<FlightPrediction>(ship) {
                 if predictions
                     .last()
@@ -116,6 +146,11 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
             }
         }
         let released_at = released_at.unwrap_or_else(|| panic!("{case}: the leg must complete"));
+        assert_eq!(
+            reengaged_at.is_some() && order_braked,
+            goto,
+            "{case}: a GOTO consumes its FLIP, and so does its re-engagement"
+        );
         assert_eq!(
             entered_well, with_well,
             "{case}: the ship must fly through only the present well's SOI"
@@ -193,7 +228,8 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
         }
         println!(
             "{case}: {} predictions over {live_end} ticks; max error at points {max_point_error} \
-             u, at every tick {max_tick_error} u",
+             u, at every tick {max_tick_error} u; {braking_entries} braking entries, \
+             re-engaged at {reengaged_at:?}",
             predictions.len()
         );
         if goto {
@@ -220,7 +256,9 @@ fn a_goto_at_a_well_body_is_predicted_to_park_where_the_live_leg_hands_off_to_or
     // The playtest GOTO at a well body from outside its SOI, inbound at speed,
     // flown one fixed tick per update. A leg predicted to park ends on the
     // state the live autopilot parks from. ORBIT is not a predicted leg, so
-    // the handoff drops the prediction and nothing draws the ring.
+    // the handoff drops the prediction and nothing draws the ring. The
+    // braking GOTO consumes its FLIP; the ORBIT it parks into is a new order
+    // and never consumes one.
     let mut app = orbit_app();
     let fixed_step = app.world().resource::<Time<Fixed>>().timestep();
     let dt = fixed_step.as_secs_f32();
@@ -260,20 +298,20 @@ fn a_goto_at_a_well_body_is_predicted_to_park_where_the_live_leg_hands_off_to_or
     let mut elapsed = vec![app.world().resource::<Time<Fixed>>().elapsed()];
     let mut predictions: Vec<FlightPrediction> = Vec::new();
     let mut parked_at = None;
+    let mut goto_consumed = false;
     for update in 1..=6000 {
         app.update();
         coms.push(com_of(&app));
         elapsed.push(app.world().resource::<Time<Fixed>>().elapsed());
-        match app
-            .world()
-            .get::<Autopilot>(ship)
-            .map(|autopilot| autopilot.action)
-        {
-            Some(AutopilotAction::Orbit { .. }) => {
+        match app.world().get::<Autopilot>(ship).copied() {
+            Some(Autopilot {
+                action: AutopilotAction::Orbit { .. },
+                ..
+            }) => {
                 parked_at = Some(update);
                 break;
             }
-            Some(_) => {}
+            Some(autopilot) => goto_consumed = autopilot.flip_marker_consumed,
             None => panic!("a GOTO at a well body must park, not release"),
         }
         if let Some(prediction) = app.world().get::<FlightPrediction>(ship) {
@@ -286,6 +324,10 @@ fn a_goto_at_a_well_body_is_predicted_to_park_where_the_live_leg_hands_off_to_or
         }
     }
     let parked_at = parked_at.expect("the GOTO must hand off to ORBIT in budget");
+    assert!(
+        goto_consumed,
+        "the inbound GOTO consumes its FLIP before it parks"
+    );
     assert!(
         app.world().get::<FlightPrediction>(ship).is_none()
             && app.world().get::<FlightPredictionRun>(ship).is_none(),
@@ -345,12 +387,14 @@ fn a_goto_at_a_well_body_is_predicted_to_park_where_the_live_leg_hands_off_to_or
         app.update();
         assert!(
             matches!(
-                app.world()
-                    .get::<Autopilot>(ship)
-                    .map(|autopilot| autopilot.action),
-                Some(AutopilotAction::Orbit { .. })
+                app.world().get::<Autopilot>(ship).copied(),
+                Some(Autopilot {
+                    action: AutopilotAction::Orbit { .. },
+                    flip_marker_consumed: false,
+                    ..
+                })
             ),
-            "the parked ship keeps flying ORBIT"
+            "the parked ship keeps flying ORBIT and inherits no consumed FLIP"
         );
         assert!(
             app.world().get::<FlightPrediction>(ship).is_none(),

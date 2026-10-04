@@ -1050,7 +1050,7 @@ mod tests {
         fn new() -> Self {
             use nova_events::prelude::{EventHandler, GameEventsPlugin};
             use nova_gameplay::prelude::{GameObjectives, SpaceshipRootMarker};
-            use nova_ship::prelude::{Autopilot, AutopilotAction, AutopilotPhase, OrbitPlan};
+            use nova_ship::prelude::{Autopilot, AutopilotAction, OrbitPlan};
 
             let mut app = App::new();
             app.add_plugins(MinimalPlugins);
@@ -1095,16 +1095,13 @@ mod tests {
                     EntityId::new("ship"),
                     EntityTypeName::new(SPACESHIP_TYPE_NAME),
                     GlobalTransform::from_translation(Vec3::X),
-                    Autopilot {
-                        action: AutopilotAction::Orbit {
-                            well,
-                            plan: Some(OrbitPlan {
-                                radius: 1.0,
-                                normal: Vec3::Y,
-                            }),
-                        },
-                        phase: AutopilotPhase::Align,
-                    },
+                    Autopilot::engage(AutopilotAction::Orbit {
+                        well,
+                        plan: Some(OrbitPlan {
+                            radius: 1.0,
+                            normal: Vec3::Y,
+                        }),
+                    }),
                 ))
                 .id();
             // The first update carries a zero delta and only opens the echo;

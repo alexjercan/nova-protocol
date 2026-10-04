@@ -180,6 +180,12 @@ pub struct Autopilot {
     /// Where the maneuver currently is (for the HUD); updated every tick by
     /// `autopilot_system`.
     pub phase: AutopilotPhase,
+    /// The arrival leg of this order has started braking, so its FLIP is
+    /// behind the ship. Set on the first tick a GOTO or GotoPos leg
+    /// publishes `ManeuverTelemetry::braking` and never cleared: a later
+    /// replan that puts a flip ahead again does not bring the marker back.
+    /// A new engage, even to the same target, starts false.
+    pub flip_marker_consumed: bool,
 }
 
 impl Autopilot {
@@ -188,6 +194,7 @@ impl Autopilot {
         Self {
             action,
             phase: AutopilotPhase::Align,
+            flip_marker_consumed: false,
         }
     }
 }

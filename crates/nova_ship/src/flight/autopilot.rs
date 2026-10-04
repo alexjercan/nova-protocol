@@ -1154,6 +1154,7 @@ pub(super) fn autopilot_step(
                 - target.radius
                 - mover_radius;
             goto_arrived = numbers.distance <= park_gap;
+            autopilot.flip_marker_consumed |= numbers.braking;
             numbers.goal_entity = target.entity;
             telemetry = Some(numbers);
             desired

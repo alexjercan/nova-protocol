@@ -6,7 +6,8 @@
 //!   marker with ETA and distance, fed by the physics-side
 //!   [`ManeuverTelemetry`] seam (the HUD computes nothing).
 //! - **Flip marker**: a `FLIP <n>s` chip on the predicted flip point of the
-//!   leg's [`FlightPrediction`], the point the holo flip gate rings.
+//!   leg's [`FlightPrediction`], the point the holo flip gate rings, until
+//!   the leg first brakes.
 //! - **ORBIT holo ring**: a world-space torus at the engaged orbit plan's
 //!   ring (velocity-sphere visual family).
 //! - **Radius spoke**: while ORBIT is engaged, a thin holo line from the well
@@ -174,8 +175,9 @@ impl Plugin for ManeuverInstrumentsPlugin {
     fn build(&self, app: &mut App) {
         trace!("ManeuverInstrumentsPlugin: build");
 
-        // Shared with the holo-instruments family (one material batches
-        // the whole set); idempotent with HoloInstrumentsPlugin's init.
+        // Shared with the holo-instruments family (one material per style
+        // batches the whole set); idempotent with HoloInstrumentsPlugin's
+        // init.
         app.init_resource::<HoloAssets>();
 
         app.register_type::<OrbitRingMarker>()
@@ -252,20 +254,25 @@ fn drive_destination_readout(
 /// seed when it is the last point. The holo flip gate uses the same point and
 /// clock, so the chip and the gate show one flip and go together. Hidden when
 /// the ship has no prediction, when the prediction does not brake, and once
-/// the ship reaches the flip point. There is no straight-line fallback: the
+/// the ship reaches the flip point. Hidden for the rest of the order once
+/// [`Autopilot::flip_marker_consumed`] is set, so a replan after the brake
+/// does not bring the chip back. There is no straight-line fallback: the
 /// telemetry's flip point is a plan the autopilot does not fly.
 fn drive_flip_marker(
     time: Res<Time<Fixed>>,
     q_hud: Query<&ManeuverInstrumentsShipEntity, With<ManeuverInstrumentsHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<FlipMarkerUIMarker>>,
-    q_ship: Query<&FlightPrediction>,
+    q_ship: Query<(&FlightPrediction, &Autopilot)>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
             continue;
         };
 
-        let flip = q_ship.get(**ship).ok().and_then(|prediction| {
+        let flip = q_ship.get(**ship).ok().and_then(|(prediction, autopilot)| {
+            if autopilot.flip_marker_consumed {
+                return None;
+            }
             let index = prediction.flip_index?;
             let flown = time
                 .elapsed()
@@ -352,7 +359,7 @@ fn sync_orbit_ring(
                         plan.radius + RING_MINOR_RADIUS,
                     ))),
                     NotShadowCaster,
-                    MeshMaterial3d(assets.material(&mut materials)),
+                    MeshMaterial3d(assets.material(&mut materials, false)),
                     Transform::from_translation(well_position).with_rotation(rotation),
                     Visibility::Visible,
                 ));
@@ -466,7 +473,7 @@ fn sync_radius_spoke(
             RadiusSpokeMarker { ship },
             Mesh3d(assets.segment_mesh(&mut meshes)),
             NotShadowCaster,
-            MeshMaterial3d(assets.material(&mut materials)),
+            MeshMaterial3d(assets.material(&mut materials, false)),
             transform,
             Visibility::Visible,
         ));
@@ -559,6 +566,9 @@ mod tests {
                     seconds_to_flip: Some(15.0),
                     eta: Some(18.0),
                 },
+                Autopilot::engage(AutopilotAction::GotoPos {
+                    position: Vec3::new(0.0, 0.0, -300.0),
+                }),
                 FlightPrediction {
                     points: vec![
                         Vec3::ZERO,
@@ -619,6 +629,33 @@ mod tests {
         world.run_system_once(drive_flip_marker).unwrap();
         assert_eq!(anchor_of(&world, flip), None);
         assert!(text_of(&world, flip).is_empty());
+
+        // The leg has braked, then a replan reseeds a prediction with the flip
+        // ahead again: the chip stays hidden for the rest of the order.
+        let mut prediction = world.get_mut::<FlightPrediction>(ship).unwrap();
+        prediction.seed_time = Duration::from_secs(11);
+        prediction.flip_index = Some(2);
+        prediction.final_point_time = 3.0 * SAMPLE_INTERVAL;
+        world
+            .get_mut::<Autopilot>(ship)
+            .unwrap()
+            .flip_marker_consumed = true;
+        world.run_system_once(drive_flip_marker).unwrap();
+        assert_eq!(anchor_of(&world, flip), None);
+        assert!(text_of(&world, flip).is_empty());
+
+        // A fresh engage to the same goal starts a new order with its own flip.
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                position: Vec3::new(0.0, 0.0, -300.0),
+            }));
+        world.run_system_once(drive_flip_marker).unwrap();
+        assert_eq!(
+            anchor_of(&world, flip),
+            Some(ScreenIndicatorAnchorKind::Point(predicted_flip))
+        );
+        assert_eq!(text_of(&world, flip), "FLIP   8s");
 
         // No prediction, no chip: nothing falls back to the straight plan.
         world.entity_mut(ship).remove::<FlightPrediction>();
