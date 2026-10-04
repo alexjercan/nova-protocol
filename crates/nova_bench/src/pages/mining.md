@@ -20,10 +20,13 @@ whose `weapon` is not null; it is not listed in `inputs.live`.
    the hold has enough free mass. See the `cargo` page before attempting
    collection.
 
-The agent view has no carve result, canister position, or intake position.
-It cannot confirm a cut or steer accurately to a canister from a snapshot.
-Make bounded attempts; compare `me.cargo.items` before and after. Only an
-increase in the relevant item count proves ore was picked up. Neither a
-mining gesture, a beam, proximity to the rock, nor unchanged cargo proves
-carving or recovery. The first pulse on untouched rock can prepare its
-material field without taking ore; a cut already empty yields nothing.
+The agent view has no carve result or intake position. `canisters` lists
+all live canisters, their runtime IDs, contents, and distance and bearing
+from the player's ship. A newly visible canister containing ore shows ore
+in the world, not why it spawned or whether the ship recovered it. The view
+does not show the intake's trigger position, so a centred canister bearing
+cannot prove contact. Make bounded attempts; compare `me.cargo.items` before and
+after. Only an increase in the relevant item count proves ore was picked up.
+A canister's disappearance alone does not prove pickup: it may have been
+destroyed. The first pulse on untouched rock can prepare its material field
+without taking ore; a cut already empty yields nothing.

@@ -881,6 +881,7 @@ fn eject_mined_canisters(
     )>,
     q_motion: Query<(&GlobalTransform, &LinearVelocity, &AngularVelocity)>,
     q_canisters: Query<&GlobalTransform, With<CargoCanister>>,
+    mut canister_ids: ResMut<CargoCanisterIdAllocator>,
 ) {
     let size = CARGO_CANISTER_SIZE;
     let shape = Collider::cuboid(size.x, size.y, size.z);
@@ -925,6 +926,7 @@ fn eject_mined_canisters(
                 rock_velocity + normal * MINED_CANISTER_SPEED,
                 AssetRef::from(MINED_CANISTER_MESH),
             ),
+            canister_ids.next(),
             ScenarioScopedMarker,
         ));
         born.push(birth);
@@ -1061,6 +1063,9 @@ mod tests {
         ));
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
+        // Not pulled in by MiningPlugin itself: only NovaGameplayPlugin owns
+        // it in a real app, which this minimal rig never adds.
+        app.init_resource::<CargoCanisterIdAllocator>();
         app.init_resource::<Pulses>();
         app.init_resource::<Remeshes>();
         app.init_resource::<Played>();
@@ -1279,7 +1284,14 @@ mod tests {
         }
         let world = app.world_mut();
         assert_eq!(drifting(world, ItemType::StoneOre), paid);
+        let mut minted = Vec::new();
         for canister in canisters(world) {
+            let id = world
+                .get::<CargoCanisterRuntimeId>(canister)
+                .expect("each mined canister has a runtime id")
+                .0;
+            assert!(!minted.contains(&id), "mining reused canister id {id}");
+            minted.push(id);
             let held: Vec<_> = world
                 .get::<CargoCanister>(canister)
                 .unwrap()

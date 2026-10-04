@@ -537,6 +537,7 @@ mod tests {
             "applied": [],
             "input": { "live": [], "contexts": [] },
             "beacons": [],
+            "canisters": [],
             "ordnance": []
         })
     }
@@ -751,9 +752,9 @@ mod tests {
     #[test]
     fn new_game_menu_is_not_scored_and_only_the_requested_world_onboards() {
         let menu = json!({"game_state": "MainMenu", "scenario": "menu_backdrop", "world_seed": null,
-            "ships": [{"id": "backdrop_enemy", "allegiance": "Enemy", "controller": "AI"} ]});
+            "canisters": [], "ships": [{"id": "backdrop_enemy", "allegiance": "Enemy", "controller": "AI"} ]});
         let playing = json!({"game_state": "Playing", "scenario": "open_world", "world_seed": 42,
-            "ships": [{"id": "player", "allegiance": "Player", "controller": "Player"}]});
+            "canisters": [], "ships": [{"id": "player", "allegiance": "Player", "controller": "Player"}]});
         let mut referee = Referee::new(
             Scripted::new(vec![menu.clone(), playing.clone()]),
             Bus::quiet(),

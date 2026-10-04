@@ -789,6 +789,7 @@ mod tests {
     fn a_real_take_fills_the_hold_and_clears_the_sight() {
         let mut app = unfinished_integrity_physics_app();
         app.init_asset::<StandardMaterial>();
+        app.init_resource::<CargoCanisterIdAllocator>();
         app.add_plugins((
             SectionAnimationPlugin,
             CargoIntakeSectionPlugin { render: false },

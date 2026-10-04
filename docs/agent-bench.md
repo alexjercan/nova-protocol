@@ -203,6 +203,10 @@ second and degrees:
   `Neutral`), `distance_m`, `bearing_deg`, `closing_mps`, `health`,
   `defeated`, `weapons_hot`, `ai_target`.
 - `beacons` with `distance_m` and `bearing_deg`.
+- `canisters`: every live cargo canister, with a numeric runtime `id` unique
+  within the run (not stable across revisions), `distance_m` and
+  `bearing_deg` relative to the player's ship, and ordered `stacks` of
+  `{item, count}`. Distance and bearing are absent without a player ship.
 - `bodies`: the asteroids and planets, in three tiers. `near` and
   `in_the_way` carry the full record - `kind`, `radius_m`, `distance_m` to
   the centre, `surface_m` to the surface, `bearing_deg`, `closing_mps` -
@@ -239,19 +243,22 @@ effect off the world: `autopilot.engaged`, `combat_lock`, `radar.dwell_fill`,
 `weapons_hot`, `bearing_deg`, `objectives`. A wire line the game could not
 parse is still an error, in `game_errors`, and always carries a message.
 
-The snapshot itself grew a `mission` block (objectives, outcome, comms, the
-objective log, the cinematic and the cheat mark), a `beacons` list, a
-`bodies` list and the ship's `autopilot`, `radar`, `cargo` and `gravity_well`
-for this; see `nova_probe::capabilities::snapshot`.
+The raw snapshot carries a `mission` block (objectives, outcome, comms,
+the objective log, the cinematic and the cheat mark), `beacons`, `bodies`,
+and `canisters` (runtime ID, engine-unit position and velocity, ordered
+stacks), plus each ship's `autopilot`, `radar`, `cargo` and `gravity_well`;
+see `nova_probe::capabilities::snapshot`.
 
 ### Mining and cargo
 
 `flight.mine` is one ship-level hold: while it is held, each working mining
 emitter deploys and, once deployed, attempts pulses at the travel-locked
-rock. The agent view has no carve result, canister position, or intake
-position. It cannot accurately steer the intake into a canister by snapshot
-alone. The intake takes a whole canister on trigger contact when hold mass
-permits; only an increase in the relevant `me.cargo.items` count proves pickup.
+rock. The agent view has no carve result or intake position. It does show
+all live canisters, their contents, and their distance and bearing from the
+player's ship. A newly visible ore canister shows ore in the world, not
+its source or pickup; a canister's disappearance alone can also mean it was
+destroyed. The intake takes a whole canister on trigger contact when hold
+mass permits; only an increase in the relevant `me.cargo.items` count proves pickup.
 Jettison (undocked) and Buy and Sell (docked to a trader) are Inventory pane
 buttons, driven with `pointer` gestures on the `ui.targets` the interface
 shows. Read every result off `me.cargo`.

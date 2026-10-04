@@ -1581,11 +1581,15 @@ fn offer_canister_to(world: &mut World, ship: Entity) {
         .get::<LinearVelocity>(ship)
         .map(|velocity| velocity.0)
         .unwrap_or_default();
-    world.spawn(cargo_canister(
-        CargoCanister::new(ItemType::HullPlate, 1),
-        Transform::from_translation(at).with_rotation(rotation),
-        ship_velocity - normal * closing,
-        config.canister_mesh.clone(),
+    let id = world.resource_mut::<CargoCanisterIdAllocator>().next();
+    world.spawn((
+        cargo_canister(
+            CargoCanister::new(ItemType::HullPlate, 1),
+            Transform::from_translation(at).with_rotation(rotation),
+            ship_velocity - normal * closing,
+            config.canister_mesh.clone(),
+        ),
+        id,
     ));
 }
 

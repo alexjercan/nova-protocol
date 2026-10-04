@@ -47,6 +47,9 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
         CargoIntakeSectionPlugin { render: false },
     ));
     app.init_resource::<Takes>();
+    // Not pulled in by CargoIntakeSectionPlugin itself: only NovaGameplayPlugin
+    // owns it in a real app, which this minimal rig never adds.
+    app.init_resource::<CargoCanisterIdAllocator>();
     app.add_observer(|_: On<CargoCanisterTaken>, mut takes: ResMut<Takes>| {
         takes.0 += 1;
     });
@@ -660,6 +663,7 @@ fn queued_canisters_leave_in_order_through_an_open_door_once_each_birth_point_cl
     // Each canister leaves front first while the door stays open, once the
     // last has drifted clear of the birth point.
     let mut left: Vec<(Entity, CargoCanister)> = Vec::new();
+    let mut minted = Vec::new();
     let mut frames = 0;
     while left.len() < queued.len() {
         app.update();
@@ -671,6 +675,13 @@ fn queued_canisters_leave_in_order_through_an_open_door_once_each_birth_point_cl
             .collect();
         assert!(born.len() <= 1, "two canisters left in one frame");
         if let Some((entity, canister, _)) = born.into_iter().next() {
+            let id = app
+                .world()
+                .get::<CargoCanisterRuntimeId>(entity)
+                .expect("each jettisoned canister has a runtime id")
+                .0;
+            assert!(!minted.contains(&id), "jettison reused canister id {id}");
+            minted.push(id);
             assert_eq!(door(&app, intake), 1.0, "it left through an open door");
             left.push((entity, canister));
             let waiting = app

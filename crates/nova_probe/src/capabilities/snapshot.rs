@@ -46,6 +46,8 @@
 //!   `stands_on`, which is the plate under it.
 //! - `ordnance` - every torpedo and turret round in flight: owner, position,
 //!   velocity, damage, remaining lifetime, target.
+//! - `canisters` - every [`CargoCanister`]: numeric runtime id, position,
+//!   velocity, and ordered item stacks.
 //! - `beacons` - every [`BeaconMarker`]: id, label, position. The nav marks a
 //!   scenario tells the player to fly to.
 //! - `bodies` - every asteroid and planet: id, name, kind, position, the
@@ -79,17 +81,20 @@
 //! Two snapshots of one world must be BYTE-IDENTICAL or the artifact is
 //! useless for diffing, so:
 //!
-//! - **Order is value-derived.** Every list is sorted by a natural key with the
-//!   serialized record as the tie-break ([`ordered`]). Never entity id, never
-//!   query or hash order - a respawn renumbers entities and must not churn the
+//! - **Order is value-derived.** Every list is sorted by a natural key. The
+//!   general [`ordered`] helper uses the serialized record as a tie-break;
+//!   canisters sort by their unique numeric runtime id. Never use entity,
+//!   query, or hash order - a respawn renumbers entities and must not churn the
 //!   diff.
 //! - **Floats are rounded** to [`SNAPSHOT_DECIMALS`] decimals, and `-0.0` is
 //!   normalized to `0.0`. Four decimals is 0.1 mm at world scale and about
 //!   0.01 degrees on a quaternion, which is finer than anything worth reading
 //!   and coarse enough to swallow the last bit of an `f32`.
-//! - **Entities are named, never numbered.** A referenced entity (a lock, a
+//! - **References are named, never indexed.** A referenced entity (a lock, a
 //!   projectile owner, a torpedo's target) resolves to its scenario
-//!   [`EntityId`] or its [`Name`], and to `null` when it has neither.
+//!   [`EntityId`] or its [`Name`], and to `null` when it has neither. Canister
+//!   records are the exception: their `id` is the stable runtime id, not an
+//!   entity index.
 //!
 //! ## Arming and triggering
 //!
@@ -127,11 +132,11 @@ use bevy::{diagnostic::FrameCount, ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{EntityId, EntityTypeName};
 use nova_gameplay::{
     prelude::{
-        Allegiance, BeaconLabel, BeaconMarker, DefeatedMarker, DominantWell, GameObjectives,
-        Health, HealthZeroMarker, IntegrityDisabledMarker, NeutralizedMarker, ProjectileDamage,
-        ProjectileOwner, RunCheats, SectionClass, SectionMarker, ShipCredits, ShipInventory,
-        SpaceshipRootMarker, TempEntity, TempEntityState, TorpedoProjectileMarker,
-        TurretBulletProjectileMarker,
+        Allegiance, BeaconLabel, BeaconMarker, CargoCanister, CargoCanisterRuntimeId,
+        DefeatedMarker, DominantWell, GameObjectives, Health, HealthZeroMarker,
+        IntegrityDisabledMarker, NeutralizedMarker, ProjectileDamage, ProjectileOwner, RunCheats,
+        SectionClass, SectionMarker, ShipCredits, ShipInventory, SpaceshipRootMarker, TempEntity,
+        TempEntityState, TorpedoProjectileMarker, TurretBulletProjectileMarker,
     },
     GameStates, PauseStates,
 };
@@ -461,6 +466,24 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
             .map(|entity| ordnance_record(world, entity))
             .collect(),
     );
+    let mut q_canisters = world.query_filtered::<Entity, With<CargoCanister>>();
+    let canister_entities: Vec<Entity> = q_canisters.iter(world).collect();
+    let mut canisters: Vec<_> = canister_entities
+        .into_iter()
+        .map(|entity| canister_record(world, entity))
+        .collect();
+    canisters.sort_by_key(|(id, _)| *id);
+    for pair in canisters.windows(2) {
+        assert_ne!(
+            pair[0].0, pair[1].0,
+            "duplicate CargoCanisterRuntimeId({}) in snapshot",
+            pair[0].0
+        );
+    }
+    let canisters = canisters
+        .into_iter()
+        .map(|(_, record)| record)
+        .collect::<Vec<_>>();
     let mut q_beacons = world.query_filtered::<Entity, With<BeaconMarker>>();
     let beacon_entities: Vec<Entity> = q_beacons.iter(world).collect();
     let beacons = ordered(
@@ -494,6 +517,7 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
         "ui": ui,
         "mission": mission,
         "ships": ships,
+        "canisters": canisters,
         "beacons": beacons,
         "bodies": bodies,
         "ordnance": ordnance,
@@ -996,6 +1020,32 @@ fn label_of(world: &World, entity: Option<Entity>) -> serde_json::Value {
 /// string, which sorts first and is then broken by the record itself.
 fn key(value: &serde_json::Value) -> String {
     value.as_str().unwrap_or_default().to_string()
+}
+
+/// One live cargo canister, keyed and ordered by its stable runtime id.
+fn canister_record(world: &World, entity: Entity) -> (u64, serde_json::Value) {
+    let id = world
+        .get::<CargoCanisterRuntimeId>(entity)
+        .unwrap_or_else(|| panic!("live cargo canister {entity:?} has no runtime id"))
+        .0;
+    let canister = world
+        .get::<CargoCanister>(entity)
+        .expect("canister query returned an entity without CargoCanister");
+    let transform = world.get::<Transform>(entity).copied().unwrap_or_default();
+    let record = serde_json::json!({
+        "id": id,
+        "position": vec3(transform.translation),
+        "velocity": world
+            .get::<LinearVelocity>(entity)
+            .map(|velocity| vec3(velocity.0)),
+        "stacks": canister
+            .stacks()
+            .map(|(item, count)| {
+                serde_json::json!({ "item": format!("{item:?}"), "count": count })
+            })
+            .collect::<Vec<_>>(),
+    });
+    (id, record)
 }
 
 /// One ship, keyed by its scenario object id. `pair` is the ship's docking
@@ -1805,6 +1855,82 @@ mod tests {
             capture_snapshot(second.world_mut(), "test").to_string(),
             capture_snapshot(third.world_mut(), "test").to_string(),
         );
+    }
+
+    #[test]
+    fn canister_snapshots_order_same_content_by_numeric_runtime_id() {
+        fn spawn_canisters(app: &mut App, ids: [u64; 2]) {
+            for id in ids {
+                let mut canister = CargoCanister::new(ItemType::IronOre, 2);
+                canister.add(ItemType::HullPlate, 1);
+                app.world_mut().spawn((
+                    canister,
+                    CargoCanisterRuntimeId(id),
+                    Transform::from_xyz(1.0, 2.0, 3.0),
+                    LinearVelocity(Vec3::new(4.0, 5.0, 6.0)),
+                ));
+            }
+        }
+
+        let mut forward = rig();
+        spawn_canisters(&mut forward, [10, 2]);
+        forward.update();
+        let first = capture_snapshot(forward.world_mut(), "test");
+        let repeated = capture_snapshot(forward.world_mut(), "test");
+
+        let mut backward = rig();
+        spawn_canisters(&mut backward, [2, 10]);
+        backward.update();
+        let reverse_spawn = capture_snapshot(backward.world_mut(), "test");
+
+        let expected = serde_json::json!([
+            {
+                "id": 2,
+                "position": [1.0, 2.0, 3.0],
+                "velocity": [4.0, 5.0, 6.0],
+                "stacks": [
+                    { "item": "HullPlate", "count": 1 },
+                    { "item": "IronOre", "count": 2 },
+                ],
+            },
+            {
+                "id": 10,
+                "position": [1.0, 2.0, 3.0],
+                "velocity": [4.0, 5.0, 6.0],
+                "stacks": [
+                    { "item": "HullPlate", "count": 1 },
+                    { "item": "IronOre", "count": 2 },
+                ],
+            },
+        ]);
+        assert_eq!(first["canisters"], expected);
+        assert_eq!(first["canisters"], repeated["canisters"]);
+        assert_eq!(first["canisters"], reverse_spawn["canisters"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "has no runtime id")]
+    fn a_live_canister_without_runtime_id_fails_snapshot_capture() {
+        let mut app = rig();
+        app.world_mut()
+            .spawn(CargoCanister::new(ItemType::IronOre, 1));
+        capture_snapshot(app.world_mut(), "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate CargoCanisterRuntimeId(7) in snapshot")]
+    fn duplicate_canister_runtime_ids_fail_snapshot_capture() {
+        let mut app = rig();
+        for _ in 0..2 {
+            app.world_mut().spawn((
+                CargoCanister::new(ItemType::IronOre, 1),
+                CargoCanisterRuntimeId(7),
+                Transform::IDENTITY,
+                LinearVelocity(Vec3::ZERO),
+            ));
+        }
+        app.update();
+        capture_snapshot(app.world_mut(), "test");
     }
 
     #[test]

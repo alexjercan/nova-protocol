@@ -68,6 +68,10 @@ All lengths are meters, speeds meters per second, angles degrees.
   `ai_target` (who it is hunting). A hull that breaks up leaves `contacts`
   altogether; it may never read `defeated`.
 - `beacons`: navigation marks, with `distance_m` and `bearing_deg`.
+- `canisters`: every live cargo canister, with a runtime `id`, `distance_m`,
+  `bearing_deg` and ordered `stacks` of `{item, count}`. The ID distinguishes
+  canisters with identical contents within this run; an absent canister alone
+  does not prove pickup. See `page {"name": "cargo"}`.
 - `bodies`: asteroids and planets, in three tiers.
   - `near`: close enough to matter, or on a course your current drift runs
     into. Full records: `kind`, `radius_m`, `distance_m` to the centre,

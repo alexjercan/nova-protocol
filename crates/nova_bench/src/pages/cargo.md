@@ -9,11 +9,14 @@ after every pickup or transfer. A command gesture is not a cargo action.
 
 A working cargo intake automatically takes a drifting canister when the
 canister physically enters its trigger and the hold has enough free mass
-for the WHOLE canister. No pickup wire or command is needed. The agent view
-has no canister or intake position. It cannot steer accurately into the
-trigger from a snapshot alone. Make bounded collection attempts, then
-compare `me.cargo.items` before and after. Only an increase in the relevant
-item count proves pickup; proximity to a rock or a canister does not.
+for the WHOLE canister. No pickup wire or command is needed. `canisters`
+shows every live canister's runtime ID, contents, distance and bearing from
+the player's ship. The ID tracks observations, not a pickup command. The
+view does not locate an intake's trigger; a centred canister bearing alone
+does not prove contact. Make bounded collection
+attempts, then compare `me.cargo.items` before and after. Only an increase
+in the relevant item count proves pickup; a canister can also disappear
+when destroyed.
 
 ## Use the Inventory pane
 

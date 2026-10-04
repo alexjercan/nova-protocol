@@ -228,6 +228,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
+- Cargo canisters gain app-lifetime runtime IDs; Probe snapshots and Agent Bench views expose IDs and contents to track canisters across frames.
 - Channel recording keeps zero-based PNGs, sampled SFX and PCM, encodes an Opus WebM, and muxes audio into Agent Bench's action-rail MP4; capture and encode failures fail the run.
 - Agent Bench can play New Game through its menu, verify the chosen world seed, exclude menu ships from scoring, and replay the open-world session.
 - Agent Bench views carry `me.cargo` (hold grams, credits, items) and the Tab interface's UI targets.

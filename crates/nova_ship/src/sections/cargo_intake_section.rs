@@ -412,6 +412,7 @@ fn run_cargo_intakes(
     q_chain: Query<(&Transform, &ChildOf)>,
     collisions: Collisions,
     mut readiness: ResMut<CargoPickupReadiness>,
+    mut canister_ids: ResMut<CargoCanisterIdAllocator>,
 ) {
     readiness.pairs.clear();
     let mut canisters: Vec<CanisterRead> = q_canisters
@@ -514,11 +515,14 @@ fn run_cargo_intakes(
                 commands.entity(intake).remove::<CargoIntakeEjectionQueue>();
             }
             let velocity = point_velocity(birth) + normal * config.eject_speed.to_engine();
-            commands.spawn(cargo_canister(
-                canister,
-                Transform::from_translation(birth).with_rotation(intake_rotation),
-                velocity,
-                config.canister_mesh.clone(),
+            commands.spawn((
+                cargo_canister(
+                    canister,
+                    Transform::from_translation(birth).with_rotation(intake_rotation),
+                    velocity,
+                    config.canister_mesh.clone(),
+                ),
+                canister_ids.next(),
             ));
             commands.trigger(CargoCanisterEjected { entity: intake });
         }

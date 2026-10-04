@@ -78,6 +78,12 @@ impl Plugin for NovaGameplayPlugin {
         // render-gated HUD.
         app.init_resource::<crate::objectives::GameObjectives>();
 
+        // Mints CargoCanisterRuntimeId for every mined and jettisoned canister.
+        // Shared by nova_ship (jettison) and nova_scenario (mining), so it is
+        // owned here rather than by either. Runs for the life of the app: not
+        // reset on scenario load, retry, or New Game.
+        app.init_resource::<crate::inventory::CargoCanisterIdAllocator>();
+
         // Random number generator: OS entropy for play, one seed for a
         // replayable run (`NOVA_SEED`).
         match crate::settings::seed_from_env() {

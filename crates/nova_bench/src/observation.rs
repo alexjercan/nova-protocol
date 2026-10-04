@@ -78,6 +78,19 @@ pub fn condense(snapshot: &Value, held: &BTreeSet<String>, expand: &[String]) ->
     let me = ships.iter().find(|ship| ship["controller"] == "Player");
     let frame = me.map(Frame::of);
     let mission = &snapshot["mission"];
+    let canisters: Vec<Value> = snapshot["canisters"]
+        .as_array()
+        .expect("snapshot field `canisters` must be an array")
+        .iter()
+        .map(|canister| {
+            let mut record = json!({
+                "id": canister["id"],
+                "stacks": canister["stacks"],
+            });
+            range_and_bearing(&mut record, frame.as_ref(), vec3(&canister["position"]));
+            record
+        })
+        .collect();
 
     let contacts: Vec<Value> = ships
         .iter()
@@ -160,6 +173,7 @@ pub fn condense(snapshot: &Value, held: &BTreeSet<String>, expand: &[String]) ->
         "comms": comms,
         "me": me.map(|me| self_record(me, frame.as_ref())),
         "contacts": contacts,
+        "canisters": canisters,
         "beacons": beacons,
         "bodies": bodies,
         "ordnance": { "inbound": inbound, "outbound": outbound },
@@ -916,6 +930,7 @@ mod tests {
                 }
             ],
             "beacons": [{ "id": "mark", "label": "WORK MARK", "position": [0, 100, 0] }],
+            "canisters": [],
             "bodies": [
                 { "id": "planetoid", "name": "Kestrel", "kind": "Planet", "position": [0, 0, -700], "radius": 60 },
                 { "id": "rock", "name": "Rock", "kind": "Asteroid", "position": [-100, 0, 0], "radius": 1.5 }
@@ -980,6 +995,52 @@ mod tests {
             condense(&snapshot, &BTreeSet::new(), &[])["me"]["cargo"],
             cargo
         );
+    }
+
+    #[test]
+    fn canisters_keep_identity_contents_and_current_frame_measurements() {
+        let stacks = json!([
+            { "item": "HullPlate", "count": 2 },
+            { "item": "RailSlug", "count": 4 }
+        ]);
+        let mut snapshot = snapshot();
+        snapshot["canisters"] = json!([
+            {
+                "id": 41,
+                "position": [10, 0, -10],
+                "velocity": [1, 0, 0],
+                "stacks": stacks
+            },
+            {
+                "id": 42,
+                "position": [0, 0, -20],
+                "velocity": [0, 1, 0],
+                "stacks": stacks
+            }
+        ]);
+
+        let view = condense(&snapshot, &BTreeSet::new(), &[]);
+        let canisters = view["canisters"].as_array().expect("canisters");
+        assert_eq!(canisters.len(), 2);
+        assert_eq!(canisters[0]["id"], 41);
+        assert_eq!(canisters[1]["id"], 42);
+        assert_eq!(canisters[0]["stacks"], stacks);
+        assert_eq!(canisters[1]["stacks"], stacks);
+        assert_eq!(canisters[0]["distance_m"], 141.4);
+        assert_eq!(canisters[0]["bearing_deg"], json!([45.0, 0.0]));
+        assert_eq!(canisters[1]["distance_m"], 200.0);
+        assert_eq!(canisters[1]["bearing_deg"], json!([0.0, 0.0]));
+        assert!(canisters[0].get("velocity").is_none());
+
+        snapshot["canisters"].as_array_mut().unwrap().remove(0);
+        let later = condense(&snapshot, &BTreeSet::new(), &[]);
+        assert_eq!(later["canisters"].as_array().unwrap().len(), 1);
+        assert_eq!(later["canisters"][0]["id"], 42);
+
+        let without_player = json!({ "canisters": snapshot["canisters"] });
+        let unframed = condense(&without_player, &BTreeSet::new(), &[]);
+        assert!(unframed["canisters"][0].get("distance_m").is_none());
+        assert!(unframed["canisters"][0].get("bearing_deg").is_none());
     }
 
     #[test]
@@ -1213,9 +1274,10 @@ mod tests {
 
     #[test]
     fn an_empty_world_condenses_to_nothing_rather_than_a_panic() {
-        let view = condense(&json!({}), &BTreeSet::new(), &[]);
+        let view = condense(&json!({ "canisters": [] }), &BTreeSet::new(), &[]);
         assert!(view["me"].is_null());
         assert_eq!(view["contacts"], json!([]));
+        assert_eq!(view["canisters"], json!([]));
         assert_eq!(
             view["bodies"],
             json!({ "near": [], "in_the_way": [], "groups": [], "expanded": [] })

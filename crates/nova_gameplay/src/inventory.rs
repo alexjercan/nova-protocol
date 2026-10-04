@@ -27,11 +27,11 @@ use crate::integrity::prelude::Health;
 pub mod prelude {
     pub use super::{
         kg_text, plan_credit_take, plan_item_jettison, plan_item_trade, plan_item_transfer,
-        plan_plate_repair, CargoCanister, CreditTakeRefusalType, ItemCategoryType, ItemJettison,
-        ItemJettisonRefusalType, ItemTrade, ItemTradeRefusalType, ItemTradeType,
-        ItemTransferRefusalType, ItemTransferType, ItemType, LootableShipMarker, PlateRepair,
-        PlateRepairRefusalType, ShipCredits, ShipInventory, ShipInventoryStock,
-        CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
+        plan_plate_repair, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
+        CreditTakeRefusalType, ItemCategoryType, ItemJettison, ItemJettisonRefusalType, ItemTrade,
+        ItemTradeRefusalType, ItemTradeType, ItemTransferRefusalType, ItemTransferType, ItemType,
+        LootableShipMarker, PlateRepair, PlateRepairRefusalType, ShipCredits, ShipInventory,
+        ShipInventoryStock, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
     };
 }
 
@@ -614,6 +614,40 @@ impl CargoCanister {
     }
 }
 
+/// Runtime identity for one cargo canister entity, minted the moment it is
+/// spawned. Not addressable: nothing looks a canister up by this id, so a
+/// mining or jettison spawn mints one and no system ever reads it back by
+/// value. It exists so an external reader (bench, probe, logs) can tell two
+/// canister entities apart without reaching for `Entity` (recycled) or `Name`
+/// (every canister shares `"Cargo Canister"`).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CargoCanisterRuntimeId(pub u64);
+
+/// Mints unique [`CargoCanisterRuntimeId`]s. Owned and initialized only by
+/// `NovaGameplayPlugin`: the counter is never reset by a scenario load, retry,
+/// or New Game for as long as the app process runs. No ID can be reused even
+/// if a canister survives a world transition. Numeric IDs are not stable
+/// across revisions.
+#[derive(Resource, Default, Debug)]
+pub struct CargoCanisterIdAllocator(u64);
+
+impl CargoCanisterIdAllocator {
+    /// The next id, unused by any earlier call.
+    ///
+    /// # Panics
+    ///
+    /// On exhausting `u64`: an id is never reused, so a counter that wrapped
+    /// would silently collide with a still-live canister instead.
+    pub fn next(&mut self) -> CargoCanisterRuntimeId {
+        let id = self.0;
+        self.0 = self
+            .0
+            .checked_add(1)
+            .expect("CargoCanisterIdAllocator exhausted u64 ids");
+        CargoCanisterRuntimeId(id)
+    }
+}
+
 /// Why a jettison drops nothing, in check order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemJettisonRefusalType {
@@ -814,6 +848,21 @@ mod tests {
         let rounds = ShipInventory::new(1_200_000, [(ItemType::PdcRound, 6000)]);
         assert_eq!(rounds.used_g(), 1_200_000);
         assert_eq!(rounds.free_g(), 0);
+    }
+
+    #[test]
+    fn cargo_canister_id_allocator_mints_unique_increasing_ids() {
+        let mut allocator = CargoCanisterIdAllocator::default();
+        assert_eq!(allocator.next(), CargoCanisterRuntimeId(0));
+        assert_eq!(allocator.next(), CargoCanisterRuntimeId(1));
+        assert_eq!(allocator.next(), CargoCanisterRuntimeId(2));
+    }
+
+    #[test]
+    #[should_panic(expected = "exhausted u64 ids")]
+    fn cargo_canister_id_allocator_panics_rather_than_wrap_and_reuse_an_id() {
+        let mut allocator = CargoCanisterIdAllocator(u64::MAX);
+        allocator.next();
     }
 
     #[test]

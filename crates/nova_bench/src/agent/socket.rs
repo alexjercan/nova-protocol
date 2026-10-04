@@ -141,7 +141,7 @@ mod tests {
         }
         fn read_answer(&mut self, _: Duration) -> Result<Answer, String> {
             Ok(Answer {
-                snapshot: json!({ "ships": [], "mission": {} }),
+                snapshot: json!({ "ships": [], "canisters": [], "mission": {} }),
                 errors: vec![],
             })
         }
