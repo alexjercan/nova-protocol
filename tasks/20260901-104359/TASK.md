@@ -38,6 +38,14 @@ Owner report, 2026-09-21, in the owner's terms:
 Both are impressions. Neither is measured. Nothing in this task may be
 balanced until they are.
 
+Owner follow-up, 2026-10-04: the AI's PDC fire feels weak when it stops in
+bursts; torpedo pauses feel long, but expensive, powerful torpedoes must not
+be dumped all at once; the AI rarely uses the hard-to-aim, high-damage
+railgun and should learn to set up its shots. The owner suggested using
+range and opportunity rather than blind timers. These are observations and
+directions for investigation, not measured failures, approved policies, or
+authorization to change combat.
+
 ## Reproduce and measure first
 
 Produce a MEASURED, MATCHED BASELINE before changing any value or any
@@ -130,6 +138,84 @@ This is a candidate lever for "combat feels weak", because a readable,
 frightening verb is a different fix from a numeric one. It is not scheduled
 on its own merits.
 
+## 2026-10-04 scouting and proposed sequence (unapproved)
+
+**Verified in source, not in a measured fight:**
+
+- `crates/nova_ship/src/input/ai/mod.rs:203-249` chains acquisition,
+  behaviour, combat flight, turret aim/fire, torpedo commit/trigger, and
+  railgun trigger in `Update`. The burst clock alone ticks in `FixedUpdate`
+  (`mod.rs:190-193`). Sensors and point-defence systems precede this chain.
+- `guns.rs:167-213,269-363`: `AIFireCadence` runs a free-running
+  1.5-second fire / 0.8-second hold cycle for turrets shooting ships. **Point
+  defence already bypasses that cycle and the AI line-of-fire gate.** The
+  owner's description of bursty "PDCs" may refer to the same turrets while
+  they are shooting ships, not to their point-defence mode. Verify this in a
+  run before blaming point defence.
+- `crates/nova_ship/src/input/ai/torpedo.rs:18,107-205,226-263` adds a
+  10-second **per-bay** AI cooldown above the bay's own reload; only a
+  spawned torpedo burns the AI cooldown. The bay spends finite ammunition
+  on a real launch (`sections/torpedo_section/bay.rs:195-307`); inventory
+  reload is separate (`sections/ammo.rs:262-280`). Independent bays can be
+  ready together, so simply shortening the clock can make volleys larger.
+  A requested trigger does not prove a launch, hit, or interception.
+- `railgun.rs:33,100-169,179-256` has a 14-second AI shot cadence and a
+  current-bore commit check, but `maneuver.rs:357-503` flies the normal
+  standoff orbit rather than setting up a bore-on-target attack. Once the
+  gun begins charging, releasing its trigger does not abort it; safing
+  weapons dumps the charge but retains the shell
+  (`sections/railgun_section/firing.rs:75-138`). Recoil acts at the muzzle
+  (`firing.rs:215-230`), so an off-axis mount can torque the hull.
+- `examples/playable/wfc_arena.rs:17-22,55-60,1591-1605,1723-1765`
+  pins a generated roster by seed and logs team shots, damage, structure,
+  and range. Its scripted walk is AI-vs-AI and refuses a player slot
+  (`wfc_arena.rs:374-387`); its generated hulls can have unequal weapons.
+  It does not yet prove player win rate or per-shot hits. The arena's
+  authored 1.8 km engage gate deliberately opens at gun range
+  (`wfc_arena.rs:279-307,1110-1123`); do not mistake that existing tuning
+  for a combat result.
+
+**Candidate work, conditional on a preserved baseline and owner approval:**
+
+1. Name reference revision, arena seed, team assignments, actual hull seeds,
+   weapon loadouts, and hull sizes. Compare matched repeated fights with
+   identical aim and opponents, changing only held versus timed player fire.
+   Record win/loss, time to decision, engagement range, rounds launched,
+   actual hits/damage dealt and taken, torpedoes launched/intercepted,
+   railgun opportunities/fired/hits, and remaining ammunition. Extend
+   instrumentation only where existing arena logs cannot distinguish them.
+   Preserve before artifacts for the after comparison; choose probe, bench,
+   or an asserted example only once it can observe those figures.
+2. If the burst hold proves harmful, replace the free-running ship-target
+   clock with shot-opportunity checks: existing range, lead/alignment and
+   clear-line gates, with sustained fire on credible close shots and stricter
+   acceptance of marginal distant shots. Keep point defence uninterrupted.
+   Compare hit rate and ammunition spent; do not merely shorten the blind
+   pause or silently remove an intentional safety gate.
+3. If torpedo pauses or simultaneous spending prove harmful, investigate a
+   ship/target-level salvo decision that considers already inbound friendly
+   rounds, interception or target outcome, available ammunition and future
+   exchanges. Retain bay reload and finite stock; allow deliberate multiple
+   rounds when one would be defeated by point defence. Define what happens
+   when a projectile disappears without a known hit before replacing the
+   per-bay AI clock. Do not assume one torpedo is always the right salvo.
+4. If rare railgun use is reproduced, evaluate a telegraphed attack run:
+   leave orbit, approach and align the actual gun bore, hold through charge,
+   fire, and recover to standoff. Keep the existing geometric commit as the
+   last shot check. Resolve helm ownership, lost target, threatened ship,
+   charge interruption, and recoil before adding a maneuver state. Prove
+   bore alignment and fired shots in real flight, not just a trigger request.
+
+Candidate call graph: `sensor -> behaviour -> normal combat flight ->
+free-running turret/bay/railgun gates -> weapon spawners` becomes `sensor ->
+behaviour -> combat flight (optional railgun run) -> opportunity fire and
+coordinated torpedo commit -> existing weapon spawners`. The proposed work
+would remove the blind ship-target burst and independent AI bay wait, not the
+weapon reload, point-defence protection, safety checks, or finite ammo.
+Possible regressions are wasted PDC ammo, torpedo floods against point
+defence, lost helm authority, and unannounced railgun shots; proof must
+observe these rather than infer success from input or exit status.
+
 ## Not decided here
 
 - No target win rate, time to kill, damage figure, cadence, or standoff
@@ -137,9 +223,12 @@ on its own merits.
   read out of the code, never a goal.
 - Whether the answer is a numeric rebalance, an AI behaviour, a player-side
   constraint, or a mix.
-- The proof implementation.
+- The proof implementation; whether the proposed opportunity, salvo, and
+  railgun-run policies are chosen at all; the torpedo reserve/volley rule;
+  railgun helm and mid-charge interruption ownership.
 
 Each of these is a decision to bring to the owner WITH the baseline in hand.
+The 2026-10-04 proposal is a research plan, not implementation approval.
 
 ## Done when
 
