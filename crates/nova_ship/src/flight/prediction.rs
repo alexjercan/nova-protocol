@@ -94,8 +94,8 @@ pub enum FlightPredictionEndType {
 /// run stays with its points taken and its leg kept until the next pass
 /// reseeds it: a reseed for the same leg keeps the published path visible until
 /// the new run replaces it, and a different leg removes the path at once. A
-/// paused frame does not reseed a run whose published path was seeded on the
-/// frozen tick: it would fly the same path again.
+/// failed non-finite run instead keeps empty points and no published path.
+/// Neither run reseeds for the same leg on the frozen fixed tick.
 #[derive(Component)]
 pub(super) struct FlightPredictionRun {
     /// The leg the run was seeded for. A different engaged leg restarts it.
@@ -278,8 +278,9 @@ pub(super) fn step_flight_body(
 /// [`FlightPrediction`] when it ends; seeds a run from the ship's state when
 /// none is in progress for the engaged leg or the last one is published. The
 /// published path stays until the next run for the same leg replaces it; a
-/// different leg removes it at the reseed. Removes both when the ship leaves
-/// the scope [`FlightPrediction`] documents.
+/// different leg removes it at the reseed. A non-finite run keeps a failed
+/// empty-points seed and removes the published path. Removes both when the
+/// ship leaves the scope [`FlightPrediction`] documents.
 ///
 /// Runs in `FixedPostUpdate` after avian's writeback, so the seed is the state
 /// the next live tick starts from: this tick's pose, velocities, actuator
@@ -287,7 +288,7 @@ pub(super) fn step_flight_body(
 /// `PostUpdate` while `Time<Virtual>` is paused, so a leg ordered on the paused
 /// map is predicted from the frozen state, one run step per frame. A published
 /// run seeded on the frozen tick is not flown again until the fixed clock
-/// advances: the paused frames would only repeat the same path.
+/// advances: the paused frames would only repeat the same path or failure.
 pub(super) fn predict_flight_path(
     mut commands: Commands,
     (time, substep_time, substep_count, avian_gravity): (
@@ -439,7 +440,11 @@ pub(super) fn predict_flight_path(
                 let same_leg = stale
                     .as_ref()
                     .is_some_and(|run| run.action == autopilot.action);
-                if same_leg && published.is_some_and(|path| path.seed_time == time.elapsed()) {
+                if same_leg
+                    && (stale.as_ref().is_some_and(|run| {
+                        run.points.is_empty() && run.seed_time == time.elapsed()
+                    }) || published.is_some_and(|path| path.seed_time == time.elapsed()))
+                {
                     continue;
                 }
                 // A different leg makes the published path a lie at once.
@@ -558,9 +563,11 @@ pub(super) fn predict_flight_path(
                     run.ticks
                 );
             }
-            commands
-                .entity(ship)
-                .remove::<(FlightPredictionRun, FlightPrediction)>();
+            run.points.clear();
+            if let Some(seed) = seeded {
+                commands.entity(ship).insert(seed);
+            }
+            commands.entity(ship).remove::<FlightPrediction>();
             continue;
         }
         let Some(end) = end else {

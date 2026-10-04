@@ -27,19 +27,26 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
     // its FLIP on its first braking tick and keeps it consumed through every
     // replan; the same GOTO re-engaged on that tick is a new order that
     // consumes its own FLIP on its own braking tick. STOP never consumes one.
+    // A shifted ballast makes the single off-axis drive torque the hull; a
+    // separate STOP starts inbound under the live gravity of a nearby well.
     let goal = Vec3::new(0.0, 0.0, -5000.0);
     let well_center = Vec3::new(95.0, 0.0, -300.0);
     let gravity = GravitySettings::default();
     let well_data = nova_gameplay::gravity::GravityWell::from_mass(8000.0, 40.0, &gravity);
-    // (verb is GOTO, off-axis well present, shipped-scale turn authority)
-    for (goto, with_well, low_turn_authority) in [
-        (true, false, false),
-        (true, true, false),
-        (true, false, true),
-        (true, true, true),
-        (false, false, true),
+    // (GOTO, well, slow turn, shifted COM, STOP inside the well)
+    for (goto, with_well, low_turn_authority, shifted_com, stop_in_well) in [
+        (true, false, false, false, false),
+        (true, true, false, false, false),
+        (true, false, true, false, false),
+        (true, true, true, false, false),
+        (false, false, true, false, false),
+        (true, false, false, true, false),
+        (false, true, false, false, true),
     ] {
-        let case = format!("goto={goto} well={with_well} low_turn={low_turn_authority}");
+        let case = format!(
+            "goto={goto} well={with_well} low_turn={low_turn_authority} \
+             shifted_com={shifted_com} stop_in_well={stop_in_well}"
+        );
         let mut app = orbit_app();
         let fixed_step = app.world().resource::<Time<Fixed>>().timestep();
         let dt = fixed_step.as_secs_f32();
@@ -51,12 +58,23 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
         if with_well {
             app.world_mut().spawn((
                 RigidBody::Static,
-                Transform::from_translation(well_center),
+                Transform::from_translation(if stop_in_well {
+                    Vec3::ZERO
+                } else {
+                    well_center
+                }),
                 well_data.clone(),
             ));
         }
-        let (ship, _, controller) = spawn_ship(&mut app);
+        let (ship, controller) = if shifted_com {
+            let (ship, _) = spawn_damage_shifted_single_drive(&mut app, false);
+            (ship, None)
+        } else {
+            let (ship, _, controller) = spawn_ship(&mut app);
+            (ship, Some(controller))
+        };
         if low_turn_authority {
+            let controller = controller.expect("the slow-turn case has a controller");
             app.world_mut()
                 .get_mut::<PDController>(controller)
                 .unwrap()
@@ -65,6 +83,11 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
         app.world_mut()
             .entity_mut(ship)
             .insert(PlayerSpaceshipMarker);
+        if stop_in_well {
+            app.world_mut()
+                .entity_mut(ship)
+                .insert(Transform::from_xyz(0.0, 0.0, 150.0));
+        }
         let target = app
             .world_mut()
             .spawn((
@@ -73,15 +96,39 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
             ))
             .id();
         settle(&mut app);
+        if shifted_com {
+            let com = app.world().get::<ComputedCenterOfMass>(ship).unwrap().0;
+            assert!(
+                com.x > 0.5,
+                "{case}: the ballast must shift the local COM off the drive"
+            );
+        }
+        if stop_in_well {
+            // Fall from rest before ordering the brake. The gravity plugin
+            // opts every ship root into real gravity.
+            for _ in 0..300 {
+                app.update();
+            }
+            let entry_speed = velocity_of(&app, ship).length();
+            assert!(
+                entry_speed > 1.0,
+                "{case}: gravity must accelerate the ship before STOP"
+            );
+            assert!(
+                app.world().get::<DominantWell>(ship).is_some(),
+                "{case}: the well must own the live gravity pull"
+            );
+        }
         let action = if goto {
             AutopilotAction::Goto { target }
         } else {
-            // Coasting sideways and fast: STOP flips the hull through 90
-            // degrees at the slow rate, brakes on the drive and settles on
-            // the RCS.
-            app.world_mut()
-                .entity_mut(ship)
-                .insert(LinearVelocity(Vec3::new(30.0, 0.0, 0.0)));
+            // The free-flight STOP coasts sideways before its slow flip.
+            // The well STOP instead brakes an inbound gravity-driven fall.
+            if !stop_in_well {
+                app.world_mut()
+                    .entity_mut(ship)
+                    .insert(LinearVelocity(Vec3::new(30.0, 0.0, 0.0)));
+            }
             AutopilotAction::Stop
         };
         app.world_mut()
@@ -100,6 +147,7 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
         let mut predictions: Vec<FlightPrediction> = Vec::new();
         let mut released_at = None;
         let mut entered_well = false;
+        let mut max_spin = 0.0f32;
         let mut order_braked = false;
         let mut was_braking = false;
         let mut braking_entries = 0;
@@ -107,6 +155,7 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
         for update in 1..=8000 {
             app.update();
             entered_well |= app.world().get::<DominantWell>(ship).is_some();
+            max_spin = max_spin.max(angular_speed_of(&app, ship));
             coms.push(com_of(&app));
             elapsed.push(app.world().resource::<Time<Fixed>>().elapsed());
             if let Some(autopilot) = app.world().get::<Autopilot>(ship) {
@@ -155,6 +204,12 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
             entered_well, with_well,
             "{case}: the ship must fly through only the present well's SOI"
         );
+        if shifted_com {
+            assert!(
+                max_spin > 0.01,
+                "{case}: the off-axis drive must torque the live hull"
+            );
+        }
         assert!(
             app.world().get::<FlightPrediction>(ship).is_none(),
             "{case}: a released leg keeps no prediction"
@@ -410,7 +465,8 @@ fn a_goto_ordered_on_the_paused_map_is_predicted_before_the_clock_resumes() {
     // tick runs, yet the prediction publishes from the frozen state. Unpaused,
     // the ship flies the published path and each later run advances on the
     // fixed tick alone, so it publishes as many ticks after its seed as the
-    // paused run took frames.
+    // paused run took frames. A non-finite paused seed then stays failed
+    // until a different order or a fixed tick gives it a new seed.
     let mut app = unfinished_integrity_physics_app();
     app.add_plugins((
         PDControllerPlugin,
@@ -544,5 +600,110 @@ fn a_goto_ordered_on_the_paused_map_is_predicted_before_the_clock_resumes() {
     assert!(
         prediction.seed_time >= changed_at,
         "the new leg's prediction seeds after the change"
+    );
+
+    // A bad predicted acceleration must keep a failure sentinel. The clock
+    // stays frozen: retrying this seed on each paused frame would repeat the
+    // same non-finite calculation without flying the ship.
+    app.world_mut().resource_mut::<Time<Virtual>>().pause();
+    app.world_mut().resource_mut::<Time<Physics>>().pause();
+    let frozen = state_of(&app);
+    let original_gravity = app.world().resource::<Gravity>().0;
+    app.world_mut().resource_mut::<Gravity>().0 = Vec3::splat(f32::NAN);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::GotoPos {
+            position: Vec3::new(-5000.0, 0.0, -600.0),
+        }));
+    app.update();
+    assert_eq!(state_of(&app), frozen, "the bad seed must not fly");
+    assert!(
+        app.world().get::<FlightPredictionRun>(ship).is_some(),
+        "a non-finite prediction keeps its failure sentinel"
+    );
+    assert!(
+        app.world().get::<FlightPrediction>(ship).is_none(),
+        "a non-finite new leg hides the old prediction"
+    );
+    let failed_tick = app
+        .world()
+        .entity(ship)
+        .get_change_ticks::<FlightPredictionRun>()
+        .unwrap()
+        .changed;
+    for _ in 0..24 {
+        app.update();
+        assert_eq!(state_of(&app), frozen, "paused retries must not fly");
+        assert!(
+            app.world().get::<FlightPredictionRun>(ship).is_some(),
+            "the failed seed stays recorded"
+        );
+        assert_eq!(
+            app.world()
+                .entity(ship)
+                .get_change_ticks::<FlightPredictionRun>()
+                .unwrap()
+                .changed,
+            failed_tick,
+            "the same frozen seed must not be recalculated"
+        );
+        assert!(app.world().get::<FlightPrediction>(ship).is_none());
+    }
+    app.world_mut().resource_mut::<Gravity>().0 = original_gravity;
+    app.update();
+    assert_eq!(state_of(&app), frozen);
+    assert!(
+        app.world().get::<FlightPrediction>(ship).is_none(),
+        "a fixed seed does not retry even when the acceleration becomes valid"
+    );
+
+    // A different order is a new seed even without a live tick.
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::GotoPos {
+            position: Vec3::new(5000.0, 0.0, -600.0),
+        }));
+    for _ in 0..64 {
+        if app.world().get::<FlightPrediction>(ship).is_some() {
+            break;
+        }
+        app.update();
+    }
+    assert_eq!(state_of(&app), frozen);
+    assert_eq!(
+        app.world()
+            .get::<FlightPrediction>(ship)
+            .expect("a different order retries")
+            .seed_time,
+        frozen.2
+    );
+
+    // A failed seed also retries when the fixed clock advances while its
+    // action stays unchanged. Keep gravity invalid only for the paused seed.
+    app.world_mut().resource_mut::<Gravity>().0 = Vec3::splat(f32::NAN);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::GotoPos {
+            position: Vec3::new(0.0, 0.0, -5000.0),
+        }));
+    app.update();
+    assert!(app.world().get::<FlightPredictionRun>(ship).is_some());
+    assert!(app.world().get::<FlightPrediction>(ship).is_none());
+    app.world_mut().resource_mut::<Gravity>().0 = original_gravity;
+    app.world_mut().resource_mut::<Time<Virtual>>().unpause();
+    app.world_mut().resource_mut::<Time<Physics>>().unpause();
+    for _ in 0..64 {
+        if app.world().get::<FlightPrediction>(ship).is_some() {
+            break;
+        }
+        app.update();
+    }
+    let retried = app
+        .world()
+        .get::<FlightPrediction>(ship)
+        .expect("a later fixed tick retries");
+    assert!(
+        retried.seed_time > frozen.2,
+        "the retry must seed on a later tick"
     );
 }
