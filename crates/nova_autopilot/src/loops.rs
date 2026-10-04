@@ -1268,8 +1268,12 @@ mod tests {
             !channel_session_status(app.world()).unwrap(),
             "encode follows drain"
         );
-        app.update();
-        assert!(channel_session_status(app.world()).unwrap());
+        let ((), logs) = capturing_logs(|| app.update());
+        assert_eq!(
+            channel_session_status(app.world()),
+            Ok(true),
+            "channel encode did not finish; logged: {logs}"
+        );
         for file in [
             "frame_000000.png",
             "bench.jsonl",

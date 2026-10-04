@@ -36,13 +36,13 @@ jobs:
 
       # BUILD tier only. Bevy links the ALSA + udev headers, and a transitive
       # dep's build script pkg-configs wayland/xkb even when nothing opens a
-      # window. The RUNTIME tier (Vulkan loader, mesa's lavapipe, Xvfb) left
-      # with the probe sweep - the tests in this job launch nothing.
+      # window. The channel encode test runs ffmpeg; graphics runtime deps
+      # (Vulkan loader, mesa's lavapipe, Xvfb) stay with the probe sweep.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+            libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev ffmpeg
 
       # This job builds the whole workspace TWICE into one target dir - clippy
       # `--all-targets --features debug`, then `cargo test --workspace
@@ -143,9 +143,8 @@ jobs:
       # `--features debug` rebuilds Bevy and everything downstream a second
       # time - the other half of what blew the job timeout. The probe shards no
       # longer inherit this step's example binaries (they are their own jobs
-      # now) and build their own behind a shared cache. No DISPLAY is set here,
-      # and the tests in this step launch nothing; this is the pure
-      # unit/integration gate.
+      # now) and build their own behind a shared cache. No DISPLAY is set here;
+      # the channel encode test runs ffmpeg without a graphics runtime.
       - name: Tests
         run: cargo test --workspace --features debug
 
