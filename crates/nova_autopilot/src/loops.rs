@@ -1193,7 +1193,7 @@ mod tests {
             );
         }
         let args = encode_args(
-            &app.world().resource::<LoopProfile>(),
+            app.world().resource::<LoopProfile>(),
             &staging,
             Some(&staging.join("audio.f32le")),
             &staging.join("bench.webm"),
