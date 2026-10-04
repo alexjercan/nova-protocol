@@ -103,7 +103,7 @@ use std::{
 
 use bevy::{
     prelude::*,
-    render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured},
+    render::view::screenshot::{Screenshot, ScreenshotCaptured},
     time::TimeUpdateStrategy,
 };
 
@@ -171,7 +171,8 @@ pub struct LoopCaptureStarted {
 /// so an observer samples the same world state the staged frame renders.
 #[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LoopCaptureFrame {
-    /// Zero-based video frame index. The staged PNG is `frame + 1`.
+    /// Zero-based video frame index. Script loops stage `frame + 1`; channel
+    /// sessions write `frame` directly, matching the sidecar and tick - 1.
     pub frame: u32,
 }
 
@@ -340,6 +341,8 @@ enum LoopOutput {
     /// captures. Closed by [`loop_end`].
     #[default]
     Webm,
+    /// One channel session: numbered zero-based PNGs and a WebM in the same directory.
+    Channel,
     /// One PNG sprite sheet on this grid. Closes itself at the grid's frame
     /// count; [`LoopProfile::output_resolution`] plays no part, because the
     /// grid's own cell size is the scale.
@@ -395,6 +398,8 @@ pub struct LoopRecorder {
     output: LoopOutput,
     /// Whether the collector has reported done (guards double reporting).
     reported_done: bool,
+    /// Channel sessions capture the offscreen image, not the primary window.
+    channel_image: Option<Handle<Image>>,
 }
 
 impl LoopRecorder {
@@ -409,7 +414,25 @@ impl LoopRecorder {
         }
         match &self.phase {
             LoopPhase::Idle => {
-                if staging.exists() {
+                if output == LoopOutput::Channel {
+                    if let Ok(metadata) = std::fs::symlink_metadata(&staging) {
+                        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                            return Err(format!(
+                                "loop capture: {staging:?} is not a plain directory"
+                            ));
+                        }
+                        let mut entries = std::fs::read_dir(&staging).map_err(|error| {
+                            format!("loop capture: could not inspect {staging:?}: {error}")
+                        })?;
+                        if let Some(entry) = entries.next() {
+                            let entry = entry.map_err(|error| format!("loop capture: {error}"))?;
+                            let file = entry.file_name();
+                            return Err(format!("loop capture: recording directory {staging:?} is not empty (entry {}); refusing to overwrite prior contents", file.to_string_lossy()));
+                        }
+                    } else if staging.exists() {
+                        return Err(format!("loop capture: cannot inspect {staging:?}"));
+                    }
+                } else if staging.exists() {
                     std::fs::remove_dir_all(&staging).map_err(|error| {
                         format!("loop capture: `{name}` could not clear stale staging: {error}")
                     })?;
@@ -531,6 +554,63 @@ fn arm_loop_capture(app: &mut App, profile: LoopProfile) {
     );
 }
 
+/// Install the shared loop driver for a channel session without a harness collector
+/// or a clock override. The channel owns its 60 Hz step cadence.
+pub fn arm_channel_session(app: &mut App, image: Handle<Image>, dir: PathBuf, size: (u32, u32)) {
+    let profile = LoopProfile {
+        window_resolution: size,
+        output_resolution: size,
+        fps: 60,
+        crf: LOOP_CRF,
+        frame_cap: u32::MAX,
+    };
+    profile
+        .validate()
+        .expect("channel session profile must be valid");
+    app.insert_resource(profile);
+    app.init_resource::<LoopRecorder>();
+    app.world_mut().resource_mut::<LoopRecorder>().channel_image = Some(image);
+    app.add_systems(Last, loop_capture_drive);
+    app.insert_resource(ChannelSessionDir(dir));
+}
+
+/// The channel's output directory, separate from the ordinary capture path.
+#[derive(Resource)]
+struct ChannelSessionDir(PathBuf);
+
+/// Start the session after boot, before the first driven tick. A stale output
+/// fails rather than removing unrelated files in the directory.
+pub fn channel_session_start(world: &mut World) -> Result<(), String> {
+    let dir = world.resource::<ChannelSessionDir>().0.clone();
+    world
+        .resource_mut::<LoopRecorder>()
+        .start("bench", dir, LoopOutput::Channel)?;
+    world.trigger(LoopCaptureStarted {
+        name: "bench".into(),
+        fps: 60,
+    });
+    Ok(())
+}
+
+/// End the channel session at EOF and finalize its SFX sidecar before draining.
+pub fn channel_session_end(world: &mut World) -> Result<(), String> {
+    if world.get_resource::<ChannelSessionDir>().is_none() {
+        return Ok(());
+    }
+    close_webm(world, "bench");
+    channel_session_status(world).map(|_| ())
+}
+
+/// Check whether the channel session has failed or finished encoding.
+pub fn channel_session_status(world: &World) -> Result<bool, String> {
+    let recorder = world.resource::<LoopRecorder>();
+    match recorder.phase {
+        LoopPhase::Failed => Err("loop capture: channel session failed".into()),
+        LoopPhase::Idle => Ok(true),
+        _ => Ok(false),
+    }
+}
+
 /// Open the loop `name` from a step's `on_enter`. Recording covers every
 /// rendered frame from this step through the step that calls [`loop_end`].
 /// A no-op on the smoke path.
@@ -645,7 +725,11 @@ fn close_webm(world: &mut World, name: &str) {
     let mut ended = LoopCaptureEnded {
         name: name.to_string(),
         frames: recorder.requested,
-        sidecar_path: capture::capture_path(&format!("{name}.jsonl")),
+        sidecar_path: if recorder.output == LoopOutput::Channel {
+            recorder.staging.join(format!("{name}.jsonl"))
+        } else {
+            capture::capture_path(&format!("{name}.jsonl"))
+        },
         audio_path: recorder.staging.join(LOOP_AUDIO_FILE),
         failure: None,
     };
@@ -677,9 +761,11 @@ fn loop_capture_drive(world: &mut World) {
     // "The run is complete" = no OTHER collector is pending. The scripted
     // autopilot holds its collector until its last step, so while the script
     // runs this is false.
-    let run_complete = world
-        .get_resource::<HarnessCompletion>()
-        .is_some_and(|completion| !completion.others_pending(LOOP_CAPTURE));
+    let channel = world.contains_resource::<ChannelSessionDir>();
+    let run_complete = !channel
+        && world
+            .get_resource::<HarnessCompletion>()
+            .is_some_and(|completion| !completion.others_pending(LOOP_CAPTURE));
 
     let phase = world.resource::<LoopRecorder>().phase.clone();
     match phase {
@@ -722,13 +808,13 @@ fn loop_capture_drive(world: &mut World) {
                 recorder.requested += 1;
                 (recorder.requested, recorder.output)
             };
-            if output == LoopOutput::Webm {
+            if matches!(output, LoopOutput::Webm | LoopOutput::Channel) {
                 world.trigger(LoopCaptureFrame { frame: frame - 1 });
             }
-            let path = world
-                .resource::<LoopRecorder>()
-                .staging
-                .join(format!("frame_{frame:05}.png"));
+            let path = world.resource::<LoopRecorder>().staging.join(match output {
+                LoopOutput::Channel => format!("frame_{:06}.png", frame - 1),
+                _ => format!("frame_{frame:05}.png"),
+            });
             request_frame(world, path);
         }
         LoopPhase::Draining(name) => {
@@ -742,23 +828,45 @@ fn loop_capture_drive(world: &mut World) {
             let profile = *world.resource::<LoopProfile>();
             let staging = world.resource::<LoopRecorder>().staging.clone();
             let kind = world.resource::<LoopRecorder>().output;
+            if kind == LoopOutput::Channel {
+                for frame in 0..requested {
+                    let path = staging.join(format!("frame_{frame:06}.png"));
+                    if !path.is_file()
+                        || std::fs::metadata(&path).map_or(true, |meta| meta.len() == 0)
+                    {
+                        fail(
+                            world,
+                            &format!("loop capture: missing completed frame {path:?}"),
+                        );
+                        return;
+                    }
+                }
+            }
             let file = match kind {
-                LoopOutput::Webm => loop_file_name(&name),
+                LoopOutput::Webm | LoopOutput::Channel => loop_file_name(&name),
                 LoopOutput::Sheet(_) => sheet_file_name(&name),
             };
-            let output = capture::capture_path(&file);
+            let output = if kind == LoopOutput::Channel {
+                staging.join(&file)
+            } else {
+                capture::capture_path(&file)
+            };
             let encoded = match kind {
-                LoopOutput::Webm => encode_frames("ffmpeg", &profile, &staging, &output),
+                LoopOutput::Webm | LoopOutput::Channel => {
+                    encode_frames("ffmpeg", &profile, &staging, &output, kind)
+                }
                 LoopOutput::Sheet(grid) => {
                     tile_frames("ffmpeg", &grid, requested, &staging, &output)
                 }
             };
             match encoded {
                 Ok(()) => {
-                    if let Err(error) = std::fs::remove_dir_all(&staging) {
-                        warn!("loop capture: could not clean staging {staging:?}: {error}");
+                    if kind != LoopOutput::Channel {
+                        if let Err(error) = std::fs::remove_dir_all(&staging) {
+                            warn!("loop capture: could not clean staging {staging:?}: {error}");
+                        }
+                        world.resource_mut::<CaptureLog>().mark(&file);
                     }
-                    world.resource_mut::<CaptureLog>().mark(&file);
                     world.resource_mut::<LoopRecorder>().phase = LoopPhase::Idle;
                     info!(
                         "loop capture: `{name}` written: {requested} frames -> {output:?} \
@@ -785,17 +893,34 @@ fn loop_capture_drive(world: &mut World) {
     }
 }
 
-/// Request one frame readback into `path` - the same asynchronous
-/// `Screenshot` path [`capture_window`](crate::capture::capture_window)
-/// takes. The write count is chained BEHIND the save in one observer for the
-/// same reason the shot ack is: `save_to_disk` writes synchronously inside
-/// its closure, so by the time the count moves the PNG is on disk.
+/// Request one frame readback into `path`. The observer increments the write
+/// count only after a checked PNG save; a failed conversion or write aborts.
 fn request_frame(world: &mut World, path: PathBuf) {
-    let mut save = save_to_disk(path);
-    world.spawn(Screenshot::primary_window()).observe(
-        move |captured: On<ScreenshotCaptured>, mut recorder: ResMut<LoopRecorder>| {
-            save(captured);
-            recorder.written += 1;
+    let image = world.resource::<LoopRecorder>().channel_image.clone();
+    let screenshot = image.map_or_else(Screenshot::primary_window, Screenshot::image);
+    world.spawn(screenshot).observe(
+        move |captured: On<ScreenshotCaptured>,
+              mut recorder: ResMut<LoopRecorder>,
+              mut exit: MessageWriter<AppExit>| {
+            let result = captured
+                .image
+                .clone()
+                .try_into_dynamic()
+                .map_err(|error| error.to_string())
+                .and_then(|image| {
+                    image
+                        .to_rgb8()
+                        .save(&path)
+                        .map_err(|error| error.to_string())
+                });
+            match result {
+                Ok(()) => recorder.written += 1,
+                Err(error) => {
+                    error!("loop capture: could not write {path:?}: {error}");
+                    recorder.phase = LoopPhase::Failed;
+                    exit.write(AppExit::error());
+                }
+            }
         },
     );
 }
@@ -813,14 +938,24 @@ fn encode_args(
     staging: &Path,
     audio: Option<&Path>,
     output: &Path,
+    kind: LoopOutput,
 ) -> Vec<std::ffi::OsString> {
-    let input = staging.join("frame_%05d.png");
+    let input = staging.join(if kind == LoopOutput::Channel {
+        "frame_%06d.png"
+    } else {
+        "frame_%05d.png"
+    });
     let mut args: Vec<std::ffi::OsString> = vec![
         "-y".into(),
         "-framerate".into(),
         profile.fps.to_string().into(),
         "-start_number".into(),
-        "1".into(),
+        (if kind == LoopOutput::Channel {
+            "0"
+        } else {
+            "1"
+        })
+        .into(),
         "-i".into(),
         input.into_os_string(),
     ];
@@ -944,10 +1079,23 @@ fn encode_frames(
     profile: &LoopProfile,
     staging: &Path,
     output: &Path,
+    kind: LoopOutput,
 ) -> Result<(), String> {
     let audio = staging.join(LOOP_AUDIO_FILE);
     let audio = audio.is_file().then_some(audio.as_path());
-    run_ffmpeg(ffmpeg, encode_args(profile, staging, audio, output), output)
+    if kind == LoopOutput::Channel
+        && audio.is_none_or(|path| std::fs::metadata(path).map_or(true, |meta| meta.len() == 0))
+    {
+        return Err(format!(
+            "missing or empty channel SFX audio at {:?}",
+            staging.join(LOOP_AUDIO_FILE)
+        ));
+    }
+    run_ffmpeg(
+        ffmpeg,
+        encode_args(profile, staging, audio, output, kind),
+        output,
+    )
 }
 
 /// The shared half of both encodes: make the output's directory, run ffmpeg
@@ -971,9 +1119,9 @@ fn run_ffmpeg(ffmpeg: &str, args: Vec<std::ffi::OsString>, output: &Path) -> Res
             String::from_utf8_lossy(&result.stderr)
         ));
     }
-    if !output.exists() {
+    if !output.is_file() || std::fs::metadata(output).map_or(true, |metadata| metadata.len() == 0) {
         return Err(format!(
-            "`{ffmpeg}` exited cleanly but wrote no file at {output:?}"
+            "`{ffmpeg}` exited cleanly but wrote no nonempty file at {output:?}"
         ));
     }
     Ok(())
@@ -990,6 +1138,208 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("nova-loop-test-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
+    }
+
+    /// Channel frames and SFX events describe the same post-update world.
+    /// `frame_000000` is tick one, not the warm-up or a pre-tick state.
+    #[test]
+    fn channel_frames_start_at_zero_after_the_driven_update() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        #[derive(Resource, Default)]
+        struct TickSeen(u32);
+        app.init_resource::<TickSeen>();
+        app.add_systems(Update, |mut seen: ResMut<TickSeen>| seen.0 += 1);
+        app.add_observer(|frame: On<LoopCaptureFrame>, seen: Res<TickSeen>| {
+            assert_eq!(
+                seen.0,
+                frame.frame + 1,
+                "audio frame n sees post-tick n+1 state"
+            );
+        });
+        let staging = temp_staging("channel-order");
+        arm_channel_session(&mut app, Handle::default(), staging.clone(), (16, 16));
+        observe_lifecycle(&mut app);
+        channel_session_start(app.world_mut()).unwrap();
+        app.update();
+        app.update();
+        let recorder = app.world().resource::<LoopRecorder>();
+        assert_eq!(recorder.requested, 2);
+        assert_eq!(
+            recorder.written, 0,
+            "readbacks do not count as completed writes"
+        );
+        assert_eq!(
+            app.world().resource::<Lifecycle>().0,
+            [
+                "start bench at 60",
+                "frame 0 of 1 after 0 readbacks",
+                "frame 1 of 2 after 1 readbacks",
+            ]
+        );
+        let screenshots = app
+            .world_mut()
+            .query::<&Screenshot>()
+            .iter(app.world())
+            .count();
+        assert_eq!(
+            screenshots, 2,
+            "Last requests a frame on each tick without a harness"
+        );
+        for screenshot in app.world_mut().query::<&Screenshot>().iter(app.world()) {
+            assert!(
+                matches!(&**screenshot, bevy::camera::RenderTarget::Image(target) if target.handle == Handle::<Image>::default()),
+                "channel readbacks target the offscreen image"
+            );
+        }
+        let args = encode_args(
+            &app.world().resource::<LoopProfile>(),
+            &staging,
+            Some(&staging.join("audio.f32le")),
+            &staging.join("bench.webm"),
+            LoopOutput::Channel,
+        );
+        let line = args
+            .iter()
+            .map(|arg| arg.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(line.contains("-framerate 60 -start_number 0 -i"));
+        assert!(line.contains("frame_%06d.png"));
+        assert!(line.ends_with("bench.webm"));
+        std::fs::remove_dir_all(staging).unwrap();
+    }
+
+    #[test]
+    fn channel_refuses_prior_contents_without_deleting_them() {
+        let staging = temp_staging("channel-stale");
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::write(staging.join("keep.txt"), "untouched").unwrap();
+        let mut recorder = LoopRecorder::default();
+        let error = recorder
+            .start("bench", staging.clone(), LoopOutput::Channel)
+            .unwrap_err();
+        assert!(error.contains("refusing to overwrite prior contents"));
+        assert_eq!(
+            std::fs::read(staging.join("keep.txt")).unwrap(),
+            b"untouched"
+        );
+        std::fs::remove_dir_all(staging).unwrap();
+    }
+
+    #[test]
+    fn channel_counts_checked_png_writes_and_retains_finished_outputs() {
+        use bevy::{
+            asset::RenderAssetUsages,
+            render::render_resource::{Extent3d, TextureDimension, TextureFormat},
+        };
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        let staging = temp_staging("channel-finish");
+        arm_channel_session(&mut app, Handle::default(), staging.clone(), (16, 16));
+        app.add_observer(|ended: On<LoopCaptureEnded>| {
+            std::fs::write(&ended.audio_path, vec![0; 6000]).unwrap();
+            std::fs::write(&ended.sidecar_path, "{\"frame\":0}\n").unwrap();
+        });
+        channel_session_start(app.world_mut()).unwrap();
+        app.update();
+        let entity = app
+            .world_mut()
+            .query_filtered::<Entity, With<Screenshot>>()
+            .single(app.world())
+            .unwrap();
+        let image = Image::new_fill(
+            Extent3d {
+                width: 16,
+                height: 16,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            &[20, 60, 100, 255],
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::default(),
+        );
+        app.world_mut()
+            .trigger(ScreenshotCaptured { entity, image });
+        assert_eq!(app.world().resource::<LoopRecorder>().written, 1);
+        assert!(staging.join("frame_000000.png").is_file());
+        channel_session_end(app.world_mut()).unwrap();
+        assert!(
+            !channel_session_status(app.world()).unwrap(),
+            "encode follows drain"
+        );
+        app.update();
+        assert!(channel_session_status(app.world()).unwrap());
+        for file in [
+            "frame_000000.png",
+            "bench.jsonl",
+            "bench.webm",
+            "audio.f32le",
+        ] {
+            assert!(staging.join(file).is_file(), "retained {file}");
+        }
+        assert!(std::fs::metadata(staging.join("bench.webm")).unwrap().len() > 0);
+        std::fs::remove_dir_all(staging).unwrap();
+    }
+
+    #[test]
+    fn channel_eof_without_a_tick_fails_instead_of_writing_a_movie() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        let dir = temp_staging("channel-empty");
+        arm_channel_session(&mut app, Handle::default(), dir.clone(), (16, 16));
+        channel_session_start(app.world_mut()).unwrap();
+        assert!(channel_session_end(app.world_mut()).is_err());
+        assert_eq!(exits(&mut app), vec![AppExit::error()]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn channel_failed_write_and_cap_abort_instead_of_completing() {
+        use bevy::{
+            asset::RenderAssetUsages,
+            render::render_resource::{Extent3d, TextureDimension, TextureFormat},
+        };
+        let staging = temp_staging("channel-write-fail");
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        arm_channel_session(&mut app, Handle::default(), staging.clone(), (16, 16));
+        channel_session_start(app.world_mut()).unwrap();
+        app.update();
+        let entity = app
+            .world_mut()
+            .query_filtered::<Entity, With<Screenshot>>()
+            .single(app.world())
+            .unwrap();
+        std::fs::remove_dir_all(&staging).unwrap();
+        app.world_mut().trigger(ScreenshotCaptured {
+            entity,
+            image: Image::new_fill(
+                Extent3d {
+                    width: 16,
+                    height: 16,
+                    depth_or_array_layers: 1,
+                },
+                TextureDimension::D2,
+                &[20, 60, 100, 255],
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::default(),
+            ),
+        });
+        assert!(channel_session_status(app.world()).is_err());
+        assert_eq!(exits(&mut app), vec![AppExit::error()]);
+
+        let mut cap = App::new();
+        cap.add_plugins(MinimalPlugins);
+        let cap_dir = temp_staging("channel-cap");
+        arm_channel_session(&mut cap, Handle::default(), cap_dir.clone(), (16, 16));
+        cap.world_mut().resource_mut::<LoopProfile>().frame_cap = 1;
+        channel_session_start(cap.world_mut()).unwrap();
+        cap.update();
+        cap.update();
+        assert!(channel_session_status(cap.world()).is_err());
+        assert_eq!(exits(&mut cap), vec![AppExit::error()]);
+        std::fs::remove_dir_all(cap_dir).unwrap();
     }
 
     /// The armed rig, built WITHOUT touching the env (the plugin's gate would
@@ -1272,6 +1622,7 @@ mod tests {
             &LoopProfile::default(),
             &staging,
             &staging.join("out.webm"),
+            LoopOutput::Webm,
         )
         .unwrap_err();
         assert!(
@@ -1291,6 +1642,7 @@ mod tests {
             Path::new("/stage/torpedo"),
             audio,
             Path::new("/shots/torpedo.webm"),
+            LoopOutput::Webm,
         )
         .iter()
         .map(|arg| arg.to_string_lossy().into_owned())

@@ -1,7 +1,7 @@
 # The agent bench
 
-How an external agent plays a scenario toward a goal with no human at the
-keyboard, and how the run is scored. The bench is the `bench` subcommand of
+How an external agent plays a scenario or starts New Game toward a goal with
+no human at the keyboard, and how the run is scored. The bench is the `bench` subcommand of
 the game binary, built with `--features debug`, and lives in `crates/nova_bench`
 with one TypeScript relay in `tools/nova_bench/pi/`.
 
@@ -36,10 +36,22 @@ socket, so its tests link neither Bevy nor the game.
 cargo run --features debug bench play <scenario> --agent baseline
 cargo run --features debug bench play <scenario> --agent pi --model gpt-5.6-luna --thinking low
 cargo run --features debug bench play <scenario> --agent 'cmd:python3 my_agent.py'
+cargo run --features debug bench play --session new-game --world-seed 424242 --seed 7 \
+  --agent pi --goal 'Explore the open world and report what you find'
 ```
 
 `<scenario>` is an installed scenario id, or a path ending in `.ron` loaded
-as a loose content file. The bench ships six fixtures under `crates/nova_bench/scenarios/`:
+as a loose content file. `--session new-game` takes no scenario. It starts at
+the real main menu; the agent clicks New Game, enters `--world-seed` in the
+setup modal and clicks Create. New Game requires both `--world-seed` (the
+`u32` world-generation seed) and `--seed` (the separate `u64` gameplay RNG
+seed), plus `--agent pi` or `--agent cmd:...`. The combat-only `baseline` agent
+cannot navigate the menu. A scenario cannot be combined with New Game, and
+`--world-seed` is not accepted for fixture plays. New Game uses the base
+bundle's `open_world` scenario; naming `open_world` as a scenario does not
+create the required world session.
+
+The bench ships six fixtures under `crates/nova_bench/scenarios/`:
 
 - `hunt.content.ron`: one player gunship, one hostile inline raider parked 2600 m
   ahead, an objective and both outcomes. The scenario scores itself.
@@ -60,7 +72,7 @@ as a loose content file. The bench ships six fixtures under `crates/nova_bench/s
   inert damaged frame tender, their collars 115 m apart and 12 degrees out of
   square, support docking captures between real multi-section hulls.
 
-The five sandboxes are bounded by `--ticks` and `--deadline`; a reader grades
+These six fixtures are bounded by `--ticks` and `--deadline`; a reader grades
 the `end` block of the score and any recorded footage. The red-team rules are
 in `crates/nova_bench/scenarios/README.md`, and the goal deck itself is
 `scripts/bench-plays.sh`, which runs any of twelve named plays with its goal,
@@ -71,28 +83,43 @@ nix develop -c scripts/bench-plays.sh --list
 nix develop -c scripts/bench-plays.sh sommelier shell cheat
 ```
 
-The seed pins the world, not the run: the model is the other half and takes a
-different route every time. The script pins the setup so two plays of one goal
+For these fixtures, `--seed` pins the world, not the run: the model is the
+other half and takes a different route every time. The script pins the setup so two plays of one goal
 are comparable, which is as close to reproducible as an agent play gets.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `--goal` | complete the objectives, take little damage, waste no ammo | the goal text the agent is given |
+| `--goal` | fixtures: complete objectives; New Game: create the world, fly and explore | the goal text the agent is given |
 | `--model`, `--thinking` | unset: pi's own configured model and thinking level | passed straight to `pi`; `pi` agent only |
-| `--seed` | unset | `NOVA_SEED` for the game, so a play replays |
+| `--seed` | unset for fixtures; required for New Game | `NOVA_SEED` for the gameplay RNG; it is not the New Game world seed |
+| `--world-seed` | unset for fixtures; required for New Game | The seed the agent enters in the New Game modal |
 | `--ticks` | 18000 | the tick budget, five game minutes |
 | `--turns` | 300 | the `act` budget |
 | `--deadline` | 1800 | wall-clock seconds |
-| `--out` | `bench-runs/<sha>/<scenario>/<agent>-<n>/` | the run directory |
-| `--record` | unset | draw every tick offscreen into this directory and make `<dir>.mp4` with the action rail; see [The movie](#the-movie) |
+| `--out` | `bench-runs/<sha>/<target>/<agent>-<n>/` | the run directory (`<target>` is the scenario label or `new-game`) |
+| `--record` | unset | record each stepped tick offscreen into an empty directory, with SFX and an action-rail `<dir>.mp4`; see [The movie](#the-movie) |
 | `--ui` | `log` | `log` prints one line per event to stderr; `quiet` prints nothing |
 | `--audit-raw` | off | keep the full snapshot in every `channel_in` event |
+
+New Game's initial observation has no player ship. The agent's view includes
+the visible named UI targets so it can find the New Game button, seed field
+and Create button. The agent must replace the modal's prefilled seed; merely
+appending digits does not select the requested world. Menu actions use the
+same `pointer`, `text` and `key` gestures as other UI actions. The referee
+checks the world's actual session seed before gameplay scoring. A missing
+player at menu start is expected; a wrong seed or scenario fails setup, and
+a run that ends before setup completes does not count as a completed play.
+Menu-backdrop ships do not count as combat kills. The audit retains menu
+steps and the launch target; replay starts at the menu and checks world-seed
+identity as well as the final flight state. A free-mode goal has no authored
+Victory: judge the world state and the score, not the agent's report alone.
 
 The run directory holds `audit.jsonl`, `score.json`, `game.log`, `agent.log`
 (a `cmd:` agent's stdout and stderr) and `profile/`, an empty settings
 profile the child game is pointed at so a play never reads or writes yours.
 The command prints the run directory and the score table on stdout and exits
-non-zero only when the game or the agent process failed, never on a Defeat.
+non-zero when the game or agent process fails, or New Game setup fails or
+remains incomplete. A Defeat alone does not make it fail.
 
 ## The referee protocol
 
@@ -108,7 +135,8 @@ One request per connection, one line each way.
 
 A malformed request gets `{"error": "..."}` and the run continues. Every
 view carries `over`, `ended_by` and `budget_left`; once `over` is true, `act`
-moves nothing.
+moves nothing. New Game setup actions use the same turn, tick and deadline
+budgets as flight.
 
 A gesture is one object with one verb. The referee stamps the tick, so an
 agent's vocabulary is relative and a transcript is replayable.
@@ -149,7 +177,9 @@ The raw snapshot is a probe artifact: every hull plate, every ordnance record.
 The referee condenses it to what a pilot perceives, in meters, meters per
 second and degrees:
 
-- `tick`, `game_seconds`, `over`, `ended_by`, `budget_left`, `game_errors`.
+- `tick`, `game_seconds`, `game_state`, `world_seed` (null until New Game
+  creates a world), `over`, `ended_by`, `budget_left`, `game_errors`; `ui.targets`
+  lists visible named pointer targets.
 - `objectives`, `outcome` (`null` until Victory or Defeat), `comms` (the last
   twelve radio lines).
 - `me`: id, `position_m`, `speed_mps`, `velocity_bearing_deg`,
@@ -272,6 +302,7 @@ exit) and pi gets an abort.
 | `kills` | `Enemy` ships that turned `defeated` |
 | `bad_lines` | wire lines the game refused to parse: an unknown name, an axis driven as a button. The driver writing nonsense, never the game declining to act |
 | `cheated` | whether the run armed the command shell's cheats, copied from the snapshot's mark |
+| `world_seed` | the authoritative New Game session seed after setup; null for scenario plays |
 | `llm` | pi only: messages, input, output, cached tokens and cost from the usage events |
 | `ended_by`, `agent_status`, `agent_report` | why it ended, and what the agent said |
 | `end` | where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, the docking state, and the range to every contact, beacon and body |
@@ -297,7 +328,9 @@ cargo run --features debug bench replay <run dir>/audit.jsonl [--record <dir>]
 ```
 
 Replay feeds the audit's `channel_out` lines to a fresh game under the
-recorded seed and compares where the world ended with the audit's last view.
+recorded launch target and RNG seed, including any New Game menu actions, and
+compares where the world ended with the audit's last view. New Game replay
+also compares the authoritative world seed.
 Two plays of one seed are not byte-identical once rounds fly: how many land
 drifts between processes. The verdict has three grades:
 
@@ -312,23 +345,34 @@ way a play's is.
 
 ## The movie
 
-`--record <dir>` on a play or a replay hands the directory to the game's own
-`--record`: the offscreen assembly draws every stepped tick with the real
-render stack and the full HUD, and saves it as `<dir>/frame_%06d.png`. When
-the game has exited the bench draws the run's own action rail over those
-frames and encodes `<dir>.mp4`.
+`--record <dir>` on a play or replay passes the directory to the game's
+channel recorder. The offscreen assembly uses the render stack without an OS
+window. It routes cameras and UI picking to one image; the shared
+`nova_autopilot` `LoopRecorder` requests that image in `Last` for each stepped
+tick. The directory must be empty (or absent): recording refuses to overwrite
+prior contents. Frame zero is the state after tick one. The recorder keeps
+`<dir>/frame_%06d.png`, starting at `frame_000000.png`, and writes
+`<dir>/bench.jsonl` with per-frame sampled `VoiceMix` SFX, copied sound samples,
+`<dir>/audio.f32le` (staged stereo PCM, retained), and `<dir>/bench.webm` with
+Opus SFX. The SFX mix is independent of live `--mute` output.
 
-One tick is one frame and one tick is 1/60 s, so the movie runs in real
-time however long the agent thought between acts. The bench prints the
-movie's path, frame count and length after the score table and notes them
-in the audit. A compose that cannot find the face falls back to the plain
-stitch; without ffmpeg entirely the frames stay on disk and the note says
-so. Neither changes the run's exit code.
+The channel's step clock advances by 16,667 microseconds per tick; video
+playback is nominally 60 fps, one frame per tick, regardless of how long the
+agent thinks between acts. After the game exits, the bench draws the run's
+action rail over those PNGs and encodes `<dir>.mp4`, muxing the recording's
+audio. The bench prints the movie path, frame count and length after the
+score table and notes them in the audit. If the face is unavailable, the
+bench makes a plain movie with the same audio. An older bare-PNG directory
+with no `bench.jsonl` or `bench.webm` can still be made into a silent movie
+with `bench movie`. A new recording with missing expected audio, sample
+bytes, frames, failed capture, or failed encoding/muxing is an error, not a
+silent success; ffmpeg is required for recording and movie creation.
 
 Recording needs a GPU and a display. Run the bench from the dev shell
 (`nix develop`), which is where the Vulkan loader finds the driver, on an
 X display: your own, or an Xvfb (`DISPLAY=:99`). A play without `--record`
-needs neither.
+needs neither. Inspect the recorded frames and listen to the movie before
+claiming the rendered picture or sound is correct.
 
 ### The action rail
 
@@ -338,8 +382,9 @@ cargo run --features debug bench movie <run dir>/audit.jsonl --frames <dir>
 
 `bench movie` remakes the movie of frames already on disk, so the overlay can
 be changed without replaying anything. `--out` names the file (default
-`<frames>.mp4`), `--font` the face, and `--plain` stitches the frames
-untouched.
+`<frames>.mp4`), `--font` the face, and `--plain` leaves the frames
+untouched by the rail. Both paths mux `bench.webm` audio when present; if
+`bench.jsonl` says a new recording exists but its audio is missing, they fail.
 
 The rail is composited in the bench, not in an ffmpeg filter graph: `image`
 decodes the PNGs, `ab_glyph` sets the game's own terminal face over them, and

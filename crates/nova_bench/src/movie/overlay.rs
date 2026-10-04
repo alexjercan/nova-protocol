@@ -249,7 +249,9 @@ mod tests {
         super::super::rail::film(
             &[
                 BenchEvent::RunStart {
-                    scenario: "slingshot.content.ron".into(),
+                    target: crate::game::PlayTarget::Scenario(crate::game::ScenarioTarget::File(
+                        "slingshot.content.ron".into(),
+                    )),
                     agent: "pi-gpt-5.6-sol-medium".into(),
                     goal: "Reach EXIT".into(),
                     seed: Some(7),

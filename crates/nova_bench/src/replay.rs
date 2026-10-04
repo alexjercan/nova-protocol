@@ -18,7 +18,7 @@ use crate::{
     audit::{BenchEvent, Bus},
     cli::ReplayOptions,
     game::{
-        game_exe, GameChannel, GameConfig, GameProcess, ScenarioTarget, BOOT_TIMEOUT, STEP_TIMEOUT,
+        game_exe, GameChannel, GameConfig, GameProcess, PlayTarget, BOOT_TIMEOUT, STEP_TIMEOUT,
     },
     movie,
     observation::condense,
@@ -28,8 +28,8 @@ use crate::{
 /// What the audit holds that a replay needs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Recording {
-    /// The scenario token as the run was launched.
-    pub scenario: String,
+    /// The exact target the run was launched with.
+    pub target: PlayTarget,
     /// The seed, when the run fixed one.
     pub seed: Option<u64>,
     /// Every wire line, in order.
@@ -40,7 +40,7 @@ pub struct Recording {
 
 /// Read a recording out of an audit file's text.
 pub fn recording(text: &str) -> Result<Recording, String> {
-    let mut scenario = None;
+    let mut target = None;
     let mut seed = None;
     let mut lines = Vec::new();
     let mut last = None;
@@ -52,11 +52,11 @@ pub fn recording(text: &str) -> Result<Recording, String> {
             .map_err(|error| format!("audit line {}: {error}", index + 1))?;
         match event {
             BenchEvent::RunStart {
-                scenario: token,
+                target: run_target,
                 seed: run_seed,
                 ..
             } => {
-                scenario = Some(token);
+                target = Some(run_target);
                 seed = run_seed;
             }
             BenchEvent::ChannelOut { line } => lines.push(line),
@@ -72,7 +72,7 @@ pub fn recording(text: &str) -> Result<Recording, String> {
         }
     }
     Ok(Recording {
-        scenario: scenario.ok_or("the audit has no run_start event")?,
+        target: target.ok_or("the audit has no run_start event")?,
         seed,
         lines,
         last,
@@ -96,6 +96,8 @@ pub fn fingerprint(observation: &Value) -> Value {
         .collect();
     json!({
         "tick": observation["tick"],
+        "world_seed": observation["world_seed"],
+        "scenario": observation["scenario"],
         "me": {
             "position_m": observation["me"]["position_m"],
             "health": observation["me"]["health"],
@@ -138,7 +140,11 @@ pub fn compare(expected: &Value, actual: &Value) -> Verdict {
     if expected == actual {
         return Verdict::Match;
     }
-    if expected["tick"] != actual["tick"] || expected["outcome"] != actual["outcome"] {
+    if expected["tick"] != actual["tick"]
+        || expected["outcome"] != actual["outcome"]
+        || expected["world_seed"] != actual["world_seed"]
+        || expected["scenario"] != actual["scenario"]
+    {
         return Verdict::Mismatch;
     }
     let close = |a: &Value, b: &Value| -> bool {
@@ -202,7 +208,7 @@ pub fn replay(options: &ReplayOptions) -> Result<ExitCode, String> {
         .map_err(|error| format!("could not create {}: {error}", out.display()))?;
     let bus = Bus::open(&out.join("audit.jsonl"), options.ui)?;
     bus.emit(BenchEvent::RunStart {
-        scenario: recording.scenario.clone(),
+        target: recording.target.clone(),
         agent: "replay".into(),
         goal: format!("replay {}", options.audit.display()),
         seed: recording.seed,
@@ -212,7 +218,7 @@ pub fn replay(options: &ReplayOptions) -> Result<ExitCode, String> {
     let config = GameConfig {
         exe: game_exe()?,
         root,
-        scenario: ScenarioTarget::parse(&recording.scenario),
+        target: recording.target.clone(),
         seed: recording.seed,
         record: options.record.clone(),
         profile_dir,
@@ -220,39 +226,97 @@ pub fn replay(options: &ReplayOptions) -> Result<ExitCode, String> {
     };
     let mut game = GameProcess::spawn(&config)?;
     let held = std::collections::BTreeSet::new();
-    let mut last = None;
-    let mut first = true;
-    for line in &recording.lines {
-        bus.emit(BenchEvent::ChannelOut { line: line.clone() });
-        game.send(line)?;
-        let bare = line
-            .as_object()
-            .is_some_and(|object| object.len() == 1 && object.contains_key("tick"));
-        if !bare {
-            continue;
+    let driven = (|| -> Result<Option<Value>, String> {
+        let mut last = None;
+        let mut first = true;
+        for line in &recording.lines {
+            bus.emit(BenchEvent::ChannelOut { line: line.clone() });
+            game.send(line)?;
+            let bare = line
+                .as_object()
+                .is_some_and(|object| object.len() == 1 && object.contains_key("tick"));
+            if !bare {
+                continue;
+            }
+            let timeout = if first { BOOT_TIMEOUT } else { STEP_TIMEOUT };
+            first = false;
+            let answer = game.read_answer(timeout)?;
+            let tick = line["tick"].as_u64().unwrap_or(0);
+            let mut observation = condense(&answer.snapshot, &held, &[]);
+            observation["tick"] = json!(tick);
+            bus.emit(BenchEvent::ChannelIn {
+                tick,
+                observation: observation.clone(),
+                raw: None,
+                errors: answer.errors,
+            });
+            last = Some(observation);
         }
-        let timeout = if first { BOOT_TIMEOUT } else { STEP_TIMEOUT };
-        first = false;
-        let answer = game.read_answer(timeout)?;
-        let tick = line["tick"].as_u64().unwrap_or(0);
-        let mut observation = condense(&answer.snapshot, &held, &[]);
-        observation["tick"] = json!(tick);
-        bus.emit(BenchEvent::ChannelIn {
-            tick,
-            observation: observation.clone(),
-            raw: None,
-            errors: answer.errors,
-        });
-        last = Some(observation);
-    }
-    game.close();
+        Ok(last)
+    })();
+    let closed = game.close();
+    let last = match (driven, closed) {
+        (Ok(last), Ok(())) => last,
+        (Ok(last), Err(error)) => {
+            bus.emit(BenchEvent::RunEnd {
+                reason: Verdict::Mismatch.label().into(),
+                score: json!({
+                    "verdict": Verdict::Mismatch.label(),
+                    "expected": recording.last.as_ref().map(fingerprint).unwrap_or(Value::Null),
+                    "actual": last.as_ref().map(fingerprint).unwrap_or(Value::Null),
+                    "error": error,
+                }),
+            });
+            return Err(format!("game close failed: {error}"));
+        }
+        (Err(drive), Err(close)) => {
+            return Err(format!(
+                "replay failed: {drive}; game close failed: {close}"
+            ));
+        }
+        (Err(error), Ok(())) => return Err(error),
+    };
     let expected = recording
         .last
         .as_ref()
         .map(fingerprint)
         .unwrap_or(Value::Null);
     let actual = last.as_ref().map(fingerprint).unwrap_or(Value::Null);
-    let verdict = compare(&expected, &actual);
+    let identity_error = match &recording.target {
+        PlayTarget::Scenario(_) => None,
+        PlayTarget::NewGame { world_seed } => {
+            let recorded = recording
+                .last
+                .as_ref()
+                .and_then(|view| view["world_seed"].as_u64());
+            let replayed = last.as_ref().and_then(|view| view["world_seed"].as_u64());
+            if recorded == Some(u64::from(*world_seed))
+                && replayed == Some(u64::from(*world_seed))
+                && recording
+                    .last
+                    .as_ref()
+                    .is_some_and(|view| view["scenario"] == "open_world" && !view["me"].is_null())
+                && last
+                    .as_ref()
+                    .is_some_and(|view| view["scenario"] == "open_world" && !view["me"].is_null())
+            {
+                None
+            } else {
+                let label =
+                    |seed: Option<u64>| seed.map_or("missing".into(), |seed| seed.to_string());
+                Some(format!(
+                    "requested world seed {world_seed}, recorded {}, replayed {}",
+                    label(recorded),
+                    label(replayed)
+                ))
+            }
+        }
+    };
+    let verdict = if identity_error.is_some() {
+        Verdict::Mismatch
+    } else {
+        compare(&expected, &actual)
+    };
     let reason = verdict.label();
     bus.emit(BenchEvent::RunEnd {
         reason: reason.into(),
@@ -261,8 +325,12 @@ pub fn replay(options: &ReplayOptions) -> Result<ExitCode, String> {
     let movie = options
         .record
         .as_deref()
-        .map(|frames| movie::report(&bus, frames, &out.join("audit.jsonl")));
+        .map(|frames| movie::report(&bus, frames, &out.join("audit.jsonl")))
+        .transpose()?;
     println!("{}\n{reason}", out.display());
+    if let Some(error) = identity_error {
+        println!("{error}");
+    }
     if verdict != Verdict::Match {
         println!("expected {expected}\nactual   {actual}");
     }
@@ -279,11 +347,12 @@ pub fn replay(options: &ReplayOptions) -> Result<ExitCode, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::ScenarioTarget;
 
     #[test]
     fn a_recording_keeps_the_scenario_the_wire_and_the_last_view() {
         let text = [
-            r#"{"t":0.0,"event":"run_start","scenario":"tutorial","agent":"baseline","goal":"g","seed":7,"budget":{},"run_dir":"/r"}"#,
+            r#"{"t":0.0,"event":"run_start","target":{"Scenario":{"Id":"tutorial"}},"agent":"baseline","goal":"g","seed":7,"budget":{},"run_dir":"/r"}"#,
             r#"{"t":0.1,"event":"channel_out","line":{"tick":1}}"#,
             r#"{"t":0.2,"event":"channel_in","tick":1,"observation":{"tick":1,"me":null}}"#,
             r#"{"t":0.3,"event":"agent_text","text":"hi"}"#,
@@ -293,7 +362,10 @@ mod tests {
         ]
         .join("\n");
         let recording = recording(&text).unwrap();
-        assert_eq!(recording.scenario, "tutorial");
+        assert_eq!(
+            recording.target,
+            PlayTarget::Scenario(ScenarioTarget::Id("tutorial".into()))
+        );
         assert_eq!(recording.seed, Some(7));
         assert_eq!(recording.lines.len(), 3);
         let last = recording.last.unwrap();
@@ -337,6 +409,19 @@ mod tests {
             compare(&end(3176.5, false, 661), &end(1000.0, false, 661)),
             Verdict::Mismatch,
             "a standing ship's health counts"
+        );
+    }
+
+    #[test]
+    fn replay_refuses_a_different_new_game_seed_even_if_the_ship_matches() {
+        let view = json!({"tick": 31, "scenario": "open_world", "world_seed": 42,
+            "me": {"position_m": [0, 0, 0], "health": {"current": 100}}, "contacts": [], "outcome": null});
+        let expected = fingerprint(&view);
+        let mut changed = view;
+        changed["world_seed"] = json!(43);
+        assert_eq!(
+            compare(&expected, &fingerprint(&changed)),
+            Verdict::Mismatch
         );
     }
 

@@ -28,8 +28,13 @@ nix develop --command cargo run --features dev bench replay \
   <run>/audit.jsonl --out <replay>
 ```
 
-Use `--record <dir>` and inspect frames for a visual claim. Recording needs GPU
-and X. Run one game or GPU measurement at a time.
+Use `--record <dir>` with an empty or absent destination. The channel keeps
+zero-based PNGs, `bench.jsonl`, copied SFX samples, staged `audio.f32le` and
+`bench.webm` with Opus; the bench muxes that audio into the action-rail
+`<dir>.mp4`. Capture and encode failures fail the run. Inspect frames for a
+visual claim and listen to the movie for an audio claim; a successful build
+is neither. Recording needs GPU and X. Run one game or GPU measurement at a
+time.
 
 ## Judge
 

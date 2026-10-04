@@ -149,6 +149,8 @@ pub fn condense(snapshot: &Value, held: &BTreeSet<String>, expand: &[String]) ->
 
     let mut view = json!({
         "game_state": snapshot["game_state"],
+        "scenario": snapshot["scenario"],
+        "world_seed": snapshot["world_seed"],
         "ui": {
             "pause": snapshot["ui"]["pause"],
         },
@@ -171,6 +173,9 @@ pub fn condense(snapshot: &Value, held: &BTreeSet<String>, expand: &[String]) ->
         },
         "commands": commands,
     });
+    if snapshot["game_state"] == "MainMenu" {
+        view["ui"]["targets"] = snapshot["ui"]["targets"].clone();
+    }
     // Both of these are absent far more often than they are present, and an
     // absent key is the cheapest way to say "no".
     if !mission["cinematic"]["playing"].is_null() {

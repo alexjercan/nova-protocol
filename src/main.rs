@@ -47,11 +47,10 @@ struct Cli {
     #[cfg(feature = "debug")]
     #[arg(long, value_name = "MODE", requires = "norender")]
     channel: Option<nova_channel::ChannelMode>,
-    /// With `--channel`: draw every tick offscreen and save it as
-    /// `DIR/frame_%06d.png`. Still no window - but unlike plain `--norender`
-    /// the GPU is armed, so the frames are the real render. Stitch them with
-    /// `ffmpeg -framerate 60 -i DIR/frame_%06d.png -pix_fmt yuv420p out.mp4`
-    /// for a real-time movie however slowly the driver stepped.
+    /// With `--channel`: record each stepped tick offscreen into an empty DIR.
+    /// Keeps zero-based `DIR/frame_%06d.png`, `bench.jsonl`, copied SFX samples,
+    /// staged PCM and `bench.webm` with Opus. Nominal 60 fps; requires a GPU
+    /// but no OS window. `bench movie` adds the action rail and muxes audio.
     #[cfg(feature = "debug")]
     #[arg(long, value_name = "DIR", requires = "channel")]
     record: Option<std::path::PathBuf>,

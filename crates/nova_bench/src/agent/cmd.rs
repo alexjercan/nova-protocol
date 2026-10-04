@@ -42,7 +42,8 @@ pub fn run<G: GameChannel>(
         text: format!("agent pid {} ({})", child.id(), argv.join(" ")),
     });
     let reason = serve(referee, socket, |_| match child.try_wait() {
-        Ok(Some(status)) => Poll::Stop(format!("agent_exit ({status})")),
+        Ok(Some(status)) if status.success() => Poll::Stop(format!("agent_exit ({status})")),
+        Ok(Some(status)) => Poll::Stop(format!("agent_error: process exited {status}")),
         _ => Poll::Continue,
     });
     if child.try_wait().ok().flatten().is_none() {

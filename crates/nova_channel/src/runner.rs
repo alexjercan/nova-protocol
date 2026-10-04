@@ -89,14 +89,99 @@ pub fn channel_runner(mode: ChannelMode) -> impl FnOnce(App) -> AppExit {
         if let Some(exit) = boot(&mut app) {
             return exit;
         }
+        let recording = app
+            .world()
+            .contains_resource::<crate::record::ChannelRecorder>();
+        if recording {
+            if let Err(error) = nova_autopilot::loops::channel_session_start(app.world_mut()) {
+                error!("nova channel: cannot start recording: {error}");
+                return AppExit::error();
+            }
+        }
         let exit = match mode {
             ChannelMode::Step => run_stepped(&mut app, &lines),
             ChannelMode::Free => run_free(&mut app, &lines),
         };
-        // A recording session has captures still in flight at EOF.
-        crate::record::flush_captures(&mut app);
+        if recording && !finish_recording(&mut app, &exit) {
+            return AppExit::error();
+        }
         exit
     }
+}
+
+/// Close even on an early app exit, and wait for all writes and the encode.
+/// A stuck readback or any write/encode failure is an error, never success.
+fn finish_recording(app: &mut App, original_exit: &AppExit) -> bool {
+    use nova_autopilot::loops::{channel_session_end, channel_session_status};
+    if let Err(error) = channel_session_end(app.world_mut()) {
+        error!("nova channel: {error}");
+        return false;
+    }
+    let dir = &app.world().resource::<crate::record::ChannelRecorder>().dir;
+    if let Err(error) = validate_sidecar(dir) {
+        error!("nova channel: {error}");
+        return false;
+    }
+    for _ in 0..60 {
+        match channel_session_status(app.world()) {
+            Ok(true) => return true,
+            Err(error) => {
+                error!("nova channel: {error}");
+                return false;
+            }
+            Ok(false) => {}
+        }
+        app.update();
+        // Bevy's should_exit observes, but does not consume, the earlier
+        // AppExit message. Its error must not cut the recorder's drain short.
+        if *original_exit == AppExit::Success
+            && app
+                .should_exit()
+                .is_some_and(|exit| exit != AppExit::Success)
+        {
+            return false;
+        }
+    }
+    error!("nova channel: recording did not finish draining after 60 frames");
+    false
+}
+
+/// The unchanged SFX adapter warns rather than vetoing failed sample copies.
+/// A channel recording needs the sample bytes alongside its sidecar, so EOF
+/// verifies every referenced clip before declaring the session successful.
+fn validate_sidecar(dir: &std::path::Path) -> Result<(), String> {
+    let path = dir.join("bench.jsonl");
+    let content = std::fs::read_to_string(&path)
+        .map_err(|error| format!("cannot read SFX sidecar {path:?}: {error}"))?;
+    let mut lines = content.lines();
+    let header = lines
+        .next()
+        .ok_or_else(|| format!("empty SFX sidecar {path:?}"))?;
+    let header: serde_json::Value = serde_json::from_str(header)
+        .map_err(|error| format!("invalid SFX sidecar header {path:?}: {error}"))?;
+    if header["loop"] != "bench"
+        || header["fps"] != 60
+        || header["frames"].as_u64().is_none_or(|frames| frames == 0)
+    {
+        return Err(format!(
+            "invalid SFX sidecar session header at {path:?}: {header}"
+        ));
+    }
+    for (index, row) in lines.enumerate() {
+        let row: serde_json::Value = serde_json::from_str(row)
+            .map_err(|error| format!("invalid SFX sidecar row {}: {error}", index + 2))?;
+        if let Some(clip) = row.get("clip") {
+            let clip = clip
+                .as_str()
+                .ok_or_else(|| format!("invalid SFX clip in row {}", index + 2))?;
+            let sample = dir.join(clip);
+            if !sample.is_file() || std::fs::metadata(&sample).map_or(true, |meta| meta.len() == 0)
+            {
+                return Err(format!("missing SFX sample bytes at {sample:?}"));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// How long the asset boot may take before the channel gives up on the app.
@@ -172,7 +257,6 @@ fn run_stepped(app: &mut App, lines: &Receiver<(usize, String)>) -> AppExit {
             None => {
                 // The step instruction: run the clock to the target.
                 while tick < target {
-                    crate::record::record_frame(app);
                     stage(app, scheduled.remove(&(tick + 1)).unwrap_or_default());
                     app.update();
                     tick += 1;
@@ -239,7 +323,6 @@ fn run_free(app: &mut App, lines: &Receiver<(usize, String)>) -> AppExit {
         // A late line is always due on the very next frame, so the set only
         // ever holds lines this frame is about to consume.
         app.world_mut().resource_mut::<ChannelFrame>().late_lines = std::mem::take(&mut late);
-        crate::record::record_frame(app);
         stage(app, due);
         app.update();
         tick += 1;
@@ -346,4 +429,90 @@ fn emit_error(message: &str, line_no: usize) {
         "error": message,
         "line": line_no,
     }));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_early_app_exit_still_drains_and_encodes_the_session() {
+        use bevy::{
+            asset::RenderAssetUsages,
+            render::{
+                render_resource::{Extent3d, TextureDimension, TextureFormat},
+                view::screenshot::{Screenshot, ScreenshotCaptured},
+            },
+        };
+        let dir = std::env::temp_dir().join(format!("nova-channel-exit-{}", std::process::id()));
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(crate::record::ChannelRecorder {
+            image: Handle::default(),
+            dir: dir.clone(),
+        });
+        nova_autopilot::loops::arm_channel_session(
+            &mut app,
+            Handle::default(),
+            dir.clone(),
+            (16, 16),
+        );
+        app.add_observer(|ended: On<nova_autopilot::loops::LoopCaptureEnded>| {
+            std::fs::write(&ended.audio_path, vec![0; 6000]).unwrap();
+            std::fs::write(
+                &ended.sidecar_path,
+                "{\"version\":1,\"loop\":\"bench\",\"fps\":60,\"frames\":1}\n",
+            )
+            .unwrap();
+        });
+        nova_autopilot::loops::channel_session_start(app.world_mut()).unwrap();
+        app.update();
+        let entity = app
+            .world_mut()
+            .query_filtered::<Entity, With<Screenshot>>()
+            .single(app.world())
+            .unwrap();
+        app.world_mut().trigger(ScreenshotCaptured {
+            entity,
+            image: Image::new_fill(
+                Extent3d {
+                    width: 16,
+                    height: 16,
+                    depth_or_array_layers: 1,
+                },
+                TextureDimension::D2,
+                &[20, 60, 100, 255],
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::default(),
+            ),
+        });
+        app.world_mut().write_message(AppExit::error());
+        let early = app.should_exit().unwrap();
+        assert_eq!(early, AppExit::error());
+        assert!(finish_recording(&mut app, &early));
+        assert!(dir.join("bench.webm").is_file());
+        assert!(dir.join("frame_000000.png").is_file());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_sidecar_with_missing_sample_bytes_fails_at_eof() {
+        let dir = std::env::temp_dir().join(format!("nova-channel-sidecar-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("bench.jsonl"),
+            concat!(
+                "{\"version\":1,\"loop\":\"bench\",\"fps\":60,\"frames\":1}\n",
+                "{\"f\":0,\"v\":0,\"clip\":\"sounds/test.ogg\",\"gain\":1,\"looping\":false}\n",
+            ),
+        )
+        .unwrap();
+        assert!(validate_sidecar(&dir)
+            .unwrap_err()
+            .contains("missing SFX sample bytes"));
+        std::fs::create_dir_all(dir.join("sounds")).unwrap();
+        std::fs::write(dir.join("sounds/test.ogg"), b"sample").unwrap();
+        validate_sidecar(&dir).unwrap();
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

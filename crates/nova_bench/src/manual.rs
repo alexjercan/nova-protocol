@@ -13,6 +13,8 @@
 
 use serde_json::Value;
 
+use crate::game::PlayTarget;
+
 /// The system prompt.
 pub const MANUAL: &str = include_str!("manual.md");
 
@@ -61,15 +63,32 @@ pub fn page_names() -> String {
 pub const DEFAULT_GOAL: &str = "Complete the scenario's objectives and reach the Victory outcome. \
 Take as little damage as you can and do not waste ammunition.";
 
+/// The default goal in an open world without scenario Victory objectives.
+pub const NEW_GAME_GOAL: &str = "Create the requested New Game world, then fly and explore it. Report what you did and the state of your ship.";
+
 /// What pi is told when it settles with the run still open.
 pub const NUDGE: &str = "The run is not over: the referee has not declared an outcome and you \
 have budget left. Keep playing with `act`, or call `finish` if you have reached the goal or \
 cannot make progress.";
 
-/// The first user message: the scenario, the goal, the first view.
-pub fn opening(scenario: &str, goal: &str, first: &Value) -> String {
+/// The first user message: the target, the goal, and the first view.
+pub fn opening(target: &PlayTarget, goal: &str, first: &Value) -> String {
+    let setup = match target {
+        PlayTarget::Scenario(scenario) => format!("Scenario: {}", scenario.label()),
+        PlayTarget::NewGame { world_seed } => format!(
+            "New Game: from MainMenu click `New Game Button`. For each click, move with \
+{{\"pointer\":{{\"to\":\"<target name>\"}}}}, then press and release left with separate acts \
+{{\"pointer\":{{\"press\":\"left\"}}}} and {{\"pointer\":{{\"release\":\"left\"}}}}. \
+For `World Seed Field`, use its `ui.targets` rect [x,y,w,h] and move to \
+[x+w-2,y+h/2] before clicking: the caret must be at the end, not the middle. Send ten \
+{{\"key\":\"Backspace\"}} gestures (one per digit of any u32) to clear the prefilled value. \
+Send {{\"text\":\"{world_seed}\"}}, then click `Create World Button`. Do not append to the \
+prefilled seed. Check game_state, scenario and world_seed after Create; the referee refuses a different \
+world. --seed is separate gameplay RNG, not the World Seed field."
+        ),
+    };
     format!(
-        "Scenario: {scenario}\nGoal: {goal}\n\nYour first observation:\n```json\n{first:#}\n```\n\n\
+        "{setup}\nGoal: {goal}\n\nYour first observation:\n```json\n{first:#}\n```\n\n\
 Begin. Use only the {tools} tools. Call finish when the goal is reached or when you cannot \
 make progress.",
         tools = TOOLS.join(", ")
@@ -88,10 +107,23 @@ mod tests {
         for word in ["bearing_deg", "flight.main_drive", "targeting.radar_hold"] {
             assert!(MANUAL.contains(word), "manual lacks {word}");
         }
-        let text = opening("tutorial", "Win.", &serde_json::json!({ "tick": 1 }));
+        let text = opening(
+            &PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
+            "Win.",
+            &serde_json::json!({ "tick": 1 }),
+        );
         assert!(text.contains("Scenario: tutorial"));
         assert!(text.contains("Goal: Win."));
         assert!(text.contains("\"tick\": 1"));
+        let new_game = opening(
+            &PlayTarget::NewGame { world_seed: 42 },
+            NEW_GAME_GOAL,
+            &serde_json::json!({ "game_state": "MainMenu" }),
+        );
+        assert!(new_game.contains("World Seed Field"));
+        assert!(new_game.contains("Backspace"));
+        assert!(new_game.contains("\"text\":\"42\""));
+        assert!(new_game.contains(NEW_GAME_GOAL));
     }
 
     /// A page the manual names but does not ship would be a dead end the

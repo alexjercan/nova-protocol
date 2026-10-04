@@ -29,7 +29,11 @@ an outcome or a budget runs out (`budget_left` shows what is left).
 
 All lengths are meters, speeds meters per second, angles degrees.
 
-- `tick`, `game_seconds`: the clock.
+- `tick`, `game_seconds`: the clock. `game_state` is `MainMenu` before New Game;
+  `me` is `null` until a player ship exists. `scenario` identifies the loaded
+  world and `world_seed` is the seed confirmed by the game, not a seed claimed
+  by an agent. In MainMenu, `ui.targets` lists visible named nodes and their
+  logical-pixel rectangles. Use these exact names for pointer movement.
 - `objectives`: what the scenario asks of you now. An objective disappears
   when it is met. `objective_log` is every card posted and completed so far,
   in order, so a card that came and went between two acts still shows.
@@ -110,6 +114,19 @@ Each gesture is one object with one verb:
   minute of game time); anything else is refused, not clamped.
 - `{"command": "<line>"}`: type a line at the ship's computer. The answer
   arrives in `commands` on the next view. `help` lists what it knows.
+- `{"pointer": {"to": "<name>"}}`: move to a visible named UI target.
+  `{"pointer": {"press": "left"}}` and `{"pointer": {"release": "left"}}`
+  click it. Move, press and release in separate acts so picking can update.
+- `{"key": "Backspace"}`: edit a focused field. New Game pre-fills a random
+  u32 (at most ten digits). Find `World Seed Field` in `ui.targets` and use
+  `{"pointer": {"to": [x+w-2, y+h/2]}}` for its rect `[x,y,w,h]`, then
+  press and release left in separate acts. This puts the caret at the right
+  edge. Send ten Backspace gestures to clear all digits before typing. Each
+  key gesture sends an event even if several land in one act. `Ctrl+A` is not
+  a channel editing key.
+- `{"text": "<characters>"}`: type into the focused field. For New Game,
+  type the exact requested world seed after clearing the field. Click
+  `Create World Button` only after typing.
 
 Gestures in one act apply on the same tick, in order. A held input stays
 held across acts until released; `inputs.held` reminds you.

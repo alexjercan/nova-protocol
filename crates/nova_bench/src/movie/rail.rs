@@ -236,14 +236,14 @@ pub fn film(events: &[BenchEvent], frames: u64) -> Film {
     for event in events {
         match event {
             BenchEvent::RunStart {
-                scenario,
+                target,
                 agent,
                 goal,
                 seed,
                 ..
             } => {
                 head = Head {
-                    scenario: short_scenario(scenario),
+                    scenario: target.label(),
                     agent: agent.clone(),
                     seed: *seed,
                 };
@@ -450,14 +450,6 @@ fn refusal(detail: &Value) -> Row {
     }
 }
 
-/// The scenario as the header says it: the fixture's own name, not its path.
-fn short_scenario(raw: &str) -> String {
-    let name = raw.rsplit(['/', '\\']).next().unwrap_or(raw);
-    name.strip_suffix(".content.ron")
-        .unwrap_or(name)
-        .to_string()
-}
-
 /// Thinking arrives as markdown headers joined by blank lines. Each header is
 /// its own row, so a three-header thought reads as three beats.
 fn headers(text: &str) -> Vec<String> {
@@ -512,7 +504,9 @@ mod tests {
     fn events() -> Vec<BenchEvent> {
         vec![
             BenchEvent::RunStart {
-                scenario: "crates/nova_bench/scenarios/slingshot.content.ron".into(),
+                target: crate::game::PlayTarget::Scenario(crate::game::ScenarioTarget::File(
+                    "crates/nova_bench/scenarios/slingshot.content.ron".into(),
+                )),
                 agent: "pi-gpt-5.6-sol-medium".into(),
                 goal: "Reach EXIT\nwithout firing.".into(),
                 seed: Some(7),

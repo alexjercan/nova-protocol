@@ -17,14 +17,16 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::game::PlayTarget;
+
 /// One thing that happened.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum BenchEvent {
     /// The run's setup: what plays what, under which budgets.
     RunStart {
-        /// Scenario label.
-        scenario: String,
+        /// The exact play target, including a requested world seed.
+        target: PlayTarget,
         /// Agent label.
         agent: String,
         /// The goal the agent is prompted with.
@@ -193,7 +195,7 @@ impl Bus {
 pub fn render(event: &BenchEvent) -> Option<String> {
     Some(match event {
         BenchEvent::RunStart {
-            scenario,
+            target,
             agent,
             goal,
             seed,
@@ -202,8 +204,11 @@ pub fn render(event: &BenchEvent) -> Option<String> {
         } => {
             let seed = seed.map_or("os".to_string(), |seed| seed.to_string());
             format!(
-                "run   {scenario} / {agent}  seed {seed}  budget {} ticks, {} turns, {} s\n            goal: {goal}\n            dir:  {run_dir}",
-                budget["ticks"], budget["turns"], budget["deadline"]
+                "run   {} / {agent}  seed {seed}  budget {} ticks, {} turns, {} s\n            goal: {goal}\n            dir:  {run_dir}",
+                target.label(),
+                budget["ticks"],
+                budget["turns"],
+                budget["deadline"]
             )
         }
         BenchEvent::RunEnd { reason, score } => {

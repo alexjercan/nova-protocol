@@ -13,16 +13,10 @@
 //!   picking backend only hit-tests cameras whose target EQUALS the pointer's
 //!   ([`bevy_ui` `picking_backend.rs`], target equality) - without this the
 //!   pointer lane would go dead the moment the cameras moved;
-//! - the runner spawns one [`Screenshot`] of that image per tick, each with
-//!   its own numbered [`save_to_disk`] observer, so capture completion order
-//!   cannot scramble frame order.
+//! - the shared loop recorder requests the image in `Last` of each driven tick,
+//!   samples SFX at the same frame index, and drains on session exit.
 //!
-//! Captures complete asynchronously a frame or two after their tick;
-//! [`flush_captures`] pumps the app after EOF until the last one lands.
-//!
-//! The PNGs stitch into a real-time movie regardless of how slowly the driver
-//! stepped: `ffmpeg -framerate 60 -i <DIR>/frame_%06d.png -pix_fmt yuv420p
-//! out.mp4` (one tick is 1/60 s of simulated time).
+//! Frame zero and sidecar frame zero both describe the state after tick one.
 
 use std::path::PathBuf;
 
@@ -30,23 +24,19 @@ use bevy::{
     camera::{NormalizedRenderTarget, RenderTarget},
     picking::{pointer::PointerLocation, PickingSystems},
     prelude::*,
-    render::view::window::screenshot::{save_to_disk, Screenshot},
     ui::IsDefaultUiCamera,
     window::{PrimaryWindow, WindowRef},
 };
 use nova_gameplay::prelude::new_render_target_image;
 
-/// The armed recorder: the offscreen image the cameras draw into, the
-/// directory the PNGs land in, and the counter that names them. Absent unless
-/// the run was launched with `--record`.
+/// The offscreen image shared by the channel camera and pointer routes, plus
+/// the session destination. Absent unless launched with `--record`.
 #[derive(Resource)]
 pub struct ChannelRecorder {
     /// The render target every primary-window camera is retargeted into.
     pub image: Handle<Image>,
-    /// Where `frame_%06d.png` land.
+    /// Directory reserved for this session's frames, sidecar and WebM.
     pub dir: PathBuf,
-    /// Frames captured so far, which is also the next frame's number.
-    pub frames: u64,
 }
 
 /// Arm the recorder: create the target image at the virtual window's size,
@@ -58,7 +48,6 @@ pub struct ChannelRecorder {
 /// a window measuring zero yields a 1x1 target instead of a texture wgpu
 /// refuses to allocate.
 pub(crate) fn setup(app: &mut App, dir: PathBuf) {
-    std::fs::create_dir_all(&dir).expect("the --record directory can be created");
     let mut windows = app
         .world_mut()
         .query_filtered::<&Window, With<PrimaryWindow>>();
@@ -70,11 +59,7 @@ pub(crate) fn setup(app: &mut App, dir: PathBuf) {
         .world_mut()
         .resource_mut::<Assets<Image>>()
         .add(new_render_target_image(size));
-    app.insert_resource(ChannelRecorder {
-        image,
-        dir,
-        frames: 0,
-    });
+    app.insert_resource(ChannelRecorder { image, dir });
     app.add_systems(PostUpdate, retarget_cameras);
     // The slot matters: `PointerInput::receive` (ProcessInput) re-applies the
     // frame's window-targeted messages onto `PointerLocation`, so a rewrite
@@ -175,59 +160,61 @@ fn retarget_pointers(
     }
 }
 
-/// Queue this tick's capture: one screenshot of the record image, saved under
-/// the frame number the counter hands out. Called by the runner right before
-/// the tick's `app.update()`, so the capture is of exactly that frame's
-/// render. A no-op when the recorder is not armed.
-pub(crate) fn record_frame(app: &mut App) {
-    let world = app.world_mut();
-    let Some(mut recorder) = world.get_resource_mut::<ChannelRecorder>() else {
-        return;
-    };
-    let frame = recorder.frames;
-    recorder.frames += 1;
-    let image = recorder.image.clone();
-    let path = recorder.dir.join(format!("frame_{frame:06}.png"));
-    world
-        .spawn(Screenshot::image(image))
-        .observe(save_to_disk(path));
-}
-
-/// After the session: pump the app until the captures still in flight have
-/// landed on disk. A capture needs a frame or two of queue submissions to
-/// complete; the bound only exists so a wedged GPU cannot hang the exit.
-pub(crate) fn flush_captures(app: &mut App) {
-    if app.world().get_resource::<ChannelRecorder>().is_none() {
-        return;
-    }
-    for _ in 0..60 {
-        let mut screenshots = app.world_mut().query_filtered::<(), With<Screenshot>>();
-        let pending = screenshots.iter(app.world()).count();
-        if pending == 0 {
-            return;
-        }
-        app.update();
-    }
-    let mut screenshots = app.world_mut().query_filtered::<(), With<Screenshot>>();
-    let pending = screenshots.iter(app.world()).count();
-    warn!("nova channel: {pending} frame captures never completed");
-}
-
 #[cfg(test)]
 mod tests {
     use bevy::asset::AssetPlugin;
 
     use super::*;
 
+    #[test]
+    fn offscreen_camera_and_pointer_share_the_ui_target() {
+        use bevy::picking::pointer::Location;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Image>();
+        let window = app
+            .world_mut()
+            .spawn((Window::default(), PrimaryWindow))
+            .id();
+        setup(&mut app, std::env::temp_dir().join("channel-routing-only"));
+        let camera = app.world_mut().spawn(Camera::default()).id();
+        let pointer = app
+            .world_mut()
+            .spawn(PointerLocation::new(Location {
+                target: RenderTarget::Window(WindowRef::Entity(window))
+                    .normalize(Some(window))
+                    .unwrap(),
+                position: Vec2::new(25.0, 40.0),
+            }))
+            .id();
+        app.update();
+        let image = &app.world().resource::<ChannelRecorder>().image;
+        assert_eq!(
+            app.world().get::<RenderTarget>(camera).unwrap().as_image(),
+            Some(image)
+        );
+        assert!(
+            app.world().get::<IsDefaultUiCamera>(camera).is_some(),
+            "the UI has an offscreen camera"
+        );
+        let location = app
+            .world()
+            .get::<PointerLocation>(pointer)
+            .unwrap()
+            .location()
+            .unwrap();
+        assert_eq!(location.position, Vec2::new(25.0, 40.0));
+        assert!(
+            matches!(&location.target, NormalizedRenderTarget::Image(target) if &target.handle == image),
+            "picking uses the same image as the UI camera"
+        );
+    }
+
     /// wgpu refuses a zero-area texture, so arming the recorder against a
     /// window that measures zero must still hand it an allocatable target. The
     /// recorder used to pass the window's size straight through.
     #[test]
     fn the_recorder_arms_a_non_zero_target_for_a_zero_sized_window() {
-        let dir = std::env::temp_dir().join(format!(
-            "nova_channel_record_zero_window_{}",
-            std::process::id()
-        ));
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<Image>();
@@ -239,7 +226,7 @@ mod tests {
             PrimaryWindow,
         ));
 
-        setup(&mut app, dir.clone());
+        setup(&mut app, std::env::temp_dir().join("channel-target-only"));
 
         let handle = app.world().resource::<ChannelRecorder>().image.clone();
         let images = app.world().resource::<Assets<Image>>();
@@ -256,7 +243,5 @@ mod tests {
             size.height, 1,
             "a zero-tall window still needs a real texture"
         );
-
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

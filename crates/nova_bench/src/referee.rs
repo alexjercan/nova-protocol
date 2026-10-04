@@ -15,7 +15,7 @@ use serde_json::{json, Map, Value};
 use crate::{
     audit::{BenchEvent, Bus},
     cli::BudgetArgs,
-    game::{GameChannel, BOOT_TIMEOUT, STEP_TIMEOUT},
+    game::{GameChannel, PlayTarget, BOOT_TIMEOUT, STEP_TIMEOUT},
     gesture::{check_shared_keys, expand, parse_gestures, shared_keys, Gesture},
     observation::condense,
     score::{end_state, Scorer},
@@ -60,6 +60,8 @@ pub struct Referee<G: GameChannel> {
     bus: Bus,
     budget: Budget,
     audit_raw: bool,
+    target: PlayTarget,
+    onboarded: bool,
     tick: u64,
     held: BTreeSet<String>,
     scorer: Scorer,
@@ -71,15 +73,22 @@ pub struct Referee<G: GameChannel> {
 
 impl<G: GameChannel> Referee<G> {
     /// Seat a referee on a game that has been spawned but not yet stepped.
-    pub fn new(game: G, bus: Bus, budget: Budget, audit_raw: bool) -> Self {
+    pub fn new(game: G, bus: Bus, budget: Budget, audit_raw: bool, target: PlayTarget) -> Self {
+        let onboarded = matches!(target, PlayTarget::Scenario(_));
+        let mut scorer = Scorer::default();
+        if !onboarded {
+            scorer.score.outcome = "none".into();
+        }
         Self {
             game,
             bus,
             budget,
             audit_raw,
+            target,
+            onboarded,
             tick: 0,
             held: BTreeSet::new(),
-            scorer: Scorer::default(),
+            scorer,
             last: None,
             last_errors: Vec::new(),
             over: None,
@@ -106,7 +115,7 @@ impl<G: GameChannel> Referee<G> {
             .as_array()
             .is_some_and(|ships| ships.iter().any(|ship| ship["controller"] == "Player"));
         self.absorb(answer.snapshot, answer.errors);
-        if no_player {
+        if no_player && self.onboarded {
             self.bus.emit(BenchEvent::Note {
                 text: "no player ship on the first tick; a scenario that refused to start says why in game.log".into(),
             });
@@ -278,7 +287,7 @@ impl<G: GameChannel> Referee<G> {
                 Some(value) => match value.as_u64() {
                     Some(ticks) => ticks,
                     None => {
-                        return json!({ "error": "`ticks` is a whole number of game ticks (60 per second)" })
+                        return json!({ "error": "`ticks` is a whole number of game ticks (60 per second)" });
                     }
                 },
             };
@@ -315,24 +324,40 @@ impl<G: GameChannel> Referee<G> {
         self.over.is_some()
     }
 
-    /// End the run: record why, score it, let the game exit. Idempotent.
+    /// End the run: close the game, then record the final reason and score.
+    /// Idempotent.
     pub fn end(&mut self, reason: &str) {
         if self.over.is_some() {
             return;
         }
-        self.over = Some(reason.to_string());
-        self.scorer.score.ended_by = reason.to_string();
+        let reason = match self.game.close() {
+            Ok(()) => reason.to_string(),
+            Err(error) => format!("game_error: {error}"),
+        };
+        let reason = if matches!(self.target, PlayTarget::NewGame { .. })
+            && !self.onboarded
+            && !reason.starts_with("setup_error")
+            && !reason.starts_with("game_error")
+            && !reason.starts_with("agent_error")
+        {
+            format!(
+                "setup_incomplete: {reason}; New Game did not enter Playing with the requested world seed and player"
+            )
+        } else {
+            reason.to_string()
+        };
+        self.over = Some(reason.clone());
+        self.scorer.score.ended_by = reason.clone();
         self.stamp_clock();
-        if let Some(last) = &self.last {
+        if let Some(last) = self.last.as_ref().filter(|_| self.onboarded) {
             // The end state grades an open goal, so it reads every body, not
             // the pilot's summary of them.
             self.scorer.score.end = end_state(&condense(last, &self.held, &["all".to_string()]));
         }
         self.bus.emit(BenchEvent::RunEnd {
-            reason: reason.to_string(),
+            reason,
             score: self.scorer.to_json(),
         });
-        self.game.close();
     }
 
     fn send(&mut self, line: &Value) -> Result<(), String> {
@@ -341,7 +366,40 @@ impl<G: GameChannel> Referee<G> {
     }
 
     fn absorb(&mut self, snapshot: Value, errors: Vec<Value>) {
-        self.scorer.observe(&snapshot);
+        let mut setup_error = None;
+        if let PlayTarget::NewGame { world_seed } = self.target {
+            if snapshot["game_state"] == "Playing" {
+                let player = snapshot["ships"]
+                    .as_array()
+                    .is_some_and(|ships| ships.iter().any(|ship| ship["controller"] == "Player"));
+                if snapshot["scenario"] != "open_world"
+                    || snapshot["world_seed"].as_u64() != Some(u64::from(world_seed))
+                    || (!player && !self.onboarded)
+                {
+                    setup_error = Some(format!(
+                        "setup_error: expected Playing open_world with Player and world_seed {world_seed}; got state {}, scenario {}, world_seed {}, player {player}",
+                        snapshot["game_state"], snapshot["scenario"], snapshot["world_seed"]
+                    ));
+                } else {
+                    self.onboarded = true;
+                }
+            } else if self.onboarded
+                && snapshot["world_seed"].as_u64() != Some(u64::from(world_seed))
+            {
+                setup_error = Some(format!(
+                    "setup_error: world_seed changed from {world_seed} to {}",
+                    snapshot["world_seed"]
+                ));
+            }
+        }
+        if self.onboarded && setup_error.is_none() {
+            self.scorer.observe(&snapshot);
+            if matches!(self.target, PlayTarget::NewGame { .. }) {
+                self.scorer.score.world_seed = snapshot["world_seed"]
+                    .as_u64()
+                    .and_then(|seed| u32::try_from(seed).ok());
+            }
+        }
         self.scorer.bad_lines(errors.len() as u64);
         self.stamp_clock();
         for error in &errors {
@@ -358,10 +416,13 @@ impl<G: GameChannel> Referee<G> {
         });
         self.last_errors = errors;
         self.last = Some(snapshot);
+        if let Some(error) = setup_error {
+            self.end(&error);
+        }
     }
 
     fn check_end(&mut self) {
-        if self.scorer.score.outcome != "none" {
+        if self.onboarded && self.scorer.score.outcome != "none" {
             self.end("outcome");
         } else if self.tick >= self.budget.ticks {
             self.end("ticks");
@@ -424,6 +485,7 @@ mod tests {
         sent: Vec<Value>,
         answers: Vec<Value>,
         closed: bool,
+        close_error: Option<String>,
     }
 
     impl Scripted {
@@ -432,6 +494,7 @@ mod tests {
                 sent: Vec::new(),
                 answers,
                 closed: false,
+                close_error: None,
             }
         }
     }
@@ -452,8 +515,9 @@ mod tests {
             })
         }
 
-        fn close(&mut self) {
+        fn close(&mut self) -> Result<(), String> {
             self.closed = true;
+            self.close_error.take().map_or(Ok(()), Err)
         }
     }
 
@@ -493,7 +557,13 @@ mod tests {
     #[test]
     fn the_observation_leads_with_the_clock_and_the_budget() {
         let game = Scripted::new(vec![world(600.0, None)]);
-        let mut referee = Referee::new(game, Bus::quiet(), budget(18_000, 300), false);
+        let mut referee = Referee::new(
+            game,
+            Bus::quiet(),
+            budget(18_000, 300),
+            false,
+            PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
+        );
         referee.start().unwrap();
         let view = referee.observe(&[]);
         let keys: Vec<&str> = view
@@ -516,7 +586,13 @@ mod tests {
             world(300.0, None),
             world(0.0, Some("Victory")),
         ]);
-        let mut referee = Referee::new(game, Bus::quiet(), budget(18_000, 300), false);
+        let mut referee = Referee::new(
+            game,
+            Bus::quiet(),
+            budget(18_000, 300),
+            false,
+            PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
+        );
         let first = referee.start().unwrap();
         assert_eq!(first["tick"], 1);
         assert_eq!(first["over"], false);
@@ -538,6 +614,10 @@ mod tests {
         assert!(referee.is_over());
         let score = referee.score_json();
         assert_eq!(score["outcome"], "victory");
+        assert!(
+            score["world_seed"].is_null(),
+            "fixture play has no New Game session"
+        );
         assert_eq!(score["kills"], 1);
         assert_eq!(score["turns"], 2);
         assert_eq!(score["gestures"], 1);
@@ -554,7 +634,13 @@ mod tests {
     #[test]
     fn a_malformed_request_is_refused_and_the_run_continues() {
         let game = Scripted::new(vec![world(600.0, None), world(600.0, None)]);
-        let mut referee = Referee::new(game, Bus::quiet(), budget(18_000, 300), false);
+        let mut referee = Referee::new(
+            game,
+            Bus::quiet(),
+            budget(18_000, 300),
+            false,
+            PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
+        );
         referee.start().unwrap();
         assert!(referee.handle(&json!([1, 2])).get("error").is_some());
         assert!(referee.handle(&json!({ "warp": 9 })).get("error").is_some());
@@ -580,8 +666,13 @@ mod tests {
     #[test]
     fn the_budgets_end_the_run_and_finish_records_the_agents_word() {
         let answers: Vec<Value> = (0..5).map(|_| world(600.0, None)).collect();
-        let mut referee =
-            Referee::new(Scripted::new(answers), Bus::quiet(), budget(50, 300), false);
+        let mut referee = Referee::new(
+            Scripted::new(answers),
+            Bus::quiet(),
+            budget(50, 300),
+            false,
+            PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
+        );
         referee.start().unwrap();
         let reply = referee.act(&[], 30);
         assert_eq!(reply["tick"], 31);
@@ -596,6 +687,7 @@ mod tests {
             Bus::quiet(),
             budget(18_000, 1),
             false,
+            PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
         );
         referee.start().unwrap();
         referee.act(&[], 30);
@@ -606,6 +698,7 @@ mod tests {
             Bus::quiet(),
             budget(18_000, 300),
             false,
+            PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
         );
         referee.start().unwrap();
         let reply = referee
@@ -620,7 +713,13 @@ mod tests {
     #[test]
     fn a_page_and_an_expansion_are_free_reads_that_move_no_clock() {
         let game = Scripted::new(vec![world(600.0, None), world(600.0, None)]);
-        let mut referee = Referee::new(game, Bus::quiet(), budget(18_000, 300), false);
+        let mut referee = Referee::new(
+            game,
+            Bus::quiet(),
+            budget(18_000, 300),
+            false,
+            PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
+        );
         referee.start().unwrap();
 
         let reply = referee.handle(&json!({ "page": { "name": "targeting" } }));
@@ -650,12 +749,149 @@ mod tests {
     }
 
     #[test]
+    fn new_game_menu_is_not_scored_and_only_the_requested_world_onboards() {
+        let menu = json!({"game_state": "MainMenu", "scenario": "menu_backdrop", "world_seed": null,
+            "ships": [{"id": "backdrop_enemy", "allegiance": "Enemy", "controller": "AI"} ]});
+        let playing = json!({"game_state": "Playing", "scenario": "open_world", "world_seed": 42,
+            "ships": [{"id": "player", "allegiance": "Player", "controller": "Player"}]});
+        let mut referee = Referee::new(
+            Scripted::new(vec![menu.clone(), playing.clone()]),
+            Bus::quiet(),
+            budget(100, 3),
+            false,
+            PlayTarget::NewGame { world_seed: 42 },
+        );
+        let first = referee.start().unwrap();
+        assert_eq!(first["game_state"], "MainMenu");
+        assert!(first["me"].is_null());
+        assert_eq!(referee.score_json()["kills"], 0);
+        let entered = referee.act(&[], 1);
+        assert_eq!(entered["world_seed"], 42);
+        assert_eq!(entered["scenario"], "open_world");
+        assert!(!referee.is_over());
+        assert_eq!(
+            referee.score_json()["kills"],
+            0,
+            "backdrop must not become a kill"
+        );
+        assert_eq!(
+            referee.score_json()["world_seed"],
+            42,
+            "score reads the verified session"
+        );
+
+        let mut wrong = playing.clone();
+        wrong["world_seed"] = json!(43);
+        let mut referee = Referee::new(
+            Scripted::new(vec![menu.clone(), wrong]),
+            Bus::quiet(),
+            budget(100, 3),
+            false,
+            PlayTarget::NewGame { world_seed: 42 },
+        );
+        referee.start().unwrap();
+        assert!(referee.act(&[], 1)["ended_by"]
+            .as_str()
+            .unwrap()
+            .starts_with("setup_error"));
+        assert!(
+            referee.score_json()["world_seed"].is_null(),
+            "invalid setup is not scored"
+        );
+
+        let mut changed = playing.clone();
+        changed["world_seed"] = json!(43);
+        let mut referee = Referee::new(
+            Scripted::new(vec![menu.clone(), playing, changed]),
+            Bus::quiet(),
+            budget(100, 3),
+            false,
+            PlayTarget::NewGame { world_seed: 42 },
+        );
+        referee.start().unwrap();
+        referee.act(&[], 1);
+        assert!(referee.act(&[], 1)["ended_by"]
+            .as_str()
+            .unwrap()
+            .starts_with("setup_error"));
+        assert_eq!(
+            referee.score_json()["world_seed"],
+            42,
+            "invalid later reading must not replace verified score"
+        );
+
+        let mut referee = Referee::new(
+            Scripted::new(vec![menu]),
+            Bus::quiet(),
+            budget(100, 3),
+            false,
+            PlayTarget::NewGame { world_seed: 42 },
+        );
+        referee.start().unwrap();
+        referee.finish("done", "claimed to have entered");
+        assert!(referee.reason().unwrap().starts_with("setup_incomplete"));
+        assert_eq!(referee.score_json()["kills"], 0);
+    }
+
+    #[test]
+    fn a_close_failure_overrides_the_outcome_in_the_final_score_and_audit() {
+        for (label, target) in [
+            (
+                "scenario",
+                PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
+            ),
+            ("new-game", PlayTarget::NewGame { world_seed: 42 }),
+        ] {
+            let audit = std::env::temp_dir().join(format!(
+                "nova-bench-close-{}-{label}.jsonl",
+                std::process::id()
+            ));
+            let bus = Bus::open(&audit, crate::audit::Ui::Quiet).unwrap();
+            let mut snapshot = world(0.0, Some("Victory"));
+            if label == "new-game" {
+                snapshot["game_state"] = json!("Playing");
+                snapshot["scenario"] = json!("open_world");
+                snapshot["world_seed"] = json!(42);
+            }
+            let mut game = Scripted::new(vec![snapshot]);
+            game.close_error = Some("capture failed".into());
+            let mut referee = Referee::new(game, bus, budget(18_000, 300), false, target);
+            let view = referee.start().unwrap();
+            assert_eq!(view["ended_by"], "game_error: capture failed");
+            assert_eq!(referee.reason(), Some("game_error: capture failed"));
+            let score = referee.score_json();
+            assert_eq!(score["ended_by"], "game_error: capture failed");
+            assert_eq!(score["outcome"], "victory");
+            assert_eq!(
+                score["world_seed"],
+                if label == "new-game" {
+                    json!(42)
+                } else {
+                    Value::Null
+                }
+            );
+            assert!(referee.game.closed);
+            let text = std::fs::read_to_string(&audit).unwrap();
+            let events: Vec<BenchEvent> = text
+                .lines()
+                .map(|line| serde_json::from_str(line).unwrap())
+                .collect();
+            assert!(
+                matches!(events.last(), Some(BenchEvent::RunEnd { reason, score: recorded })
+                if reason == "game_error: capture failed" && recorded == &score)
+            );
+            std::fs::remove_file(audit).unwrap();
+        }
+    }
+
+    #[test]
     fn a_game_that_stops_answering_ends_the_run_as_a_game_error() {
         let mut referee = Referee::new(
             Scripted::new(vec![world(600.0, None)]),
             Bus::quiet(),
             budget(18_000, 300),
             false,
+            PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
         );
         referee.start().unwrap();
         let reply = referee.act(&[Gesture::Tap("x".into())], 30);

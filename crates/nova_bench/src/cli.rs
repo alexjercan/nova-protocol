@@ -5,7 +5,11 @@ use std::{path::PathBuf, time::Duration};
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-use crate::{agent::AgentSpec, audit::Ui, game::ScenarioTarget};
+use crate::{
+    agent::AgentSpec,
+    audit::Ui,
+    game::{PlayTarget, ScenarioTarget},
+};
 
 /// The parsed command.
 #[derive(Debug, Clone, PartialEq)]
@@ -24,7 +28,7 @@ pub enum Cmd {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayOptions {
     /// What to play.
-    pub scenario: ScenarioTarget,
+    pub target: PlayTarget,
     /// Who plays.
     pub agent: AgentSpec,
     /// The goal the agent is prompted with. `None` is the built-in default:
@@ -34,7 +38,7 @@ pub struct PlayOptions {
     pub seed: Option<u64>,
     /// The run's budgets.
     pub budget: BudgetArgs,
-    /// The run directory; `None` picks `bench-runs/<sha>/<scenario>/<agent>-<n>`.
+    /// The run directory; `None` picks `bench-runs/<sha>/<target>/<agent>-<n>`.
     pub out: Option<PathBuf>,
     /// Draw every tick offscreen into this directory (the channel's `--record`).
     pub record: Option<PathBuf>,
@@ -124,7 +128,13 @@ enum Sub {
     /// One play: spawn the game in step mode, seat an agent, score the run.
     Play {
         /// A scenario id from the merged registry, or a loose `*.content.ron`.
-        scenario: String,
+        scenario: Option<String>,
+        /// Enter New Game from the menu instead of launching a scenario.
+        #[arg(long, value_name = "new-game")]
+        session: Option<String>,
+        /// World generation seed entered in New Game's setup field.
+        #[arg(long)]
+        world_seed: Option<u32>,
         /// Who plays: `baseline` (in-process hunter), `pi` (pi in RPC mode with
         /// the relay extension), or `cmd:<argv>` (any process that speaks the
         /// referee protocol; it gets `NOVA_BENCH_SOCKET`).
@@ -209,6 +219,8 @@ pub fn parse(args: &[String]) -> Result<Cmd, String> {
     match cli.command {
         Sub::Play {
             scenario,
+            session,
+            world_seed,
             agent,
             goal,
             model,
@@ -221,8 +233,35 @@ pub fn parse(args: &[String]) -> Result<Cmd, String> {
             audit_raw,
         } => {
             let agent = AgentSpec::parse(&agent, model, thinking)?;
+            let target = match (session.as_deref(), scenario, world_seed) {
+                (None, Some(scenario), None) => {
+                    PlayTarget::Scenario(ScenarioTarget::parse(&scenario))
+                }
+                (Some("new-game"), None, Some(world_seed)) => {
+                    if seed.is_none() {
+                        return Err("New Game requires --seed <u64> for gameplay RNG".into());
+                    }
+                    if agent == AgentSpec::Baseline {
+                        return Err("New Game requires --agent pi or cmd:<argv>; baseline cannot navigate the menu".into());
+                    }
+                    PlayTarget::NewGame { world_seed }
+                }
+                (Some("new-game"), Some(_), _) => {
+                    return Err("New Game does not take a scenario positional".into());
+                }
+                (Some("new-game"), None, None) => {
+                    return Err("New Game requires --world-seed <u32>".into());
+                }
+                (None, _, Some(_)) => return Err("--world-seed requires --session new-game".into()),
+                (Some(other), _, _) => {
+                    return Err(format!("unknown session `{other}`; use new-game"));
+                }
+                (None, None, None) => {
+                    return Err("play requires a scenario or --session new-game".into());
+                }
+            };
             Ok(Cmd::Play(PlayOptions {
-                scenario: ScenarioTarget::parse(&scenario),
+                target,
                 agent,
                 goal,
                 seed,
@@ -287,7 +326,10 @@ mod tests {
         .unwrap() else {
             panic!("play parses")
         };
-        assert_eq!(play.scenario, ScenarioTarget::Id("tutorial".into()));
+        assert_eq!(
+            play.target,
+            PlayTarget::Scenario(ScenarioTarget::Id("tutorial".into()))
+        );
         assert_eq!(
             play.agent,
             AgentSpec::Pi {
@@ -307,10 +349,102 @@ mod tests {
             panic!("play parses")
         };
         assert_eq!(
-            play.scenario,
-            ScenarioTarget::File(PathBuf::from("world.content.ron"))
+            play.target,
+            PlayTarget::Scenario(ScenarioTarget::File(PathBuf::from("world.content.ron")))
         );
         assert_eq!(play.agent, AgentSpec::Baseline);
+    }
+
+    #[test]
+    fn new_game_requires_explicit_world_and_gameplay_seeds_and_a_menu_agent() {
+        let play = parse(&args(&[
+            "play",
+            "--session",
+            "new-game",
+            "--world-seed",
+            "4294967295",
+            "--seed",
+            "7",
+            "--agent",
+            "cmd:/bin/true",
+        ]))
+        .unwrap();
+        let Cmd::Play(play) = play else {
+            panic!("play parses")
+        };
+        assert_eq!(
+            play.target,
+            PlayTarget::NewGame {
+                world_seed: u32::MAX
+            }
+        );
+        assert_eq!(play.seed, Some(7));
+        for wrong in [
+            vec![
+                "play",
+                "tutorial",
+                "--session",
+                "new-game",
+                "--world-seed",
+                "4",
+                "--seed",
+                "7",
+                "--agent",
+                "pi",
+            ],
+            vec![
+                "play",
+                "--session",
+                "new-game",
+                "--seed",
+                "7",
+                "--agent",
+                "pi",
+            ],
+            vec![
+                "play",
+                "--session",
+                "new-game",
+                "--world-seed",
+                "4",
+                "--agent",
+                "pi",
+            ],
+            vec![
+                "play",
+                "--session",
+                "new-game",
+                "--world-seed",
+                "4",
+                "--seed",
+                "7",
+            ],
+            vec!["play", "tutorial", "--world-seed", "4"],
+            vec![
+                "play",
+                "--session",
+                "new-game",
+                "--world-seed",
+                "4294967296",
+                "--seed",
+                "7",
+                "--agent",
+                "pi",
+            ],
+            vec![
+                "play",
+                "--session",
+                "new-game",
+                "--world-seed",
+                "abc",
+                "--seed",
+                "7",
+                "--agent",
+                "pi",
+            ],
+        ] {
+            assert!(parse(&args(&wrong)).is_err(), "should refuse {wrong:?}");
+        }
     }
 
     #[test]

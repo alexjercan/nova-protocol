@@ -200,10 +200,13 @@ fn poll<G: GameChannel>(referee: &mut Referee<G>, pi: &mut PiProcess) -> Poll {
             Ok(event) => event,
             Err(TryRecvError::Empty) => break,
             Err(TryRecvError::Disconnected) => {
-                let status = pi
-                    .exited()
-                    .map_or("closed its stdout".to_string(), |status| status.to_string());
-                return Poll::Stop(format!("agent_exit (pi {status})"));
+                return match pi.exited() {
+                    Some(status) if status.success() => {
+                        Poll::Stop(format!("agent_exit (pi {status})"))
+                    }
+                    Some(status) => Poll::Stop(format!("agent_error: pi exited {status}")),
+                    None => Poll::Stop("agent_error: pi closed its stdout".into()),
+                };
             }
         };
         if let Some(stop) = absorb(referee, pi, &event) {
@@ -211,7 +214,11 @@ fn poll<G: GameChannel>(referee: &mut Referee<G>, pi: &mut PiProcess) -> Poll {
         }
     }
     if let Some(status) = pi.exited() {
-        return Poll::Stop(format!("agent_exit (pi {status})"));
+        return Poll::Stop(if status.success() {
+            format!("agent_exit (pi {status})")
+        } else {
+            format!("agent_error: pi exited {status}")
+        });
     }
     Poll::Continue
 }

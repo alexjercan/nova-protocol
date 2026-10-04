@@ -111,6 +111,24 @@ impl Plugin for NovaChannelPlugin {
         // AFTER the window: the recorder sizes its image to it.
         if let Some(dir) = &self.record {
             record::setup(app, dir.clone());
+            let image = app
+                .world()
+                .resource::<record::ChannelRecorder>()
+                .image
+                .clone();
+            let size = app
+                .world()
+                .resource::<Assets<Image>>()
+                .get(&image)
+                .expect("the offscreen recorder target exists")
+                .texture_descriptor
+                .size;
+            nova_autopilot::loops::arm_channel_session(
+                app,
+                image,
+                dir.clone(),
+                (size.width, size.height),
+            );
         }
 
         // The pointer lane rides the picking backend's own slot - the one the

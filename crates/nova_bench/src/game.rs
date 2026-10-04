@@ -18,11 +18,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// What `bench play` plays: an id resolved by the game against its merged
 /// registry, or a loose `*.content.ron` registered for the run.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ScenarioTarget {
     /// A scenario id.
     Id(String),
@@ -65,12 +66,26 @@ impl ScenarioTarget {
             Self::File(path) => vec!["--scenario-file".into(), path.display().to_string()],
         }
     }
+}
 
-    /// The token as it was given on the command line; `parse` reads it back.
-    pub fn token(&self) -> String {
+/// The play identity: an authored scenario or the menu-created open world.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PlayTarget {
+    /// An authored scenario launched directly.
+    Scenario(ScenarioTarget),
+    /// New Game entered through the main menu with this requested world seed.
+    NewGame {
+        /// The seed the player enters in the modal.
+        world_seed: u32,
+    },
+}
+
+impl PlayTarget {
+    /// A stable directory and display label.
+    pub fn label(&self) -> String {
         match self {
-            Self::Id(id) => id.clone(),
-            Self::File(path) => path.display().to_string(),
+            Self::Scenario(scenario) => scenario.label(),
+            Self::NewGame { world_seed } => format!("new-game-{world_seed}"),
         }
     }
 }
@@ -83,7 +98,7 @@ pub struct GameConfig {
     /// The repo root the game runs in; `BEVY_ASSET_ROOT` when unset.
     pub root: PathBuf,
     /// What to play.
-    pub scenario: ScenarioTarget,
+    pub target: PlayTarget,
     /// `NOVA_SEED`; unset lets the OS seed the run.
     pub seed: Option<u64>,
     /// The channel's `--record <DIR>`.
@@ -105,12 +120,22 @@ impl GameConfig {
             "--channel".to_string(),
             "step".to_string(),
         ];
-        args.extend(self.scenario.args());
+        if let PlayTarget::Scenario(scenario) = &self.target {
+            args.extend(scenario.args());
+        }
         if let Some(record) = &self.record {
             args.push("--record".into());
             args.push(record.display().to_string());
         }
         args
+    }
+
+    fn close_timeout(&self) -> Duration {
+        if self.record.is_some() {
+            RECORDED_CLOSE_TIMEOUT
+        } else {
+            CLOSE_TIMEOUT
+        }
     }
 
     /// The environment pushed onto the child, on top of the inherited one.
@@ -159,8 +184,9 @@ pub trait GameChannel {
     fn send(&mut self, line: &Value) -> Result<(), String>;
     /// Read lines until a snapshot arrives, collecting error lines on the way.
     fn read_answer(&mut self, timeout: Duration) -> Result<Answer, String>;
-    /// Close the wire (EOF is the channel's clean exit) and reap the child.
-    fn close(&mut self);
+    /// Close the wire (EOF is the channel's clean exit), reap the child, and
+    /// report an unsuccessful exit or a timeout.
+    fn close(&mut self) -> Result<(), String>;
 }
 
 /// The live game.
@@ -168,6 +194,7 @@ pub struct GameProcess {
     child: Child,
     stdin: Option<ChildStdin>,
     lines: Receiver<String>,
+    close_timeout: Duration,
     /// The child's pid, for the log and for a kill by recorded pid.
     pub pid: u32,
 }
@@ -177,6 +204,8 @@ pub struct GameProcess {
 pub const BOOT_TIMEOUT: Duration = Duration::from_secs(300);
 /// How long one stepped answer may take once the world is up.
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(120);
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(30);
+const RECORDED_CLOSE_TIMEOUT: Duration = Duration::from_secs(300);
 
 impl GameProcess {
     /// Spawn the game and its stdout reader. Nothing is read until the first
@@ -218,6 +247,7 @@ impl GameProcess {
             child,
             stdin: Some(stdin),
             lines,
+            close_timeout: config.close_timeout(),
             pid,
         })
     }
@@ -295,18 +325,28 @@ impl GameChannel for GameProcess {
         }
     }
 
-    fn close(&mut self) {
+    fn close(&mut self) -> Result<(), String> {
         // EOF on stdin is the channel's clean exit in step mode.
         self.stdin.take();
         let started = Instant::now();
-        while started.elapsed() < Duration::from_secs(30) {
-            if self.exited().is_some() {
-                return;
+        while started.elapsed() < self.close_timeout {
+            match self.child.try_wait() {
+                Ok(Some(status)) if status.success() => return Ok(()),
+                Ok(Some(status)) => return Err(format!("the game exited ({status}) on close")),
+                Ok(None) => std::thread::sleep(Duration::from_millis(100)),
+                Err(error) => return Err(format!("could not wait for the game on close: {error}")),
             }
-            std::thread::sleep(Duration::from_millis(100));
         }
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        let seconds = self.close_timeout.as_secs();
+        self.child.kill().map_err(|error| {
+            format!("the game did not exit within {seconds}s; could not kill it: {error}")
+        })?;
+        self.child.wait().map_err(|error| {
+            format!("the game did not exit within {seconds}s; could not reap it: {error}")
+        })?;
+        Err(format!(
+            "the game did not exit within {seconds}s of closing its stdin"
+        ))
     }
 }
 
@@ -329,12 +369,16 @@ mod tests {
         let config = GameConfig {
             exe: PathBuf::from("/bin/game"),
             root: PathBuf::from("/repo"),
-            scenario: ScenarioTarget::parse("tutorial"),
+            target: PlayTarget::Scenario(ScenarioTarget::parse("tutorial")),
             seed: Some(7),
             record: Some(PathBuf::from("/frames")),
             profile_dir: PathBuf::from("/run/profile"),
             log_path: PathBuf::from("/run/game.log"),
         };
+        assert_eq!(config.close_timeout(), RECORDED_CLOSE_TIMEOUT);
+        let mut unrecorded = config.clone();
+        unrecorded.record = None;
+        assert_eq!(unrecorded.close_timeout(), CLOSE_TIMEOUT);
         assert_eq!(
             config.args(),
             [

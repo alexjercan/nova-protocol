@@ -11,7 +11,7 @@ use std::{path::PathBuf, process::ExitCode};
 use crate::{
     audit::{BenchEvent, Bus},
     cli::PlayOptions,
-    game::{game_exe, GameConfig, GameProcess},
+    game::{game_exe, GameConfig, GameProcess, PlayTarget},
     manual, movie, paths,
     referee::{Budget, Referee},
 };
@@ -83,20 +83,23 @@ pub fn play(options: &PlayOptions) -> Result<ExitCode, String> {
     let run_dir = paths::run_dir(
         &root,
         options.out.as_deref(),
-        &options.scenario.label(),
+        &options.target.label(),
         &options.agent.label(),
     );
     let profile_dir = run_dir.join("profile");
     std::fs::create_dir_all(&profile_dir)
         .map_err(|error| format!("could not create {}: {error}", run_dir.display()))?;
     let bus = Bus::open(&run_dir.join("audit.jsonl"), options.ui)?;
-    let goal = options
-        .goal
-        .clone()
-        .unwrap_or_else(|| manual::DEFAULT_GOAL.to_string());
+    let goal = options.goal.clone().unwrap_or_else(|| {
+        match options.target {
+            PlayTarget::Scenario(_) => manual::DEFAULT_GOAL,
+            PlayTarget::NewGame { .. } => manual::NEW_GAME_GOAL,
+        }
+        .to_string()
+    });
     let budget = Budget::from(&options.budget);
     bus.emit(BenchEvent::RunStart {
-        scenario: options.scenario.token(),
+        target: options.target.clone(),
         agent: options.agent.label(),
         goal: goal.clone(),
         seed: options.seed,
@@ -107,7 +110,7 @@ pub fn play(options: &PlayOptions) -> Result<ExitCode, String> {
     let config = GameConfig {
         exe: game_exe()?,
         root: root.clone(),
-        scenario: options.scenario.clone(),
+        target: options.target.clone(),
         seed: options.seed,
         record: options.record.clone(),
         profile_dir,
@@ -117,7 +120,13 @@ pub fn play(options: &PlayOptions) -> Result<ExitCode, String> {
     bus.emit(BenchEvent::Note {
         text: format!("game pid {} on {}", game.pid, config.exe.display()),
     });
-    let mut referee = Referee::new(game, bus.clone(), budget, options.audit_raw);
+    let mut referee = Referee::new(
+        game,
+        bus.clone(),
+        budget,
+        options.audit_raw,
+        options.target.clone(),
+    );
     let first = referee.start()?;
 
     let socket = socket_path();
@@ -130,7 +139,7 @@ pub fn play(options: &PlayOptions) -> Result<ExitCode, String> {
                 thinking: thinking.clone(),
                 extension: root.join("tools/nova_bench/pi/index.ts"),
                 system_prompt: manual::MANUAL.to_string(),
-                prompt: manual::opening(&options.scenario.label(), &goal, &first),
+                prompt: manual::opening(&options.target, &goal, &first),
                 log_path: run_dir.join("agent.log"),
             };
             pi::run(&mut referee, &config, &socket)
@@ -156,13 +165,16 @@ pub fn play(options: &PlayOptions) -> Result<ExitCode, String> {
     if let Some(frames) = &options.record {
         println!(
             "{}",
-            movie::report(&bus, frames, &run_dir.join("audit.jsonl"))
+            movie::report(&bus, frames, &run_dir.join("audit.jsonl"))?
         );
     }
 
     let reason = referee.reason().unwrap_or_default();
     Ok(
-        if reason.starts_with("game_error") || reason.starts_with("agent_error") {
+        if reason.starts_with("game_error")
+            || reason.starts_with("agent_error")
+            || reason.starts_with("setup_")
+        {
             ExitCode::FAILURE
         } else {
             ExitCode::SUCCESS

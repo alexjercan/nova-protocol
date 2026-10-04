@@ -145,8 +145,9 @@ mod tests {
                 errors: vec![],
             })
         }
-        fn close(&mut self) {
+        fn close(&mut self) -> Result<(), String> {
             self.0.clear();
+            Ok(())
         }
     }
 
@@ -164,6 +165,7 @@ mod tests {
                 deadline: Duration::from_secs(30),
             },
             false,
+            crate::game::PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
         );
         referee.start().unwrap();
         let client_path = path.clone();
@@ -224,6 +226,7 @@ mod tests {
                 deadline: Duration::from_millis(50),
             },
             false,
+            crate::game::PlayTarget::Scenario(crate::game::ScenarioTarget::Id("tutorial".into())),
         );
         referee.start().unwrap();
         let server_path = path.clone();

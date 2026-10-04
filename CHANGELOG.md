@@ -226,6 +226,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
+- Channel recording keeps zero-based PNGs, sampled SFX and PCM, encodes an Opus WebM, and muxes audio into Agent Bench's action-rail MP4; capture and encode failures fail the run.
+- Agent Bench can play New Game through its menu, verify the chosen world seed, exclude menu ships from scoring, and replay the open-world session.
 - New `trade_loop` playable example docks with a demo-only trader and checks Buy, Sell and refusal through the Inventory pane, with rendered checkpoints.
 - New `mine_and_sell` playable example mines ore, takes a canister through the intake and sells its ore to a docked demo trader, checking the ore and credit ledger.
 - New `world_sector_inspector` playable example shows one generated sector at a time: step cells with the arrow keys, orbit each object with [ and ], or fly free with WASD.

@@ -23,6 +23,7 @@
 //!
 //! ```text
 //! cargo run --features debug bench play <scenario> [--agent baseline|pi|cmd:<argv>] [--goal ...]
+//! cargo run --features debug bench play --session new-game --world-seed <u32> --seed <u64> --agent pi|cmd:<argv>
 //! cargo run --features debug bench replay <run-dir>/audit.jsonl
 //! cargo run --features debug bench movie <run-dir>/audit.jsonl --frames <dir>
 //! ```
@@ -48,7 +49,7 @@ pub mod prelude {
     pub use crate::{
         agent::{pi::PI_ENV, AgentSpec, SOCKET_ENV},
         audit::{BenchEvent, Bus, Ui},
-        game::{GameChannel, GameConfig, GameProcess, ScenarioTarget},
+        game::{GameChannel, GameConfig, GameProcess, PlayTarget, ScenarioTarget},
         gesture::{expand, parse_gestures, Gesture, MAX_AIM_TICKS},
         movie::{
             compose,

@@ -11,7 +11,7 @@
 //! ## What is in a snapshot
 //!
 //! A header (`schema`, `scenario`, `frame`, `elapsed`, `t_real`, `t_game`,
-//! `game_state`, `reason`), then:
+//! `game_state`, `world_seed`, `reason`), then:
 //!
 //! - `ui` - the screen a GUI player sees, as data: the pause rung, the command
 //!   terminal model while the modal owns the screen, every named visible UI rect with
@@ -137,7 +137,10 @@ use nova_interface::{
     terminal::{nova_os_window_px_showing, NovaOsFlightLog, NovaOsFlightLogEntryKind},
 };
 use nova_scenario::{
-    prelude::{AsteroidMarker, CurrentOutcome, CurrentScenario, PlanetMarker, SpaceshipController},
+    prelude::{
+        AsteroidMarker, CurrentOutcome, CurrentScenario, PlanetMarker, ScenarioRole,
+        SpaceshipController,
+    },
     world::NovaEventWorld,
 };
 use nova_ship::prelude::{
@@ -152,6 +155,7 @@ use nova_ship::prelude::{
     TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity,
     TurretSectionTargetInput, TurretSectionTargetRadius, WeaponsHot,
 };
+use nova_world_base::prelude::OpenWorldSession;
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
 
@@ -307,10 +311,10 @@ impl ProbeSnapshots {
                 return Err(format!(
                     "another run is already writing {} - refusing to share the path",
                     path.display()
-                ))
+                ));
             }
             Err(TryLockError::Error(e)) => {
-                return Err(format!("could not lock {}: {e}", path.display()))
+                return Err(format!("could not lock {}: {e}", path.display()));
             }
         }
         file.set_len(0)
@@ -414,6 +418,20 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
     let game_state = world
         .get_resource::<State<GameStates>>()
         .map(|state| format!("{:?}", state.get()));
+    let playing = world
+        .get_resource::<State<GameStates>>()
+        .is_some_and(|state| state.get() == &GameStates::Playing);
+    let open_world = world
+        .get_resource::<CurrentScenario>()
+        .and_then(|current| current.0.as_ref())
+        .is_some_and(|scenario| scenario.role == ScenarioRole::OpenWorld);
+    let world_seed = if playing && open_world {
+        world
+            .get_resource::<OpenWorldSession>()
+            .map(|session| session.seed)
+    } else {
+        None
+    };
 
     let mut q_ships = world.query_filtered::<Entity, With<SpaceshipRootMarker>>();
     let ship_entities: Vec<Entity> = q_ships.iter(world).collect();
@@ -463,6 +481,7 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
         "reason": reason,
         "scenario": scenario,
         "game_state": game_state,
+        "world_seed": world_seed,
         "frame": frame,
         "elapsed": elapsed,
         "t_real": t_real,
@@ -536,7 +555,7 @@ fn mission_block(world: &World) -> serde_json::Value {
                         NovaOsFlightLogEntryKind::ObjectivePosted => "posted",
                         NovaOsFlightLogEntryKind::ObjectiveCompleted => "completed",
                         NovaOsFlightLogEntryKind::Comms | NovaOsFlightLogEntryKind::System => {
-                            return None
+                            return None;
                         }
                     };
                     Some(serde_json::json!({
@@ -1932,13 +1951,14 @@ mod tests {
 
     #[test]
     fn the_mission_block_and_the_beacons_say_what_the_player_is_asked_to_do() {
-        use nova_gameplay::prelude::{default_comms_accent, Objective};
+        use nova_gameplay::prelude::{default_comms_accent, AssetRef, Objective};
         use nova_hud::prelude::StoryLine;
-        use nova_scenario::prelude::{OutcomeActionConfig, ScenarioOutcomeKind};
+        use nova_scenario::prelude::{OutcomeActionConfig, ScenarioConfig, ScenarioOutcomeKind};
 
         let mut app = rig();
         // Before any scenario resource exists, the block is empty, not absent.
         let bare = capture_snapshot(app.world_mut(), "test");
+        assert_eq!(bare["world_seed"], serde_json::Value::Null);
         assert_eq!(bare["mission"]["objectives"], serde_json::json!([]));
         assert_eq!(bare["mission"]["outcome"], serde_json::Value::Null);
         assert_eq!(bare["mission"]["comms"], serde_json::json!([]));
@@ -1952,6 +1972,25 @@ mod tests {
             serde_json::json!({ "armed": false, "marked": false })
         );
         assert_eq!(bare["beacons"], serde_json::json!([]));
+
+        app.insert_resource(State::new(GameStates::MainMenu));
+        app.insert_resource(OpenWorldSession { seed: 12_345 });
+        assert_eq!(
+            capture_snapshot(app.world_mut(), "test")["world_seed"],
+            serde_json::Value::Null,
+            "a retained session seed is not a menu world seed"
+        );
+
+        app.insert_resource(State::new(GameStates::Playing));
+        let open_world = ScenarioConfig {
+            role: ScenarioRole::OpenWorld,
+            ..ScenarioConfig::new("open_world".to_string(), "Open World", AssetRef::default())
+        };
+        app.insert_resource(CurrentScenario(Some(open_world)));
+        assert_eq!(
+            capture_snapshot(app.world_mut(), "test")["world_seed"],
+            12_345
+        );
 
         app.insert_resource(GameObjectives {
             objectives: vec![

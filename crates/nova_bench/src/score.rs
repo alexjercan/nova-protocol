@@ -35,6 +35,8 @@ pub struct Llm {
 pub struct Score {
     /// `victory`, `defeat` or `none`, from `mission.outcome` at the end.
     pub outcome: String,
+    /// Verified New Game world seed from the game's session snapshot; absent for fixtures.
+    pub world_seed: Option<u32>,
     /// Objective ids that appeared at any point: the live list, plus every
     /// card the flight log says was posted. A card posted and completed
     /// between two snapshots never reaches the live list.
@@ -327,6 +329,9 @@ impl Scorer {
             format!("kills                {}", score.kills),
             format!("bad_lines            {}", score.bad_lines),
         ];
+        if let Some(seed) = score.world_seed {
+            rows.push(format!("world_seed           {seed}"));
+        }
         if score.cheated {
             rows.push("cheats               ARMED: this run is marked".into());
         }
