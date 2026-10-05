@@ -75,8 +75,10 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 // The burn, close and from behind: the drive is lit and the plume
                 // is pointed at the lens, with the ribbon running up out of frame
-                // to the beacon. HUD ON - this one is FOR the chrome (`AP GOTO -
-                // BURN`, the destination readout, the ribbon).
+                // along the predicted leg. The prediction stops at the arrival or
+                // at its 30 s horizon, short of the beacon. HUD ON - this one is
+                // FOR the chrome (`AP GOTO - BURN`, the destination readout, the
+                // ribbon).
                 .step("frame the departure burn")
                 .on_enter(|world| {
                     ring::hud_instrument(world);

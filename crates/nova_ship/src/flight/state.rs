@@ -11,6 +11,8 @@
 use bevy::prelude::*;
 use nova_events::prelude::{Meters, MetersPerSecond, MetersPerSecondSquared};
 
+use super::prediction::{FlightPrediction, FlightPredictionRun};
+
 /// The geometric radius of a SOLID scenario body, world units: the surface the
 /// GOTO arrival measures from, the orbit band's clearance floor clears (the
 /// "stops too close" playtest), and the AI's patrol legs steer around. Derived
@@ -178,6 +180,12 @@ pub struct Autopilot {
     /// Where the maneuver currently is (for the HUD); updated every tick by
     /// `autopilot_system`.
     pub phase: AutopilotPhase,
+    /// The arrival leg of this order has started braking, so its FLIP is
+    /// behind the ship. Set on the first tick a GOTO or GotoPos leg
+    /// publishes `ManeuverTelemetry::braking` and never cleared: a later
+    /// replan that puts a flip ahead again does not bring the marker back.
+    /// A new engage, even to the same target, starts false.
+    pub flip_marker_consumed: bool,
 }
 
 impl Autopilot {
@@ -186,6 +194,7 @@ impl Autopilot {
         Self {
             action,
             phase: AutopilotPhase::Align,
+            flip_marker_consumed: false,
         }
     }
 }
@@ -296,9 +305,9 @@ pub struct ManeuverTelemetry {
     /// radius, plus this hull's own [`HullRadius`](crate::prelude::HullRadius),
     /// plus the resolved navigation margin). At or inside the park envelope it
     /// degenerates to the ship's own position - the computer will not fly back
-    /// out, and the instruments must not draw a leg it will not fly. Equals
-    /// `goal` for STOP (the predicted rest point IS the park point). The
-    /// trajectory ribbon terminates here, not at the goal center.
+    /// out. Equals `goal` for STOP (the planned rest point is the goal).
+    /// FlightPrediction owns the displayed path and can stop at its horizon
+    /// before the leg reaches this point.
     pub park_point: Vec3,
     /// The GAP, world units: centre distance less the target's resolved radius
     /// ([`BodyRadius`] / `GravityWell::body_radius` /
@@ -345,7 +354,8 @@ pub struct ManeuverTelemetry {
     pub eta: Option<f32>,
 }
 
-/// Disengaging ends the leg: drop its published numbers with it.
+/// Disengaging ends the leg: drop its published numbers and predicted path
+/// with it.
 ///
 /// `try_remove`, not `remove`: this observer also fires while the ship is being
 /// DESPAWNED (the scenario unload sweep, ship death), and the `get_entity`
@@ -354,7 +364,7 @@ pub struct ManeuverTelemetry {
 /// fallible variant makes end-of-leg cleanup and teardown commute.
 pub(super) fn remove_maneuver_telemetry(remove: On<Remove, Autopilot>, mut commands: Commands) {
     if let Ok(mut ship) = commands.get_entity(remove.entity) {
-        ship.try_remove::<ManeuverTelemetry>();
+        ship.try_remove::<(ManeuverTelemetry, FlightPrediction, FlightPredictionRun)>();
     }
 }
 

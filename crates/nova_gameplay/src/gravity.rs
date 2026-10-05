@@ -35,9 +35,10 @@
 //! names a rock by size it names it in meters.
 //!
 //! The math lives in pure helpers ([`well_accel`], [`circular_orbit_speed`],
-//! [`dominant_well`]) so the well-force core stays game-agnostic - a candidate
-//! for extraction once the game is done - and so the ORBIT autopilot verb
-//! can plan with the same formulas the force system integrates.
+//! [`dominant_well`], [`dominant_well_acceleration`]) so the well-force core
+//! stays game-agnostic - a candidate for extraction once the game is done -
+//! and so the autopilot can plan and predict with the same rule the force
+//! system integrates.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -48,8 +49,8 @@ use crate::prelude::*;
 /// with `NovaGravitySystems`.
 pub mod prelude {
     pub use super::{
-        circular_orbit_speed, dominant_well, well_accel, DominantWell, GravityAffected,
-        GravitySettings, GravityWell, NovaGravityPlugin, NovaGravitySystems,
+        circular_orbit_speed, dominant_well, dominant_well_acceleration, well_accel, DominantWell,
+        GravityAffected, GravitySettings, GravityWell, NovaGravityPlugin, NovaGravitySystems,
     };
 }
 
@@ -342,11 +343,75 @@ pub fn dominant_well(
     Some(strongest)
 }
 
+/// The acceleration an entity at `position` feels from `wells` (each a well
+/// entity, its avian `Position`, and the well): the dominant well's pull per
+/// [`dominant_well`] with the `current` incumbent, as a central linear
+/// acceleration in u/s^2. Returns the owning well with that acceleration, or
+/// `None` in flat space.
+///
+/// [`gravity_well_system`] applies exactly this rule, so a predictor that
+/// steps the same `position` and carries the returned owner as the next
+/// `current` integrates the same pull as the live force system.
+///
+/// `candidates` and `pulls` are scratch buffers. Both are cleared on entry
+/// and their contents are unspecified on return; reuse them across calls so
+/// the per-call work is O(wells) with no heap allocation.
+pub fn dominant_well_acceleration(
+    position: Vec3,
+    current: Option<Entity>,
+    wells: &[(Entity, Vec3, GravityWell)],
+    settings: &GravitySettings,
+    candidates: &mut Vec<(Entity, f32, Vec3)>,
+    pulls: &mut Vec<(Entity, f32)>,
+) -> Option<(Entity, Vec3)> {
+    candidates.clear();
+    for (well_entity, well_position, well) in wells {
+        // Direction first: freshly spawned bodies sit at avian's
+        // Position::PLACEHOLDER (Vector::MAX) until the first physics sync,
+        // which makes two same-flush spawns coincident - a degenerate or
+        // non-finite offset is not a candidate, so no spurious DominantWell
+        // flashes on scenario start.
+        let offset = *well_position - position;
+        let r = offset.length();
+        let Some(toward_center) = offset.try_normalize() else {
+            continue;
+        };
+        let accel = well_accel(
+            well.mu,
+            r,
+            well.body_radius,
+            well.soi_radius,
+            settings.fade_fraction,
+            settings.surface_margin,
+        );
+        if accel > 0.0 {
+            candidates.push((*well_entity, accel, toward_center));
+        }
+    }
+
+    pulls.clear();
+    pulls.extend(
+        candidates
+            .iter()
+            .map(|&(well_entity, accel, _)| (well_entity, accel)),
+    );
+    let owner = dominant_well(current, pulls, settings.switch_hysteresis)?;
+
+    // Only the dominant well's pull (one orbit or flat space, never a
+    // blended field). dominant_well only returns candidate entities, so the
+    // find cannot miss.
+    candidates
+        .iter()
+        .find(|(well_entity, _, _)| *well_entity == owner)
+        .map(|&(_, accel, toward_center)| (owner, toward_center * accel))
+}
+
 /// The one force system: every `FixedUpdate` tick, each [`GravityAffected`]
 /// entity finds the wells whose SOI contains it, keeps the dominant one
 /// (with hysteresis, tracked in [`DominantWell`]), and feels its pull as a
 /// central linear acceleration - mass-independent, exactly like gravity, and
-/// torque-free (ships are point masses to the well).
+/// torque-free (ships are point masses to the well). The rule is
+/// [`dominant_well_acceleration`].
 ///
 /// `Without<GravityWell>` on the affected query is the belt-and-braces half
 /// of "wells never pull wells": even a misconfigured entity carrying both
@@ -359,73 +424,48 @@ pub(crate) fn gravity_well_system(
         (Entity, &Position, Option<&DominantWell>, Forces),
         (With<GravityAffected>, Without<GravityWell>),
     >,
-    // Reused across all affected entities each tick so the per-entity work is
-    // O(wells) with no heap allocation. `clear()` keeps the capacity, so after
-    // the first tick these never allocate. This is what makes a PDC's worth of
-    // gravity-affected rounds (thousands of affected bodies) affordable on the
-    // shared force path: the Vec-per-entity version cost ~2.2 ms/tick over 1500
-    // bodies; reusing the buffers drops the whole gravity system's marginal
-    // cost to ~0.1 ms/tick (see `gravity_system_marginal_cost`).
+    // Rebuilt once per tick from `q_wells`, not per affected entity.
+    mut wells: Local<Vec<(Entity, Vec3, GravityWell)>>,
+    // Scratch reused across all affected entities each tick so the per-entity
+    // work is O(wells) with no heap allocation. `clear()` keeps the capacity,
+    // so after the first tick these never allocate. This is what makes a
+    // PDC's worth of gravity-affected rounds (thousands of affected bodies)
+    // affordable on the shared force path: the Vec-per-entity version cost
+    // ~2.2 ms/tick over 1500 bodies; reusing the buffers drops the whole
+    // gravity system's marginal cost to ~0.1 ms/tick (see
+    // `gravity_system_marginal_cost`).
     mut candidates: Local<Vec<(Entity, f32, Vec3)>>,
     mut pulls: Local<Vec<(Entity, f32)>>,
 ) {
+    wells.clear();
+    wells.extend(
+        q_wells
+            .iter()
+            .map(|(well_entity, well_position, well)| (well_entity, **well_position, well.clone())),
+    );
+
     // O(wells x affected) at nova's scale (a handful of wells, tens to a few
     // thousand affected bodies once turret rounds opt in).
     for (entity, position, current, mut forces) in &mut q_affected {
-        candidates.clear();
-        for (well_entity, well_position, well) in &q_wells {
-            // Direction first: freshly spawned bodies sit at avian's
-            // Position::PLACEHOLDER (Vector::MAX) until the first physics
-            // sync, which makes two same-flush spawns coincident - a
-            // degenerate or non-finite offset is not a candidate, so no
-            // spurious DominantWell flashes on scenario start.
-            let offset = **well_position - **position;
-            let r = offset.length();
-            let Some(toward_center) = offset.try_normalize() else {
-                continue;
-            };
-            let accel = well_accel(
-                well.mu,
-                r,
-                well.body_radius,
-                well.soi_radius,
-                settings.fade_fraction,
-                settings.surface_margin,
-            );
-            if accel > 0.0 {
-                candidates.push((well_entity, accel, toward_center));
-            }
-        }
-
-        pulls.clear();
-        pulls.extend(
-            candidates
-                .iter()
-                .map(|&(well_entity, accel, _)| (well_entity, accel)),
-        );
-        let chosen = dominant_well(current.map(|d| **d), &pulls, settings.switch_hysteresis);
-
-        let Some(owner) = chosen else {
+        let current = current.map(|d| **d);
+        let Some((owner, acceleration)) = dominant_well_acceleration(
+            **position,
+            current,
+            &wells,
+            &settings,
+            &mut candidates,
+            &mut pulls,
+        ) else {
             if current.is_some() {
                 commands.entity(entity).remove::<DominantWell>();
             }
             continue;
         };
 
-        if current.map(|d| **d) != Some(owner) {
+        if current != Some(owner) {
             commands.entity(entity).try_insert(DominantWell(owner));
         }
-
-        // Apply only the dominant well's pull (one orbit or flat space,
-        // never a blended field). dominant_well only returns candidate
-        // entities, so the find cannot miss; the else is defensive.
-        let Some(&(_, accel, toward_center)) = candidates
-            .iter()
-            .find(|(well_entity, _, _)| *well_entity == owner)
-        else {
-            continue;
-        };
-        forces.apply_linear_acceleration(toward_center * accel);
+        forces.apply_linear_acceleration(acceleration);
     }
 }
 
@@ -815,8 +855,7 @@ mod tests {
     /// It times N=1500 dynamic bodies (~3 turrets' worth of live rounds) with
     /// the gravity opt-in + a well, against N identical bodies with neither.
     /// Both worlds integrate the same N rigid bodies, so avian's cost cancels
-    /// and the delta is the gravity system's own O(wells x affected) work plus
-    /// its per-affected Vec alloc.
+    /// and the delta is the gravity system's own O(wells x affected) work.
     ///
     /// Scope: the bodies start INSIDE the SOI, so this is the steady-state
     /// per-tick force cost. It does not isolate the per-crossing `DominantWell`

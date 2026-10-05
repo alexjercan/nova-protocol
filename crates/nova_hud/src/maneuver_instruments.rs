@@ -3,10 +3,11 @@
 //! spatial facts.
 //!
 //! - **Destination readout**: a text chip below the GOTO destination
-//!   marker with ETA, closing speed and distance, fed by the physics-side
+//!   marker with ETA and distance, fed by the physics-side
 //!   [`ManeuverTelemetry`] seam (the HUD computes nothing).
-//! - **Flip marker**: a `FLIP <n>s` chip projected on the flight path
-//!   where the arrival rule says the flip-and-burn starts.
+//! - **Flip marker**: a `FLIP <n>s` chip on the predicted flip point of the
+//!   leg's [`FlightPrediction`], the point the holo flip gate rings, until
+//!   the leg first brakes.
 //! - **ORBIT holo ring**: a world-space torus at the engaged orbit plan's
 //!   ring (velocity-sphere visual family).
 //! - **Radius spoke**: while ORBIT is engaged, a thin holo line from the well
@@ -174,8 +175,9 @@ impl Plugin for ManeuverInstrumentsPlugin {
     fn build(&self, app: &mut App) {
         trace!("ManeuverInstrumentsPlugin: build");
 
-        // Shared with the holo-instruments family (one material batches
-        // the whole set); idempotent with HoloInstrumentsPlugin's init.
+        // Shared with the holo-instruments family (one material per style
+        // batches the whole set); idempotent with HoloInstrumentsPlugin's
+        // init.
         app.init_resource::<HoloAssets>();
 
         app.register_type::<OrbitRingMarker>()
@@ -245,26 +247,47 @@ fn drive_destination_readout(
     }
 }
 
-/// `FLIP <n>s` on the path point where braking starts; hidden whenever the leg
-/// publishes no flip point - which is braking, but also a closing speed below
-/// the coast-estimate floor, a well pull that leaves no stopping plan, and a
-/// GOTO inside its standoff. The marker needs the POINT, so it reads
-/// `flip_point` rather than `ManeuverTelemetry::braking`; the two are not the
-/// same fact.
+/// `FLIP <n>s` on the predicted flip point, `points[flip_index]` of the ship's
+/// [`FlightPrediction`], with the seconds until the ship reaches it. That
+/// point is the state `flip_index` sample intervals after the prediction's
+/// `Time<Fixed>` seed, or [`FlightPrediction::final_point_time`] after the
+/// seed when it is the last point. The holo flip gate uses the same point and
+/// clock, so the chip and the gate show one flip and go together. Hidden when
+/// the ship has no prediction, when the prediction does not brake, and once
+/// the ship reaches the flip point. Hidden for the rest of the order once
+/// [`Autopilot::flip_marker_consumed`] is set, so a replan after the brake
+/// does not bring the chip back. There is no straight-line fallback: the
+/// telemetry's flip point is a plan the autopilot does not fly.
 fn drive_flip_marker(
+    time: Res<Time<Fixed>>,
     q_hud: Query<&ManeuverInstrumentsShipEntity, With<ManeuverInstrumentsHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<FlipMarkerUIMarker>>,
-    q_ship: Query<&ManeuverTelemetry>,
+    q_ship: Query<(&FlightPrediction, &Autopilot)>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
             continue;
         };
 
-        let flip = q_ship
-            .get(**ship)
-            .ok()
-            .and_then(|t| t.flip_point.zip(t.seconds_to_flip));
+        let flip = q_ship.get(**ship).ok().and_then(|(prediction, autopilot)| {
+            if autopilot.flip_marker_consumed {
+                return None;
+            }
+            let index = prediction.flip_index?;
+            let flown = time
+                .elapsed()
+                .saturating_sub(prediction.seed_time)
+                .as_secs_f32();
+            let point_time = if index + 1 == prediction.points.len() {
+                prediction.final_point_time
+            } else {
+                index as f32 * prediction.sample_interval
+            };
+            let seconds = point_time - flown;
+            // A reached flip point hides the chip, so the countdown never
+            // goes negative.
+            (seconds > 0.0).then(|| (prediction.points[index], seconds))
+        });
         match flip {
             Some((point, seconds)) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Point(point));
@@ -336,7 +359,7 @@ fn sync_orbit_ring(
                         plan.radius + RING_MINOR_RADIUS,
                     ))),
                     NotShadowCaster,
-                    MeshMaterial3d(assets.material(&mut materials)),
+                    MeshMaterial3d(assets.material(&mut materials, false)),
                     Transform::from_translation(well_position).with_rotation(rotation),
                     Visibility::Visible,
                 ));
@@ -450,7 +473,7 @@ fn sync_radius_spoke(
             RadiusSpokeMarker { ship },
             Mesh3d(assets.segment_mesh(&mut meshes)),
             NotShadowCaster,
-            MeshMaterial3d(assets.material(&mut materials)),
+            MeshMaterial3d(assets.material(&mut materials, false)),
             transform,
             Visibility::Visible,
         ));
@@ -459,6 +482,8 @@ fn sync_radius_spoke(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
@@ -482,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn destination_readout_and_flip_marker_follow_the_telemetry() {
+    fn destination_readout_follows_the_telemetry() {
         let mut world = World::new();
         let ship = world
             .spawn(ManeuverTelemetry {
@@ -498,10 +523,9 @@ mod tests {
                 eta: Some(18.0),
             })
             .id();
-        let (readout, flip, _) = spawn_instruments(&mut world, ship);
+        let (readout, _, _) = spawn_instruments(&mut world, ship);
 
         world.run_system_once(drive_destination_readout).unwrap();
-        world.run_system_once(drive_flip_marker).unwrap();
 
         assert_eq!(
             anchor_of(&world, readout),
@@ -511,47 +535,133 @@ mod tests {
         );
         // 300 world units to the destination = 3000 m -> 3.00 km displayed.
         assert_eq!(text_of(&world, readout), "ETA  18s | 3.00 km");
-        assert_eq!(
-            anchor_of(&world, flip),
-            Some(ScreenIndicatorAnchorKind::Point(Vec3::new(
-                0.0, 0.0, -240.0
-            )))
-        );
-        assert_eq!(text_of(&world, flip), "FLIP  15s");
 
-        // The leg ends: telemetry gone, chips clear and hide.
+        // The leg ends: telemetry gone, the chip clears and hides.
         world.entity_mut(ship).remove::<ManeuverTelemetry>();
         world.run_system_once(drive_destination_readout).unwrap();
-        world.run_system_once(drive_flip_marker).unwrap();
         assert_eq!(anchor_of(&world, readout), None);
         assert!(text_of(&world, readout).is_empty());
-        assert_eq!(anchor_of(&world, flip), None);
     }
 
     #[test]
-    fn flip_marker_hides_once_braking() {
+    fn flip_marker_sits_on_the_predicted_flip_point_until_the_ship_reaches_it() {
+        const SAMPLE_INTERVAL: f32 = 4.0;
+        let predicted_flip = Vec3::new(3.0, 0.0, -20.0);
+
         let mut world = World::new();
+        world.init_resource::<Time<Fixed>>();
         let ship = world
-            .spawn(ManeuverTelemetry {
-                goal: Vec3::new(0.0, 0.0, -100.0),
-                goal_entity: None,
-                park_point: Vec3::new(0.0, 0.0, -50.0),
-                distance: 100.0,
-                braking: true,
-                closing_speed: 12.0,
-                brake_accel: 10.0,
-                flip_point: None,
-                seconds_to_flip: None,
-                eta: Some(16.0),
-            })
+            .spawn((
+                // The straight plan puts its flip somewhere else; the chip
+                // must not follow it.
+                ManeuverTelemetry {
+                    goal: Vec3::new(0.0, 0.0, -300.0),
+                    goal_entity: None,
+                    park_point: Vec3::new(0.0, 0.0, -250.0),
+                    distance: 300.0,
+                    braking: false,
+                    closing_speed: 12.0,
+                    brake_accel: 10.0,
+                    flip_point: Some(Vec3::new(0.0, 0.0, -240.0)),
+                    seconds_to_flip: Some(15.0),
+                    eta: Some(18.0),
+                },
+                Autopilot::engage(AutopilotAction::GotoPos {
+                    position: Vec3::new(0.0, 0.0, -300.0),
+                }),
+                FlightPrediction {
+                    points: vec![
+                        Vec3::ZERO,
+                        Vec3::new(1.0, 0.0, -10.0),
+                        predicted_flip,
+                        Vec3::new(4.0, 0.0, -25.0),
+                    ],
+                    flip_index: Some(2),
+                    seed_time: Duration::ZERO,
+                    sample_interval: SAMPLE_INTERVAL,
+                    final_point_time: 3.0 * SAMPLE_INTERVAL,
+                    end: FlightPredictionEndType::Completed,
+                },
+            ))
             .id();
         let (readout, flip, _) = spawn_instruments(&mut world, ship);
 
+        // One second after the seed, the flip sample is seven seconds ahead.
+        world
+            .resource_mut::<Time<Fixed>>()
+            .advance_by(Duration::from_secs(1));
         world.run_system_once(drive_destination_readout).unwrap();
         world.run_system_once(drive_flip_marker).unwrap();
+        assert_eq!(
+            anchor_of(&world, flip),
+            Some(ScreenIndicatorAnchorKind::Point(predicted_flip))
+        );
+        assert_eq!(text_of(&world, flip), "FLIP   7s");
 
+        // The ship reaches the flip sample: the chip hides with the gate,
+        // while the destination readout stays on the live telemetry.
+        world
+            .resource_mut::<Time<Fixed>>()
+            .advance_by(Duration::from_secs(7));
+        world.run_system_once(drive_destination_readout).unwrap();
+        world.run_system_once(drive_flip_marker).unwrap();
+        assert_eq!(anchor_of(&world, flip), None);
+        assert!(text_of(&world, flip).is_empty());
         assert!(anchor_of(&world, readout).is_some(), "readout stays");
-        assert_eq!(anchor_of(&world, flip), None, "no flip while braking");
+
+        // The leg ends at 10 s, between samples 2 and 3, and flips at its
+        // last point: the countdown runs to that time, not to the grid's 12 s.
+        let last_point = Vec3::new(4.0, 0.0, -25.0);
+        let mut prediction = world.get_mut::<FlightPrediction>(ship).unwrap();
+        prediction.flip_index = Some(3);
+        prediction.final_point_time = 10.0;
+        world.run_system_once(drive_flip_marker).unwrap();
+        assert_eq!(
+            anchor_of(&world, flip),
+            Some(ScreenIndicatorAnchorKind::Point(last_point))
+        );
+        assert_eq!(text_of(&world, flip), "FLIP   2s");
+
+        // Past 10 s but before 12 s: the chip hides at the off-grid flip.
+        world
+            .resource_mut::<Time<Fixed>>()
+            .advance_by(Duration::from_secs(3));
+        world.run_system_once(drive_flip_marker).unwrap();
+        assert_eq!(anchor_of(&world, flip), None);
+        assert!(text_of(&world, flip).is_empty());
+
+        // The leg has braked, then a replan reseeds a prediction with the flip
+        // ahead again: the chip stays hidden for the rest of the order.
+        let mut prediction = world.get_mut::<FlightPrediction>(ship).unwrap();
+        prediction.seed_time = Duration::from_secs(11);
+        prediction.flip_index = Some(2);
+        prediction.final_point_time = 3.0 * SAMPLE_INTERVAL;
+        world
+            .get_mut::<Autopilot>(ship)
+            .unwrap()
+            .flip_marker_consumed = true;
+        world.run_system_once(drive_flip_marker).unwrap();
+        assert_eq!(anchor_of(&world, flip), None);
+        assert!(text_of(&world, flip).is_empty());
+
+        // A fresh engage to the same goal starts a new order with its own flip.
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                position: Vec3::new(0.0, 0.0, -300.0),
+            }));
+        world.run_system_once(drive_flip_marker).unwrap();
+        assert_eq!(
+            anchor_of(&world, flip),
+            Some(ScreenIndicatorAnchorKind::Point(predicted_flip))
+        );
+        assert_eq!(text_of(&world, flip), "FLIP   8s");
+
+        // No prediction, no chip: nothing falls back to the straight plan.
+        world.entity_mut(ship).remove::<FlightPrediction>();
+        world.run_system_once(drive_flip_marker).unwrap();
+        assert_eq!(anchor_of(&world, flip), None);
+        assert!(text_of(&world, flip).is_empty());
     }
 
     #[test]

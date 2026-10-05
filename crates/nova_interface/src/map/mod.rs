@@ -13,8 +13,9 @@
 //! `map_goto` or the panel's GOTO button sets a flight
 //! [`Autopilot`](nova_ship::prelude::Autopilot) GOTO and the travel lock on the
 //! player ship, which persist after the interface closes. While that GOTO is
-//! live, the view draws a route from the player ship to its target with a
-//! `GOTO` tag on the target, and the panel names the destination.
+//! live, the view tags its target `GOTO`, draws the ship's
+//! [`FlightPrediction`](nova_ship::prelude::FlightPrediction) path from the
+//! player blip while one exists, and the panel names the destination.
 //!
 //! # Module layout
 //!
