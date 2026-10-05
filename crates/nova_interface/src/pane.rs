@@ -33,12 +33,9 @@ use nova_ui::{
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
     inventory::inventory_body,
-    map::{
-        on_map_reframe_button, spawn_map_panel, MapLegendMarker, MapPanelField, MapViewportMarker,
-    },
+    map::{on_map_reframe_button, spawn_map_panel, MapLegendMarker, MapViewportMarker},
     ship::{
-        on_ship_fit_button, on_ship_reset_button, spawn_ship_panel, ShipPanelField, ShipRuntime,
-        ShipViewportMarker,
+        on_ship_fit_button, on_ship_reset_button, spawn_ship_panel, ShipRuntime, ShipViewportMarker,
     },
     terminal::NovaOsCloseTransition,
 };
@@ -415,7 +412,7 @@ fn view_split() -> Node {
 }
 
 /// A row of controls.
-fn control_row(justify: JustifyContent) -> Node {
+pub(crate) fn control_row(justify: JustifyContent) -> Node {
     Node {
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
@@ -478,6 +475,33 @@ pub(crate) fn panel_preview_frame() -> impl Bundle {
     )
 }
 
+/// Lines an action form's summary reserves, so a one-line result and a
+/// two-line refusal leave the form's action button in place. A longer refusal
+/// still shows in full.
+pub(crate) const SUMMARY_LINES: f32 = 3.0;
+
+/// A one-pixel rule between groups of a panel.
+pub(crate) fn divider() -> impl Bundle {
+    (
+        Node {
+            height: px(1),
+            flex_shrink: 0.0,
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        ThemedFill::alpha(UiColor::Secondary, 0.35),
+    )
+}
+
+/// A button sized for a narrow side panel or inspector.
+pub(crate) fn compact_button(spec: ButtonSpec) -> impl Bundle {
+    button(ButtonSpec {
+        min_height: 22.0,
+        font_size: 12.0,
+        ..spec
+    })
+}
+
 /// Height of the Map and Ship footer, in logical px. Fixed, so a legend or a
 /// hint that wraps cannot push the view up.
 const PANE_FOOTER_PX: f32 = 96.0;
@@ -531,14 +555,13 @@ const SHIP_KEY_HINTS: &[(&str, &[&str])] = &[
 /// a left click picks, the right button drags the orbit and the wheel zooms.
 const POINTER_HINTS: [&str; 3] = ["Click select", "Right-drag look", "Wheel zoom"];
 
-/// The footer under a viewer pane. `legend` fills the left zone, `controls`
-/// the button row in the centre, and `summary` is the right zone's text.
+/// The footer under a viewer pane: legend left, live key hints center, and
+/// clickable view controls right. Selection identity stays in the side panel.
 fn pane_footer(
     body: &mut ChildSpawnerCommands,
     legend: impl FnOnce(&mut ChildSpawnerCommands),
     controls: impl FnOnce(&mut ChildSpawnerCommands),
     keys: &'static [(&'static str, &'static [&'static str])],
-    summary: impl Bundle,
 ) {
     let side = || Node {
         flex_grow: 1.0,
@@ -583,9 +606,6 @@ fn pane_footer(
             })
             .with_children(|centre| {
                 centre
-                    .spawn(control_row(JustifyContent::Center))
-                    .with_children(controls);
-                centre
                     .spawn(Node {
                         flex_direction: FlexDirection::Row,
                         flex_wrap: FlexWrap::Wrap,
@@ -612,7 +632,9 @@ fn pane_footer(
                 ..side()
             })
             .with_children(|right| {
-                right.spawn((summary, TextLayout::justify(Justify::Right)));
+                right
+                    .spawn(control_row(JustifyContent::FlexEnd))
+                    .with_children(controls);
             });
     });
 }
@@ -653,8 +675,7 @@ pub(crate) fn refresh_pane_input_hints(
     }
 }
 
-/// The map: the scene and the contact panel beside it, and the footer with
-/// the legend of what the map plots, Reframe and the selection summary.
+/// The map: the scene and contact panel beside it, then legend, hints and Reframe.
 fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     body.spawn(view_split()).with_children(|split| {
         split.spawn((MapViewportMarker, viewport_node(), ImageNode::default()));
@@ -684,15 +705,10 @@ fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                 .observe(on_map_reframe_button);
         },
         MAP_KEY_HINTS,
-        (
-            MapPanelField::Summary,
-            themed_label("", 14.0, UiColor::Label),
-        ),
     );
 }
 
-/// The ship: the scene and the section panel beside it, and the footer with
-/// the section legend, Fit and Reset and the selection summary.
+/// The ship: the scene and section panel beside it, then legend, hints and view controls.
 fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     body.spawn(view_split()).with_children(|split| {
         split.spawn((ShipViewportMarker, viewport_node(), ImageNode::default()));
@@ -738,10 +754,6 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                 .observe(on_ship_reset_button);
         },
         SHIP_KEY_HINTS,
-        (
-            ShipPanelField::Summary,
-            themed_label("", 14.0, UiColor::Label),
-        ),
     );
 }
 

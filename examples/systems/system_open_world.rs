@@ -545,6 +545,12 @@ fn assert_the_warship(world: &mut World) {
         .filter(|(parent, _)| of_player(parent))
         .map(|(_, binding)| binding.0.clone())
         .collect();
+    let mut miners = world.query::<(&ChildOf, &SpaceshipMiningInputBinding)>();
+    let miners: Vec<_> = miners
+        .iter(world)
+        .filter(|(parent, _)| of_player(parent))
+        .map(|(_, binding)| binding.0.clone())
+        .collect();
 
     assert_eq!(turrets.len(), 6, "six bound point-defense mounts");
     assert!(turrets.iter().all(|binding| binding == &trigger));
@@ -553,6 +559,7 @@ fn assert_the_warship(world: &mut World) {
     assert!(bays
         .iter()
         .all(|binding| binding == &[InputSource::Keyboard(KeyCode::KeyF)]));
+    assert_eq!(miners, [vec![InputSource::Keyboard(KeyCode::KeyV)]]);
     nova_probe::probe_marker(
         world,
         "outcome: the open world spawns one line warship with its weapons bound",

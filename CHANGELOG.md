@@ -48,7 +48,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   spent they stay dry. The ammo gauge previews only what the reserve can load.
 - An armed Neutral ship answers whoever last hit it: the pair and their
   torpedoes read Hostile to each other until the target is lost or
-  neutralized, the ship changes side, or either ship leaves its leash.
+  neutralized, the ship changes side, or either leaves its leash.
 - An unarmed ship of any side is now neutralized when it loses the last
   working thruster it had; a hull that never had one is still only destroyed.
   The armed (weapons/computer) rule is unchanged.
@@ -60,8 +60,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `block_line_warship` Line Warship: six PDCs on the trigger, a bow railgun
   on R, two torpedo bays on F, a collar per shoulder, a dorsal cargo intake and
   a bow mining beam on V.
-- New `mining_beam_section`: hold V near a travel-locked rock and each deployed
-  emitter within 100 m cuts it once a second with a glowing beam, sparks and a
+- New `mining_beam_section`: hold its own key near a travel-locked rock and
+  the emitter, within 100 m, cuts it once a second with a beam, sparks and a
   pulse sound. Ore leaves as canisters.
 - New `cargo_intake_section`: its door opens for a canister within 40 m. A
   canister touching its 1 m trigger is taken whole, at any speed, if the hold
@@ -116,9 +116,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `CargoIntake` section kind with required door, eject and take sounds,
   `IntakeDoor` cue and `Fold` motion. Lint rejects bad ranges, gaps, apertures
   and a missing door track.
-- New `Mining` section kind: pulse and door sounds, reach, interval, carve
-  radius and stow tracks. Lint/load reject bad stats, collider or tracks;
-  invalid live mods end the run.
+- **(breaking)** Mining sections require distinct authored player keys. Lint/load
+  reject missing/shared keys, bad beam stats, collider or tracks; invalid live
+  mods end the run.
 - **(breaking)** Lint rejects bad section health/collider/thrust/torque/damage,
   a section id shared by unrelated mods, a missing part family, and an oblique
   or socket-blocked exit.
@@ -141,15 +141,18 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - **(breaking)** TAB opens a themed interface with Map, Ship and Inventory
   panes; M or pad Y steps through them. GOTO and mates are pane keys; Repair
-  and Rebind are keys and buttons.
-- The Inventory pane lists your and a docked ship's cargo, load, item weight
-  and transfer weight. Docked, Give, or Take once neutralized or lootable.
-  Repair spends 1 hull plate per 20 HP, anywhere.
+  and keyed-section Rebind are keys and buttons.
+- The Inventory pane lists your and a docked ship's cargo, load, credits and
+  weights; [ ] step, I shows full text. Docked, Give, or Take if neutralized
+  or lootable.
+- Ship Repair spends 1 to All hull plates set by typed field, slider or All.
+  Invalid counts disable it; no plates shows it disabled with the refusal;
+  full, destroyed or unrestorable sections hide it.
 - Docked with a lootable or neutralized ship, Take credits moves its full
   balance at once; an overflow or ineligible partner changes nothing.
-- Docked with a live ship, Buy at a fixed ask or Sell at a fixed bid. Items and
-  credits move together from real stock and balances, or a refusal moves
-  nothing. Columns show credits.
+- Docked with a live ship, Buy at a fixed ask or Sell at a fixed bid; your
+  items open on Sell. Items and credits move together from real stock and
+  balances, or a refusal moves nothing.
 - Inventory Confirm is disabled when a draft has no valid quantity or its
   transfer or trade preflight refuses against live stock, room or credits.
 - Undocked, Jettison queues canisters of up to 200 kg that the intake drops in
@@ -171,6 +174,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   shows each action's bare `bind` name. Lookups accept either name.
 - The Map labels an asteroid only while it is selected, so a belt of rocks no
   longer buries ship and planet labels. Every blip stays clickable.
+- Map GOTO sets the travel lock by G or the panel button. Its route clips to
+  the viewport or hides when offscreen; the GOTO tag and destination name
+  follow the target. A refusal changes nothing.
 - Objective notification rebuilding now survives same-frame ship teardown.
 - A HELM chip reads TAKE HELM, RELEASE HELM or HELM FAULT while docked. Off a
   measured helm, blocked verbs stay on the dock dark. The mode chip reads

@@ -124,6 +124,13 @@ fn clear_section_inputs(world: &mut World, player: Entity) {
     {
         **input = false;
     }
+    for mut held in world
+        .query::<(&ChildOf, &mut MiningSectionHeld)>()
+        .iter_mut(world)
+        .filter_map(|(&ChildOf(parent), held)| (parent == player).then_some(held))
+    {
+        **held = false;
+    }
 }
 
 #[cfg(test)]

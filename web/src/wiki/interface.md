@@ -60,12 +60,13 @@ The interface and the command shell share one freeze. Opening `:` over a pane, a
      (`MapContactKind`, `code_prefix`). Contact panel: map/app.rs
      `spawn_map_panel`. Blips, legend, selection, GOTO and its refusals:
      crates/nova_interface/src/map/scene.rs (`spawn_blip`, `refresh_map_legend`,
-     `map_input`, `update_map_panel`). Footer and its live key hints:
+     `map_input`, `update_map_panel`, `on_map_goto_button`). Route and GOTO
+     tag: scene.rs `project_map_route`. Footer and its live key hints:
      crates/nova_interface/src/pane.rs (`pane_footer`,
      `refresh_pane_input_hints`). Icons: crates/nova_interface/src/icons.rs.
      Keys: crates/nova_interface/src/bindings.rs. -->
 
-The Map pane is a schematic 3D chart of local space: distance rings, a hub, and every contact as an icon - a chevron for a ship, a lump for an asteroid, a ringed disc for a planet, a diamond for an objective - tinted by what it is to you. Click one, or step through them with <kbd>[</kbd> / <kbd>]</kbd>, and the contact panel beside the chart gives its code, name, kind, range and bearing. The footer under the chart holds the legend of the icons on the chart now, **Reframe** with the keys the pane answers to, and a summary of the selection. The key hints follow your bindings.
+The Map pane is a schematic 3D chart of local space: distance rings, a hub, and every contact as an icon - a chevron for a ship, a lump for an asteroid, a ringed disc for a planet, a diamond for an objective - tinted by what it is to you. Click one, or step through them with <kbd>[</kbd> / <kbd>]</kbd>, and the contact panel beside the chart gives its code, name and kind, then its range and bearing. Under them, the panel names your live GOTO destination over a **GOTO** button. An unselected contact has a faint frame; the selected one has a bright frame and always shows its label. The footer under the chart holds the legend of the icons on the chart now and **Reframe** with the keys the pane answers to. The key hints follow your bindings.
 
 | Label | Contact |
 | --- | --- |
@@ -82,15 +83,17 @@ The Map pane is a schematic 3D chart of local space: distance rings, a hub, and 
 | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> | triggers, <kbd>X</kbd> and <kbd>B</kbd> | Move the view. |
 | <kbd>Q</kbd> / <kbd>E</kbd>, <kbd>R</kbd> / <kbd>F</kbd> | D-pad | Turn and tilt. Right-drag looks; the wheel zooms. |
 | <kbd>[</kbd> / <kbd>]</kbd> | bumpers | Select the previous or next contact. |
-| <kbd>G</kbd> | <kbd>A</kbd> | **GOTO**: engage the autopilot toward the selected contact. |
+| <kbd>G</kbd>, or click **GOTO** | <kbd>A</kbd> | **GOTO**: engage the autopilot toward the selected contact and travel-lock it. |
 | <kbd>T</kbd>, or click **Reframe** | left stick click | Reset the view. |
 
 <details class="explain">
 <summary>Show explanation</summary>
 
-A typical panel reads `HOST-1`, `Raider`, `HOSTILE`, `Range 412 m`, `Bearing 214 mark +12` and `Hostile contact.` Selecting a contact re-centres the map once; <kbd>T</kbd> re-frames it. <kbd>G</kbd> engages the flight autopilot toward the selection and flashes `GOTO SET: Raider` on the panel note - the burn keeps flying after you close the interface, so the map is a real navigation console, not a picture of one. Your own ship refuses GOTO.
+A typical panel reads `HOST-1`, `Raider`, `HOSTILE`, `Range 412 m`, `Bearing 214 mark +12` and `Hostile contact.` Selecting a contact re-centres the map once; <kbd>T</kbd> re-frames it. <kbd>G</kbd> or the **GOTO** button engages the flight autopilot toward the selection, sets your travel lock on it and flashes `GOTO SET: Raider` on the panel note - the burn keeps flying after you close the interface, so the map is a real navigation console, not a picture of one. With nothing or your own ship selected, the button is off and <kbd>G</kbd> does nothing.
 
-Docked, GOTO refuses while the game cannot measure the pair (`GOTO REFUSED: HELM FAULT`), refuses until you hold the [helm](../sections/docking/#what-the-clamp-holds) (`GOTO REFUSED: TAKE THE HELM`), and never flies to the ship you are docked to (`GOTO REFUSED: DOCKED PARTNER`).
+While the GOTO flies, the chart draws a route line from your ship to its target, the target carries a `GOTO` tag, and the panel reads `GOTO HOST-1  412 m`. With no GOTO flying it reads `No GOTO set`. They follow the autopilot, not the selection: select another contact, or close and reopen the Map, and they still point at the destination. When the GOTO is cancelled or arrives, the route, tag and destination clear; the travel lock stays.
+
+Docked, GOTO refuses while the game cannot measure the pair (`GOTO REFUSED: HELM FAULT`), refuses until you hold the [helm](../sections/docking/#what-the-clamp-holds) (`GOTO REFUSED: TAKE THE HELM`), and never flies to the ship you are docked to (`GOTO REFUSED: DOCKED PARTNER`). A refusal changes only the note: your travel lock and any GOTO already flying stay as they were.
 
 </details>
 
@@ -123,7 +126,7 @@ Docked, GOTO refuses while the game cannot measure the pair (`GOTO REFUSED: HELM
      own idle timer instead: crates/nova_ship/src/sections/ammo.rs
      `SectionReload::advance`. -->
 
-The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. The footer under the view holds the section legend, **Fit** and **Reset** with the pane's live key hints, and a summary of the selected section. Sections carry short codes, stable for the whole session, and a family icon:
+The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. The footer under the view holds the section legend on the left, the pane's live key hints in the middle and **Fit** and **Reset** on the right. The section panel is where the selection is named. Sections carry short codes, stable for the whole session, and a family icon:
 
 | Code | Section | Family |
 | --- | --- | --- |
@@ -137,26 +140,27 @@ The Ship pane is a schematic 3D viewer of your own hull: one block per section, 
 | `MNG-1` | Mining beam | Mining |
 | `CGO-1` | Cargo intake | Cargo Intake |
 
-The footer legend shows all seven family icons: Weapon, Thruster, Controller, Hull, Docking, Mining and Cargo Intake. The Mine (hold), Dock and Helm keys are in **Settings > Controls > FLIGHT**; their defaults are <kbd>V</kbd>, <kbd>D</kbd> and <kbd>H</kbd>. You can rebind each key there.
+The footer legend shows all seven family icons: Weapon, Thruster, Controller, Hull, Docking, Mining and Cargo Intake. The Dock and Helm keys are in **Settings > Controls > FLIGHT**; their defaults are <kbd>D</kbd> and <kbd>H</kbd>. Each mining beam has its own key, which you rebind here like a weapon's.
 
-Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or with **Prev** / **Next** in the panel. The panel shows its family icon, a condition bar, its status, what it does, its HP, ammunition and current bindings.
+Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or with **Prev** / **Next** in the panel. The panel shows its family icon, condition bar, status and a short description of the section's role. Fact rows show **Integrity**, **Ammunition** for a weapon and **Control** for a section with a key. A damaged section that repair can restore also shows the repair form below them; a section at full integrity, destroyed or with no integrity to restore shows no form.
 
 | Key | Button | Does |
 | --- | --- | --- |
-| <kbd>P</kbd> | **Repair** | Spend hull plates to restore the section's integrity, up to 20 HP per plate. |
-| <kbd>B</kbd> | **Rebind** | [Rebind](#rebinding-a-section) the section's trigger. |
+| <kbd>P</kbd> | **Repair** | Spend the selected number of hull plates to restore the section's integrity, up to 20 HP per plate. |
+| - | number field, slider, **All** | Choose how many hull plates the repair spends: type a count, drag the slider, or press **All**. The slider hides when only one plate can be spent. |
+| <kbd>B</kbd> | **Rebind** | [Rebind](#rebinding-a-section) the section's key. Shown only for a section that has one. |
 | <kbd>G</kbd> (gamepad <kbd>A</kbd>) | - | Overlay the structural mates: which sections hold which. |
 | - | **Fit** | Frame the whole ship at its current angle. |
-| <kbd>Q</kbd> / <kbd>E</kbd>, <kbd>R</kbd> / <kbd>F</kbd>, <kbd>T</kbd> | **Reset** | Turn and tilt the view; reset restores the opening angle, zoom and centre. |
+| <kbd>Q</kbd> / <kbd>E</kbd>, <kbd>R</kbd> / <kbd>F</kbd>, <kbd>T</kbd> | **Reset** | Turn and tilt the view; tilt or right-drag down past the hull to see its underside. Reset restores the opening angle, zoom and centre. |
 
 <details class="explain">
 <summary>Show explanation</summary>
 
 The blocks are the shape of your ship - a fill in the section family's colour inside an outline per section, with a gap so neighbours read apart. An arrow past the foremost block points at the bow. Status lives on the badges and in the panel, not in the block colour: each badge carries a pip coloured by status (`nominal`, `degraded`, `critical`, `neutralized`), and the section you have selected spells out its code beside its badge. Only that one does - a development stress hull has two thousand sections, and a label on each is a wall of text with the ship somewhere behind it.
 
-Repair is the panel's only action key. It answers on the note line with what happened, or why not, and it is instant: a success reads `repaired HULL-3: 2 hull plates, 80/100 HP`. It works anywhere, docked or not, and spends [hull plates](#the-inventory) from your ship: each plate restores up to 20 HP, and part of a plate's worth still costs a whole plate. A section at 55/100 takes 3 plates and stops at 100; the unused HP of the last plate is lost. With too few plates the repair uses what you have: 2 plates take 40/100 to 80/100.
+Repair answers on the note line with what happened, or why not, and it is instant: a success reads `repaired HULL-3: 2 hull plates, 80/100 HP`. It works anywhere, docked or not, and spends [hull plates](#the-inventory) from your ship: each plate restores up to 20 HP, and part of a plate's worth still costs a whole plate. The form shows your live plate stock, the count and the integrity the repair will reach. Selecting a section sets the count to **All**: the plates the damage needs, or your whole stock if that is fewer. A section at 55/100 with 12 plates starts at 3, which stop at 100; the unused HP of the last plate is lost. With 2 plates All is 2, which take 40/100 to 80/100. <kbd>P</kbd> and **Repair** spend exactly the selected count.
 
-Repair is off, and spends nothing, when the section has no integrity to restore, is destroyed, is at full integrity, or you carry no plates, checked in that order: `repair: HULL-3 has no integrity to restore`, `repair: HULL-3 is destroyed`, `repair: HULL-3 is at full integrity`, `repair: no hull plates`. A destroyed section is one at 0 HP, or one knocked out by a structural collapse with HP left; repair does not bring it back. Spent plates are not saved: they return when the scenario loads again.
+While the count field has focus, keys type into it rather than controlling the Ship pane; leave the field to use pane keys such as <kbd>P</kbd> and <kbd>B</kbd>. **Repair** is disabled while the typed count is empty, not a whole number, zero, more than you carry or more than the damage needs. A damaged section with no plates in stock keeps its form, with **Repair** disabled and the refusal shown. The count is checked again against the live section and stock when you repair. Repair spends nothing when the section has no integrity to restore, is destroyed, is at full integrity, the count is zero or you carry no plates, the count is more than you carry, or the count is more than the damage needs, checked in that order: `repair: HULL-3 has no integrity to restore`, `repair: HULL-3 is destroyed`, `repair: HULL-3 is at full integrity`, `repair: no hull plates selected or in stock`, `repair: HULL-3 request exceeds live hull plate stock`, `repair: HULL-3 request exceeds live missing integrity`. A destroyed section is one at 0 HP, or one knocked out by a structural collapse with HP left; repair does not bring it back. Spent plates are not saved: they return when the scenario loads again.
 
 There is no manual reload. A weapon's magazine refills on its own from your inventory - see [Magazines](../combat-weapons/#magazines) - and with no matching ammunition left in stock, an empty magazine stays empty until you restock it.
 
@@ -175,9 +179,9 @@ There is no manual reload. A weapon's magazine refills on its own from your inve
      `toggle_interface` and `next_interface_pane` in
      crates/nova_interface/src/pane.rs. -->
 
-Your weapon and thruster sections fire on rebindable inputs, and the Ship pane is where you rebind them:
+Your weapon, thruster and mining beam sections answer rebindable keys, and the Ship pane is where you rebind them:
 
-1. Select a thruster, turret, torpedo bay or railgun and press <kbd>B</kbd> (or click **Rebind**).
+1. Select a thruster, turret, torpedo bay, railgun or mining beam and press <kbd>B</kbd> (or click **Rebind**). A section with no key offers no **Rebind**.
 2. The panel arms: `PRESS A KEY OR MOUSE BUTTON - ESC CANCELS`.
 3. The next key or mouse button you press takes over that section's keyboard-and-mouse trigger: `Bound engine_port to K`. A controller trigger on the same section is left alone, so rebinding at the desk never costs you the pad.
 
@@ -205,7 +209,9 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
 <!-- Items and categories: crates/nova_gameplay/src/inventory.rs (`ItemType`,
      `ItemCategoryType`, `ShipInventory`, required by `SpaceshipRootMarker`).
      Pane: crates/nova_interface/src/inventory/app.rs `update_inventory_panel`
-     (partner through `DockedShip` -> `DockingConnection`); filter order
+     (partner through `DockedShip` -> `DockingConnection`); keys and their
+     cues: `inventory_keys`; clipped description: `about_box`,
+     `update_inventory_about`, `ABOUT_LINES`; filter order
      `FILTER_ORDER`. Open-world stock: crates/nova_authoring/src/base_content/
      scenarios/open_world.rs `player`; generated stock and credits:
      crates/nova_world_base/src/sector_ships.rs `ship_stock`, `ship_credits`,
@@ -220,10 +226,11 @@ A reserved flight control is refused on the spot - `Space is already bound to fl
      `ItemType::ask_cr` and `ItemType::bid_cr`, balance `ShipCredits` from
      `SpaceshipConfig::credits`; Jettison: `plan_item_jettison`; all but Take
      credits applied by crates/nova_interface/src/inventory/app.rs
-     `apply_inventory_action_commands`. The intake's door, drop and pickup
+     `apply_inventory_action_commands`; the action a row opens:
+     `offered_action`, the Sell/Give switch: `draft_fits`. The intake's door, drop and pickup
      live on wiki/sections/cargo-intake.md. -->
 
-The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section, and your column's title shows your load against it and your credits, for example `Line Warship 3520 kg / 13100 kg  2,000 cr`. The docked ship's title shows its credits too. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs, 12 torpedoes - 3,520 kg in all - and 2,000 cr. A generated ship, intact or a derelict wreck, starts with its own role-specific goods and a credit balance too (see [Generated ships](../ships/#generated-ships)): stop with one of your docking collars beside one of its docking ports to [dock](../sections/docking/), then Take what a neutralized or derelict one carries, or Take credits for its whole balance in one click. Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A [repair](#the-ship) spends hull plates, and a weapon's idle [reload](../combat-weapons/#magazines) spends matching ammunition. Nothing is saved: spent and moved items and credits return to their starting values when the scenario loads again; a retired sector regenerates a generated ship's stock and credits. With cheats armed, [`item give`](../commands/#cheats) adds items to a ship's hold.
+The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads `Inventory empty.` A ship's hold takes 100 kg per hull section. Under your ship's name, **Cargo** shows your load against the hold and **Credits** your balance, for example Cargo `3520 kg / 13100 kg` and Credits `2,000 cr`. The docked ship's column shows its **Credits** too. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs, 12 torpedoes - 3,520 kg in all - and 2,000 cr. A generated ship, intact or a derelict wreck, starts with its own role-specific goods and a credit balance too (see [Generated ships](../ships/#generated-ships)): stop with one of your docking collars beside one of its docking ports to [dock](../sections/docking/), then Take what a neutralized or derelict one carries, or Take credits for its whole balance in one click. Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A [repair](#the-ship) spends hull plates, and a weapon's idle [reload](../combat-weapons/#magazines) spends matching ammunition. Nothing is saved: spent and moved items and credits return to their starting values when the scenario loads again; a retired sector regenerates a generated ship's stock and credits. With cheats armed, [`item give`](../commands/#cheats) adds items to a ship's hold.
 
 | Filter | Shows |
 | --- | --- |
@@ -234,7 +241,7 @@ The Inventory pane lists what your ship carries in the left column and, while yo
 | **Raw** | Mined or salvaged bulk material. |
 | **Parts** | Scavenged objects for a story, an objective or trade. |
 
-Click an item to inspect it: the inspector shows its category, what it is, how many the selected ship carries and the weight of one item. A PDC round weighs 0.2 kg. While a Take, Give, Buy, Sell or Jettison is open, **Total weight** shows the weight of the quantity you chose: 2 hull plates read 20 kg however many you carry.
+Click an item to inspect it, or step through the shown items with <kbd>[</kbd> / <kbd>]</kbd>, your column first; a step opens the same form a click does. The inspector shows its category, what it is, how many the selected ship carries and the weight of one item. A PDC round weighs 0.2 kg. While a Take, Give, Buy, Sell or Jettison is open, **Total weight** shows the weight of the quantity you chose: 2 hull plates read 20 kg however many you carry. The description keeps four lines, so the rows under it stay in place as you change items. A longer one is cut off with an `I Full text` cue: point at it, or press <kbd>I</kbd>, to read all of it. <kbd>I</kbd> again, or another item, closes it. You can rebind <kbd>I</kbd> as **Item Details** in **Settings > Controls > INVENTORY**.
 
 ### Take and give
 
@@ -242,7 +249,8 @@ Docked, a click on an item opens a transfer form in the inspector at a quantity 
 
 | Click | Opens | When |
 | --- | --- | --- |
-| An item in your column | **Give** to the docked ship | Always while docked, for example to deliver cargo. With a ship that trades, the **Give** and **Sell** buttons switch the form and keep the quantity. |
+| An item in your column | **Sell** to the docked ship | When the docked ship trades. The **Sell** and **Give** buttons switch the form and keep the quantity, so you can still give cargo away. |
+| An item in your column | **Give** to the docked ship | When the docked ship is neutralized or a lootable derelict, for example to deliver cargo. |
 | An item in the docked ship's column | **Take** from it | Only when the docked ship is neutralized or a lootable derelict. Taking from a live ship would be stealing. |
 | An item in the docked ship's column | **Buy** from it | When the docked ship trades: it is neither neutralized nor lootable. |
 

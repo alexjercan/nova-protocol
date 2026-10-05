@@ -1,7 +1,7 @@
 //! The mining beam: a one-cell emitter that cuts ore out of a locked rock.
 //!
-//! Hold the mine key with a rock travel-locked, and each emitter parts its
-//! doors, runs its tip out and pulses a beam down its -Z face. A pulse that
+//! Hold an emitter's own key with a rock travel-locked, and that emitter parts
+//! its doors, runs its tip out and pulses a beam down its -Z face. A pulse that
 //! lands cuts the rock, and the ore it frees leaves the rock as canisters.
 
 use bevy::prelude::*;
@@ -76,7 +76,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
             name: "Mining Beam Section".to_string(),
             description: "A compact ore emitter behind sliding doors. Hold \
-                          the mine key with a rock travel-locked: the doors \
+                          its key with a rock travel-locked: the doors \
                           part, the tip runs out, and once a second the beam \
                           cuts the rock where it hits, if the rock is within \
                           100 m of the emitter face. The ore it cuts free \

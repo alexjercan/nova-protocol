@@ -2,9 +2,10 @@
 //! into the autopilot, the orbit/selection input, and window-space picking.
 
 use bevy::{
+    camera::{CameraProjection, ComputedCameraValues, RenderTargetInfo},
     ecs::system::RunSystemOnce,
     state::app::StatesPlugin,
-    ui::{ComputedNode, UiGlobalTransform},
+    ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
 };
 use nova_events::prelude::{EntityTypeName, ASTEROID_TYPE_NAME};
 use nova_gameplay::{prelude::*, PauseStates};
@@ -485,6 +486,21 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
         .resource_mut::<ButtonInput<KeyCode>>()
         .press(KeyCode::KeyG);
 
+    // A standing order and designation that every refusal below must leave
+    // as they are.
+    let prior = app.world_mut().spawn_empty().id();
+    let standing = Autopilot::engage(AutopilotAction::Stop);
+    app.world_mut()
+        .entity_mut(player)
+        .insert((standing, TravelLock(Some(prior))));
+    let kept = |app: &App| {
+        assert_eq!(app.world().get::<Autopilot>(player), Some(&standing));
+        assert_eq!(
+            app.world().get::<TravelLock>(player),
+            Some(&TravelLock(Some(prior)))
+        );
+    };
+
     // Docked to the selected contact in neutral: refused, and the note says
     // why instead of claiming a GOTO the helm would fly later.
     let connection = app
@@ -523,11 +539,11 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     // Under the command modal over the pane the key is text, not GOTO.
     press_goto_in(&mut app, PauseStates::Commands);
     app.world_mut().run_system_once(map_input).unwrap();
-    assert!(app.world().get::<Autopilot>(player).is_none());
+    kept(&app);
     assert_eq!(note(&app), None, "the modal over the pane takes no GOTO");
     press_goto_in(&mut app, PauseStates::Interface);
     app.world_mut().run_system_once(map_input).unwrap();
-    assert!(app.world().get::<Autopilot>(player).is_none());
+    kept(&app);
     assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: TAKE THE HELM"));
 
     // A pair that cannot be measured is refused for the fault, whoever holds
@@ -540,7 +556,7 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
         record.helm = helm;
         record.measurement_fault = true;
         app.world_mut().run_system_once(map_input).unwrap();
-        assert!(app.world().get::<Autopilot>(player).is_none());
+        kept(&app);
         assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: HELM FAULT"));
     }
     app.world_mut()
@@ -554,7 +570,7 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
         .unwrap()
         .drives = true;
     app.world_mut().run_system_once(map_input).unwrap();
-    assert!(app.world().get::<Autopilot>(player).is_none());
+    kept(&app);
     assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: DOCKED PARTNER"));
 
     app.world_mut().entity_mut(player).remove::<DockedShip>();
@@ -568,6 +584,375 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     assert!(
         matches!(autopilot.action, AutopilotAction::Goto { target: t } if t == target),
         "the autopilot targets the selected contact",
+    );
+    assert_eq!(
+        app.world().get::<TravelLock>(player),
+        Some(&TravelLock(Some(target))),
+        "an accepted GOTO designates its target"
+    );
+}
+
+/// The GOTO button is the `map_goto` key's request, not a second path: it is
+/// disabled on the own ship, and on a contact it sets the autopilot and travel
+/// lock the key sets, which the panel then names as the destination.
+#[test]
+fn the_goto_button_sets_the_goto_the_key_sets() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.add_plugins(StatesPlugin);
+    app.insert_state(PauseStates::Interface);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<NovaOsCloseTransition>();
+    app.insert_resource(InterfacePaneType::Map);
+    app.add_systems(
+        Update,
+        (assign_map_contact_codes, map_input, update_map_panel).chain(),
+    );
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    let player = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            GlobalTransform::default(),
+            Name::new("NOVA"),
+        ))
+        .id();
+    let raider = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Enemy,
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)),
+            Name::new("RAIDER"),
+        ))
+        .id();
+    app.world_mut().resource_mut::<MapRuntime>().active = true;
+    settle(app);
+    assert_eq!(
+        panel_text(app.world_mut(), MapPanelField::Destination),
+        "No GOTO set"
+    );
+
+    let button = app
+        .world_mut()
+        .query_filtered::<Entity, With<MapGotoButton>>()
+        .single(app.world())
+        .unwrap();
+    let disabled =
+        |rig: &PanePointerRig| rig.app.world().get::<InteractionDisabled>(button).is_some();
+    let goto = |rig: &PanePointerRig| {
+        (
+            rig.app.world().get::<Autopilot>(player).map(|a| a.action),
+            rig.app.world().get::<TravelLock>(player).copied(),
+        )
+    };
+    assert!(disabled(&rig), "nothing selected: no GOTO to request");
+
+    rig.app.world_mut().resource_mut::<MapRuntime>().selected = Some(player);
+    settle(&mut rig.app);
+    assert!(disabled(&rig), "the own ship is no GOTO target");
+    let at = rig_rect(&rig, button).center();
+    click_at(&mut rig, at);
+    assert_eq!(
+        goto(&rig),
+        (None, None),
+        "a disabled button requests nothing"
+    );
+
+    rig.app.world_mut().resource_mut::<MapRuntime>().selected = Some(raider);
+    settle(&mut rig.app);
+    assert!(!disabled(&rig), "a contact can be a GOTO target");
+    click_at(&mut rig, at);
+    assert_eq!(
+        goto(&rig),
+        (
+            Some(AutopilotAction::Goto { target: raider }),
+            Some(TravelLock(Some(raider)))
+        ),
+    );
+    assert_eq!(
+        panel_text(rig.app.world_mut(), MapPanelField::Destination),
+        "GOTO HOST-1  500 m"
+    );
+}
+
+/// The route and its `GOTO` tag follow the player's live autopilot GOTO: they
+/// draw again after the map closes and reopens, meet the player and target
+/// blips in logical px at 2x scale and across a resize while another contact
+/// is selected, and hide when the GOTO is cancelled or replaced while the
+/// travel lock stays.
+#[test]
+fn the_goto_route_follows_the_live_autopilot_across_a_reopen() {
+    let mut app = map_input_app();
+    app.insert_resource(InterfaceIcons::blank());
+    let player = app
+        .world_mut()
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .single(app.world())
+        .unwrap();
+    let raider = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Enemy,
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)),
+            Name::new("RAIDER"),
+        ))
+        .id();
+    let trader = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Neutral,
+            GlobalTransform::from(Transform::from_xyz(60.0, 0.0, 0.0)),
+            Name::new("TRADER"),
+        ))
+        .id();
+    app.world_mut()
+        .run_system_once(assign_map_contact_codes)
+        .unwrap();
+    app.world_mut().resource_mut::<MapRuntime>().selected = Some(raider);
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyG);
+    app.world_mut().run_system_once(map_input).unwrap();
+
+    // Close and reopen: the selection does not survive, the GOTO does.
+    for pane in [InterfacePaneType::Ship, InterfacePaneType::Map] {
+        *app.world_mut().resource_mut::<InterfacePaneType>() = pane;
+        app.world_mut().run_system_once(manage_map_scene).unwrap();
+    }
+    assert_eq!(app.world().resource::<MapRuntime>().selected, None);
+    app.world_mut().resource_mut::<MapRuntime>().selected = Some(trader);
+
+    // A laid-out viewport at 2x scale and a camera that projects into it 1:1
+    // in physical px, as the render target reconciler leaves them. The blips
+    // and the route both convert to logical px, so they meet only if both do.
+    let viewport = app
+        .world_mut()
+        .spawn((MapViewportMarker, Node::default(), ComputedNode::DEFAULT))
+        .id();
+    app.world_mut().run_system_once(drive_map_camera).unwrap();
+    let lay_out = |app: &mut App, physical: UVec2, camera_too: bool| {
+        let mut computed = app.world_mut().get_mut::<ComputedNode>(viewport).unwrap();
+        computed.size = physical.as_vec2();
+        computed.inverse_scale_factor = 0.5;
+        if !camera_too {
+            return;
+        }
+        let world = app.world_mut();
+        let (mut camera, transform, mut global) = world
+            .query_filtered::<(&mut Camera, &Transform, &mut GlobalTransform), With<MapCameraMarker>>()
+            .single_mut(world)
+            .unwrap();
+        *global = GlobalTransform::from(*transform);
+        camera.computed = ComputedCameraValues {
+            clip_from_view: PerspectiveProjection {
+                aspect_ratio: physical.x as f32 / physical.y as f32,
+                ..default()
+            }
+            .get_clip_from_view(),
+            target_info: Some(RenderTargetInfo {
+                physical_size: physical,
+                scale_factor: 2.0,
+            }),
+            ..default()
+        };
+    };
+    let project = |app: &mut App| {
+        // The first pass spawns the nodes; the second places them.
+        for _ in 0..2 {
+            app.world_mut().run_system_once(project_map_blips).unwrap();
+            app.world_mut().run_system_once(project_map_route).unwrap();
+        }
+    };
+    let px = |val: Val| match val {
+        Val::Px(px) => px,
+        other => panic!("expected px, got {other:?}"),
+    };
+    let blip_centre = |app: &App, contact: Entity| {
+        let blip = app.world().resource::<MapRuntime>().blips[&contact];
+        let node = app.world().get::<Node>(blip).unwrap();
+        Vec2::new(px(node.left), px(node.top)) + MAP_BLIP_PX * 0.5
+    };
+    let route_ends = |app: &mut App| {
+        let world = app.world_mut();
+        let (line, transform, visibility) = world
+            .query_filtered::<(&Node, &UiTransform, &Visibility), With<MapRouteLine>>()
+            .single(world)
+            .unwrap();
+        assert_eq!(*visibility, Visibility::Inherited, "the route draws");
+        let centre = Vec2::new(
+            px(line.left) + px(line.width) * 0.5,
+            px(line.top) + px(line.height) * 0.5,
+        );
+        let half = Vec2::new(transform.rotation.cos, transform.rotation.sin) * px(line.width) * 0.5;
+        (centre - half, centre + half)
+    };
+    let assert_route_meets_blips = |app: &mut App| {
+        let blips = (blip_centre(app, player), blip_centre(app, raider));
+        let ends = route_ends(app);
+        assert!(
+            ends.0.distance(blips.0) < 0.01 && ends.1.distance(blips.1) < 0.01,
+            "the route runs {ends:?}, the blips sit at {blips:?}"
+        );
+        assert!(
+            blips.0.distance(blips.1) > 20.0,
+            "the rig spreads the blips"
+        );
+    };
+
+    lay_out(&mut app, UVec2::new(1600, 1200), true);
+    project(&mut app);
+    assert_route_meets_blips(&mut app);
+    let to_blip = blip_centre(&app, raider);
+    let world = app.world_mut();
+    let (marker, marker_vis, children) = world
+        .query_filtered::<(&Node, &Visibility, &Children), With<MapGotoMarker>>()
+        .single(world)
+        .unwrap();
+    assert_eq!(*marker_vis, Visibility::Inherited);
+    assert_eq!(
+        px(marker.left),
+        to_blip.x - MAP_BLIP_PX * 0.5,
+        "the tag sits on the GOTO target, not the selection"
+    );
+    let tag: Vec<String> = children
+        .iter()
+        .filter_map(|child| world.get::<Text>(child).map(|text| text.0.clone()))
+        .collect();
+    assert_eq!(tag, ["GOTO"], "the destination is named in text");
+
+    // A resize: while the camera still projects into the old size the route
+    // holds, then it meets the blips in the new layout.
+    let before = route_ends(&mut app);
+    lay_out(&mut app, UVec2::new(1200, 1200), false);
+    project(&mut app);
+    assert_eq!(route_ends(&mut app), before, "a stale camera moves nothing");
+    lay_out(&mut app, UVec2::new(1200, 1200), true);
+    project(&mut app);
+    assert_route_meets_blips(&mut app);
+    assert_ne!(route_ends(&mut app), before, "the route follows the resize");
+
+    // Zoomed close with both ends outside: the crossing stroke must stop at
+    // the viewport rather than rotating an offscreen-wide UI node through it.
+    {
+        let world = app.world_mut();
+        let mut global = world
+            .query_filtered::<&mut GlobalTransform, With<MapCameraMarker>>()
+            .single_mut(world)
+            .unwrap();
+        *global = GlobalTransform::from(
+            Transform::from_xyz(0.0, 20.0, -25.0).looking_at(Vec3::new(0.0, 0.0, -25.0), Vec3::Z),
+        );
+    }
+    project(&mut app);
+    let (raw_start, raw_end) = {
+        let world = app.world_mut();
+        let (camera, global) = world
+            .query_filtered::<(&Camera, &GlobalTransform), With<MapCameraMarker>>()
+            .single(world)
+            .unwrap();
+        (
+            camera.world_to_viewport(global, Vec3::ZERO).unwrap() * 0.5,
+            camera
+                .world_to_viewport(global, Vec3::new(0.0, 0.0, -50.0))
+                .unwrap()
+                * 0.5,
+        )
+    };
+    assert!(
+        (raw_start.y < 0.0 && raw_end.y > 600.0) || (raw_end.y < 0.0 && raw_start.y > 600.0),
+        "both projected endpoints cross the viewport: {raw_start:?}, {raw_end:?}"
+    );
+    let (start, end) = route_ends(&mut app);
+    let inset = 1.0; // Half the 2 px route stroke.
+    assert!(
+        [start, end]
+            .iter()
+            .all(|p| p.x >= inset && p.y >= inset && p.x <= 600.0 - inset && p.y <= 600.0 - inset),
+        "the zoomed route escapes the viewport: {start:?} to {end:?}"
+    );
+    assert!(start.distance(end) > 100.0, "the crossing stays drawn");
+
+    // Pan beyond both ends on the same side: the line vanishes, but the tag
+    // remains tied to the live GOTO target.
+    {
+        let world = app.world_mut();
+        let mut global = world
+            .query_filtered::<&mut GlobalTransform, With<MapCameraMarker>>()
+            .single_mut(world)
+            .unwrap();
+        *global = GlobalTransform::from(
+            Transform::from_xyz(0.0, 20.0, -150.0).looking_at(Vec3::new(0.0, 0.0, -150.0), Vec3::Z),
+        );
+    }
+    project(&mut app);
+    let world = app.world_mut();
+    let (camera, global) = world
+        .query_filtered::<(&Camera, &GlobalTransform), With<MapCameraMarker>>()
+        .single(world)
+        .unwrap();
+    let projected: Vec<_> = [Vec3::ZERO, Vec3::new(0.0, 0.0, -50.0)]
+        .into_iter()
+        .map(|pos| camera.world_to_viewport(global, pos).unwrap() * 0.5)
+        .collect();
+    assert!(
+        projected.iter().all(|p| p.y < 0.0) || projected.iter().all(|p| p.y > 600.0),
+        "both ends lie beyond the same edge: {projected:?}"
+    );
+    let world = app.world_mut();
+    let line_vis = world
+        .query_filtered::<&Visibility, With<MapRouteLine>>()
+        .single(world)
+        .unwrap();
+    assert_eq!(*line_vis, Visibility::Hidden, "no viewport intersection");
+    let marker_vis = world
+        .query_filtered::<&Visibility, With<MapGotoMarker>>()
+        .single(world)
+        .unwrap();
+    assert_eq!(
+        *marker_vis,
+        Visibility::Inherited,
+        "the target keeps its tag"
+    );
+
+    // Cancelled, then replaced by another order: no route, lock untouched.
+    let shown = |app: &mut App| {
+        let world = app.world_mut();
+        world
+            .query_filtered::<&Visibility, Or<(With<MapRouteLine>, With<MapGotoMarker>)>>()
+            .iter(world)
+            .map(|visibility| *visibility != Visibility::Hidden)
+            .collect::<Vec<_>>()
+    };
+    app.world_mut().entity_mut(player).remove::<Autopilot>();
+    project(&mut app);
+    assert_eq!(
+        shown(&mut app),
+        [false, false],
+        "a cancelled GOTO draws no route"
+    );
+    app.world_mut()
+        .entity_mut(player)
+        .insert(Autopilot::engage(AutopilotAction::Stop));
+    project(&mut app);
+    assert_eq!(
+        shown(&mut app),
+        [false, false],
+        "another order draws no route"
+    );
+    assert_eq!(
+        app.world().get::<TravelLock>(player),
+        Some(&TravelLock(Some(raider))),
+        "the travel lock outlives the GOTO"
     );
 }
 

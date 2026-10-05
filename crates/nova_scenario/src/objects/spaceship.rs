@@ -70,7 +70,9 @@ pub struct PlayerControllerConfig {
         serde(default, skip_serializing_if = "BTreeMap::is_empty")
     )]
     /// Per-section input bindings: the keys/buttons that drive each thruster,
-    /// turret, or torpedo section, keyed by section id. Empty by default.
+    /// turret, torpedo, railgun or mining section, keyed by section id. Empty
+    /// by default. Every mining section of the ship must have a non-empty
+    /// entry; the lint and the spawn refuse a ship without one.
     ///
     /// [`InputSource`] rather than `bevy_enhanced_input`'s `Binding`: a
     /// section binds a modifier-free button and nothing else, and `Binding`
@@ -647,6 +649,9 @@ fn insert_spaceship_sections(
     // non-combatant below so it flies its routine and never chases. Tracked
     // through the section loop.
     let mut has_weapon = false;
+    // Every source a player mining section holds so far, so a second emitter on
+    // the same key is refused rather than deployed by the same press.
+    let mut mining_sources: Vec<(InputSource, &str)> = Vec::new();
 
     commands.entity(entity).with_children(|parent| {
         for section in &design.sections {
@@ -740,10 +745,39 @@ fn insert_spaceship_sections(
                 SectionKind::CargoIntake(intake_config) => {
                     section_entity.insert(cargo_intake_section(intake_config.clone()));
                 }
-                // No bound key either: every emitter on the ship deploys while
-                // the ship holds the mine key.
+                // Each emitter deploys on its own key. A player emitter without
+                // one could never be used; the lint refuses it first.
                 SectionKind::Mining(mining_config) => {
                     section_entity.insert(mining_section(mining_config.clone()));
+
+                    match controller_config {
+                        SpaceshipController::None => {}
+                        SpaceshipController::Player(config) => {
+                            let bindings = match config.input_mapping.get(&section.id) {
+                                Some(bindings) if !bindings.is_empty() => bindings,
+                                _ => panic!(
+                                    "spaceship: player mining section '{}' has no \
+                                     input_mapping entry",
+                                    section.id
+                                ),
+                            };
+                            for &source in bindings {
+                                if let Some((_, other)) =
+                                    mining_sources.iter().find(|(taken, _)| *taken == source)
+                                {
+                                    panic!(
+                                        "spaceship: player mining sections '{other}' and '{}' \
+                                         share {}",
+                                        section.id,
+                                        source.label()
+                                    );
+                                }
+                                mining_sources.push((source, section.id.as_str()));
+                            }
+                            section_entity.insert(SpaceshipMiningInputBinding(bindings.clone()));
+                        }
+                        SpaceshipController::AI(_) => {}
+                    }
                 }
                 SectionKind::Railgun(railgun_config) => {
                     has_weapon = true;
