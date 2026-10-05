@@ -1762,6 +1762,7 @@ mod tests {
         );
         app.add_plugins(crate::physics::prelude::PDControllerPlugin);
         app.add_plugins(crate::sections::SpaceshipSectionPlugin { render: false });
+        app.init_resource::<nova_gameplay::inventory::CargoCanisterIdAllocator>();
         app.finish();
 
         let ship = app
