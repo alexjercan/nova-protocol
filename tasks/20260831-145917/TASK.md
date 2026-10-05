@@ -1,8 +1,8 @@
 # Mobile virtual pad: the web build playable by touch
 
 - STATUS: OPEN
-- PRIORITY: 45
-- TAGS: v0.15.0,input,mobile,touch
+- PRIORITY: 0
+- TAGS: backlog,input,mobile,touch
 
 Split 2026-08-31 out of `20260714-001140`, which v0.13.0 rescopes to real
 gamepad hardware. The touch half stays backlog so its layout targets
