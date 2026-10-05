@@ -1,6 +1,6 @@
 # Improve Ship, Inventory, and Map HUD clarity and controls
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.15.0, ui, bug
 
