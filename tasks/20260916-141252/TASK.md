@@ -1,6 +1,6 @@
 # Cycle menu backdrops in a non-repeating pseudorandom order
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.15.0,menu,backdrop
 
@@ -40,6 +40,14 @@
 - Zero- and one-backdrop catalogs degrade safely; pinning still works.
 - Deterministic tests prove a full cycle, a boundary, completion hand-off, and
   zero-, one-, and two-backdrop cases.
+
+## Verification
+
+- `nova_menu` ambience tests: 16 passed; `nova_scenario` backdrop tests: 5
+  passed; `nova_assets` example scenario tests: 16 passed.
+- Focused check of `nova_menu`, `nova_scenario`, `nova_authoring`, and
+  `nova_editor` passed. Independent source review found no blockers.
+- No live rendered menu run or direct entry-pin test was performed.
 
 ## Scheduling
 
