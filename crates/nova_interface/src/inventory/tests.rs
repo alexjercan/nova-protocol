@@ -1478,6 +1478,7 @@ mod generated_wreck {
         ));
         app.insert_resource(GameSections(sections));
         app.insert_resource(GameShipDesigns(ships));
+        app.init_resource::<nova_gameplay::inventory::CargoCanisterIdAllocator>();
         app.init_resource::<InventoryRuntime>();
         app.add_message::<InventoryActionCommand>();
         app.add_systems(Update, apply_inventory_action_commands);
