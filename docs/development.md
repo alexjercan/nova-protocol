@@ -419,11 +419,12 @@ fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
 `AGENTS.md`, and the invariant roster is what keeps it honest.
 
 Every example is HARNESSED: it drives itself under
-`NOVA_AUTOPILOT=1`, and probe is the regression suite over all of them -
+`NOVA_AUTOPILOT=1`, and probe can run any cataloged example -
 `cargo run --features debug probe run systems` (or `screenshots`, or
-`playable`) runs one category alone, and `--all` is the whole catalog, which is
-what `probe-full.yaml` runs, sharded by subject, on a release and on manual
-dispatch; a pull request runs a twelve-example smoke out of that same catalog.
+`playable`) runs one category alone, and `--all` runs the whole catalog.
+`probe-full.yaml` runs a curated 24-example set in five subject shards on a
+release and on manual dispatch; a pull request runs a seven-example smoke
+subset. Neither CI runtime suite runs the whole catalog.
 Each example must reach `Playing` and exit without panic; every
 `systems/` range additionally carries panic-on-failure behavior assertions with
 completion backstops (a stalled script fails instead of passing vacuously). The
@@ -475,8 +476,9 @@ autopilot-script assertion (a named step whose `on_enter` asserts, reached only
 once the steps before it have waited on the world - see
 `system_hull_damage`/`system_hud_indicators` for the style) carrying an
 `outcome: <slug>`
-marker on the roster; the release's full probe suite runs every one of them,
-and a pull request runs the twelve in the smoke set. Caveat: the handler swap
+marker on the roster; the release's curated probe suite runs 24 selected
+ranges, and a pull request runs seven of those. Other ranges compile in CI
+but need an explicit probe run for runtime proof. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).
 
@@ -1299,7 +1301,7 @@ The everyday loop for landing a change:
    pushes to `master`, so the integrated tree is revalidated after merge:
    `cargo fmt --check`, `cargo clippy --workspace --all-targets
    --features debug -- -D warnings`, `cargo test --workspace --features debug`,
-   then a windowed twelve-example `probe run --correctness-only` smoke under
+   then a windowed seven-example `probe run --correctness-only` smoke under
    Xvfb/lavapipe plus the
    `nova_autopilot` example test under Xvfb. Three more
    jobs run in parallel with that one: a default-features
@@ -1310,13 +1312,15 @@ The everyday loop for landing a change:
    on wasm - neither configuration is otherwise built. All of it must be green
    to merge.
 
-   The COMPLETE catalog lives in `.github/workflows/probe-full.yaml`, a
-   subject-sharded suite with no trigger of its own. `release.yaml` calls it and
-   every platform build waits on it, so a tag cannot ship past a red example;
-   run it by hand from any ref with `workflow_dispatch`. Both example lists are
-   named, so `scripts/check-probe-suites.py` (a step in the `check` job) fails
-   the build unless the full shards partition the `[[example]]` catalog exactly
-   and every smoke name sits inside them.
+   The curated release set lives in `.github/workflows/probe-full.yaml`, a
+   five-shard suite with no push or PR trigger. `release.yaml` calls it and
+   every platform build waits on it, so a tag cannot ship past a red selected
+   example; run it by hand from any ref with `workflow_dispatch`. Both runtime
+   lists are named, so `scripts/check-probe-suites.py` (a step in the `check`
+   job) rejects unknown and duplicate names, empty sets, and smoke examples
+   outside the full shards. It does not require every `[[example]]` to run in
+   CI; the independent catalog drift test checks disk against Cargo.toml, and
+   the default all-target check compiles the remaining examples.
 
    The wasm job is CLIPPY rather than `check`, and it points `CLIPPY_CONF_DIR`
    at `ci/wasm-clippy/`, whose `clippy.toml` bans the std APIs that COMPILE for

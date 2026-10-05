@@ -247,7 +247,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   multi-section hulls.
 - Probe snapshot bodies and Agent Bench body records drop `invulnerable`. The
   body `kind` decides it: an `Asteroid` can be destroyed, a `Planet` cannot.
-- PR and master-push CI run a twelve-example probe smoke instead of the whole catalog. The complete sharded suite remains manual and gates every release platform build.
+- PR and master-push CI run seven curated probe examples. Five release shards run 24 examples, not the full catalog. Other examples remain cataloged and compile in the all-target check.
 - New opt-in `nova_world` crate: a plugin streams a 5x5x5 window of 32 km cells
   over one live scenario, filled by a sector generator whose bodies it checks
   before they spawn.

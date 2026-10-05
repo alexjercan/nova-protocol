@@ -32,10 +32,10 @@ jobs:
     outputs:
       version: ${{ inputs.version || steps.tag.outputs.tag }}
 
-  # The runtime gate on a release. PR CI only runs a twelve-example smoke, so
-  # this is where the whole cataloged suite is proved, and every platform build
-  # below waits on it: a tag must not ship binaries past an example that no
-  # longer reaches `Playing`.
+  # The runtime gate on a release. PR CI runs seven curated smoke examples;
+  # this gate runs 24 curated examples. Every platform build below waits on it:
+  # a tag must not ship binaries past a selected example that no longer reaches
+  # `Playing`. Neither suite runs the full catalog.
   #
   # Called rather than triggered. `probe-full.yaml` carries `workflow_call` and
   # `workflow_dispatch` and NO tag trigger on purpose - a `push: tags:` there

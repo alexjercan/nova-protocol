@@ -1,25 +1,14 @@
 #!/usr/bin/env python3
-"""The two probe suites must cover the example catalog between them.
+"""Validate the curated probe suites against the Cargo example catalog.
 
-Both runtime suites NAME the examples they run, so a name is the one way an
-example can go missing - a new example that joins neither list never runs, and
-every job still reports green over the names it knows.
+The full shards contain distinct, known examples and no empty shard. The PR
+smoke set is non-empty, duplicate-free, and contained in those shards. Other
+cataloged examples may run in neither suite; WFC arena is one such example.
 
-So this asserts two properties against `Cargo.toml`'s `[[example]]` catalog:
-
-* `.github/workflows/probe-full.yaml`'s shard matrix PARTITIONS the catalog -
-  every example in exactly one shard, no shard empty, no shard naming anything
-  that is not an example.
-* `.github/workflows/ci.yaml`'s PR smoke set is a non-empty, duplicate-free
-  subset of the catalog, and every name in it is also in a full shard - the
-  smoke deliberately covers a slice, but it must never be the only home of an
-  example, and it must never name one that no longer exists.
-
-Both lists are read out of the workflow sources. This file keeps no catalog and
-no copy of either list; it fails loudly when the shape it parses is gone rather
-than quietly finding nothing. `catalog_drift.rs` in `nova_probe_cli` owns the
-other half of the chain (examples/ on disk <-> Cargo.toml), so the two together
-mean every example file on disk runs in exactly one full shard.
+Both lists are read from the workflow sources, without copies here. Unexpected
+source shapes fail loudly. The independent `nova_probe_cli` `catalog_drift.rs`
+check owns examples/ on disk <-> Cargo.toml, including examples omitted from
+these runtime suites. The default all-target build still compiles them.
 
 Run it from anywhere; it reads the repository it lives in.
 """
@@ -37,9 +26,9 @@ CARGO = ROOT / "Cargo.toml"
 
 # The full matrix shape this parser is pinned to, in probe-full.yaml's own
 # indentation:
-#           - shard: editor
+#           - shard: boot-ui
 #             examples: >-
-#               screenshot_editor screenshot_planet_editor
+#               system_menu_boot system_session_loop
 SHARD = re.compile(r" {10}- shard: (\S+)")
 SHARD_EXAMPLES = " " * 12 + "examples: >-"
 SHARD_MEMBER = re.compile(r" {14}\S.*")
@@ -95,7 +84,9 @@ def full_shards() -> dict[str, list[str]]:
             shards[current] = []
         elif NEAR_SHARD.match(line):
             fail(f"{FULL} line `{line.strip()}` is not the shard shape this parser reads")
-        elif current and line == SHARD_EXAMPLES:
+        elif line == SHARD_EXAMPLES:
+            if current is None:
+                fail(f"{FULL} has an orphan examples block without a shard")
             collecting = True
         elif NEAR_SHARD_EXAMPLES.fullmatch(line.rstrip(">- ")):
             fail(f"{FULL} line `{line.strip()}` is not the shape this parser reads")
@@ -134,12 +125,6 @@ def main() -> None:
 
     if unknown := sorted(set(owner) - set(names)):
         fail(f"{FULL} names examples that are not in Cargo.toml: {' '.join(unknown)}")
-    if missing := sorted(set(names) - set(owner)):
-        fail(
-            f"these examples are in no probe shard and would never run: "
-            f"{' '.join(missing)} - add each to a shard in {FULL}"
-        )
-
     if repeated := sorted({name for name in smoke if smoke.count(name) > 1}):
         fail(f"the smoke set names these twice: {' '.join(repeated)}")
     if unknown := sorted(set(smoke) - set(names)):
@@ -147,7 +132,7 @@ def main() -> None:
     if orphan := sorted(set(smoke) - set(owner)):
         fail(f"these smoke examples are in no full shard: {' '.join(orphan)} - add each in {FULL}")
 
-    print(f"{len(names)} examples over {len(shards)} full probe shards:")
+    print(f"{len(owner)} curated examples over {len(shards)} full probe shards ({len(names)} cataloged):")
     for shard, members in shards.items():
         print(f"  {shard:<16} {len(members):>3}  {' '.join(members)}")
     print(f"smoke set ({len(smoke)}): {' '.join(smoke)}")

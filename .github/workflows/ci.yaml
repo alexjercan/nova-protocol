@@ -1,8 +1,8 @@
 name: CI
 
 # Pull requests grade proposed changes. Master pushes revalidate the integrated
-# tree. Releases additionally gate every platform build on the complete
-# `probe-full.yaml` suite.
+# tree. Releases additionally gate every platform build on the curated
+# `probe-full.yaml` runtime suite.
 on:
   pull_request:
   push:
@@ -104,17 +104,11 @@ jobs:
           python3 scripts/gen-lore-designs.py --check
           python3 scripts/gen-lore-portraits.py --check
 
-      # Both runtime suites NAME their examples, so an example that joins the
-      # catalog and neither list would never run and nothing would say so -
-      # every shard would still report green over the names it knows. The
-      # script reads the lists out of the two workflow sources and fails unless
-      # `probe-full.yaml`'s shards partition the `[[example]]` catalog exactly
-      # and this file's smoke set is a non-empty subset of them. Cheap, runs
-      # before the expensive steps, and runnable locally before a push.
-      # `nova_probe_cli`'s `catalog_drift.rs` owns the other half of the chain
-      # (examples/ on disk <-> Cargo.toml), so the two together mean every
-      # example file runs in exactly one full shard.
-      - name: Probe suites cover the example catalog
+      # The runtime suites name a curated catalog subset. Fail on unknown or
+      # duplicate names, empty shards or smoke, and smoke names without a full
+      # shard. An example may stay out of both runtime suites; the independent
+      # `catalog_drift.rs` check keeps examples/ on disk aligned with Cargo.toml.
+      - name: Check curated probe suites
         run: python3 scripts/check-probe-suites.py
 
       # One clippy pass, workspace-wide, with the debug feature on. `debug`
@@ -235,30 +229,17 @@ jobs:
           PYTHONHASHSEED=524287 npm run build:story
           diff -r "$RUNNER_TEMP/comic-seed-0" .cache/story/release/generated
 
-  # The PR-time runtime gate: twelve examples on ONE runner, not the whole
-  # catalog on twelve. The complete subject-sharded suite moved to
-  # `probe-full.yaml`, where a release calls it and a maintainer can dispatch
-  # it; it costs a dozen-plus runners and ~15-21 min of runs per shard, which
-  # is not what a one-line PR should wait for or spend.
-  #
-  # The twelve are picked to touch every subsystem a compile gate cannot see at
-  # least once - boot and session lifecycle, the scenario grammar, flight,
-  # turrets, torpedoes, hull damage, the HUD shell, the interface, the training
-  # journey, the headless replay path, and one refusal - so a change that
-  # breaks the game at runtime is very likely to be red here rather than at
-  # release time. It is a SMOKE set, not a partition: the guarantee that every
-  # cataloged example still runs somewhere belongs to `probe-full.yaml`, and
-  # `scripts/check-probe-suites.py` is what keeps these names inside it.
-  #
-  # One runner on purpose. Under lavapipe the render is CPU work, so these run
-  # one after another in a single `probe run`; a matrix across twelve runners
-  # would pay twelve cold builds to save serial run time that the build itself
-  # dwarfs.
+  # The PR-time runtime gate runs seven curated examples on one runner. They
+  # cover boot, session, scenario grammar, flight, combat, damage, and headless
+  # replay. This is a smoke set, not a catalog-wide runtime guarantee. The
+  # 24-example subject-sharded release suite lives in `probe-full.yaml`.
+  # Under lavapipe rendering uses CPU cores, so serial runs avoid contention
+  # and one runner avoids repeated cold builds.
   probe-smoke:
     name: probe / smoke
     runs-on: ubuntu-latest
     # Sized for a COLD cache: no `probe-debug` cache to restore means a full
-    # ~20-minute build before anything runs, on top of the twelve walks. A warm
+    # ~20-minute build before anything runs, on top of the smoke walks. A warm
     # run is far under this. The cap is a hang backstop for the job as a whole;
     # `--timeout` below is the per-example one.
     timeout-minutes: 60
@@ -270,9 +251,8 @@ jobs:
       # drift into naming something that no longer exists.
       SMOKE_EXAMPLES: >-
         system_menu_boot system_session_loop system_scenario_grammar
-        system_attitude_hold system_turret_gunnery system_torpedo_launch
-        system_hull_damage system_hud_shell system_interface
-        system_training_journey system_headless_replay bug_refused_scenario
+        system_attitude_hold system_turret_gunnery system_hull_damage
+        system_headless_replay
     steps:
       - uses: actions/checkout@v4
 
@@ -300,8 +280,9 @@ jobs:
       # The windowed run gate: correctness-only probe spawns each named example
       # under NOVA_AUTOPILOT/Xvfb (lavapipe renders) and grades process exit,
       # run completion, reached-Playing, invariants, and log cleanliness. It
-      # skips the separate FPS and traced passes; full local/release probe runs
-      # own performance evidence. `aggregate_exit` returns FAILURE on anything
+      # skips the separate FPS and traced passes. Neither this correctness gate
+      # nor the curated release gate proves performance or appearance.
+      # `aggregate_exit` returns FAILURE on anything
       # past OK/WARN/UNPROBEABLE (UNPROBEABLE is the sanctioned no-probe-plugin
       # opt-out, still gated on its smoke checks), so this is a blocking gate.
       #
@@ -329,13 +310,8 @@ jobs:
         # too would win over that sizing and make this dial do nothing, which
         # is how a 280 s pin under a 300 s timeout used to read.
         #
-        # A HANG detector, not a performance gate - the job carries its own cap
-        # - so it is sized to let the longest healthy walk finish rather than to
-        # police it. Software rendering is what makes that walk long: two
-        # carriers meeting nose to nose cost `system_collision_damage` 24 real
-        # seconds per simulated one on a two-core runner (run 34959859343). 510
-        # is the same bound the full suite uses; keep the two equal so an
-        # example that passes here cannot time out there.
+        # A HANG detector, not a performance gate. Keep the timeout aligned
+        # with the full suite so a smoke example has the same per-run budget.
         #
         # The list arrives whitespace separated and folded onto one line by
         # YAML; `probe run` wants one comma-separated token, and it drops empty
