@@ -238,6 +238,10 @@ pub struct NovaEventWorld {
     /// ticked by `state_to_world_system` on the world's (pause-frozen) time;
     /// the switch executes at expiry.
     pub next_scenario_delay: Option<Timer>,
+    /// Set by `BackdropDone`: the menu backdrop's act is finished and the menu
+    /// may cut to its next backdrop. Cleared at teardown, so a cut that loads
+    /// the successor also retires the request that asked for it.
+    backdrop_done: bool,
     /// What the loaded scenario needs to be woken FOR, derived from its
     /// `OnUpdate` filters at load. See `loader::wake`.
     wake: WakeProfile,
@@ -550,6 +554,19 @@ impl NovaEventWorld {
         self.scatter_placements.clear();
         self.next_scenario = None;
         self.next_scenario_delay = None;
+        self.backdrop_done = false;
+    }
+
+    /// Whether the loaded backdrop has reported its act finished
+    /// (`BackdropDone`). The menu reads this to cut to its next backdrop.
+    pub fn backdrop_done(&self) -> bool {
+        self.backdrop_done
+    }
+
+    /// Record a `BackdropDone`. A repeat is a no-op: one finished act asks
+    /// for one cut.
+    pub fn mark_backdrop_done(&mut self) {
+        self.backdrop_done = true;
     }
 
     /// Every body scattered so far this scenario, across ALL `ScatterObjects`
@@ -1434,6 +1451,21 @@ mod tests {
             world.next_scenario_delay.is_none(),
             "teardown drops the clock"
         );
+    }
+
+    /// A backdrop's done report stands until teardown, and no longer: the
+    /// menu's cut loads the successor, and that load must retire the report
+    /// so the old act cannot ask for a second cut.
+    #[test]
+    fn a_backdrop_done_report_stands_until_teardown() {
+        use nova_events::prelude::EventAction;
+        let mut world = NovaEventWorld::default();
+        assert!(!world.backdrop_done());
+        BackdropDoneActionConfig.action(&mut world, &default());
+        BackdropDoneActionConfig.action(&mut world, &default());
+        assert!(world.backdrop_done(), "a repeat report keeps the one flag");
+        world.clear();
+        assert!(!world.backdrop_done(), "teardown retires the report");
     }
 
     /// The story log syncs into the HUD's StoryFeed with the same

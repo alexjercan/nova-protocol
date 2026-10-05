@@ -612,11 +612,7 @@
                     )),
                 ],
                 actions: [
-                    NextScenario((
-                        scenario_id: "menu_weave",
-                        linger: false,
-                        delay: Some(1.0),
-                    )),
+                    BackdropDone(()),
                 ],
             ),
             (
@@ -627,11 +623,7 @@
                     )),
                 ],
                 actions: [
-                    NextScenario((
-                        scenario_id: "menu_weave",
-                        linger: false,
-                        delay: Some(1.0),
-                    )),
+                    BackdropDone(()),
                 ],
             ),
             (

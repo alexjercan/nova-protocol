@@ -1,12 +1,10 @@
 //! Private scenarios rendered behind the main menu.
 //!
-//! The four backdrops form a Factorio-style CAROUSEL: each scene plays its
-//! act and then hands off to the NEXT one with a `NextScenario` (gauntlet ->
-//! weave -> duel -> waystation -> gauntlet). Scenes with a natural ending
-//! (the gauntlet's fallen stand, the duel's erased victor) hand off from
-//! their aftermath; the endless ones (weave, waystation) carry a rotation
-//! time limit. The menu's random draw picks only the ENTRY point of the
-//! ring.
+//! Each scene plays its act and then reports it finished with
+//! `BackdropDone`; the menu owns the rotation and picks what plays next.
+//! Scenes with a natural ending (the gauntlet's fallen stand, the duel's
+//! erased victor) report from their aftermath; the endless ones (weave,
+//! waystation) carry a rotation time limit.
 
 mod duel;
 mod gauntlet;
@@ -14,8 +12,7 @@ mod shared;
 mod waystation;
 mod weave;
 
-/// The four backdrop scenario ids. Each scene names the NEXT one in its
-/// hand-off, so producer and consumer read the same constant.
+/// The four backdrop scenario ids.
 const MENU_WAYSTATION_SCENARIO_ID: &str = "menu_waystation";
 const MENU_GAUNTLET_SCENARIO_ID: &str = "menu_gauntlet";
 const MENU_WEAVE_SCENARIO_ID: &str = "menu_weave";

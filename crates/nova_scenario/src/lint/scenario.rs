@@ -144,6 +144,43 @@ pub fn lint_scenario(
         ));
     }
 
+    // The menu owns the backdrop rotation: a backdrop reports that its act is
+    // finished with BackdropDone and never names its successor. All three are
+    // ERRORS for the same reason as the camera rule: an erroring backdrop
+    // leaves the menu draw, and an erroring chapter refuses to start.
+    let mut reports_done = false;
+    let mut names_successor = false;
+    for action in scenario.events.iter().flat_map(|event| &event.actions) {
+        action.walk(&mut |action| match action {
+            EventActionConfig::BackdropDone(_) => reports_done = true,
+            EventActionConfig::NextScenario(_) => names_successor = true,
+            _ => {}
+        });
+    }
+    if scenario.role.is_backdrop() {
+        if !reports_done {
+            issues.push(LintIssue::error(
+                id,
+                "menu backdrop authors no BackdropDone; the menu would never turn to the next \
+                 backdrop"
+                    .to_string(),
+            ));
+        }
+        if names_successor {
+            issues.push(LintIssue::error(
+                id,
+                "menu backdrop authors NextScenario; the menu chooses the next backdrop - \
+                 author BackdropDone instead"
+                    .to_string(),
+            ));
+        }
+    } else if reports_done {
+        issues.push(LintIssue::error(
+            id,
+            "BackdropDone outside a menu backdrop (`role: Backdrop`); nothing reads it".to_string(),
+        ));
+    }
+
     let mut watch_names = HashSet::new();
     for watch in &scenario.watches {
         if watch.variable.trim().is_empty() {
@@ -2142,7 +2179,8 @@ mod tests {
     /// draw filters the broken backdrop out of the rotation.
     #[test]
     fn a_backdrop_without_a_camera_pose_is_an_error() {
-        let mut poseless = scenario(vec![], vec![]);
+        let done = || EventActionConfig::BackdropDone(BackdropDoneActionConfig);
+        let mut poseless = scenario(vec![done()], vec![]);
         poseless.role = ScenarioRole::Backdrop;
         let issues = lint_scenario(
             &poseless,
@@ -2155,11 +2193,14 @@ mod tests {
         assert!(errs[0].message.contains("SetCamera"));
 
         let mut posed = scenario(
-            vec![EventActionConfig::SetCamera(SetCameraActionConfig {
-                blend: None,
-                position: Meters3::new(0.0, 900.0, 3_000.0),
-                look_at: Meters3::ZERO,
-            })],
+            vec![
+                EventActionConfig::SetCamera(SetCameraActionConfig {
+                    blend: None,
+                    position: Meters3::new(0.0, 900.0, 3_000.0),
+                    look_at: Meters3::ZERO,
+                }),
+                done(),
+            ],
             vec![],
         );
         posed.role = ScenarioRole::Backdrop;
@@ -2180,6 +2221,72 @@ mod tests {
             &known(&["test_scenario"]),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
+    }
+
+    /// The rotation contract: a backdrop reports its finished act with
+    /// BackdropDone and names no successor, and BackdropDone belongs to
+    /// backdrops alone. Each breach is an ERROR, which keeps a broken
+    /// backdrop out of the menu draw and a broken chapter from starting.
+    #[test]
+    fn a_backdrop_must_report_done_and_name_no_successor() {
+        let lint = |scenario: &ScenarioConfig| {
+            let issues = lint_scenario(
+                scenario,
+                &sections(&[]),
+                &ships(&[]),
+                &known(&["test_scenario"]),
+            );
+            errors(&issues)
+                .iter()
+                .map(|issue| issue.message.clone())
+                .collect::<Vec<_>>()
+        };
+        let pose = || {
+            EventActionConfig::SetCamera(SetCameraActionConfig {
+                blend: None,
+                position: Meters3::new(0.0, 900.0, 3_000.0),
+                look_at: Meters3::ZERO,
+            })
+        };
+        let done = || EventActionConfig::BackdropDone(BackdropDoneActionConfig);
+        let backdrop = |actions| {
+            let mut backdrop = scenario(actions, vec![]);
+            backdrop.role = ScenarioRole::Backdrop;
+            backdrop
+        };
+
+        let silent = lint(&backdrop(vec![pose()]));
+        assert_eq!(silent.len(), 1, "{silent:?}");
+        assert!(silent[0].contains("no BackdropDone"), "{silent:?}");
+
+        // A done report nested in a beat chain counts: lint walks every arm.
+        let nested = lint(&backdrop(vec![
+            pose(),
+            sequence(
+                "act",
+                vec![SequenceStepConfig {
+                    actions: vec![done()],
+                    ..Default::default()
+                }],
+            ),
+        ]));
+        assert!(nested.is_empty(), "{nested:?}");
+
+        let successor = lint(&backdrop(vec![
+            pose(),
+            done(),
+            EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: "test_scenario".to_string(),
+                linger: false,
+                delay: Some(1.0),
+            }),
+        ]));
+        assert_eq!(successor.len(), 1, "{successor:?}");
+        assert!(successor[0].contains("NextScenario"), "{successor:?}");
+
+        let chapter = lint(&scenario(vec![done()], vec![]));
+        assert_eq!(chapter.len(), 1, "{chapter:?}");
+        assert!(chapter[0].contains("BackdropDone outside"), "{chapter:?}");
     }
 
     /// A helm order on a PLAYER's ship is an authoring error - the controller

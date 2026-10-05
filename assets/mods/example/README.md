@@ -26,7 +26,9 @@ binary assets it ships).
   `textures/`, declared in the manifest's `resources`, referenced with the
   `self://` scheme so they resolve against this mod's own folder.
 - **A menu backdrop** - `example_menu` declares `role: Backdrop`, so mods can
-  ship their own main-menu ambience, not just playable levels.
+  ship their own main-menu ambience, not just playable levels. It reports its
+  act finished with `BackdropDone` after a 150 s timer, and the menu picks
+  what plays next.
 - **A hull line** - `example_freighter_hull` is a `Grammar` under a new id: a
   longer, blunt-nosed hauler drawing this mod's own plate and no weapons. The
   editor's Generate block lists it under HULL LINE beside the base warship and

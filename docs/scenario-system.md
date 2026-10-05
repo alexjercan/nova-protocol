@@ -402,7 +402,10 @@ all run on the same clock, which is the only part that is not obvious from the
 RON:
 
 - A `NextScenario` **delay** ticks on `Time<Virtual>`, the pause-frozen
-  scenario clock, so a player who pauses holds the cut.
+  scenario clock, so a player who pauses holds the cut. The menu's one-second
+  cut after a backdrop's `BackdropDone` (`nova_menu::ambience::
+  advance_menu_backdrop`) ticks on the same clock. The scenario raises the flag
+  in the `PostUpdate` event drain, and the menu reads it in the next `Update`.
 - An `Outcome`'s **`auto_advance_secs`** cannot, because the overlay it belongs
   to STOPS `Time<Virtual>`. It runs on the wall clock instead. A timed banner
   that used the scenario clock would never fire.

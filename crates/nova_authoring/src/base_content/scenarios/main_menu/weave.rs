@@ -168,7 +168,7 @@ pub(crate) fn menu_weave(
                 .chain([
                     backdrop_camera(Meters3::new(0.0, 1_010.0, 3_380.0)),
                     band,
-                    // The carousel's rotation limit: the weave has no natural
+                    // The rotation limit: the weave has no natural
                     // ending, so after a couple of laps the menu turns to
                     // the next backdrop.
                     EventActionConfig::TimerStart(TimerStartActionConfig {
@@ -185,15 +185,11 @@ pub(crate) fn menu_weave(
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: TIMER_ROTATE.to_string(),
             })],
-            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: super::MENU_DUEL_SCENARIO_ID.to_string(),
-                linger: false,
-                delay: Some(1.0),
-            })],
+            actions: vec![EventActionConfig::BackdropDone(BackdropDoneActionConfig)],
         },
         // Failsafe: the runner ramming a rock must not leave the menu
         // staring at a pilotless band - a short aftermath linger, then the
-        // carousel turns early.
+        // menu turns early.
         ScenarioEventConfig {
             label: None,
             name: EventConfig::OnDefeated,
@@ -211,11 +207,7 @@ pub(crate) fn menu_weave(
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: TIMER_RESET.to_string(),
             })],
-            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: super::MENU_DUEL_SCENARIO_ID.to_string(),
-                linger: false,
-                delay: Some(1.0),
-            })],
+            actions: vec![EventActionConfig::BackdropDone(BackdropDoneActionConfig)],
         },
     ];
 

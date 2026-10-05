@@ -820,6 +820,7 @@ impl ActionChoiceExt for ActionChoice {
                     delay: None,
                 })
             }
+            ActionChoice::BackdropDone => EventActionConfig::BackdropDone(BackdropDoneActionConfig),
             // The two arms whose steps are children, so the node holds the
             // head and the caller adds a first step beside it.
             ActionChoice::Sequence => return ActionKind::Sequence(SequenceHead::default()),

@@ -136,6 +136,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - An open world pins its ship parts to the loaded mod catalog. It panics at
   arming if the catalog has a non-finite value, and if the catalog changes
   under an armed world.
+- **(breaking)** A `role: Backdrop` scenario must author `BackdropDone(())` and
+  no `NextScenario`; the menu picks the next backdrop. `BackdropDone` outside a
+  backdrop fails lint and load too.
 
 ### Interface & HUD
 
@@ -198,6 +201,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Turrets no longer draw lead pips, the small squares at each intercept point.
   Turrets still lead their targets, and the aim and firing reticles are
   unchanged.
+- The menu plays its backdrops in a shuffled rotation instead of a fixed ring:
+  each plays once before any repeats, and none plays twice in a row.
 
 ### Web & Platform
 

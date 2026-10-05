@@ -13,7 +13,7 @@ avian3d = { version = "0.7" }
 # large enough to fill the pane is megabytes as PNG). The feature unifies
 # across the graph, so turning it on here turns it on for the game binary.
 bevy = { version = "0.19.0", features = ["webp"] }
-# The menu-backdrop rotation draws its random pick from the shared GlobalRng
+# The menu-backdrop rotation shuffles its cycle with the shared GlobalRng
 # entity (EntropyPlugin is registered by nova_gameplay's plugin in production).
 bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
 rand = { version = "0.10.2" }

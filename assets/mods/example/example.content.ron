@@ -804,6 +804,27 @@
                             credits: 2_000,
                         )),
                     )),
+                    // The act length: an orbit never ends on its own, so the
+                    // scene times itself out like the base endless backdrops.
+                    TimerStart((
+                        key: "example_menu_rotate",
+                        seconds: Term(Factor(Literal(Number(150.0)))),
+                    )),
+                ],
+            ),
+            // The rotation contract: a backdrop reports its act finished with
+            // BackdropDone and the MENU picks what plays next. A backdrop
+            // that never reports is a content Error, and one that names its
+            // own successor with NextScenario is too.
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "example_menu_rotate",
+                    )),
+                ],
+                actions: [
+                    BackdropDone(()),
                 ],
             ),
         ],

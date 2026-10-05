@@ -808,11 +808,7 @@
                     )),
                 ],
                 actions: [
-                    NextScenario((
-                        scenario_id: "menu_gauntlet",
-                        linger: false,
-                        delay: Some(1.0),
-                    )),
+                    BackdropDone(()),
                 ],
             ),
         ],

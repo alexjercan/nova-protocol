@@ -68,7 +68,7 @@ practise in a `Lesson`.
 | role | what it is | where it is offered |
 |---|---|---|
 | `Chapter` | A level. The default, and what you want unless you are writing menu scenery or a training range. | The Scenarios list, and campaigns. |
-| `Backdrop` | Menu scenery: it poses its own camera and hands the player no ship. | The random main-menu backdrop rotation, and nowhere else. |
+| `Backdrop` | Menu scenery: it poses its own camera, hands the player no ship, and reports when its act is done. | The main-menu backdrop rotation, and nowhere else. |
 | `Lesson` | A focused practice range for one handbook [lesson](../lessons/). | That lesson's Practice button, and nowhere else. |
 | `OpenWorld` | The base New Game start: it spawns the one player ship the generated world streams around. | New Game's Create, and nowhere else. |
 
@@ -80,6 +80,11 @@ A menu backdrop POSES ITS OWN CAMERA: author a
 about 1,060 m either side of the origin in a 4:3 window). A backdrop without
 one is a content Error and never enters the menu rotation - the menu derives
 no pose of its own.
+
+A menu backdrop REPORTS WHEN ITS ACT IS DONE: author a
+[`BackdropDone`](../actions/#backdropdone) where the act ends (a scene with no
+natural ending times itself out). The menu then picks the next backdrop. A
+backdrop without one, or with a `NextScenario`, is a content Error.
 
 A practice range TEACHES ONE THING, and owes the player four things the four
 ranges in the handbook show:
@@ -232,8 +237,9 @@ find. In the game, enable the mod, open Scenarios, and play the visible entry.
 - Initialize variables before filters read them.
 - Spawn an object before an action targets its id.
 - `role: Backdrop` is menu scenery, not a level. It is left out of the
-  Scenarios list, it must pose its own camera with `SetCamera`, and a campaign
-  that names one is a lint error.
+  Scenarios list, it must pose its own camera with `SetCamera` and report its
+  finished act with `BackdropDone`, and a campaign that names one is a lint
+  error.
 - `role: Lesson` is a practice range, reachable only from the
   [lesson](../lessons/) whose Practice button names it. A campaign that names
   one is a lint error too, and a range no lesson practises in is a warning.

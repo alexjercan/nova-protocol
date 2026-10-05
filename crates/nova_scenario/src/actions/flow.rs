@@ -137,6 +137,24 @@ impl EventAction<NovaEventWorld> for NextScenarioActionConfig {
     }
 }
 
+/// Action that reports a menu backdrop's act as finished. Strict RON:
+/// `BackdropDone(())`.
+///
+/// The menu owns what plays next, so the backdrop names no successor: the
+/// menu reads the flag this raises and draws the next backdrop from its own
+/// rotation. Lint requires one in every `role: Backdrop` scenario and refuses
+/// it anywhere else.
+#[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BackdropDoneActionConfig;
+
+impl EventAction<NovaEventWorld> for BackdropDoneActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        debug!("BackdropDone: the backdrop's act is finished");
+        world.mark_backdrop_done();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nova_gameplay::prelude::GameObjectives;

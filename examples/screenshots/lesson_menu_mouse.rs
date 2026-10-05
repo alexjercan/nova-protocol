@@ -55,7 +55,7 @@
 //!
 //! ## Why the backdrop is pinned and frozen
 //!
-//! The menu draws one of four `role: Backdrop` scenarios at random on entry,
+//! The menu draws one of four `role: Backdrop` scenarios from its rotation,
 //! and its traffic flies. Unpinned, every re-capture would ship a different
 //! scene around the panel; unfrozen, the hulls behind it would jump back two
 //! seconds on every wrap. So this pins `menu_waystation` - the quietest of the

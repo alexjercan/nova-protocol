@@ -75,8 +75,8 @@ mod world_setup;
 mod tests;
 
 use ambience::{
-    hide_hud_chrome, load_menu_ambience, restore_hud_chrome, stage_menu_camera,
-    unload_menu_ambience,
+    advance_menu_backdrop, hide_hud_chrome, load_menu_ambience, restore_hud_chrome,
+    stage_menu_camera, unload_menu_ambience,
 };
 use menu_ui::{setup_menu_ui, start_new_game_scenario};
 use mods::{
@@ -139,6 +139,11 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<NewGameScenario>();
         app.init_resource::<PendingScenarioThumbnail>();
         app.init_resource::<ambience::MenuCameraMemory>();
+        app.init_resource::<ambience::MenuBackdropRotation>();
+        // The backdrop's `BackdropDone` flag lives on the scenario event
+        // world, which `GameEventsPlugin` owns in the assembled app. Initing
+        // it here too lets the menu stand alone in slim and headless rigs.
+        app.init_resource::<nova_scenario::prelude::NovaEventWorld>();
         app.init_resource::<CollapsedCampaigns>();
         // The handbook's material and the player's record of it. The CATALOG is
         // merged content: `register_bundles` inserts the base bundle's lessons
@@ -229,7 +234,13 @@ impl Plugin for NovaMenuPlugin {
         );
         app.add_systems(
             Update,
-            (stage_menu_camera, sync_mod_checkboxes).run_if(in_state(GameStates::MainMenu)),
+            (
+                // Cut first, so the camera a cut's load spawns is staged in the
+                // same frame instead of showing the loader's default pose.
+                (advance_menu_backdrop, stage_menu_camera).chain(),
+                sync_mod_checkboxes,
+            )
+                .run_if(in_state(GameStates::MainMenu)),
         );
         // After the field's own systems, so a seed typed this frame is refused
         // or accepted before anything repaints the field.
@@ -432,7 +443,7 @@ fn end_gameplay_scenario(mut commands: Commands) {
 /// `OnExit(Playing)` writer above): leaving the editor or a scenario is where
 /// the game catches up with what is on disk. What this removes is the disposable
 /// menu in the middle of it. `Playing -> MainMenu` used to build the whole front
-/// door - the menu panel, its UI camera, a randomly drawn ambience backdrop and
+/// door - the menu panel, its UI camera, the next ambience backdrop and
 /// the scenario load behind it - one frame before `restart_for_content` threw it
 /// all away and started the boot load. The player saw the flash; the machine
 /// paid for a scenario nobody watched.

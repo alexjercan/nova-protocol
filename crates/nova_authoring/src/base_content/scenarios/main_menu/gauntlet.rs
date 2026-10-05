@@ -2,7 +2,7 @@
 //! defense against scripted torpedo batteries on both flanks. The gunship's
 //! PDC magazines are HARD (no reload), so it swats torpedoes until the guns
 //! run dry, the stream overruns it, and the blast ends the act; after a beat
-//! the carousel turns to the next backdrop.
+//! the menu turns to the next backdrop.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -136,9 +136,9 @@ fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
 /// stream in from both sides of the frame and the gunship swats them
 /// mid-shot - but its magazines are hard (SetAmmo, no reload), so the
 /// defense eventually runs dry and the stream wins. The gunship's death
-/// starts a short aftermath linger, then the carousel turns to the next
-/// backdrop (the menu's Factorio-style rotation). A battery whose target is
-/// already gone skips its launch (no dud ordnance).
+/// starts a short aftermath linger, then the menu turns to the next
+/// backdrop. A battery whose target is already gone skips its launch (no
+/// dud ordnance).
 pub(crate) fn menu_gauntlet(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
@@ -319,10 +319,9 @@ pub(crate) fn menu_gauntlet(
             filters: vec![entity(GUNSHIP_ID)],
             actions: vec![timer(TIMER_RESET, 8.0)],
         },
-        // The fall of the stand ends the act: teardown clears the wreck,
-        // debris and in-flight ordnance, and the carousel turns to the next
-        // backdrop. Own handler + short delay, per the NextScenario
-        // same-flush rule.
+        // The fall of the stand ends the act: the menu cuts to its next
+        // backdrop, and that load's teardown clears the wreck, debris and
+        // in-flight ordnance.
         ScenarioEventConfig {
             label: None,
             name: EventConfig::OnTimerEnd,
@@ -330,11 +329,7 @@ pub(crate) fn menu_gauntlet(
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: TIMER_RESET.to_string(),
             })],
-            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: super::MENU_WEAVE_SCENARIO_ID.to_string(),
-                linger: false,
-                delay: Some(1.0),
-            })],
+            actions: vec![EventActionConfig::BackdropDone(BackdropDoneActionConfig)],
         },
         // The watchdog's own reset (see OnStart).
         ScenarioEventConfig {
@@ -344,11 +339,7 @@ pub(crate) fn menu_gauntlet(
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: TIMER_WATCHDOG.to_string(),
             })],
-            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: super::MENU_WEAVE_SCENARIO_ID.to_string(),
-                linger: false,
-                delay: Some(1.0),
-            })],
+            actions: vec![EventActionConfig::BackdropDone(BackdropDoneActionConfig)],
         },
     ];
 

@@ -575,7 +575,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             ],
         },
         // Act three: stop the finisher clock and let the aftermath drift for
-        // a beat - the wrecks stay in shot - then the carousel turns.
+        // a beat - the wrecks stay in shot - then the menu turns.
         ScenarioEventConfig {
             label: None,
             name: EventConfig::OnDefeated,
@@ -588,11 +588,9 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
                 timer(TIMER_RESET, 8.0),
             ],
         },
-        // The hand-off: teardown despawns every scoped entity (wrecks,
-        // debris, in-flight ordnance - runtime projectiles are
-        // scenario-scoped too) and the next backdrop starts fresh. In its
-        // own handler with a short delay: an instant switch consumed in the
-        // same flush would discard sibling handlers' queued commands.
+        // The act is done: the menu cuts to its next backdrop, whose load
+        // despawns every scoped entity (wrecks, debris, in-flight ordnance -
+        // runtime projectiles are scenario-scoped too).
         ScenarioEventConfig {
             label: None,
             name: EventConfig::OnTimerEnd,
@@ -600,11 +598,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: TIMER_RESET.to_string(),
             })],
-            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: super::MENU_WAYSTATION_SCENARIO_ID.to_string(),
-                linger: false,
-                delay: Some(1.0),
-            })],
+            actions: vec![EventActionConfig::BackdropDone(BackdropDoneActionConfig)],
         },
         // The watchdog's own reset (see OnStart).
         ScenarioEventConfig {
@@ -614,11 +608,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: TIMER_WATCHDOG.to_string(),
             })],
-            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: super::MENU_WAYSTATION_SCENARIO_ID.to_string(),
-                linger: false,
-                delay: Some(1.0),
-            })],
+            actions: vec![EventActionConfig::BackdropDone(BackdropDoneActionConfig)],
         },
     ];
 

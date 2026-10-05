@@ -201,13 +201,17 @@ pub enum ScenarioRole {
     /// itself is offered rather than hidden.
     #[default]
     Chapter,
-    /// Scenery behind the main menu. On menu entry the menu collects every
-    /// registered scenario with this role and loads one at random, so several
-    /// ambience scenes can ship and mods can add their own.
+    /// Scenery behind the main menu. The menu collects every registered
+    /// scenario with this role and plays them in a shuffled rotation, so
+    /// several ambience scenes can ship and mods can add their own.
     ///
     /// A backdrop POSES ITS OWN CAMERA: it must author a `SetCamera` action
     /// (lint makes a poseless backdrop an Error, and erroring backdrops are
     /// filtered out of the menu draw - the menu derives no pose of its own).
+    ///
+    /// A backdrop REPORTS ITS ACT FINISHED with `BackdropDone` and never names
+    /// a successor: the menu picks what plays next. Lint makes a backdrop
+    /// without `BackdropDone`, or with a `NextScenario`, an Error.
     Backdrop,
     /// The focused range a training lesson hands off to. One thing to practise,
     /// reached from that lesson's Practice action rather than browsed for, so

@@ -131,10 +131,10 @@ still launchable by id.
 | `open_world` | Open World | no | the New Game start (`role: OpenWorld`): the line warship at the origin of the world generated from the seed the player picks |
 | `tutorial` | Basic Training | yes | the first-flight course: the Fleet gunnery range, a qualification card read over the radio |
 | `season_one_chapter_one` | A Useful Job | yes | Season 1, chapter one: thread a working lane on RCS, come about on a stranded ship, and dock to take three people off |
-| `menu_waystation` | Waystation Traffic | no | menu backdrop: hauler convoy (carousel: hands off to the gauntlet) |
-| `menu_gauntlet` | Torpedo Gauntlet | no | menu backdrop: a doomed point-defense stand (hands off to the weave) |
-| `menu_weave` | Asteroid Weave | no | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
-| `menu_duel` | Duel Cycle | no | menu backdrop: a duel ended by a siege torpedo (hands off to the waystation) |
+| `menu_waystation` | Waystation Traffic | no | menu backdrop: hauler convoy; done after a 150 s rotation limit |
+| `menu_gauntlet` | Torpedo Gauntlet | no | menu backdrop: a doomed point-defense stand; done when the stand falls |
+| `menu_weave` | Asteroid Weave | no | menu backdrop: waypoint run through a dense rock band; done after a 150 s rotation limit |
+| `menu_duel` | Duel Cycle | no | menu backdrop: a duel ended by a siege torpedo; done when the victor is erased |
 | `drill_momentum` | Momentum Range | no | practice range: two marks and no flight computer |
 | `drill_stop` | STOP Range | no | practice range: one mark, and room to overshoot it |
 | `drill_autopilot` | Autopilot Range | no | practice range: a rock to fly out to, and a mark to come home to |

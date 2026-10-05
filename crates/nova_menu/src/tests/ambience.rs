@@ -1,19 +1,25 @@
 //! The main menu's live backdrop: that entering the menu loads the ambience
 //! scenario, that the camera activates on the backdrop's own scripted pose,
-//! and that a missing or broken backdrop degrades to a bare camera instead
-//! of failing.
+//! that the menu's rotation cuts to the next backdrop when one reports its act
+//! finished, and that a missing or broken backdrop degrades to a bare camera
+//! instead of failing.
 
-use bevy::prelude::*;
+use std::time::Duration;
+
+use bevy::{prelude::*, time::TimeUpdateStrategy};
+use bevy_rand::prelude::WyRand;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
+use rand::SeedableRng as _;
 
 use super::support::{
     app, dummy_backdrop, dummy_scenario, dummy_scenarios, observe_load_scenario,
     observe_unload_scenario, script_backdrop_pose, LoadedScenario, Unloaded, TEST_BACKDROP_ID,
     TEST_START_ID,
 };
+use crate::ambience::MenuBackdropRotation;
 
 /// Entering MainMenu loads the ambience backdrop through the real OnEnter systems.
 #[test]
@@ -87,9 +93,8 @@ fn menu_camera_activates_on_the_backdrops_scripted_pose() {
     );
 }
 
-/// A MID-MENU backdrop reload (the self-resetting backdrops fire
-/// NextScenario at their own id) tears down the posed camera and spawns a
-/// fresh flyable one, whose own SetCamera only lands a frame later. The
+/// A MID-MENU backdrop cut (the menu loading its next backdrop) tears down
+/// the posed camera and spawns a fresh flyable one, whose own SetCamera only lands a frame later. The
 /// remembered pose bridges the gap: the fresh camera stays ACTIVE at the
 /// last scripted pose instead of blinking through the loader's default.
 #[test]
@@ -116,7 +121,7 @@ fn a_mid_menu_reload_holds_the_last_scripted_pose() {
     app.update();
     assert!(app.world().get::<Camera>(cam).unwrap().is_active);
 
-    // The reload: scoped teardown takes the posed camera; the loader spawns
+    // The cut: scoped teardown takes the posed camera; the loader spawns
     // a fresh flyable one; its SetCamera has not landed yet.
     app.world_mut().entity_mut(cam).despawn();
     let fresh = app
@@ -430,4 +435,220 @@ fn drawing_a_backdrop_ends_the_scenario_it_replaces_first() {
         Some(TEST_BACKDROP_ID),
         "the backdrop still draws"
     );
+}
+
+/// The rotation's order, as pure logic: a shuffled CYCLE in which every
+/// eligible backdrop plays once before any plays again, and no backdrop plays
+/// twice in a row - not inside a cycle, and not across the reshuffle between
+/// two. Two backdrops are the tight case: the boundary rule alone forces them
+/// to alternate.
+#[test]
+fn the_rotation_plays_each_backdrop_once_per_cycle_and_never_twice_in_a_row() {
+    let three: Vec<String> = ["a", "b", "c"].map(String::from).to_vec();
+    let mut rng = WyRand::from_seed(7u64.to_ne_bytes());
+    let mut rotation = MenuBackdropRotation::default();
+    let draws: Vec<String> = (0..30)
+        .map(|_| rotation.draw(&three, &mut rng).expect("three are eligible"))
+        .collect();
+    for cycle in draws.chunks(3) {
+        let mut cycle = cycle.to_vec();
+        cycle.sort();
+        assert_eq!(
+            cycle, three,
+            "each cycle plays each backdrop once: {draws:?}"
+        );
+    }
+    assert!(
+        draws.windows(2).all(|pair| pair[0] != pair[1]),
+        "no backdrop plays twice in a row: {draws:?}"
+    );
+
+    let two: Vec<String> = ["a", "b"].map(String::from).to_vec();
+    let mut rotation = MenuBackdropRotation::default();
+    let draws: Vec<String> = (0..20)
+        .map(|_| rotation.draw(&two, &mut rng).expect("two are eligible"))
+        .collect();
+    assert!(
+        draws.windows(2).all(|pair| pair[0] != pair[1]),
+        "two backdrops alternate: {draws:?}"
+    );
+}
+
+/// The rotation's edges: nothing eligible draws nothing, one eligible
+/// backdrop is drawn every time, and a bagged id that stopped being eligible
+/// mid-cycle (its mod disabled, its content now erroring) is never drawn.
+#[test]
+fn the_rotation_degrades_with_zero_one_or_missing_backdrops() {
+    let mut rng = WyRand::from_seed(7u64.to_ne_bytes());
+
+    let mut rotation = MenuBackdropRotation::default();
+    assert_eq!(rotation.draw(&[], &mut rng), None);
+
+    let one = vec!["solo".to_string()];
+    let mut rotation = MenuBackdropRotation::default();
+    for _ in 0..3 {
+        assert_eq!(rotation.draw(&one, &mut rng).as_deref(), Some("solo"));
+    }
+
+    let three: Vec<String> = ["a", "b", "c"].map(String::from).to_vec();
+    let mut rotation = MenuBackdropRotation::default();
+    let first = rotation.draw(&three, &mut rng).expect("three are eligible");
+    // Withdraw one of the two still in the bag.
+    let gone = three
+        .iter()
+        .find(|id| **id != first)
+        .expect("two remain")
+        .clone();
+    let left: Vec<String> = three.iter().filter(|id| **id != gone).cloned().collect();
+    for _ in 0..6 {
+        let drawn = rotation.draw(&left, &mut rng).expect("two are eligible");
+        assert_ne!(drawn, gone, "a withdrawn backdrop is never drawn");
+    }
+}
+
+/// Every load the menu asked for, in order. Also stands in for the loader's
+/// teardown, which clears the event world on every load and unload: that is
+/// what retires a backdrop's done report once the cut lands.
+#[derive(Resource, Default)]
+struct Loads(Vec<String>);
+
+/// A menu rig with a moving clock - 100 ms of real time per update through
+/// `TimePlugin`, so a paused virtual clock really holds - entered into the
+/// menu on `scenarios`.
+fn rotation_app(scenarios: GameScenarios) -> App {
+    let mut app = app();
+    app.add_plugins(bevy::time::TimePlugin);
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+        100,
+    )));
+    app.insert_resource(scenarios);
+    app.init_resource::<Loads>();
+    app.add_observer(
+        |load: On<LoadScenario>, mut loads: ResMut<Loads>, mut world: ResMut<NovaEventWorld>| {
+            loads.0.push(load.0.id.clone());
+            world.clear();
+        },
+    );
+    app.add_observer(|_: On<UnloadScenario>, mut world: ResMut<NovaEventWorld>| {
+        world.clear();
+    });
+    // The first update's clock delta is zero; burn it before the menu opens.
+    app.update();
+    enter_the_menu(&mut app);
+    assert_eq!(
+        app.world().resource::<Loads>().0.len(),
+        1,
+        "entry loads one"
+    );
+    app
+}
+
+fn report_done(app: &mut App) {
+    app.world_mut()
+        .resource_mut::<NovaEventWorld>()
+        .mark_backdrop_done();
+}
+
+fn loads(app: &App) -> Vec<String> {
+    app.world().resource::<Loads>().0.clone()
+}
+
+fn run_frames(app: &mut App, frames: usize) {
+    for _ in 0..frames {
+        app.update();
+    }
+}
+
+/// The hand-off: a backdrop that reports its act finished is cut to a
+/// DIFFERENT backdrop after the one-second beat, and only once. A repeated
+/// report inside the beat neither restarts nor doubles the cut, and once the
+/// successor's load retires the report nothing cuts again.
+#[test]
+fn a_finished_backdrop_is_cut_once_to_the_next_after_its_beat() {
+    let mut app = rotation_app(GameScenarios(bevy::platform::collections::HashMap::from([
+        dummy_backdrop("backdrop_a"),
+        dummy_backdrop("backdrop_b"),
+    ])));
+
+    report_done(&mut app);
+    run_frames(&mut app, 5);
+    report_done(&mut app);
+    run_frames(&mut app, 4);
+    assert_eq!(loads(&app).len(), 1, "0.9 s in, the beat still plays");
+
+    app.update();
+    let after_cut = loads(&app);
+    assert_eq!(after_cut.len(), 2, "1.0 s in, the menu cuts: {after_cut:?}");
+    assert_ne!(
+        after_cut[0], after_cut[1],
+        "the cut moves to another backdrop"
+    );
+
+    run_frames(&mut app, 30);
+    assert_eq!(loads(&app), after_cut, "one report makes one cut");
+}
+
+/// The beat runs on VIRTUAL time: a paused clock holds the cut however much
+/// real time passes, and resuming finishes it. Leaving the menu drops a
+/// pending cut, so it can never load a backdrop into the game.
+#[test]
+fn a_pause_holds_the_cut_and_leaving_the_menu_drops_it() {
+    let mut app = rotation_app(GameScenarios(bevy::platform::collections::HashMap::from([
+        dummy_scenario(TEST_START_ID),
+        dummy_backdrop("backdrop_a"),
+        dummy_backdrop("backdrop_b"),
+    ])));
+
+    report_done(&mut app);
+    run_frames(&mut app, 5);
+    app.world_mut().resource_mut::<Time<Virtual>>().pause();
+    run_frames(&mut app, 30);
+    assert_eq!(loads(&app).len(), 1, "3 s of paused real time hold the cut");
+    app.world_mut().resource_mut::<Time<Virtual>>().unpause();
+    run_frames(&mut app, 5);
+    assert_eq!(loads(&app).len(), 2, "the rest of the beat cuts on resume");
+
+    report_done(&mut app);
+    run_frames(&mut app, 5);
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::Playing);
+    run_frames(&mut app, 30);
+    assert_eq!(
+        loads(&app).len(),
+        2,
+        "leaving the menu drops the pending cut"
+    );
+}
+
+/// The cut's edges: with one backdrop the menu replays it, and with none
+/// left the finished backdrop ends and the bare fallback camera goes up.
+#[test]
+fn the_cut_replays_a_lone_backdrop_and_falls_back_with_none() {
+    let mut app = rotation_app(GameScenarios(bevy::platform::collections::HashMap::from([
+        dummy_scenario(TEST_START_ID),
+        dummy_backdrop("backdrop_solo"),
+    ])));
+
+    report_done(&mut app);
+    run_frames(&mut app, 10);
+    assert_eq!(loads(&app), ["backdrop_solo", "backdrop_solo"]);
+
+    app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+        dummy_scenario(TEST_START_ID),
+    ])));
+    report_done(&mut app);
+    run_frames(&mut app, 10);
+    assert_eq!(loads(&app).len(), 2, "nothing is left to load");
+    assert!(
+        !app.world().resource::<NovaEventWorld>().backdrop_done(),
+        "the finished backdrop was ended"
+    );
+    let fallback = app
+        .world_mut()
+        .query::<&Name>()
+        .iter(app.world())
+        .filter(|name| name.as_str() == "Menu Fallback Camera")
+        .count();
+    assert_eq!(fallback, 1, "the bare camera keeps the menu rendering");
 }

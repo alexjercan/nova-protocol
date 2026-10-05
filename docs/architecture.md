@@ -327,7 +327,7 @@ plugin test pins the count at one.
   again. `restart_through_loading` rewrites the pending `MainMenu` into
   `Loading` in the `StateTransition` schedule, before
   `StateTransitionSystems::DependentTransitions`, so the menu, its UI camera and
-  its randomly drawn ambience backdrop are never built for the one frame the
+  its ambience backdrop are never built for the one frame the
   restart would have thrown them away in. Every exit path gets this - the pause
   overlay's Back, the editor's File menu, the outcome frame, a scenario's own
   `ExitToMenu` - because the redirect is on the transition rather than on the

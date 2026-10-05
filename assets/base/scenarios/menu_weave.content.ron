@@ -433,11 +433,7 @@
                     )),
                 ],
                 actions: [
-                    NextScenario((
-                        scenario_id: "menu_duel",
-                        linger: false,
-                        delay: Some(1.0),
-                    )),
+                    BackdropDone(()),
                 ],
             ),
             (
@@ -462,11 +458,7 @@
                     )),
                 ],
                 actions: [
-                    NextScenario((
-                        scenario_id: "menu_duel",
-                        linger: false,
-                        delay: Some(1.0),
-                    )),
+                    BackdropDone(()),
                 ],
             ),
         ],

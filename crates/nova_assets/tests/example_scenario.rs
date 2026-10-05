@@ -480,7 +480,7 @@ fn catalog_loads_and_base_only_merges_by_default() {
         "with example disabled, the base section is un-overridden"
     );
 
-    // The four carousel backdrops plus the training range. Mirrors
+    // The four menu backdrops plus the training range. Mirrors
     // `base_content::scenarios::catalog`.
     for built_in in [
         "tutorial",

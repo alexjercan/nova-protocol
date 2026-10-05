@@ -121,7 +121,7 @@ const CARGO_ROCKS: [(Meters3, Meters, &str, u32); 18] = [
 ];
 
 /// The cargo prefix, and the rotation limit this
-/// endless scene hands off on.
+/// endless scene reports done on.
 const CARGO_ID_PREFIX: &str = "waystation_cargo_";
 const TIMER_ROTATE: &str = "waystation_rotate";
 
@@ -226,7 +226,7 @@ pub(crate) fn menu_waystation(
                 ])
                 .chain(cargo)
                 .chain([
-                    // The carousel's rotation limit: the waystation's day
+                    // The rotation limit: the waystation's day
                     // never ends on its own, so after a couple of freight
                     // laps the menu turns to the next backdrop.
                     EventActionConfig::TimerStart(TimerStartActionConfig {
@@ -243,11 +243,7 @@ pub(crate) fn menu_waystation(
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: TIMER_ROTATE.to_string(),
             })],
-            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: super::MENU_GAUNTLET_SCENARIO_ID.to_string(),
-                linger: false,
-                delay: Some(1.0),
-            })],
+            actions: vec![EventActionConfig::BackdropDone(BackdropDoneActionConfig)],
         },
     ];
 

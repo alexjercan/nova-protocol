@@ -428,6 +428,13 @@ registry::scenario_actions! {
         effect: Bookkeeping,
         inspect: Reflect,
     },
+    /// Report a menu backdrop's act as finished; the menu picks what plays next.
+    BackdropDone(BackdropDoneActionConfig) {
+        label: "Backdrop Done",
+        stem: "done",
+        effect: Bookkeeping,
+        inspect: Reflect,
+    },
     /// Start a keyed ordered beat chain whose cursor the engine holds.
     Sequence(SequenceActionConfig) {
         label: "Sequence",

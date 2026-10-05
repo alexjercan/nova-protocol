@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 51 at a glance:
+never panics a scenario). All 52 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -26,6 +26,7 @@ never panics a scenario). All 51 at a glance:
 | [`CinematicTitle`](#cinematictitle) | [pacing](#pacing) | post the shot's title card: where, when, and one line about it |
 | [`Outcome`](#outcome) | [flow](#flow-outcomes-transitions) | show the VICTORY / DEFEAT banner and freeze the sim behind it |
 | [`NextScenario`](#nextscenario) | [flow](#flow-outcomes-transitions) | queue a switch to another scenario by id |
+| [`BackdropDone`](#backdropdone) | [flow](#flow-outcomes-transitions) | report a menu backdrop's act finished; the menu picks what plays next |
 | [`SetShipCapabilityStop`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold STOP on a ship |
 | [`SetShipCapabilityGoto`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold GOTO on a ship |
 | [`SetShipCapabilityOrbit`](#ship-capabilities) | [ship state](#ship-state) | grant or withhold ORBIT on a ship |
@@ -764,7 +765,6 @@ NextScenario((scenario_id: "the_wreck", linger: true)),
 Three gears:
 
 - **Hard cut** - `linger: false`, no delay: switches on the next sync.
-  Menu-scene plumbing.
 - **Delayed cut** - `linger: false, delay: Some(4.0)`: the world keeps
   playing for the delay (a story line can land), then cuts. Ticks on
   pause-frozen time; Enter skips the wait.
@@ -779,6 +779,34 @@ Three gears:
 
 The last request wins wholesale - a fresh `NextScenario` replaces a queued
 one and resets its clock.
+
+A menu backdrop may not author `NextScenario` (lint Error): it reports with
+[`BackdropDone`](#backdropdone) instead.
+
+</details>
+
+### BackdropDone
+
+Report that a menu backdrop's act is finished. The menu holds the shot for
+one second, then cuts to the next backdrop in its rotation.
+
+```ron
+BackdropDone(()),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+No fields. The backdrop never names its successor: the menu plays every
+backdrop once, in a shuffled order, before any plays again, and never the
+same one twice in a row when it has two or more.
+
+- Every `role: Backdrop` scenario must author one (lint Error otherwise). A
+  scene with no natural ending carries a timer, like the base backdrops'
+  150 s rotation limit.
+- `BackdropDone` anywhere else is a lint Error: nothing reads it.
+- The one-second beat runs on pause-frozen time. A second report inside the
+  beat changes nothing.
 
 </details>
 
