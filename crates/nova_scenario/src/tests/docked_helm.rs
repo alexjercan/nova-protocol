@@ -135,6 +135,7 @@ fn app() -> App {
     let (sections, ships) = catalogs();
     app.insert_resource(sections);
     app.insert_resource(ships);
+    app.init_resource::<CargoCanisterIdAllocator>();
     app.add_systems(
         FixedUpdate,
         slew_helm
