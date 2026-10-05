@@ -221,18 +221,22 @@ second and degrees:
 - `objective_log`: every objective card posted and completed, in order.
 - `cinematic` (only while a scene plays) as `{playing, skippable}`, and
   `cheats_marked` (only when the run armed cheats).
-- `inputs.live` (registry wire names that are not locked out, never
-  `section.<id>`), `inputs.held`, and `inputs.shared`: the pairs of wire names
-  that read one physical key. The game declares that relation (`ActionBinding::follows`) and the channel
-  publishes it, so the referee refuses an act driving both sides of a pair
-  without the bench holding a table of its own.
+- `inputs.live` (registry wire names that are not locked out, never dynamic
+  `section.<id>` wires), `inputs.held`, and `inputs.shared`: the pairs of wire
+  names that read one physical key. The game declares that relation
+  (`ActionBinding::follows`) and the channel publishes it, so the referee
+  refuses an act driving both sides of a pair without the bench holding a
+  table of its own.
 - `commands` (answers to `command` gestures).
 
 `bearing_deg` is `[azimuth, elevation]` from the nose: azimuth positive to
 starboard, elevation positive up. Registry wire names come from the live
 set in the view. For `section.<id>` weapon triggers, use an ID in
-`me.sections[]` whose `weapon` is not null; section selectors do not appear
-in `inputs.live`. Section responders can also be thrusters.
+`me.sections[]` whose `weapon` is not null. For a mining emitter, use the ID
+of a section whose `class` is `Mining` and check `alive` and `disabled` for
+working status. Section selectors do not appear in `inputs.live` or the
+registry `bindings` inspector. Section
+responders can also be thrusters.
 
 There is no `refused` list, because an input has no verdict to give. Every
 gate a pilot meets - needs a lock, needs a well, needs the stance, needs
@@ -251,24 +255,31 @@ see `nova_probe::capabilities::snapshot`.
 
 ### Mining and cargo
 
-`flight.mine` is one ship-level hold: while it is held, each working mining
-emitter deploys and, once deployed, attempts pulses at the travel-locked
-rock. The agent view has no carve result or intake position. It does show
-all live canisters, their contents, and their distance and bearing from the
-player's ship. A newly visible ore canister shows ore in the world, not
-its source or pickup; a canister's disappearance alone can also mean it was
-destroyed. The intake takes a whole canister on trigger contact when hold
-mass permits; only an increase in the relevant `me.cargo.items` count proves pickup.
+Mining uses a per-section hold: find a `me.sections[]` record with
+`class: "Mining"`, check its `alive` and `disabled` status, then press
+`section.<id>` using that record's `id`. For the Line Warship's
+`mining_beam`, send `{"press": "section.mining_beam"}` for a
+bounded attempt and then `{"release": "section.mining_beam"}`. The selected
+emitter must deploy before it can pulse toward a travel-locked rock; reach
+and aim are checked from its face, not the ship's centre. The agent view has
+no carve result or intake position. It does show all live canisters, their
+contents, and their distance and bearing from the player's ship. A newly
+visible ore canister shows ore in the world, not its source or pickup; a
+canister's disappearance alone can also mean it was destroyed. The intake
+takes a whole canister on trigger contact when hold mass permits; only an
+increase in the relevant `me.cargo.items` count proves pickup.
 Jettison (undocked) and Buy and Sell (docked to a trader) are Inventory pane
 buttons, driven with `pointer` gestures on the `ui.targets` the interface
 shows. Read every result off `me.cargo`.
 
-An agent finds registry wires in `inputs.live`; it gets a weapon section
-selector from `me.sections[].id` when `weapon` is not null, not from that
-live list. Mining uses `flight.mine`, not a section selector. The command
-`bindings flight.mine` reports that action's keys and whether its context is
-live; `bindings` alone lists every action by its wire name. `bind` and
-`bind reset` take the bare registry name, such as `mine`.
+An agent finds registry wires in `inputs.live`; it gets section selectors
+from `me.sections[].id` for weapons (`weapon` not null) or mining (`class` is
+`Mining`). Dynamic `section.<id>` wires are absent from that live list and
+from `bindings`, which inspects registry actions only. For example,
+`bindings flight.main_drive` reports that registry action's keys and whether
+its context is live; `bindings` alone lists every registry action by its wire
+name. `bind` and `bind reset` take the bare registry name, such as
+`main_drive`. Neither command binds a section wire.
 
 ### Why the bodies are tiered
 

@@ -1,18 +1,20 @@
 # Mining: cut rock, then recover the ore
 
-Mining uses the held `flight.mine` registry wire. Find it in `inputs.live`.
-Mining sections have no `section.<id>` mining trigger. For weapons, the
-`section.<id>` selector instead takes an ID from a `me.sections[]` record
-whose `weapon` is not null; it is not listed in `inputs.live`.
+Mining uses a per-section held input. Find a working mining emitter in
+`me.sections[]` by `class: "Mining"`, its `id`, and its `alive` and `disabled`
+status. Hold `section.<id>` with that ID (for example, `section.mining_beam`
+on the Line Warship), then release the same wire. These dynamic section wires
+are not registry actions: they do not appear in `inputs.live` or the `bindings`
+command. `inputs.live` reports registry actions only.
 
 1. With the combat stance lowered, aim at an asteroid and acquire a travel
    lock with `targeting.radar_hold`. Check `me.travel_lock` for the rock's ID.
    The lowered stance selects the travel-lock slot during acquisition; once
    locked, mining itself does not require the stance lowered.
-2. Approach the locked rock and point the ship so a working mining emitter
-   may face it. Hold `flight.mine` for a bounded attempt, then release it.
-   Emitters must deploy before they pulse; reach and aim are checked from
-   EACH emitter's face, not the ship's centre. A short ship-centre distance
+2. Approach the locked rock and point the ship so the chosen working mining
+   emitter may face it. Hold `section.<id>` for a bounded attempt, then release
+   that same wire. The emitter must deploy before it pulses; reach and aim are
+   checked from its face, not the ship's centre. A short ship-centre distance
    or centred `bodies.near` bearing does not prove a pulse reached rock.
 3. A successful carve can yield ore canisters only after the rock's field is
    updated. Carving does not put ore directly in the hold. A working cargo

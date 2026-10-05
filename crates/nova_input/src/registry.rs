@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// The canonical wire name for an action: the lowercased settings group with
-/// spaces replaced by underscores, then its registry name (`flight.mine`).
+/// spaces replaced by underscores, then its registry name (`flight.main_drive`).
 pub fn wire_name(group: &str, name: &str) -> String {
     format!("{}.{name}", group.to_lowercase().replace(' ', "_"))
 }

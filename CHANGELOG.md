@@ -173,8 +173,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   item to one ship when the whole quantity fits its hold.
 - Keybinds saved under `novaos_*` IDs load onto `interface_toggle` and
   `viewer_*`.
-- Console `bindings` lists actions by qualified name, such as `flight.mine`, and
-  shows each action's bare `bind` name. Lookups accept either name.
+- Console `bindings` lists actions by qualified name, such as
+  `flight.main_drive`, and shows each action's bare `bind` name. Lookups accept
+  either name.
 - The Map labels an asteroid only while it is selected, so a belt of rocks no
   longer buries ship and planet labels. Every blip stays clickable.
 - Map GOTO sets the travel lock by G or the panel button. It draws up to 30 s

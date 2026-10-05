@@ -90,7 +90,9 @@ All lengths are meters, speeds meters per second, angles degrees.
 - `ordnance`: rounds and torpedoes in flight, `inbound` (not yours) and
   `outbound` (yours).
 - `inputs.live`: the registry wire names that are not locked out right now;
-  it never lists `section.<id>`. It is a coarse list: an input that IS live
+  it never lists dynamic `section.<id>` wires. `bindings` also inspects only
+  registry actions, not section inputs. Find a section's `id` and `class` in
+  `me.sections[]` instead. This is a coarse list: an input that IS live
   can still do nothing, because the gates that matter (a lock, a well, the
   stance, the range) sit above the input layer. `inputs.held`: what you are
   holding down. `inputs.shared`: pairs of
@@ -162,9 +164,6 @@ Flight:
 - `flight.dock_helm`: tap while docked to take the pair's helm, and again to
   hand it back. `me.docking.connection.helm` reads `neutral` or `held`. A pair
   the game cannot measure refuses the take, and `helm` stays `neutral`.
-- `flight.mine`: hold to deploy working mining emitters toward a travel-locked
-  rock. Read `page {"name": "mining"}` before mining; this is the live held
-  flight wire, not a `section.<id>` trigger.
 - `flight.rcs_modifier`: hold to engage the RCS, the fine translation jets.
   While it is held `camera.camera_rotate` is frozen; release it to steer.
 - `flight.rcs_aim` (aim, only while `flight.rcs_modifier` is held): pushes
@@ -198,15 +197,20 @@ Targeting:
   clears, a long one searches - so one act cannot carry both. Release the
   hold in one act and tap the clear in the next.
 
-Weapons:
+Sections:
 
-- `section.<id>`: hold to fire a weapon section. Choose `<id>` from a
-  `me.sections[]` record whose `weapon` is not null; do not look for this
-  selector in `inputs.live`, which lists only registry wires. Section
-  responders can also belong to thrusters, so not every section ID is a
-  weapon trigger. Mining emitters use `flight.mine`, not `section.<id>`.
-  A weapon needs the stance raised, and a turret needs a combat lock to
-  point at anything.
+- `section.<id>`: hold and release the selected ship section's input.
+  Choose `<id>` from `me.sections[]`, not `inputs.live` or `bindings`: those
+  list registry actions, not dynamic section wires. For a weapon, choose a
+  section whose `weapon` is not null. A weapon needs the stance raised, and
+  a turret needs a combat lock to point at anything. Section responders can
+  also belong to thrusters.
+- To mine, choose a working section with `class: "Mining"` and its `id`
+  (for example, `mining_beam` on the Line Warship). Hold
+  `{"press": "section.mining_beam"}` for a bounded attempt, then send
+  `{"release": "section.mining_beam"}`. It deploys before pulsing toward the
+  travel-locked rock; range and aim are checked from that emitter's face.
+  Read `page {"name": "mining"}` before mining.
 
 Read `page {"name": "targeting"}` and `page {"name": "weapons"}` before your
 first fight, `travel` and `orbit` before your first long leg, and `docking`

@@ -10960,7 +10960,7 @@ export const COMMAND_ROWS: CommandRow[] = [
         name: "bindings",
         usage: "bindings [action]",
         cls: "ReadOnly",
-        what: "every input action by its qualified name, such as flight.mine, and what it is bound to, or one of them",
+        what: "every registry input action by its qualified name, such as flight.main_drive, and what it is bound to, or one of them (not dynamic section inputs)",
     },
     {
         name: "settings",

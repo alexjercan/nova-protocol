@@ -118,7 +118,7 @@ Every command belongs to one of four classes, and the class is the whole permiss
 | `log` | the flight log: comms, objective updates and ship events |
 | `variables` | the scenario's variables |
 | `variable <name>` | one of them |
-| `bindings [action]` | every input action by its qualified name, such as `flight.mine`, and what it is bound to, or one of them |
+| `bindings [action]` | every registry input action by its qualified name, such as `flight.main_drive`, and what it is bound to, or one of them; dynamic `section.<id>` inputs are not listed |
 | `settings` | every current setting |
 | `cheats status` | whether cheats are armed, and whether the run is marked |
 
