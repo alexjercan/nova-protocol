@@ -1,6 +1,6 @@
 # Fix master CI, rebase the active PR stack, and verify green mergeability
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.15.0, ci, pr
 
