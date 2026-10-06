@@ -713,6 +713,10 @@ path = "examples/screenshots/screenshot_command_shell.rs"
 name = "screenshot_interface"
 path = "examples/screenshots/screenshot_interface.rs"
 
+[[example]]
+name = "screenshot_ship_repair"
+path = "examples/screenshots/screenshot_ship_repair.rs"
+
 # The Rock hollow combat set. The nav radar is shot on its own approach; the
 # rest share the hollow, which now spawns the ambush at OnStart rather than
 # after a scripted GOTO leg.
@@ -934,6 +938,26 @@ path = "examples/screenshots/lesson_interface_ship.rs"
 [[example]]
 name = "lesson_generated_world"
 path = "examples/screenshots/lesson_generated_world.rs"
+
+[[example]]
+name = "loop_world_start"
+path = "examples/screenshots/loop_world_start.rs"
+
+[[example]]
+name = "screenshot_generated_ships"
+path = "examples/screenshots/screenshot_generated_ships.rs"
+
+[[example]]
+name = "loop_docked_helm"
+path = "examples/screenshots/loop_docked_helm.rs"
+
+[[example]]
+name = "loop_rcs_magazine"
+path = "examples/screenshots/loop_rcs_magazine.rs"
+
+[[example]]
+name = "loop_predicted_path"
+path = "examples/screenshots/loop_predicted_path.rs"
 
 [[example]]
 name = "lesson_command"

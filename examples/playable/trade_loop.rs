@@ -101,11 +101,12 @@ const SELL_NOTE: &str = "Sold 4 Hull plate to Trader for 120 cr";
 #[cfg(feature = "debug")]
 const REFUSED_SUMMARY: &str = "Refused: Tender has only 212 cr";
 
-/// The frames the capture path writes, one per result.
+/// The frames the capture path writes, one per result. The Sell frame is the
+/// 0.15.0 news still: both holds and balances after a checked Sell.
 #[cfg(feature = "debug")]
 const BUY_SHOT: &str = "trade-buy.png";
 #[cfg(feature = "debug")]
-const SELL_SHOT: &str = "trade-sell.png";
+const SELL_SHOT: &str = "news-0150-inventory-trade.png";
 #[cfg(feature = "debug")]
 const REFUSED_SHOT: &str = "trade-refused.png";
 
@@ -119,7 +120,7 @@ fn main() -> bevy::app::AppExit {
         // steady-state load worth a frame-time claim.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         app.add_plugins(trade_script());
-        app.add_systems(Startup, hide_dev_overlays);
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
     }
 
     app.run()

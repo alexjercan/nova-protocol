@@ -1,7 +1,8 @@
 //! screenshot_menu: the main menu over the ambience backdrop
 //! (`tutorial-menu.png`), the Settings panel open over it
-//! (`wiki-settings.png`) and its Controls tab (`wiki-controls.png`), driven
-//! through the shipped app (`editor_app`).
+//! (`wiki-settings.png`), its Controls tab (`wiki-controls.png`) and the New
+//! Game world setup window holding a typed seed (`news-0150-world-setup.png`),
+//! driven through the shipped app (`editor_app`).
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - walk the menu, exit clean,
@@ -32,6 +33,8 @@ use nova_protocol::prelude::*;
 #[path = "shared/ui_walk.rs"]
 mod ui_walk;
 #[cfg(feature = "debug")]
+use nova_ui::widget::TextFieldValue;
+#[cfg(feature = "debug")]
 use ui_walk::Gestures;
 
 /// The backdrop this walk shoots against.
@@ -55,10 +58,28 @@ const BACKDROP_SHIP_ID: &str = "gauntlet_ship";
 #[cfg(feature = "debug")]
 const BACKDROP_EYE: Meters3 = Meters3::new(130.0, 50.0, -95.0);
 
+/// The seed typed into the world setup window: the one the other v0.15.0
+/// world figures fly, so the post shows one world from setup to flight.
+#[cfg(feature = "debug")]
+const WORLD_SEED: u32 = 115;
+
+/// The world setup window's seed field.
+#[cfg(feature = "debug")]
+const SEED_FIELD: &str = "World Seed Field";
+
+/// Backspaces that clear any seed the window opens with: it pre-fills a random
+/// u32, at most ten digits.
+#[cfg(feature = "debug")]
+const SEED_DIGITS_MAX: usize = 10;
+
+/// The still of the world setup window.
+#[cfg(feature = "debug")]
+const WORLD_SETUP_SHOT: &str = "news-0150-world-setup.png";
+
 #[derive(Parser)]
 #[command(name = "screenshot_menu")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the main menu and its Settings panel. Autopilot-only: a scripted pointer walk over the real menu", long_about = None)]
+#[command(about = "Capture the main menu, its Settings panel and the New Game world setup window. Autopilot-only: a scripted pointer walk over the real menu", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {
@@ -106,7 +127,8 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// The driven walk: menu -> Settings -> Controls, one shot per state.
+/// The driven walk: menu -> Settings -> Controls -> world setup, one shot per
+/// state.
 #[cfg(feature = "debug")]
 fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     // The HUD chrome is dropped right before every shot rather than once at
@@ -172,11 +194,68 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .add()
         .click("close Settings", "Settings Back Button")
         .click("start a new game", "New Game Button")
+        // The window opens on a random seed, so the seed is replaced the way a
+        // player replaces it: focus, caret to the end, clear, type. The keys
+        // land in one frame.
+        .click("focus the seed field", SEED_FIELD)
+        .step("the seed field takes the keyboard")
+        .until(frames(2))
+        .add()
+        .step("type the seed")
+        .on_enter(|world: &mut World| {
+            press_edit_key(Key::End)(world);
+            for _ in 0..SEED_DIGITS_MAX {
+                press_edit_key(Key::Backspace)(world);
+            }
+            type_text(WORLD_SEED.to_string())(world);
+        })
+        .until(seed_field_reads(WORLD_SEED))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("settle the world setup window")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the world setup window")
+        // The news figure ships with the post, so the footer's build id stays
+        // out of it. The wiki shots above keep the footer: they are reshot with
+        // the page.
+        .on_enter(move |world: &mut World| {
+            ui_walk::hide_menu_version(world);
+            shot(WORLD_SETUP_SHOT)(world);
+        })
+        .until(shot_written(WORLD_SETUP_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
         .click("create the world", "Create World Button")
         .step("reach the first flight")
         .until(state_is(GameStates::Playing))
         .deadline(STEP_DEADLINE_SECS)
         .add()
+        // The shot is only the figure if Create starts the seed it shows.
+        .step("Create started the typed seed")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                world.resource::<OpenWorldSession>().seed,
+                WORLD_SEED,
+                "screenshot_menu: Create must start the typed seed"
+            );
+        })
+        .add()
+}
+
+/// Advance once the seed field reads `seed`.
+#[cfg(feature = "debug")]
+fn seed_field_reads(seed: u32) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    let seed = seed.to_string();
+    std::sync::Arc::new(move |world: &World| {
+        world
+            .try_query::<(&Name, &TextFieldValue)>()
+            .is_some_and(|mut fields| {
+                fields
+                    .iter(world)
+                    .any(|(name, value)| name.as_str() == SEED_FIELD && value.0 == seed)
+            })
+    })
 }
 
 /// Bolt the backdrop camera to the gauntlet's gunship.
