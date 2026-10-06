@@ -9,7 +9,7 @@
 //! on one would start unable to fire.
 //!
 //! Nova owns this because the torpedo bay's fire gate and the AI's threat
-//! memory, evade window and burst cadence are all written in it; the
+//! memory, evade window and railgun cadence are all written in it; the
 //! ready-when-fresh semantics above are a gameplay contract those callers
 //! depend on.
 //!

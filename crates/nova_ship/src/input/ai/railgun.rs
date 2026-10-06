@@ -42,9 +42,7 @@ const AI_RAILGUN_REACH_FACTOR: f32 = 0.6;
 /// Per-gun AI commit state. Lazily inserted by
 /// [`update_railgun_section_input`] on lances whose ship is AI-controlled -
 /// an Add-observer would race the root's `AISpaceshipMarker`, which lands
-/// after the child sections spawn, exactly as for [`AITorpedoBay`].
-///
-/// [`AITorpedoBay`]: super::AITorpedoBay
+/// after the child sections spawn.
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIRailgun {

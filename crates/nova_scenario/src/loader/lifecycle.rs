@@ -2040,9 +2040,8 @@ mod tests {
             Update,
             (|mut t: ResMut<Ticks>| t.sections += 1).in_set(SpaceshipSectionSystems),
         );
-        // The fixed-schedule input probe covers `update_fire_cadence`, the one
-        // AI system that runs in FixedUpdate; without it teardown is unproven
-        // on that half of the gate.
+        // Point defense still runs in FixedUpdate SpaceshipInputSystems;
+        // teardown must gate that pass as well as the Update input pass.
         app.add_systems(
             FixedUpdate,
             (|mut t: ResMut<Ticks>| t.input_fixed += 1).in_set(SpaceshipInputSystems),

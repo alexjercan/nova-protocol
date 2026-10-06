@@ -605,9 +605,8 @@ fn refresh_torpedo_engine_figures(
 pub struct TorpedoSectionSpawnerFireState(pub Cooldown);
 
 /// Back-pointer from a bay's spawned entities (spawner, body, projectile,
-/// blast) to the torpedo SECTION they belong to. Pub so the AI input side
-/// can attribute a fresh projectile to the bay that launched it and reset
-/// that bay's launch cooldown.
+/// blast) to the torpedo SECTION they belong to. The spawner uses this link
+/// to pause its native cooldown when the section is inactive.
 #[derive(Component, Clone, Debug, Deref, Reflect)]
 pub struct TorpedoSectionPartOf(pub Entity);
 
