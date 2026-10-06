@@ -1,6 +1,6 @@
 # Combat balance and AI: reproduce weak combat, then fix what it blames
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.15.0,combat,ai,balance
 
