@@ -15,6 +15,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-06
+
 ### Gameplay & Flight
 
 - A docked pair flies as one body. A dock starts NEUTRAL, with the partner
@@ -2941,7 +2943,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.14.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/alexjercan/nova-protocol/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/alexjercan/nova-protocol/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/alexjercan/nova-protocol/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/alexjercan/nova-protocol/compare/v0.13.0...v0.13.1
