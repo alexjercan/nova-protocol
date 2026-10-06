@@ -65,8 +65,8 @@ use crate::{input::point_defense::mount_may_shoot, prelude::*};
 /// the head-on case a fight is actually decided in. The gate itself and every
 /// constant listed above stay engine-side, in world units.
 pub const AI_FIRE_RANGE_FACTOR: f32 = 0.9;
-/// Share of a finite magazine that ship-target fire leaves for point defense.
-const AI_POINT_DEFENSE_MAGAZINE_SHARE: f32 = 0.2;
+/// Ship-target fire leaves at least one fifth of a finite magazine for point defense.
+pub(crate) const AI_POINT_DEFENSE_MAGAZINE_DIVISOR: u32 = 5;
 
 /// What ONE turret has its guns on this frame, and whether that is a
 /// point-defense engagement.
@@ -86,7 +86,7 @@ const AI_POINT_DEFENSE_MAGAZINE_SHARE: f32 = 0.2;
 /// Point defense applies in EVERY behavior state - a patrolling or idle ship
 /// still defends itself - while the engaging states otherwise track the primary
 /// target and non-engaging states clear the aim so turrets slew back to rest.
-fn ai_turret_gun_target(
+pub(crate) fn ai_turret_gun_target(
     turret_defense: Option<&TurretDefenseTarget>,
     ship_defense: &AIPointDefenseTarget,
     state: &AIBehaviorState,
@@ -251,7 +251,7 @@ pub(super) fn on_projectile_input(
         let firing_allowed = defending
             || (state.engages()
                 && ammo.is_none_or(|ammo| {
-                    ammo.rounds as f32 > ammo.capacity as f32 * AI_POINT_DEFENSE_MAGAZINE_SHARE
+                    ammo.rounds > ammo.capacity.div_ceil(AI_POINT_DEFENSE_MAGAZINE_DIVISOR)
                 }));
         // Hold fire with no gun target or below the point-defense share -
         // written as an explicit false so a firing turret stops.
@@ -477,6 +477,29 @@ mod fire_discipline_tests {
         assert!(
             **world.entity(turret).get::<TurretSectionInput>().unwrap(),
             "above the 20% reserve, ship fire may resume"
+        );
+
+        // A non-multiple of five rounds up: 11 / 5 reserves three whole
+        // rounds, even when the ship-wide fallback is on an inbound torpedo.
+        let torpedo = world
+            .spawn(Transform::from_translation(Vec3::new(0.0, 0.0, -100.0)))
+            .id();
+        let ship = world.get::<ChildOf>(turret).unwrap().parent();
+        world.get_mut::<AIPointDefenseTarget>(ship).unwrap().0 = Some(torpedo);
+        world.entity_mut(turret).insert(TurretDefenseTarget(None));
+        let mut ammo = world.get_mut::<SectionAmmo>(turret).unwrap();
+        ammo.capacity = 11;
+        ammo.rounds = 3;
+        world.run_system_once(on_projectile_input).unwrap();
+        assert!(
+            !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "Some(None) suppresses ship-wide PD fallback; three rounds stay reserved"
+        );
+        world.get_mut::<SectionAmmo>(turret).unwrap().rounds = 4;
+        world.run_system_once(on_projectile_input).unwrap();
+        assert!(
+            **world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "the fourth round is available for ship-target fire"
         );
     }
 

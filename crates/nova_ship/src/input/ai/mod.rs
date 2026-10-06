@@ -47,6 +47,7 @@ use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 // module; the number itself stays here with the engagement-range chain it
 // belongs to.
 pub(crate) use self::acquisition::AI_POINT_DEFENSE_RANGE;
+pub(crate) use self::guns::{ai_turret_gun_target, AI_POINT_DEFENSE_MAGAZINE_DIVISOR};
 pub use self::{
     acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},

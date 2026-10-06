@@ -203,6 +203,7 @@ pub(super) fn shoot_spawn_projectile(
             &ComputedCenterOfMass,
             Option<&Allegiance>,
             Option<&HullRadius>,
+            Has<AISpaceshipMarker>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -243,7 +244,7 @@ pub(super) fn shoot_spawn_projectile(
             continue;
         }
 
-        let Ok((position, rotation, lin_vel, ang_vel, center, allegiance, hull_radius)) =
+        let Ok((position, rotation, lin_vel, ang_vel, center, allegiance, hull_radius, is_ai)) =
             q_spaceship.get(*spaceship)
         else {
             error!(
@@ -567,6 +568,17 @@ pub(super) fn shoot_spawn_projectile(
         commands
             .entity(section)
             .insert(MuzzleDoorHold::for_launch(config.ignition_delay));
+
+        // An AI claim is single-use: `update_torpedo_section_input` decides
+        // and claims a bay once per its own (render-clock) tick, but this
+        // system reads the held trigger on every fixed tick in between. A
+        // fast, doorless bay re-arms within one fixed tick, so without this
+        // the one claim above paid for more than the single launch it was
+        // granted. Player and scripted triggers hold on purpose and are
+        // untouched.
+        if is_ai {
+            commands.entity(section).insert(TorpedoSectionInput(false));
+        }
     }
 }
 
@@ -1159,6 +1171,88 @@ mod tests {
             torpedo_count(&mut app) > 2,
             "an unlimited bay must not be capped at a magazine size, got {}",
             torpedo_count(&mut app)
+        );
+    }
+
+    /// The AI's `Update` trigger claims a bay once per its own tick, but the
+    /// spawn and door chain run many fixed ticks in between. A claim behind a
+    /// slow-opening door must stay held through every tick the door is still
+    /// travelling - dropping it early would lose the launch it was for - and
+    /// must be spent the moment that launch actually leaves, so the same
+    /// claim cannot pay for a second one once the bay has re-armed.
+    #[test]
+    fn an_ai_bays_claim_is_held_through_the_door_and_spent_on_one_launch() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(SectionAnimationPlugin);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(0.05),
+        ));
+        // FixedUpdate, matching the real plugin registration: at a 0.05s
+        // real frame against the default 1/64s fixed step, each `app.update`
+        // below runs this chain about three times - the actual multi-fixed-
+        // tick gap the AI's single `Update` claim has to survive.
+        app.add_systems(
+            FixedUpdate,
+            (
+                update_spawner_fire_state,
+                shoot_spawn_projectile,
+                drive_muzzle_doors,
+            )
+                .chain(),
+        );
+        let section = spawn_firing_bay(&mut app, None);
+        let ship = app.world().get::<ChildOf>(section).unwrap().parent();
+        app.world_mut().entity_mut(ship).insert(AISpaceshipMarker);
+        app.world_mut()
+            .entity_mut(section)
+            .insert(door_track(0.2, 0.2));
+
+        // Warm-up tick, then two 0.05s frames (several fixed ticks each): the
+        // door is still travelling (0.2s open), so the claim must still be
+        // sitting there untouched.
+        app.update();
+        app.update();
+        app.update();
+        let mid = door_progress(&mut app, section);
+        assert!(0.0 < mid && mid < 1.0, "door mid-travel, at {mid}");
+        assert_eq!(
+            torpedo_count(&mut app),
+            0,
+            "no launch through a moving door"
+        );
+        assert!(
+            **app.world().get::<TorpedoSectionInput>(section).unwrap(),
+            "the claim must stay held while the door is still opening"
+        );
+
+        // Let the door finish opening: the pending claim fires through it.
+        for _ in 0..4 {
+            app.update();
+        }
+        assert_eq!(door_progress(&mut app, section), 1.0, "door fully open");
+        assert_eq!(
+            torpedo_count(&mut app),
+            1,
+            "the held claim pays for exactly one launch"
+        );
+        assert!(
+            !**app.world().get::<TorpedoSectionInput>(section).unwrap(),
+            "the claim is consumed once it has paid for that launch"
+        );
+
+        // Run past the launch's `MuzzleDoorHold` (ignition_delay 0.6s plus
+        // the 0.3s closing linger, 0.9s) and the bay's re-arm (fire_rate
+        // 100/s): 20 more 0.05s frames cover at least 1.0s even at three
+        // fixed ticks per frame, so nothing left to re-authorize the bay
+        // must not buy it a second launch.
+        for _ in 0..20 {
+            app.update();
+        }
+        assert_eq!(
+            torpedo_count(&mut app),
+            1,
+            "a consumed claim must not launch again on its own"
         );
     }
 
