@@ -199,10 +199,9 @@ mod pause_gating_tests {
         );
     }
 
-    /// The FixedUpdate half of the gate carries `update_fire_cadence`, so a
-    /// paused AI ship must not advance its burst clock. Asserted separately
-    /// from the Update probe above: the two schedules are configured by two
-    /// `configure_sets` calls, and only this one covers the fixed clock.
+    /// The fixed-clock section fire systems must stop while paused. Asserted
+    /// separately because the two schedules have distinct `configure_sets`
+    /// calls.
     #[test]
     fn spaceship_sets_freeze_in_fixed_update_while_paused() {
         let mut app = App::new();

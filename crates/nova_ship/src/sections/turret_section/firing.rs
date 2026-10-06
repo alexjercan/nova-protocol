@@ -17,7 +17,11 @@ use nova_gameplay::lifetime::TempEntity;
 use rand::RngExt;
 
 use super::*;
-use crate::{physics::prelude::rigid_body_point_velocity, sections::local_pose_in_root};
+use crate::{
+    input::ai::{ai_turret_gun_target, AI_POINT_DEFENSE_MAGAZINE_DIVISOR},
+    physics::prelude::rigid_body_point_velocity,
+    sections::local_pose_in_root,
+};
 
 /// A runaway-config backstop for the multi-shot loop: at 64 Hz ticks this
 /// caps the effective fire rate at 512 rounds/s per barrel, far above any
@@ -78,6 +82,7 @@ pub(super) fn shoot_spawn_projectile(
             Option<&mut SectionAmmo>,
             Option<&mut SectionReload>,
             Option<&TurretStow>,
+            Option<&TurretDefenseTarget>,
         ),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
@@ -85,6 +90,10 @@ pub(super) fn shoot_spawn_projectile(
     q_chain: Query<(&Transform, &ChildOf)>,
     q_hot: Query<&WeaponsHot>,
     q_defense: Query<(&PointDefenseMount, &TurretDefenseTarget)>,
+    q_ai_ships: Query<
+        (&AIBehaviorState, &AITarget, &AIPointDefenseTarget),
+        With<AISpaceshipMarker>,
+    >,
     // OPTIONAL on purpose. Spread is cosmetic, so it must never be able to
     // gate the fire path: a rig with no `EntropyPlugin` (a bare unit-test app)
     // fires perfectly straight rounds rather than silently firing none, which
@@ -104,6 +113,7 @@ pub(super) fn shoot_spawn_projectile(
         mut ammo,
         mut reload,
         stow,
+        turret_defense,
     ) in &mut q_turret
     {
         // A mount that is not fully deployed cannot fire at all - a gun
@@ -116,6 +126,17 @@ pub(super) fn shoot_spawn_projectile(
         // invariant, so deploying costs the authored travel and not a
         // hidden rearm on top.
         let deployed = stow.is_none_or(TurretStow::is_deployed);
+        // Update's trigger may stay held across several fixed ticks. Use its
+        // per-mount PD precedence here too, so every native shot protects the
+        // rounded-up reserve; player and scripted triggers never enter this gate.
+        let ai_ship_target =
+            q_ai_ships
+                .get(*spaceship)
+                .is_ok_and(|(state, target, ship_defense)| {
+                    let (gun_target, defending) =
+                        ai_turret_gun_target(turret_defense, ship_defense, state, target);
+                    gun_target.is_some() && !defending
+                });
         // The weapons safety is a LIVE predicate: a managed ship (player,
         // mirrored AI) cannot fire
         // while SAFE even mid-held-trigger - the input bool is latched, so a
@@ -254,6 +275,13 @@ pub(super) fn shoot_spawn_projectile(
             let mut excess = (before + dt - interval).clamp(0.0, dt);
 
             for _ in 0..MAX_SHOTS_PER_TICK {
+                if ai_ship_target
+                    && ammo.as_deref().is_some_and(|ammo| {
+                        ammo.rounds <= ammo.capacity.div_ceil(AI_POINT_DEFENSE_MAGAZINE_DIVISOR)
+                    })
+                {
+                    break;
+                }
                 // Spend one round per bullet. A magazine that runs dry mid-burst
                 // stops the stream exactly at zero (a high fire rate can queue
                 // several shots per tick, so the gate above is not enough on its
@@ -731,6 +759,56 @@ mod tests {
             }
             assert!(bullet_count(&mut app) > 0, "deployed, the rig fires again");
         }
+    }
+
+    #[test]
+    fn ai_ship_fire_stops_at_the_rounded_up_point_defense_reserve() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(1.0),
+        ));
+        app.add_systems(FixedUpdate, shoot_spawn_projectile);
+        let turret = spawn_firing_turret(&mut app, Some(11));
+        let ship = app.world().get::<ChildOf>(turret).unwrap().parent();
+        let enemy = app.world_mut().spawn_empty().id();
+        let torpedo = app.world_mut().spawn_empty().id();
+        app.world_mut().entity_mut(ship).insert((
+            AISpaceshipMarker,
+            AIBehaviorState::Engage,
+            AITarget(Some(enemy)),
+            AIPointDefenseTarget(Some(torpedo)),
+        ));
+        // An explicit per-mount None overrides the ship-wide PD pick and
+        // returns this turret to the primary ship target.
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretDefenseTarget(None));
+        app.world_mut()
+            .get_mut::<SectionAmmo>(turret)
+            .unwrap()
+            .rounds = 4;
+
+        for _ in 0..3 {
+            app.update();
+        }
+
+        assert_eq!(
+            bullet_count(&mut app),
+            1,
+            "only one ship-target shot may leave 4 rounds of an 11-round magazine: ceil(20%) = 3"
+        );
+        assert_eq!(app.world().get::<SectionAmmo>(turret).unwrap().rounds, 3);
+
+        // The SAME mount may use its reserved rounds on an assigned PD target.
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretDefenseTarget(Some(torpedo)));
+        app.update();
+        assert!(
+            bullet_count(&mut app) > 1,
+            "assigned point defense spends reserved rounds"
+        );
     }
 
     #[test]

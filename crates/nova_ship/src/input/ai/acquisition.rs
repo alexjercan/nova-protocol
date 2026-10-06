@@ -10,7 +10,7 @@ use nova_gameplay::prelude::*;
 #[cfg(test)]
 use super::behavior::update_behavior_state;
 #[cfg(test)]
-use super::guns::{on_projectile_input, update_turret_target_input, AI_BURST_FIRE_SECS};
+use super::guns::{on_projectile_input, update_turret_target_input};
 use super::threat::AI_THREAT_ATTACKER_DISCOUNT;
 #[cfg(test)]
 use crate::input::point_defense::update_turret_point_defense;
@@ -211,9 +211,9 @@ pub struct AIPointDefenseTarget(pub Option<Entity>);
 /// actually reach what it defends against, and moves with any lifetime change
 /// - see AI_FIRE_RANGE_FACTOR in `guns.rs`.
 ///
-/// It is also the ammunition knob. Point defense bypasses the burst cadence
-/// and holds the trigger for one full time of flight before the first rounds
-/// arrive, so rounds spent per intercept are
+/// It is also the ammunition knob. Point defense holds the trigger for one
+/// full time of flight before the first rounds arrive, so rounds spent per
+/// intercept are
 /// `fire_rate * pd_range / (muzzle_speed + torpedo_speed)`: ~111 at 150 u
 /// against a standard torpedo, where the shipped 400 u burned ~296 for the
 /// same 2-round kill.
@@ -1071,8 +1071,8 @@ mod point_defense_tests {
     }
 
     #[test]
-    fn point_defense_bypasses_the_burst_hold() {
-        let (mut world, ai_ship, _, _, turret) = defended_world();
+    fn point_defense_fires_through_the_reserved_magazine() {
+        let (mut world, _, _, _, turret) = defended_world();
         // Muzzle at the origin facing -Z: dead on the torpedo at -150.
         let muzzle = world
             .spawn((TurretSectionBarrelMuzzleMarker, GlobalTransform::IDENTITY))
@@ -1080,13 +1080,11 @@ mod point_defense_tests {
         world
             .entity_mut(turret)
             .insert(TurretSectionMuzzleEntity(muzzle));
-        // Force the cadence into a hold phase: bursts must not delay defense.
-        {
-            let mut entity = world.entity_mut(ai_ship);
-            let mut cadence = entity.get_mut::<AIFireCadence>().unwrap();
-            cadence.tick(AI_BURST_FIRE_SECS + 0.01);
-            assert!(!cadence.firing);
-        }
+        // Ship-target fire must hold at this threshold, not point defense.
+        world.entity_mut(turret).insert(SectionAmmo {
+            rounds: 100,
+            capacity: 500,
+        });
 
         crate::input::ai::sense_and_pick(&mut world);
         world.run_system_once(update_point_defense_target).unwrap();
@@ -1094,7 +1092,7 @@ mod point_defense_tests {
 
         assert!(
             **world.entity(turret).get::<TurretSectionInput>().unwrap(),
-            "PDC fires through the burst hold"
+            "point defense spends rounds reserved from ship-target fire"
         );
     }
 

@@ -52,6 +52,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - An unarmed ship of any side is now neutralized when it loses the last
   working thruster it had; a hull that never had one is still only destroyed.
   The armed (weapons/computer) rule is unchanged.
+- AI turrets shoot at ships without a burst pause but keep 20% of each magazine
+  for point defense; point defense fires through that reserve.
+- AI ships launch one torpedo per frame, up to one in flight per working bay
+  against each target. Hits, interceptions and expiry reopen slots.
 
 ### Ships & Sections
 

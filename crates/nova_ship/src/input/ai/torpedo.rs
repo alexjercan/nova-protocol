@@ -1,5 +1,5 @@
-//! AI torpedo launches: the per-bay cooldown ([`AITorpedoBay`]), the launch
-//! envelope (range band plus rough alignment), and the bay's target write.
+//! AI torpedo launches: the per-ship/target in-flight limit, the launch
+//! envelope (range band plus rough alignment), and the launch-time target write.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -9,13 +9,6 @@ use nova_gameplay::prelude::*;
 use super::{guns::ai_line_of_fire_blocked, maneuver::ai_target_anchor};
 use crate::prelude::*;
 
-// AI torpedo launch tuning. The bay's own fire-rate cooldown
-// (TorpedoSectionSpawnerFireState) still applies underneath; these knobs
-// shape WHEN the AI pulls the trigger at all.
-/// Per-bay launch cadence (s): the AI takes deliberate, spaced torpedo
-/// shots instead of holding the trigger and dumping one every
-/// 1/fire_rate seconds. Playtest knob.
-const AI_TORPEDO_COOLDOWN_SECS: f32 = 10.0;
 /// Outer edge of the launch envelope. Beyond detection range
 /// (AI_ENGAGE_RANGE) but well inside the AI sensor reach
 /// (AI_SENSOR_RANGE), so a launch can open the approach on a fight the
@@ -41,32 +34,9 @@ const AI_TORPEDO_MIN_RANGE_BLAST_FACTOR: f32 = 3.0;
 /// torpedo does not open its flight turning back through the shooter.
 const AI_TORPEDO_ALIGNMENT_COS: f32 = 0.5;
 
-/// Per-bay AI launch state: the launch cadence on top of the bay's own
-/// fire-rate timer. Lazily inserted by `update_torpedo_section_input` on
-/// torpedo sections whose ship is AI-controlled - an Add-observer would
-/// race the root's `AISpaceshipMarker`, which lands after the child
-/// sections spawn. Reset by `update_torpedo_target_input` when a launch
-/// ACTUALLY happens (a projectile spawned), so a trigger pull a disabled
-/// bay ignored never burns the cooldown.
-#[derive(Component, Debug, Clone, Reflect)]
-#[reflect(Component)]
-pub struct AITorpedoBay {
-    /// Time until this bay may launch again. A fresh [`Cooldown`] is READY, so
-    /// the first launch of a fight comes as soon as the envelope opens.
-    cooldown: Cooldown,
-}
-
-impl Default for AITorpedoBay {
-    fn default() -> Self {
-        Self {
-            cooldown: Cooldown::new(AI_TORPEDO_COOLDOWN_SECS),
-        }
-    }
-}
-
 /// The geometric half of the launch decision: the target inside the range
 /// band with the hull roughly on the bearing ([`AI_TORPEDO_ALIGNMENT_COS`]).
-/// The per-ship gates (behavior state, ship-kind target, bay cooldown) live in
+/// The per-ship gates (behavior state, ship target, in-flight limit) live in
 /// the calling system. Pure for unit testing.
 ///
 /// The inner edge is a FACE gap. `to_target` runs anchor to anchor, so the
@@ -96,27 +66,30 @@ fn ai_torpedo_envelope(
 /// Engage-like state - Evade excluded, a jinking hull is no launch
 /// platform (Retreat inherits, per its stub) - and a SHIP target: hostile
 /// torpedoes are the guns' job (point defense), not worth a bay's ordnance.
-/// Per ship: the line of fire clear ([`ai_line_of_fire_blocked`]) - no
-/// torpedo spent on the cover between the bay and the target. Per bay: the
-/// launch cadence elapsed and the envelope ([`ai_torpedo_envelope`]) open
-/// from the ship's anchor.
+/// Per ship: the number of torpedoes in flight at this target stays below
+/// the number of working bays on this ship, and only one bay claims a launch
+/// each frame. Per bay: active with stock, the envelope
+/// ([`ai_torpedo_envelope`]) open from the ship's anchor, and line of fire
+/// clear ([`ai_line_of_fire_blocked`]) and its native spawner ready. The
+/// bay's own reload and muzzle door still apply.
 #[expect(
     clippy::type_complexity,
     reason = "one query per torpedo-bay lifecycle stage"
 )]
 pub(super) fn update_torpedo_section_input(
-    time: Res<Time>,
-    mut commands: Commands,
-    q_missing: Query<(Entity, &ChildOf), (With<TorpedoSectionMarker>, Without<AITorpedoBay>)>,
     mut q_section: Query<
         (
             &mut TorpedoSectionInput,
-            &mut AITorpedoBay,
             &TorpedoEngineFigures,
             &ChildOf,
+            &crate::sections::torpedo_section::TorpedoSectionSpawnerEntity,
+            Option<&SectionAmmo>,
+            Has<SectionInactiveMarker>,
         ),
         With<TorpedoSectionMarker>,
     >,
+    q_working_bays: Query<&ChildOf, (With<TorpedoSectionMarker>, Without<SectionInactiveMarker>)>,
+    q_spawner: Query<&TorpedoSectionSpawnerFireState, With<TorpedoSectionSpawnerMarker>>,
     q_spaceship: Query<
         (
             Entity,
@@ -127,6 +100,14 @@ pub(super) fn update_torpedo_section_input(
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
+    q_torpedo: Query<
+        (
+            &ProjectileOwner,
+            Option<&TorpedoTargetEntity>,
+            Has<TorpedoTargetChosen>,
+        ),
+        With<TorpedoProjectileMarker>,
+    >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
     q_hull_radius: Query<&HullRadius>,
     q_ship_root: Query<(), With<SpaceshipRootMarker>>,
@@ -134,15 +115,6 @@ pub(super) fn update_torpedo_section_input(
     q_sensor: Query<(), With<Sensor>>,
     q_collider_of: Query<&ColliderOf>,
 ) {
-    // Arm AI bays with their launch state, lazily: at section-spawn time
-    // "is this an AI ship" is not answerable yet (see [`AITorpedoBay`]),
-    // so a bare bay picks its state up here, one frame before first use.
-    for (section, ChildOf(parent)) in &q_missing {
-        if q_spaceship.contains(*parent) {
-            commands.entity(section).insert(AITorpedoBay::default());
-        }
-    }
-
     for (entity, transform, com, state, target) in &q_spaceship {
         let engaged = state.engages() && *state != AIBehaviorState::Evade;
         // The launch bearing runs anchor to anchor, like every AI vector.
@@ -157,6 +129,23 @@ pub(super) fn update_torpedo_section_input(
         let target_arm = target_ship
             .and_then(|target| q_hull_radius.get(target).ok())
             .map_or(0.0, |arm| **arm);
+        // Only working bays contribute slots, even when their magazines are
+        // empty. A destroyed or disabled section closes its slot immediately.
+        let bay_count = q_working_bays
+            .iter()
+            .filter(|ChildOf(parent)| *parent == entity)
+            .count();
+        // Newly launched projectiles have not yet had their target committed;
+        // hold a slot for them so consecutive render frames cannot overshoot.
+        let in_flight = q_torpedo
+            .iter()
+            .filter(|(owner, committed, chosen)| {
+                ***owner == entity
+                    && (!*chosen
+                        || committed.is_some_and(|committed| Some(**committed) == target_ship))
+            })
+            .count();
+        let mut claimed = false;
         // Line-of-fire gate, memoized so the ship casts AT MOST one ray per
         // frame (every bay launches down the same anchor-to-anchor bearing)
         // and none at all while the cheap per-bay gates hold the trigger
@@ -179,16 +168,17 @@ pub(super) fn update_torpedo_section_input(
             })
         };
 
-        for (mut input, mut bay, figures, _) in q_section
+        for (mut input, figures, _, spawner, ammo, inactive) in q_section
             .iter_mut()
-            .filter(|(_, _, _, ChildOf(parent))| *parent == entity)
+            .filter(|(_, _, ChildOf(parent), _, _, _)| *parent == entity)
         {
-            // The cadence elapses unconditionally - maneuvering outside
-            // the envelope between launches is part of the cadence, not a
-            // pause of it.
-            bay.cooldown.tick(time.delta_secs());
             let launch = engaged
-                && bay.cooldown.ready()
+                && target_ship.is_some()
+                && !inactive
+                && ammo.is_none_or(|ammo| !ammo.is_empty())
+                && q_spawner.get(**spawner).is_ok_and(|state| state.ready())
+                && in_flight < bay_count
+                && !claimed
                 && target_anchor.is_some_and(|anchor| {
                     ai_torpedo_envelope(
                         anchor - own_anchor,
@@ -199,6 +189,7 @@ pub(super) fn update_torpedo_section_input(
                     )
                 })
                 && line_clear(own_anchor);
+            claimed |= launch;
             // Change-detection hygiene, and an explicit release (not a
             // skip) so a bay holding the trigger drops it the moment any
             // gate closes.
@@ -213,10 +204,8 @@ pub(super) fn update_torpedo_section_input(
 /// [`AITarget`] - the AI-side sibling of the player's commit-on-launch
 /// (input/player/intent.rs): the targeting decision is made exactly once, right
 /// after launch, and an owner with no target by commit time makes it a
-/// dumb-fire shot for life. Also resets the sourcing bay's launch cadence
-/// (attributed through the projectile's [`TorpedoSectionPartOf`]): only an
-/// actual launch burns the cooldown. Torpedoes owned by non-AI ships are
-/// left to the player's commit system, and vice versa.
+/// dumb-fire shot for life. Torpedoes owned by non-AI ships are left to the
+/// player's commit system, and vice versa.
 ///
 /// Only a SHIP target commits, matching the trigger side's gate: the
 /// launch and the commit are one frame apart, and an [`AITarget`] that
@@ -226,7 +215,7 @@ pub(super) fn update_torpedo_section_input(
 pub(super) fn update_torpedo_target_input(
     mut commands: Commands,
     q_torpedo: Query<
-        (Entity, &ProjectileOwner, &TorpedoSectionPartOf),
+        (Entity, &ProjectileOwner),
         (
             With<TorpedoProjectileMarker>,
             Without<TorpedoTargetEntity>,
@@ -235,9 +224,8 @@ pub(super) fn update_torpedo_target_input(
     >,
     q_spaceship: Query<&AITarget, With<AISpaceshipMarker>>,
     q_ship_root: Query<(), With<SpaceshipRootMarker>>,
-    mut q_bay: Query<&mut AITorpedoBay>,
 ) {
-    for (torpedo, owner, part_of) in &q_torpedo {
+    for (torpedo, owner) in &q_torpedo {
         let Ok(target) = q_spaceship.get(**owner) else {
             continue;
         };
@@ -252,9 +240,6 @@ pub(super) fn update_torpedo_target_input(
         torpedo_commands.insert(TorpedoTargetChosen);
         if let Some(target_entity) = target {
             torpedo_commands.insert(TorpedoTargetEntity(target_entity));
-        }
-        if let Ok(mut bay) = q_bay.get_mut(**part_of) {
-            bay.cooldown.trigger();
         }
     }
 }
@@ -339,14 +324,33 @@ mod torpedo_tests {
         );
     }
 
+    /// Mirror the launch owner's real spawner relationship and ready cooldown
+    /// without registering the bay's render and projectile systems in this rig.
+    fn spawn_bay(world: &mut World, ship: Entity) -> Entity {
+        let bay = world
+            .spawn((
+                torpedo_section(TorpedoSectionConfig::default()),
+                ChildOf(ship),
+            ))
+            .id();
+        let spawner = world
+            .spawn((
+                TorpedoSectionSpawnerMarker,
+                TorpedoSectionPartOf(bay),
+                TorpedoSectionSpawnerFireState(Cooldown::new(1.0)),
+                ChildOf(bay),
+            ))
+            .id();
+        world
+            .entity_mut(bay)
+            .insert(crate::sections::torpedo_section::TorpedoSectionSpawnerEntity(spawner));
+        bay
+    }
+
     /// An AI ship (at the origin, facing -Z) engaged on a player ship, with
     /// one default-config torpedo bay. Returns (world, ship, target, bay).
-    /// The bay's `AITorpedoBay` is NOT armed yet - run
-    /// `update_torpedo_section_input` once (the lazy insert) before
-    /// asserting on trigger state.
     fn torpedo_world(target_position: Vec3) -> (World, Entity, Entity, Entity) {
         let mut world = crate::input::ai::ai_test_world();
-        world.init_resource::<Time>();
         // Empty collider trees for the launch gate's SpatialQuery: no
         // colliders means a clear line of fire, which is this rig's intent.
         world.init_resource::<ColliderTrees>();
@@ -366,18 +370,12 @@ mod torpedo_tests {
                 Transform::default(),
             ))
             .id();
-        let bay = world
-            .spawn((
-                torpedo_section(TorpedoSectionConfig::default()),
-                ChildOf(ship),
-            ))
-            .id();
+        let bay = spawn_bay(&mut world, ship);
         (world, ship, target, bay)
     }
 
-    /// Arm the bay (lazy-insert pass) and run the trigger write once.
+    /// Run one AI trigger frame.
     fn run_trigger(world: &mut World) {
-        world.run_system_once(update_torpedo_section_input).unwrap();
         world.run_system_once(update_torpedo_section_input).unwrap();
     }
 
@@ -385,20 +383,10 @@ mod torpedo_tests {
     fn an_engaged_ship_pulls_the_trigger_inside_the_envelope() {
         // Default blast radius 30 u (the authored 300 m) -> min range
         // 90 u; 300 u dead ahead is in band and aligned, the default state
-        // is Engage, the cadence starts elapsed: everything open.
+        // is Engage with no torpedo in flight: everything is open.
         let (mut world, _, _, bay) = torpedo_world(Vec3::new(0.0, 0.0, -300.0));
 
-        world.run_system_once(update_torpedo_section_input).unwrap();
-        assert!(
-            world.entity(bay).get::<AITorpedoBay>().is_some(),
-            "the bare bay picks its launch state up lazily"
-        );
-        assert!(
-            !**world.entity(bay).get::<TorpedoSectionInput>().unwrap(),
-            "the arming pass itself does not fire yet"
-        );
-
-        world.run_system_once(update_torpedo_section_input).unwrap();
+        run_trigger(&mut world);
         assert!(
             **world.entity(bay).get::<TorpedoSectionInput>().unwrap(),
             "envelope open: trigger pulled"
@@ -467,28 +455,291 @@ mod torpedo_tests {
     }
 
     #[test]
-    fn the_cadence_gates_the_next_launch() {
-        let (mut world, _, _, bay) = torpedo_world(Vec3::new(0.0, 0.0, -300.0));
-        run_trigger(&mut world);
-        assert!(**world.entity(bay).get::<TorpedoSectionInput>().unwrap());
-
-        // A launch happened: the commit system resets the bay's cadence.
-        world
-            .entity_mut(bay)
-            .get_mut::<AITorpedoBay>()
+    fn a_ready_second_bay_launches_while_the_first_is_reloading() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(TorpedoSectionPlugin::default());
+        let world = app.world_mut();
+        world.init_resource::<ColliderTrees>();
+        let target = world
+            .spawn((
+                SpaceshipRootMarker,
+                Transform::from_translation(Vec3::NEG_Z * 300.0),
+            ))
+            .id();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AITarget(Some(target)),
+                Transform::default(),
+                Position(Vec3::ZERO),
+                Rotation::default(),
+                LinearVelocity(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+                ComputedCenterOfMass(Vec3::ZERO),
+            ))
+            .id();
+        let config = TorpedoSectionConfig {
+            ammunition: AmmoCapacity::Limited(2),
+            ..default()
+        };
+        let bay_a = world
+            .spawn((
+                torpedo_section(config.clone()),
+                Transform::default(),
+                ChildOf(ship),
+            ))
+            .id();
+        let bay_b = world
+            .spawn((torpedo_section(config), Transform::default(), ChildOf(ship)))
+            .id();
+        let spawner_a = **world
+            .get::<crate::sections::torpedo_section::TorpedoSectionSpawnerEntity>(bay_a)
+            .unwrap();
+        let spawner_b = **world
+            .get::<crate::sections::torpedo_section::TorpedoSectionSpawnerEntity>(bay_b)
+            .unwrap();
+        assert!(world
+            .get::<TorpedoSectionSpawnerFireState>(spawner_a)
             .unwrap()
-            .cooldown
-            .trigger();
+            .ready());
+        assert!(world
+            .get::<TorpedoSectionSpawnerFireState>(spawner_b)
+            .unwrap()
+            .ready());
 
-        world.run_system_once(update_torpedo_section_input).unwrap();
+        run_trigger(app.world_mut());
+        let (first, first_spawner, second, second_spawner) =
+            if **app.world().get::<TorpedoSectionInput>(bay_a).unwrap() {
+                (bay_a, spawner_a, bay_b, spawner_b)
+            } else {
+                assert!(**app.world().get::<TorpedoSectionInput>(bay_b).unwrap());
+                (bay_b, spawner_b, bay_a, spawner_a)
+            };
+        assert!(!**app.world().get::<TorpedoSectionInput>(second).unwrap());
+
+        // Force the bay that just claimed into cooldown before any launch.
+        // Its query position does not change, so a claim by it on the next
+        // frame would starve the other bay even though the other is ready.
+        app.world_mut()
+            .get_mut::<TorpedoSectionSpawnerFireState>(first_spawner)
+            .unwrap()
+            .trigger();
+        run_trigger(app.world_mut());
+        assert!(!**app.world().get::<TorpedoSectionInput>(first).unwrap());
+        assert!(**app.world().get::<TorpedoSectionInput>(second).unwrap());
+        app.world_mut()
+            .get_mut::<TorpedoSectionSpawnerFireState>(first_spawner)
+            .unwrap()
+            .tick(1.0);
+
+        run_trigger(app.world_mut());
+        assert!(**app.world().get::<TorpedoSectionInput>(first).unwrap());
+        assert!(!**app.world().get::<TorpedoSectionInput>(second).unwrap());
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(app.world().get::<SectionAmmo>(first).unwrap().rounds, 1);
+        assert!(!app
+            .world()
+            .get::<TorpedoSectionSpawnerFireState>(first_spawner)
+            .unwrap()
+            .ready());
+        assert!(app
+            .world()
+            .get::<TorpedoSectionSpawnerFireState>(second_spawner)
+            .unwrap()
+            .ready());
+
+        app.world_mut()
+            .get_mut::<TorpedoSectionSpawnerFireState>(second_spawner)
+            .unwrap()
+            .trigger();
+        run_trigger(app.world_mut());
         assert!(
-            !**world.entity(bay).get::<TorpedoSectionInput>().unwrap(),
-            "cadence running: trigger released despite the open envelope"
+            !**app.world().get::<TorpedoSectionInput>(first).unwrap(),
+            "busy first bay releases its trigger"
+        );
+        assert!(
+            !**app.world().get::<TorpedoSectionInput>(second).unwrap(),
+            "neither cooling bay can claim"
+        );
+        app.world_mut()
+            .get_mut::<TorpedoSectionSpawnerFireState>(second_spawner)
+            .unwrap()
+            .tick(1.0);
+        run_trigger(app.world_mut());
+        assert!(
+            !**app.world().get::<TorpedoSectionInput>(first).unwrap(),
+            "busy first bay cannot claim"
+        );
+        assert!(
+            **app.world().get::<TorpedoSectionInput>(second).unwrap(),
+            "ready second bay claims the next frame"
+        );
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(
+            app.world().get::<SectionAmmo>(second).unwrap().rounds,
+            1,
+            "the second bay fires a real round"
+        );
+        let launches: Vec<Entity> = app
+            .world_mut()
+            .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(launches.len(), 2, "one real launch from each bay");
+    }
+
+    #[test]
+    fn one_two_and_three_working_bays_set_the_in_flight_limit() {
+        for bay_count in 1..=3 {
+            let (mut world, ship, target, first) = torpedo_world(Vec3::NEG_Z * 300.0);
+            let mut bays = vec![first];
+            for _ in 1..bay_count {
+                bays.push(spawn_bay(&mut world, ship));
+            }
+            let open = |world: &World| {
+                bays.iter()
+                    .filter(|&&bay| **world.entity(bay).get::<TorpedoSectionInput>().unwrap())
+                    .count()
+            };
+            for _ in 0..bay_count {
+                run_trigger(&mut world);
+                assert_eq!(open(&world), 1, "only one bay claims this frame");
+                world.spawn((
+                    TorpedoProjectileMarker,
+                    ProjectileOwner(ship),
+                    TorpedoTargetEntity(target),
+                    TorpedoTargetChosen,
+                ));
+            }
+            run_trigger(&mut world);
+            assert_eq!(
+                open(&world),
+                0,
+                "{bay_count} live torpedoes fill {bay_count} slots"
+            );
+            let to_remove = world
+                .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+                .iter(&world)
+                .find(|&projectile| {
+                    world
+                        .get::<ProjectileOwner>(projectile)
+                        .is_some_and(|owner| **owner == ship)
+                })
+                .unwrap();
+            world.despawn(to_remove);
+            run_trigger(&mut world);
+            assert_eq!(
+                open(&world),
+                1,
+                "hit, expiry or interception reopens a slot"
+            );
+        }
+    }
+
+    #[test]
+    fn lost_inactive_and_replaced_bays_change_slots_even_when_empty() {
+        let (mut world, ship, target, first) = torpedo_world(Vec3::NEG_Z * 300.0);
+        let second = spawn_bay(&mut world, ship);
+        world.entity_mut(second).insert(SectionAmmo {
+            rounds: 0,
+            capacity: 6,
+        });
+        world.spawn((
+            TorpedoProjectileMarker,
+            ProjectileOwner(ship),
+            TorpedoTargetEntity(target),
+            TorpedoTargetChosen,
+        ));
+        run_trigger(&mut world);
+        assert!(
+            **world.entity(first).get::<TorpedoSectionInput>().unwrap(),
+            "empty bay still supplies a slot"
+        );
+        assert!(
+            !**world.entity(second).get::<TorpedoSectionInput>().unwrap(),
+            "empty bay cannot claim launch"
+        );
+        world.entity_mut(second).insert(SectionInactiveMarker);
+        run_trigger(&mut world);
+        assert!(
+            !**world.entity(first).get::<TorpedoSectionInput>().unwrap(),
+            "inactive bay closes its slot"
+        );
+        world.despawn(second);
+        let replacement = spawn_bay(&mut world, ship);
+        run_trigger(&mut world);
+        let open = [first, replacement]
+            .into_iter()
+            .filter(|&bay| **world.entity(bay).get::<TorpedoSectionInput>().unwrap())
+            .count();
+        assert_eq!(open, 1, "a replacement bay reopens one slot");
+        world.despawn(replacement);
+        run_trigger(&mut world);
+        assert!(
+            !**world.entity(first).get::<TorpedoSectionInput>().unwrap(),
+            "losing a working bay closes its slot"
+        );
+        spawn_bay(&mut world, ship);
+        run_trigger(&mut world);
+        assert!(
+            **world.entity(first).get::<TorpedoSectionInput>().unwrap(),
+            "replacing the lost working bay reopens a slot"
         );
     }
 
     #[test]
-    fn a_fresh_ai_torpedo_commits_to_the_owner_target_and_burns_the_cadence() {
+    fn in_flight_slots_are_separate_by_ship_and_target() {
+        let (mut world, ship_a, target_a, bay_a) = torpedo_world(Vec3::NEG_Z * 300.0);
+        let target_b = world
+            .spawn((
+                SpaceshipRootMarker,
+                Transform::from_translation(Vec3::NEG_Z * 400.0),
+            ))
+            .id();
+        let ship_b = world
+            .spawn((
+                AISpaceshipMarker,
+                AITarget(Some(target_a)),
+                Transform::default(),
+            ))
+            .id();
+        let bay_b = spawn_bay(&mut world, ship_b);
+        let torpedo = world
+            .spawn((
+                TorpedoProjectileMarker,
+                ProjectileOwner(ship_a),
+                TorpedoTargetEntity(target_a),
+                TorpedoTargetChosen,
+            ))
+            .id();
+        run_trigger(&mut world);
+        assert!(
+            !**world.entity(bay_a).get::<TorpedoSectionInput>().unwrap(),
+            "ship A's slot is filled"
+        );
+        assert!(
+            **world.entity(bay_b).get::<TorpedoSectionInput>().unwrap(),
+            "ship B has its own slot at the same target"
+        );
+        **world.entity_mut(ship_a).get_mut::<AITarget>().unwrap() = Some(target_b);
+        run_trigger(&mut world);
+        assert!(
+            **world.entity(bay_a).get::<TorpedoSectionInput>().unwrap(),
+            "ship A has a separate slot at target B"
+        );
+        // A new, uncommitted launch already occupies a slot until commitment.
+        world.entity_mut(torpedo).remove::<TorpedoTargetEntity>();
+        world.entity_mut(torpedo).remove::<TorpedoTargetChosen>();
+        run_trigger(&mut world);
+        assert!(
+            !**world.entity(bay_a).get::<TorpedoSectionInput>().unwrap(),
+            "uncommitted launch cannot overshoot target B"
+        );
+    }
+
+    #[test]
+    fn a_fresh_ai_torpedo_commits_to_the_owner_target() {
         let (mut world, ship, target, bay) = torpedo_world(Vec3::new(0.0, 0.0, -300.0));
         run_trigger(&mut world);
         let torpedo = world
@@ -513,15 +764,6 @@ mod torpedo_tests {
                 .map(|t| **t),
             Some(target),
             "committed to the owner's AITarget"
-        );
-        assert!(
-            !world
-                .entity(bay)
-                .get::<AITorpedoBay>()
-                .unwrap()
-                .cooldown
-                .ready(),
-            "an actual launch burns the bay's cadence"
         );
     }
 
@@ -624,12 +866,7 @@ mod torpedo_tests {
                 Transform::from_translation(Vec3::new(500.0, 0.0, 0.0)),
             ))
             .id();
-        let bay_b = world
-            .spawn((
-                torpedo_section(TorpedoSectionConfig::default()),
-                ChildOf(ship_b),
-            ))
-            .id();
+        let bay_b = spawn_bay(&mut world, ship_b);
 
         run_trigger(&mut world);
 

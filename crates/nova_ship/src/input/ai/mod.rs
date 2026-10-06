@@ -2,8 +2,8 @@
 //! non-player ships. An [`AISpaceshipMarker`] ship steps through
 //! [`AIBehaviorState`] (idle/patrol/orbit/engage/evade/retreat) driven by its
 //! [`AITarget`], under-fire memory ([`AIThreat`]), evasion clocks
-//! ([`AIEvade`]), fire cadence ([`AIFireCadence`]) and territorial
-//! [`AILeash`]. Passive ships follow an [`AIPatrolRoute`] or
+//! ([`AIEvade`]) and territorial [`AILeash`]. Passive ships follow an
+//! [`AIPatrolRoute`] or
 //! [`AIOrbitDirective`]; the guns also run point defense against inbound
 //! torpedoes ([`AIPointDefenseTarget`]).
 //!
@@ -35,7 +35,7 @@ mod torpedo;
 
 use acquisition::{mirror_ai_combat_state, update_ai_target, update_point_defense_target};
 use behavior::update_behavior_state;
-use guns::{on_projectile_input, update_fire_cadence, update_turret_target_input};
+use guns::{on_projectile_input, update_turret_target_input};
 use maneuver::update_combat_flight;
 use mission::interrupt_ai_ship_orders;
 use passive::update_passive_flight;
@@ -47,16 +47,17 @@ use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 // module; the number itself stays here with the engagement-range chain it
 // belongs to.
 pub(crate) use self::acquisition::AI_POINT_DEFENSE_RANGE;
+pub(crate) use self::guns::{ai_turret_gun_target, AI_POINT_DEFENSE_MAGAZINE_DIVISOR};
 pub use self::{
     acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
-    guns::{AIFireCadence, AI_FIRE_RANGE_FACTOR},
+    guns::AI_FIRE_RANGE_FACTOR,
     maneuver::{AIStandoffClearance, AI_STANDOFF_OUTER_EDGE},
     mission::AIOrderInterruption,
     passive::{AIAvoidMargin, AIAvoidanceDetour, AIWaypointSlack},
     railgun::AIRailgun,
     threat::{AIEvade, AIThreat},
-    torpedo::{AITorpedoBay, AI_TORPEDO_MAX_RANGE},
+    torpedo::AI_TORPEDO_MAX_RANGE,
 };
 
 /// A world for an AI unit test: bare, plus the three things the passes under
@@ -102,10 +103,10 @@ pub(super) fn sense_and_pick(world: &mut World) {
 pub mod prelude {
     pub use super::{
         AIAvoidMargin, AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade,
-        AIFireCadence, AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption,
-        AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker,
-        AIStandoffClearance, AITarget, AIThreat, AITorpedoBay, AIWaypointSlack,
-        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
+        AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption, AIPatrolRoute,
+        AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker,
+        AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, SpaceshipAIInputPlugin,
+        AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
     };
 }
 
@@ -138,11 +139,9 @@ impl AIEngageGrace {
 /// into ship intent (steer, thrust, aim, fire). Added by
 /// [`SpaceshipInputPlugin`](super::SpaceshipInputPlugin).
 ///
-/// The plugin straddles two schedules: `update_fire_cadence` alone runs in
-/// `FixedUpdate` so the burst clock does not move with the framerate, and
-/// everything else runs in `Update` because it reads eased poses. Both halves
-/// sit in [`SpaceshipInputSystems`](super::SpaceshipInputSystems), so the pause
-/// and scenario-teardown gates cover them in either schedule.
+/// The plugin runs in `Update` because its systems read eased poses. It sits
+/// in [`SpaceshipInputSystems`](super::SpaceshipInputSystems), so the pause and
+/// scenario-teardown gates cover it.
 pub struct SpaceshipAIInputPlugin;
 
 impl Plugin for SpaceshipAIInputPlugin {
@@ -155,13 +154,11 @@ impl Plugin for SpaceshipAIInputPlugin {
             Update,
             mirror_ai_combat_state.in_set(super::SpaceshipInputSystems),
         );
-        app.register_type::<AIFireCadence>();
         app.register_type::<AIPointDefenseTarget>();
         app.register_type::<AIPatrolRoute>();
         app.register_type::<AIOrbitDirective>();
         app.register_type::<AIThreat>();
         app.register_type::<AIEvade>();
-        app.register_type::<AITorpedoBay>();
         app.register_type::<AIEngageGrace>();
         app.register_type::<AIAvoidanceDetour>();
         app.register_type::<AIEngageRange>();
@@ -181,18 +178,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         // `railgun::on_railgun_fired_burn_ai_cadence`.
         app.add_observer(railgun::on_railgun_fired_burn_ai_cadence);
 
-        // The burst cadence is the one AI clock that must not move with
-        // the framerate: its expiry writes the trigger that
-        // `shoot_spawn_projectile` consumes in FixedUpdate, so ticked in Update
-        // a burst window closes on a render-frame boundary. It reads no pose,
-        // so it is the only part of the chain that can move to the physics
-        // clock without breaking the rule below.
-        app.add_systems(
-            FixedUpdate,
-            update_fire_cadence.in_set(super::SpaceshipInputSystems),
-        );
-
-        // The rest of the chain stays on the render clock because every
+        // The chain stays on the render clock because every
         // system in it reads an eased pose - `&Transform` on ship roots, the
         // muzzle and thruster `&GlobalTransform`, and the collider trees
         // `ai_line_of_fire_blocked` raycasts. A FixedUpdate system MUST read
@@ -222,10 +208,9 @@ impl Plugin for SpaceshipAIInputPlugin {
                 update_passive_flight,
                 update_turret_target_input,
                 on_projectile_input,
-                // Commit-on-launch runs before the trigger write: the frame
-                // after a launch then sees the freshly reset bay cooldown
-                // and drops the trigger, instead of holding it one frame
-                // on the stale elapsed one.
+                // Commit-on-launch runs before the trigger write, so the
+                // frame after a launch counts the new torpedo against its
+                // target's in-flight limit.
                 update_torpedo_target_input,
                 update_torpedo_section_input,
                 // Last in the chain, and on the same render clock as the rest
@@ -267,7 +252,6 @@ impl Plugin for SpaceshipAIInputPlugin {
     AIBehaviorState,
     AITarget,
     AIPointDefenseTarget,
-    AIFireCadence,
     AIThreat,
     AIEvade,
     SensorRange = SensorRange(AI_SENSOR_RANGE),
@@ -342,85 +326,9 @@ fn on_neutralized_stand_down(
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
-    use bevy::time::TimeUpdateStrategy;
     use nova_gameplay::test_support::unfinished_integrity_physics_app;
 
     use super::*;
-    use crate::prelude::{FlightSettings, SpaceshipInputSystems};
-
-    /// Every `firing` value the cadence held at a fixed step, in order.
-    #[derive(Resource, Default)]
-    struct FiringSamples(Vec<bool>);
-
-    /// The reason `update_fire_cadence` runs in `FixedUpdate`: the trigger it
-    /// writes is consumed by `shoot_spawn_projectile` in `FixedUpdate`, so the
-    /// burst window must open and close ON a fixed step. Its RATE is the same
-    /// in either schedule - a frame's `Time` delta is the sum of that frame's
-    /// fixed deltas - so rate proves nothing; the granularity does.
-    ///
-    /// One long frame of 2s covers 128 fixed steps and spans the whole 1.5s
-    /// fire window. Ticked in `Update`, the cadence would advance once for the
-    /// entire frame and every fixed step in it would read the SAME `firing`,
-    /// holding the trigger a full frame past its expiry.
-    #[test]
-    fn the_burst_window_closes_on_a_fixed_step_not_a_frame_boundary() {
-        const FRAME_SECS: f32 = 2.0;
-        let mut app = unfinished_integrity_physics_app();
-        app.add_plugins(SpaceshipAIInputPlugin);
-        // Normally supplied by SpaceshipFlightPlugin and NovaGravityPlugin,
-        // which this rig omits.
-        app.init_resource::<FlightSettings>();
-        app.init_resource::<GravitySettings>();
-        app.init_resource::<FiringSamples>();
-        app.finish();
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
-            FRAME_SECS,
-        )));
-        // Time<Virtual> clamps a frame to max_delta (250ms by default), which
-        // would cut the long frame this test is built on.
-        app.world_mut()
-            .resource_mut::<Time<Virtual>>()
-            .set_max_delta(Duration::from_secs_f32(FRAME_SECS * 2.0));
-
-        let ship = app.world_mut().spawn(AISpaceshipMarker).id();
-        app.add_systems(
-            FixedUpdate,
-            (move |q: Query<&AIFireCadence>, mut samples: ResMut<FiringSamples>| {
-                samples.0.push(q.get(ship).unwrap().firing);
-            })
-            .after(SpaceshipInputSystems),
-        );
-
-        // The first update lands a zero delta, so it runs no fixed step.
-        app.update();
-        app.world_mut().resource_mut::<FiringSamples>().0.clear();
-        app.update();
-
-        let samples = &app.world().resource::<FiringSamples>().0;
-        let steps = app.world().resource::<Time<Fixed>>().timestep();
-        let expected = (guns::AI_BURST_FIRE_SECS / steps.as_secs_f32()).round() as usize;
-        assert!(
-            samples.len() > expected,
-            "the frame must cover the whole fire window: {} steps, need > {expected}",
-            samples.len()
-        );
-
-        let closed_at = samples
-            .iter()
-            .position(|firing| !firing)
-            .expect("the burst window must close inside the frame, not at its boundary");
-        assert!(
-            closed_at.abs_diff(expected) <= 1,
-            "the window must close on the fixed step at {expected}, closed at {closed_at}"
-        );
-        assert!(
-            samples[..closed_at].iter().all(|firing| *firing),
-            "the window must stay open until it expires"
-        );
-    }
-
     /// Both halves of the neutralize inversion in one rig: `integrity` inserts
     /// the generic marker, and only an AI ship stands down for it. Without the
     /// `q_ai` guard the player arm fails, which is the exact spurious

@@ -1,5 +1,5 @@
-//! AI gunnery: turret aim, the burst [`AIFireCadence`], the line-of-fire
-//! check that keeps friendlies out of the beam, and the trigger itself.
+//! AI gunnery: turret aim, the line-of-fire check that keeps friendlies out
+//! of the beam, and the trigger itself.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -65,9 +65,8 @@ use crate::{input::point_defense::mount_may_shoot, prelude::*};
 /// the head-on case a fight is actually decided in. The gate itself and every
 /// constant listed above stay engine-side, in world units.
 pub const AI_FIRE_RANGE_FACTOR: f32 = 0.9;
-/// Burst cadence (s): guns fire for the window, then hold, cyclically.
-pub(super) const AI_BURST_FIRE_SECS: f32 = 1.5;
-const AI_BURST_HOLD_SECS: f32 = 0.8;
+/// Ship-target fire leaves at least one fifth of a finite magazine for point defense.
+pub(crate) const AI_POINT_DEFENSE_MAGAZINE_DIVISOR: u32 = 5;
 
 /// What ONE turret has its guns on this frame, and whether that is a
 /// point-defense engagement.
@@ -87,7 +86,7 @@ const AI_BURST_HOLD_SECS: f32 = 0.8;
 /// Point defense applies in EVERY behavior state - a patrolling or idle ship
 /// still defends itself - while the engaging states otherwise track the primary
 /// target and non-engaging states clear the aim so turrets slew back to rest.
-fn ai_turret_gun_target(
+pub(crate) fn ai_turret_gun_target(
     turret_defense: Option<&TurretDefenseTarget>,
     ship_defense: &AIPointDefenseTarget,
     state: &AIBehaviorState,
@@ -164,61 +163,6 @@ pub(super) fn update_turret_target_input(
     }
 }
 
-/// The free-running burst cycle of an AI ship's guns: fire for
-/// `AI_BURST_FIRE_SECS`, hold for `AI_BURST_HOLD_SECS`, repeat. A ship
-/// fires only while the window is open (and every other gate passes), so AI
-/// fire reads as deliberate bursts instead of a continuous hose. Required by
-/// [`AISpaceshipMarker`]; ticked by `update_fire_cadence`.
-#[derive(Component, Debug, Clone, Reflect)]
-#[reflect(Component)]
-pub struct AIFireCadence {
-    /// Time left in the current phase.
-    timer: Cooldown,
-    /// Whether the current phase is a fire window (else a hold).
-    pub(crate) firing: bool,
-}
-
-impl Default for AIFireCadence {
-    fn default() -> Self {
-        // Starts in a fire window so an AI ship dropped into a fight shoots
-        // immediately, matching pre-cadence behavior at spawn.
-        Self {
-            timer: Cooldown::started(AI_BURST_FIRE_SECS),
-            firing: true,
-        }
-    }
-}
-
-impl AIFireCadence {
-    /// Advance the cycle, flipping between fire and hold phases.
-    pub(crate) fn tick(&mut self, delta: f32) {
-        self.timer.tick(delta);
-        if self.timer.ready() {
-            self.firing = !self.firing;
-            let phase = if self.firing {
-                AI_BURST_FIRE_SECS
-            } else {
-                AI_BURST_HOLD_SECS
-            };
-            // trigger_for, not trigger: the two phases have different lengths,
-            // so the wait is set per phase rather than from one duration.
-            self.timer.trigger_for(phase);
-        }
-    }
-}
-
-/// Tick every AI ship's burst cycle. Free-running (it does not reset on
-/// state or target changes): the phase offset between ships also staggers
-/// their volleys for free.
-pub(super) fn update_fire_cadence(
-    time: Res<Time>,
-    mut q_spaceship: Query<&mut AIFireCadence, With<AISpaceshipMarker>>,
-) {
-    for mut cadence in &mut q_spaceship {
-        cadence.tick(time.delta_secs());
-    }
-}
-
 /// Whether the straight line from `origin` to `aim` is blocked by a tangible
 /// collider belonging to neither the shooter nor the target.
 ///
@@ -274,18 +218,14 @@ pub(super) fn on_projectile_input(
             &TurretEngineFigures,
             &mut TurretSectionInput,
             Option<&TurretDefenseTarget>,
+            Option<&SectionAmmo>,
             &ChildOf,
         ),
         With<TurretSectionMarker>,
     >,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
     q_spaceship: Query<
-        (
-            &AIBehaviorState,
-            &AITarget,
-            &AIPointDefenseTarget,
-            &AIFireCadence,
-        ),
+        (&AIBehaviorState, &AITarget, &AIPointDefenseTarget),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
@@ -295,21 +235,25 @@ pub(super) fn on_projectile_input(
     q_collider_of: Query<&ColliderOf>,
 ) {
     // Turret-first, like the aim system: the gun target, and therefore whether
-    // the burst cadence and the line-of-fire gate apply at all, is a per-MOUNT
-    // answer. One turret on a hull can be defending while its neighbour keeps
-    // working the primary target.
-    for (muzzle, aim_point, figures, mut input, turret_defense, ChildOf(ship)) in &mut q_turret {
-        let Ok((state, target, ship_defense, cadence)) = q_spaceship.get(*ship) else {
+    // the magazine reserve and line-of-fire gate apply, is a per-MOUNT answer.
+    // One turret on a hull can defend while its neighbour keeps working the
+    // primary target.
+    for (muzzle, aim_point, figures, mut input, turret_defense, ammo, ChildOf(ship)) in
+        &mut q_turret
+    {
+        let Ok((state, target, ship_defense)) = q_spaceship.get(*ship) else {
             continue;
         };
-        // While defending, the burst cadence is BYPASSED - point defense fires
-        // continuously; bursts are a discipline for shooting at ships, not at
-        // inbound ordnance.
+        // Point defense spends the share held back from ship-target fire.
         let (gun_target, defending) =
             ai_turret_gun_target(turret_defense, ship_defense, state, target);
         let target_anchor = ai_target_anchor(gun_target, &q_target);
-        let firing_allowed = defending || (state.engages() && cadence.firing);
-        // Hold fire with no gun target or outside the burst window -
+        let firing_allowed = defending
+            || (state.engages()
+                && ammo.is_none_or(|ammo| {
+                    ammo.rounds > ammo.capacity.div_ceil(AI_POINT_DEFENSE_MAGAZINE_DIVISOR)
+                }));
+        // Hold fire with no gun target or below the point-defense share -
         // written as an explicit false so a firing turret stops.
         let (Some(target_anchor), true) = (target_anchor, firing_allowed) else {
             **input = false;
@@ -511,38 +455,73 @@ mod fire_discipline_tests {
     }
 
     #[test]
-    fn the_burst_cadence_alternates_fire_and_hold() {
-        let mut cadence = AIFireCadence::default();
-        assert!(cadence.firing, "spawns in a fire window");
+    fn ship_fire_preserves_twenty_percent_of_its_magazine_for_point_defense() {
+        let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -100.0), Vec3::ZERO);
+        world.entity_mut(turret).insert(SectionAmmo {
+            rounds: 100,
+            capacity: 500,
+        });
 
-        // Tick past the fire window: the hold begins.
-        cadence.tick(AI_BURST_FIRE_SECS + 0.01);
-        assert!(!cadence.firing, "fire window over: hold");
+        world.run_system_once(on_projectile_input).unwrap();
+        assert!(
+            !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "at the 20% reserve boundary, ship fire must stop"
+        );
 
-        // Tick past the hold: firing resumes.
-        cadence.tick(AI_BURST_HOLD_SECS + 0.01);
-        assert!(cadence.firing, "hold over: next burst");
+        world
+            .entity_mut(turret)
+            .get_mut::<SectionAmmo>()
+            .unwrap()
+            .rounds = 101;
+        world.run_system_once(on_projectile_input).unwrap();
+        assert!(
+            **world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "above the 20% reserve, ship fire may resume"
+        );
+
+        // A non-multiple of five rounds up: 11 / 5 reserves three whole
+        // rounds, even when the ship-wide fallback is on an inbound torpedo.
+        let torpedo = world
+            .spawn(Transform::from_translation(Vec3::new(0.0, 0.0, -100.0)))
+            .id();
+        let ship = world.get::<ChildOf>(turret).unwrap().parent();
+        world.get_mut::<AIPointDefenseTarget>(ship).unwrap().0 = Some(torpedo);
+        world.entity_mut(turret).insert(TurretDefenseTarget(None));
+        let mut ammo = world.get_mut::<SectionAmmo>(turret).unwrap();
+        ammo.capacity = 11;
+        ammo.rounds = 3;
+        world.run_system_once(on_projectile_input).unwrap();
+        assert!(
+            !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "Some(None) suppresses ship-wide PD fallback; three rounds stay reserved"
+        );
+        world.get_mut::<SectionAmmo>(turret).unwrap().rounds = 4;
+        world.run_system_once(on_projectile_input).unwrap();
+        assert!(
+            **world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "the fourth round is available for ship-target fire"
+        );
     }
 
     #[test]
-    fn a_closed_burst_window_holds_fire_even_when_aligned() {
+    fn point_defense_bypasses_the_ship_fire_ammo_reserve() {
         let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -100.0), Vec3::ZERO);
-        // Force the ship's cadence into a hold phase.
-        let ship = world
-            .query_filtered::<Entity, With<AISpaceshipMarker>>()
-            .iter(&world)
-            .next()
-            .unwrap();
-        let mut cadence = world.entity_mut(ship);
-        let mut cadence = cadence.get_mut::<AIFireCadence>().unwrap();
-        cadence.tick(AI_BURST_FIRE_SECS + 0.01);
-        assert!(!cadence.firing);
+        let torpedo = world
+            .spawn(Transform::from_translation(Vec3::new(0.0, 0.0, -100.0)))
+            .id();
+        world.entity_mut(turret).insert((
+            SectionAmmo {
+                rounds: 1,
+                capacity: 500,
+            },
+            TurretDefenseTarget(Some(torpedo)),
+        ));
 
         world.run_system_once(on_projectile_input).unwrap();
 
         assert!(
-            !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
-            "hold phase: no fire, alignment notwithstanding"
+            **world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "an assigned PD target fires with one round left"
         );
     }
 }
@@ -713,10 +692,21 @@ mod line_of_fire_tests {
             .world_mut()
             .spawn((
                 torpedo_section(TorpedoSectionConfig::default()),
-                AITorpedoBay::default(),
                 ChildOf(ship),
             ))
             .id();
+        let spawner = app
+            .world_mut()
+            .spawn((
+                TorpedoSectionSpawnerMarker,
+                TorpedoSectionPartOf(bay),
+                TorpedoSectionSpawnerFireState(Cooldown::new(1.0)),
+                ChildOf(bay),
+            ))
+            .id();
+        app.world_mut()
+            .entity_mut(bay)
+            .insert(crate::sections::torpedo_section::TorpedoSectionSpawnerEntity(spawner));
         let rock = spawn_rock(&mut app, Vec3::new(0.0, 0.0, -150.0), 10.0);
         settle(&mut app);
 

@@ -273,11 +273,10 @@ pub(super) fn update_point_defense_aim(
 /// Hold the trigger of every mount the computer is working, once its barrel
 /// bears.
 ///
-/// No burst cadence and no line-of-fire ray, matching the AI's own point-
-/// defence arm: bursts are a discipline for shooting at ships, and inbound
-/// ordnance is the one case where a wasted round beats a held trigger. The two
-/// gates it DOES apply are [`mount_may_shoot`](super::mount_may_shoot) - the
-/// same range gate and the same bearing cone the AI trigger uses, taken off
+/// No magazine-share gate and no line-of-fire ray, matching the AI's own
+/// point-defense arm: inbound ordnance is the one case where a wasted round
+/// beats a held trigger. It applies [`mount_may_shoot`](super::mount_may_shoot):
+/// the same range gate and bearing cone the AI trigger uses, taken off
 /// the torpedo's own size, not a second looser number.
 pub(super) fn update_point_defense_trigger(
     mut q_turret: Query<(
