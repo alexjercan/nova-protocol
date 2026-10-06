@@ -90,6 +90,11 @@ const LIVE_SECTORS: usize = 125;
 #[cfg(feature = "debug")]
 const SESSION_SECS: f32 = 90.0;
 
+/// Sector preparation advances by frame; software rendering can make 125
+/// sectors take longer than the menu and single-action beats.
+#[cfg(feature = "debug")]
+const STREAMING_SECS: f32 = 240.0;
+
 /// Frames a shown panel gets before its shot, so the text and the inset
 /// texture are drawn.
 #[cfg(feature = "debug")]
@@ -659,7 +664,7 @@ fn identity_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
                     .try_query_filtered::<(), With<SectorRoot>>()
                     .is_some_and(|mut roots| roots.iter(world).count() == LIVE_SECTORS)
         }))
-        .deadline(SESSION_SECS)
+        .deadline(STREAMING_SECS)
         .add()
         .step("identity: pick the subjects")
         .on_enter(|world: &mut World| {
