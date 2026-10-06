@@ -50,6 +50,8 @@ news-0130-bay-iris.webm	system_torpedo_launch	2.7	98538	fresh
 news-0130-cladding.webm	loop_damage_sequence	5.5	276724	fresh
 news-0130-command-shell.webm	loop_command_shell	5.2	207778	fresh
 news-0130-torpedo-blast.webm	loop_torpedo_blast	3.2	412935	fresh
+news-0150-mining-beam.webm	screenshot_mining_beam	3.7	178188	fresh
+news-0150-intake-pickup.webm	mine_and_sell	3.3	174389	fresh
 news-0130-railgun-wake.webm	railgun_wake_bench	4.0	95360	fresh
 news-0130-lock-occlusion.webm	system_lock_line_of_sight	6.8	161682	fresh
 news-0130-sections-before-after.webm	loop_sections_compare	8.1	824115	fresh
@@ -63,6 +65,12 @@ news-0130-cinematic.webm	bench-replay	5.7	387943	frozen
 news-0130-agent-run.webm	bench-replay	7.7	704999	frozen
 news-0130-hull-collapse.webm	stress_hull_collapse	7.5	2550360	fresh
 news-0130-helm-orders.webm	loop_helm_orders	13.1	446774	fresh
+news-0150-release-lead.webm	loop_world_start	4.3	168560	fresh
+news-0150-sector-streaming.webm	loop_world_start	4.7	187447	fresh
+news-0150-tab-interface.webm	screenshot_interface	8.5	128015	fresh
+news-0150-docked-helm.webm	loop_docked_helm	7.0	432447	fresh
+news-0150-rcs-magazine.webm	loop_rcs_magazine	16.9	814003	fresh
+news-0150-predicted-path.webm	loop_predicted_path	15.2	1627713	fresh
 news-0140-release-lead.webm	content-machine-v0.14.0	3.2	184911	frozen
 news-0140-newtonian-burn.webm	content-machine-v0.14.0	8.1	134226	frozen
 news-0140-ai-flight.webm	content-machine-v0.14.0	8.1	496195	frozen

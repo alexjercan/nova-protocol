@@ -353,7 +353,10 @@ function newsPostShell(title, basePath, opts = {}) {
               opts.description
           )}" />`
         : "";
-    const date = escapeAttr(opts.date || "");
+    // An unreleased post has no date yet, so its meta line omits that field.
+    const dateField = opts.date
+        ? `&nbsp;//&nbsp; ${escapeAttr(opts.date)} `
+        : "";
     const version = escapeAttr(opts.version || "");
     // A sticky section TOC built at build time from the post's h2/h3 headings,
     // so it works with no JS and is SEO-visible; news.ts adds scroll-spy on top.
@@ -397,7 +400,7 @@ function newsPostShell(title, basePath, opts = {}) {
             ${layoutOpen}
                 <p class="prose__meta">
                     <a href="${b}news/">&larr; News</a>
-                    &nbsp;//&nbsp; ${date} &nbsp;//&nbsp; ${version}
+                    ${dateField}&nbsp;//&nbsp; ${version}
                 </p>
                 <h1>${t}</h1>
                 <div id="doc-body"></div>
