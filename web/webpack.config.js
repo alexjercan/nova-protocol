@@ -113,7 +113,7 @@ const NEWS_POSTS = [
     {
         slug: "0.15.0",
         version: "v0.15.0",
-        date: "",
+        date: "2026-10-06",
         description:
             "Nova Protocol v0.15.0: a seeded open world streamed around the ship, generated civilizations and their ships, a hold with ammunition, repair plates and credits, a mining beam and cargo intake, docked helm and trade, an RCS magazine, gravity on every body, and a themed TAB interface.",
     },

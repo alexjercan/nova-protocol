@@ -353,7 +353,7 @@ function newsPostShell(title, basePath, opts = {}) {
               opts.description
           )}" />`
         : "";
-    // An unreleased post has no date yet, so its meta line omits that field.
+    // A post without a date omits that field from the meta line.
     const dateField = opts.date
         ? `&nbsp;//&nbsp; ${escapeAttr(opts.date)} `
         : "";

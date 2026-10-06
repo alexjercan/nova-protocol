@@ -241,3 +241,16 @@ The 2026-10-04 proposal is a research plan, not implementation approval.
   after-set is comparable to the preserved before-set.
 - The preserved lance-run questions are either answered, scheduled as their
   own task, or explicitly dropped with the reason recorded here.
+
+## Release closure and limits (2026-10-06)
+
+The matched WFC baseline was AI-only, not the planned player held-vs-disciplined
+comparison: 60 runs yielded 44 decisions, 10 undecided and 6 invalid, without
+a repeat-based variance estimate. It did not reproduce or refute a player spam
+advantage. The approved turret and torpedo policies shipped in PR #109; its
+focused regressions and master CI passed. Railgun bore-setup trials did not
+support a policy change and were reverted. An owned railgun attack run, a
+player-action comparison, and hit/PD attribution are cut from v0.15.0 rather
+than represented as completed proof. The task's CLOSED status covers this
+bounded shipped policy and the recorded investigation, not those unmet
+measurement goals. Reopen or create scoped work before claiming them solved.

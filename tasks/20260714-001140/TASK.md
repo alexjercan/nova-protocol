@@ -67,9 +67,11 @@ because `flight_rig_reserved_sources` is derived from `flight_bindings()`
 only. Decide the pad layout, fix the collision, and extend that test to
 cover `camera_bindings()` too.
 
-## Scheduled for v0.15.0
+## v0.15.0 scheduling and cut
 
 Pulled back onto the board at priority 50 on 2026-09-21 by owner decision, in
-epic `20260921-231507`. Both parts stay in scope. The interaction findings
-from Part B are what `20260831-145917` (mobile virtual pad) waits on, so this
-task runs first.
+epic `20260921-231507`. On 2026-10-06, the release proceeds without a hardware
+pad playthrough or full menu/editor gamepad navigation. This task is cut from
+v0.15.0, remains OPEN on the backlog, and the game does not claim full pad
+support. Both parts stay in scope when rescheduled. The findings from Part B
+are what `20260831-145917` (mobile virtual pad) waits on.

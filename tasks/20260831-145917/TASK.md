@@ -30,13 +30,11 @@ touch primitives as the reference implementation:
 Done when: the web build is playable on a touchscreen via a virtual pad
 built on the bevy-common-systems primitives.
 
-## Scheduled for v0.15.0
+## v0.15.0 scheduling and cut
 
 Pulled onto the board at priority 45 on 2026-09-21 by owner decision, in epic
-`20260921-231507`. The work is mechanical: the touch primitives it builds
-on already ship in `bevy-common-systems`.
-
-It keeps its dependency. This task FOLLOWS `20260714-001140` (gamepad) and
-starts from that task's interaction findings - the pad layout, the chord
-decisions, and the dead-zone and focus behaviour proven on hardware. Do not
-commit a touch layout for a verb whose pad interaction is still open.
+`20260921-231507`. On 2026-10-06, this task is cut from v0.15.0 and remains
+OPEN on the backlog; the web build does not claim a virtual pad. It keeps its
+dependency: `20260714-001140` must first establish a pad layout, chord decisions,
+and dead-zone/focus behavior on hardware. Do not commit a touch layout for a
+verb whose pad interaction is still open.

@@ -1,8 +1,8 @@
 # Epic: v0.15.0 decides what a finished Nova is
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: v0.15.0,epic
+- TAGS: v0.15.0, epic
 
 Planned 2026-09-21 with the owner. The v0.14.0 epic (`20260909-214736`,
 `tasks/20260909-214736/TASK.md`) is the precedent for shape.
@@ -116,3 +116,22 @@ decisions exist. The mechanical tasks do not have to wait for them.
   cut recorded on the task itself.
 
 No release date, tag sequence, or store gate is set by this epic.
+
+## v0.15.0 release disposition (2026-10-06)
+
+The station/UI and open-world spikes are CLOSED with their decisions and
+follow-up tasks. The shared persistence, content ownership and UI boundaries
+that remain unsettled are recorded as open choices in the spike records, not
+silently decided by shipping the first open-world slice. Encounters, regional
+ships, gravity, autopilot preview, audio capture, wiki audit and menu rotation
+are CLOSED in their owning tasks. The user approved cutting v0.15.0 now.
+
+Gamepad hardware navigation (`20260714-001140`) and the dependent touch pad
+(`20260831-145917`) are explicitly cut from this release. Both stay OPEN on
+the backlog, with cuts recorded on each task. The combat task
+(`20260901-104359`) is CLOSED for its bounded PR #109 policies and AI-only
+baseline, not for the originally requested player spam comparison or a
+railgun attack run; those goals are cut here and recorded as unmet there.
+This release does not claim full pad/touch support, a player held-vs-disciplined
+win-rate result, a railgun policy improvement, or resolved station/persistence
+semantics. Steam/store work belongs to the v0.14.0 epic and stays OPEN.
