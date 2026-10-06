@@ -16,9 +16,11 @@
 # file, the producing example, duration and size. Default outdir is the
 # shipped asset location, web/src/assets/loops.
 #
-# Requires: cargo, ffprobe, xvfb-run (all in the flake devshell). The capture
-# needs a software Vulkan (lavapipe/llvmpipe) behind the Xvfb display. Set
-# NOVA_REUSE_STAGE=1 to repackage a completed target/loop-shots capture set.
+# Requires: cargo, ffmpeg, ffprobe, xvfb-run (all in the flake devshell). The
+# capture needs a software Vulkan (lavapipe/llvmpipe) behind the Xvfb display.
+# Set NOVA_REUSE_STAGE=1 to repackage a completed target/loop-shots capture set.
+# Run it before scripts/gen-web-screenshots.py: it cuts the STILL_CUTS stills
+# into that script's stage.
 #
 # The run is mod-free and setting-free: NOVA_MODDING_CACHE_ROOT and
 # NOVA_CONFIG_ROOT are pointed at empty directories, so neither an installed
@@ -59,7 +61,7 @@ base_only_mods() {
     printf '["base"]' >"$SANDBOX/config/enabled_mods.ron"
 }
 
-for tool in cargo ffprobe xvfb-run; do
+for tool in cargo ffmpeg ffprobe xvfb-run; do
     command -v "$tool" >/dev/null || {
         echo "!! $tool not on PATH (run inside \`nix develop\`)" >&2
         exit 1
@@ -110,6 +112,14 @@ LOOPS=(
     "system_lock_line_of_sight|news-0130-lock-occlusion||NOVA_SIGHT_LOOP=1"
     "loop_hull_generate|news-0130-hull-generate||"
     "loop_helm_orders|news-0130-helm-orders||"
+    # The v0.15.0 post. One loop_world_start session writes both of its loops,
+    # but each tuple runs its producer on its own, as system_torpedo_launch does.
+    "loop_world_start|news-0150-release-lead||"
+    "loop_world_start|news-0150-sector-streaming||"
+    "screenshot_interface|news-0150-tab-interface||"
+    "loop_docked_helm|news-0150-docked-helm||"
+    "loop_rcs_magazine|news-0150-rcs-magazine||"
+    "loop_predicted_path|news-0150-predicted-path||"
 )
 
 # A second name for footage already captured above, when a second producer
@@ -147,6 +157,9 @@ ALIASES=(
     "news-0130-cladding|landing-damage-sequence|loop_damage_sequence"
     "news-0130-command-shell|command-shell-open|loop_command_shell"
     "news-0130-torpedo-blast|torpedo-blast|loop_torpedo_blast"
+    # The v0.15.0 post freezes the wiki section loops of the two new sections.
+    "news-0150-mining-beam|loop-section-mining-beam|screenshot_mining_beam"
+    "news-0150-intake-pickup|loop-section-cargo-intake|mine_and_sell"
 )
 
 for alias in "${ALIASES[@]}"; do
@@ -354,6 +367,33 @@ package_import() {
 for import in "${IMPORTED[@]}"; do
     IFS='|' read -r loop source _ <<<"$import"
     package_import "$loop" "$source"
+done
+
+# Stills cut out of a packaged loop, for a card no producer shoots on its own.
+# The cut reads "$OUT/<loop>.webm" - the loop this run just packaged, or the
+# shipped one when the loop is frozen - and writes into the STILLS stage, never
+# the site: scripts/gen-web-screenshots.py copies it from there through its own
+# frozen gate. So this script runs BEFORE that one.
+#   loop|seconds|still
+STILL_CUTS=(
+    "news-0150-release-lead|4.1|thumb-news-0.15.0.png"
+)
+SHOTS="${CARGO_TARGET_DIR:-target}/shots"
+mkdir -p "$SHOTS"
+for cut in "${STILL_CUTS[@]}"; do
+    IFS='|' read -r loop seconds still <<<"$cut"
+    [[ -s "$OUT/${loop}.webm" ]] || {
+        echo "!! ${still} is cut from ${loop}.webm, which is not in ${OUT}" >&2
+        exit 1
+    }
+    rm -f "$SHOTS/${still}"
+    ffmpeg -v error -y -ss "$seconds" -i "$OUT/${loop}.webm" -frames:v 1 "$SHOTS/${still}"
+    # ffmpeg exits 0 and writes nothing when the seek lands past the end.
+    [[ -s "$SHOTS/${still}" ]] || {
+        echo "!! ${still}: no frame at ${seconds}s of ${loop}.webm" >&2
+        exit 1
+    }
+    echo ">> ${still}: frame at ${seconds}s of ${loop}.webm -> ${SHOTS}"
 done
 
 count=$((${#LOOPS[@]} + ${#ALIASES[@]} + ${#IMPORTED[@]}))

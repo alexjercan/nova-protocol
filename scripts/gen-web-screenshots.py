@@ -202,6 +202,12 @@ FIGURES = [
     ("news-0140-handbook-progress.png",  None),
     ("news-0140-industrial-hulls.png",   None),
     ("news-0140-hull-scale-hud.png",     None),
+    # The v0.15.0 post: the New Game seed window, one generated ship per role
+    # beside a wreck, a drafted plate repair, and a docked Sell.
+    ("news-0150-world-setup.png",        "screenshot_menu"),
+    ("news-0150-generated-ships.png",    "screenshot_generated_ships"),
+    ("news-0150-ship-repair.png",        "screenshot_ship_repair"),
+    ("news-0150-inventory-trade.png",    "trade_loop"),
     ("greeble-catalog.png",              "greeble_catalog"),
     # One ROW of that wall, read close enough that a piece's id, its box in
     # meters and its health are legible. The whole wall is a picture of how
@@ -214,6 +220,9 @@ THUMBNAILS = [
     ("thumb-news-0.11.0.png", "wfc_arena"),
     # Dedicated pinned Content Machine capture; supplied through --stage-dir.
     ("thumb-news-0.14.0.png", None),
+    # A frame of the news-0150-release-lead loop, cut into the stage by
+    # scripts/capture-web-media.sh (`STILL_CUTS`); run that script first.
+    ("thumb-news-0.15.0.png", None),
     ("thumb-devlog-3.png", None),
     ("thumb-devlog-4.png", None),
     ("thumb-devlog-5.png", None),
