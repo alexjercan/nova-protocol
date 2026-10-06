@@ -188,7 +188,28 @@ fn main() -> bevy::app::AppExit {
         // round's reload re-seeds both, which is not one: the checker forgets
         // its monotonic memory on `ScenarioLoaded`, so each round is its own
         // life.
-        app.add_plugins(nova_probe::NovaProbePlugin::default().monotonic(["target_down", "leg"]));
+        // `Playing` lands while the loader still holds the clock, and the
+        // release frame itself can still read a frozen clock. Opening the
+        // capture there aborts it as `simulation_stopped` at warm-up frame 0,
+        // so wait for an idle gate and a running clock that has advanced.
+        app.add_plugins(
+            nova_probe::NovaProbePlugin::default()
+                .monotonic(["target_down", "leg"])
+                .ready_frametime(|world: &World| {
+                    let playing = world
+                        .get_resource::<State<GameStates>>()
+                        .is_some_and(|state| *state.get() == GameStates::Playing);
+                    let idle = world
+                        .get_resource::<ScenarioLoadGate>()
+                        .is_some_and(|gate| *gate == ScenarioLoadGate::Idle);
+                    let running = world.get_resource::<Time<Virtual>>().is_some_and(|time| {
+                        !time.is_paused()
+                            && time.relative_speed() > 0.0
+                            && time.delta() > std::time::Duration::ZERO
+                    });
+                    playing && idle && running
+                }),
+        );
     }
 
     app.run()
