@@ -94,9 +94,9 @@ decisions exist. The mechanical tasks do not have to wait for them.
 
 - `20260908-161328` full season story stays OPEN on backlog at priority 0.
   It is explicitly backburner and NOT v0.15.0.
-- `20260925-190219` ship tuning is a broad spike, `20260925-190156` persistence
-  tiers a separate research task, and `20260923-110247` a technical cleanup;
-  all three remain backlog, not v0.15.0 commitments. Asteroid-per-cluster
+- Ship tuning was a broad spike later removed by the owner. `20260925-190156`
+  persistence tiers and `20260923-110247` technical cleanup were not v0.15.0
+  commitments; persistence is now v0.16.0 design work. Asteroid-per-cluster
   guarantee `20260925-190207` was closed as not needed.
 - `20260824-125951` grown ship cast is CLOSED as WONTDO. The cargo family is
   no longer the base game's cast, and WFC-style ships can be added as needed.

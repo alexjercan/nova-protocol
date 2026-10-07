@@ -36,7 +36,7 @@
 ## Closure
 
 - PR #80 merged into master on 2026-09-26. The pitched-over capture that destroyed 17 sections before the fix caused no contact damage after it; both ships remained connected. All 33 docking module tests passed, including the regression for noncommuting hull rotations (`BENCH-PLAN.md`, "Local-frame fix").
-- The owner's exact live run was not replayed after the fix. Other collisions near capture are not ruled out. The owner reports no further occurrence; this is feedback, not proof that all docking hazards are gone.
+- The owner's exact live run was not replayed after the fix. Other collisions near capture are not ruled out. On 2026-10-07 the owner confirmed the old docking report is resolved and cannot be reproduced anymore; do not schedule a speculative v0.16.0 fix absent new evidence.
 
 ## Done when
 

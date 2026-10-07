@@ -395,8 +395,8 @@ all its proofs, mod contracts, or 1.0 choices were completed. In particular:
 - **Shared boundaries:** persistence, station/world identity, and map/docking
   UI remain open with `20260824-125943`; its research children record options,
   not approved runtime interfaces. It is still open. The candidate lists in
-  that task classify `20260925-190156` and `20260925-190219` as potential
-  1.0 work, `20260925-190207` and `20260925-190131` as nice-to-have work,
+  that task classified `20260925-190156` and a later-removed refit proposal as
+  potential 1.0 work, `20260925-190207` and `20260925-190131` as nice-to-have work,
   and broader economy/content as later work. These are proposals, not
   commitments made by closing this spike.
 

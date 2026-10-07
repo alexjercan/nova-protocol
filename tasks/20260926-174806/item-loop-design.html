@@ -525,7 +525,7 @@ tr.rv-thread-row .rv-thread { margin: 0; }
   <p><span class="tag t-direction">Direction</span> Owner chose D10 (a) for M2: a chosen quantity leaves as one canister that carries exactly those items. Count-based capacity (D8 option b) arrives with jettison at M2; there is no capacity through M1 (<a href="TASK.md"><code>TASK.md:37, 40</code></a>).</p>
 
   <h3>Station refit (M4)</h3>
-  <p><span class="tag t-direction">Direction</span> M4 comes after M3 in the owner order. <span class="tag t-open">Open</span> Refit form is owned by task <code>20260925-190219</code>. Its proposal text still weighs costed dock repair and undocked refusal (<a href="../20260925-190219/TASK.md"><code>tasks/20260925-190219/TASK.md:14-18</code></a>); the M0 decision here supersedes that for repair. This report only proposes that a refit spends Repair components and produces a visible hull change with the same validate-then-commit rule. It does not choose whole-design swap versus one-section refit.</p>
+  <p><span class="tag t-direction">Direction</span> M4 comes after M3 in the owner order. <span class="tag t-open">Open</span> The former refit proposal weighed costed dock repair and undocked refusal (the owner later removed the tuning task); the M0 decision here supersedes that for repair. This report only proposes that a refit spends Repair components and produces a visible hull change with the same validate-then-commit rule. It does not choose whole-design swap versus one-section refit.</p>
   <p><span class="tag t-proposal">Proposal</span> A station repair service, if it ever exists, is a later idea of its own. It would add to plate repair anywhere, never gate it. It has no milestone and no owner approval.</p>
 
   <h3>Trade (M5)</h3>
@@ -931,7 +931,7 @@ tr.rv-thread-row .rv-thread { margin: 0; }
     <thead><tr><th scope="col">Task</th><th scope="col">Owns</th><th scope="col">This report</th></tr></thead>
     <tbody>
       <tr><th scope="row"><a href="TASK.md"><code>20260926-174806</code></a></th><td>Station and inventory mechanics contract; M0 scope; M1-M5 direction.</td><td>Home of this report. Records the decided M0 and the owner direction for M1-M3 and M5.</td></tr>
-      <tr><th scope="row"><a href="../20260925-190219/TASK.md"><code>20260925-190219</code></a></th><td>Dock-salvage-to-physical-refit loop, station identity and dock-partner authorization (TASK.md:14-18).</td><td>Proposes only that refit uses the same transaction shape. Does not choose refit form. Its costed dock repair and undocked refusal are superseded for repair by M0 here.</td></tr>
+      <tr><th scope="row">Retired refit proposal</th><td>Historical dock-salvage-to-physical-refit idea; owner removed the tuning task.</td><td>Did not choose a refit form. Its costed dock repair and undocked refusal were superseded for repair by M0.</td></tr>
       <tr><th scope="row"><a href="../20260925-190156/TASK.md"><code>20260925-190156</code></a></th><td>Streamed-world mutation, claim-once and save contract (TASK.md:16-21).</td><td>Names where claim-once blocks rewards. Proposes no schema.</td></tr>
       <tr><th scope="row"><a href="../20260926-174836/TASK.md"><code>20260926-174836</code></a></th><td>Themed TAB interface migration.</td><td>M0 changes its Ship pane Repair action and reason line; later actions (Take, Give, Jettison) land on its panes. No UI claims a transaction before state exists.</td></tr>
     </tbody>
@@ -958,7 +958,7 @@ tr.rv-thread-row .rv-thread { margin: 0; }
     <li><a href="../../crates/nova_gameplay/src/integrity/health.rs"><code>crates/nova_gameplay/src/integrity/health.rs:29-37, 117-151</code></a>, <a href="../../crates/nova_gameplay/src/integrity/core.rs"><code>crates/nova_gameplay/src/integrity/core.rs:361</code></a></li>
     <li><a href="../../crates/nova_interface/src/ship/scene.rs"><code>crates/nova_interface/src/ship/scene.rs:546-551, 914-932</code></a></li>
   </ul>
-  <p>Task decisions (not code): <a href="TASK.md"><code>tasks/20260926-174806/TASK.md:11, 15-53</code></a>; owner comment export of 2026-09-28 (24 comments, listed by id in <code>TASK.md:21, 32-45</code>); <a href="../20260925-190219/TASK.md"><code>tasks/20260925-190219/TASK.md:14-18</code></a>; <a href="../20260925-190156/TASK.md"><code>tasks/20260925-190156/TASK.md:16-21</code></a>.</p>
+  <p>Task decisions (not code): <a href="TASK.md"><code>tasks/20260926-174806/TASK.md:11, 15-53</code></a>; owner comment export of 2026-09-28 (24 comments, listed by id in <code>TASK.md:21, 32-45</code>); <a href="../20260925-190156/TASK.md"><code>tasks/20260925-190156/TASK.md:16-21</code></a>.</p>
   <p class="note">Docs that M0 invalidates, to change with the M0 code: <code>web/src/wiki/interface.md:139</code> (Repair row) and <code>:151</code> ("instant and free today") and <code>CHANGELOG.md:66-68</code> ("nothing adds or spends items yet").</p>
   <p class="note">Observation, not changed here: the wiki Inventory figure note at <code>web/src/wiki/interface.md:188-190</code> describes "your ship's empty store", while the open-world player ship starts with 12 plates. It may describe another scenario; recheck when the capture is taken.</p>
 </section>

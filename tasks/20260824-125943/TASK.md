@@ -248,11 +248,9 @@ specifications now exist, but their classification and feature scope remain
 **proposals for owner review**, not a v0.15.0 delivery commitment:
 
 - **Needed for the game to feel complete at 1.0 (candidate):**
-  `20260925-190156` shared streamed-world mutation and save contract;
-  `20260925-190219` design of one dock-salvage-to-physical-ship-payoff loop,
-  including station identity and free repair/reload policy. A refit is one
-  option against design swap or another visible payoff; durable saving is a
-  candidate, not an approved format or launch feature.
+  `20260925-190156` shared streamed-world mutation and save contract. The
+  historical dock-salvage-to-refit proposal was removed by the owner. At the
+  time, durable saving was a candidate, not an approved format or launch feature.
 - **Nice to have (candidate):** `20260925-190207` P* A+ S* asteroid-group
   composition and field readability; `20260923-110307` existing catalog
   derelict-selection task; `20260925-190131` situated faction encounters and
@@ -281,8 +279,9 @@ specifications now exist, but their classification and feature scope remain
   `20260926-174836`, not an assumed rewrite of command effects.
 - **Station/inventory choices delegated:** station identity, visits, inventory
   and market ownership, transaction/undock failure, repair/reload policy,
-  physical payoff and UI integration belong to `20260926-174806` with existing
-  `20260925-190219`. Persistent player/world mutations and shared save policy
+  physical payoff and UI integration were studied in `20260926-174806` with a
+  separate refit proposal later removed by the owner. Persistent player/world
+  mutations and shared save policy
   remain with `20260925-190156`. Neither child inherits approved fixture
   numbers or services. This is an explicit recorded open decision, not a
   missing implementation claimed as done.

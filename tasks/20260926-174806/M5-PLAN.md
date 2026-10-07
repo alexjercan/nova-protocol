@@ -8,7 +8,7 @@
 
 - The player mines ore with a short-range mining-only action, collects ore in physical cargo canisters, and buys or sells real goods for credits with a docked live ship's finite inventory and credits. Stock, credits and mined ore change atomically; refusals change nothing.
 - Remove no established M0-M3 ownership or stock paths. Combat carving must never mint ore, mining must not work as a melee weapon, and thrust/RCS and food have no survival consumption.
-- Defer the former M4 refit to `tasks/20260930-100908/TASK.md`, mod-added item identity to `tasks/20260930-100831/TASK.md`, and save/revisit guarantees to `tasks/20260925-190156/TASK.md`. State M5's session-only limit until a persistence tier is approved.
+- Defer the former M4 refit (its task was later removed by owner decision), mod-added item identity to `tasks/20260930-100831/TASK.md`, and save/revisit guarantees to `tasks/20260925-190156/TASK.md`. State M5's session-only limit until a persistence tier is approved.
 
 ## Sequence and code-backed gate
 

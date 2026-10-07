@@ -41,11 +41,9 @@ Four **OPEN task specifications** exist. They are decision work, not approved
 implementation or a v1.0 commitment. `TASK.md` owns their classification:
 
 - **Needed for the game to feel complete at 1.0 (candidates):**
-  `20260925-190156` shared world/ship mutation and save contract;
-  `20260925-190219` one dock-salvage-physical-refit *design*: it must decide
-  station identity, repair/reload policy, themed service UI, and whether the
-  first physical payoff is a design swap, bounded refit or another visible
-  change. No individual service or refit is yet committed.
+  `20260925-190156` shared world/ship mutation and save contract. The historical
+  dock-salvage/refit design candidate was later removed by owner decision; no
+  refit or station service is committed by this research.
 - **Nice to have (candidates):** `20260925-190207` asteroid-group composition
   and chart/field readability; `20260923-110307` pre-existing derelict catalog
   eligibility; `20260925-190131` situated faction encounters and *possible*
