@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
+            window.path_to_searchindex_js = "searchindex-83f806a0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -617,6 +617,40 @@ production caller passes its own profile and changes nothing else.
 not), so the window, the frame clock and the encode cannot disagree about the
 framing - and a profile whose output equals its window encodes with no scale
 filter at all, rather than resampling a master through itself.</p>
+<p>A loop also records what it HEARD, with no extra step calls. <code>DebugPlugin</code>
+observes the recorder’s <code>LoopCaptureStarted</code> / <code>LoopCaptureFrame</code> /
+<code>LoopCaptureEnded</code> events and samples each voice’s engine-resolved <code>VoiceMix</code>
+immediately before each frame request. At <code>loop_end</code> it stages the audio and
+writes the sidecar, and the drain that follows encodes the WebM:</p>
+<ul>
+<li><code>&lt;name&gt;.webm</code> with VP9 video and an Opus track, rendered offline from the
+loaded samples at each frame’s pre-master <code>VoiceMix::channel_gains</code> and
+speed. A positional voice plays the sum of its sample’s channels at its
+per-ear gains, as the spatial sink does; a flat voice keeps its channels.
+A voice that the voice cap or a frozen sim holds is silent and paused. A
+one-shot plays its whole sample; a loop ends with its last frame. If the
+summed PCM peak is over -1 dBFS, the whole loop is attenuated once to put it
+there before the Opus encode, which can overshoot it on decode; a quieter
+loop is never boosted. The log names the original peak and
+the attenuation.</li>
+<li><code>&lt;name&gt;.jsonl</code>, the version 1 SFX sidecar for the editor: a header
+<code>{version, loop, fps, frames}</code>, then <code>{f, v, gain}</code> rows with <code>clip</code> and
+<code>looping</code> on a voice’s first row. <code>gain</code> is the pre-master sink gain, the
+editorial contract, so it carries neither the pan nor the WebM’s peak
+attenuation. A held voice’s row has gain 0. Speed is not in version 1.</li>
+<li>each named sample at its asset-relative path beside the sidecar. A sample
+that cannot be copied warns. Any other sidecar or audio failure, such as a
+voice with no asset path, a path that is not plain relative names, a path
+under the <code>.loop-frames</code> staging directory, or an existing symlink,
+non-directory parent or uninspectable entry on a sample’s path under the
+capture directory, aborts the run before the encode, so <code>loop_written</code> never
+acks a silent loop. The destination check runs before any write but does not
+stop a link created during the copy, and it does not detect a hardlinked
+sample file. The sidecar and samples are on disk before the encode, so an
+ffmpeg mux failure after them fails the run but leaves the complete sidecar.</li>
+</ul>
+<p>A Bevy-only app with <code>LoopCapturePlugin</code> and no <code>DebugPlugin</code> still writes a
+silent WebM. Sheets record no audio.</p>
 <p>A SPRITE SHEET is the same recorder with a grid for a length. The training
 handbook draws a lesson loop from one image of cells - the game has no video
 decoder, so an atlas is how a panel animates - and a producer opens the
@@ -662,7 +696,7 @@ generic hang detector wins the race and the named-step diagnostic is lost. That
 ordering is documented, not enforced: the run-level value comes from the harness
 that launches the process, which the crate cannot see.</p>
 <p>Real seconds, not the app’s: Nova pauses <code>Time&lt;Virtual&gt;</code> behind the pause
-overlay and the ship computer, so a deadline measured on the game clock stops
+overlay and the TAB interface, so a deadline measured on the game clock stops
 counting the moment a walk opens either - and a beat that stalls there holds the
 run open with nothing naming the step. Both clocks that time a run read
 <code>Time&lt;Real&gt;</code> for that reason: the step deadline, and the run-level watcher’s own

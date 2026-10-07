@@ -214,7 +214,15 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Enemy),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -258,7 +266,15 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Enemy),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -302,7 +318,15 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Enemy),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -346,7 +370,15 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Enemy),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SetCamera((
@@ -394,10 +426,14 @@
                             ),
                             kind: Asteroid((
                                 radius: 10.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
@@ -521,7 +557,15 @@
                                 engage_range: Some(3000.0),
                                 pd_range: Some(1300.0),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Player),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     TimerStart((
@@ -568,11 +612,7 @@
                     )),
                 ],
                 actions: [
-                    NextScenario((
-                        scenario_id: "menu_weave",
-                        linger: false,
-                        delay: Some(1.0),
-                    )),
+                    BackdropDone(()),
                 ],
             ),
             (
@@ -583,11 +623,7 @@
                     )),
                 ],
                 actions: [
-                    NextScenario((
-                        scenario_id: "menu_weave",
-                        linger: false,
-                        delay: Some(1.0),
-                    )),
+                    BackdropDone(()),
                 ],
             ),
             (
@@ -598,6 +634,10 @@
                     )),
                 ],
                 actions: [
+                    SetInfiniteAmmo((
+                        id: "gauntlet_battery_w1",
+                        enabled: true,
+                    )),
                     ForceTorpedoFire((
                         ship: "gauntlet_battery_w1",
                         section: "bay",
@@ -617,6 +657,10 @@
                     )),
                 ],
                 actions: [
+                    SetInfiniteAmmo((
+                        id: "gauntlet_battery_w2",
+                        enabled: true,
+                    )),
                     ForceTorpedoFire((
                         ship: "gauntlet_battery_w2",
                         section: "bay",
@@ -636,6 +680,10 @@
                     )),
                 ],
                 actions: [
+                    SetInfiniteAmmo((
+                        id: "gauntlet_battery_e1",
+                        enabled: true,
+                    )),
                     ForceTorpedoFire((
                         ship: "gauntlet_battery_e1",
                         section: "bay",
@@ -655,6 +703,10 @@
                     )),
                 ],
                 actions: [
+                    SetInfiniteAmmo((
+                        id: "gauntlet_battery_e2",
+                        enabled: true,
+                    )),
                     ForceTorpedoFire((
                         ship: "gauntlet_battery_e2",
                         section: "bay",

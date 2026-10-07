@@ -369,6 +369,10 @@
                                     ),
                                 ],
                             )),
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2_000,
                         )),
                     )),
                     // A lit beacon centrepiece the rocks sit in front of. Purely
@@ -426,10 +430,9 @@
                         kind: Asteroid((
                             // Small size, not hidden health, keeps this tutorial target brief.
                             radius: 2.5,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "self://textures/rock.png",
                             kind: "rock",
-                            mass: None,
-                            invulnerable: false,
                             lock_signature: None,
                         )),
                     )),
@@ -442,13 +445,12 @@
                         ),
                         kind: Asteroid((
                             radius: 3.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "self://textures/rock.png",
                             // The same texture, a different kind. Put this one
                             // beside `example_target_1` in the range and the
                             // pair is the whole feature in one look.
                             kind: "ice",
-                            mass: None,
-                            invulnerable: false,
                             lock_signature: None,
                         )),
                     )),
@@ -633,12 +635,11 @@
                         ),
                         kind: Asteroid((
                             radius: 20.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
                             texture: "self://textures/rock.png",
                             // Nickel-iron: the rare one, so the bonus target is
                             // worth flying out to.
                             kind: "metal",
-                            mass: None,
-                            invulnerable: false,
                             lock_signature: None,
                         )),
                     )),
@@ -746,7 +747,7 @@
                             aim: Some((0.0, 0.0, 0.0)),
                         )),
                     )),
-                    // A slow, invulnerable planetoid to anchor the view, plus
+                    // A temperate planetoid to anchor the view, plus
                     // an AI ship set to orbit it - calm motion, nothing to
                     // fight. The orbit directive names the well by its id.
                     SpawnScenarioObject((
@@ -756,12 +757,11 @@
                             position: (0.0, 0.0, 0.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
-                        kind: Asteroid((
-                            radius: 180.0,
-                            texture: "self://textures/rock.png",
-                            kind: "rock",
-                            mass: Some(36_000.0),
-                            invulnerable: true,
+                        kind: Planet((
+                            radius: 450.0,
+                            planet_type: Temperate,
+                            seed: 1729727263,
+                            mass: 36_000.0,
                             lock_signature: None,
                         )),
                     )),
@@ -774,7 +774,7 @@
                         ),
                         kind: Spaceship((
                             controller: AI((
-                                orbit: Some("menu_planetoid"),
+                                orbit: Some(Authored("menu_planetoid")),
                             )),
                             design: Inline((
                                 sections: [
@@ -798,8 +798,33 @@
                                     ),
                                 ],
                             )),
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2_000,
                         )),
                     )),
+                    // The act length: an orbit never ends on its own, so the
+                    // scene times itself out like the base endless backdrops.
+                    TimerStart((
+                        key: "example_menu_rotate",
+                        seconds: Term(Factor(Literal(Number(150.0)))),
+                    )),
+                ],
+            ),
+            // The rotation contract: a backdrop reports its act finished with
+            // BackdropDone and the MENU picks what plays next. A backdrop
+            // that never reports is a content Error, and one that names its
+            // own successor with NextScenario is too.
+            (
+                name: OnTimerEnd,
+                filters: [
+                    Timer((
+                        key: "example_menu_rotate",
+                    )),
+                ],
+                actions: [
+                    BackdropDone(()),
                 ],
             ),
         ],

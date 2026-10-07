@@ -1,19 +1,10 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ships &amp; damage - Nova Protocol Wiki</title><meta name="description" content="What a ship is made of, how it comes apart under fire - wrecks, neutralized hulls, what damage looks like - and where each part is documented."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ships &amp; damage - Nova Protocol Wiki</title><meta name="description" content="What a ship is made of, how it comes apart under fire - wrecks, neutralized hulls, what damage looks like - the generated ships and derelicts of a New Game world, and where each part is documented."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -43,7 +34,7 @@
 <p>You do not have to shoot every last section off a ship. A hull carrying less than a twentieth of the structure it was built with <strong>collapses</strong>: it tears itself apart, and you watch it go. The outermost sections blow off first, each bursting its own debris; the ones they were holding follow, and the wreck peels inward frame by frame until nothing is left and the ship is gone. A scenario can author a tougher ship to hold together further down, so a capital takes more dismantling than a fighter.</p>
 <p>A big ship dies big. The fires of a collapse are spread across the whole wreck rather than clustered where you opened it, and how far the death reaches is drawn from the ship's own size - a capital's fireball throws burning metal hundreds of metres, a needle's is over in a flash the width of the hull. It reads as one event however much of it comes apart at once: one crash, one shove of the camera, from the middle of the ship rather than from whichever plate let go first.</p>
 <p>A ship coming apart is still a ship for those moments. Its guns keep firing until the sections carrying them blow off, so a kill you have already earned can shoot back on the way down.</p>
-<p>That is a different thing from being <strong>out of the fight</strong>. A ship that has lost every weapon, or the flight computer that aims and flies it, stops fighting but keeps its hull - it drifts as a derelict until someone finishes it, or does not. The <a href="../hud/#target-viewfinder">viewfinder</a> tags it NEUTRALIZED, and a neutralized hull stops defending itself too: nobody is left aboard to work the mounts, so a wreck lets your ordnance fly straight past even with an intact turret still bolted to it. It is still solid and it still takes damage; it just does not answer.</p>
+<p>That is a different thing from being <strong>out of the fight</strong>. An armed ship that has lost every weapon, or the flight computer that aims and flies it, stops fighting but keeps its hull - it drifts as a derelict until someone finishes it, or does not. An unarmed ship that ever had a thruster goes the same way once the last working one dies; an unarmed hull that never had a thruster can only be destroyed, not neutralized. The <a href="../hud/#target-viewfinder">viewfinder</a> tags it NEUTRALIZED, and a neutralized hull stops defending itself too: nobody is left aboard to work the mounts, so a wreck lets your ordnance fly straight past even with an intact turret still bolted to it. It is still solid and it still takes damage; it just does not answer.</p>
 <p>The health bar on your combat lock's readout measures a target against the hull it was BUILT with, so it only ever falls as you work through the sections.</p>
 <h2 id="what-damage-looks-like" tabindex="-1">What damage looks like</h2>
 <p>A ship never changes shape from being shot. Sections keep the shape they were built in right up to the moment they die; then the part goes up in a white flash, throws burning fragments that outlive it, and comes off the ship to tumble away until the wreckage clears. A whole hull letting go burns bigger than a single compartment does. Nothing on a hull is eaten away, and nothing turns red.</p>
@@ -53,22 +44,39 @@
 <p>Which looks a part wears is decided by whoever built it, so a modded section can crack, spark, gutter, or show nothing at all.</p>
 <p>Cladding is the exception to &quot;nothing changes shape&quot;. A <a href="../keybinds/">clad ship</a> wears plates over its structure, and the plate that stops a round dies and comes away where it stood - tumbling clear on the ship's own motion, greebles and all - leaving a hole onto the bare hull underneath. That is a piece leaving, not a part being eroded.</p>
 <p>Rocks are the other exception, and they carve for real - see <a href="../combat-weapons/#shooting-rock">Shooting rock</a>.</p>
+<h2 id="generated-ships" tabindex="-1">Generated ships</h2>
+<!-- Roles and labels: crates/nova_world/src/generation.rs `ShipRoleType`.
+     Status: crates/nova_world_base/src/civilizations.rs
+     `CivilizationStatusType`, drawn by `CivilizationField::civilization`;
+     side (Enemy/Player/Neutral, one chance in three each, drawn apart from
+     status): civilizations.rs `allegiance`. Intact or wreck, hold stock and
+     credits: crates/nova_world_base/src/sector_ships.rs `plan_ship`,
+     `ship_stock`, `ship_credits`; an intact ship's crew and patrol loop:
+     sector_ships.rs `plan_patrol`, clusters.rs `plan_patrols`. Layout from
+     the loaded section catalog, including an industrial ship's seeded
+     mining beams: crates/nova_world_base/src/ship_layout.rs `generate_ship`
+     and `generate_wreck`; role style: civilizations.rs `role_style_id`.
+     Name, controller, allegiance, crew and lootable wreck:
+     crates/nova_world/src/streaming.rs `spawn_sector_ship`. Window:
+     crates/nova_world_base/src/lib.rs `OPEN_WORLD_SECTOR_EDGE`,
+     `OPEN_WORLD_ACTIVE_RADIUS`. Take credits: crates/nova_gameplay/src/
+     inventory.rs `plan_credit_take`. Dock admission by combat state:
+     crates/nova_ship/src/sections/docking_section/admission.rs. Role
+     outlines, weapon slots and styles in the generated-ship-roles widget:
+     web/src/widgets.ts `GENERATED_SHIP_ROLES`. -->
+<p>In a <strong>New Game</strong> world, the ships you meet are generated, not picked from a list of designs. Each one is laid out from the sections of the content the game loaded, for a <strong>civilization</strong> and a <strong>role</strong>.</p>
+<div class="widget" data-widget="generated-ship-roles">
+<p>Four roles: a civilian is unarmed traffic, an industrial is unarmed with a cargo intake and a chance of one or two mining beams, a scavenger is a rough, low-tier armed ship, and an armored is an equipped armed ship. The role and the civilization's status are drawn apart, so each role can be met intact from a living civilization or as a wreck from an extinct one. A wreck comes from an extinct civilization, not from damage.</p>
+</div>
+<p>Each role wears its own skin style, intact or wrecked. Every civilization is <strong>living</strong> or <strong>extinct</strong>. A living civilization's ships are intact. An extinct civilization leaves <strong>derelict wrecks</strong>: hulls at any orientation, with every section switched off except the hull and the docking ports.</p>
+<p>Every ship, intact or wrecked, starts with goods and credits scaled by its civilization's advancement: an industrial hold favors ore and parts, a civilian's rations and parts, and a scavenger's or armored ship's ammunition, hull plates and parts, drawn apart from its credit balance. A wreck's hold and balance are drawn the same way, independently, against what is left of its hull: roughly half the cargo and 10-25% of the credits an intact ship of the same standing would carry, with at least one credit kept. A wreck may hold no hull plates at all. A low-advancement ship still carries something of each kind, nonzero. Some industrial ships, living or wrecked, also mount one or two real mining beams; a wrecked beam stays mounted but inert, like every other system a derelict carries.</p>
+<p>A civilization sides Enemy, Player or Neutral, drawn apart from its status and advancement. An intact ship carries that civilization's crew: it flies the side's AI, patrols a loop of waypoints near where it spawned (holding at each one for a while before flying on), and will not chase a fight more than about 5 km from that loop. A derelict wreck still has nobody aboard and stays Neutral. Travel-lock one and the <a href="../hud/#target-viewfinder">target viewfinder</a> names it, or select it on the <a href="../interface/#the-map">Map pane</a>: an intact ship reads <code>&lt;civilization&gt; &lt;role&gt;</code>, and a wreck reads <code>&lt;civilization&gt; derelict, former &lt;role&gt;</code>, for example <code>Halurmar derelict, former scavenger</code>. A distant blip on the map shows only its contact code.</p>
+<p>An armed Neutral ship you shoot fights back and reads HOSTILE to you until it loses you, is neutralized, changes side, or you both leave its reach - see <a href="../factions/#retaliation">Factions</a>.</p>
+<p>To loot a wreck, or a ship you neutralized in combat, <a href="../sections/docking/">dock</a> with one of its ports: <a href="../interface/#take-and-give">Take</a> its goods, and <strong>Take credits</strong> moves its whole balance in one click, in the Inventory pane. A calm ally or Neutral ship lets you dock to trade instead; one that is Hostile, Enemy, or fighting refuses the dock until it calms down or you finish it.</p>
+<p>The world streams in 32 km sectors, and the game keeps the 5 x 5 x 5 block of sectors around yours live. A sector that streams out and back in is generated again from the seed: nothing you did to its ships is kept. A wreck you emptied is full again, a ship you destroyed is back, anything you gave a ship is gone, and credits you took are back on the ship you took them from.</p>
 <h2 id="the-parts" tabindex="-1">The parts</h2>
 <p>Every section is its own page - what it does, how it behaves, its numbers, and what it is like to face one. <a href="../sections/">Ship sections</a> opens that chapter with what every part shares and the catalog at a glance.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

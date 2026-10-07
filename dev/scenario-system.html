@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
+            window.path_to_searchindex_js = "searchindex-83f806a0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -275,9 +275,9 @@ again, so a big catalog on a cold disk takes as long as it takes, and what
 the budget catches is an asset source that has gone silent. A handle that
 fails, or a load that stops moving, fails the load CLOSED - see below.</li>
 </ul>
-<p>Ships are the only object kind involved. A beacon and a salvage crate build
-primitives, an asteroid meshes itself on a worker, and a light and an anchor
-have no mesh at all. The warm-up is also registered only when
+<p>Ships are the only object kind involved. A beacon builds primitives, an
+asteroid meshes itself on a worker, and a light and an anchor have no mesh at
+all. The warm-up is also registered only when
 <code>NovaScenarioPlugin::render</code> is set: a headless rig builds no mesh children, so
 there is nothing to warm and nothing to wait for.</p>
 <h3 id="the-load-is-atomic-loadergaters"><a class="header" href="#the-load-is-atomic-loadergaters">The load is atomic (<code>loader/gate.rs</code>)</a></h3>
@@ -545,7 +545,9 @@ all run on the same clock, which is the only part that is not obvious from the
 RON:</p>
 <ul>
 <li>A <code>NextScenario</code> <strong>delay</strong> ticks on <code>Time&lt;Virtual&gt;</code>, the pause-frozen
-scenario clock, so a player who pauses holds the cut.</li>
+scenario clock, so a player who pauses holds the cut. The menu’s one-second
+cut after a backdrop’s <code>BackdropDone</code> (<code>nova_menu::ambience:: advance_menu_backdrop</code>) ticks on the same clock. The scenario raises the flag
+in the <code>PostUpdate</code> event drain, and the menu reads it in the next <code>Update</code>.</li>
 <li>An <code>Outcome</code>’s <strong><code>auto_advance_secs</code></strong> cannot, because the overlay it belongs
 to STOPS <code>Time&lt;Virtual&gt;</code>. It runs on the wall clock instead. A timed banner
 that used the scenario clock would never fire.</li>
@@ -777,10 +779,10 @@ text only has to vary the clean-run line - no message interpolation needed.</li>
 synthetic course as a RON string, drives the real handlers, and pins the
 ordered-gate sequencing, the repeatable penalty zone, the two counter-keyed
 win banners, the act-gating and the readout wiring. Run it with
-<code>cargo test -p nova_assets --test scenario_gate_course</code>. Geometry invariants
-(gate areas do not overlap; the racing line clears every rock’s worst-case
-body past <code>ASTEROID_GEOMETRIC_FACTOR_MAX</code>) are a CONTENT concern, checked per
-bundle by <code>content lint</code>.</li>
+<code>cargo test -p nova_assets --test scenario_gate_course</code>. <code>content lint</code>
+checks the bundle schema, ids, references and shared balance rules. The
+Gauntlet geometry invariants - non-overlapping gate areas and racing-line
+clearance past each rock’s worst-case body - remain manual checks.</li>
 <li>The <a href="https://alexjercan.github.io/nova-protocol/create/author-a-scenario/#3-plan-one-short-story">first-scenario guide’s completed flow</a>
 is the gentler, single-counter cousin of the gate-counter pattern.</li>
 </ul>
@@ -826,19 +828,28 @@ does not know is a <code>content lint</code> error and a refusal to render, and
 <li>
 <p><strong>A rock has no <code>health</code> field, and that is not an omission.</strong> What an
 asteroid is made of IS its durability; the mechanism is
-<a href="#how-an-asteroid-carves">below</a>. Its <code>radius</code> is <code>Meters</code> like every other
-authored length; its <code>mass</code> is not, and that is deliberate. <code>mass</code> is the
-body’s <code>mu</code>, an L^3/T^2 quantity - an SI one would be a THOUSAND times the
+<a href="#how-an-asteroid-carves">below</a>. It has no <code>mass</code> field either: an asteroid
+never SOURCES a gravity well - only a <code>Planet</code> or an <code>Anchor</code> does - it only
+ever FEELS one, as a plain dynamic body. What it requires instead is an
+explicit <code>initial_velocity</code> (<code>MetersPerSecond3</code>), same as a <code>Spaceship</code>’s:
+checked finite at lint and again at load, with <code>MetersPerSecond3::ZERO</code> an authored
+stationary start, not an exemption from gravity. The base-world generator seeds a
+circular orbit only when its full path stays clear of other wells and within
+the well’s owning sector. Otherwise it seeds an outward escape inside one
+well or a zero-velocity coast in free space, by the body’s position
+(<code>nova_world_base/clusters.rs::generated_initial_velocity</code>); a body reachable
+by two wells at once fails generation outright rather than blending them.
+<code>mass</code> moved to <code>Planet</code> (now REQUIRED) and stayed optional on <code>Anchor</code>
+(<code>None</code> is a zero-strength well, pure geometry). Both still carry the same
+<code>mu</code>, an L^3/T^2 quantity - an SI one would be a THOUSAND times the
 world-unit one - so it stays engine-side in u^3/s^2 with the
 <code>GravitySettings</code> cutoff it is measured against. It sets both the pull
 <code>a = mu / r^2</code> and the sphere of influence, the distance where that decays to
 <code>GravitySettings::soi_cutoff_accel</code> (0.25 u/s^2, which is 2.5 m/s^2), so a
 well is authored by the SOI it should have: <code>mu = soi_cutoff_accel * soi^2</code>,
 both terms engine-side. The inspection planetoid’s 27 000 buys a 328.6 u
-sphere of influence, and 328.6 u is the 3.29 km the HUD reads. An <code>Anchor</code>
-publishes the same <code>GravityWell</code> from an AUTHORED radius instead of a
-mesh-derived one, which is what makes it deterministic where a carved rock is
-not.</p>
+sphere of influence, and 328.6 u is the 3.29 km the HUD reads. A negative or
+non-finite mass is a <code>content lint</code> error and a spawn refusal.</p>
 </li>
 <li>
 <p><strong>Ship section geometry is LINTED, not clamped.</strong> Overlapping unit-cube cells
@@ -950,8 +961,7 @@ is written off only by an absence from <code>Hold</code> longer than
 one nudge does not silently cost the player three quarters of a revolution.</p>
 <p>The docking tracker reads its two edges off the CONNECTION entity rather than
 off either hull. <code>DOCK</code> builds exactly one connection per pair and every way
-out of a dock - either pilot’s verb, a maneuver engaged on either hull, a
-shot-off port, a dead ship - despawns that one entity, so comparing a live
+out of a dock - either pilot’s verb, a shot-off port, a dead ship - despawns that one entity, so comparing a live
 connection against the <code>DockEcho</code> BOTH hulls carry reports one <code>OnDocked</code> and
 one <code>OnUndocked</code> on every path, with no branch per ending and nothing in
 <code>nova_ship</code> knowing what a scenario event is. The echo retains the payload, not
@@ -1009,7 +1019,8 @@ kind dispatch: <code>ScenarioObjectKind</code> -
 <code>SignedField</code> - <code>crates/nova_gameplay/src/mesh/field.rs</code>; the cost of the
 material itself: <code>DAMAGE_PER_UNIT_VOLUME</code> -
 <code>crates/nova_gameplay/src/integrity/carve.rs</code>.</li>
-<li>Asteroid kinds: <code>AsteroidKind</code>, <code>asteroid_kind_look</code>, <code>ASTEROID_KINDS</code> -
+<li>Asteroid kinds: <code>AsteroidKindId</code>, <code>AsteroidKind</code>, <code>asteroid_kind_look</code>,
+<code>ASTEROID_KINDS</code> -
 <code>crates/nova_scenario/src/objects/asteroid_kind.rs</code>; the surface they drive:
 <code>AsteroidSurfaceMaterial</code> - <code>crates/nova_scenario/src/objects/</code>
 <code>asteroid_surface.rs</code> and <code>assets/shaders/asteroid_surface.wgsl</code>.</li>

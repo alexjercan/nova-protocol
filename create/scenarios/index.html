@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -136,13 +127,18 @@ practise in a <code>Lesson</code>.</p>
 </tr>
 <tr>
 <td><code>Backdrop</code></td>
-<td>Menu scenery: it poses its own camera and hands the player no ship.</td>
-<td>The random main-menu backdrop rotation, and nowhere else.</td>
+<td>Menu scenery: it poses its own camera, hands the player no ship, and reports when its act is done.</td>
+<td>The main-menu backdrop rotation, and nowhere else.</td>
 </tr>
 <tr>
 <td><code>Lesson</code></td>
 <td>A focused practice range for one handbook <a href="../lessons/">lesson</a>.</td>
 <td>That lesson's Practice button, and nowhere else.</td>
+</tr>
+<tr>
+<td><code>OpenWorld</code></td>
+<td>The base New Game start: it spawns the one player ship the generated world streams around.</td>
+<td>New Game's Create, and nowhere else.</td>
 </tr>
 </tbody>
 </table>
@@ -153,6 +149,10 @@ practise in a <code>Lesson</code>.</p>
 about 1,060 m either side of the origin in a 4:3 window). A backdrop without
 one is a content Error and never enters the menu rotation - the menu derives
 no pose of its own.</p>
+<p>A menu backdrop REPORTS WHEN ITS ACT IS DONE: author a
+<a href="../actions/#backdropdone"><code>BackdropDone</code></a> where the act ends (a scene with no
+natural ending times itself out). The menu then picks the next backdrop. A
+backdrop without one, or with a <code>NextScenario</code>, is a content Error.</p>
 <p>A practice range TEACHES ONE THING, and owes the player four things the four
 ranges in the handbook show:</p>
 <ul>
@@ -267,7 +267,7 @@ wait ends; only a handler re-checks.</p>
 <li><a href="../events/">Events</a> - when handlers run and what entity data they carry.</li>
 <li><a href="../filters/">Filters</a> - entity matching, expression conditions, and logic.</li>
 <li><a href="../actions/">Actions</a> - objectives, spawning, story, flow, and state changes.</li>
-<li><a href="../objects/">Scenario objects</a> - asteroids, ships, beacons, salvage, and
+<li><a href="../objects/">Scenario objects</a> - asteroids, planets, ships, beacons, and
 lights.</li>
 <li><a href="../expressions/">Variables and expressions</a> - counters, conditions, clocks,
 and state machines.</li>
@@ -307,8 +307,9 @@ find. In the game, enable the mod, open Scenarios, and play the visible entry.</
 <li>Initialize variables before filters read them.</li>
 <li>Spawn an object before an action targets its id.</li>
 <li><code>role: Backdrop</code> is menu scenery, not a level. It is left out of the
-Scenarios list, it must pose its own camera with <code>SetCamera</code>, and a campaign
-that names one is a lint error.</li>
+Scenarios list, it must pose its own camera with <code>SetCamera</code> and report its
+finished act with <code>BackdropDone</code>, and a campaign that names one is a lint
+error.</li>
 <li><code>role: Lesson</code> is a practice range, reachable only from the
 <a href="../lessons/">lesson</a> whose Practice button names it. A campaign that names
 one is a lint error too, and a range no lesson practises in is a warning.</li>
@@ -317,18 +318,5 @@ campaigns, or <code>NextScenario</code>.</li>
 </ul>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

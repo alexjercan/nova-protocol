@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -191,6 +182,9 @@ game ships.</p>
     <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Spaceship</span><span class="ron-punct">((</span>
         <span class="ron-key">controller</span><span class="ron-punct">:</span> <span class="ron-type">AI</span><span class="ron-punct">((</span><span class="ron-key">engage_delay</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">8.0</span><span class="ron-punct">))),</span>
         <span class="ron-key">design</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_corvette&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">inventory</span><span class="ron-punct">:</span> <span class="ron-punct">{},</span>
+        <span class="ron-key">lootable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">,</span>
+        <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">2000</span><span class="ron-punct">,</span>
     <span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
@@ -211,6 +205,9 @@ applied after the design's own, so the spawn wins:</p>
             <span class="ron-punct">))))),</span>
         <span class="ron-punct">},</span>
     <span class="ron-punct">),</span>
+    <span class="ron-key">inventory</span><span class="ron-punct">:</span> <span class="ron-punct">{},</span>
+    <span class="ron-key">lootable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">,</span>
+    <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">2000</span><span class="ron-punct">,</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <p>A <code>section_patches</code> key the design does not carry does nothing at runtime, so
@@ -238,6 +235,9 @@ a tweak to it.</p>
             <span class="ron-punct">),</span>
         <span class="ron-punct">],</span>
     <span class="ron-punct">)),</span>
+    <span class="ron-key">inventory</span><span class="ron-punct">:</span> <span class="ron-punct">{},</span>
+    <span class="ron-key">lootable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">,</span>
+    <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">2000</span><span class="ron-punct">,</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <p><code>Inline((..))</code> takes the same fields as a ship's <code>design</code>. Use it for a
@@ -297,6 +297,10 @@ painted by a <a href="../styles/">style</a>. Nothing in the base game is a model
 <td>Salvage Picket - the armed picket, its one gun pushed onto the nose face</td>
 </tr>
 <tr>
+<td><code>block_line_warship</code></td>
+<td>Line Warship - the New Game ship: a long armoured body with six PDC mounts, a railgun on the bow, a torpedo bay on each shoulder, a docking collar mid-shoulder on each flank, hatch outboard (<code>port_collar</code>, <code>starboard_collar</code>), a cargo intake on the top deck aft, door up (<code>cargo_intake</code>), and a mining beam at the bow, starboard of the railgun (<code>mining_beam</code>)</td>
+</tr>
+<tr>
 <td><code>block_wreck_plate</code></td>
 <td>Carrier Wreck: Plating - loose plating: the small pieces, and most of what a debris field is</td>
 </tr>
@@ -307,18 +311,5 @@ painted by a <a href="../styles/">style</a>. Nothing in the base game is a model
 parts the mod carries under its own <code>gltf/parts/</code>.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

@@ -1,23 +1,14 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Gravity wells - Nova Protocol Wiki</title><meta name="description" content="Large asteroids pull ships and torpedoes with real inverse-square gravity; the dominant well is what the ORBIT autopilot flies around."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Gravity wells - Nova Protocol Wiki</title><meta name="description" content="Planetoids and asteroids given a mass pull ships and torpedoes with real inverse-square gravity; the dominant well is what the ORBIT autopilot flies around."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Gravity wells</p><h1>Gravity wells</h1><div class="wiki__tags" id="wiki-tags"></div><p>Large asteroids and planetoids carry gravity wells that pull ships, torpedoes and turret rounds with real physics. Wells never pull each other, and the strength is authored so every well is escapable under main drive. Only PILOTED ships feel a well - yours and the AI's; an unpiloted ship (a scripted bystander with no drive to resist the pull) floats where it sits rather than falling in.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Gravity wells</p><h1>Gravity wells</h1><div class="wiki__tags" id="wiki-tags"></div><p>Only a planet (or an invisible authored anchor) carries a gravity well - it is on rails, immovable. Everything else that can feel one is mobile: asteroids, ships and in-flight ordnance. Wells pull with real physics and never pull each other - the strength is authored so every well is escapable under main drive. Every ship feels a well, piloted or not: an unpiloted bystander falls in just like a crewed hull, and an asteroid falls in too - no rock is pinned in place by its own gravity anymore.</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-gravity.png -->
     <div class="figure__placeholder">
@@ -44,13 +35,15 @@
 <summary>Show explanation</summary>
 <p>Two rules tame the extremes of the inverse square:</p>
 <ul>
-<li><strong>Surface clamp</strong> - just below the drawn surface (plus a 10 m margin) the pull is held at its surface value, so grazing the rock is a bump, not a singularity slingshot.</li>
+<li><strong>Surface clamp</strong> - just below the drawn surface (plus a 10 m margin) the pull is held at its surface value, so grazing the planet is a bump, not a singularity slingshot.</li>
 <li><strong>Faded edge</strong> - across the outer 15% of the sphere of influence the pull follows a smoothstep down to exactly zero at the boundary, and stays zero beyond it, so there is no force discontinuity to bump across.</li>
 </ul>
-<p>Who feels it: piloted ships (player and AI alike), torpedoes and turret rounds - a long shot visibly curves near a planetoid. Section debris skips gravity, and an unpiloted scripted ship floats rather than falls. Wells never pull other wells.</p>
+<p>Who feels it: every ship root (player, AI, or an unpiloted bystander alike), every asteroid, torpedoes and turret rounds - a long shot visibly curves near a planetoid. Carved chunks and detached sections join the pull when their collision grace ends and they become dynamic. Wells never pull other wells.</p>
 </details>
 <h2 id="sphere-of-influence" tabindex="-1">Sphere of influence</h2>
 <p>A well's reach follows from its mass alone: the sphere of influence is the distance at which the raw pull has decayed to a fixed cutoff of 2.5 m/s^2 - the body's drawn size never sets it, and because the pull is inverse-square, four times the mass buys only twice the reach. The campaign's inspection planetoid reaches 3.29 km; the lighter concealment planetoid it hides a warship behind reaches 2.83 km. Outside it, the well does not exist as far as your ship is concerned.</p>
+<h2 id="how-a-generated-body-starts" tabindex="-1">How a generated body starts</h2>
+<p>An open-world sector places its own asteroids and unpiloted ships, and each one is given a real starting velocity rather than scripted motion. A body that starts inside one well's checked band - clear of the surface and fading edge, with its nominal circle within the owning sector - starts with a seeded tangent at circular speed. A single-well body whose nominal circle does not clear those checks starts on an outward escape path instead of falling from rest. A body with no well in reach coasts from rest. A pre-fix census of 512 deterministic seeds (64,000 cells) found 7 overlapping candidates among 95,248 placed mobile bodies. The generator retries each overlapping placement in a checked unique-well orbit band, then in well-free space, keeping the body's identity and count if a position fits. A placed escort and its hull move together to keep their separation. It does not choose the strongest well or coast from rest inside one. If no position fits, a named sector fault stops generation and streaming still fails. These velocities are starting conditions, not a promise that every orbit stays bounded forever - a collision or a shot can send a body anywhere. A generated body remains a child of its spawn sector, even if it moves across a cell face; retiring that sector removes the body. A return regenerates its initial position and velocity, so orbital phase and any damage reset.</p>
 <h2 id="the-dominant-well" tabindex="-1">The dominant well</h2>
 <p>Where two spheres of influence overlap, the pulls do not blend: you feel only the <strong>dominant</strong> well - the strongest at your position - and it keeps ownership until a challenger clearly beats it, so it does not flicker at the boundary.</p>
 <div class="widget" data-widget="dominant-well">
@@ -63,18 +56,5 @@
 </details>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

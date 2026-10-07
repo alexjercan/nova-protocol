@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -28,7 +19,7 @@
         >
         <span class="figure__placeholder-note"
             >A turret tracking a target, barrel led ahead of
-            it, aim pip on the intercept point.</span
+            it.</span
         >
     </div>
 </figure>
@@ -74,10 +65,10 @@ that were going to miss.</p>
 <div class="widget" data-widget="round-travel">
 <p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 1,000 m/s destroys the first section and hits the second for 40; at 2,000 m/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 1,000 m/s, so it takes all five and stops in the sixth; at 3,000 m/s a crossing costs only 20 and the same dart takes fifteen.</p>
 </div>
-<p>Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. What a round does to a rock instead is take a bite out of it (see <a href="../../../combat-weapons/#shooting-rock">Shooting rock</a>); an invulnerable planetoid does not even do that. Torpedoes do not travel through anything either - they detonate.</p>
+<p>Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. What a round does to a rock instead is take a bite out of it (see <a href="../../../combat-weapons/#shooting-rock">Shooting rock</a>); a planet does not even do that. Torpedoes do not travel through anything either - they detonate.</p>
 <h2 id="trigger-discipline" tabindex="-1">Trigger discipline</h2>
-<p>A magazine is a rate limit, not a budget - every weapon refills, and the rule is the same for all three (see <a href="../../combat-weapons/#magazines">Magazines</a>). What that rhythm is worth is easiest to read on the gun, with the bay and the railgun beside it for scale.</p>
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/ (turret.rs: PDC ammunition Limited(500), reload delay 3.0 / amount 200, fire_rate 100; torpedo_bay.rs: bay ammunition Limited(6), reload delay 10.0 / amount 1, fire_rate 1.0; railgun.rs: ammunition Limited(1), reload delay 12.0 / amount 1, charge 1.5) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock :217, each completed delay restores one batch :252-259, clamped at capacity :237, empty trigger pulls never call on_shot :216). The sustained column is this page's own arithmetic, amount / (delay + batch fire time). -->
+<p>A magazine is a rate limit, not a hard stop while you carry the ammunition to feed it - every weapon refills from your ship's stock of matching rounds, and the rule is the same for all three (see <a href="../../combat-weapons/#magazines">Magazines</a>). What that rhythm is worth is easiest to read on the gun, with the bay and the railgun beside it for scale.</p>
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/ (turret.rs: PDC ammunition Limited(500), reload delay 3.0 / amount 200, fire_rate 100; torpedo_bay.rs: bay ammunition Limited(6), reload delay 10.0 / amount 1, fire_rate 1.0; railgun.rs: ammunition Limited(1), reload delay 12.0 / amount 1, charge 1.5) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock in `SectionReload::on_shot`, each completed delay restores one batch in `SectionReload::advance`, `batch_rounds` clamps it at capacity and at the hold's matching reserve, an empty `SectionAmmo::try_consume` never reaches `on_shot`). The sustained column is this page's own arithmetic, amount / (delay + batch fire time), and assumes the hold keeps a matching reserve for every batch. -->
 <table>
 <thead>
 <tr>
@@ -117,7 +108,7 @@ that were going to miss.</p>
 </tbody>
 </table>
 <div class="widget" data-widget="ammo-rhythm">
-<p>A PDC turret holds 500 rounds and spends them at 100 a second, so a held trigger runs it dry in five seconds. It gets 200 back for every three seconds it stays quiet - all at once, or not at all: a pause a tick short of three seconds returns nothing, and any shot that lands starts the three seconds again. Firing each batch as it arrives sustains 40 rounds a second against a cyclic 100. A torpedo bay works the same way at a different scale: six torpedoes, one back per ten quiet seconds, a full minute from empty to a fresh rack. A railgun is the rule at its simplest: one shell, twelve quiet seconds, and the charge on top - a shot every thirteen and a half.</p>
+<p>A PDC turret holds 500 rounds and spends them at 100 a second, so a held trigger runs it dry in five seconds. It gets 200 back for every three seconds it stays quiet - all at once, or not at all: a pause a tick short of three seconds returns nothing, and any shot that lands starts the three seconds again. Firing each batch as it arrives sustains 40 rounds a second against a cyclic 100. A torpedo bay works the same way at a different scale: six torpedoes, one back per ten quiet seconds, a full minute from empty to a fresh rack. A railgun is the rule at its simplest: one shell, twelve quiet seconds, and the charge on top - a shot every thirteen and a half. All of this assumes your hold keeps matching ammunition for every batch; with none left, the reload stops where the magazine ran dry.</p>
 </div>
 <h2 id="point-defense" tabindex="-1">Point defense</h2>
 <p>Every gun runs its own point defense, and each mount picks its
@@ -202,22 +193,10 @@ spend the whole engagement swinging and hit nothing.</p>
 </tbody>
 </table>
 </div>
-<!-- raider mount health: 60, a health patch on the mount rather than a separate prototype -->
-<p>Raider hulls mount the same guns from the same catalog. The scavenger grade only lowers the mount's health to 60 (against 130 on a player hull), so an enemy's guns are quicker to shoot off - but every round they land hits exactly as hard as yours.</p>
+<p>Reach is derived, not authored: muzzle speed times the 2 s round lifetime, from a gun at rest relative to its target. It is nominal travel, not an engagement range - see <a href="#reach-and-closing-speed">Reach and closing speed</a>. Every other column is the configured base prototype; a mod can author its own.</p>
+<!-- No base ship patches a turret's health. The only turret patch in base scenarios is the tutorial range's own gun, TRAINER_GUN_HEALTH 1,300, crates/nova_authoring/src/base_content/scenarios/tutorial/range.rs:88,135; the other `section_health` patches are scenario bridges and collars. -->
+<p>Enemy hulls mount the same guns from the same catalog, at the same 130 health, so every round they land hits exactly as hard as yours. A scenario can patch one section's health: the tutorial range armours your own gun to 1,300 so the lesson cannot end by losing it.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

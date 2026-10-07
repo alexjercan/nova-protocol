@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -31,13 +22,18 @@
             >A ship braking under GOTO: flipped retrograde
             with its drive bells turned toward the lens, the
             AP GOTO - BURN chip and the closing speed beside
-            it, and the nav line running on to the
-            destination.</span
+            it, and the predicted path running ahead of
+            the ship.</span
         >
     </div>
 </figure>
 <h2 id="manual-flight" tabindex="-1">Manual flight</h2>
 <p>You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. Nothing caps your speed: a burn adds to the velocity you already carry, a held throttle keeps building it, and letting go keeps whatever you built rather than bleeding it back off. Turning the nose aims the next burn and nothing else - your velocity does not follow the hull around. Speed only comes off the way it went on, by burning against it: swing retrograde and burn, or press <strong>STOP</strong> and let the flight computer fly the braking for you. GOTO plans its own flight independently.</p>
+<h3 id="chase-camera-zoom" tabindex="-1">Chase camera zoom</h3>
+<p>In normal flight and in <kbd>Alt</kbd> free look, the scroll wheel zooms the chase camera. Wheel up moves the camera closer. Wheel down moves it farther. The closest view is the ordinary framing. The farthest view sits several times farther back. The camera dollies along its arm; the field of view does not change.</p>
+<p>Normal flight and free look share one zoom level, and free look stays farther out than normal flight. The level lasts for the game session, so a mode switch or a respawn keeps it. It is not saved, and the HUD does not show it. A planned ORBIT opens at its own survey distance. The wheel adjusts from there, and it cannot go closer than the ordinary framing. Leaving ORBIT restores your earlier level.</p>
+<p>A main-drive burn eases the camera back by a fixed share of its distance from the moment it starts, whether you or the autopilot fly it. A short tap leans it only slightly. The camera holds its lean through gaps in the burn, so braking pulses do not flicker it. Half a second without the burn eases it home.</p>
+<p>With weapons raised (hold the right mouse button) the wheel does not zoom. It steps the component <a href="../targeting-radar/">fine-lock</a> instead, and the combat camera stays as it is. While you hold <kbd>Shift</kbd> for RCS, the wheel drives vertical thrust. The gamepad has no zoom gesture.</p>
 <h2 id="the-hull-decides-the-handling" tabindex="-1">The hull decides the handling</h2>
 <p>Nothing about handling is authored; it falls out of the hull you built. A section weighs the box it is hit on, so a ship's mass is its shape. The main drive is whatever thrusters point forward, balanced through the live centre of mass so an asymmetric or battle-damaged layout still flies straight. And how hard the hull turns is the lower of two limits - what its flight computers can twist against the mass they swing, and what its own metal survives at 8 G out at the furthest section - so a small craft whips around, a hauler handles like the freighter it is, and a wreck that has lost its nose turns sharper than the whole ship did. The <a href="../sections/thruster/">Thruster</a> and <a href="../sections/controller/">Controller</a> pages put scopes and numbers on both halves.</p>
 <h2 id="the-autopilot-flies-the-hull" tabindex="-1">The autopilot flies the hull</h2>
@@ -47,6 +43,7 @@
 <li><strong>ORBIT</strong> - circularizes and station-keeps around the dominant <a href="../gravity-wells/">gravity well</a>, holding a stable ring at orbital speed (<code>v = sqrt(mu / r)</code>) with micro-burns. It never self-completes - it holds until you break away.</li>
 <li><strong>STOP</strong> - flips to retrograde and burns your speed off, budgeting for the local gravity pull along your velocity. &quot;At rest&quot; is a deadband and not a dead stop: a residual the drive is already pointing at is braked out to 2 m/s (<code>m/s</code> is meters per second; see the <a href="../glossary/">glossary</a>), and one it is not - a sideways drift, or a head-on crumb - is handed back at up to 7.5 m/s instead of being chased with attitude flips, so a hull already drifting slower than that is released without turning at all. A ship carrying <a href="#rcs-fine-docking-thrusters">RCS</a> settles the remainder on its jets.</li>
 </ul>
+<p>While GOTO or STOP flies, the HUD draws the <a href="../hud/#flight-readouts">predicted path</a> up to 30 seconds ahead, and GOTO a dim straight guide on to the target. The path forecasts the flight; the guide only points at the target. Neither plans a route around anything.</p>
 <div class="widget" data-widget="goto-verb">
 <p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 15 m/s approach floor, and eases the last stretch onto the 500 m standoff with the fine RCS jets. The scope flies the base Patrol Gunship, so the resolved distance counts its own 55.2 m arm - balance point to the outer face of its furthest section, not the 85 m the hull is long - as well as the body's. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
 </div>
@@ -75,26 +72,13 @@
 </figure>
 <h2 id="rcs-fine-docking-thrusters" tabindex="-1">RCS: fine docking thrusters</h2>
 <p>For the last few meters of an approach - where a main-drive burn is too coarse - a ship can carry <strong>RCS</strong> (a reaction-control system): hold <kbd>Shift</kbd> and steer with the mouse (lateral and fore/aft) and the scroll wheel (up and down) to nudge the ship straight along its own axes, with <strong>no rotation</strong>. On a gamepad the same gesture is one thumb: click the left stick to engage, then push it to translate. While you hold it the helm and camera hold still so you can concentrate on the translation, the <a href="../hud/">velocity sphere</a> turns violet, and a soft burn loop plays.</p>
-<p>RCS is controlled translation rather than a main-engine burn: it caps at 100 m/s in any direction. It accelerates at a mass-independent 5 g, and diagonal input shares that one speed budget and that one acceleration budget rather than multiplying either across axes.</p>
+<p>RCS is controlled translation rather than a main-engine burn: it accelerates at a mass-independent 5 g at any speed, so it can match a fast target, but it runs on a <strong>magazine</strong> of 300 m/s of velocity change. Ten violet pips under the speed chip show what is left. Let go for 2 seconds and it refills at 100 m/s every second. Diagonal input shares one acceleration budget rather than multiplying it across axes.</p>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>The cap is on the whole velocity vector, measured relative to whatever the maneuver is holding as its reference: one, two or three axes of input all run out at the same 100 m/s, and pushing further in a direction you are already coasting at the cap does nothing - while anything that slows you down still works, at the cap and above it, so a ship carried overspeed can always brake back inside. The push is a single linear impulse through the center of mass, so RCS never rotates the hull, and the last 20 m/s before the cap taper off rather than hitting a wall. The autopilot uses the same thrusters under the hood - <strong>GOTO</strong> settles its arrival on RCS, and <strong>STOP</strong> brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops still turn the main drive into the braking direction.</p>
+<p>Every push draws from the magazine by the velocity change it actually delivers, in any direction, braking included. An empty magazine pushes nothing, and holding the input on an empty magazine keeps it empty: the refill starts only once you let go. The push is a single linear impulse through the center of mass, so RCS never rotates the hull. The autopilot uses the same thrusters and the same magazine - <strong>GOTO</strong> settles its arrival on RCS, and <strong>STOP</strong> brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops, or an empty magazine, still turn the main drive into the braking direction. The main drive never draws from the magazine.</p>
 </details>
 <p>RCS is a capability granted per ship, like the autopilot verbs, and a scenario may <strong>withhold</strong> it: Basic Training starts without it and hands it over at the beat that teaches it, while Season 1's first chapter flies on it from the opening. The RCS chip only appears in the keybind dock when a scenario grants it, so you know when it is available.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

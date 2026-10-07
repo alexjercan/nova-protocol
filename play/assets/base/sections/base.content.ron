@@ -2484,7 +2484,7 @@
         base: (
             id: "docking_port_section",
             name: "Docking Port Section",
-            description: "A sealed-hatch docking port. Lock the ship you want to dock with, close to within a cell of its port with your own port facing it, and DOCK clamps the two hulls together; the sleeves reach across once the clamp holds. A clamped hull flies nothing: its drive and its helm stay dead until DOCK is pressed again, from either side.",
+            description: "A sealed-hatch docking port. Lock the ship you want to dock with, close to within a cell of its port with your own port facing it, and DOCK clamps the two hulls together; the sleeves reach across once the clamp holds. The pair flies as one body: the other ship flies it until HELM takes it, and DOCK again from either side lets go.",
             health: 90.0,
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
@@ -2580,6 +2580,385 @@
             capture_angle: 15.0,
             maximum_relative_speed: 5.0,
             maximum_relative_angular_speed: 5.0,
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargo_intake_section",
+            name: "Cargo Intake Section",
+            description: "A hold mouth behind an accordion door. The door folds open for a canister within 40 m of it. The intake takes, whole and at any speed, a canister that reaches into the 1 m in front of its opening, if the hold has room. Jettison in the Inventory pane drops a canister out through the same door.",
+            health: 90.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    3.0,
+                    2.0,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_x_a",
+                    position: (
+                        1.5,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_b",
+                    position: (
+                        1.5,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_a",
+                    position: (
+                        -1.5,
+                        -0.5,
+                        -0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_b",
+                    position: (
+                        -1.5,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_a",
+                    position: (
+                        -1.0,
+                        1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_b",
+                    position: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_c",
+                    position: (
+                        1.0,
+                        1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_a",
+                    position: (
+                        -1.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                    normal: (
+                        -0.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_b",
+                    position: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -0.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_c",
+                    position: (
+                        1.0,
+                        -1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -0.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_a_a",
+                    position: (
+                        -1.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_a_b",
+                    position: (
+                        -1.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_b_a",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_b_b",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_c_a",
+                    position: (
+                        1.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_c_b",
+                    position: (
+                        1.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: IntakeDoor,
+                    node_prefix: "intake_slat_",
+                    motion: Fold(
+                        degrees: 80.0,
+                        slat_width: 0.2292,
+                        slat_thickness: 0.02,
+                    ),
+                    open_seconds: 1.2,
+                    close_seconds: 1.2,
+                ),
+            ],
+        ),
+        kind: CargoIntake((
+            render_mesh: "self://gltf/intake_accordion_3x2x1.glb#Scene0",
+            canister_mesh: "self://gltf/cargo_canister_cuboid.glb#Scene0",
+            door_sound: "self://sounds/bay_door.wav",
+            eject_sound: "self://sounds/cargo_eject.wav",
+            take_sound: "self://sounds/salvage_pickup.wav",
+            detection_range: 40.0,
+            capture_gap: 1.0,
+            aperture_width: 22.2,
+            aperture_height: 15.3,
+            eject_speed: 3.0,
+        )),
+    )),
+    Section((
+        base: (
+            id: "mining_beam_section",
+            name: "Mining Beam Section",
+            description: "A compact ore emitter behind sliding doors. Hold its key with a rock travel-locked: the doors part, the tip runs out, and once a second the beam cuts the rock where it hits, if the rock is within 100 m of the emitter face. The ore it cuts free leaves the rock as canisters. Release the key and the tip retracts before the doors shut.",
+            health: 90.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.22,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.3,
+                    close_seconds: 0.3,
+                ),
+                (
+                    cue: StowLift,
+                    node_prefix: "beam_tip",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            0.0,
+                            0.16,
+                        ),
+                    ),
+                    open_seconds: 0.3,
+                    close_seconds: 0.3,
+                ),
+            ],
+        ),
+        kind: Mining((
+            render_mesh: "self://gltf/mining_beam_compact.glb#Scene0",
+            pulse_sound: "self://sounds/mining_pulse.wav",
+            door_open_sound: "self://sounds/mining_door_open.wav",
+            door_close_sound: "self://sounds/mining_door_close.wav",
+            reach: 100.0,
+            pulse_interval_seconds: 1.0,
+            carve_radius_cells: 1.5,
         )),
     )),
 ]

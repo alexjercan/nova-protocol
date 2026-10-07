@@ -3,24 +3,16 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship sections for mods</p><h1>Ship sections for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-section-item">The Section item</a><ol><li><a href="#common-fields">Common fields</a></li><li><a href="#damage-effects">Damage effects</a></li><li><a href="#structural-link-points">Structural link points</a></li><li><a href="#assets-and-visual-transforms">Assets and visual transforms</a></li><li><a href="#animation-tracks">Animation tracks</a></li></ol></li><li><a href="#hull">Hull</a><ol></ol></li><li><a href="#thruster">Thruster</a><ol></ol></li><li><a href="#controller">Controller</a><ol><li><a href="#what-a-hull-does-with-the-torque">What a hull does with the torque</a></li></ol></li><li><a href="#turret">Turret</a><ol></ol></li><li><a href="#torpedo">Torpedo</a><ol><li><a href="#the-fuze-is-not-a-bay-field">The fuze is not a bay field</a></li></ol></li><li><a href="#railgun">Railgun</a><ol></ol></li><li><a href="#docking">Docking</a><ol></ol></li><li><a href="#a-section-in-a-mod">A section in a mod</a><ol></ol></li></ol></nav><p>A <code>Section</code> is a reusable ship part defined in a mod's <code>*.content.ron</code> file.
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship sections for mods</p><h1>Ship sections for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-section-item">The Section item</a><ol><li><a href="#common-fields">Common fields</a></li><li><a href="#stats-that-content-lint-checks">Stats that content lint checks</a></li><li><a href="#damage-effects">Damage effects</a></li><li><a href="#structural-link-points">Structural link points</a></li><li><a href="#assets-and-visual-transforms">Assets and visual transforms</a></li><li><a href="#animation-tracks">Animation tracks</a></li></ol></li><li><a href="#hull">Hull</a><ol></ol></li><li><a href="#thruster">Thruster</a><ol></ol></li><li><a href="#controller">Controller</a><ol><li><a href="#what-a-hull-does-with-the-torque">What a hull does with the torque</a></li></ol></li><li><a href="#turret">Turret</a><ol></ol></li><li><a href="#torpedo">Torpedo</a><ol><li><a href="#the-fuze-is-not-a-bay-field">The fuze is not a bay field</a></li></ol></li><li><a href="#railgun">Railgun</a><ol></ol></li><li><a href="#docking">Docking</a><ol></ol></li><li><a href="#cargo-intake">Cargo intake</a><ol></ol></li><li><a href="#mining">Mining</a><ol></ol></li><li><a href="#a-section-in-a-mod">A section in a mod</a><ol></ol></li></ol></nav><p>A <code>Section</code> is a reusable ship part defined in a mod's <code>*.content.ron</code> file.
 Create a new id to add a part to the editor palette, or reuse a base id to
-replace that part everywhere. The seven available kinds are <code>Hull</code>, <code>Thruster</code>,
-<code>Controller</code>, <code>Turret</code>, <code>Torpedo</code>, <code>Railgun</code>, and <code>Docking</code>.</p>
+replace that part everywhere. The nine available kinds are <code>Hull</code>, <code>Thruster</code>,
+<code>Controller</code>, <code>Turret</code>, <code>Torpedo</code>, <code>Railgun</code>, <code>Docking</code>, <code>CargoIntake</code>, and
+<code>Mining</code>.</p>
 <p>Start with the two working section items in
 <code>assets/mods/example/example.content.ron</code>: one replaces
 <code>reinforced_hull_section</code>, and one adds <code>example_plated_hull_section</code>. Use the
@@ -88,7 +80,7 @@ shared <code>base</code> block and one kind-specific block:</p>
 <td><code>base.health</code></td>
 <td>number</td>
 <td>required</td>
-<td>Hit points before the section is destroyed.</td>
+<td>Hit points before the section is destroyed. Positive and finite.</td>
 </tr>
 <tr>
 <td><code>base.destroy_sound</code></td>
@@ -151,6 +143,25 @@ machine. Skin and clearance read every occupied cell. Put mounting sockets at
 the centres of the cells on each face that can attach; collider contact alone
 never creates structure. Non-integral cuboids and non-cuboid shapes remain
 one-cell footprints.</p>
+<p>Every collider size, radius, length and height must be positive and finite.</p>
+<h3 id="stats-that-content-lint-checks" tabindex="-1">Stats that content lint checks</h3>
+<p><code>content lint</code> checks each mod's full section catalog: base, every mod it
+depends on, and the mod itself. It rejects a section whose <code>health</code>, collider
+dimension, thruster <code>magnitude</code>, controller <code>max_torque</code>, turret
+<code>bullet_damage</code> or muzzle <code>fire_rate</code>, torpedo <code>blast_damage</code> or <code>fire_rate</code>,
+railgun <code>slug_damage</code>, or intake aperture is not positive and finite, and a
+railgun <code>charge_seconds</code> that is negative or not finite. It also rejects one
+section id defined by two mods in that catalog when neither depends on the
+other; replace a section only from a mod that depends on the one you replace.
+The catalog must also keep at least one hull, controller, thruster and cargo
+intake that a procedurally generated ship can use. A generated ship does not
+use a docking port, a part without link points, a railgun with no charge time,
+or a part that cannot stand on the one-part-per-cell build grid. Such a part
+still loads and still works on authored ships. A weapon or thruster that
+otherwise stands on the grid must fire straight out of one of its own faces and
+carry no socket on that face. A cargo intake's door face is its <code>-Z</code> face, and
+it must carry no socket either. Content lint rejects a part that breaks either
+rule, and the editor's Generate refuses a plan that names it.</p>
 <h3 id="damage-effects" tabindex="-1">Damage effects</h3>
 <p>What a section LOOKS like as it takes damage, authored as a list:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">damage_effects</span><span class="ron-punct">:</span> <span class="ron-punct">([</span><span class="ron-type">Cracks</span><span class="ron-punct">,</span> <span class="ron-type">Sparks</span><span class="ron-punct">,</span> <span class="ron-type">Plume</span><span class="ron-punct">]),</span>
@@ -296,7 +307,8 @@ the node was modelled at. Content owns WHAT moves; the section kind's own
 systems own WHEN, by steering the cue.</p>
 <ul>
 <li><code>cue</code> - the gameplay moment that drives this track. The set is closed
-(<code>MuzzleDoor</code>, <code>StowLift</code>, <code>StowDoors</code>, <code>Charge</code> - see the table below); a
+(<code>MuzzleDoor</code>, <code>StowLift</code>, <code>StowDoors</code>, <code>Charge</code>, <code>DockTube</code>, <code>IntakeDoor</code> -
+see the table below); a
 mod picks from it rather than inventing one. Several tracks may share a cue, and a cue
 no system on this section steers simply rests at 0.</li>
 <li><code>node_prefix</code> - which nodes move, by NAME PREFIX: <code>&quot;door_petal_&quot;</code> takes
@@ -305,7 +317,7 @@ change the part count without the track being re-authored. The match runs
 over every named node under the section, which is why a turret joint given a
 <code>name</code> is steered by exactly the same track machinery as a node modelled
 inside a glb.</li>
-<li><code>motion</code> - the pose at full progress, one of two:
+<li><code>motion</code> - the pose at full progress, one of three:
 <ul>
 <li><code>RotateX(degrees: N)</code> turns each node about its own LOCAL X axis. Local X
 is the hinge convention: the part is modelled with its origin ON the hinge
@@ -315,6 +327,15 @@ how ONE track swings the bay's six petals on six different hinges.</li>
 that node's own rest frame. Same one-track-many-nodes rule: the PDC's two
 housing lids are modelled mirror-rotated, so one signed travel closes both
 toward each other.</li>
+<li><code>Fold(degrees: N, slat_width: W, slat_thickness: T)</code> folds an accordion
+of slats aside into two pockets. Each node name must end, after the
+prefix, in <code>l&lt;index&gt;</code> or <code>r&lt;index&gt;</code>: <code>l</code> folds toward the parent's +X,
+<code>r</code> toward -X, and the index counts from that pocket's wall, from 0. A
+slat turns <code>degrees</code> about its local X, even indices one way and odd the
+other, and slides along the parent's X so each fold meets the next at an
+edge. <code>slat_width</code> and <code>slat_thickness</code> are the slat box in cells,
+measured off the art. A node under the prefix with any other suffix
+panics the rig at spawn: the art and the track disagree.</li>
 </ul>
 </li>
 <li><code>open_seconds</code> - seconds progress takes to run 0 -&gt; 1.</li>
@@ -342,13 +363,13 @@ that matters in a fight: it sinks lazily over 0.9 s and comes back up in 0.35.</
 </tr>
 <tr>
 <td><code>StowLift</code></td>
-<td>The turret's stow machine.</td>
+<td>The turret's stow machine, or a mining emitter's sequence.</td>
 <td>sunk into the housing</td>
 </tr>
 <tr>
 <td><code>StowDoors</code></td>
-<td>The turret's stow machine, sequenced against the lift: it shuts the lids only once the gun is fully down, and parts them before raising it.</td>
-<td>shut over the sunk gun</td>
+<td>The turret's stow machine or a mining emitter's sequence, against the lift: it shuts the lids only once the gun or tip is fully in, and parts them before moving it out.</td>
+<td>shut over the sunk gun or tip</td>
 </tr>
 <tr>
 <td><code>Charge</code></td>
@@ -359,6 +380,11 @@ that matters in a fight: it sinks lazily over 0.9 s and comes back up in 0.35.</
 <td><code>DockTube</code></td>
 <td>The docking port's sleeve, once the dock's fixed joint EXISTS - never before it, so the tube can never be what holds the two hulls together. It stows again the moment the dock is released.</td>
 <td>the sleeve fully out, 0.5 cells past the port face</td>
+</tr>
+<tr>
+<td><code>IntakeDoor</code></td>
+<td>The cargo intake, while a canister is in its detection volume or a jettison waits on it. It takes a canister in or drops one only at progress 1.</td>
+<td>the door fully folded open</td>
 </tr>
 </tbody>
 </table>
@@ -787,10 +813,16 @@ whatever the turret has loaded.</p>
 <li>
 <p><code>reload</code> - how spent rounds come back: <code>Disabled</code> (the default - a spent
 magazine stays empty) or <code>Batch((delay, amount))</code>. Every successful shot
-resets the timer; after <code>delay</code> quiet seconds, <code>amount</code> rounds return,
-clamped to capacity. Batches repeat while the weapon stays idle, and an empty
-trigger pull does not reset the timer. A <code>Batch</code> on an <code>Unlimited</code> weapon is
-a lint error - there is nothing to refill.</p>
+resets the timer; after <code>delay</code> quiet seconds, <code>amount</code> rounds move from the
+ship's own <a href="../objects/#inventory">inventory</a> into the magazine - <code>PdcRound</code>
+for a turret (both Kinetic and Pierce mounts draw the same item), <code>Torpedo</code>
+for a bay, <code>RailSlug</code> for a railgun - clamped to the least of the magazine's
+missing rounds, <code>amount</code>, and what the ship carries. With none of that item
+in the ship's inventory the delay does not advance, so an empty magazine
+stays empty until the ship is restocked. Batches repeat while the weapon
+stays idle, and an empty trigger pull does not reset the timer. A <code>Batch</code> on
+an <code>Unlimited</code> weapon is a lint error - there is nothing to refill, and the
+section's parent ship must carry a <code>ShipInventory</code> or the reload panics.</p>
 </li>
 </ul>
 <h2 id="torpedo" tabindex="-1">Torpedo</h2>
@@ -986,10 +1018,13 @@ and unable to steer at all.</p>
 <p><code>ammunition</code> - the magazine in torpedoes: <code>Unlimited</code> or <code>Limited(n)</code>.</p>
 </li>
 <li>
-<p><code>reload</code> - <code>Disabled</code>, or the same <code>Batch((delay, amount))</code> a turret uses. The shipped bay
-restores one torpedo after ten seconds without a launch. Another launch
-resets that timer. Ammunition is a rate limit, not a permanent budget, but a
-bay must win through its six-round salvo rather than by outwaiting one PDC.</p>
+<p><code>reload</code> - <code>Disabled</code>, or the same <code>Batch((delay, amount))</code> a turret uses,
+drawing <code>Torpedo</code> items from the ship's inventory. The shipped bay restores
+one torpedo after ten seconds without a launch, taking one <code>Torpedo</code> item
+from the ship's stock to do it; with none left the ten seconds does not
+start. Another launch resets that timer. Ammunition is a rate limit, not a
+permanent budget, but a bay must win through its six-round salvo rather than
+by outwaiting one PDC.</p>
 </li>
 </ul>
 <h3 id="the-fuze-is-not-a-bay-field" tabindex="-1">The fuze is not a bay field</h3>
@@ -1102,8 +1137,9 @@ its cadence: the reload is the silence, and this is the silence ending.</li>
 <li><code>ammunition</code> - shells carried: <code>Limited(n)</code>, or <code>Unlimited</code> (the default
 every weapon section shares).</li>
 <li><code>reload</code> - the same <code>Disabled</code> / <code>Batch((delay, amount))</code> a turret and a bay
-use. For a one-shell magazine it IS the cadence: the shipped railgun
-is one shot every twelve quiet seconds, and the section's ammo gauge is the
+use, drawing <code>RailSlug</code> items from the ship's inventory; with none left the
+wait does not start. For a one-shell magazine it IS the cadence: the shipped
+railgun is one shot every twelve quiet seconds, and the section's ammo gauge is the
 countdown.</li>
 </ul>
 <p>The scope below is the walk the game runs, on the block the range measures
@@ -1127,8 +1163,9 @@ track the gun still charges; it just charges invisibly.</p>
 <h2 id="docking" tabindex="-1">Docking</h2>
 <p><code>DockingSectionConfig</code> - a docking port: a cylindrical, rotationally symmetric
 collar that holds this hull to another one. One ship,
-<code>docking_port_section</code>, and no base ship carries one yet; build a hull with one
-in the editor, or author your own port on a modded craft.</p>
+<code>docking_port_section</code>, carried by the workship, both frame tenders and the line
+warship; build a hull with one in the editor, or author your own port on a
+modded craft.</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Docking</span><span class="ron-punct">((</span>
     <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/gltf/dock_flush.glb#Scene0&quot;</span><span class="ron-punct">),</span>
     <span class="ron-key">capture_distance</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span>
@@ -1167,13 +1204,128 @@ the other hull.</p>
 outward face - that face is the hatch. Docking is spent through the <code>DOCK</code>
 verb, which the ship must also be PERMITTED to use: see the <code>dock</code>
 <a href="../objects/#capabilities">capability</a>.</p>
-<p>A dock is MODAL: while it holds, both hulls stop flying. The drive makes no
-thrust, the RCS no trim and the attitude computer no torque, on a player hull
-and an AI one alike, because the gate is read at the forces rather than at the
-input. <code>DOCK</code> again from either hull is the way out, and it is ungated - a
-capability withdrawn mid-dock can never strand a hull clamped to something. An
-engaged maneuver (ORBIT, GOTO, STOP) also ends a dock, before it is flown.</p>
+<p>A docked pair flies as one body, driven by ONE hull. A dock starts NEUTRAL:
+the partner's autopilot and orders fly the pair and the player's hull stands
+down. <code>HELM</code> hands the pair to the player and pauses the partner's orders
+until the helm goes back. The hull that is not driving makes no thrust, no RCS
+trim and no attitude torque, on a player hull and an AI one alike, because the
+gate is read at the forces rather than at the input. <code>DOCK</code> again from either
+hull is the way out, and it is ungated - a capability withdrawn mid-dock can
+never strand a hull clamped to something. A maneuver (ORBIT, GOTO, STOP) flies
+the pair and leaves the dock in place.</p>
 <!-- Grammar verified against crates/nova_ship/src/sections/docking_section/mod.rs (config and defaults) and port.rs (the envelope and its strictest-of-two grading). Values from assets/base/sections/base.content.ron docking_port_section. -->
+<h2 id="cargo-intake" tabindex="-1">Cargo intake</h2>
+<p><code>CargoIntakeSectionConfig</code> - a cargo intake: a hold mouth behind a door on the
+section's local <code>-Z</code> face. The door opens for a nearby canister, the intake
+takes one, at any speed, into the ship's <a href="../objects/#inventory">inventory</a>,
+and the Inventory pane's Jettison drops canisters out through it. One ships:
+<code>cargo_intake_section</code>, a 3x2x1 box on the line warship's top deck, door up.</p>
+<pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">CargoIntake</span><span class="ron-punct">((</span>
+    <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/gltf/intake_accordion_3x2x1.glb#Scene0&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">canister_mesh</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/gltf/cargo_canister_cuboid.glb#Scene0&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">door_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/sounds/bay_door.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">eject_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/sounds/cargo_eject.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">take_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/sounds/salvage_pickup.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">detection_range</span><span class="ron-punct">:</span> <span class="ron-literal">40.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">capture_gap</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">aperture_width</span><span class="ron-punct">:</span> <span class="ron-literal">22.2</span><span class="ron-punct">,</span>
+    <span class="ron-key">aperture_height</span><span class="ron-punct">:</span> <span class="ron-literal">15.3</span><span class="ron-punct">,</span>
+    <span class="ron-key">eject_speed</span><span class="ron-punct">:</span> <span class="ron-literal">3.0</span><span class="ron-punct">,</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<ul>
+<li><code>render_mesh</code> - the intake's scene: its frame and the slat nodes its door
+track folds. <code>render_mesh_transform</code> (optional) moves the mesh only.</li>
+<li><code>canister_mesh</code> - the scene of each canister this intake drops.</li>
+<li><code>door_sound</code> - the door servo, played when the door starts to open (quieter)
+and to close. Required.</li>
+<li><code>eject_sound</code> - played as a canister leaves the door. Required.</li>
+<li><code>take_sound</code> - played as a canister is taken into the hold. Required.</li>
+<li><code>detection_range</code> (meters) - a canister centre in front of the door face and
+within this distance of the face centre opens the door.</li>
+<li><code>capture_gap</code> (meters) - the depth, out from the face plane, of the intake's
+trigger: a box a canister's collider must touch to be taken. Less than
+<code>detection_range</code>.</li>
+<li><code>aperture_width</code>, <code>aperture_height</code> (meters) - the trigger's width and
+height, across the face along the section's local X and Y. At most the
+collider face.</li>
+<li><code>eject_speed</code> (meters per second) - how fast a dropped canister leaves the
+face, relative to the intake's own point velocity.</li>
+</ul>
+<p>The trigger is measured from the <code>-Z</code> face of the section's <code>Cuboid</code>
+collider, so an intake must author one; it is a detached sensor, not a child
+of the ship body, so weapons and sight lines pass through it. A take is whole
+or nothing: a canister heavier than the hold's free mass stays out, and a
+canister touching two triggers goes to one intake only. A canister can hold
+several item types up to 200 kg total; hull plates weigh 10 kg each. A
+canister has 20 HP; at zero it and its contents are lost. A jettison fills
+canisters with whole items, topping up the last waiting one first, and queues
+them on the intake; the intake drops the front one once the door is fully open
+and no canister centre is within 12.5 m of the birth point. Waiting canisters
+are lost with the intake. The canister is born 1.5 m clear of the face,
+outside the trigger and moving away, so any intake takes it back only once it
+turns and closes on the trigger again. Author an
+<a href="#animation-tracks"><code>IntakeDoor</code> track</a> with a <code>Fold</code> motion to give the door
+its slats. Lint rejects an intake without a <code>Cuboid</code> collider, a range, gap or
+aperture that is not finite and positive, a <code>capture_gap</code> not less than
+<code>detection_range</code>, an aperture wider than the collider face, or no
+<code>IntakeDoor</code> track. A missing sound field fails the parse. Offer no link point
+on the <code>-Z</code> face: that face is the door.</p>
+<!-- Grammar verified against crates/nova_ship/src/sections/cargo_intake_section.rs (config, trigger, run_cargo_intakes) and crates/nova_scenario/src/lint/ship.rs check_cargo_intake_config. Values from assets/base/sections/base.content.ron cargo_intake_section. -->
+<h2 id="mining" tabindex="-1">Mining</h2>
+<p><code>MiningSectionConfig</code> - a mining emitter: a beam out of the section's local
+<code>-Z</code> face that cuts ore from the ship's travel-locked rock. One ships:
+<code>mining_beam_section</code>, a 1x1x1 emitter at the line warship's bow, starboard of
+the railgun.</p>
+<pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Mining</span><span class="ron-punct">((</span>
+    <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/gltf/mining_beam_compact.glb#Scene0&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">pulse_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/mining_pulse.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">door_open_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/mining_door_open.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">door_close_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/mining_door_close.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">reach</span><span class="ron-punct">:</span> <span class="ron-literal">100.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">pulse_interval_seconds</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">carve_radius_cells</span><span class="ron-punct">:</span> <span class="ron-literal">1.5</span><span class="ron-punct">,</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<ul>
+<li><code>render_mesh</code> - the emitter's scene: its casing, the doors its <code>StowDoors</code>
+track slides and the tip its <code>StowLift</code> track retracts.
+<code>render_mesh_transform</code> (optional) moves the mesh only.</li>
+<li><code>pulse_sound</code> - played at the hit on every pulse that passes its checks. A
+refused pulse plays nothing. Base content ships <code>mining_pulse.wav</code>.</li>
+<li><code>door_open_sound</code> and <code>door_close_sound</code> - played at the section when its
+doors start to part and start to shut. Base content ships
+<code>mining_door_open.wav</code> and <code>mining_door_close.wav</code>.</li>
+<li><code>reach</code> (meters) - the rock must be within this distance of the emitter face,
+and the beam must meet it within this distance.</li>
+<li><code>pulse_interval_seconds</code> - game seconds between the pulses of one deployed
+emitter. The first pulse comes at once.</li>
+<li><code>carve_radius_cells</code> - the radius of the sphere one pulse cuts, in cells of
+the rock's own field.</li>
+</ul>
+<p>Each emitter has its own key in the player's <code>input_mapping</code>; lint and load
+refuse a player ship with a mining section that has no entry or an empty one,
+or two mining sections that share a button.
+Hold that key and only that emitter opens its doors, then extends its tip.
+Release it and the tip goes in before the doors shut. Only a
+fully deployed emitter pulses, and each one pulses on its own clock. A pulse
+needs a travel-locked asteroid of a kind that yields ore, within <code>reach</code>, and a
+straight line out of the face that meets it. A pulse that fails any check
+changes nothing and is logged. A pulse pays one ore per cell corner it empties,
+once the rock is redrawn, so material already shot away pays nothing. The ore
+leaves the rock as canisters, one at a time, when the space by the surface is
+clear. The emitter costs no power and no ammunition.</p>
+<p>The beam draws from the face to the hit only while the emitter is deployed and
+its last pulse found the rock. Each passed pulse flares the beam and throws a
+short spray of sparks off the hit. The glow and the sparks are art only: they
+never change what a pulse cuts or pays.</p>
+<p>The beam is measured from the <code>-Z</code> face of the section's <code>Cuboid</code> collider,
+so an emitter must author one. Author a
+<a href="#animation-tracks"><code>StowDoors</code> and a <code>StowLift</code> track</a>; progress 1 of each is
+stowed. Lint rejects an emitter without a <code>Cuboid</code> collider, a stat that is not
+finite and positive, or a missing track. A missing sound field fails the
+parse. Offer no link point on the <code>-Z</code> face: that face is the emitter.</p>
+<!-- Grammar verified against crates/nova_ship/src/sections/mining_section.rs (config, validate, drive_mining_emitters), crates/nova_scenario/src/mining.rs (pulse_mining_beams, aim_beam, carve) and crates/nova_scenario/src/lint/ship.rs check_mining_config. Values from assets/base/sections/base.content.ron mining_beam_section. -->
 <h2 id="a-section-in-a-mod" tabindex="-1">A section in a mod</h2>
 <p>The example mod (<code>assets/mods/example/example.content.ron</code>) overlays the base
 <code>reinforced_hull_section</code> - same id, so it REPLACES the base part everywhere
@@ -1210,18 +1362,5 @@ can tell structure from a gun - is tabled in the
 <a href="../base-content/">base content catalog</a>.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
+            window.path_to_searchindex_js = "searchindex-83f806a0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -201,18 +201,21 @@ readings</a>).</p>
 <tr><td><code>Hull</code></td><td>Passive structure/armor. Just a <code>render_mesh</code>.</td></tr>
 <tr><td><code>Thruster</code></td><td>Forward thrust (<code>magnitude</code>); drives the exhaust visual.</td></tr>
 <tr><td><code>Controller</code></td><td>Attitude controller (<code>steering_lag</code>, <code>max_torque</code>); lag derives the internal PD gains, torque feeds the hull’s attitude envelope (see below). Attitude hardware only - what a ship is PERMITTED to do is <code>ShipCapabilities</code> on its root. A ship needs one to be steerable; several SHARE one attitude loop.</td></tr>
-<tr><td><code>Turret</code></td><td>Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own <code>offset</code>/<code>axis</code>/<code>speed</code>/limits/<code>render_mesh</code>), section-wide <code>muzzle_speed</code> + authored <code>bullet_damage</code> + <code>bullet_kind</code>, per-muzzle <code>fire_rate</code>, optional <code>ammo_capacity</code>.</td></tr>
-<tr><td><code>Torpedo</code></td><td>Torpedo bay. Fires guided torpedoes of an authored <code>torpedo_type</code> (name, tint, <code>max_speed</code>, <code>weave_angle</code>, <code>weave_rate</code>) that detonate an Explosive area blast (<code>blast_radius</code>, <code>blast_damage</code>), optional <code>ammo_capacity</code>. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube.</td></tr>
-<tr><td><code>Railgun</code></td><td>Spinal lance. No traverse: the HULL aims it down <code>muzzle_offset</code>. Tapping the trigger commits, the bolt walks the bore for <code>charge_seconds</code>, and the shot leaves whether or not the nose is still on the target. The slug deals <code>slug_damage</code> to every layer it rakes; <code>slug_power</code> and not a layer count bounds it, optional <code>rake_radius</code> spends that budget on a wider corridor instead of unused depth, <code>slug_speed</code> x <code>slug_lifetime</code> is the reach, and <code>recoil_impulse</code> lands at the muzzle point so an off-axis mount yaws the ship. Usually <code>ammo_capacity: 1</code> with a long <code>reload</code>.</td></tr>
+<tr><td><code>Turret</code></td><td>Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own <code>offset</code>/<code>axis</code>/<code>speed</code>/limits/<code>render_mesh</code>), section-wide <code>muzzle_speed</code> + authored <code>bullet_damage</code> + <code>bullet_kind</code>, per-muzzle <code>fire_rate</code>, optional <code>ammunition: Limited(n)</code> drawing <code>PdcRound</code> on reload.</td></tr>
+<tr><td><code>Torpedo</code></td><td>Torpedo bay. Fires guided torpedoes of an authored <code>torpedo_type</code> (name, tint, <code>max_speed</code>, <code>weave_angle</code>, <code>weave_rate</code>) that detonate an Explosive area blast (<code>blast_radius</code>, <code>blast_damage</code>), optional <code>ammunition: Limited(n)</code> drawing <code>Torpedo</code> on reload. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube.</td></tr>
+<tr><td><code>Railgun</code></td><td>Spinal lance. No traverse: the HULL aims it down <code>muzzle_offset</code>. Tapping the trigger commits, the bolt walks the bore for <code>charge_seconds</code>, and the shot leaves whether or not the nose is still on the target. The slug deals <code>slug_damage</code> to every layer it rakes; <code>slug_power</code> and not a layer count bounds it, optional <code>rake_radius</code> spends that budget on a wider corridor instead of unused depth, <code>slug_speed</code> x <code>slug_lifetime</code> is the reach, and <code>recoil_impulse</code> lands at the muzzle point so an off-axis mount yaws the ship. Usually <code>ammunition: Limited(1)</code> with a long <code>reload</code> drawing <code>RailSlug</code>.</td></tr>
 <tr><td><code>Docking</code></td><td>Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. <code>capture_distance</code>, <code>capture_angle</code> and the two relative-speed ceilings are the envelope a <code>DOCK</code> is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see <a href="#docking-ports-and-what-holds-a-pair-together">below</a>).</td></tr>
+<tr><td><code>CargoIntake</code></td><td>Cargo intake. Takes a <code>CargoCanister</code> whole into the ship’s <code>ShipInventory</code> and drops the Inventory pane’s jettisons from a <code>CargoIntakeEjectionQueue</code>, front first, one at a time while the door is open and the birth point is clear. Each live intake owns a detached static Avian <code>Sensor</code> trigger, <code>aperture_width</code> by <code>aperture_height</code> by <code>capture_gap</code> deep, in front of the <code>Cuboid</code> collider’s -Z face: not a child collider, since the workspace has no collision layers and a sensor in the ship’s compound would join it for mass, bullets, locks and overlap reads. <code>detection_range</code> opens the door (visual only for a take); a canister whose collider touches the trigger is taken whole, at any speed, if the hold has room; a canister in two triggers goes to one intake once; <code>eject_speed</code> sets a drop; the <code>IntakeDoor</code> track gates only the drop. The door, drop and take trigger events that <code>ship_audio/machinery.rs</code> voices (<code>cargo_intake_section.rs</code>).</td></tr>
+<tr><td><code>Mining</code></td><td>Mining emitter. Each emitter deploys on its own key: a player ship’s <code>input_mapping</code> entry for the section becomes a <code>SpaceshipMiningInputBinding</code> rig that sets that section’s <code>MiningSectionHeld</code> (<code>input/player/weapons.rs</code>), and lint and spawn refuse a player mining section with no entry or an empty one, and two mining sections that share a source. While it is held, <code>drive_mining_emitters</code> opens the <code>StowDoors</code> track, then extends the <code>StowLift</code> tip; on release the tip goes in before the doors shut (<code>mining_section.rs</code>). Each change of the doors’ target triggers <code>MiningDoorsMoved</code>, and <code>ship_audio</code> plays the authored <code>door_open_sound</code> or <code>door_close_sound</code> at the section; the spawn snap and a held key play nothing. Each fully deployed emitter pulses on its own clock every <code>pulse_interval_seconds</code>. A pulse casts a ray from its collider’s -Z face against the travel-locked rock alone, within <code>reach</code>, and carves <code>carve_radius_cells</code> at the hit. Ore is paid per newly emptied corner after the remesh, then leaves the rock as canisters one at a time. A passed pulse plays the authored <code>pulse_sound</code> at the hit and, in a rendered app, flares the additive beam shader (<code>assets/shaders/mining_beam.wgsl</code>) and throws a fixed spark burst. A refusal is a <code>MiningPulse</code> with a <code>MiningRefusalType</code>, plays nothing and changes nothing (<code>nova_scenario/src/mining.rs</code>).</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>run_cargo_intakes</code> publishes <code>CargoPickupReadiness</code> for each live intake/canister pair on the fixed clock, including out-of-range canisters. A pair names only the ship, intake, canister and <code>ready</code>; it carries no pose. The HUD draws its live pickup sight for one published pair from rendered <code>GlobalTransform</code> poses, with the face from <code>cargo_intake_face</code>, the helper the fixed pass also uses. The canister must be within <code>CARGO_PICKUP_SIGHT_RANGE</code> (200 m) of the player’s ship, with no lock needed: a travel-locked canister first, else the nearest intake face, then the lower entity IDs (<code>pickup_sight.rs</code>). No pair in range draws no sight. A take despawns the canister in the same pass, so the sight clears with it and <code>CargoCanisterTaken</code> voices the take.</p>
 <p><code>GameSections(Vec&lt;SectionConfig&gt;)</code> is the resource of section blueprints.
 Every base prototype is GENERIC and authored under
 <code>crates/nova_authoring/src/base_content/sections/</code>, one module per family
 (<code>hull</code>, <code>controller</code>, <code>thruster</code>, <code>turret</code>, <code>torpedo_bay</code>, <code>railgun</code>,
-<code>docking_port</code>); a mod that brings modelled craft declares their parts itself. The explicit <code>section_catalog()</code> is
+<code>docking_port</code>, <code>cargo_intake</code>, <code>mining_beam</code>); a mod that brings modelled craft declares their parts itself. The explicit <code>section_catalog()</code> is
 generated into <code>assets/base/sections/base.content.ron</code> by <code>content -- gen</code> and
 merged into the resource by
 <code>crates/nova_assets/src/merge.rs</code>. The outer-skin cladding is not a prototype at
@@ -427,17 +430,23 @@ way on every machine and in every replay.</p>
 <p><strong>Making the joint.</strong> <code>DockingConnectionRequest</code> re-runs the search - the
 envelope is re-read at execution, never trusted from the frame the offer was
 drawn in - and spawns ONE connection entity carrying both the
-<code>DockingConnection</code> record and the <code>FixedJoint</code>. The joint is built with an
-explicit frame:</p>
+<code>DockingConnection</code> record and the <code>FixedJoint</code>. The joint is built with
+explicit LOCAL frames, taken from the two body poses <code>(p1, r1)</code>, <code>(p2, r2)</code>
+and the midpoint <code>m</code> of the two faces:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>FixedJoint::new(first_ship, second_ship)
-    .with_anchor(world_point)
-    .with_basis(Rotation(relative))
+    .with_local_anchor1(r1.inverse() * (m - p1))
+    .with_local_anchor2(r2.inverse() * (m - p2))
+    .with_local_basis2(r2.inverse() * r1)
 <span class="boring">}</span></code></pre>
-<p><code>with_anchor</code> / <code>with_basis</code> set one GLOBAL frame that avian resolves into
-per-body local frames on its next step, which is what preserves the pose the
-two hulls met in, roll included. A bare <code>FixedJoint::new(a, b)</code> carries
+<p>Both anchors land on <code>m</code>, and the second body’s basis holds the relative
+rotation the two hulls met at, roll included. Do not use the global
+<code>with_anchor</code> / <code>with_basis</code>: avian3d 0.7 converts a global basis as
+<code>basis * rot.inverse()</code> where its solver needs <code>rot.inverse() * basis</code>, so the
+joint holds the capture pose only when the two hull rotations commute. A
+belly-up hull against a yawed partner does not, and the joint swings the
+partner into the hull. A bare <code>FixedJoint::new(a, b)</code> carries
 <code>JointFrame::IDENTITY</code> and would yank the two hulls into the same origin.</p>
 <p>Nothing writes a velocity anywhere on this path. The constraint is the physics’
 job, so a pair that met while drifting keeps drifting; a hull that had been
@@ -447,29 +456,50 @@ driven only AFTER the joint exists, so the tubes can never be what holds the
 ships together. The track is a plain <code>Translate</code> on <code>dock_tube*</code> nodes: art
 only, with no collider growth, which is why two mated sleeves may overlap
 without the hulls touching.</p>
-<p><strong>A dock is MODAL.</strong> While it holds, a docked hull flies nothing. <code>DockedShip</code>
-on the root is the single gate, and it is read at the FORCE, not at the key, so
-pilot, AI and scripted order are all held by the same line:
-<code>thruster_impulse_system</code> skips the impulse, <code>sync_controller_section_forces</code>
-skips the torque, and the manual balancer and the RCS writer never reach a
-drive. A throttle held through a whole dock is simply inert - and bites the
-moment the dock ends, which is what the <code>system_docking_ports</code> range reads back
-to back.</p>
-<p><code>park_docked_helms_and_release_maneuvers</code> re-parks each docked hull’s attitude
-command on the rotation it actually has, every tick. The attitude loop is off,
-so a command left where it stood at capture would be a stale order the PD snaps
-to the instant the dock ends; parking it live means a released ship inherits
-the direction it is already pointing.</p>
-<p><strong>Ending it.</strong> Four paths, and each removes only the connection it owns:</p>
+<p><strong>One hull drives the pair.</strong> <code>DockingConnection.helm</code> is <code>DockedHelmType</code>:
+<code>Neutral</code> (the dock’s start, and the state after a lost holder) or
+<code>Held(player)</code>, toggled by <code>DockingHelmRequest</code> from the <code>dock_helm</code> binding
+(H). A request to take the helm of a pair with <code>measurement_fault</code> is refused;
+handing it back is not. The driver is the holder while <code>Held</code>, else the
+non-player endpoint, else <code>second_ship</code>. <code>measure_docked_assemblies</code> (<code>DockingSystems::Assembly</code>) writes
+<code>DockedShip.drives</code> on both roots and a <code>DockedAssembly</code> (combined mass,
+world centre of mass, velocity, root-frame inertia, reach) measured every tick.
+An unmeasurable pair logs an error once, drives neither root and sets
+<code>DockingConnection.measurement_fault</code>; the next measured pass clears it, and a
+new connection starts clear.</p>
+<p><code>DockedShip.drives</code> is the single gate, read at the FORCE and at every intent
+writer, so pilot, AI and scripted order are all held by the same line on the
+root that is not driving: <code>thruster_impulse_system</code>, the manual balancer, the
+RCS writer, the autopilot, the scripted orders (paused, never judged) and the
+AI brains all skip it. The HUD mode chip and the blocked dock chips read it
+too, so a pair that is not driven never shows a live maneuver. The mode chip
+reads <code>measurement_fault</code> first and shows <code>HELM FAULT</code>, because <code>drives</code> alone
+cannot tell a fault from a hull off the helm. The HELM chip reads it through
+<code>FlightVerbHints::helm_fault</code>, and no verb is <code>helm_blocked</code> while it is set,
+because HELM cannot take the helm. The interface’s Map GOTO refuses on it before it
+asks for the helm. On the driver, the autopilot, the
+flight authority, the manual balancer and the RCS budget read the assembly,
+never the root alone. An AI driver does not patrol, orbit or fight while
+docked: <code>update_passive_flight</code> holds the pair on a <code>Stop</code> maneuver instead,
+and <code>update_ai_target</code> clears its target, until the undock hands its route
+back where it left off. A driver with no
+<code>DockedAssembly</code> moves nothing: <code>thruster_impulse_system</code> skips it, and the
+autopilot, scripted align, manual balancer and RCS writer each log an error
+once and skip it. Scripted align aims from the assembly’s centre of mass.
+<code>apply_docked_helm_wrench</code> replaces the attitude torque with one wrench split
+over both roots: <code>a = I_asm^-1 tau</code>, each root gets <code>I_own a</code> and the force
+<code>m (a x r)</code> about the assembly centre of mass. RCS applies <code>m_i * dv</code> at each
+root’s own centre of mass, so a translation adds no torque. The undocked path
+is unchanged.</p>
+<p><code>park_suppressed_docked_helms</code> re-parks the attitude command of each root that
+is not driving on the rotation it actually has, every tick, so a hull that
+takes over or is released holds the direction it is already pointing.</p>
+<p><strong>Ending it.</strong> Three paths, and each removes only the connection it owns:</p>
 <ul>
 <li><strong>the verb</strong> (<code>on_docking_release_request</code>): <code>DOCK</code> pressed again, from
 EITHER hull, exactly as <code>ORBIT</code> pressed again disengages. This is the only
 pilot-facing path, and it is ungated - a capability withdrawn while docked
 must never strand a hull clamped to something.</li>
-<li><strong>an engaged maneuver</strong> (<code>park_docked_helms_and_release_maneuvers</code>, in
-<code>DockingSystems::Release</code>, ordered BEFORE the attitude copy and the section
-pass): an autopilot on either hull takes the dock away first, so the maneuver
-is flown by a ship that is already free.</li>
 <li><strong>a destroyed port</strong> (<code>on_docking_port_removed_release</code>), which frees the
 surviving port.</li>
 <li><strong>a broken endpoint</strong> (<code>release_broken_docking_connections</code>), for a ship that
@@ -504,9 +534,14 @@ every cell on its exhaust face. Other collider shapes remain one-cell parts.</li
 <h2 id="building-a-ship"><a class="header" href="#building-a-ship">Building a ship</a></h2>
 <p>A <code>SpaceshipConfig</code> (<code>crates/nova_scenario/src/objects/spaceship.rs</code>) has a
 <code>controller</code> (<code>None</code>, <code>Player</code>, or <code>AI</code>), an <code>allegiance</code>, a <code>capabilities</code> set
-(what this spawn is permitted to do) and a <code>design</code>: a <code>ShipDesignSource</code>, which
-is either an <code>Inline</code> <code>ShipDesign</code> or a <code>Prototype</code> naming a catalog design by
-id with this spawn’s own <code>section_patches</code> over it. The design carries the
+(what this spawn is permitted to do), a required <code>inventory</code> stock, a required
+<code>lootable</code> flag and a required <code>credits</code> balance. Stock must fit the resolved
+hull’s hold at 100 kg per hull section; lint rejects heavier stock and load
+fails if it escapes lint. <code>lootable: true</code> permits Take while docked even when
+the ship was not neutralized; <code>credits</code> funds Buy and Sell against real stock.
+A <code>design</code> is a <code>ShipDesignSource</code>, either an <code>Inline</code> <code>ShipDesign</code> or a
+<code>Prototype</code> naming a catalog design by id with this spawn’s own
+<code>section_patches</code> over it. The design carries the
 <code>integrity</code> (the optional <code>collapse_threshold</code>, below), the <code>presentation</code> (the
 <a href="#the-derived-skin">derived cladding</a>, the style and the cockpit voice) and a
 list of <code>SpaceshipSectionConfig</code>, each placing one section at a <code>position</code> +
@@ -516,7 +551,10 @@ engine world units and sections stack by whole cells of 10 m. It comes with a
 <code>source</code> (<code>Inline</code>, or <code>Prototype</code> with its own <code>SectionConfigPatch</code>). The
 player config carries the input mapping (section id -&gt; key/gamepad bindings)
 and nothing else, and refuses an unknown key rather than dropping it; the AI
-config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.</p>
+config carries <code>patrol</code>/<code>patrol_stops</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.
+<code>patrol_stops</code> names, one per <code>patrol</code> waypoint, the seconds the AI holds
+station there before the next leg; <code>patrol_stops_fault</code> is the shared check
+lint and the spawn both run against a mismatched length or a negative or non-finite stop.</p>
 <p>Spawning: the base scenario bundle gives the root <code>RigidBody::Dynamic</code>; the
 spaceship object adds <code>SpaceshipRootMarker</code>, and an observer
 (<code>insert_spaceship_sections</code>) spawns each section as a direct child. Every
@@ -1190,8 +1228,8 @@ any weapon enters the health store, and it is a plain <code>HealthApplyDamage</c
 trigger - nothing between the weapon and <code>on_damage</code> reinterprets the number.</p>
 <p>A type is a way of TRAVELLING, not a multiplier. That was the point of dropping
 the table: a round visibly crossing three sections is legible from the cockpit,
-a 1.5x is not. <code>SectionClass</code> survives the table as the ship computer’s section
-LABEL (<code>nova_os_ui</code> reads it for codes, glyphs and descriptions); nothing in the
+a 1.5x is not. <code>SectionClass</code> survives the table as the interface’s section
+LABEL (<code>nova_interface</code> reads it for codes, icons and descriptions); nothing in the
 damage path branches on it.</p>
 <p>Turret bullets are given a near-zero physical mass (<code>NEUTRALIZED_BULLET_MASS</code>)
 so the impact path’s mass-times-velocity damage
@@ -1265,8 +1303,8 @@ for two reasons: light plating stays nearly free while a heavy block is
 expensive (the spaced-armour intuition), and softening a section with other
 fire cannot open a cheaper hole through it. A rake’s TOTAL damage therefore
 exceeds what it was fired with, which is intended. <code>PIERCE_BASE_POWER</code> (300 hp
-of thickness) is the budget and <code>MAX_PIERCE_LAYERS</code> (6) the backstop under it,
-because cheap plating alone would not bound the chain.</li>
+of thickness) is the budget, and power is the only bound: cheap plating lets
+one round chain through many layers. A layer that costs no power stops it.</li>
 </ul>
 <p>A target with no <code>Health</code> on the hit collider (an asteroid, a planetoid, a pool
 that lives on an ancestor) has no thickness to price and nothing provably
@@ -1287,18 +1325,30 @@ per contact. A symmetric rule - ram damage - wants both.</p>
 <h2 id="ammo"><a class="header" href="#ammo">Ammo</a></h2>
 <ul>
 <li><code>SectionAmmo</code> (<code>sections/ammo.rs</code>): optional magazine on a weapon section.
-Absent = unlimited fire; <code>ammo_capacity</code> in the turret/torpedo/railgun config
-opts in.
-Unlimited fire is authored on the GUN, never granted ship-wide: a config with
-no <code>ammo_capacity</code> (see <code>SectionConfig::without_magazine</code>) is the authoring
-route, and the armed <code>ammo infinite</code> command is the runtime one.</li>
+Absent = unlimited fire; the turret/torpedo/railgun config’s
+<code>ammunition: AmmoCapacity::Limited(n)</code> opts in (<code>Unlimited</code> is the default).
+Unlimited fire is authored on the GUN, never granted ship-wide: a config
+left <code>Unlimited</code> (see <code>SectionConfig::without_magazine</code>) is the authoring
+route, and the armed <code>ammo infinite</code> command / <code>SetInfiniteAmmo</code> action are
+the runtime ones (they strip <code>SectionAmmo</code> and <code>SectionReload</code>, recording
+them in <code>SuspendedSectionAmmo</code> to restore full on the way back off).</li>
 <li><code>SectionReload</code> (<code>sections/ammo.rs</code>): optional idle batch reload on a
-magazine, from the turret/torpedo/railgun config
-<code>reload: Some((delay, amount))</code>.
-Every successful shot resets progress; every completed quiet delay restores
-one batch until full. Fire runs before <code>tick_section_reload</code> in FixedUpdate so
-a shot wins an exact completion tick. Unlimited weapons never reload. The HUD
-reads <code>progress()</code> and <code>incoming_rounds()</code> to pulse only the next batch.</li>
+magazine, from the turret/torpedo/railgun config’s
+<code>reload: ReloadConfig::Batch(SectionReloadConfig { delay, amount })</code>
+(<code>Disabled</code> is the default). Seeded with the weapon’s ammunition <code>ItemType</code>
+(<code>PdcRound</code> for a turret regardless of mount damage type, <code>RailSlug</code> for a
+railgun, <code>Torpedo</code> for a torpedo bay regardless of bay type). Every
+successful shot resets progress; every completed quiet delay moves
+<code>min(missing, amount, parent ShipInventory's count of that item)</code> from the
+parent ship’s <code>ShipInventory</code> into the magazine - rounds and items change
+together, so the pair is conserved, and with none of the item in stock the
+delay does not advance. A full magazine reads no inventory, so the ship
+editor’s preview sections, full under a view entity, tick safely. A section
+below capacity must have a parent carrying a <code>ShipInventory</code> (every ship root
+requires one) or <code>tick_section_reload</code> panics. Fire runs before <code>tick_section_reload</code> in FixedUpdate so a shot wins
+an exact completion tick. Unlimited weapons never reload. The HUD reads
+<code>progress()</code> and <code>incoming_rounds()</code> to pulse only the next batch, and
+<code>is_reloading()</code> folds the reserve check in so a dry ship shows no reload.</li>
 <li><code>LoadedBullet</code> (<code>sections/turret_section/mod.rs</code>): the turret’s loaded-round slot
 (damage type + amount), seeded from the config. Fired bullets and the HUD ammo
 readout colors read this slot, so swapping ammo types is one component write.</li>

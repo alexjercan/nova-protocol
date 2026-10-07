@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -392,8 +383,9 @@ completed.</p>
 </details>
 <h2 id="onshiporderfailed" tabindex="-1">OnShipOrderFailed</h2>
 <p>Fires when an order can no longer be flown. The hull lost the flight computer
-or the drives the order runs on, or the gravity well an
-<a href="../actions/#orbitship"><code>OrbitShip</code></a> named is gone or will not hold a ring.</p>
+or the drives the order runs on, or no single loaded well answers an
+<a href="../actions/#orbitship"><code>OrbitShip</code></a> target, or the well is lost or will not
+hold a ring before the ring is established.</p>
 <details class="explain">
 <summary>Show explanation</summary>
 <p>This is the event that keeps a <code>Sequence</code> gate from waiting forever on a beat
@@ -440,7 +432,7 @@ ship dies through the section-explosion pipeline. Payload: <code>id</code> and
 <details class="explain">
 <summary>Show explanation</summary>
 <p>Type names are the object-kind constants: <code>&quot;anchor&quot;</code>, <code>&quot;asteroid&quot;</code>,
-<code>&quot;planet&quot;</code>, <code>&quot;spaceship&quot;</code>, <code>&quot;beacon&quot;</code>, <code>&quot;salvage_crate&quot;</code>, <code>&quot;light&quot;</code> - see
+<code>&quot;planet&quot;</code>, <code>&quot;spaceship&quot;</code>, <code>&quot;beacon&quot;</code>, <code>&quot;light&quot;</code> - see
 <a href="../objects/">Scenario objects</a>.</p>
 </details>
 <h2 id="onneutralized" tabindex="-1">OnNeutralized</h2>
@@ -484,11 +476,10 @@ the 0-to-1 transition). Payload: <code>id</code> is the AREA; <code>other_id</co
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>Three things produce trigger areas: the
-<a href="../actions/#createscenarioarea"><code>CreateScenarioArea</code></a> action, a
-<a href="../objects/#beacon"><code>Beacon</code></a> with <code>area_radius</code> set, and every
-<a href="../objects/#salvagecrate"><code>SalvageCrate</code></a> (its <code>area_radius</code> is the pickup
-sensor). All three report under their own id.</p>
+<p>Two things produce trigger areas: the
+<a href="../actions/#createscenarioarea"><code>CreateScenarioArea</code></a> action and a
+<a href="../objects/#beacon"><code>Beacon</code></a> with <code>area_radius</code> set. Both report under their
+own id. Entering an area moves no cargo.</p>
 <p>Or accept any spaceship that enters that area by filtering the other party's
 type:</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
@@ -691,11 +682,10 @@ whatever it flew up to.</p>
 reaching across the gap - the joint is what holds the pair, and the tubes are
 art that follows it.</p>
 <p><code>OnUndocked</code> fires for EVERY ending, and carries no reason code: either pilot
-pressing DOCK again, either hull engaging ORBIT, GOTO or STOP, a
-shot-off docking port, or one of the two ships dying. What a beat owes the pair
+pressing DOCK again, a shot-off docking port, or one of the two ships dying. What a beat owes the pair
 back - the objective, the next order, the clearance to leave - is the same
 whichever way the clamp came off, and a scenario that must tell the endings
-apart has <code>OnDestroyed</code> and the maneuver events to do it with.</p>
+apart has <code>OnDestroyed</code> to do it with.</p>
 <p>Only a pair that dies WHOLE stays quiet, the way <code>OnExit</code> and <code>OnOrbitEnd</code> do
 for a despawned body. One hull dying is a release like any other: the survivor
 is free, and it is told so.</p>
@@ -739,18 +729,5 @@ handler does see the fresh object.</li>
 </ul>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

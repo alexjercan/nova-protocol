@@ -330,6 +330,14 @@
                                 waypoint_slack: Some(50.0),
                                 arrival_standoff: Some(100.0),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SetCamera((
@@ -377,10 +385,14 @@
                             ),
                             kind: Asteroid((
                                 radius: 10.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
@@ -421,11 +433,7 @@
                     )),
                 ],
                 actions: [
-                    NextScenario((
-                        scenario_id: "menu_duel",
-                        linger: false,
-                        delay: Some(1.0),
-                    )),
+                    BackdropDone(()),
                 ],
             ),
             (
@@ -450,11 +458,7 @@
                     )),
                 ],
                 actions: [
-                    NextScenario((
-                        scenario_id: "menu_duel",
-                        linger: false,
-                        delay: Some(1.0),
-                    )),
+                    BackdropDone(()),
                 ],
             ),
         ],

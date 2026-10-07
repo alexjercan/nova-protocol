@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -35,7 +26,7 @@
 </figure>
 <p>A railgun is a <strong>spinal gun</strong>: three cells of rails and capacitor bank with no traverse of its own. It does not aim. The <strong>ship</strong> aims, you commit the shot, and what leaves cuts a corridor through everything standing in that line.</p>
 <p>It is the opposite weapon to a turret in every way that matters. A turret is a mount you assign and forget; a railgun is a shot you set up. It fires once every thirteen seconds or so, the trigger cannot call it back once it is pulled, and it shoves the ship that fired it.</p>
-<!-- Values from crates/nova_authoring/src/base_content/sections/railgun.rs: charge_seconds 1.5, slug_speed 15,000 m/s, slug_damage 300, slug_power 1800, rake_radius 10 m, slug_lifetime 1.2 (18 km of reach), recoil_impulse 45, ammo_capacity 1, reload delay 12. -->
+<!-- Values from crates/nova_authoring/src/base_content/sections/railgun.rs: charge_seconds 1.5, slug_speed 15,000 m/s, slug_damage 300, slug_power 1800, rake_radius 10 m, slug_lifetime 1.2 (18 km of reach), recoil_impulse 45, ammunition Limited(1), reload delay 12 drawing RailSlug from crates/nova_ship/src/sections/ammo.rs. -->
 <table>
 <thead>
 <tr>
@@ -274,21 +265,9 @@
 </tbody>
 </table>
 </div>
+<p>Reach is derived, not authored: 15,000 m/s times the 1.2 s slug lifetime. It is nominal travel, not a guaranteed hit range. Every other column is the configured base prototype; a mod can author its own.</p>
 <p>One railgun ships. It is the one you bolt on yourself in the ship editor; no hull in the base fleet carries it. See <a href="../../../create/sections/#railgun">Ship sections for mods</a> for the numbers a mod can change, the rake radius among them.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

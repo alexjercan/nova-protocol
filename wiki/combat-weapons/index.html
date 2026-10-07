@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -51,6 +42,51 @@
 <li><strong>Torpedoes</strong> home on the lock and burst against the skin. The Serpent weaves through point defense and the Lance runs straight and fast; the <a href="../sections/torpedo-bay/">Torpedo bay</a> page runs both in and puts the warhead through a hull.</li>
 <li><strong>The railgun</strong> is a spinal gun the hull aims: a 1.5 second charge, a slug at 15,000 m/s, and a corridor three cells wide through whatever stands in the line. The <a href="../sections/railgun/">Railgun</a> page has the scope for what one shot takes out.</li>
 </ul>
+<h3 id="how-enemy-ships-use-the-reaches" tabindex="-1">How enemy ships use the reaches</h3>
+<p>Reach is how far a round can travel, not how far anyone fights. Enemy ships fight much closer than their weapons reach. These are the default gates in their pilot; a scenario can give one ship its own detection, engagement, standoff and point-defense figures.</p>
+<!-- AI defaults, engine world units x 10 m (crates/nova_events/src/units.rs:32): AI_SENSOR_RANGE 2,000 u, crates/nova_ship/src/input/targeting/sensing.rs:38, capped per target by signature in class_range :188-193; AI_ENGAGE_RANGE 400 u, crates/nova_ship/src/input/ai/behavior.rs:180, or recently_damaged, next_behavior_state :243; AI_STANDOFF_CLEARANCE 100 u face gap with AI_STANDOFF_BAND 25 u, crates/nova_ship/src/input/ai/maneuver.rs:48,53; AI_FIRE_RANGE_FACTOR 0.9 of muzzle_speed x projectile_lifetime, crates/nova_ship/src/input/ai/guns.rs:67; AI_POINT_DEFENSE_RANGE 150 u, crates/nova_ship/src/input/ai/acquisition.rs:217, also the player battery's default, crates/nova_ship/src/input/point_defense/assignment.rs:199; torpedo floor own arm + target arm + 3 x blast_radius and ceiling AI_TORPEDO_MAX_RANGE 10,000 m centre to centre, alignment cos 0.5, crates/nova_ship/src/input/ai/torpedo.rs:ai_torpedo_envelope; in-flight limit is one torpedo per active bay per ship and target, with one bay claiming each frame (torpedo.rs:update_torpedo_section_input). Per-ship overrides: engage_range, sensor_range, standoff_clearance, pd_range in crates/nova_scenario/src/objects/spaceship.rs:139,157,176,186. -->
+<table>
+<thead>
+<tr>
+<th>Enemy pilot gate</th>
+<th>Default</th>
+<th>What sets it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Detects hostiles</td>
+<td>up to 20 km; a target with a small radar signature only closer</td>
+<td>configured cap</td>
+</tr>
+<tr>
+<td>Leaves idle, patrol or orbit to attack</td>
+<td>inside 4 km, or at any detected range right after it is hit</td>
+<td>configured</td>
+</tr>
+<tr>
+<td>Settles to fight</td>
+<td>about 1 km of clear space between the two hulls</td>
+<td>configured</td>
+</tr>
+<tr>
+<td>Opens fire with its guns</td>
+<td>1.8 km</td>
+<td>derived: 90% of the gun's 2 km nominal reach</td>
+</tr>
+<tr>
+<td>Point defense opens on a torpedo</td>
+<td>1.5 km</td>
+<td>configured; your own flight computer's battery uses the same default</td>
+</tr>
+<tr>
+<td>Launches a torpedo</td>
+<td>from three blast radii of clear space (900 m for the 300 m base warhead) out to 10 km, with its nose within 60 degrees of the target; one bay per frame, up to one torpedo in flight per working bay against that ship</td>
+<td>configured, with the base bay's blast radius and number of working bays</td>
+</tr>
+</tbody>
+</table>
+<p>Against ships, an enemy's turrets fire on every clear shot until each mount reaches the last 20% of its magazine. That share stays ready for point defense, which fires without pause and can spend it all.</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-combat-railgun.png -->
     <div class="figure__placeholder">
@@ -104,8 +140,8 @@ its own tumbling body, carrying the drift and spin the rock had. Everything
 smaller goes out as dust. Cut a rock in half across a firing line and you have
 opened it, not cleared it.</li>
 </ul>
-<p>An <strong>invulnerable</strong> planetoid does none of this. It is scenery, it never wears,
-and its gravity well cannot be shot away.</p>
+<p>A <strong>planet</strong> does none of this. It never wears, and its gravity well cannot be
+shot away.</p>
 <h2 id="damage-types" tabindex="-1">Damage types</h2>
 <p>Every round carries a damage type, and each turret has a loaded-ammo slot that sets its rounds' type. The type is visible on the outside of the fight as well as inside the numbers: the ammo readout is color-coded to it, and the round in flight is modelled and lit to match - a Kinetic slug is a stubby amber tracer, a Pierce round a longer, finer steel-blue dart. Close in you can see the difference in shape; across an engagement the color is what you read. A damage type is <strong>not</strong> a damage multiplier - the same round deals the same number to a hull, a thruster or a turret. What a type changes is how the round <strong>travels</strong> through what it hits, which is something you can watch happen:</p>
 <ul>
@@ -133,8 +169,8 @@ and its gravity well cannot be shot away.</p>
     </div>
 </figure>
 <h2 id="magazines" tabindex="-1">Magazines</h2>
-<p>Every weapon in the game refills. A magazine is a <strong>rate limit</strong>, not a budget: no ship is ever left alive with nothing to fight with. What a weapon imposes instead is a rhythm, and it is the same rule for all of them - a batch lands only after a whole quiet interval, and every shot that lands restarts that interval.</p>
-<p>The level is diegetic, on a gauge riding the weapon itself: a <strong>ring</strong> on each turret that drains as it fires, and a <strong>row of pips</strong> on the torpedo bay, one per loaded torpedo. While a weapon stays quiet the incoming batch pulses above the solid live rounds and brightens toward completion, and the gauge stays visible until it lands. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)</p>
+<p>Every weapon with a magazine refills it on its own. A magazine is a <strong>rate limit</strong>, not a hard stop while you have the ammunition to feed it: what a weapon imposes is a rhythm, and it is the same rule for all of them - a batch lands only after a whole quiet interval, and every shot that lands restarts that interval. Each batch draws matching ammunition from your ship's <a href="../interface/#the-inventory">inventory</a> - PDC rounds, rail slugs, or torpedoes - and moves it into the magazine round for round. With none of that item left in your hold, the delay stops advancing and the magazine stays exactly where it ran dry, until you take on more.</p>
+<p>The level is diegetic, on a gauge riding the weapon itself: a <strong>ring</strong> on each turret that drains as it fires, and a <strong>row of pips</strong> on the torpedo bay, one per loaded torpedo. While a weapon stays quiet and its reserve can supply a batch, the incoming batch pulses above the solid live rounds and brightens toward completion, and the gauge stays visible until it lands. With no reserve left, the gauge shows no reload at all - just the rounds you still have. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)</p>
 <p>The six are the torpedo bay's real weapon. Fired together they are a salvo the defender's guns cannot answer all of, and that is what makes a torpedo fight an attrition fight: a salvo costs the defender rounds whether or not it connects, and those rounds come back at a rate too. Patience wins nothing for either side. Torpedoes get through by arriving faster than the guns can answer, not by outlasting them.</p>
 <p>The <a href="../sections/turret/#trigger-discipline">Turret</a> page has the scope: set a burst and a pause and read what a gun, a bay and a railgun actually hold.</p>
 <h2 id="point-defense" tabindex="-1">Point defense</h2>
@@ -153,21 +189,8 @@ after a short pause, so a tap-clear on the way to your next lock does not make
 the mounts swing away and back.</p>
 <p>Scenarios can take the capability away: a hull whose flight computer does not
 grant point defense answers a salvo only by hand.</p>
-<p>A <strong>neutralized</strong> hull does not defend itself at all - take a ship's last gun or its flight computer and it is out of the fight for good. <a href="../ships/#taking-a-ship-apart">Ships &amp; damage</a> has the rule.</p>
+<p>A <strong>neutralized</strong> hull does not defend itself at all - take an armed ship's last gun or its flight computer, or an unarmed ship's last thruster, and it is out of the fight for good. <a href="../ships/#taking-a-ship-apart">Ships &amp; damage</a> has the rule.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

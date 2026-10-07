@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
+            window.path_to_searchindex_js = "searchindex-83f806a0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -180,7 +180,7 @@ them: <code>SectionKind</code> (<code>crates/nova_ship/src/sections/base_section
 Rust enum, every match on it is exhaustive, and the compiler will not let you
 land a new variant until every site handles it. Adding a kind is a fixed
 sequence of ~10 edits across <code>nova_ship</code>, <code>nova_gameplay</code>, <code>nova_scenario</code>,
-<code>nova_editor</code>, <code>nova_os_ui</code>, and <code>nova_authoring</code>,
+<code>nova_editor</code>, <code>nova_interface</code>, and <code>nova_authoring</code>,
 ending at a runnable example.</p>
 <h2 id="why-it-is-closed"><a class="header" href="#why-it-is-closed">Why it is closed</a></h2>
 <p>Section kinds are first-class engine concepts, not content. Each kind carries
@@ -264,10 +264,10 @@ else to fill in on the damage NUMBER. How much a section takes is its
 <code>health</code>; how far a round gets through it is the travel rule, which reads
 <code>Health.max</code> and never the class. What the section LOOKS like as it is
 damaged is a separate, authored decision - step 8.</p>
-<p>The NOVA OS ship app labels sections by this enum: add an arm to the
-exhaustive matches <code>code_prefix</code>, <code>kind_glyph</code>, <code>kind_description</code> and
-<code>kind_index</code> in <code>crates/nova_os_ui/src/ship/sections.rs</code>, and to
-<code>section_kind_label</code> in <code>crates/nova_os_ui/src/terminal/content.rs</code>.</p>
+<p>The interface’s Ship pane labels sections by this enum: add an arm to the
+exhaustive matches <code>code_prefix</code>, <code>kind_description</code> and <code>kind_index</code> in
+<code>crates/nova_interface/src/ship/sections.rs</code>, and to <code>SectionIconType::of</code>
+in <code>crates/nova_interface/src/icons.rs</code>.</p>
 </li>
 <li>
 <p><strong>Wire the section plugin.</strong>
@@ -398,8 +398,8 @@ runnable proof – so double-check those by hand.</p>
 <li>The enum and base config: <code>SectionKind</code>, <code>BaseSectionConfig</code> -
 <code>crates/nova_ship/src/sections/base_section.rs</code>; model modules
 <code>hull_section.rs</code> (minimal) and <code>turret_section/</code> beside it.</li>
-<li>Class label: <code>SectionClass</code> - <code>crates/nova_gameplay/src/damage.rs</code>; NOVA OS
-label matches - <code>crates/nova_os_ui/src/ship/sections.rs</code>.</li>
+<li>Class label: <code>SectionClass</code> - <code>crates/nova_gameplay/src/damage.rs</code>; the
+interface’s label matches - <code>crates/nova_interface/src/ship/sections.rs</code>.</li>
 <li>Spawn arm: <code>insert_spaceship_sections</code> -
 <code>crates/nova_scenario/src/objects/spaceship.rs</code>.</li>
 <li>Editor arms: <code>default_binds_for</code> - <code>crates/nova_editor/src/placement.rs</code>;

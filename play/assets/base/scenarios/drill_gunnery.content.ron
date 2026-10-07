@@ -50,10 +50,20 @@
                                     ],
                                 },
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             capabilities: (
                                 goto_enabled: false,
                                 orbit_enabled: false,
                             ),
+                            inventory: {
+                                PdcRound: 2000,
+                            },
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -171,10 +181,14 @@
                             ),
                             kind: Asteroid((
                                 radius: 10.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
@@ -235,10 +249,14 @@
                             ),
                             kind: Asteroid((
                                 radius: 15.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
@@ -394,6 +412,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -505,6 +531,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -616,6 +650,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -727,6 +769,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -838,6 +888,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     ObjectiveMarkerAttach((
@@ -900,7 +958,7 @@
                     )),
                     NarrativeCue((
                         speaker: "Training",
-                        text: "That red lock is the weapon lock. Scroll the wheel to step the lock onto one section, such as a drive or a turret.",
+                        text: "That red lock is the weapon lock. Raise your weapons and scroll the wheel to step the lock onto one section, such as a drive or a turret.",
                     )),
                 ],
             ),

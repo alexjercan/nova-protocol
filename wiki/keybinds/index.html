@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -119,9 +110,16 @@
             <td><kbd>D</kbd></td>
             <td>unbound</td>
         </tr>
+        <tr>
+            <td>HELM - take a docked pair's helm, press again to hand it back</td>
+            <td><kbd>H</kbd></td>
+            <td>unbound</td>
+        </tr>
     </tbody>
 </table>
-<p>DOCK needs a docking port on both hulls, so it is offered only on a ship built with one. No shipped ship carries one yet: build a hull with a docking port in the editor, or fly the <code>docking_approach</code> example. A dock is modal - while it holds, your drive and your helm are dead, and <kbd>D</kbd> again is what gives them back. See <a href="../sections/docking/">Docking port</a>.</p>
+<p>DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the <code>docking_approach</code> example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. See <a href="../sections/docking/">Docking port</a>.</p>
+<p>Dock and Helm appear in <strong>Settings &gt; Controls &gt; FLIGHT</strong> with <kbd>D</kbd> and <kbd>H</kbd> as rebindable defaults.</p>
+<p>Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: the line warship's bow beam answers <kbd>V</kbd>, and a beam placed in the editor starts on <kbd>V</kbd> with no gamepad button. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the <a href="../interface/#rebinding-a-section">Ship pane</a>. See <a href="../sections/mining-beam/">Mining beam</a>.</p>
 <p>RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the training range hands it over for one leg of its pattern. See <a href="../flight-autopilot/#rcs-fine-docking-thrusters">Flight &amp; autopilot</a>.</p>
 <h2 id="targeting-and-camera" tabindex="-1">Targeting and camera</h2>
 <table class="controls controls--split">
@@ -208,12 +206,12 @@
         <tr>
             <td>Cycle fine-lock component</td>
             <td>
+                <kbd>[</kbd> <kbd>]</kbd> / weapons raised +
                 <span
                     class="pf pf-mouse-scroll"
                     role="img"
                     aria-label="Scroll wheel"
                 ></span>
-                / <kbd>[</kbd> <kbd>]</kbd>
             </td>
             <td>
                 <span
@@ -227,6 +225,17 @@
                     aria-label="D-Pad right"
                 ></span>
             </td>
+        </tr>
+        <tr>
+            <td>Zoom the chase camera (up = closer)</td>
+            <td>
+                <span
+                    class="pf pf-mouse-scroll"
+                    role="img"
+                    aria-label="Scroll wheel"
+                ></span>
+            </td>
+            <td>-</td>
         </tr>
     </tbody>
 </table>
@@ -280,9 +289,14 @@
                 ></span>
             </td>
         </tr>
+        <tr>
+            <td>Run a mining beam out (hold)</td>
+            <td><kbd>V</kbd> (default)</td>
+            <td>-</td>
+        </tr>
     </tbody>
 </table>
-<p>One weapon, one button. A gun takes its own key the moment it is placed or generated, so a hull you never drew can be flown as it comes: the thrusters answer <kbd>Space</kbd>, the PDC turrets the left mouse button, the tubes <kbd>F</kbd>, a <a href="../sections/railgun/">railgun</a> <kbd>R</kbd>. The railgun key is a tap that commits the charge rather than a burst you hold, and a torpedo only launches while you hold a raised (red) combat lock.</p>
+<p>One weapon, one button. A gun takes its own key the moment it is placed or generated, so a hull you never drew can be flown as it comes: the thrusters answer <kbd>Space</kbd>, the PDC turrets the left mouse button, the tubes <kbd>F</kbd>, a <a href="../sections/railgun/">railgun</a> <kbd>R</kbd>, a <a href="../sections/mining-beam/">mining beam</a> <kbd>V</kbd> with no gamepad button. The railgun key is a tap that commits the charge rather than a burst you hold, and a torpedo only launches while you hold a raised (red) combat lock.</p>
 <p>None of this is fixed: in the editor, click a section to bind it to any key or mouse button, so a ship's controls are whatever its build assigns.</p>
 <h2 id="interface" tabindex="-1">Interface</h2>
 <table class="controls controls--split">
@@ -307,8 +321,8 @@
         </tr>
         <tr>
             <td>
-                <a href="../nova-os/">NOVA OS</a> ship-computer terminal
-                (commands; pauses, frees the cursor)
+                <a href="../interface/">Interface</a> (Map, Ship and Inventory panes;
+                pauses, frees the cursor; <kbd>Esc</kbd> also closes it)
             </td>
             <td><kbd>Tab</kbd></td>
             <td>
@@ -320,9 +334,21 @@
             </td>
         </tr>
         <tr>
+            <td>Switch interface pane (Map / Ship / Inventory)</td>
+            <td><kbd>M</kbd></td>
+            <td>
+                <span
+                    class="pf pf-face-north"
+                    role="img"
+                    aria-label="North face button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
             <td>
                 <a href="../commands/">Command shell</a> (inspect, settings,
-                armed cheats; works with no ship, and over the menus)
+                the flight log, armed cheats; works with no ship, and over the
+                menus and the interface)
             </td>
             <td><kbd>:</kbd></td>
             <td>-</td>
@@ -567,18 +593,5 @@ is. The status bar names the seed and the part count it built.</p>
 <p>Button glyphs from <a href="https://shinmera.com/promptfont/">PromptFont</a> by Yukari &quot;Shinmera&quot; Hafner (SIL Open Font License).</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

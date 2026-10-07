@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
+            window.path_to_searchindex_js = "searchindex-83f806a0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -455,11 +455,11 @@ Each fires the action into a <code>NovaEventWorld</code>, drains with
 <code>NovaEventWorld::state_to_world_system</code>, then asserts.</p>
 <h2 id="recipe-4-add-a-scenario-object-kind"><a class="header" href="#recipe-4-add-a-scenario-object-kind">Recipe 4: add a scenario object kind</a></h2>
 <p>A scenario object is a scoped entity spawned by <code>SpawnScenarioObject</code>; the
-kind decides its own body (or none - four of the six shipped kinds are
-static). Model it on <code>crates/nova_scenario/src/objects/beacon.rs</code> or
-<code>salvage.rs</code>. Do NOT model it on the asteroid: it is the least representative
-kind in the directory, split across three modules with two plugins, carrying no
-<code>Health</code> and outside the integrity graph entirely.</p>
+kind decides its own body (or none - three of the six shipped kinds are
+static). Model it on <code>crates/nova_scenario/src/objects/beacon.rs</code>. Do NOT model
+it on the asteroid: it is the least representative kind in the directory, split
+across three modules with two plugins, carrying no <code>Health</code> and outside the
+integrity graph entirely.</p>
 <blockquote>
 <p>A kind is not required to be a physical body. <code>beacon.rs</code> declares
 <code>RigidBody::Static</code> (the base bundle supplies no body), and <code>light.rs</code> is a
@@ -473,7 +473,7 @@ renders black, so any new example or fixture that renders needs one.</p>
 <p>Add the type-name const to <code>crates/nova_events/src/lib.rs</code>, beside
 <code>EntityTypeName</code> and the other <code>*_TYPE_NAME</code> values, and export it from that
 crate’s prelude. It goes there, not beside the object, because a reader that
-matches on it - <code>nova_os_ui</code>’s map, <code>nova_gameplay</code> - must not depend on
+matches on it - <code>nova_interface</code>’s map, <code>nova_gameplay</code> - must not depend on
 <code>nova_scenario</code> to name a kind (CONVENTIONS, Nova 5).</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -489,14 +489,17 @@ The bundle carries the marker plus an <code>EntityTypeName</code>; the shared
 <code>base_scenario_object</code> (id, name, transform, visibility,
 <code>ScenarioScopedMarker</code>) is added by the spawn path, not here. It
 deliberately carries NO body - each kind declares its own <code>RigidBody</code> (the
-asteroid adds <code>Dynamic</code> + <code>TransformInterpolation</code>; four of the six kinds
+asteroid adds <code>Dynamic</code> + <code>TransformInterpolation</code>; three of the six kinds
 are static).</p>
 <p>Every distance, speed or acceleration the config carries is <code>Meters</code>,
-<code>MetersPerSecond</code> or <code>MetersPerSecondSquared</code> (<code>nova_events::units</code>), never a
-bare <code>f32</code>: the TYPE is what says what the number means, it is what the
-editor stamps a row’s unit from, and <code>to_engine()</code> at the spawn site is the
-one place it becomes a Bevy or avian number. A vector position is <code>Meters3</code>.
-The exception, and the only one, is a value the engine owns outright - a
+<code>MetersPerSecond</code>, <code>MetersPerSecondSquared</code>, or <code>MetersPerSecond3</code>
+(<code>nova_events::units</code>), never a bare <code>f32</code>: the TYPE is what says what the
+number means, it is what the editor stamps a row’s unit from, and
+<code>to_engine()</code> at the spawn site is the one place it becomes a Bevy or avian
+number. Vector positions are <code>Meters3</code>; vector velocities are
+<code>MetersPerSecond3</code>. Mobile asteroids and all ship roots are gravity-affected;
+planets are static gravity wells with required mass. The exception, and the
+only one, is a value the engine owns outright - a
 build-grid cell, a collider extent. See
 <a href="architecture.html#units-and-scale">Units and scale</a>.</p>
 <p>An authored field NAMES its value. A config that carries a <code>String</code> id has
@@ -505,11 +508,12 @@ an error at the earliest point that can see it - a <code>content lint</code> err
 first, a loud refusal on the load path second. It is never resolved to a
 house answer. An <code>Option</code> is right only where absence is a documented
 OVERRIDE with runtime-derived behavior behind it, and the field’s own doc
-comment says what the absence MEANS: <code>AsteroidConfig::mass</code> (absent = the
-global rule about which radii are wells) and <code>lock_signature</code> (absent = the
-radius) are the shipped precedent. <code>AsteroidConfig::kind</code> is the
-counter-example: it is a plain required <code>String</code>, because “how is this rock
-shaded” has no runtime answer to fall back on.</p>
+comment says what the absence MEANS. <code>lock_signature</code> (absent = the radius)
+is one shipped precedent. <code>PlanetConfig::mass</code> is required because every
+planet is a static gravity well. There is no <code>AsteroidConfig::mass</code> field:
+mobile asteroids and ship roots respond to gravity rather than authoring
+wells. <code>AsteroidConfig::kind</code> is a plain required <code>AsteroidKindId</code>, because
+shading has no runtime answer to fall back on.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[derive(Component, Clone, Debug, Reflect)]
@@ -552,7 +556,6 @@ and if the kind has a plugin add it in <code>ScenarioObjectsPlugin::build</code>
     Asteroid(AsteroidConfig),
     Spaceship(SpaceshipConfig),
     Beacon(BeaconConfig),
-    SalvageCrate(SalvageCrateConfig),
     Light(LightConfig),
     Mine(MineConfig),
 }

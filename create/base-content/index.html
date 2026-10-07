@@ -3,21 +3,12 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Base content catalog</p><h1>Base content catalog</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#section-prototypes">Section prototypes</a><ol><li><a href="#core-sections-the-editor-palette">Core sections (the editor palette)</a></li><li><a href="#cladding-not-a-prototype">Cladding (not a prototype)</a></li><li><a href="#skin-styles">Skin styles</a></li><li><a href="#modelled-ship-parts-not-base-content">Modelled ship parts (not base content)</a></li></ol></li><li><a href="#scenario-ids">Scenario ids</a><ol></ol></li><li><a href="#ui-theme-ids">UI theme ids</a><ol></ol></li><li><a href="#assets-what-depbase-can-reach">Assets: what dep://base/ can reach</a><ol><li><a href="#meshes-41-glb">Meshes (41 glb)</a></li><li><a href="#greebles-54-glb">Greebles (54 glb)</a></li><li><a href="#sounds-31-wav">Sounds (31 wav)</a></li><li><a href="#images-7">Images (7)</a></li></ol></li><li><a href="#the-overlay-rule">The overlay rule</a><ol></ol></li><li><a href="#see-the-source">See the source</a><ol></ol></li></ol></nav><p>Every id and asset the base game ships, so your mod can reference them
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Base content catalog</p><h1>Base content catalog</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#section-prototypes">Section prototypes</a><ol><li><a href="#core-sections-the-editor-palette">Core sections (the editor palette)</a></li><li><a href="#cladding-not-a-prototype">Cladding (not a prototype)</a></li><li><a href="#skin-styles">Skin styles</a></li><li><a href="#modelled-ship-parts-not-base-content">Modelled ship parts (not base content)</a></li></ol></li><li><a href="#scenario-ids">Scenario ids</a><ol></ol></li><li><a href="#ui-theme-ids">UI theme ids</a><ol></ol></li><li><a href="#assets-what-depbase-can-reach">Assets: what dep://base/ can reach</a><ol><li><a href="#meshes-25-glb">Meshes (25 glb)</a></li><li><a href="#greebles-54-glb">Greebles (54 glb)</a></li><li><a href="#sounds-31-wav">Sounds (31 wav)</a></li><li><a href="#images-7">Images (7)</a></li></ol></li><li><a href="#the-overlay-rule">The overlay rule</a><ol></ol></li><li><a href="#see-the-source">See the source</a><ol></ol></li></ol></nav><p>Every id and asset the base game ships, so your mod can reference them
 instead of guessing. Six registries matter to a mod author: <strong>section
 prototype ids</strong> (what <code>source: Prototype(id: &quot;&lt;id&gt;&quot;)</code> can name), <strong>ship ids</strong>
 (what <code>design: Prototype(id: &quot;&lt;id&gt;&quot;)</code> can name - tabled in
@@ -170,14 +161,28 @@ part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</cod
 <td>Docking</td>
 <td>Docking Port Section</td>
 <td>90</td>
-<td>the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. No base ship carries one; build a hull with one in the editor</td>
+<td>the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. The workship, both frame tenders and the line warship carry one</td>
+</tr>
+<tr>
+<td><code>cargo_intake_section</code></td>
+<td>Cargo intake</td>
+<td>Cargo Intake Section</td>
+<td>90</td>
+<td>a 3x2x1 hold mouth behind an accordion door on its -Z face: the door opens for a canister within 40 m, and the intake takes one whole, at any speed, once it touches the 1 m deep trigger in front of the 22.2 x 15.3 m opening, if the hold has room. One jettison may queue several canisters; each drops out at 3 m/s. The line warship carries one on its top deck</td>
+</tr>
+<tr>
+<td><code>mining_beam_section</code></td>
+<td>Mining</td>
+<td>Mining Beam Section</td>
+<td>90</td>
+<td>a 1x1x1 emitter behind sliding doors on its -Z face: while its own <code>input_mapping</code> key is held the doors part, the tip runs out, and once a second the beam cuts a 1.5-cell sphere from the locked rock where it hits within 100 m. The line warship carries one at its bow, bound to <code>V</code></td>
 </tr>
 </tbody>
 </table>
 <p>Every shipped prototype authors its <a href="../sections/#damage-effects">damage
 effects</a> by kind, and the whole catalog follows one
 rule: Hull wears <code>([Cracks])</code> (the default, so it is omitted), Controller,
-Turret, Torpedo and Railgun wear <code>([Cracks, Sparks])</code>, and Thruster wears
+Turret, Torpedo, Railgun, Docking, Cargo intake and Mining wear <code>([Cracks, Sparks])</code>, and Thruster wears
 <code>([Cracks, Sparks, Plume])</code>.
 No shipped mod authors the field at all, so base is the worked example.</p>
 <h3 id="cladding-not-a-prototype" tabindex="-1">Cladding (not a prototype)</h3>
@@ -223,6 +228,10 @@ have an id.</p>
 <a href="../ships/#the-hull">hull</a>. A mod declaring
 a <code>Style</code> with the same id replaces that look everywhere; a new id is a new look.
 See <a href="../styles/">Ship skin styles</a>.</p>
+<p>Open-world ships wear one of these by role, intact or wrecked: civilian
+<code>civilian</code>, industrial <code>industrial</code>, scavenger <code>salvage</code>, armored <code>armoured</code>.
+Overlay the id to restyle them. The open world does not start if one of these
+ids is missing.</p>
 <h3 id="modelled-ship-parts-not-base-content" tabindex="-1">Modelled ship parts (not base content)</h3>
 <p>Base ships NO parts cut for one craft. Every base hull is built out of the
 generic prototypes above, on the build grid, and clad by the derived skin.</p>
@@ -252,10 +261,16 @@ still launchable by id.</p>
 </thead>
 <tbody>
 <tr>
+<td><code>open_world</code></td>
+<td>Open World</td>
+<td>no</td>
+<td>the New Game start (<code>role: OpenWorld</code>): the line warship at the origin of the world generated from the seed the player picks</td>
+</tr>
+<tr>
 <td><code>tutorial</code></td>
 <td>Basic Training</td>
 <td>yes</td>
-<td>the New Game opening: the Fleet gunnery range, a qualification card read over the radio</td>
+<td>the first-flight course: the Fleet gunnery range, a qualification card read over the radio</td>
 </tr>
 <tr>
 <td><code>season_one_chapter_one</code></td>
@@ -267,25 +282,25 @@ still launchable by id.</p>
 <td><code>menu_waystation</code></td>
 <td>Waystation Traffic</td>
 <td>no</td>
-<td>menu backdrop: hauler convoy (carousel: hands off to the gauntlet)</td>
+<td>menu backdrop: hauler convoy; done after a 150 s rotation limit</td>
 </tr>
 <tr>
 <td><code>menu_gauntlet</code></td>
 <td>Torpedo Gauntlet</td>
 <td>no</td>
-<td>menu backdrop: a doomed point-defense stand (hands off to the weave)</td>
+<td>menu backdrop: a doomed point-defense stand; done when the stand falls</td>
 </tr>
 <tr>
 <td><code>menu_weave</code></td>
 <td>Asteroid Weave</td>
 <td>no</td>
-<td>menu backdrop: waypoint run through a dense rock band (hands off to the duel)</td>
+<td>menu backdrop: waypoint run through a dense rock band; done after a 150 s rotation limit</td>
 </tr>
 <tr>
 <td><code>menu_duel</code></td>
 <td>Duel Cycle</td>
 <td>no</td>
-<td>menu backdrop: a duel ended by a siege torpedo (hands off to the waystation)</td>
+<td>menu backdrop: a duel ended by a siege torpedo; done when the victor is erased</td>
 </tr>
 <tr>
 <td><code>drill_momentum</code></td>
@@ -345,7 +360,7 @@ not content, and neither is impact audio, a comms channel or the table a
 generated hull is drawn from - all three are engine-owned. The base ship ids
 are tabled in <a href="../ships/#base-ships">Ships</a>, the style ids
 <a href="#skin-styles">above</a>, the theme ids <a href="#ui-theme-ids">below</a>.</p>
-<p>New Game is base-owned: <code>new_game_scenario: Some(&quot;tutorial&quot;)</code> in
+<p>New Game is base-owned: <code>new_game_scenario: Some(&quot;open_world&quot;)</code> in
 <code>assets/base/base.bundle.ron</code> is honored only from the base bundle; a mod
 declaring it is warned and ignored.</p>
 <h2 id="ui-theme-ids" tabindex="-1">UI theme ids</h2>
@@ -387,7 +402,7 @@ ref for the one you pick (with the <code>#Scene0</code> label where a mesh needs
 marks a <code>dep://</code> path no bundle ships - so you never type one of these paths
 from memory.</p>
 <p>The declared list, complete:</p>
-<h3 id="meshes-41-glb" tabindex="-1">Meshes (41 glb)</h3>
+<h3 id="meshes-25-glb" tabindex="-1">Meshes (25 glb)</h3>
 <p>Named meshes (all use label <code>#Scene0</code>). First the thruster bells:</p>
 <ul>
 <li><code>gltf/shell_bell.glb</code>, <code>gltf/shell_vector.glb</code>, <code>gltf/shell_capital.glb</code> -
@@ -411,6 +426,12 @@ with its animatable <code>stow_lid_*</code> nodes</li>
 <code>charge_bolt</code> node</li>
 <li><code>gltf/dock_flush.glb</code> - the docking port, with its animatable <code>dock_tube</code>
 sleeve</li>
+<li><code>gltf/intake_accordion_3x2x1.glb</code> - the cargo intake, with its animatable
+<code>intake_slat_*</code> door nodes</li>
+<li><code>gltf/cargo_canister_cuboid.glb</code> - the cargo canister an intake drops and a
+mined rock sheds</li>
+<li><code>gltf/mining_beam_compact.glb</code> - the mining beam, with its animatable
+<code>stow_lid_*</code> doors and <code>beam_tip</code></li>
 </ul>
 <p>The retired first-pass art stays in the bundle so old refs resolve, but no
 base section renders it: <code>gltf/hull-01.glb</code>, <code>gltf/turret-yaw-01.glb</code>,
@@ -505,18 +526,5 @@ truth and this page has a bug - the <code>content_ron_parity</code> test pins th
 the builders.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

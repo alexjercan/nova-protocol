@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
+            window.path_to_searchindex_js = "searchindex-83f806a0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -360,7 +360,7 @@ names its own root on <code>SettingsStorePlugin</code> instead.</p>
 <tr><th>Variable</th><th>Gates</th><th>Owner</th><th>For</th></tr>
 </thead>
 <tbody>
-<tr><td><code>NOVA_MENU_BACKDROP</code></td><td>pins the menu backdrop to one <code>role: Backdrop</code> scenario id instead of re-rolling the draw; an unknown id warns and falls back</td><td><code>nova_menu</code></td><td>harness</td></tr>
+<tr><td><code>NOVA_MENU_BACKDROP</code></td><td>pins the first backdrop of each menu entry to one <code>role: Backdrop</code> scenario id; the rotation continues from there; an unknown id warns and falls back to the draw</td><td><code>nova_menu</code></td><td>harness</td></tr>
 </tbody>
 </table>
 </div>
@@ -400,8 +400,8 @@ nothing the producer records.</p>
 </li>
 <li>
 <p><strong><code>NOVA_OS_*</code>.</strong> Around 180 of these exist and NONE is an environment
-variable: they are <code>const Color</code>, layout and volume values in <code>nova_os_ui</code>,
-<code>nova_os</code> and <code>nova_gameplay::audio</code>. A grep for <code>NOVA_[A-Z_]*</code> is dominated
+variable: they are <code>const Color</code>, layout and volume values in <code>nova_interface</code>,
+<code>nova_command</code> and <code>nova_gameplay::audio</code>. A grep for <code>NOVA_[A-Z_]*</code> is dominated
 by them, so count <code>env::var</code> call sites instead of identifiers.</p>
 </li>
 <li>

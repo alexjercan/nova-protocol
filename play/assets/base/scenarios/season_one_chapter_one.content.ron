@@ -43,7 +43,15 @@
                                 },
                             ),
                             controller: Player(()),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Player),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -74,7 +82,15 @@
                                 },
                             ),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Neutral),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -98,7 +114,15 @@
                                 id: "block_wreck_plate",
                             ),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Neutral),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -122,7 +146,15 @@
                                 id: "block_wreck_plate",
                             ),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Neutral),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -146,7 +178,15 @@
                                 id: "block_wreck_plate",
                             ),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Neutral),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -169,8 +209,7 @@
                             radius: 1350.0,
                             planet_type: IceWorld,
                             seed: 20780101,
-                            mass: Some(4000.0),
-                            invulnerable: true,
+                            mass: 4000.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -193,8 +232,7 @@
                             radius: 1900.0,
                             planet_type: BarrenRock,
                             seed: 20780102,
-                            mass: Some(4000.0),
-                            invulnerable: true,
+                            mass: 4000.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -217,8 +255,7 @@
                             radius: 2600.0,
                             planet_type: Greenhouse,
                             seed: 20780103,
-                            mass: Some(4000.0),
-                            invulnerable: true,
+                            mass: 4000.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -336,10 +373,14 @@
                             ),
                             kind: Asteroid((
                                 radius: 6.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "ice",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
@@ -396,10 +437,14 @@
                             ),
                             kind: Asteroid((
                                 radius: 8.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "ice",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((

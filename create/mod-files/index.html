@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -186,6 +177,15 @@ in one <code>MODS DISABLED</code> notice on the main menu. The files stay instal
 the Mods screen is where the player updates, removes or re-enables it. So a mod
 you ship broken costs that mod, not the player's game - but nothing tells them
 more than the loader's own first line, which is what <code>content lint</code> is for.</p>
+<p>The load also runs the section checks <code>content lint</code> runs, on every section a
+mod carries, used or not. One failing section switches off the WHOLE mod, and
+the notice names the section and the first fault. Every enabled mod that
+depends on it is switched off with it, because its ships name sections that are
+no longer there. A mod that overrides a base section with a broken one is
+switched off, and the base section stays.</p>
+<p>During a scenario, a mod that fails to load, fails these checks, or depends on
+a mod that was switched off (after an update or a download, for example) is not
+switched off: the game stops with an error that names the mod.</p>
 <p>The full packaging, catalog, local installation, and publishing flow is in
 <a href="../publish-a-mod/">Publish a mod</a>.</p>
 <h2 id="balance-acknowledgments" tabindex="-1">Balance acknowledgments</h2>
@@ -337,18 +337,5 @@ lessons, and UI themes, the key is <code>id</code>. Prefix new ids with your mod
 avoid accidental collisions.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

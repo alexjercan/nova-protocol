@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -21,11 +12,10 @@
 <h2 id="what-a-scenario-places" tabindex="-1">What a scenario places</h2>
 <p>A scenario spawns a handful of object kinds:</p>
 <ul>
-<li><strong>Asteroids</strong> - rocks with a radar signature and an optional <a href="../gravity-wells/">gravity well</a>. A normal rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see <a href="../combat-weapons/#shooting-rock">Shooting rock</a>). An invulnerable rock never wears at all.</li>
-<li><strong>Planets</strong> - whole worlds, and the thing to place when you want a body rather than a big rock. A type and a seed draw the terrain, the biomes and the polar cap; the radius is the real size, not a designation the mesh reaches past. A planet is always invulnerable - nothing carves one - and carries a <a href="../gravity-wells/">gravity well</a> like any other body.</li>
+<li><strong>Asteroids</strong> - mobile rocks with a radar signature. They feel <a href="../gravity-wells/">gravity</a> but never source a well. A rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see <a href="../combat-weapons/#shooting-rock">Shooting rock</a>). Every rock can be shot apart.</li>
+<li><strong>Planets</strong> - whole worlds, and the thing to place when you want a body rather than a big rock. A type and a seed draw the terrain, the biomes and the polar cap; the radius is the real size, not a designation the mesh reaches past. Nothing can destroy a planet - nothing carves one - and it carries a <a href="../gravity-wells/">gravity well</a> like any other body.</li>
 <li><strong>Spaceships</strong> - multi-section <a href="../sections/">builds</a> under a player or AI controller, each spawn holding what the ship is permitted to do.</li>
 <li><strong>Nav beacons</strong> - lockable waypoints visible to radar within 12 km by default, with authorable signatures for longer legs and optional trigger areas.</li>
-<li><strong>Salvage crates</strong> - small pickups collected by flying through them.</li>
 <li><strong>Lights</strong> - the scene's own key/rim/fill lighting; a scenario that spawns
 none renders black.</li>
 </ul>
@@ -37,8 +27,9 @@ created by an action rather than spawned as objects.</p>
 <p>The full construct catalog - every event, filter and action by name, with its fields - is the authoring contract and lives in the <a href="../../create/scenarios/">Create docs</a>.</p>
 <h2 id="the-shipped-scenarios" tabindex="-1">The shipped scenarios</h2>
 <ul>
-<li><strong>Basic Training</strong> - the New Game opening: the Fleet gunnery range, where Range Control talks a cadet through a qualification card in an armed trainer, one gesture per beat (burn, STOP, the thrusters, a combat lock, the gun), then five target hulks and two range drones that go live and shoot back. No story; the reward is a posting.</li>
-<li><strong>Menu backdrops</strong> - the living scenes behind the menus, a rotating CAROUSEL: each scene plays its act and hands off to the next. <strong>Torpedo Gauntlet</strong> (a gunship's six PDC mounts swat torpedoes streaming in from both flanks until its hard magazines run dry and the stand falls), <strong>Asteroid Weave</strong> (a cutter threading a dense rock band on real patrol waypoints, hugging its nav beacons), <strong>Duel Cycle</strong> (a gunship and a raider dogfight through the open center; a siege torpedo erases the winner), and <strong>Waystation Traffic</strong> (a hauler convoy circling a freight stop under amber dock lights). Menu entry starts the ring at a random scene. All of it is the real simulation, not a cutscene. Mods can ship their own by declaring a scenario <code>role: Backdrop</code>.</li>
+<li><strong>Open World</strong> - what New Game starts: a line warship (six PDC mounts on the trigger, a railgun on <kbd>R</kbd>, two torpedo bays on <kbd>F</kbd>) in a world generated from the seed you pick. The world's ships are generated from the civilizations that reach each place, each one siding Enemy, Player or Neutral: an intact ship flies an AI crew on that side, patrolling a loop near where it spawned, and a derelict wreck is still nobody's - its hull and docking ports are all that still work. Every one starts with role-specific goods and a credit balance scaled by its civilization's advancement; a wreck's is roughly half the goods and a fraction of the credits of an intact ship at the same standing, and it may hold no hull plates at all. Dock with a derelict, or a ship you neutralized, and Take its goods, or Take credits for its whole balance, in the <a href="../interface/#take-and-give">Inventory pane</a> - a calm ally or Neutral ship trades instead, and one that is Hostile, Enemy, or fighting refuses the dock. A ship that would appear where you stand waits until you move clear. Its asteroids can be carved and destroyed; its planetoids are planets and cannot be. Destruction and looting are not saved yet: fly far enough away that a sector unloads, and a destroyed asteroid or ship there is back, whole, when you return, and a wreck you emptied has its stock and credits again. There are no objectives yet. It is not listed in the Scenarios tab.</li>
+<li><strong>Basic Training</strong> - the first-flight course: the Fleet gunnery range, where Range Control talks a cadet through a qualification card in an armed trainer, one gesture per beat (burn, STOP, the thrusters, a combat lock, the gun), then five target hulks and two range drones that go live and shoot back. No story; the reward is a posting.</li>
+<li><strong>Menu backdrops</strong> - the living scenes behind the menus, in a shuffled rotation: each scene plays its act, then the menu cuts to another, and every scene plays once before any plays again. <strong>Torpedo Gauntlet</strong> (a gunship's six PDC mounts swat torpedoes streaming in from both flanks until its hard magazines run dry and the stand falls), <strong>Asteroid Weave</strong> (a cutter threading a dense rock band on real patrol waypoints, hugging its nav beacons), <strong>Duel Cycle</strong> (a gunship and a raider dogfight through the open center; a siege torpedo erases the winner), and <strong>Waystation Traffic</strong> (a hauler convoy circling a freight stop under amber dock lights). All of it is the real simulation, not a cutscene. Mods can ship their own by declaring a scenario <code>role: Backdrop</code>.</li>
 </ul>
 <p>The public <a href="../../story/">Story</a> archive presents campaigns as digital comics with page controls and a contents display.</p>
 <h2 id="browsing-and-replaying-scenarios" tabindex="-1">Browsing and replaying scenarios</h2>
@@ -72,18 +63,5 @@ chapter under it, and Basic Training on its own.</p>
 <p>You can author your own scenarios and mods in RON - see the <a href="../../create/">Create docs</a>.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

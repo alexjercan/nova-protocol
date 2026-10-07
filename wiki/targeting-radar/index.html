@@ -3,17 +3,8 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
@@ -67,7 +58,7 @@
 <li>Weapons <strong>raised</strong> (combat stance) writes the <strong>combat lock</strong> (red reticle), which feeds guns, torpedoes and fine-lock. Your weapons are hot while raised or while a combat lock exists.</li>
 </ul>
 <h2 id="per-section-fine-lock" tabindex="-1">Per-section fine-lock</h2>
-<p>Hold a combat lock focused for about a second and a half and you can drill into a specific <a href="../sections/">section</a> of the enemy hull. The fine-lock either <strong>snaps</strong> to whatever your crosshair is on (with hysteresis so it does not flicker) or is <strong>pinned</strong> by manually cycling sections nose-to-tail with the brackets, scroll wheel or D-Pad; a manual pin holds for a couple of seconds. Turrets and the viewfinder both follow the fine-locked section.</p>
+<p>Hold a combat lock focused for about a second and a half and you can drill into a specific <a href="../sections/">section</a> of the enemy hull. The fine-lock either <strong>snaps</strong> to whatever your crosshair is on (with hysteresis so it does not flicker) or is <strong>pinned</strong> by manually cycling sections nose-to-tail with the brackets (<kbd>]</kbd> next, <kbd>[</kbd> previous) or D-Pad Right and Left, in any stance, or with the scroll wheel while weapons are raised; a manual pin holds for a couple of seconds. Turrets and the viewfinder both follow the fine-locked section.</p>
 <h2 id="clearing-locks" tabindex="-1">Clearing locks</h2>
 <p>Tap <kbd>Ctrl</kbd> (a press under the hold threshold) to clear in stages: with weapons lowered it drops the combat lock first, then the travel lock (which also disengages GOTO); with weapons raised it only ever drops the combat lock. Locks also fall on their own when the target dies, leaves range, turns non-hostile, or goes behind cover.</p>
 <p>A lock does <strong>not</strong> time out. Nothing else takes it: hold one through a long quiet approach, put your weapons away, go and do something else, and it is still on the mark when you come back. Only the world above or your own tap ends it.</p>
@@ -88,18 +79,5 @@
 <p>An existing lock holds a little past its acquisition gate (hysteresis) so it does not chatter at the edge, and it remembers the range it was TAKEN at: a cruiser you locked while it was whole does not slip out of the reticle because you have since shot half of it away. Taking a fresh lock on the same wreck, though, means closing to what it returns now.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>

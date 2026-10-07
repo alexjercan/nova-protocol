@@ -38,6 +38,9 @@
         "scenarios/drill_stop.content.ron",
         "scenarios/drill_autopilot.content.ron",
         "scenarios/drill_gunnery.content.ron",
+        // The open world's bootstrap, and New Game's start below. Not a
+        // chapter: it is `role: OpenWorld`, so the picker renders no row.
+        "scenarios/open_world.content.ron",
         // The training handbook itself: one item per lesson.
         "training/base.content.ron",
         // The campaigns, last: a campaign is a list of scenario ids, so it
@@ -80,6 +83,9 @@
         "gltf/bay_tube.glb",
         "gltf/railgun_lance.glb",
         "gltf/dock_flush.glb",
+        "gltf/intake_accordion_3x2x1.glb",
+        "gltf/cargo_canister_cuboid.glb",
+        "gltf/mining_beam_compact.glb",
         // Decoration fixtures for the derived skin, generated from the recipes
         // in `scripts/greeble-recipes/` by `scripts/gen-greebles.py`. Declared
         // here so a style can name one with `self://gltf/greebles/<id>.glb` and
@@ -180,6 +186,7 @@
         "training/start_markers.webp",
         "training/start_cinematic.webp",
         "training/start_pause.webp",
+        "training/start_generated_ships.webp",
         "training/flight_aim.webp",
         "training/flight_momentum.webp",
         "training/flight_stop.webp",
@@ -190,6 +197,8 @@
         "training/flight_arrival.webp",
         "training/flight_orbit.webp",
         "training/flight_dock.webp",
+        "training/flight_mine.webp",
+        "training/flight_cargo_pickup.webp",
         "training/combat_radar.webp",
         "training/combat_lock_ranges.webp",
         "training/combat_allegiance.webp",
@@ -219,14 +228,15 @@
         "training/build_dock_envelope.webp",
         "training/build_skin.webp",
         "training/build_generate.webp",
-        "training/novaos_open.webp",
-        "training/novaos_terminal.webp",
-        "training/novaos_view.webp",
-        "training/novaos_commands.webp",
-        "training/novaos_contacts.webp",
-        "training/novaos_service.webp",
-        "training/novaos_rebind_section.webp",
-        "training/novaos_shell.webp",
+        "training/interface_open.webp",
+        "training/interface_map.webp",
+        "training/interface_ship_service.webp",
+        "training/interface_wreck_take.webp",
+        "training/interface_rebind_section.webp",
+        "training/interface_cargo_transfer.webp",
+        "training/interface_jettison.webp",
+        "training/command_open.webp",
+        "training/command_prompt.webp",
         "training/advanced_scenarios.webp",
         "training/advanced_mods.webp",
         "training/advanced_ai_flight.webp",
@@ -249,6 +259,7 @@
         // nothing references yet is a file the bundle ships, not an error.
         "sounds/ammo_dry.wav",
         "sounds/bay_door.wav",
+        "sounds/cargo_eject.wav",
         "sounds/destroy_rock.wav",
         "sounds/destroy_ship.wav",
         "sounds/dry_fire.wav",
@@ -259,6 +270,9 @@
         "sounds/impact_rock.wav",
         "sounds/lock_off.wav",
         "sounds/lock_on.wav",
+        "sounds/mining_door_close.wav",
+        "sounds/mining_door_open.wav",
+        "sounds/mining_pulse.wav",
         "sounds/pdc_stow_close.wav",
         "sounds/pdc_stow_open.wav",
         "sounds/pdc_twin_fire.wav",
@@ -286,5 +300,5 @@
     ),
     // The New Game start. Honored ONLY from the base bundle; the merge warns
     // and ignores it on any other bundle (mods cannot redirect New Game).
-    new_game_scenario: Some("tutorial"),
+    new_game_scenario: Some("open_world"),
 )

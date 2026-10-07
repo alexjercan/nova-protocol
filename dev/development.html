@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
+            window.path_to_searchindex_js = "searchindex-83f806a0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -196,7 +196,7 @@ cargo run --example system_scenario_grammar   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
 cargo check &amp;&amp; cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
-cargo run content lint   # validate content: refs + balance + input overlaps (also: gen)
+cargo run content lint   # validate content: refs + ship parts + balance + input overlaps (also: gen)
 cargo run --features debug probe run system_player_path          # run-harness check (correctness + perf)
 </code></pre>
 <p>Notes that keep the suite honest and fast:</p>
@@ -416,8 +416,8 @@ selection ring, a focus turntable, pedestal and cell-frame toggles),
 <code>parts_viewer</code> (a paged grid, a focus turntable and a reassembled recipe ship
 with an explode toggle), <code>widget_zoo</code> (every <code>nova_ui</code> widget factory, live
 and clickable in both skins), <code>compare_asteroids</code> / <code>compare_planets</code> (the
-number keys re-dress the focus subject) and <code>asteroid_kinds</code> / <code>planet_types</code>
-(the whole authored range of each, side by side). Last, the mission-scale
+number keys re-dress the focus subject) and <code>asteroid_kinds</code> /
+<code>planet_types</code> (the whole authored range of each, side by side). Last, the mission-scale
 pair: <code>first_shift_map</code> is a fixed belt layout with a route over it - the most
 populated authored scene there is - and <code>first_shift_ships</code> poses eight
 shipped hulls in a row. All of them still walk and capture under
@@ -489,11 +489,15 @@ comes up once the atomic load gate releases), <code>bug_sandbox_soak</code> (the
 alone, holding one physics step to its own timestep), <code>bug_carve_apply</code> (one
 cut that severs a rock, and what the main thread pays to SWAP the result in -
 the range counts grids rather than milliseconds, so it reads the same on
-every box) and
-<code>system_nova_os</code> (the Tab ship computer, opened with a keystroke and
-clicked THROUGH the CRT glass, so the whole forwarded-pointer chain - window
-rect, screen-to-image mapping, offscreen UI stack, <code>Activate</code> - is asserted
-live rather than one link at a time). Finally the STRESS ranges, one file
+every box),
+<code>system_interface</code> (the Tab interface and the <code>:</code> modal over it, driven with
+keys only: TAB, M and <code>:</code> must return through Escape to the same pane with the
+clocks frozen and no pane or flight action firing on the transition frames),
+<code>system_command_shell</code> (the modal over flight, the pause menu, the main menu
+and the interface, including the rebind gate that keeps <code>:</code> shut while a ship
+section waits for its key) and <code>system_headless_map_goto</code> (a click on a Map
+blip in window space, then GOTO, asserted on the ship’s autopilot with no GPU).
+Finally the STRESS ranges, one file
 each: <code>stress_bullets</code>,
 <code>stress_torpedoes</code>, <code>stress_point_defense</code>, <code>stress_one_structure</code> and
 <code>stress_many_structures</code> hold a thousand rounds, a thousand guided torpedoes,
@@ -533,8 +537,9 @@ set, and the scene builders they share live in <code>examples/screenshots/shared
 The stills, by set: the Drydock drift beauty shot (<code>screenshot_hero_ship</code>),
 the menu and editor walks (<code>screenshot_menu</code>,
 <code>screenshot_scenario_picker</code>, <code>screenshot_editor</code>), the section closeups
-(<code>screenshot_section_frame</code>, <code>screenshot_section_weapons</code>), the Tab ship
-computer (<code>screenshot_nova_os_terminal</code>, <code>screenshot_nova_os_apps</code>), the Rock
+(<code>screenshot_section_frame</code>, <code>screenshot_section_weapons</code>), the Tab
+interface and the command shell (<code>screenshot_interface</code>,
+<code>screenshot_command_shell</code>), the Rock
 hollow combat beats (<code>screenshot_radar_lock</code>, <code>screenshot_contextual_hud</code>,
 <code>screenshot_combat_lock</code>, <code>screenshot_combat_hud</code>, <code>screenshot_combat_wide</code>,
 <code>screenshot_hull_juice</code>, <code>screenshot_torpedo_run</code>, <code>screenshot_comms</code>), the
@@ -574,10 +579,13 @@ the shipped bytes back over themselves.</li>
 fixing a bug, WRITE the range that reproduces it first: that is the doctrine in
 <code>AGENTS.md</code>, and the invariant roster is what keeps it honest.</p>
 <p>Every example is HARNESSED: it drives itself under
-<code>NOVA_AUTOPILOT=1</code>, and probe is the regression suite over all of them -
+<code>NOVA_AUTOPILOT=1</code>, and probe can run any cataloged example -
 <code>cargo run --features debug probe run systems</code> (or <code>screenshots</code>, or
-<code>playable</code>) runs one category alone, and <code>--all</code> is the whole catalog, which is
-what CI runs. Each example must reach <code>Playing</code> and exit without panic; every
+<code>playable</code>) runs one category alone, and <code>--all</code> runs the whole catalog.
+<code>probe-full.yaml</code> runs a curated 24-example set in five subject shards on a
+release and on manual dispatch; a pull request runs a seven-example smoke
+subset. Neither CI runtime suite runs the whole catalog.
+Each example must reach <code>Playing</code> and exit without panic; every
 <code>systems/</code> range additionally carries panic-on-failure behavior assertions with
 completion backstops (a stalled script fails instead of passing vacuously). The
 rosters are pinned by the display-free
@@ -625,7 +633,9 @@ autopilot-script assertion (a named step whose <code>on_enter</code> asserts, re
 once the steps before it have waited on the world - see
 <code>system_hull_damage</code>/<code>system_hud_indicators</code> for the style) carrying an
 <code>outcome: &lt;slug&gt;</code>
-marker on the roster; CI’s probe sweep runs it on every push. Caveat: the handler swap
+marker on the roster; the release’s curated probe suite runs 24 selected
+ranges, and a pull request runs seven of those. Other ranges compile in CI
+but need an explicit probe run for runtime proof. Caveat: the handler swap
 does NOT catch <code>remove</code>/<code>despawn</code> command warns (they bake in the WARN handler
 at queue time).</p>
 <h2 id="launching-a-scenario-from-the-command-line"><a class="header" href="#launching-a-scenario-from-the-command-line">Launching a scenario from the command line</a></h2>
@@ -677,6 +687,16 @@ in here - balance is a kind of lint):
 <li>the identifier + geometry + resource checks the load/publish gates cannot
 (dangling <code>NextScenario</code> targets, unspawnable filter targets, duplicate ids,
 scenarios with no terminal <code>Outcome</code>, resource-ref membership, …);</li>
+<li>the generated-ship part check - each bundle’s section catalog, with base
+and its transitive dependencies, must build one
+<code>nova_world_base::ShipPartSnapshot</code>: positive finite part stats, a
+docking capture angle under 90 degrees, a section id overlaid only along
+a dependency chain, a usable hull, controller, thruster, cargo intake and
+docking port, a weapon or thruster that fires straight out of one of its
+own faces, and no socket on the face a weapon, thruster, cargo intake or
+docking port fires, opens or docks through. Each fault is reported once per
+owner: the bundle that authors it, or else each bundle whose catalog
+raises it;</li>
 <li>the combat balance/fairness audit - every combat scenario’s derived sheet,
 graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; a bundle
 acknowledges its OWN deliberate imbalances in a <code>balance_acks.ron</code> beside
@@ -887,7 +907,7 @@ pairs at identical crop and scale - a comparison at two different zooms shows
 you the resize, not the change.</p>
 <h3 id="the-theme-is-shared-with-the-game"><a class="header" href="#the-theme-is-shared-with-the-game">The theme is shared with the game</a></h3>
 <p><code>web/src/style.css</code> and <code>crates/nova_ui/src/theme.rs</code> both mirror the <code>:root</code>
-block of <code>web/design/nova_ui_rework_poc.html</code> - the NOVA OS palette and its
+block of <code>web/design/nova_ui_rework_poc.html</code> - the interface palette and its
 control vocabulary. That PoC is the single source: change it first, then both
 consumers.</p>
 <p>The PoC ships two skins and the site wears only one. Everything the site draws
@@ -1167,7 +1187,7 @@ macOS archives.</li>
 </ul>
 <p>Use the Butler download documented by itch.io to choose the version, download
 each macOS architecture archive from
-<code>https://broth.itch.ovh/butler/darwin-&lt;arch&gt;/&lt;version&gt;/archive/default</code>, and
+<code>https://broth.itch.zone/butler/darwin-&lt;arch&gt;/&lt;version&gt;/archive/default</code>, and
 record its <code>shasum -a 256</code> output in the matching Environment variable. The
 workflow refuses a floating Butler version or an archive whose checksum does
 not match.</p>
@@ -1341,9 +1361,10 @@ CI is the source of truth; when you skip them, say so.</p>
 isolated unit test.</p>
 </li>
 <li>
-<p><strong>Open a PR.</strong> CI (<code>.github/workflows/ci.yaml</code>) runs on every PR and push to
-<code>master</code>: <code>cargo fmt --check</code>, <code>cargo clippy --workspace --all-targets --features debug -- -D warnings</code>, <code>cargo test --workspace --features debug</code>,
-then the windowed <code>probe run --all --correctness-only</code> sweep under
+<p><strong>Open a PR.</strong> CI (<code>.github/workflows/ci.yaml</code>) runs on pull requests and
+pushes to <code>master</code>, so the integrated tree is revalidated after merge:
+<code>cargo fmt --check</code>, <code>cargo clippy --workspace --all-targets --features debug -- -D warnings</code>, <code>cargo test --workspace --features debug</code>,
+then a windowed seven-example <code>probe run --correctness-only</code> smoke under
 Xvfb/lavapipe plus the
 <code>nova_autopilot</code> example test under Xvfb. Three more
 jobs run in parallel with that one: a default-features
@@ -1353,6 +1374,15 @@ has no meaning in a browser), and a dependency-license gate. Those two exist
 to catch dead code and unused imports that only appear with <code>debug</code> off or
 on wasm - neither configuration is otherwise built. All of it must be green
 to merge.</p>
+<p>The curated release set lives in <code>.github/workflows/probe-full.yaml</code>, a
+five-shard suite with no push or PR trigger. <code>release.yaml</code> calls it and
+every platform build waits on it, so a tag cannot ship past a red selected
+example; run it by hand from any ref with <code>workflow_dispatch</code>. Both runtime
+lists are named, so <code>scripts/check-probe-suites.py</code> (a step in the <code>check</code>
+job) rejects unknown and duplicate names, empty sets, and smoke examples
+outside the full shards. It does not require every <code>[[example]]</code> to run in
+CI; the independent catalog drift test checks disk against Cargo.toml, and
+the default all-target check compiles the remaining examples.</p>
 <p>The wasm job is CLIPPY rather than <code>check</code>, and it points <code>CLIPPY_CONF_DIR</code>
 at <code>ci/wasm-clippy/</code>, whose <code>clippy.toml</code> bans the std APIs that COMPILE for
 wasm32 and then panic in the browser - a class of bug no <code>cargo check</code> on

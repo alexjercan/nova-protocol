@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-f18d04a2.js";
+            window.path_to_searchindex_js = "searchindex-83f806a0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -175,8 +175,8 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="the-agent-bench"><a class="header" href="#the-agent-bench">The agent bench</a></h1>
-<p>How an external agent plays a scenario toward a goal with no human at the
-keyboard, and how the run is scored. The bench is the <code>bench</code> subcommand of
+<p>How an external agent plays a scenario or starts New Game toward a goal with
+no human at the keyboard, and how the run is scored. The bench is the <code>bench</code> subcommand of
 the game binary, built with <code>--features debug</code>, and lives in <code>crates/nova_bench</code>
 with one TypeScript relay in <code>tools/nova_bench/pi/</code>.</p>
 <pre><code>                 referee protocol                 process channel
@@ -203,9 +203,20 @@ socket, so its tests link neither Bevy nor the game.</p>
 <pre><code class="language-sh">cargo run --features debug bench play &lt;scenario&gt; --agent baseline
 cargo run --features debug bench play &lt;scenario&gt; --agent pi --model gpt-5.6-luna --thinking low
 cargo run --features debug bench play &lt;scenario&gt; --agent 'cmd:python3 my_agent.py'
+cargo run --features debug bench play --session new-game --world-seed 424242 --seed 7 \
+  --agent pi --goal 'Explore the open world and report what you find'
 </code></pre>
 <p><code>&lt;scenario&gt;</code> is an installed scenario id, or a path ending in <code>.ron</code> loaded
-as a loose content file. The bench ships five fixtures under <code>crates/nova_bench/scenarios/</code>:</p>
+as a loose content file. <code>--session new-game</code> takes no scenario. It starts at
+the real main menu; the agent clicks New Game, enters <code>--world-seed</code> in the
+setup modal and clicks Create. New Game requires both <code>--world-seed</code> (the
+<code>u32</code> world-generation seed) and <code>--seed</code> (the separate <code>u64</code> gameplay RNG
+seed), plus <code>--agent pi</code> or <code>--agent cmd:...</code>. The combat-only <code>baseline</code> agent
+cannot navigate the menu. A scenario cannot be combined with New Game, and
+<code>--world-seed</code> is not accepted for fixture plays. New Game uses the base
+bundle’s <code>open_world</code> scenario; naming <code>open_world</code> as a scenario does not
+create the required world session.</p>
+<p>The bench ships six fixtures under <code>crates/nova_bench/scenarios/</code>:</p>
 <ul>
 <li><code>hunt.content.ron</code>: one player gunship, one hostile inline raider parked 2600 m
 ahead, an objective and both outcomes. The scenario scores itself.</li>
@@ -217,13 +228,16 @@ hostile pursuer that wakes after 45 seconds support gravity-assist, evasion,
 collision, and route-cheese goals.</li>
 <li><code>arsenal.content.ron</code>: a player hull authored inline with a railgun, two
 torpedo bays and two PDC mounts, plus a carvable rock, two inert targets and
-a late picket, supports mixed weapons, asteroid carving, NOVA OS, cheat, and
+a late picket, supports mixed weapons, asteroid carving, the command shell, cheat, and
 protocol-abuse goals.</li>
 <li><code>docking.content.ron</code>: the <code>docking_approach</code> example as a fixture. A
 tender with a port on its bow and an inert spar 120 m ahead, turned out of
 square, support docking and RCS goals; <code>me.docking</code> carries the approach.</li>
+<li><code>docking_warship_tender.content.ron</code>: the catalog Line Warship and an
+inert damaged frame tender, their collars 115 m apart and 12 degrees out of
+square, support docking captures between real multi-section hulls.</li>
 </ul>
-<p>The four sandboxes are bounded by <code>--ticks</code> and <code>--deadline</code>; a reader grades
+<p>These six fixtures are bounded by <code>--ticks</code> and <code>--deadline</code>; a reader grades
 the <code>end</code> block of the score and any recorded footage. The red-team rules are
 in <code>crates/nova_bench/scenarios/README.md</code>, and the goal deck itself is
 <code>scripts/bench-plays.sh</code>, which runs any of twelve named plays with its goal,
@@ -231,8 +245,8 @@ seed and budgets already set:</p>
 <pre><code class="language-sh">nix develop -c scripts/bench-plays.sh --list
 nix develop -c scripts/bench-plays.sh sommelier shell cheat
 </code></pre>
-<p>The seed pins the world, not the run: the model is the other half and takes a
-different route every time. The script pins the setup so two plays of one goal
+<p>For these fixtures, <code>--seed</code> pins the world, not the run: the model is the
+other half and takes a different route every time. The script pins the setup so two plays of one goal
 are comparable, which is as close to reproducible as an agent play gets.</p>
 <div class="table-wrapper">
 <table>
@@ -240,24 +254,38 @@ are comparable, which is as close to reproducible as an agent play gets.</p>
 <tr><th>Flag</th><th>Default</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>--goal</code></td><td>complete the objectives, take little damage, waste no ammo</td><td>the goal text the agent is given</td></tr>
+<tr><td><code>--goal</code></td><td>fixtures: complete objectives; New Game: create the world, fly and explore</td><td>the goal text the agent is given</td></tr>
 <tr><td><code>--model</code>, <code>--thinking</code></td><td>unset: pi’s own configured model and thinking level</td><td>passed straight to <code>pi</code>; <code>pi</code> agent only</td></tr>
-<tr><td><code>--seed</code></td><td>unset</td><td><code>NOVA_SEED</code> for the game, so a play replays</td></tr>
+<tr><td><code>--seed</code></td><td>unset for fixtures; required for New Game</td><td><code>NOVA_SEED</code> for the gameplay RNG; it is not the New Game world seed</td></tr>
+<tr><td><code>--world-seed</code></td><td>unset for fixtures; required for New Game</td><td>The seed the agent enters in the New Game modal</td></tr>
 <tr><td><code>--ticks</code></td><td>18000</td><td>the tick budget, five game minutes</td></tr>
 <tr><td><code>--turns</code></td><td>300</td><td>the <code>act</code> budget</td></tr>
 <tr><td><code>--deadline</code></td><td>1800</td><td>wall-clock seconds</td></tr>
-<tr><td><code>--out</code></td><td><code>bench-runs/&lt;sha&gt;/&lt;scenario&gt;/&lt;agent&gt;-&lt;n&gt;/</code></td><td>the run directory</td></tr>
-<tr><td><code>--record</code></td><td>unset</td><td>draw every tick offscreen into this directory and make <code>&lt;dir&gt;.mp4</code> with the action rail; see <a href="#the-movie">The movie</a></td></tr>
+<tr><td><code>--out</code></td><td><code>bench-runs/&lt;sha&gt;/&lt;target&gt;/&lt;agent&gt;-&lt;n&gt;/</code></td><td>the run directory (<code>&lt;target&gt;</code> is the scenario label or <code>new-game</code>)</td></tr>
+<tr><td><code>--record</code></td><td>unset</td><td>record each stepped tick offscreen into an empty directory, with SFX and an action-rail <code>&lt;dir&gt;.mp4</code>; see <a href="#the-movie">The movie</a></td></tr>
 <tr><td><code>--ui</code></td><td><code>log</code></td><td><code>log</code> prints one line per event to stderr; <code>quiet</code> prints nothing</td></tr>
 <tr><td><code>--audit-raw</code></td><td>off</td><td>keep the full snapshot in every <code>channel_in</code> event</td></tr>
 </tbody>
 </table>
 </div>
+<p>New Game’s initial observation has no player ship. On the main menu the
+agent’s view includes the visible named UI targets so it can find the New Game
+button, seed field and Create button. The agent must replace the modal’s
+prefilled seed; merely appending digits does not select the requested
+world. Menu actions use the same <code>pointer</code>, <code>text</code> and <code>key</code> gestures as
+other UI actions. The referee checks the world’s actual session seed before
+gameplay scoring. A missing player at menu start is expected; a wrong seed or
+scenario fails setup, and a run that ends before setup completes does not
+count as a completed play. Menu-backdrop ships do not count as combat kills.
+The audit retains menu steps and the launch target; replay starts at the menu
+and checks world-seed identity as well as the final flight state. A free-mode
+goal has no authored Victory: judge the world state and the score, not the agent’s report alone.</p>
 <p>The run directory holds <code>audit.jsonl</code>, <code>score.json</code>, <code>game.log</code>, <code>agent.log</code>
 (a <code>cmd:</code> agent’s stdout and stderr) and <code>profile/</code>, an empty settings
 profile the child game is pointed at so a play never reads or writes yours.
 The command prints the run directory and the score table on stdout and exits
-non-zero only when the game or the agent process failed, never on a Defeat.</p>
+non-zero when the game or agent process fails, or New Game setup fails or
+remains incomplete. A Defeat alone does not make it fail.</p>
 <h2 id="the-referee-protocol"><a class="header" href="#the-referee-protocol">The referee protocol</a></h2>
 <p>JSONL request and reply over the unix socket named by <code>NOVA_BENCH_SOCKET</code>.
 One request per connection, one line each way.</p>
@@ -276,7 +304,8 @@ One request per connection, one line each way.</p>
 </div>
 <p>A malformed request gets <code>{"error": "..."}</code> and the run continues. Every
 view carries <code>over</code>, <code>ended_by</code> and <code>budget_left</code>; once <code>over</code> is true, <code>act</code>
-moves nothing.</p>
+moves nothing. New Game setup actions use the same turn, tick and deadline
+budgets as flight.</p>
 <p>A gesture is one object with one verb. The referee stamps the tick, so an
 agent’s vocabulary is relative and a transcript is replayable.</p>
 <div class="table-wrapper">
@@ -300,6 +329,11 @@ and <code>targeting.radar_clear</code> are one key read two ways - a short press
 a long one searches - so an act carrying both is refused with a message that
 says to split it. Nothing downstream could report that: a press has no verdict
 to give.</p>
+<p>Splitting it is not enough on its own. The referee checks the act against its
+held set too, so driving one reading while the other is still held is refused
+the same way: the key is down for the first reading, and the second would
+release that same source behind the referee’s back. The release goes in its
+own act, before the act that drives the other reading.</p>
 <p>The pairs are not a table in the bench. <code>nova_input</code> already models the
 relation as <code>ActionBinding::follows</code>, the channel publishes it as
 <code>inputs.shared</code>, and the referee checks the act against whatever the world
@@ -311,11 +345,16 @@ longer holds.</p>
 The referee condenses it to what a pilot perceives, in meters, meters per
 second and degrees:</p>
 <ul>
-<li><code>tick</code>, <code>game_seconds</code>, <code>over</code>, <code>ended_by</code>, <code>budget_left</code>, <code>game_errors</code>.</li>
+<li><code>tick</code>, <code>game_seconds</code>, <code>game_state</code>, <code>world_seed</code> (null until New Game
+creates a world), <code>over</code>, <code>ended_by</code>, <code>budget_left</code>, <code>game_errors</code>; <code>ui.targets</code>
+lists visible named pointer targets, only on the main menu and while the
+Tab interface is open (<code>ui.pause</code> is <code>Interface</code>).</li>
 <li><code>objectives</code>, <code>outcome</code> (<code>null</code> until Victory or Defeat), <code>comms</code> (the last
 twelve radio lines).</li>
 <li><code>me</code>: id, <code>position_m</code>, <code>speed_mps</code>, <code>velocity_bearing_deg</code>,
-<code>turn_rate_dps</code>, <code>health</code>, <code>weapons_hot</code>, <code>combat_lock</code>, <code>travel_lock</code>,
+<code>turn_rate_dps</code>, <code>health</code>, <code>cargo</code> (<code>capacity_g</code>, <code>used_g</code> and <code>free_g</code> in
+grams, <code>credits</code>, and <code>items</code> as <code>{item, count}</code> in the game’s item order,
+empty for an empty hold), <code>weapons_hot</code>, <code>combat_lock</code>, <code>travel_lock</code>,
 <code>radar</code> (the acquisition dwell while the radar gesture is held: the
 candidate, the dwell target, <code>dwell_secs</code> of <code>dwell_needed</code> and the
 <code>dwell_fill</code> a player watches on the ring, itself null when no dwell is
@@ -332,10 +371,15 @@ bridge, the drives, each mount with its <code>weapon</code>: kind, ammo, <code>o
 <code>Neutral</code>), <code>distance_m</code>, <code>bearing_deg</code>, <code>closing_mps</code>, <code>health</code>,
 <code>defeated</code>, <code>weapons_hot</code>, <code>ai_target</code>.</li>
 <li><code>beacons</code> with <code>distance_m</code> and <code>bearing_deg</code>.</li>
+<li><code>canisters</code>: every live cargo canister, with a numeric runtime <code>id</code> unique
+within the run (not stable across revisions), <code>distance_m</code> and
+<code>bearing_deg</code> relative to the player’s ship, and ordered <code>stacks</code> of
+<code>{item, count}</code>. Distance and bearing are absent without a player ship.</li>
 <li><code>bodies</code>: the asteroids and planets, in three tiers. <code>near</code> and
 <code>in_the_way</code> carry the full record - <code>kind</code>, <code>radius_m</code>, <code>distance_m</code> to
-the centre, <code>surface_m</code> to the surface, <code>bearing_deg</code>, <code>closing_mps</code>,
-<code>invulnerable</code> - and <code>in_the_way</code> adds <code>why</code>. Everything else is one
+the centre, <code>surface_m</code> to the surface, <code>bearing_deg</code>, <code>closing_mps</code> -
+and <code>in_the_way</code> adds <code>why</code>. The <code>kind</code> says whether a body can be
+destroyed: every <code>Asteroid</code> can, no <code>Planet</code> can. Everything else is one
 summary per <code>{distance band}.{bearing sector}</code> group with a <code>key</code>, a
 <code>count</code> and the nearest surface, farthest surface and largest radius in it;
 <code>observe {"expand": ["&lt;key&gt;"]}</code> opens one back up and <code>expanded</code> lists the
@@ -345,17 +389,22 @@ keys that actually opened, because a key can go stale as the ship moves. See
 <li><code>objective_log</code>: every objective card posted and completed, in order.</li>
 <li><code>cinematic</code> (only while a scene plays) as <code>{playing, skippable}</code>, and
 <code>cheats_marked</code> (only when the run armed cheats).</li>
-<li><code>inputs.live</code> (the wire names that are not locked out), <code>inputs.held</code>, and
-<code>inputs.shared</code>: the pairs of wire names that read one physical key. The
-game declares that relation (<code>ActionBinding::follows</code>) and the channel
-publishes it, so the referee refuses an act driving both sides of a pair
-without the bench holding a table of its own.</li>
+<li><code>inputs.live</code> (registry wire names that are not locked out, never dynamic
+<code>section.&lt;id&gt;</code> wires), <code>inputs.held</code>, and <code>inputs.shared</code>: the pairs of wire
+names that read one physical key. The game declares that relation
+(<code>ActionBinding::follows</code>) and the channel publishes it, so the referee
+refuses an act driving both sides of a pair without the bench holding a
+table of its own.</li>
 <li><code>commands</code> (answers to <code>command</code> gestures).</li>
 </ul>
 <p><code>bearing_deg</code> is <code>[azimuth, elevation]</code> from the nose: azimuth positive to
-starboard, elevation positive up. The wire names come from the live set in
-the view, never from a copy in the prompt, so a renamed input cannot go
-stale.</p>
+starboard, elevation positive up. Registry wire names come from the live
+set in the view. For <code>section.&lt;id&gt;</code> weapon triggers, use an ID in
+<code>me.sections[]</code> whose <code>weapon</code> is not null. For a mining emitter, use the ID
+of a section whose <code>class</code> is <code>Mining</code> and check <code>alive</code> and <code>disabled</code> for
+working status. Section selectors do not appear in <code>inputs.live</code> or the
+registry <code>bindings</code> inspector. Section
+responders can also be thrusters.</p>
 <p>There is no <code>refused</code> list, because an input has no verdict to give. Every
 gate a pilot meets - needs a lock, needs a well, needs the stance, needs
 range - fires above the input layer, so a press that changed nothing looks
@@ -364,10 +413,36 @@ lines a frame consumed, <code>{line, input, phase, tick}</code>, and the agent r
 effect off the world: <code>autopilot.engaged</code>, <code>combat_lock</code>, <code>radar.dwell_fill</code>,
 <code>weapons_hot</code>, <code>bearing_deg</code>, <code>objectives</code>. A wire line the game could not
 parse is still an error, in <code>game_errors</code>, and always carries a message.</p>
-<p>The snapshot itself grew a <code>mission</code> block (objectives, outcome, comms, the
-objective log, the cinematic and the cheat mark), a <code>beacons</code> list, a
-<code>bodies</code> list and the ship’s <code>autopilot</code>, <code>radar</code> and <code>gravity_well</code> for
-this; see <code>nova_probe::capabilities::snapshot</code>.</p>
+<p>The raw snapshot carries a <code>mission</code> block (objectives, outcome, comms,
+the objective log, the cinematic and the cheat mark), <code>beacons</code>, <code>bodies</code>,
+and <code>canisters</code> (runtime ID, engine-unit position and velocity, ordered
+stacks), plus each ship’s <code>autopilot</code>, <code>radar</code>, <code>cargo</code> and <code>gravity_well</code>;
+see <code>nova_probe::capabilities::snapshot</code>.</p>
+<h3 id="mining-and-cargo"><a class="header" href="#mining-and-cargo">Mining and cargo</a></h3>
+<p>Mining uses a per-section hold: find a <code>me.sections[]</code> record with
+<code>class: "Mining"</code>, check its <code>alive</code> and <code>disabled</code> status, then press
+<code>section.&lt;id&gt;</code> using that record’s <code>id</code>. For the Line Warship’s
+<code>mining_beam</code>, send <code>{"press": "section.mining_beam"}</code> for a
+bounded attempt and then <code>{"release": "section.mining_beam"}</code>. The selected
+emitter must deploy before it can pulse toward a travel-locked rock; reach
+and aim are checked from its face, not the ship’s centre. The agent view has
+no carve result or intake position. It does show all live canisters, their
+contents, and their distance and bearing from the player’s ship. A newly
+visible ore canister shows ore in the world, not its source or pickup; a
+canister’s disappearance alone can also mean it was destroyed. The intake
+takes a whole canister on trigger contact when hold mass permits; only an
+increase in the relevant <code>me.cargo.items</code> count proves pickup.
+Jettison (undocked) and Buy and Sell (docked to a trader) are Inventory pane
+buttons, driven with <code>pointer</code> gestures on the <code>ui.targets</code> the interface
+shows. Read every result off <code>me.cargo</code>.</p>
+<p>An agent finds registry wires in <code>inputs.live</code>; it gets section selectors
+from <code>me.sections[].id</code> for weapons (<code>weapon</code> not null) or mining (<code>class</code> is
+<code>Mining</code>). Dynamic <code>section.&lt;id&gt;</code> wires are absent from that live list and
+from <code>bindings</code>, which inspects registry actions only. For example,
+<code>bindings flight.main_drive</code> reports that registry action’s keys and whether
+its context is live; <code>bindings</code> alone lists every registry action by its wire
+name. <code>bind</code> and <code>bind reset</code> take the bare registry name, such as
+<code>main_drive</code>. Neither command binds a section wire.</p>
 <h3 id="why-the-bodies-are-tiered"><a class="header" href="#why-the-bodies-are-tiered">Why the bodies are tiered</a></h3>
 <p>A scenario can field a hundred rocks. Enumerated in full they cost more
 tokens than the rest of the view together - measured over the first tutorial
@@ -425,7 +500,8 @@ exit) and pi gets an abort.</p>
 <tr><td><code>ammo_spent</code></td><td>the sum of <code>rounds</code> decreases across the player’s mounts; a reload is an increase and does not count</td></tr>
 <tr><td><code>kills</code></td><td><code>Enemy</code> ships that turned <code>defeated</code></td></tr>
 <tr><td><code>bad_lines</code></td><td>wire lines the game refused to parse: an unknown name, an axis driven as a button. The driver writing nonsense, never the game declining to act</td></tr>
-<tr><td><code>cheated</code></td><td>whether the run armed NOVA OS’s cheats, copied from the snapshot’s mark</td></tr>
+<tr><td><code>cheated</code></td><td>whether the run armed the command shell’s cheats, copied from the snapshot’s mark</td></tr>
+<tr><td><code>world_seed</code></td><td>the authoritative New Game session seed after setup; null for scenario plays</td></tr>
 <tr><td><code>llm</code></td><td>pi only: messages, input, output, cached tokens and cost from the usage events</td></tr>
 <tr><td><code>ended_by</code>, <code>agent_status</code>, <code>agent_report</code></td><td>why it ended, and what the agent said</td></tr>
 <tr><td><code>end</code></td><td>where things stood at the end, for a goal the scenario does not score: the autopilot engaged and completed, the dominant well, speed, the travel lock, the docking state, and the range to every contact, beacon and body</td></tr>
@@ -448,7 +524,9 @@ condensed; <code>--audit-raw</code> keeps the full one beside it)</li>
 <pre><code class="language-sh">cargo run --features debug bench replay &lt;run dir&gt;/audit.jsonl [--record &lt;dir&gt;]
 </code></pre>
 <p>Replay feeds the audit’s <code>channel_out</code> lines to a fresh game under the
-recorded seed and compares where the world ended with the audit’s last view.
+recorded launch target and RNG seed, including any New Game menu actions, and
+compares where the world ended with the audit’s last view. New Game replay
+also compares the authoritative world seed.
 Two plays of one seed are not byte-identical once rounds fly: how many land
 drifts between processes. The verdict has three grades:</p>
 <div class="table-wrapper">
@@ -466,28 +544,40 @@ drifts between processes. The verdict has three grades:</p>
 <p>With <code>--record</code> the replay is the agent’s run as a movie, stitched the same
 way a play’s is.</p>
 <h2 id="the-movie"><a class="header" href="#the-movie">The movie</a></h2>
-<p><code>--record &lt;dir&gt;</code> on a play or a replay hands the directory to the game’s own
-<code>--record</code>: the offscreen assembly draws every stepped tick with the real
-render stack and the full HUD, and saves it as <code>&lt;dir&gt;/frame_%06d.png</code>. When
-the game has exited the bench draws the run’s own action rail over those
-frames and encodes <code>&lt;dir&gt;.mp4</code>.</p>
-<p>One tick is one frame and one tick is 1/60 s, so the movie runs in real
-time however long the agent thought between acts. The bench prints the
-movie’s path, frame count and length after the score table and notes them
-in the audit. A compose that cannot find the face falls back to the plain
-stitch; without ffmpeg entirely the frames stay on disk and the note says
-so. Neither changes the run’s exit code.</p>
+<p><code>--record &lt;dir&gt;</code> on a play or replay passes the directory to the game’s
+channel recorder. The offscreen assembly uses the render stack without an OS
+window. It routes cameras and UI picking to one image; the shared
+<code>nova_autopilot</code> <code>LoopRecorder</code> requests that image in <code>Last</code> for each stepped
+tick. The directory must be empty (or absent): recording refuses to overwrite
+prior contents. Frame zero is the state after tick one. The recorder keeps
+<code>&lt;dir&gt;/frame_%06d.png</code>, starting at <code>frame_000000.png</code>, and writes
+<code>&lt;dir&gt;/bench.jsonl</code> with per-frame sampled <code>VoiceMix</code> SFX, copied sound samples,
+<code>&lt;dir&gt;/audio.f32le</code> (staged stereo PCM, retained), and <code>&lt;dir&gt;/bench.webm</code> with
+Opus SFX. The SFX mix is independent of live <code>--mute</code> output.</p>
+<p>The channel’s step clock advances by 16,667 microseconds per tick; video
+playback is nominally 60 fps, one frame per tick, regardless of how long the
+agent thinks between acts. After the game exits, the bench draws the run’s
+action rail over those PNGs and encodes <code>&lt;dir&gt;.mp4</code>, muxing the recording’s
+audio. The bench prints the movie path, frame count and length after the
+score table and notes them in the audit. If the face is unavailable, the
+bench makes a plain movie with the same audio. An older bare-PNG directory
+with no <code>bench.jsonl</code> or <code>bench.webm</code> can still be made into a silent movie
+with <code>bench movie</code>. A new recording with missing expected audio, sample
+bytes, frames, failed capture, or failed encoding/muxing is an error, not a
+silent success; ffmpeg is required for recording and movie creation.</p>
 <p>Recording needs a GPU and a display. Run the bench from the dev shell
 (<code>nix develop</code>), which is where the Vulkan loader finds the driver, on an
 X display: your own, or an Xvfb (<code>DISPLAY=:99</code>). A play without <code>--record</code>
-needs neither.</p>
+needs neither. Inspect the recorded frames and listen to the movie before
+claiming the rendered picture or sound is correct.</p>
 <h3 id="the-action-rail"><a class="header" href="#the-action-rail">The action rail</a></h3>
 <pre><code class="language-sh">cargo run --features debug bench movie &lt;run dir&gt;/audit.jsonl --frames &lt;dir&gt;
 </code></pre>
 <p><code>bench movie</code> remakes the movie of frames already on disk, so the overlay can
 be changed without replaying anything. <code>--out</code> names the file (default
-<code>&lt;frames&gt;.mp4</code>), <code>--font</code> the face, and <code>--plain</code> stitches the frames
-untouched.</p>
+<code>&lt;frames&gt;.mp4</code>), <code>--font</code> the face, and <code>--plain</code> leaves the frames
+untouched by the rail. Both paths mux <code>bench.webm</code> audio when present; if
+<code>bench.jsonl</code> says a new recording exists but its audio is missing, they fail.</p>
 <p>The rail is composited in the bench, not in an ffmpeg filter graph: <code>image</code>
 decodes the PNGs, <code>ab_glyph</code> sets the game’s own terminal face over them, and
 ffmpeg is handed finished RGB frames on stdin. Layout that lived in a filter

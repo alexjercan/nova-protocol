@@ -50,6 +50,11 @@
                                     ],
                                 },
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             capabilities: (
                                 stop_enabled: false,
                                 goto_enabled: false,
@@ -57,6 +62,11 @@
                                 lock_enabled: false,
                                 rcs_enabled: false,
                             ),
+                            inventory: {
+                                PdcRound: 2000,
+                            },
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -79,8 +89,7 @@
                             radius: 600.0,
                             planet_type: BarrenRock,
                             seed: 20260815,
-                            mass: Some(10000.0),
-                            invulnerable: true,
+                            mass: 10000.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -192,6 +201,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -303,6 +320,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -414,6 +439,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -525,6 +558,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -636,6 +677,14 @@
                                 presentation: (),
                             )),
                             controller: r#None,
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -811,7 +860,15 @@
                             controller: AI((
                                 leash: Some(3500.0),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Neutral),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -987,7 +1044,15 @@
                             controller: AI((
                                 leash: Some(3500.0),
                             )),
+                            initial_velocity: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                             allegiance: Some(Neutral),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2000,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -1105,10 +1170,14 @@
                             ),
                             kind: Asteroid((
                                 radius: 10.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
@@ -1169,10 +1238,14 @@
                             ),
                             kind: Asteroid((
                                 radius: 15.0,
+                                initial_velocity: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
                                 texture: "self://textures/asteroid.png",
                                 kind: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
-                                invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((

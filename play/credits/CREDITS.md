@@ -77,6 +77,17 @@ assets" below:
   glyphs are geometric letters, arrows and shapes carrying no console-hardware
   trademark or logo, and using one to tell a player which button to press is
   ordinary functional use.
+- **Simple Icons platform marks** (`web/src/assets/platforms/github.svg`,
+  `itchdotio.svg`, `steam.svg`, the marks beside the website's GitHub, itch.io
+  and Steam labels) - from [Simple
+  Icons](https://github.com/simple-icons/simple-icons) release `16.32.0`,
+  released under [CC0 1.0 Universal](licenses/Simple-Icons_CC0-1.0.txt) (public
+  domain). Obtained and imported 2026-09-21; the three files ship byte-for-byte
+  as upstream published them and the site colours them through a CSS mask. No
+  attribution is required; credited as a courtesy. CC0 waives copyright, not
+  trademark: the GitHub, itch.io and Steam marks stay their owners' trademarks,
+  are used only to name the platform the adjacent link points at beside a
+  visible text label, and claim no endorsement or affiliation.
 - **Iosevka Term font** (`assets/fonts/SGr-IosevkaTerm-Medium.ttf`, the NOVA
   OS terminal typeface) - a build of [Iosevka](https://typeof.net/Iosevka/) by
   Renzhi Li (Belleve Invis), under the [SIL Open Font License

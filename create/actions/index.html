@@ -3,24 +3,15 @@
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
         <a href="/nova-protocol/create/">Create</a>
         <a href="/nova-protocol/news/">News</a>
-        <a href="/nova-protocol/dev/">Dev</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#ship-capabilities">Ship capabilities</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#zeroshipmotion">ZeroShipMotion</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li><li><a href="#backdropdone">BackdropDone</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#ship-capabilities">Ship capabilities</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#zeroshipmotion">ZeroShipMotion</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - <code>Name((field: value, ...))</code>, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 51 at a glance:</p>
+never panics a scenario). All 52 at a glance:</p>
 <table>
 <thead>
 <tr>
@@ -33,7 +24,7 @@ never panics a scenario). All 51 at a glance:</p>
 <tr>
 <td><a href="#spawnscenarioobject"><code>SpawnScenarioObject</code></a></td>
 <td><a href="#spawning-the-world">world</a></td>
-<td>spawn one object: anchor, asteroid, planet, ship, beacon, crate, or light</td>
+<td>spawn one object: anchor, asteroid, planet, ship, beacon, or light</td>
 </tr>
 <tr>
 <td><a href="#scatterobjects"><code>ScatterObjects</code></a></td>
@@ -124,6 +115,11 @@ never panics a scenario). All 51 at a glance:</p>
 <td><a href="#nextscenario"><code>NextScenario</code></a></td>
 <td><a href="#flow-outcomes-transitions">flow</a></td>
 <td>queue a switch to another scenario by id</td>
+</tr>
+<tr>
+<td><a href="#backdropdone"><code>BackdropDone</code></a></td>
+<td><a href="#flow-outcomes-transitions">flow</a></td>
+<td>report a menu backdrop's act finished; the menu picks what plays next</td>
 </tr>
 <tr>
 <td><a href="#ship-capabilities"><code>SetShipCapabilityStop</code></a></td>
@@ -300,7 +296,7 @@ object and carries its config - the seven kinds are the
 <a href="../objects/">Scenario objects reference</a>.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">SpawnScenarioObject</span><span class="ron-punct">((</span>
     <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock_1&quot;</span><span class="ron-punct">,</span> <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">100.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-400.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
-    <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">50.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
+    <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">50.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">initial_velocity</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">))),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
@@ -325,7 +321,7 @@ object and carries its config - the seven kinds are the
 <td><code>kind</code></td>
 <td>object kind</td>
 <td>required</td>
-<td><code>Anchor((..))</code> / <code>Asteroid((..))</code> / <code>Planet((..))</code> / <code>Spaceship((..))</code> / <code>Beacon((..))</code> / <code>SalvageCrate((..))</code> / <code>Light(..)</code></td>
+<td><code>Anchor((..))</code> / <code>Asteroid((..))</code> / <code>Planet((..))</code> / <code>Spaceship((..))</code> / <code>Beacon((..))</code> / <code>Light(..)</code></td>
 </tr>
 </tbody>
 </table>
@@ -379,7 +375,7 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
     <span class="ron-key">region</span><span class="ron-punct">:</span> <span class="ron-type">Box</span><span class="ron-punct">(</span><span class="ron-key">min</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">-1000.0</span><span class="ron-punct">,</span> <span class="ron-literal">-200.0</span><span class="ron-punct">,</span> <span class="ron-literal">-1000.0</span><span class="ron-punct">),</span> <span class="ron-key">max</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">1000.0</span><span class="ron-punct">,</span> <span class="ron-literal">200.0</span><span class="ron-punct">,</span> <span class="ron-literal">1000.0</span><span class="ron-punct">)),</span>
     <span class="ron-key">template</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
         <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;asteroid_&quot;</span><span class="ron-punct">,</span> <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Asteroid&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
-        <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">invulnerable</span><span class="ron-punct">:</span> <span class="ron-literal">false</span><span class="ron-punct">)),</span>
+        <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Asteroid</span><span class="ron-punct">((</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-key">texture</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/textures/asteroid.png&quot;</span><span class="ron-punct">,</span> <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-key">initial_velocity</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">))),</span>
     <span class="ron-punct">),</span>
     <span class="ron-key">asteroid_radius</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-literal">10.0</span><span class="ron-punct">,</span> <span class="ron-literal">30.0</span><span class="ron-punct">)),</span>
     <span class="ron-key">asteroid_kinds</span><span class="ron-punct">:</span> <span class="ron-punct">[(</span><span class="ron-string">&quot;rock&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">12</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;carbon&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">4</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;ice&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">3</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;metal&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">1</span><span class="ron-punct">)],</span>
@@ -480,7 +476,12 @@ nominal <code>radius</code>, drawn from the same seed the body will use), a plan
 surface radius, zero for anything with no body - and a candidate is rejected
 inside <code>existing reach + candidate reach</code>. A field of mixed sizes is therefore
 packed by the bodies it actually holds, not by one number sized for its
-biggest pair.</p>
+biggest pair. This checks earlier <code>ScatterObjects</code> placements only: a planet
+spawned by <code>SpawnScenarioObject</code> is not in that set. Keep the entire field
+outside each planet's sphere of influence plus the largest rock's physical
+reach if its template starts at zero velocity. Otherwise a rock can spawn
+inside the planet or start falling toward it; lint cannot infer a safe orbit
+from one velocity shared by every randomly positioned copy.</p>
 <p><code>min_separation</code> is what you add ON TOP of that: a spacing you want for
 gameplay rather than for geometry - a belt you can fly through, a picket line
 that reads as a line. The rule is <code>max(min_separation, reach + reach)</code>, so a
@@ -492,8 +493,8 @@ quality.</p>
 </details>
 <h3 id="despawnscenarioobject" tabindex="-1">DespawnScenarioObject</h3>
 <p>Remove the scoped object whose id matches (recursively, whole child
-hierarchy). The classic pairing is a salvage crate on pickup.</p>
-<pre><code class="hljs language-ron"><span class="ron-type">DespawnScenarioObject</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;crate_1&quot;</span><span class="ron-punct">)),</span>
+hierarchy). The classic pairing is a beacon area the player has reached.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">DespawnScenarioObject</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;beacon_1&quot;</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -570,8 +571,8 @@ id.</p>
 </table>
 <p>Works mid-scenario, and works even when created AROUND a body already
 inside (the entry still fires).</p>
-<p>Beacons with <code>area_radius</code> and salvage crates are their OWN areas - no
-separate <code>CreateScenarioArea</code> needed for those.</p>
+<p>A beacon with <code>area_radius</code> is its OWN area - no separate
+<code>CreateScenarioArea</code> needed for it.</p>
 </details>
 <h2 id="mission-story" tabindex="-1">Mission &amp; story</h2>
 <h3 id="objective" tabindex="-1">Objective</h3>
@@ -853,7 +854,7 @@ granting it.</p>
 <td><code>verb</code></td>
 <td>string</td>
 <td>required</td>
-<td>one of <code>&quot;STOP&quot;</code>, <code>&quot;GOTO&quot;</code>, <code>&quot;ORBIT&quot;</code>, <code>&quot;CANCEL&quot;</code>, <code>&quot;RADAR&quot;</code>, <code>&quot;COMPONENT&quot;</code>, <code>&quot;RCS&quot;</code>; unknown verbs warn and do nothing</td>
+<td>one of <code>&quot;STOP&quot;</code>, <code>&quot;GOTO&quot;</code>, <code>&quot;ORBIT&quot;</code>, <code>&quot;CANCEL&quot;</code>, <code>&quot;RADAR&quot;</code>, <code>&quot;COMPONENT&quot;</code>, <code>&quot;RCS&quot;</code>, <code>&quot;DOCK&quot;</code>, <code>&quot;HELM&quot;</code>; unknown verbs warn and do nothing</td>
 </tr>
 </tbody>
 </table>
@@ -889,8 +890,8 @@ grants the capability (the
 </details>
 <h2 id="sound" tabindex="-1">Sound</h2>
 <h3 id="playsound" tabindex="-1">PlaySound</h3>
-<p>Play one authored one-shot. Sound that BELONGS to something in the world - a
-crate's pickup ding, a hull coming apart - is authored on that object and
+<p>Play one authored one-shot. Sound that BELONGS to something in the world - an
+intake's take ding, a hull coming apart - is authored on that object and
 played where it happens. This is the other kind: the cue a scene needs and
 nothing in the world produces.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">PlaySound</span><span class="ron-punct">((</span><span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/warn_lock.wav&quot;</span><span class="ron-punct">,</span> <span class="ron-key">route</span><span class="ron-punct">:</span> <span class="ron-type">Interface</span><span class="ron-punct">)),</span>
@@ -1313,8 +1314,7 @@ modal hold behind the outcome overlay.</p>
 <summary>Show explanation</summary>
 <p>Three gears:</p>
 <ul>
-<li><strong>Hard cut</strong> - <code>linger: false</code>, no delay: switches on the next sync.
-Menu-scene plumbing.</li>
+<li><strong>Hard cut</strong> - <code>linger: false</code>, no delay: switches on the next sync.</li>
 <li><strong>Delayed cut</strong> - <code>linger: false, delay: Some(4.0)</code>: the world keeps
 playing for the delay (a story line can land), then cuts. Ticks on
 pause-frozen time; Enter skips the wait.</li>
@@ -1353,6 +1353,27 @@ pause-frozen time; Enter skips the wait.</li>
 </table>
 <p>The last request wins wholesale - a fresh <code>NextScenario</code> replaces a queued
 one and resets its clock.</p>
+<p>A menu backdrop may not author <code>NextScenario</code> (lint Error): it reports with
+<a href="#backdropdone"><code>BackdropDone</code></a> instead.</p>
+</details>
+<h3 id="backdropdone" tabindex="-1">BackdropDone</h3>
+<p>Report that a menu backdrop's act is finished. The menu holds the shot for
+one second, then cuts to the next backdrop in its rotation.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">BackdropDone</span><span class="ron-punct">(()),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>No fields. The backdrop never names its successor: the menu plays every
+backdrop once, in a shuffled order, before any plays again, and never the
+same one twice in a row when it has two or more.</p>
+<ul>
+<li>Every <code>role: Backdrop</code> scenario must author one (lint Error otherwise). A
+scene with no natural ending carries a timer, like the base backdrops'
+150 s rotation limit.</li>
+<li><code>BackdropDone</code> anywhere else is a lint Error: nothing reads it.</li>
+<li>The one-second beat runs on pause-frozen time. A second report inside the
+beat changes nothing.</li>
+</ul>
 </details>
 <h2 id="ship-state" tabindex="-1">Ship state</h2>
 <h3 id="ship-capabilities" tabindex="-1">Ship capabilities</h3>
@@ -1519,9 +1540,9 @@ It is installed for the life of the order and taken back off when the order
 retires - on completion as well as on a cancel or an interruption - so a
 cinematic's tight staging does not silently retune every later GOTO the hull
 flies. <code>None</code> uses the ship's own standoff.</p>
-<p>A margin is a PARKING rule, not a route guarantee. The leg flies a straight
-line and nothing is dodged on the way in; stage the approach yourself if
-something is in it.</p>
+<p>A margin is a PARKING rule, not a route guarantee. The autopilot plans no
+route and dodges nothing on the way in, and gravity can bend the leg; stage
+the approach yourself if something is in it.</p>
 </details>
 <h3 id="forcealign" tabindex="-1">ForceAlign</h3>
 <p>Turn an ordered ship's whole hull onto a point and HOLD it there. Rotation
@@ -1681,7 +1702,8 @@ the routine it returns to when nothing is happening.</p>
 <h3 id="orbitship" tabindex="-1">OrbitShip</h3>
 <p>Put a ship in a stable ring around a gravity well and hold it there. The
 ship's own ORBIT maneuver, so it aligns, burns into the band, and stays.</p>
-<pre><code class="hljs language-ron"><span class="ron-type">OrbitShip</span><span class="ron-punct">((</span><span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-string">&quot;take_the_ring&quot;</span><span class="ron-punct">,</span> <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;surveyor&quot;</span><span class="ron-punct">,</span> <span class="ron-key">well</span><span class="ron-punct">:</span> <span class="ron-string">&quot;planetoid&quot;</span><span class="ron-punct">)),</span>
+<pre><code class="hljs language-ron"><span class="ron-type">OrbitShip</span><span class="ron-punct">((</span><span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-string">&quot;take_the_ring&quot;</span><span class="ron-punct">,</span> <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;surveyor&quot;</span><span class="ron-punct">,</span> <span class="ron-key">well</span><span class="ron-punct">:</span> <span class="ron-type">Authored</span><span class="ron-punct">(</span><span class="ron-string">&quot;planetoid&quot;</span><span class="ron-punct">))),</span>
+<span class="ron-type">OrbitShip</span><span class="ron-punct">((</span><span class="ron-key">order</span><span class="ron-punct">:</span> <span class="ron-string">&quot;park&quot;</span><span class="ron-punct">,</span> <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;surveyor&quot;</span><span class="ron-punct">,</span> <span class="ron-key">well</span><span class="ron-punct">:</span> <span class="ron-type">NearestToShip</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -1709,9 +1731,9 @@ ship's own ORBIT maneuver, so it aligns, burns into the band, and stays.</p>
 </tr>
 <tr>
 <td><code>well</code></td>
-<td>string</td>
+<td><code>Authored(id)</code> or <code>NearestToShip</code></td>
 <td>required</td>
-<td>scoped id of the gravity-well object to orbit; a dangling id is a lint Error</td>
+<td><code>Authored</code> names one gravity-well object this scenario spawned; a dangling id is a lint Error. <code>NearestToShip</code> takes, among loaded wells with a stable ring, the one whose gravity owns the ship when the order engages, else the one whose surface is nearest, streamed wells included. The ring can still cross a neighbouring world. An order resumed after an interruption picks again and can take another well</td>
 </tr>
 </tbody>
 </table>
@@ -1719,9 +1741,13 @@ ship's own ORBIT maneuver, so it aligns, burns into the band, and stays.</p>
 in the band and holding - and then keeps holding it, the same way
 <a href="#forcealign"><code>ForceAlign</code></a> keeps its bearing. A completion here means &quot;it is
 in orbit now&quot;, not &quot;it has stopped orbiting&quot;.</p>
-<p>A well too small, too far, or with no stable band for this hull fails the
-order rather than leaving the beat waiting: see
-<a href="../events/#onshiporderfailed"><code>OnShipOrderFailed</code></a>.</p>
+<p>No loaded well that matches, two wells that match equally, or a well with no
+stable band for this hull fails the order rather than leaving the beat
+waiting: see <a href="../events/#onshiporderfailed"><code>OnShipOrderFailed</code></a>. Two wells
+at the same surface distance fall to the lower id.</p>
+<p>If the well goes after the ring is established - a streamed sector unloads,
+the body is destroyed - the order retires without another event and the helm
+goes back to the ship. It does not pick the well up again if it reloads.</p>
 </details>
 <h3 id="clearshiporder" tabindex="-1">ClearShipOrder</h3>
 <p>Release a ship's helm. The counterpart to the five orders above: whatever the
@@ -1930,6 +1956,10 @@ magazine is the one state a player and an author can both predict.</p>
 <p>Turning it on twice is idempotent, and turning it off on a ship that never had
 it on does nothing. A weapon authored with no magazine at all was already
 unlimited and is untouched in both directions.</p>
+<p>This is an authoring bypass, not the ordinary reload: the ordinary idle reload
+(see <a href="../sections/#turret">Turret <code>reload</code></a>) spends matching ammunition from
+the ship's own <a href="../objects/#inventory">inventory</a>; this action never touches
+it, in either direction.</p>
 </details>
 <h3 id="refillammo" tabindex="-1">RefillAmmo</h3>
 <p>Top a scoped ship's finite magazines back up without changing how they work.</p>
@@ -1965,6 +1995,9 @@ unlimited and is untouched in both directions.</p>
 <p>Each magazine returns to its authored capacity and any reload in flight is
 cleared. Weapons with no finite magazine - and any whose magazine is
 currently suspended by <a href="#setinfiniteammo"><code>SetInfiniteAmmo</code></a> - are skipped.</p>
+<p>An authoring bypass, not the ordinary reload: it fills the magazine directly
+and spends nothing from the ship's <a href="../objects/#inventory">inventory</a>, unlike
+the ordinary idle reload.</p>
 </details>
 <h3 id="ai-constraints" tabindex="-1">AI constraints</h3>
 <p>The three actions below retune an AI ship's JUDGEMENT at runtime: how far it
@@ -2434,18 +2467,5 @@ the sky unchanged (warned).</p>
 </details>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
-    <nav aria-label="Footer">
-        <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/story/">Story</a>
-        <a href="/nova-protocol/lore/">Lore</a>
-        <a href="/nova-protocol/create/">Create</a>
-        <a href="/nova-protocol/news/">News</a>
-        <a
-            href="https://github.com/alexjercan/nova-protocol"
-            target="_blank"
-            rel="noopener"
-            >GitHub</a
-        >
-    </nav>
 </footer>
 </body></html>
