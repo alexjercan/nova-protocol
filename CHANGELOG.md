@@ -21,6 +21,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
   way: mined rocks, owed ore, damaged and looted ships, canisters and wrecks.
   A docked partner is no longer lost.
 
+### Interface & HUD
+
+- GOTO's predicted path now curves for a coasting or tumbling target, gravity
+  included. It hides while the target changes course or spin; the guide stays.
+
 ## [0.15.0] - 2026-10-06
 
 ### Gameplay & Flight

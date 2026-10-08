@@ -239,10 +239,10 @@ fn decimate_path(points: &[Vec3], max: usize) -> Vec<Vec3> {
 /// ship through the prediction points still ahead of it, decimated to at most
 /// [`RIBBON_SEGMENTS`] pooled segments, then for a GOTO one guide segment on
 /// to the target's live pose. The guide draws with or without a prediction,
-/// also while a moving target or well holds the prediction back. A target that
-/// no longer resolves gets no guide rather than a guessed end. Updated every
-/// frame (the ship end moves every tick), despawned when the ship has neither
-/// a prediction nor a GOTO guide.
+/// also while a target changing course or spin or a moving well holds the
+/// prediction back. A target that no longer resolves gets no guide rather than
+/// a guessed end. Updated every frame (the ship end moves every tick),
+/// despawned when the ship has neither a prediction nor a GOTO guide.
 fn sync_trajectory_ribbon(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,

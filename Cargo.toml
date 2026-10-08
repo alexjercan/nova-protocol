@@ -960,6 +960,10 @@ name = "loop_predicted_path"
 path = "examples/screenshots/loop_predicted_path.rs"
 
 [[example]]
+name = "screenshot_goto_moving_target"
+path = "examples/screenshots/screenshot_goto_moving_target.rs"
+
+[[example]]
 name = "lesson_command"
 path = "examples/screenshots/lesson_command.rs"
 

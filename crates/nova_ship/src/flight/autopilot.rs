@@ -125,6 +125,19 @@ pub(super) struct ArrivalTarget {
     pub(super) radius: f32,
     /// The ORBIT band floor for a well-bearing target, else zero.
     pub(super) floor: f32,
+    /// Where [`Self::goal`] sits on the target.
+    pub(super) anchor: ArrivalAnchorType,
+}
+
+/// The point of a target an [`ArrivalTarget::goal`] is measured from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ArrivalAnchorType {
+    /// The target's avian origin: a `BodyRadius` or well body radius is the
+    /// larger size. A GotoPos mark is its own origin.
+    Origin,
+    /// The target's world centre of mass: its `HullRadius` is the larger size,
+    /// or it publishes no size.
+    CenterOfMass,
 }
 
 /// One gravity well as the step reads it.
@@ -444,19 +457,24 @@ pub(super) fn arrival_target(
                 });
                 let target_origin =
                     target_position.map_or_else(|| target_transform.translation(), |p| p.0);
-                let (radius, goal) = if origin_radius > hull_radius {
-                    (origin_radius, target_origin)
+                let (radius, goal, anchor) = if origin_radius > hull_radius {
+                    (origin_radius, target_origin, ArrivalAnchorType::Origin)
                 } else {
                     let com = target_position.and(target_com).map_or(Vec3::ZERO, |c| {
                         target_rotation.map_or(c.0, |r| r.mul_vec3(c.0))
                     });
-                    (hull_radius, target_origin + com)
+                    (
+                        hull_radius,
+                        target_origin + com,
+                        ArrivalAnchorType::CenterOfMass,
+                    )
                 };
                 ArrivalTarget {
                     entity: Some(target),
                     goal,
                     radius,
                     floor,
+                    anchor,
                 }
             },
         ),
@@ -467,6 +485,7 @@ pub(super) fn arrival_target(
             goal: position,
             radius: 0.0,
             floor: 0.0,
+            anchor: ArrivalAnchorType::Origin,
         }),
         _ => None,
     }
