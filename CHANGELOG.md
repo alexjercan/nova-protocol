@@ -15,6 +15,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Interface & HUD
+
+- GOTO's predicted path now curves for a coasting or tumbling target, gravity
+  included. It hides while the target changes course or spin; the guide stays.
+
 ## [0.15.0] - 2026-10-06
 
 ### Gameplay & Flight

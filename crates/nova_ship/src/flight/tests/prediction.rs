@@ -1,5 +1,7 @@
 //! The flight prediction against the flight it predicts.
 
+use std::time::Duration;
+
 use avian3d::prelude::*;
 use bevy::{prelude::*, time::TimeUpdateStrategy};
 use nova_gameplay::{
@@ -217,70 +219,14 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
         // The completing tick flies from the state after the update before it.
         let live_end = released_at - 1;
 
-        let mut max_point_error = 0.0f32;
-        let mut max_tick_error = 0.0f32;
-        let mut covered = vec![false; live_end + 1];
-        for prediction in &predictions {
-            let seed = elapsed
-                .iter()
-                .position(|&time| time == prediction.seed_time)
-                .unwrap_or_else(|| panic!("{case}: a prediction seeds on a flown tick"));
-            let last = prediction.points.len() - 1;
-            let regular_end = seed + 8 * last;
-            let end_tick = match prediction.end {
-                FlightPredictionEndType::Horizon => {
-                    assert!(
-                        live_end >= regular_end,
-                        "{case}: the leg seeded at {seed} is predicted to fly past tick \
-                         {regular_end} but completed at {live_end}"
-                    );
-                    regular_end
-                }
-                FlightPredictionEndType::Completed => {
-                    assert!(
-                        live_end <= regular_end && live_end + 8 > regular_end,
-                        "{case}: the leg seeded at {seed} is predicted to complete by tick \
-                         {regular_end} but completed at {live_end}"
-                    );
-                    live_end
-                }
-                end => panic!("{case}: the leg seeded at {seed} is predicted to end {end:?}"),
-            };
-            assert_eq!(
-                prediction.final_point_time,
-                (end_tick - seed) as f32 * dt,
-                "{case}: the last point of the leg seeded at {seed} is timed at the tick it \
-                 was flown at"
-            );
-            if let Some(flip) = prediction.flip_index {
-                assert!(flip <= last, "{case}: the flip index names a point");
-            }
-            let tick_of = |index: usize| {
-                if index == last {
-                    end_tick
-                } else {
-                    seed + 8 * index
-                }
-            };
-            for index in 0..=last {
-                max_point_error =
-                    max_point_error.max(prediction.points[index].distance(coms[tick_of(index)]));
-            }
-            for tick in seed..=end_tick {
-                let index = (0..last)
-                    .find(|&index| tick <= tick_of(index + 1))
-                    .unwrap_or(last);
-                let drawn = if index == last {
-                    prediction.points[last]
-                } else {
-                    let (from, to) = (tick_of(index), tick_of(index + 1));
-                    let t = (tick - from) as f32 / (to - from) as f32;
-                    prediction.points[index].lerp(prediction.points[index + 1], t)
-                };
-                max_tick_error = max_tick_error.max(drawn.distance(coms[tick]));
-                covered[tick] = true;
-            }
-        }
+        let (max_point_error, max_tick_error) = assert_predictions_follow_the_flown_center_of_mass(
+            &case,
+            &predictions,
+            &coms,
+            &elapsed,
+            live_end,
+            dt,
+        );
         println!(
             "{case}: {} predictions over {live_end} ticks; max error at points {max_point_error} \
              u, at every tick {max_tick_error} u; {braking_entries} braking entries, \
@@ -295,15 +241,97 @@ fn flight_prediction_follows_the_flown_center_of_mass_within_one_unit() {
                 "{case}: the leg must outlast the horizon"
             );
         }
-        assert!(
-            covered[1..].iter().all(|&covered| covered),
-            "{case}: predictions must cover every flown tick after the first"
-        );
-        assert!(
-            max_tick_error <= 1.0,
-            "{case}: the drawn prediction strays {max_tick_error} u from the flown path"
-        );
     }
+}
+
+/// Lays each prediction over the live centre of mass at every fixed tick it
+/// spans, the drawn polyline between its points included: `coms[u]` is the
+/// state after update `u`, at `Time<Fixed>` elapsed `elapsed[u]`, and
+/// `live_end` is the last tick the leg flew. Asserts how each prediction ends
+/// and when its last point is timed, that the predictions cover every flown
+/// tick after the first, and that the drawn path stays within one unit.
+/// Returns the largest error at the points and at every tick.
+fn assert_predictions_follow_the_flown_center_of_mass(
+    case: &str,
+    predictions: &[FlightPrediction],
+    coms: &[Vec3],
+    elapsed: &[Duration],
+    live_end: usize,
+    dt: f32,
+) -> (f32, f32) {
+    let mut max_point_error = 0.0f32;
+    let mut max_tick_error = 0.0f32;
+    let mut covered = vec![false; live_end + 1];
+    for prediction in predictions {
+        let seed = elapsed
+            .iter()
+            .position(|&time| time == prediction.seed_time)
+            .unwrap_or_else(|| panic!("{case}: a prediction seeds on a flown tick"));
+        let last = prediction.points.len() - 1;
+        let regular_end = seed + 8 * last;
+        let end_tick = match prediction.end {
+            FlightPredictionEndType::Horizon => {
+                assert!(
+                    live_end >= regular_end,
+                    "{case}: the leg seeded at {seed} is predicted to fly past tick \
+                     {regular_end} but completed at {live_end}"
+                );
+                regular_end
+            }
+            FlightPredictionEndType::Completed => {
+                assert!(
+                    live_end <= regular_end && live_end + 8 > regular_end,
+                    "{case}: the leg seeded at {seed} is predicted to complete by tick \
+                     {regular_end} but completed at {live_end}"
+                );
+                live_end
+            }
+            end => panic!("{case}: the leg seeded at {seed} is predicted to end {end:?}"),
+        };
+        assert_eq!(
+            prediction.final_point_time,
+            (end_tick - seed) as f32 * dt,
+            "{case}: the last point of the leg seeded at {seed} is timed at the tick it \
+             was flown at"
+        );
+        if let Some(flip) = prediction.flip_index {
+            assert!(flip <= last, "{case}: the flip index names a point");
+        }
+        let tick_of = |index: usize| {
+            if index == last {
+                end_tick
+            } else {
+                seed + 8 * index
+            }
+        };
+        for index in 0..=last {
+            max_point_error =
+                max_point_error.max(prediction.points[index].distance(coms[tick_of(index)]));
+        }
+        for tick in seed..=end_tick {
+            let index = (0..last)
+                .find(|&index| tick <= tick_of(index + 1))
+                .unwrap_or(last);
+            let drawn = if index == last {
+                prediction.points[last]
+            } else {
+                let (from, to) = (tick_of(index), tick_of(index + 1));
+                let t = (tick - from) as f32 / (to - from) as f32;
+                prediction.points[index].lerp(prediction.points[index + 1], t)
+            };
+            max_tick_error = max_tick_error.max(drawn.distance(coms[tick]));
+            covered[tick] = true;
+        }
+    }
+    assert!(
+        covered[1..].iter().all(|&covered| covered),
+        "{case}: predictions must cover every flown tick after the first"
+    );
+    assert!(
+        max_tick_error <= 1.0,
+        "{case}: the drawn prediction strays {max_tick_error} u from the flown path"
+    );
+    (max_point_error, max_tick_error)
 }
 
 #[test]
@@ -705,5 +733,377 @@ fn a_goto_ordered_on_the_paused_map_is_predicted_before_the_clock_resumes() {
     assert!(
         retried.seed_time > frozen.2,
         "the retry must seed on a later tick"
+    );
+}
+
+#[test]
+fn a_goto_to_a_coasting_target_is_predicted_along_the_target_flight() {
+    // The predictor flies the target ahead as avian moves it with no input:
+    // it coasts, a well pulls it at its origin, and it tumbles about its
+    // centre of mass. Each case flies one fixed physics tick per update to
+    // completion, and every published prediction is laid over the live centre
+    // of mass at every fixed tick it spans.
+    let gravity = GravitySettings::default();
+    let well_data = nova_gameplay::gravity::GravityWell::from_mass(8000.0, 40.0, &gravity);
+    // In the well's fade band, so the pull bends a slow coast without
+    // dragging the target out of reach.
+    let side_well = Vec3::new(160.0, 0.0, -120.0);
+    // Deep in the well, where a goal error grows into units of flown path.
+    let deep_well = Vec3::new(100.0, 0.0, -120.0);
+    let near_well = Vec3::new(0.0, 0.0, -120.0);
+    let toward_well = Vec3::new(0.0, 0.0, 0.5);
+    let spin = Vec3::new(0.0, 0.6, 0.0);
+    // (case, target, well, start, velocity, spin)
+    for (case, kind, well, start, velocity, spin) in [
+        (
+            "spinning offset-COM hull in flat space",
+            "hull",
+            None,
+            Vec3::new(0.0, 0.0, -200.0),
+            Vec3::new(0.8, 0.0, 0.0),
+            spin,
+        ),
+        (
+            "spinning offset-COM hull deep in a well",
+            "hull",
+            Some(deep_well),
+            near_well,
+            toward_well,
+            spin,
+        ),
+        (
+            "ship coasting through a well",
+            "ship",
+            Some(side_well),
+            near_well,
+            toward_well,
+            Vec3::ZERO,
+        ),
+        (
+            "rock coasting through a well",
+            "rock",
+            Some(side_well),
+            near_well,
+            toward_well,
+            Vec3::ZERO,
+        ),
+        (
+            "tumbling offset-COM rock in a well",
+            "offset rock",
+            Some(side_well),
+            near_well,
+            toward_well,
+            Vec3::new(0.1, 0.2, 0.0),
+        ),
+    ] {
+        let mut app = orbit_app();
+        let fixed_step = app.world().resource::<Time<Fixed>>().timestep();
+        let dt = fixed_step.as_secs_f32();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(fixed_step));
+        app.add_systems(
+            FixedPostUpdate,
+            predict_flight_path.after(PhysicsSystems::Writeback),
+        );
+        if let Some(well_center) = well {
+            app.world_mut().spawn((
+                RigidBody::Static,
+                Transform::from_translation(well_center),
+                well_data.clone(),
+            ));
+        }
+        let (ship, _, _) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(PlayerSpaceshipMarker);
+        let target = match kind {
+            "rock" => app
+                .world_mut()
+                .spawn((
+                    RigidBody::Dynamic,
+                    Collider::sphere(5.0),
+                    BodyRadius(5.0),
+                    GravityAffected,
+                ))
+                .id(),
+            // The goal is the origin, which the tumble carries around the
+            // centre of mass.
+            "offset rock" => app
+                .world_mut()
+                .spawn((
+                    RigidBody::Dynamic,
+                    Collider::compound(vec![(
+                        Vec3::new(2.0, 0.0, 0.0),
+                        Quat::IDENTITY,
+                        Collider::cuboid(4.0, 2.0, 3.0),
+                    )]),
+                    BodyRadius(8.0),
+                    GravityAffected,
+                ))
+                .id(),
+            "hull" => {
+                // A derelict: the shifted ballast hull without its controller,
+                // so nothing holds its attitude against the spin.
+                let (target, _) = spawn_damage_shifted_single_drive(&mut app, false);
+                let controllers: Vec<Entity> = app
+                    .world_mut()
+                    .query_filtered::<(Entity, &ChildOf), With<ControllerSectionMarker>>()
+                    .iter(app.world())
+                    .filter(|(_, parent)| parent.parent() == target)
+                    .map(|(controller, _)| controller)
+                    .collect();
+                for controller in controllers {
+                    app.world_mut().despawn(controller);
+                }
+                target
+            }
+            _ => spawn_ship(&mut app).0,
+        };
+        app.world_mut()
+            .entity_mut(target)
+            .insert(Transform::from_translation(start));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(target)
+            .insert((LinearVelocity(velocity), AngularVelocity(spin)));
+        let start_rotation = app.world().get::<Rotation>(target).unwrap().0;
+        if spin != Vec3::ZERO {
+            let com = app.world().get::<ComputedCenterOfMass>(target).unwrap().0;
+            assert!(
+                com.length() > 0.5,
+                "{case}: the target's local COM must sit off its origin"
+            );
+        }
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+        let com_of = |app: &App| {
+            let position = app.world().get::<Position>(ship).unwrap().0;
+            let rotation = app.world().get::<Rotation>(ship).unwrap();
+            let com = app.world().get::<ComputedCenterOfMass>(ship).unwrap().0;
+            rotation.mul_vec3(com) + position
+        };
+        // Index u is the state after update u; index 0 is the engaged state.
+        let mut coms = vec![com_of(&app)];
+        let mut elapsed = vec![app.world().resource::<Time<Fixed>>().elapsed()];
+        let mut predictions: Vec<FlightPrediction> = Vec::new();
+        let mut released_at = None;
+        let mut target_in_well = false;
+        for update in 1..=8000 {
+            app.update();
+            target_in_well |= app.world().get::<DominantWell>(target).is_some();
+            coms.push(com_of(&app));
+            elapsed.push(app.world().resource::<Time<Fixed>>().elapsed());
+            if let Some(prediction) = app.world().get::<FlightPrediction>(ship) {
+                if predictions
+                    .last()
+                    .is_none_or(|last| last.seed_time != prediction.seed_time)
+                {
+                    predictions.push(prediction.clone());
+                }
+            }
+            if app.world().get::<Autopilot>(ship).is_none() {
+                released_at = Some(update);
+                break;
+            }
+        }
+        let released_at = released_at.unwrap_or_else(|| panic!("{case}: the leg must complete"));
+        let end_velocity = velocity_of(&app, target);
+        let turned = app
+            .world()
+            .get::<Rotation>(target)
+            .unwrap()
+            .0
+            .angle_between(start_rotation);
+        let bend = end_velocity.angle_between(velocity);
+        println!(
+            "{case}: completed at {released_at}; target moved {} u, bent {bend} rad, turned \
+             {turned} rad, in a well: {target_in_well}; {} predictions",
+            position_of(&app, target).distance(start),
+            predictions.len()
+        );
+        assert!(
+            position_of(&app, target).distance(start) > 1.0,
+            "{case}: the target must move"
+        );
+        assert_eq!(
+            target_in_well,
+            well.is_some(),
+            "{case}: only the present well must pull the target"
+        );
+        if well.is_some() {
+            assert!(bend > 0.05, "{case}: the well must bend the target's coast");
+        }
+        if spin != Vec3::ZERO {
+            assert!(turned > 0.5, "{case}: the target must turn");
+        }
+        // The completing tick flies from the state after the update before it.
+        let (max_point_error, max_tick_error) = assert_predictions_follow_the_flown_center_of_mass(
+            case,
+            &predictions,
+            &coms,
+            &elapsed,
+            released_at - 1,
+            dt,
+        );
+        println!(
+            "{case}: max error at points {max_point_error} u, at every tick {max_tick_error} u"
+        );
+    }
+}
+
+#[test]
+fn a_target_course_change_past_the_delta_v_tolerance_reseeds_the_prediction() {
+    // A coasting ship target in flat space. Each path is checked against the
+    // target flown from its own seed: a change that a later run already
+    // includes still removes an earlier path once its own residual passes
+    // 0.01 u/s, and a change past it in one step reseeds the run.
+    let mut app = orbit_app();
+    let fixed_step = app.world().resource::<Time<Fixed>>().timestep();
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(fixed_step));
+    app.add_systems(
+        FixedPostUpdate,
+        predict_flight_path.after(PhysicsSystems::Writeback),
+    );
+    let (ship, _, _) = spawn_ship(&mut app);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(PlayerSpaceshipMarker);
+    let (target, _, _) = spawn_ship(&mut app);
+    app.world_mut()
+        .entity_mut(target)
+        .insert(Transform::from_xyz(0.0, 0.0, -800.0));
+    settle(&mut app);
+    app.world_mut()
+        .entity_mut(target)
+        .insert(LinearVelocity(Vec3::new(0.5, 0.0, 0.0)));
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+    let elapsed = |app: &App| app.world().resource::<Time<Fixed>>().elapsed();
+    let seed = |app: &App| {
+        app.world()
+            .get::<FlightPrediction>(ship)
+            .map(|prediction| prediction.seed_time)
+    };
+    let kick = |app: &mut App, delta_v: f32| {
+        app.world_mut().get_mut::<LinearVelocity>(target).unwrap().0 += Vec3::Y * delta_v;
+    };
+    let until_published = |app: &mut App| {
+        (0..200)
+            .find_map(|_| {
+                app.update();
+                seed(app)
+            })
+            .expect("a coasting target must be predicted")
+    };
+
+    let shown = until_published(&mut app);
+    kick(&mut app, 0.006);
+    app.update();
+    assert_eq!(
+        seed(&app),
+        Some(shown),
+        "a 0.006 u/s change keeps the path inside the tolerance"
+    );
+    // The run seeded on that tick includes the first change.
+    let run_seed = elapsed(&app);
+    kick(&mut app, 0.006);
+    app.update();
+    assert_eq!(
+        seed(&app),
+        None,
+        "0.012 u/s since the shown path's seed removes it"
+    );
+    assert_eq!(
+        until_published(&mut app),
+        run_seed,
+        "the run that includes the first change is 0.006 u/s off and is kept"
+    );
+    kick(&mut app, 0.02);
+    app.update();
+    let kicked_at = elapsed(&app);
+    assert_eq!(seed(&app), None, "a 0.02 u/s change removes the path");
+    assert!(
+        until_published(&mut app) >= kicked_at,
+        "the next path is seeded after the change"
+    );
+}
+
+#[test]
+fn a_target_turning_under_its_flight_computer_reseeds_the_prediction() {
+    // A coasting ship target whose live flight computer holds its attitude.
+    // A turn command is torque the coast does not model: the shown path is
+    // removed, every later path is seeded after the command, and one is shown
+    // again once the target holds its new attitude.
+    let mut app = orbit_app();
+    let fixed_step = app.world().resource::<Time<Fixed>>().timestep();
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(fixed_step));
+    app.add_systems(
+        FixedPostUpdate,
+        predict_flight_path.after(PhysicsSystems::Writeback),
+    );
+    let (ship, _, _) = spawn_ship(&mut app);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(PlayerSpaceshipMarker);
+    let (target, _, target_controller) = spawn_ship(&mut app);
+    app.world_mut()
+        .entity_mut(target)
+        .insert(Transform::from_xyz(0.0, 0.0, -800.0));
+    settle(&mut app);
+    app.world_mut()
+        .entity_mut(target)
+        .insert(LinearVelocity(Vec3::new(0.5, 0.0, 0.0)));
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+    let seed = |app: &App| {
+        app.world()
+            .get::<FlightPrediction>(ship)
+            .map(|prediction| prediction.seed_time)
+    };
+    let shown = (0..200)
+        .find_map(|_| {
+            app.update();
+            seed(&app)
+        })
+        .expect("a target that holds its attitude must be predicted");
+    let start_rotation = app.world().get::<Rotation>(target).unwrap().0;
+
+    let commanded_at = app.world().resource::<Time<Fixed>>().elapsed();
+    app.world_mut()
+        .entity_mut(target_controller)
+        .insert(ControllerSectionRotationInput(Quat::from_rotation_y(
+            std::f32::consts::FRAC_PI_2,
+        )));
+    let mut removed = false;
+    let mut shown_again = None;
+    for _ in 0..2000 {
+        app.update();
+        match seed(&app) {
+            None => removed = true,
+            Some(seed) if seed > commanded_at => {
+                shown_again = Some(seed);
+                break;
+            }
+            Some(seed) => assert!(
+                !removed && seed == shown,
+                "a path seeded before the turn command must not be shown again"
+            ),
+        }
+    }
+    let turned = app
+        .world()
+        .get::<Rotation>(target)
+        .unwrap()
+        .0
+        .angle_between(start_rotation);
+    println!("turned {turned} rad; removed: {removed}; shown again: {shown_again:?}");
+    assert!(removed, "the turn must remove the shown path");
+    assert!(turned > 1.0, "the flight computer must turn the target");
+    assert!(
+        shown_again.is_some(),
+        "a path is shown again once the target holds its new attitude"
     );
 }
