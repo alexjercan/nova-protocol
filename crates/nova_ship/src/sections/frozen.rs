@@ -23,10 +23,14 @@ use nova_gameplay::prelude::{
 use super::{
     ammo::prelude::{SectionAmmo, SectionReload, SuspendedSectionAmmo},
     cargo_intake_section::prelude::CargoIntakeEjectionQueue,
+    railgun_section::prelude::RailgunCharge,
+    section_animation::prelude::{
+        FrozenSectionAnimations, SectionAnimationRigDirty, SectionAnimations,
+    },
     shell_shape::prelude::ShellShape,
     shell_skin::{frozen_plate_body, ShipSkinMarker},
     skin_decor::{frozen_decor_body, ShipDecorMarker},
-    turret_section::prelude::TurretStow,
+    turret_section::prelude::{FrozenTurretHinges, TurretStow},
 };
 
 /// `FrozenSection`, `freeze_section` and `thaw_section`.
@@ -67,6 +71,9 @@ pub struct FrozenSection {
     reload: Option<SectionReload>,
     ejection_queue: Option<CargoIntakeEjectionQueue>,
     turret_stow: Option<TurretStow>,
+    railgun_charge: Option<RailgunCharge>,
+    animations: FrozenSectionAnimations,
+    hinges: FrozenTurretHinges,
     fixtures: Vec<FrozenFixture>,
 }
 
@@ -153,7 +160,9 @@ fn freeze_fixtures(world: &World, parent: Entity) -> Result<Vec<FrozenFixture>, 
 /// Capture `section`'s durable runtime state: its [`Health`], its
 /// [`SectionInactiveMarker`] flag, its ammo/reload (or the suspended
 /// magazine the unlimited-ammo cheat parked), any queued intake ejections,
-/// its turret stow phase, and every fixture still bolted to it.
+/// its turret stow phase, its railgun charge, every animation track's
+/// progress and target, its turret hinge angles, and every fixture still
+/// bolted to it.
 ///
 /// Not captured because each re-derives within one frame of a fresh spawn,
 /// from state this capture or the design already carries: [`HealthZeroMarker`]
@@ -191,6 +200,9 @@ pub fn freeze_section(world: &World, section: Entity) -> Result<FrozenSection, U
     let Some(health) = world.get::<Health>(section) else {
         panic!("freeze_section: section {section:?} carries no Health");
     };
+    let Some(animations) = world.get::<SectionAnimations>(section) else {
+        panic!("freeze_section: section {section:?} carries no SectionAnimations");
+    };
 
     Ok(FrozenSection {
         health: health.clone(),
@@ -200,6 +212,9 @@ pub fn freeze_section(world: &World, section: Entity) -> Result<FrozenSection, U
         reload: world.get::<SectionReload>(section).copied(),
         ejection_queue: world.get::<CargoIntakeEjectionQueue>(section).cloned(),
         turret_stow: world.get::<TurretStow>(section).copied(),
+        railgun_charge: world.get::<RailgunCharge>(section).copied(),
+        animations: animations.freeze(),
+        hinges: FrozenTurretHinges::freeze(world, section),
         fixtures: freeze_fixtures(world, section)?,
     })
 }
@@ -234,6 +249,14 @@ fn spawn_frozen_fixture(parent: &mut ChildSpawnerCommands, frozen: FrozenFixture
 /// (full-health, unclad-of-frozen-fixtures) state and spawns every frozen
 /// fixture as a child.
 ///
+/// The animation tracks and turret hinges land where they froze, so the
+/// restored [`TurretStow`] phase, [`RailgunCharge`] and ejection queue read
+/// cue progress that matches them. A kind whose own driving state is not
+/// frozen re-steers from that pose: the mining emitter re-arms stowed, and a
+/// bay door follows its live trigger. Both restore in a queued command, which
+/// runs after the spawner's own commands and the observers they fire have
+/// built the tracks and the joint tree.
+///
 /// Ammo, reload, the suspended magazine and the ejection queue are each
 /// removed when the frozen record held none, so a cheat or a queue the fresh
 /// spawn does not know about never leaks forward; [`SectionInactiveMarker`]
@@ -261,8 +284,23 @@ pub fn thaw_section(section: &mut EntityCommands, frozen: FrozenSection) {
         None => section.remove::<CargoIntakeEjectionQueue>(),
     };
     if let Some(stow) = frozen.turret_stow {
-        section.insert(stow);
+        // The stow lift joint is code-built, so no scene ready marks the rig
+        // that poses it; the armer queues this resolve on a fresh turret.
+        section.insert((stow, SectionAnimationRigDirty));
     }
+    if let Some(charge) = frozen.railgun_charge {
+        section.insert(charge);
+    }
+    let animations = frozen.animations;
+    let hinges = frozen.hinges;
+    section.queue(move |mut entity: EntityWorldMut| {
+        let Some(mut thawed) = entity.get_mut::<SectionAnimations>() else {
+            panic!("thaw_section: section carries no SectionAnimations");
+        };
+        thawed.thaw(&animations);
+        let id = entity.id();
+        entity.world_scope(|world| hinges.thaw(world, id));
+    });
     section.with_children(|children| {
         for fixture in frozen.fixtures {
             spawn_frozen_fixture(children, fixture);

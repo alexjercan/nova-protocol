@@ -130,7 +130,7 @@ fn main() -> bevy::app::AppExit {
             FixedPostUpdate,
             trace_track.run_if(
                 any_with_component::<TrackTrace>
-                    .and(|physics: Res<Time<Physics>>| !physics.is_paused()),
+                    .and_then(|physics: Res<Time<Physics>>| !physics.is_paused()),
             ),
         );
     }

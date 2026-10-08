@@ -336,6 +336,7 @@ mod tests {
     use nova_gameplay::transform::prelude::SmoothLookRotationPlugin;
 
     use super::*;
+    use crate::sections::frozen::prelude::{freeze_section, thaw_section};
 
     /// The production stow rig on a manual clock: the real joint tree, the
     /// real look controllers and the real animation driver, with the stow
@@ -794,5 +795,161 @@ mod tests {
             app.update();
         }
         assert_eq!(phase(&app, turret), TurretStowPhase::Deployed);
+    }
+
+    /// Freeze `turret` with the real section snapshot, despawn it, and thaw
+    /// the snapshot onto a fresh turret built from the same design, the way
+    /// a streamed sector rebuilds a ship.
+    fn freeze_and_thaw(app: &mut App, ship: Entity, turret: Entity) -> Entity {
+        // The base section bundle carries Health in production; these bare
+        // rigs do not.
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(Health::new(100.0));
+        let frozen = freeze_section(app.world(), turret).unwrap();
+        app.world_mut().entity_mut(turret).despawn();
+        let thawed = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig::default()))
+            .id();
+        app.world_mut().entity_mut(thawed).insert((
+            ChildOf(ship),
+            Transform::default(),
+            stow_tracks(0.2),
+            Health::new(100.0),
+        ));
+        thaw_section(&mut app.world_mut().commands().entity(thawed), frozen);
+        app.world_mut().flush();
+        thawed
+    }
+
+    #[test]
+    fn a_turret_thawed_stowed_keeps_its_lids_shut_and_deploys_through_them() {
+        #[derive(Resource, Default)]
+        struct Reports(Vec<bool>);
+
+        let mut app = stow_app(0.05);
+        app.init_resource::<Reports>();
+        app.add_observer(|ev: On<TurretStowDoorsMoved>, mut log: ResMut<Reports>| {
+            log.0.push(ev.opening);
+        });
+        let (ship, turret) = spawn_stowable_turret(&mut app, false, 0.2);
+        app.update();
+        app.update();
+        assert_eq!(phase(&app, turret), TurretStowPhase::Stowed);
+
+        let thawed = freeze_and_thaw(&mut app, ship, turret);
+        assert_eq!(phase(&app, thawed), TurretStowPhase::Stowed);
+        assert_eq!(cue(&app, thawed, SectionAnimationCue::StowLift), 1.0);
+        assert_eq!(cue(&app, thawed, SectionAnimationCue::StowDoors), 1.0);
+        assert!(
+            (pitch_output(&app, thawed) - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
+            "the barrel thaws up, behind the shut lids"
+        );
+
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(true));
+        app.update();
+        app.update();
+        assert_eq!(phase(&app, thawed), TurretStowPhase::Deploying);
+        assert!(cue(&app, thawed, SectionAnimationCue::StowDoors) < 1.0);
+        assert_eq!(
+            cue(&app, thawed, SectionAnimationCue::StowLift),
+            1.0,
+            "the gun must not rise through shut lids"
+        );
+        for _ in 0..20 {
+            app.update();
+        }
+        assert_eq!(phase(&app, thawed), TurretStowPhase::Deployed);
+        assert_eq!(
+            app.world().resource::<Reports>().0,
+            vec![true],
+            "the deploy out of a thawed stow parts the lids"
+        );
+    }
+
+    #[test]
+    fn a_turret_thawed_mid_sink_resumes_the_lift_where_it_froze() {
+        #[derive(Resource, Default)]
+        struct Reports(Vec<bool>);
+
+        let mut app = stow_app(0.05);
+        app.init_resource::<Reports>();
+        app.add_observer(|ev: On<TurretStowDoorsMoved>, mut log: ResMut<Reports>| {
+            log.0.push(ev.opening);
+        });
+        let (ship, turret) = spawn_stowable_turret(&mut app, true, 0.2);
+        for _ in 0..22 {
+            app.update();
+        }
+        assert_eq!(phase(&app, turret), TurretStowPhase::Deployed);
+
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(false));
+        let mut lift = 0.0;
+        for _ in 0..200 {
+            app.update();
+            lift = cue(&app, turret, SectionAnimationCue::StowLift);
+            if lift > 0.0 && lift < 1.0 {
+                break;
+            }
+        }
+        assert!(lift > 0.0 && lift < 1.0, "the lift froze mid-sink");
+        assert_eq!(phase(&app, turret), TurretStowPhase::Stowing);
+
+        let thawed = freeze_and_thaw(&mut app, ship, turret);
+        assert_eq!(phase(&app, thawed), TurretStowPhase::Stowing);
+        assert_eq!(cue(&app, thawed, SectionAnimationCue::StowLift), lift);
+        let animations = app.world().get::<SectionAnimations>(thawed).unwrap();
+        assert_eq!(
+            animations.cue_target(SectionAnimationCue::StowLift),
+            Some(1.0)
+        );
+        assert_eq!(cue(&app, thawed, SectionAnimationCue::StowDoors), 0.0);
+
+        for _ in 0..40 {
+            app.update();
+        }
+        assert_eq!(phase(&app, thawed), TurretStowPhase::Stowed);
+        assert_eq!(
+            app.world().resource::<Reports>().0,
+            vec![true, false],
+            "the thawed sink shuts the lids once"
+        );
+    }
+
+    #[test]
+    fn a_turret_thawed_mid_fold_keeps_its_hinge_angles() {
+        let mut app = stow_app(0.05);
+        let (ship, turret) = spawn_stowable_turret(&mut app, true, 0.2);
+        for _ in 0..22 {
+            app.update();
+        }
+        assert_eq!(phase(&app, turret), TurretStowPhase::Deployed);
+
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(false));
+        let stow = std::f32::consts::FRAC_PI_2;
+        let initial = pitch_initial(&app, turret);
+        let mut pitch = initial;
+        for _ in 0..200 {
+            app.update();
+            pitch = pitch_output(&app, turret);
+            if pitch > initial + STOW_AIM_SETTLE_RAD && pitch < stow - STOW_AIM_SETTLE_RAD {
+                break;
+            }
+        }
+        assert!(
+            pitch > initial + STOW_AIM_SETTLE_RAD && pitch < stow - STOW_AIM_SETTLE_RAD,
+            "the barrel froze mid-fold"
+        );
+        assert_eq!(phase(&app, turret), TurretStowPhase::Stowing);
+
+        let thawed = freeze_and_thaw(&mut app, ship, turret);
+        assert_eq!(pitch_output(&app, thawed), pitch);
+        assert_eq!(cue(&app, thawed, SectionAnimationCue::StowLift), 0.0);
+        app.update();
+        assert!(
+            pitch_output(&app, thawed) > pitch,
+            "the thawed barrel keeps folding up toward its stow angle"
+        );
     }
 }

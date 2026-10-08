@@ -5,7 +5,10 @@
 use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
 use super::*;
-use crate::sections::ammo::tick_section_reload;
+use crate::sections::{
+    ammo::tick_section_reload,
+    frozen::prelude::{freeze_section, thaw_section},
+};
 
 /// A physics app running only the lance's cycle. Real avian, because the
 /// recoil is applied through `Forces` and a hand-built rig cannot stand in
@@ -370,6 +373,89 @@ fn the_charge_cue_tracks_the_gameplay_charge_and_resets_on_the_shot() {
         0.0,
         "the bolt snaps back to the breech the instant the shell leaves"
     );
+}
+
+/// A lance frozen mid-charge thaws with its committed charge and its bolt
+/// where they stood, so the tell never shows a charge the clock lost, and the
+/// shot still lands when the clock completes.
+#[test]
+fn a_railgun_thawed_mid_charge_resumes_its_bolt() {
+    let mut app = railgun_app();
+    let config = RailgunSectionConfig {
+        charge_seconds: 0.5,
+        ..default()
+    };
+    let offset = Vec3::NEG_Z * 2.0;
+    let track = SectionAnimation {
+        cue: SectionAnimationCue::Charge,
+        node_prefix: "charge_bolt".to_string(),
+        motion: SectionAnimationMotion::Translate {
+            offset: Vec3::NEG_Z * 2.4,
+        },
+        open_seconds: 0.0,
+        close_seconds: 0.0,
+    };
+    let (ship, lance) = spawn_lance_ship(&mut app, config.clone(), offset);
+    // The base section bundle carries both in production.
+    app.world_mut().entity_mut(lance).insert((
+        SectionAnimations::new(vec![track.clone()]),
+        Health::new(100.0),
+    ));
+
+    hold_trigger(&mut app, lance, true);
+    for _ in 0..3 {
+        app.update();
+    }
+    hold_trigger(&mut app, lance, false);
+    let charge = *app.world().get::<RailgunCharge>(lance).expect("a charge");
+    let RailgunCharge::Charging { elapsed } = charge else {
+        panic!("the lance froze mid-charge, not {charge:?}");
+    };
+    assert!(elapsed > 0.0, "the charge has run");
+    let animations = app.world().get::<SectionAnimations>(lance).expect("tracks");
+    let progress = animations
+        .cue_progress(SectionAnimationCue::Charge)
+        .expect("a charge track");
+    let target = animations.cue_target(SectionAnimationCue::Charge);
+    assert!(
+        progress > 0.0 && progress < 1.0,
+        "the bolt froze partway up the bore: {progress}"
+    );
+
+    let frozen = freeze_section(app.world(), lance).unwrap();
+    app.world_mut().entity_mut(lance).despawn();
+    let thawed = {
+        let mut commands = app.world_mut().commands();
+        let mut section = commands.spawn((
+            ChildOf(ship),
+            Name::new("lance"),
+            Transform::from_translation(offset),
+            Collider::cuboid(1.0, 1.0, 3.0),
+            ColliderDensity(1.0),
+            railgun_section(config),
+            SectionAnimations::new(vec![track]),
+            Health::new(100.0),
+        ));
+        thaw_section(&mut section, frozen);
+        section.id()
+    };
+    app.world_mut().flush();
+
+    assert_eq!(app.world().get::<RailgunCharge>(thawed), Some(&charge));
+    let animations = app
+        .world()
+        .get::<SectionAnimations>(thawed)
+        .expect("tracks");
+    assert_eq!(
+        animations.cue_progress(SectionAnimationCue::Charge),
+        Some(progress)
+    );
+    assert_eq!(animations.cue_target(SectionAnimationCue::Charge), target);
+
+    for _ in 0..40 {
+        app.update();
+    }
+    assert_eq!(slugs(&mut app).len(), 1, "the committed charge still fires");
 }
 
 /// A bare lance and one charge glow, with no physics and no render observers:

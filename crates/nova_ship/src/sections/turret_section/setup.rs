@@ -177,6 +177,130 @@ pub(super) fn insert_turret_section(
     }
 }
 
+/// Every hinge of a turret's joint tree when its body froze: identity plus
+/// commanded and current angle, in tree order, with no `Entity` in it. Empty
+/// for a section that builds no turret joints.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FrozenTurretHinges(Vec<FrozenHinge>);
+
+/// One hinge when its turret froze. `name` and `axis` identify it, so a thaw
+/// onto a differently built tree fails instead of posing the wrong joint.
+#[derive(Clone, Debug, PartialEq)]
+struct FrozenHinge {
+    name: String,
+    axis: Vec3,
+    target: f32,
+    output: f32,
+}
+
+impl FrozenTurretHinges {
+    /// Capture every hinge of `section`'s joint tree.
+    ///
+    /// # Panics
+    ///
+    /// When a hinge carries no `Name`, [`SmoothLookRotationTarget`] or
+    /// [`SmoothLookRotationOutput`]: [`insert_turret_section`] names every
+    /// joint and the look controller's insert observer gives every hinge both
+    /// angles, so that would mean the tree changed shape under this snapshot.
+    pub fn freeze(world: &World, section: Entity) -> Self {
+        Self(
+            turret_hinges(world, section)
+                .into_iter()
+                .map(|hinge| {
+                    let (name, axis) = hinge_identity(world, hinge);
+                    let (Some(target), Some(output)) = (
+                        world.get::<SmoothLookRotationTarget>(hinge),
+                        world.get::<SmoothLookRotationOutput>(hinge),
+                    ) else {
+                        panic!("FrozenTurretHinges::freeze: hinge {hinge:?} carries no angles");
+                    };
+                    FrozenHinge {
+                        name: name.to_string(),
+                        axis,
+                        target: **target,
+                        output: **output,
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    /// Land every hinge of `section`'s freshly built joint tree at the angles
+    /// this snapshot recorded.
+    ///
+    /// # Panics
+    ///
+    /// When the tree holds a different hinge count, a hinge at the same tree
+    /// position has another name or axis, or a hinge carries no angles: the
+    /// tree was built from another design, or not built yet.
+    pub fn thaw(&self, world: &mut World, section: Entity) {
+        let hinges = turret_hinges(world, section);
+        assert_eq!(
+            hinges.len(),
+            self.0.len(),
+            "FrozenTurretHinges::thaw: section {section:?} hinge count differs from the frozen tree"
+        );
+        for (hinge, frozen) in hinges.into_iter().zip(&self.0) {
+            let (name, axis) = hinge_identity(world, hinge);
+            assert!(
+                name == frozen.name && axis == frozen.axis,
+                "FrozenTurretHinges::thaw: hinge {hinge:?} is {name:?} on {axis}, frozen {:?} on {}",
+                frozen.name,
+                frozen.axis
+            );
+            let Some(mut target) = world.get_mut::<SmoothLookRotationTarget>(hinge) else {
+                panic!("FrozenTurretHinges::thaw: hinge {hinge:?} carries no target");
+            };
+            **target = frozen.target;
+            let Some(mut output) = world.get_mut::<SmoothLookRotationOutput>(hinge) else {
+                panic!("FrozenTurretHinges::thaw: hinge {hinge:?} carries no output");
+            };
+            **output = frozen.output;
+        }
+    }
+}
+
+/// `section`'s hinges in depth-first tree order: the joints of this turret
+/// that carry a [`SmoothLookRotation`]. The walk descends only through the
+/// turret's own joints, the order [`insert_turret_section`] spawns them in.
+fn turret_hinges(world: &World, section: Entity) -> Vec<Entity> {
+    fn walk(world: &World, section: Entity, parent: Entity, hinges: &mut Vec<Entity>) {
+        let Some(children) = world.get::<Children>(parent) else {
+            return;
+        };
+        for child in children.iter() {
+            if world
+                .get::<TurretSectionPartOf>(child)
+                .is_none_or(|part_of| **part_of != section)
+            {
+                continue;
+            }
+            if world.get::<SmoothLookRotation>(child).is_some() {
+                hinges.push(child);
+            }
+            walk(world, section, child, hinges);
+        }
+    }
+    let mut hinges = Vec::new();
+    walk(world, section, section, &mut hinges);
+    hinges
+}
+
+/// A hinge's joint name and axis.
+///
+/// # Panics
+///
+/// When `hinge` carries no `Name` or [`SmoothLookRotation`].
+fn hinge_identity(world: &World, hinge: Entity) -> (&str, Vec3) {
+    let (Some(name), Some(look)) = (
+        world.get::<Name>(hinge),
+        world.get::<SmoothLookRotation>(hinge),
+    ) else {
+        panic!("hinge_identity: hinge {hinge:?} carries no Name or SmoothLookRotation");
+    };
+    (name.as_str(), look.axis)
+}
+
 /// Push live edits of a turret's [`TurretSectionConfigHelper`] onto everything
 /// that snapshots it when the turret is built, so retuning takes effect
 /// immediately (the turret range example's sliders, or the editor): the child
