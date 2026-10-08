@@ -10,12 +10,16 @@ use nova_events::{prelude::EntityId, units::prelude::*};
 use nova_gameplay::prelude::*;
 
 use super::link_points::prelude::*;
-use crate::prelude::SectionCollider;
+use crate::prelude::{
+    freeze_section, section_body, thaw_section, FrozenSection, SectionBuildConfig, SectionCollider,
+    SectionConfig, ShipStyle,
+};
 
 /// Ship graph publication, disabled-section behavior, and aggregate health.
 pub mod prelude {
     pub use super::{
-        clear_pending_severs, ShipCollapseSound, ShipIntegrityPlugin, ShipWreckFragmentMarker,
+        clear_pending_severs, freeze_wreck_fragment, thaw_wreck_fragment, unsettled_structure,
+        FrozenWreckFragment, ShipCollapseSound, ShipIntegrityPlugin, ShipWreckFragmentMarker,
         StructuralCollapseMarker, StructuralCollapseThreshold,
         DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD,
     };
@@ -111,6 +115,180 @@ pub struct ShipCollapseSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
 #[reflect(Component)]
 pub struct ShipWreckFragmentMarker;
+
+/// Why a ship root's or a wreck fragment's structure cannot freeze on this
+/// frame, if it cannot.
+///
+/// A sever is queued in `Update` and its motion lands in `FixedPostUpdate`,
+/// and a collapse or a destruction runs over several ticks. A body frozen
+/// between those steps would thaw with a cut half applied, or with a collapse
+/// that never finishes.
+pub fn unsettled_structure(world: &World, body: Entity) -> Option<UnsettledBody> {
+    let entity = world.entity(body);
+    if entity.contains::<StructuralCollapseMarker>() {
+        return Some(UnsettledBody {
+            reason: "its structure is collapsing",
+        });
+    }
+    if entity.contains::<IntegrityDestroyMarker>() {
+        return Some(UnsettledBody {
+            reason: "it is being destroyed",
+        });
+    }
+    if world
+        .get_resource::<PendingSeverRoots>()
+        .is_some_and(|pending| pending.0.contains_key(&body))
+    {
+        return Some(UnsettledBody {
+            reason: "a sever is queued on it",
+        });
+    }
+    if world
+        .get_resource::<PendingSeverMotion>()
+        .is_some_and(|pending| pending.0.iter().any(|batch| batch.bodies.contains(&body)))
+    {
+        return Some(UnsettledBody {
+            reason: "a sever's motion has not landed on it",
+        });
+    }
+    None
+}
+
+/// A severed wreck fragment's sections while the sector that held it is
+/// frozen.
+///
+/// A fragment has no design to spawn again: its sections were a ship's, cut
+/// loose. Each one is rebuilt from the [`SectionBuildConfig`] it was spawned
+/// from, inactive as every fragment section is, at the pose it held on the
+/// fragment, with its frozen state and its structural neighbours on the same
+/// fragment.
+#[derive(Clone, Debug)]
+pub struct FrozenWreckFragment {
+    /// The style the ship it was cut from wore, which its plates dress in.
+    /// Absent when that ship wore none.
+    style: Option<ShipStyle>,
+    sections: Vec<FrozenWreckSection>,
+}
+
+#[derive(Clone, Debug)]
+struct FrozenWreckSection {
+    id: Option<EntityId>,
+    name: Option<Name>,
+    transform: Transform,
+    config: SectionConfig,
+    /// Indices into the fragment's section list. A neighbour on another body
+    /// cannot outlive the despawn, and the graph is walked per body.
+    neighbours: Vec<usize>,
+    state: FrozenSection,
+}
+
+/// Freeze a severed wreck fragment.
+///
+/// # Errors
+///
+/// [`UnsettledBody`] through [`unsettled_structure`], or while a section or
+/// plate is mid-destruction.
+///
+/// # Panics
+///
+/// On an entity that is not a wreck fragment, on a fragment child that is not
+/// a section, and on a section with no [`SectionBuildConfig`]: none of those
+/// could be built again.
+pub fn freeze_wreck_fragment(
+    world: &World,
+    fragment: Entity,
+) -> Result<FrozenWreckFragment, UnsettledBody> {
+    let root = world.entity(fragment);
+    assert!(
+        root.contains::<ShipWreckFragmentMarker>(),
+        "freeze_wreck_fragment: {fragment} is not a wreck fragment"
+    );
+    if let Some(unsettled) = unsettled_structure(world, fragment) {
+        return Err(unsettled);
+    }
+    let children: Vec<Entity> = root
+        .get::<Children>()
+        .into_iter()
+        .flatten()
+        .copied()
+        .collect();
+    let mut sections = Vec::with_capacity(children.len());
+    for &child in &children {
+        let section = world.entity(child);
+        assert!(
+            section.contains::<SectionMarker>(),
+            "freeze_wreck_fragment: fragment {fragment} holds {child}, which is not a section"
+        );
+        let Some(config) = section.get::<SectionBuildConfig>() else {
+            panic!(
+                "freeze_wreck_fragment: section {child} on fragment {fragment} carries no build \
+                 config"
+            );
+        };
+        let neighbours = section
+            .get::<ConnectedTo>()
+            .map(|connected| {
+                connected
+                    .0
+                    .iter()
+                    .filter_map(|neighbour| children.iter().position(|other| other == neighbour))
+                    .collect()
+            })
+            .unwrap_or_default();
+        sections.push(FrozenWreckSection {
+            id: section.get::<EntityId>().cloned(),
+            name: section.get::<Name>().cloned(),
+            transform: section.get::<Transform>().copied().unwrap_or_default(),
+            config: config.0.clone(),
+            neighbours,
+            state: freeze_section(world, child)?,
+        });
+    }
+    Ok(FrozenWreckFragment {
+        style: root.get::<ShipStyle>().cloned(),
+        sections,
+    })
+}
+
+/// Rebuild a frozen wreck fragment on `entity`, which the caller spawned with
+/// its pose and parent. The caller inserts the velocity after this.
+pub fn thaw_wreck_fragment(entity: &mut EntityCommands, frozen: FrozenWreckFragment) {
+    let fragment = entity.id();
+    entity.insert((
+        ShipWreckFragmentMarker,
+        IntegrityRoot,
+        RigidBody::Dynamic,
+        TransformInterpolation,
+    ));
+    // Before the sections: a plate dresses from the style its ancestors
+    // wear the moment it is added.
+    if let Some(style) = frozen.style {
+        entity.insert(style);
+    }
+    let mut commands = entity.commands();
+    let mut spawned = Vec::with_capacity(frozen.sections.len());
+    let mut neighbours = Vec::with_capacity(frozen.sections.len());
+    for section in frozen.sections {
+        let mut section_entity = commands.spawn((section.transform, ChildOf(fragment)));
+        if let Some(id) = section.id {
+            section_entity.insert(id);
+        }
+        section_body(&mut section_entity, &section.config, true);
+        if let Some(name) = section.name {
+            section_entity.insert(name);
+        }
+        thaw_section(&mut section_entity, section.state);
+        spawned.push(section_entity.id());
+        neighbours.push(section.neighbours);
+    }
+    // The ship graph is built only under a ship root, so a fragment's edges
+    // are restored as they froze.
+    for (section, neighbours) in spawned.iter().zip(neighbours) {
+        commands.entity(*section).insert(ConnectedTo(
+            neighbours.into_iter().map(|index| spawned[index]).collect(),
+        ));
+    }
+}
 
 #[derive(Clone, Debug)]
 struct PendingSeverCut {
@@ -328,6 +506,7 @@ fn sever_disconnected_structures(
             &Rotation,
             &LinearVelocity,
             &AngularVelocity,
+            Option<&ShipStyle>,
             Has<SpaceshipRootMarker>,
             Has<StructuralCollapseMarker>,
         ),
@@ -357,6 +536,7 @@ fn sever_disconnected_structures(
             rotation,
             linear_velocity,
             angular_velocity,
+            style,
             is_spaceship,
             collapsing,
         )) = q_roots.get(root)
@@ -441,21 +621,25 @@ fn sever_disconnected_structures(
             if index == retained {
                 continue;
             }
-            let fragment = commands
-                .spawn((
-                    Name::new("Severed Ship Wreck"),
-                    ShipWreckFragmentMarker,
-                    IntegrityRoot,
-                    RigidBody::Dynamic,
-                    Position(position.0),
-                    Rotation(rotation.0),
-                    Transform::from_translation(position.0).with_rotation(rotation.0),
-                    Visibility::default(),
-                    LinearVelocity(**linear_velocity),
-                    AngularVelocity(**angular_velocity),
-                    TransformInterpolation,
-                ))
-                .id();
+            let mut fragment = commands.spawn((
+                Name::new("Severed Ship Wreck"),
+                ShipWreckFragmentMarker,
+                IntegrityRoot,
+                RigidBody::Dynamic,
+                Position(position.0),
+                Rotation(rotation.0),
+                Transform::from_translation(position.0).with_rotation(rotation.0),
+                Visibility::default(),
+                LinearVelocity(**linear_velocity),
+                AngularVelocity(**angular_velocity),
+                TransformInterpolation,
+            ));
+            // A fragment's plates keep the style the ship wore: a freeze
+            // carries it, and a thaw dresses the rebuilt plates from it.
+            if let Some(style) = style {
+                fragment.insert(style.clone());
+            }
+            let fragment = fragment.id();
             bodies.push(fragment);
             for section in component {
                 let Ok((_, transform, ..)) = q_sections.get(*section) else {
@@ -1399,6 +1583,7 @@ mod physics_tests {
     use super::*;
     use crate::{
         physics::prelude::{PDControllerPlugin, PDControllerTarget},
+        prelude::{BaseSectionConfig, HullSectionConfig, SectionKind},
         sections::controller_section::prelude::{
             controller_section, ControllerSectionConfig, ControllerSectionPlugin,
         },
@@ -1767,6 +1952,80 @@ mod physics_tests {
         assert!(
             !app.world().entities().contains(empty_root),
             "an empty wreck root must not persist"
+        );
+    }
+
+    /// A severed wreck keeps the style its ship wore, and a frozen copy of it
+    /// thaws wearing that style, so the plates it rebuilds dress the way the
+    /// ship's did rather than undressed.
+    #[test]
+    fn a_wreck_fragment_keeps_its_ships_style_through_a_freeze() {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.finish();
+
+        let style = ShipStyle(Some("industrial".to_string()));
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+                style.clone(),
+            ))
+            .id();
+        let hull = SectionConfig {
+            base: BaseSectionConfig {
+                id: "hull".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        };
+        let sections: Vec<Entity> = (0..3)
+            .map(|index| {
+                let section = spawn_section(&mut app, root, Vec3::X * index as f32);
+                app.world_mut()
+                    .entity_mut(section)
+                    .insert(SectionBuildConfig(hull.clone()));
+                section
+            })
+            .collect();
+        app.world_mut()
+            .entity_mut(sections[0])
+            .insert(ControllerSectionMarker);
+        settle(&mut app);
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: sections[1],
+            source: None,
+            amount: 100.0,
+        });
+        settle(&mut app);
+
+        let fragments: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<ShipWreckFragmentMarker>>()
+            .iter(app.world())
+            .collect();
+        let [fragment] = fragments[..] else {
+            panic!("the cut makes one wreck, not {}", fragments.len());
+        };
+        assert_eq!(app.world().get::<ShipStyle>(fragment), Some(&style));
+
+        let frozen = freeze_wreck_fragment(app.world(), fragment).expect("a settled wreck freezes");
+        app.world_mut().entity_mut(fragment).despawn();
+        let mut commands = app.world_mut().commands();
+        let mut thawed = commands.spawn(Transform::default());
+        thaw_wreck_fragment(&mut thawed, frozen);
+        let thawed = thawed.id();
+        app.world_mut().flush();
+
+        assert_eq!(
+            app.world().get::<ShipStyle>(thawed),
+            Some(&style),
+            "a thawed wreck dresses its plates in the style its ship wore"
         );
     }
 

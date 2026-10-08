@@ -38,9 +38,10 @@
 //! collider and no other canister. A rock that runs out of material hands its
 //! queue to a drop entity at its last pose, which drains the same way.
 //!
-//! Nothing here is saved. Owed ore and queued canisters belong to the rock, or
-//! to its drop, and a sector retirement or scenario unload discards them with
-//! it; a retired rock comes back pristine.
+//! Owed ore and queued canisters freeze with their rock or drop when a
+//! streamed sector retires, and come back with it: see [`freeze_ore_drop`]
+//! and the asteroid freeze in `objects::asteroid`. A scenario unload discards
+//! them.
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -79,8 +80,9 @@ use crate::{
 /// hit and the mined canister model.
 pub mod prelude {
     pub use super::{
-        ore_for_asteroid_kind, MinedCanisterQueue, MinedOre, MiningBeamHit, MiningPlugin,
-        MiningPulse, MiningRefusalType, MiningSystems, MINED_CANISTER_MESH,
+        freeze_ore_drop, ore_for_asteroid_kind, thaw_ore_drop, FrozenOreDrop, MinedCanisterQueue,
+        MinedOre, MinedOreDrop, MiningBeamHit, MiningPlugin, MiningPulse, MiningRefusalType,
+        MiningSystems, MINED_CANISTER_MESH,
     };
 }
 
@@ -246,8 +248,53 @@ struct MiningPulseClock(f32);
 
 /// Marks the entity a rock that ran out of material hands its queue to. It
 /// carries the rock's last pose and despawns once the queue drains.
+///
+/// PUBLIC so a streamed sector can find one among the entities it is about to
+/// despawn and freeze it with [`freeze_ore_drop`] - a drop is its own entity,
+/// not a child of any live rock, so nothing else would name it.
 #[derive(Component, Clone, Copy, Debug)]
-struct MinedOreDrop;
+pub struct MinedOreDrop;
+
+/// A [`MinedOreDrop`]'s whole state while its sector is frozen: its waiting
+/// canister queue, which is the only thing a drop carries beyond its pose
+/// (the caller keeps that separately, the same way it keeps an asteroid's).
+#[derive(Clone, Debug)]
+pub struct FrozenOreDrop {
+    queue: MinedCanisterQueue,
+}
+
+/// Snapshot one ore drop's whole state so its sector can despawn it and
+/// [`thaw_ore_drop`] can put the same drop back later.
+///
+/// # Panics
+///
+/// When `drop` is not a [`MinedOreDrop`] carrying a [`MinedCanisterQueue`] -
+/// `release_mined_ore` never spawns one without the other, so this means the
+/// caller resolved the wrong entity.
+pub fn freeze_ore_drop(world: &World, drop: Entity) -> FrozenOreDrop {
+    assert!(
+        world.get::<MinedOreDrop>(drop).is_some(),
+        "freeze_ore_drop: {drop:?} is not a MinedOreDrop"
+    );
+    let queue = world
+        .get::<MinedCanisterQueue>(drop)
+        .unwrap_or_else(|| panic!("freeze_ore_drop: {drop:?} has no MinedCanisterQueue"))
+        .clone();
+    FrozenOreDrop { queue }
+}
+
+/// Rebuild a frozen ore drop's bundle: its name, marker, scope and queue. The
+/// caller adds the drop's last pose (`Transform`/`GlobalTransform`) and
+/// `ChildOf` the sector it belonged to, the same fields `release_mined_ore`
+/// gives a fresh one.
+pub fn thaw_ore_drop(frozen: FrozenOreDrop) -> impl Bundle {
+    (
+        Name::new("Mined Ore Drop"),
+        MinedOreDrop,
+        ScenarioScopedMarker,
+        frozen.queue,
+    )
+}
 
 /// The drawn beam, a child of its mining section.
 #[derive(Component, Clone, Copy, Debug)]
@@ -1614,5 +1661,140 @@ mod tests {
         );
         let counts: Vec<u32> = born.iter().map(|(_, count)| *count).collect();
         assert_eq!(counts, [20, 20, 5], "first in, first out, one at a time");
+    }
+
+    /// A rock still owed ore and a drop still waiting on a blocked birth point
+    /// both freeze with their sector and come back owing the same: nothing of
+    /// either is in the world while frozen, the rock is owed its unpaid
+    /// corners again, and the drop drains its queue as it would have.
+    #[test]
+    fn owed_ore_and_a_waiting_drop_come_back_from_a_frozen_sector() {
+        let mut app = mining_app();
+        let (rock, node) = spawn_rock(&mut app, KIND_ROCK);
+        let owed = MinedOre {
+            item: ItemType::IronOre,
+            corners: 12,
+            at: Vec3::new(0.5, 0.0, 0.0),
+            normal: Vec3::X,
+        };
+        app.world_mut().entity_mut(node).insert(owed);
+
+        // A drop far from the rock, its birth point blocked.
+        let sector = app
+            .world_mut()
+            .spawn((Transform::from_xyz(100.0, 0.0, 0.0), Visibility::default()))
+            .id();
+        let exhausted = app
+            .world_mut()
+            .spawn((Transform::default(), Visibility::default(), ChildOf(sector)))
+            .id();
+        let exhausted_node = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                Visibility::default(),
+                ChildOf(exhausted),
+                MinedOre {
+                    item: ItemType::IronOre,
+                    corners: 45,
+                    at: Vec3::new(0.5, 0.0, 0.0),
+                    normal: Vec3::X,
+                },
+            ))
+            .id();
+        let blocker = app
+            .world_mut()
+            .spawn((
+                RigidBody::Static,
+                Collider::sphere(0.5),
+                Transform::from_xyz(101.5, 0.0, 0.0),
+            ))
+            .id();
+        settle(&mut app);
+        app.world_mut().trigger(AsteroidRemeshed {
+            entity: exhausted_node,
+            exhausted: true,
+        });
+        app.world_mut().entity_mut(exhausted).despawn();
+        for _ in 0..120 {
+            app.update();
+        }
+        let world = app.world_mut();
+        let [drop] = world
+            .query_filtered::<Entity, With<MinedOreDrop>>()
+            .iter(world)
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("the exhausted rock must leave one drop");
+        };
+        assert_eq!(ore_in_world(world, ItemType::IronOre), 12 + 45);
+
+        let frozen_rock = freeze_asteroid(world, rock).expect("a settled rock freezes");
+        let frozen_drop = freeze_ore_drop(world, drop);
+        let drop_pose = *world.get::<Transform>(drop).unwrap();
+        world.entity_mut(rock).despawn();
+        world.entity_mut(drop).despawn();
+        assert_eq!(
+            ore_in_world(world, ItemType::IronOre),
+            0,
+            "frozen ore must not stay in the world"
+        );
+
+        let geometry = prepare_asteroid_geometry(frozen_rock.seed(), frozen_rock.radius());
+        let rock = {
+            let mut commands = world.commands();
+            let mut thawed = commands.spawn((Transform::default(), Visibility::default()));
+            thaw_asteroid(&mut thawed, frozen_rock, geometry);
+            thawed.id()
+        };
+        let drop = world
+            .spawn((
+                drop_pose,
+                Visibility::default(),
+                ChildOf(sector),
+                thaw_ore_drop(frozen_drop),
+            ))
+            .id();
+        world.flush();
+        settle(&mut app);
+
+        let world = app.world_mut();
+        let node = world
+            .get::<Children>(rock)
+            .expect("the thawed rock has its field node")
+            .iter()
+            .find(|child| world.get::<DamageMarks>(*child).is_some())
+            .expect("the field node takes marks");
+        assert_eq!(
+            world.get::<MinedOre>(node),
+            Some(&owed),
+            "the rock is owed the same ore"
+        );
+        assert_eq!(ore_in_world(world, ItemType::IronOre), 12 + 45);
+
+        world.entity_mut(blocker).despawn();
+        let mut born = Vec::new();
+        for _ in 0..FRAME_CAP {
+            app.update();
+            let world = app.world_mut();
+            for canister in canisters(world) {
+                if !born.iter().any(|(each, _)| *each == canister) {
+                    let count = held(
+                        world.get::<CargoCanister>(canister).unwrap(),
+                        ItemType::IronOre,
+                    );
+                    born.push((canister, count));
+                }
+            }
+            if world.get_entity(drop).is_err() {
+                break;
+            }
+        }
+        assert!(
+            app.world().get_entity(drop).is_err(),
+            "the thawed drop never drained"
+        );
+        let counts: Vec<u32> = born.iter().map(|(_, count)| *count).collect();
+        assert_eq!(counts, [20, 20, 5], "the thawed drop pays its queue once");
     }
 }

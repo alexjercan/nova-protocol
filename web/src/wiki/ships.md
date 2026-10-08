@@ -90,7 +90,7 @@ An armed Neutral ship you shoot fights back and reads HOSTILE to you until it lo
 
 To loot a wreck, or a ship you neutralized in combat, [dock](../sections/docking/) with one of its ports: [Take](../interface/#take-and-give) its goods, and **Take credits** moves its whole balance in one click, in the Inventory pane. A calm ally or Neutral ship lets you dock to trade instead; one that is Hostile, Enemy, or fighting refuses the dock until it calms down or you finish it.
 
-The world streams in 32 km sectors, and the game keeps the 5 x 5 x 5 block of sectors around yours live. A sector that streams out and back in is generated again from the seed: nothing you did to its ships is kept. A wreck you emptied is full again, a ship you destroyed is back, anything you gave a ship is gone, and credits you took are back on the ship you took them from.
+The world streams in 32 km sectors, and the game keeps the 5 x 5 x 5 block of sectors around yours live. For the rest of the session, a sector that streams out and back in keeps its ships as you left them: a wreck you emptied stays empty, a ship you destroyed stays destroyed, goods you took or gave stay moved, credits you took stay taken, and a ship you neutralized stays neutralized. Only the sector's planetoids regenerate from the seed.
 
 ## The parts
 

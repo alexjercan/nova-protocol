@@ -9,7 +9,8 @@
 //!
 //! Materialization proofs check a rock's gravity opt-in and hold a ship the
 //! observer overlaps instead of spawning it. Another proves an unresolved
-//! ship design is refused at spawn.
+//! ship design is refused at spawn. The `frozen` proofs cover which cell owns
+//! a body and what an off-window cell keeps.
 //!
 //! The generators here are test-local. The shipped policies live outside this
 //! crate - the base game's in `nova_world_base`, the uniform baseline with the
@@ -30,6 +31,8 @@ use nova_scenario::prelude::{
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, HullSectionConfig, SectionConfig, SectionKind,
 };
+
+mod frozen;
 
 use crate::{
     generate_sector, materialize_pending_ships, materialize_sector, prepare_sector, sector_id,
@@ -634,8 +637,7 @@ fn canonical_text_tells_asteroid_velocities_apart() {
     }
 }
 
-/// A streamed asteroid is dynamic, receives its manifest velocity, retires
-/// with the sector root even after it moves, and returns from the same seed.
+/// A streamed asteroid is dynamic and receives its manifest velocity.
 #[test]
 fn a_materialized_asteroid_opts_into_gravity() {
     let config = answering(|input| {
@@ -649,8 +651,8 @@ fn a_materialized_asteroid_opts_into_gravity() {
         };
         empty(input.coord, vec![rock])
     });
-    let prepared = prepare_sector(config.clone(), SectorCoord::ORIGIN)
-        .expect("a valid mobile rock must be prepared");
+    let prepared =
+        prepare_sector(config, SectorCoord::ORIGIN).expect("a valid mobile rock must be prepared");
 
     let mut app = App::new();
     app.add_plugins(AsteroidPlugin { render: false });
@@ -658,6 +660,7 @@ fn a_materialized_asteroid_opts_into_gravity() {
     let root = materialize_sector(
         &mut world.commands(),
         prepared,
+        None,
         &AssetRef::default(),
         &GameSections::default(),
         ObserverBody {
@@ -700,76 +703,6 @@ fn a_materialized_asteroid_opts_into_gravity() {
             false
         )],
         "a materialized asteroid must use the manifest motion and cannot source a well"
-    );
-    let mut rock_query = app
-        .world_mut()
-        .query_filtered::<Entity, With<AsteroidMarker>>();
-    let rock = rock_query
-        .single(app.world())
-        .expect("one materialized asteroid");
-    app.world_mut()
-        .entity_mut(rock)
-        .insert(Transform::from_xyz(2_500.0, 0.0, 0.0));
-    app.update();
-    app.world_mut().entity_mut(root).despawn();
-    app.update();
-    let mut remaining = app
-        .world_mut()
-        .query_filtered::<Entity, With<AsteroidMarker>>();
-    assert_eq!(
-        remaining.iter(app.world()).count(),
-        0,
-        "root retirement takes its moved asteroid with it"
-    );
-
-    let reprepared = prepare_sector(config, SectorCoord::ORIGIN)
-        .expect("the same generator and seed must reprepare after its root retires");
-    let root_again = materialize_sector(
-        &mut app.world_mut().commands(),
-        reprepared,
-        &AssetRef::default(),
-        &GameSections::default(),
-        ObserverBody {
-            position: Meters3::new(0.0, 0.0, 0.0),
-            reach: Meters::ZERO,
-        },
-    );
-    app.world_mut().flush();
-    app.update();
-    assert_ne!(root_again, root, "revisit gets a new owning root");
-
-    let mut rematerialized_query = app.world_mut().query_filtered::<(
-        &Name,
-        &RigidBody,
-        &LinearVelocity,
-        &ChildOf,
-        Has<GravityAffected>,
-        Has<GravityWell>,
-    ), With<AsteroidMarker>>();
-    let rematerialized: Vec<_> = rematerialized_query
-        .iter(app.world())
-        .map(|(name, body, velocity, owner, affected, well)| {
-            (
-                name.to_string(),
-                *body,
-                **velocity,
-                owner.parent(),
-                affected,
-                well,
-            )
-        })
-        .collect();
-    assert_eq!(
-        rematerialized,
-        vec![(
-            sector_id(SectorCoord::ORIGIN, "body", 0),
-            RigidBody::Dynamic,
-            Vec3::new(2.4, -0.8, 0.4),
-            root_again,
-            true,
-            false
-        )],
-        "a rock reprepared from the same generator and seed must rematerialize with its stable id, manifest motion, and gravity opt-in under its new root"
     );
 }
 
@@ -873,6 +806,7 @@ fn materialize_one_ship(world: &mut World, offset: f32) -> Entity {
     let root = materialize_sector(
         &mut world.commands(),
         prepared,
+        None,
         &AssetRef::default(),
         &test_sections(),
         observer_at(config.input(SectorCoord::ORIGIN), offset),
@@ -991,6 +925,7 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
     materialize_sector(
         &mut world.commands(),
         prepared,
+        None,
         &AssetRef::default(),
         &test_sections(),
         observer_at(config.input(SectorCoord::ORIGIN), 5_000.0),
@@ -1066,25 +1001,6 @@ fn a_materialized_derelict_is_lootable_and_unflown_and_an_intact_ship_is_flown_b
     assert_eq!(*derelict_side, Allegiance::Neutral);
 }
 
-/// A held ship is part of its cell: retiring the root takes it too.
-#[test]
-fn a_held_ship_retires_with_its_cell() {
-    let mut world = World::new();
-    let root = materialize_one_ship(&mut world, 0.0);
-    assert_eq!(
-        world.query::<&PendingSectorShip>().iter(&world).count(),
-        1,
-        "the ship must be held"
-    );
-
-    world.entity_mut(root).despawn();
-    assert_eq!(
-        world.query::<&PendingSectorShip>().iter(&world).count(),
-        0,
-        "retiring the cell must take its held ship"
-    );
-}
-
 /// The spawn's resolver skips a section it cannot resolve and flies the
 /// rest, so `materialize_sector` resolves every design strictly first: a
 /// section prototype the loaded catalog does not hold is refused before the
@@ -1113,6 +1029,7 @@ fn a_ship_design_the_loaded_sections_do_not_resolve_is_refused_at_spawn() {
     materialize_sector(
         &mut world.commands(),
         prepared,
+        None,
         &AssetRef::default(),
         &test_sections(),
         ObserverBody {
@@ -1161,8 +1078,10 @@ fn an_unusable_sector_edge_is_refused() {
     }
 }
 
+/// A negative radius has no window, and a radius of 0 is a window of one
+/// cell that a ship docked across its face would leave.
 #[test]
-fn a_negative_active_radius_is_refused() {
+fn an_active_radius_below_one_is_refused() {
     let config = WorldConfig {
         active_radius: -1,
         ..rocks()
@@ -1172,6 +1091,18 @@ fn a_negative_active_radius_is_refused() {
         SectorFault::Config {
             field: "active_radius",
             value: "-1".to_string(),
+        }
+    );
+    let config = WorldConfig {
+        active_radius: 0,
+        ..rocks()
+    };
+    assert_eq!(
+        fault_of(&config),
+        SectorFault::Config {
+            field: "active_radius",
+            value: "0, a window of one cell, which a ship docked across its face would leave"
+                .to_string(),
         }
     );
 }
@@ -1385,6 +1316,8 @@ mod arming {
         world.init_resource::<crate::streaming::ReadySectors>();
         world.init_resource::<crate::SectorJobStats>();
         world.init_resource::<crate::streaming::ClearedConfig>();
+        world.init_resource::<crate::FrozenSectors>();
+        world.init_resource::<crate::frozen::SettlingBodies>();
         world.spawn((WorldObserver, GlobalTransform::default()));
         world
             .run_system_once(crate::streaming::clear_sector_work::<Rocks>)
@@ -1458,6 +1391,8 @@ mod observer {
         world.init_resource::<crate::streaming::ReadySectors>();
         world.init_resource::<crate::SectorJobStats>();
         world.init_resource::<crate::streaming::ClearedConfig>();
+        world.init_resource::<crate::FrozenSectors>();
+        world.init_resource::<crate::frozen::SettlingBodies>();
         world
             .run_system_once(crate::streaming::clear_sector_work::<Rocks>)
             .expect("the arming frame must clear the world it replaces");

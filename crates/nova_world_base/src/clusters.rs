@@ -597,9 +597,9 @@ enum OrbitSeedError {
 }
 
 /// A unique well gets a seeded tangent only inside its unfaded, collision-clear
-/// band and only if the nominal circle stays in the well's owning sector. The
-/// owning root retains both bodies until retirement and regeneration restarts
-/// the initial phase; later motion is not guaranteed to remain bounded. A nearby but unsafe well gets an outward escape
+/// band and only if the nominal circle stays in the well's owning sector. A
+/// retired cell freezes both bodies and its return resumes the phase they
+/// froze at; later motion is not guaranteed to remain bounded. A nearby but unsafe well gets an outward escape
 /// trajectory, not an unpowered fall. No reachable well means an explicit
 /// free-space coasting start at zero velocity.
 fn generated_initial_velocity(

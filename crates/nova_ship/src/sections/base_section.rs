@@ -16,6 +16,7 @@ use std::fmt::Debug;
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::prelude::EntityTypeName;
 use nova_gameplay::{
     asset_ref::AssetRef,
     markers::prelude::*,
@@ -28,10 +29,10 @@ use super::prelude::*;
 /// collider and render-mesh transforms.
 pub mod prelude {
     pub use super::{
-        base_section, preview_section, section_colliders_overlap, BaseSectionConfig, DestroySound,
-        GameSections, PlacedSectionCollider, RenderMeshTransform, SectionCollider, SectionConfig,
-        SectionFootprint, SectionKind, SectionRenderMeshTransform, SectionRenderOf,
-        SECTION_OVERLAP_EPSILON,
+        base_section, preview_section, section_body, section_colliders_overlap, BaseSectionConfig,
+        DestroySound, GameSections, PlacedSectionCollider, RenderMeshTransform, SectionBuildConfig,
+        SectionCollider, SectionConfig, SectionFootprint, SectionKind, SectionRenderMeshTransform,
+        SectionRenderOf, SECTION_OVERLAP_EPSILON,
     };
 }
 
@@ -527,6 +528,74 @@ impl SectionConfig {
             | SectionKind::Mining(_) => {}
         }
         self
+    }
+}
+
+/// The resolved [`SectionConfig`] a section was built from, kept on the
+/// section entity.
+///
+/// [`SectionConfig`] is otherwise consumed and discarded at spawn: only the
+/// components it resolves into persist. That is fine for a section still
+/// hanging off its ship - the owning scenario object's own authored design is
+/// the record - but a section a sever re-parents onto a severed wreck
+/// fragment leaves that design behind, and a fragment carries no design of
+/// its own a sector freeze could read back. This is the record that lets
+/// such a section be rebuilt after its sector freezes and thaws.
+#[derive(Component, Clone, Debug)]
+pub struct SectionBuildConfig(pub SectionConfig);
+
+/// Insert the gameplay components a section built from `config` carries:
+/// identity, base stats, build config, exit, an inactive marker when
+/// `inactive`, and the kind bundle - exactly what `nova_scenario`'s
+/// `insert_spaceship_sections` inserts for a design section, less the
+/// `EntityId`, `Name` and `Transform` a caller with its own instance
+/// identity and pose sets separately, and less the player-controller input
+/// bindings, which stay `nova_scenario`'s because they read the whole ship's
+/// controller, not one section.
+///
+/// A severed wreck fragment's thaw is the second caller this exists for: a
+/// fragment carries no ship design `insert_spaceship_sections` could replay,
+/// only each section's own [`SectionBuildConfig`].
+pub fn section_body(section: &mut EntityCommands, config: &SectionConfig, inactive: bool) {
+    section.insert((
+        EntityTypeName::new(config.base.id.clone()),
+        base_section(config.base.clone()),
+        SectionBuildConfig(config.clone()),
+    ));
+    if let Some(exit) = SectionExit::of(config) {
+        section.insert(exit);
+    }
+    if inactive {
+        section.insert(SectionInactiveMarker);
+    }
+    match &config.kind {
+        SectionKind::Hull(hull_config) => {
+            section.insert(hull_section(hull_config.clone()));
+        }
+        SectionKind::Thruster(thruster_config) => {
+            section.insert(thruster_section(thruster_config.clone()));
+        }
+        SectionKind::Controller(controller_config) => {
+            section.insert(controller_section(controller_config.clone()));
+        }
+        SectionKind::Turret(turret_config) => {
+            section.insert(turret_section(turret_config.clone()));
+        }
+        SectionKind::Torpedo(torpedo_config) => {
+            section.insert(torpedo_section(torpedo_config.clone()));
+        }
+        SectionKind::Docking(docking_config) => {
+            section.insert(docking_section(docking_config.clone()));
+        }
+        SectionKind::CargoIntake(intake_config) => {
+            section.insert(cargo_intake_section(intake_config.clone()));
+        }
+        SectionKind::Mining(mining_config) => {
+            section.insert(mining_section(mining_config.clone()));
+        }
+        SectionKind::Railgun(railgun_config) => {
+            section.insert(railgun_section(railgun_config.clone()));
+        }
     }
 }
 

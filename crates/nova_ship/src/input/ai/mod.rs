@@ -25,6 +25,7 @@ use crate::input::targeting::prelude::{SensorContacts, SensorRange, AI_SENSOR_RA
 
 mod acquisition;
 mod behavior;
+mod frozen;
 mod guns;
 pub mod maneuver;
 mod mission;
@@ -51,6 +52,7 @@ pub(crate) use self::guns::{ai_turret_gun_target, AI_POINT_DEFENSE_MAGAZINE_DIVI
 pub use self::{
     acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
+    frozen::{freeze_ai, thaw_ai, FrozenAI},
     guns::AI_FIRE_RANGE_FACTOR,
     maneuver::{AIStandoffClearance, AI_STANDOFF_OUTER_EDGE},
     mission::AIOrderInterruption,
@@ -102,10 +104,10 @@ pub(super) fn sense_and_pick(world: &mut World) {
 /// The AI behaviour, threat, patrol and target components and `SpaceshipAIInputPlugin`.
 pub mod prelude {
     pub use super::{
-        AIAvoidMargin, AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade,
-        AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption, AIPatrolRoute,
-        AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker,
-        AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, SpaceshipAIInputPlugin,
+        freeze_ai, thaw_ai, AIAvoidMargin, AIAvoidanceDetour, AIBehaviorState, AIEngageGrace,
+        AIEngageRange, AIEvade, AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption,
+        AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker,
+        AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, FrozenAI, SpaceshipAIInputPlugin,
         AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
     };
 }

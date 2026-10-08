@@ -26,8 +26,9 @@
 //!
 //! The one promise a world seed makes: the same build on the same platform
 //! generates the same pristine sectors from it, in any exploration order.
-//! Nothing a player changes is kept. A retired sector is generated again from
-//! the seed, so a derelict that was destroyed there comes back.
+//! What a player changes lasts the session: a retired sector is frozen and
+//! comes back as it was left, so a derelict destroyed there stays destroyed
+//! until the session ends. Nothing is saved to disk.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
@@ -263,7 +264,8 @@ fn sync_open_world(world: &mut World) {
 }
 
 /// Remove the config, if one is armed. `nova_world`'s `Cleanup` sees the
-/// removal and retires every sector root.
+/// removal, retires every sector root and despawns every persistent body
+/// waiting top-level for a cell.
 fn disarm(world: &mut World) {
     if world.contains_resource::<WorldConfig<NovaLayeredWorld>>() {
         world.remove_resource::<WorldConfig<NovaLayeredWorld>>();

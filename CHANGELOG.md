@@ -15,6 +15,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+
+- Open-world sectors you leave now freeze as you left them and come back that
+  way: mined rocks, owed ore, damaged and looted ships, canisters and wrecks.
+  A docked partner is no longer lost.
+
 ## [0.15.0] - 2026-10-06
 
 ### Gameplay & Flight
