@@ -1584,8 +1584,11 @@ mod physics_tests {
     use crate::{
         physics::prelude::{PDControllerPlugin, PDControllerTarget},
         prelude::{BaseSectionConfig, HullSectionConfig, SectionKind},
-        sections::controller_section::prelude::{
-            controller_section, ControllerSectionConfig, ControllerSectionPlugin,
+        sections::{
+            controller_section::prelude::{
+                controller_section, ControllerSectionConfig, ControllerSectionPlugin,
+            },
+            section_animation::prelude::SectionAnimations,
         },
     };
 
@@ -1986,9 +1989,11 @@ mod physics_tests {
         let sections: Vec<Entity> = (0..3)
             .map(|index| {
                 let section = spawn_section(&mut app, root, Vec3::X * index as f32);
-                app.world_mut()
-                    .entity_mut(section)
-                    .insert(SectionBuildConfig(hull.clone()));
+                // The base section bundle carries both in production.
+                app.world_mut().entity_mut(section).insert((
+                    SectionBuildConfig(hull.clone()),
+                    SectionAnimations::new(Vec::new()),
+                ));
                 section
             })
             .collect();
