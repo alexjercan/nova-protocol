@@ -297,14 +297,21 @@ impl FrozenBody {
 
 /// Every kind of body a cell can freeze, each in its owner crate's record.
 #[derive(Debug)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    expect(
+        clippy::large_enum_variant,
+        reason = "Asteroid is the common frozen body; boxing it adds an allocation per rock only to shrink rare canister and ore records"
+    )
+)]
 pub enum FrozenBodyType {
     /// A rock, with its carved field and the ore it still owes.
     Asteroid(FrozenAsteroid),
     /// A ship, with its hold, damage, surviving sections, ammunition and AI.
-    Ship(FrozenShip),
+    Ship(Box<FrozenShip>),
     /// A ship held back because the observer overlapped it, still a manifest
     /// entry.
-    PendingShip(SectorShip),
+    PendingShip(Box<SectorShip>),
     /// A loose cargo canister with its own runtime id.
     Canister(FrozenCanister),
     /// Structure severed from a ship.
@@ -335,7 +342,7 @@ pub(crate) fn freeze_body(world: &World, entity: Entity) -> Result<FrozenBody, U
             transform: Transform::IDENTITY,
             visibility: None,
             motion: None,
-            body: FrozenBodyType::PendingShip(ship),
+            body: FrozenBodyType::PendingShip(Box::new(ship)),
         });
     }
     let name = body.get::<Name>().cloned();
@@ -357,7 +364,7 @@ pub(crate) fn freeze_body(world: &World, entity: Entity) -> Result<FrozenBody, U
             "nova_world: ship '{label}' is docked and its cell is about to freeze it; a docked \
              pair cannot be split across the active window"
         );
-        FrozenBodyType::Ship(freeze_ship(world, entity)?)
+        FrozenBodyType::Ship(Box::new(freeze_ship(world, entity)?))
     } else if body.contains::<AsteroidMarker>() {
         FrozenBodyType::Asteroid(freeze_asteroid(world, entity)?)
     } else if body.contains::<CargoCanister>() {
@@ -411,7 +418,7 @@ pub(crate) fn thaw_record(
             body,
         } = frozen;
         if let FrozenBodyType::PendingShip(ship) = body {
-            commands.spawn((PendingSectorShip(ship), ChildOf(root)));
+            commands.spawn((PendingSectorShip(*ship), ChildOf(root)));
             continue;
         }
         let mut entity = commands.spawn((
@@ -433,7 +440,7 @@ pub(crate) fn thaw_record(
                 };
                 thaw_asteroid(&mut entity, rock, geometry);
             }
-            FrozenBodyType::Ship(ship) => thaw_ship(&mut entity, ship),
+            FrozenBodyType::Ship(ship) => thaw_ship(&mut entity, *ship),
             FrozenBodyType::Canister(canister) => {
                 let linear = motion.map_or(Vec3::ZERO, |(linear, _)| linear.0);
                 entity.insert(thaw_canister(canister, transform, linear));

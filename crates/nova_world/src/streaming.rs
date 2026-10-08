@@ -711,7 +711,7 @@ pub fn request_sectors<G: SectorGenerator>(
         return;
     }
 
-    let live = live_sectors(&roots);
+    let live = live_sectors(roots);
     let centre = current.0;
     let mut missing: Vec<SectorCoord> = desired_sectors(centre, config.active_radius)
         .into_iter()
@@ -825,7 +825,7 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
 ) {
     assert_world_was_cleared(config.last_changed(), &cleared);
     let desired = desired_sectors(current.0, config.active_radius);
-    let live = live_sectors(&roots);
+    let live = live_sectors(roots);
     let centre = current.0;
     // Skipping a cell that is already live is what keeps the second root that
     // `live_sectors` panics on from ever being spawned. It costs a lookup and
