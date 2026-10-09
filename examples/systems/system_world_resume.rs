@@ -392,7 +392,7 @@ fn inject_fixture(world: &mut World) {
             "world_resume: the line warship has no room for fixture stock (free {}g)",
             inventory.free_g()
         );
-        inventory.add(ItemType::Rations, max_count.min(5).max(1));
+        inventory.add(ItemType::Rations, max_count.clamp(1, 5));
     }
 
     let mut fixture = world.resource_mut::<Fixture>();
@@ -1679,7 +1679,7 @@ fn load_script(
                 let mut max_deltas: std::collections::HashMap<&str, (f32, f32)> =
                     std::collections::HashMap::new();
                 for (index, (saved_entry, (_entity, recorded_kind, recorded_owner, recorded_pose, recorded_remaining))) in
-                    saved.iter().zip(recorded_entries.into_iter()).enumerate()
+                    saved.iter().zip(recorded_entries).enumerate()
                 {
                     let saved_kind = saved_entry["kind"]
                         .as_str()
