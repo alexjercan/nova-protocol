@@ -44,6 +44,12 @@ serde = { version = "1", features = ["derive"] }
 # `serde` for the frozen ledger a saved world holds.
 nova_world = { path = "../nova_world", features = ["serde"] }
 
+# Delete removes a world's files relative to the folder handle it opened
+# without following links, so a folder swapped for a link mid-delete cannot
+# send a removal outside it. std has no `openat`/`unlinkat`.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["fs"] }
+
 [dev-dependencies]
 # Scratch worlds roots for the save tests.
 tempfile = "3"

@@ -59,10 +59,11 @@ mod tests;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use crate::save::{
-    create_world, list_worlds, open_world, resume_world, world_slug, write_world, FrozenTransient,
-    FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer, WorldFolder, WorldListing,
-    WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader,
-    WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
+    create_world, delete_world, list_worlds, open_world, resume_world, world_slug, write_world,
+    FrozenTransient, FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer, WorldFolder,
+    WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
+    WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX,
+    WORLD_SAVE_FORMAT,
 };
 pub use crate::{
     civilizations::{
@@ -91,7 +92,7 @@ pub use crate::{
 pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
-        create_world, list_worlds, open_world, resume_world, world_slug, write_world,
+        create_world, delete_world, list_worlds, open_world, resume_world, world_slug, write_world,
         FrozenTransient, FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer, WorldFolder,
         WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
         WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,

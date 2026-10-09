@@ -13,6 +13,9 @@
 //! old header naming an old state that still exists. [`open_world`] removes
 //! the state and temp files the header does not name.
 //!
+//! [`delete_world`] removes the header first, so a world it removes only part
+//! of lists as unreadable and never loads.
+//!
 //! The format is strict: an unknown field, a format other than
 //! [`WORLD_SAVE_FORMAT`] or another catalog refuses the world. Nothing is
 //! migrated. Native only: the web build has no saved worlds.
@@ -155,9 +158,12 @@ pub struct WorldListing {
     pub header: Result<WorldSaveHeader, WorldRefusal>,
 }
 
-/// Why a world cannot be created, listed or opened.
+/// Why a world cannot be created, listed, opened or deleted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorldRefusal {
+    /// The world folder is a link or holds an entry the game did not write,
+    /// so Delete removes nothing.
+    Foreign(String),
     /// The name or folder name breaks the naming rule.
     InvalidName(String),
     /// A world with the same folder name exists.
@@ -203,7 +209,9 @@ impl std::fmt::Display for WorldRefusal {
             Self::Catalog { saved_mods, .. } => {
                 write!(f, "content changed; saved with {}", saved_mods.join(", "))
             }
-            Self::Io(reason) | Self::Unrestored(reason) => f.write_str(reason),
+            Self::Foreign(reason) | Self::Io(reason) | Self::Unrestored(reason) => {
+                f.write_str(reason)
+            }
         }
     }
 }
@@ -223,7 +231,7 @@ pub fn list_worlds(
             return Err(WorldRefusal::Io(format!(
                 "cannot read {}: {e}",
                 root.display()
-            )))
+            )));
         }
     };
     let mut listings = Vec::new();
@@ -524,6 +532,306 @@ pub fn write_world(
         }
     }
     Ok(())
+}
+
+/// Lock the world `slug` under `root`, remove its save files, and then its
+/// folder.
+///
+/// Refuses a folder no world name gives, a missing folder, a world another
+/// game has open, and a folder that is a link or holds anything but regular
+/// files the game writes, and removes nothing then. Links are never followed.
+///
+/// On unix every file is removed relative to the folder handle opened first,
+/// and the folder only while its name still names that handle, so a folder
+/// swapped for a link cannot send a removal outside it. On Windows the folder
+/// handle is held without delete sharing until every file is removed, so
+/// nothing can rename or replace the folder before then.
+///
+/// The header goes first. A failed removal stops there and keeps what is
+/// already removed; the world then lists as unreadable, and a second delete
+/// removes the rest.
+pub fn delete_world(root: &Path, slug: &str) -> Result<(), WorldRefusal> {
+    check_slug(slug)?;
+    let missing = || WorldRefusal::Io(format!("the world folder {slug} no longer exists"));
+    let foreign = |name: &str| {
+        WorldRefusal::Foreign(format!(
+            "{slug} holds {name}, which the game did not write; move it out first"
+        ))
+    };
+    let linked = || {
+        WorldRefusal::Foreign(format!(
+            "the world folder {slug} is a link or not a folder; remove it by hand"
+        ))
+    };
+    let io = |what: String, e: std::io::Error| WorldRefusal::Io(format!("cannot {what}: {e}"));
+    // The header first, so a partial delete never leaves a world that loads.
+    let in_order = |mut names: Vec<String>| {
+        names.sort_by_key(|name| name != HEADER_FILE);
+        names
+    };
+
+    #[cfg(unix)]
+    {
+        use rustix::{
+            fs::{fstat, fsync, openat, statat, unlinkat, AtFlags, Dir, FileType, Mode, OFlags},
+            io::Errno,
+        };
+
+        let unlink =
+            |dir: &rustix::fd::OwnedFd, name: &str| match unlinkat(dir, name, AtFlags::empty()) {
+                Ok(()) | Err(Errno::NOENT) => Ok(()),
+                Err(e) => Err(io(format!("remove {slug}/{name}"), e.into())),
+            };
+        let root_dir = rustix::fs::open(
+            root,
+            OFlags::DIRECTORY | OFlags::RDONLY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| io(format!("open {}", root.display()), e.into()))?;
+        let dir = match openat(
+            &root_dir,
+            slug,
+            OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::RDONLY | OFlags::CLOEXEC,
+            Mode::empty(),
+        ) {
+            Ok(dir) => dir,
+            Err(Errno::NOENT) => return Err(missing()),
+            Err(Errno::LOOP | Errno::NOTDIR) => return Err(linked()),
+            Err(e) => return Err(io(format!("open {slug}"), e.into())),
+        };
+        let folder = fstat(&dir).map_err(|e| io(format!("read {slug}"), e.into()))?;
+        // The save files other than the lock, or the first entry the game did
+        // not write.
+        let scan = |dir: &rustix::fd::OwnedFd| {
+            let mut names = Vec::new();
+            let entries = Dir::read_from(dir).map_err(|e| io(format!("read {slug}"), e.into()))?;
+            for entry in entries {
+                let entry = entry.map_err(|e| io(format!("read {slug}"), e.into()))?;
+                let raw = entry.file_name().to_bytes();
+                if raw == b"." || raw == b".." {
+                    continue;
+                }
+                let Ok(name) = std::str::from_utf8(raw) else {
+                    return Err(foreign(&String::from_utf8_lossy(raw)));
+                };
+                let stat = statat(dir, name, AtFlags::SYMLINK_NOFOLLOW)
+                    .map_err(|e| io(format!("read {slug}/{name}"), e.into()))?;
+                if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile
+                    || !is_save_file(name)
+                {
+                    return Err(foreign(name));
+                }
+                if name != LOCK_FILE {
+                    names.push(name.to_string());
+                }
+            }
+            Ok(names)
+        };
+        // Before the lock too, so a foreign folder is refused before the
+        // lock file is made in it. The scan under the lock decides.
+        scan(&dir)?;
+        // NONBLOCK so a FIFO in place of the lock refuses instead of hanging
+        // the open.
+        let lock = match openat(
+            &dir,
+            LOCK_FILE,
+            OFlags::WRONLY | OFlags::CREATE | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            Mode::from_raw_mode(0o644),
+        ) {
+            Ok(lock) => File::from(lock),
+            Err(Errno::LOOP | Errno::ISDIR | Errno::NXIO) => return Err(foreign(LOCK_FILE)),
+            Err(e) => return Err(io(format!("open {slug}/{LOCK_FILE}"), e.into())),
+        };
+        let lock_stat =
+            fstat(&lock).map_err(|e| io(format!("read {slug}/{LOCK_FILE}"), e.into()))?;
+        if FileType::from_raw_mode(lock_stat.st_mode) != FileType::RegularFile {
+            return Err(foreign(LOCK_FILE));
+        }
+        // The same flock `lock_world` takes.
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(TryLockError::WouldBlock) => return Err(WorldRefusal::Locked),
+            Err(TryLockError::Error(e)) => return Err(io(format!("lock {slug}/{LOCK_FILE}"), e)),
+        }
+        let names = scan(&dir)?;
+        for name in in_order(names) {
+            unlink(&dir, &name)?;
+        }
+        // Still locked: a game that opens the world now makes a new lock
+        // file, finds no header and refuses, and the folder removal below
+        // fails on its lock file.
+        unlink(&dir, LOCK_FILE)?;
+        drop(lock);
+        let named = match statat(&root_dir, slug, AtFlags::SYMLINK_NOFOLLOW) {
+            Ok(named) => named,
+            Err(Errno::NOENT) => return Err(missing()),
+            Err(e) => return Err(io(format!("read {slug}"), e.into())),
+        };
+        if (named.st_dev, named.st_ino) != (folder.st_dev, folder.st_ino) {
+            return Err(WorldRefusal::Foreign(format!(
+                "the world folder {slug} was replaced while it was deleted; remove it by hand"
+            )));
+        }
+        // Removes only an empty folder; never follows a link.
+        unlinkat(&root_dir, slug, AtFlags::REMOVEDIR)
+            .map_err(|e| io(format!("remove the world folder {slug}"), e.into()))?;
+        if let Err(e) = fsync(&root_dir) {
+            warn!("delete_world: cannot sync {}: {e}", root.display());
+        }
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+
+        // Win32 values; std names none of them.
+        const FILE_SHARE_READ: u32 = 0x1;
+        const FILE_SHARE_WRITE: u32 = 0x2;
+        const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+
+        // No volume serial or file index means the filesystem gives no
+        // identity to recheck below, so refuse rather than remove a folder
+        // the final path lookup cannot be proven to still name.
+        let no_identity = || {
+            io(
+                format!("read {slug}"),
+                std::io::Error::new(ErrorKind::Unsupported, "no file identity for this folder"),
+            )
+        };
+
+        let path = root.join(slug);
+        // No FILE_SHARE_DELETE: while this handle is open nothing can rename,
+        // move or delete the folder, so every child path below names it.
+        let dir = match OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(&path)
+        {
+            Ok(dir) => dir,
+            Err(e) if e.kind() == ErrorKind::NotFound => return Err(missing()),
+            Err(e) => return Err(io(format!("open {slug}"), e)),
+        };
+        let meta = dir.metadata().map_err(|e| io(format!("read {slug}"), e))?;
+        // `is_symlink` is true for a junction too: any name-surrogate reparse
+        // point.
+        let kind = meta.file_type();
+        if kind.is_symlink() || !kind.is_dir() {
+            return Err(linked());
+        }
+        // The identity of the handle held open below, to recheck against the
+        // folder the path still names once that handle closes.
+        let identity = match (meta.volume_serial_number(), meta.file_index()) {
+            (Some(volume), Some(index)) => (volume, index),
+            _ => return Err(no_identity()),
+        };
+        // The save files other than the lock, or the first entry the game did
+        // not write.
+        let scan = || {
+            let mut names = Vec::new();
+            for entry in std::fs::read_dir(&path).map_err(|e| io(format!("read {slug}"), e))? {
+                let entry = entry.map_err(|e| io(format!("read {slug}"), e))?;
+                let Some(name) = entry.file_name().to_str().map(str::to_string) else {
+                    return Err(foreign(&entry.file_name().to_string_lossy()));
+                };
+                let kind = entry
+                    .file_type()
+                    .map_err(|e| io(format!("read {slug}/{name}"), e))?;
+                if kind.is_symlink() || !kind.is_file() || !is_save_file(&name) {
+                    return Err(foreign(&name));
+                }
+                if name != LOCK_FILE {
+                    names.push(name);
+                }
+            }
+            Ok(names)
+        };
+        // Before the lock too, so a foreign folder is refused before the
+        // lock file is made in it. The scan under the lock decides.
+        scan()?;
+        let lock_path = path.join(LOCK_FILE);
+        let lock = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(&lock_path)
+            .map_err(|e| io(format!("open {slug}/{LOCK_FILE}"), e))?;
+        let kind = lock
+            .metadata()
+            .map_err(|e| io(format!("read {slug}/{LOCK_FILE}"), e))?
+            .file_type();
+        if kind.is_symlink() || !kind.is_file() {
+            return Err(foreign(LOCK_FILE));
+        }
+        // The same LockFileEx `lock_world` takes.
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(TryLockError::WouldBlock) => return Err(WorldRefusal::Locked),
+            Err(TryLockError::Error(e)) => return Err(io(format!("lock {slug}/{LOCK_FILE}"), e)),
+        }
+        let names = scan()?;
+        let remove = |name: &str| match std::fs::remove_file(path.join(name)) {
+            Err(e) if e.kind() != ErrorKind::NotFound => {
+                Err(io(format!("remove {slug}/{name}"), e))
+            }
+            _ => Ok(()),
+        };
+        for name in in_order(names) {
+            remove(&name)?;
+        }
+        // Windows removes neither an open lock file's name nor a folder with
+        // an open handle, so both close first.
+        drop(lock);
+        remove(LOCK_FILE)?;
+        drop(dir);
+        // The handle closed: nothing stops a rename or replacement between
+        // here and the removal below, so the path is rechecked by identity
+        // first. This narrows but cannot close the race; closing it needs a
+        // share mode this folder cannot hold while files are removed by path.
+        let final_meta = match std::fs::symlink_metadata(&path) {
+            Ok(meta) => meta,
+            Err(e) if e.kind() == ErrorKind::NotFound => return Err(missing()),
+            Err(e) => return Err(io(format!("read {slug}"), e)),
+        };
+        if final_meta.file_type().is_symlink() {
+            return Err(linked());
+        }
+        let final_identity = match (final_meta.volume_serial_number(), final_meta.file_index()) {
+            (Some(volume), Some(index)) => (volume, index),
+            _ => return Err(no_identity()),
+        };
+        if final_identity != identity {
+            return Err(WorldRefusal::Foreign(format!(
+                "the world folder {slug} was replaced while it was deleted; remove it by hand"
+            )));
+        }
+        // Removes only an empty folder, or a link itself, never its target.
+        std::fs::remove_dir(&path).map_err(|e| io(format!("remove the world folder {slug}"), e))?;
+        Ok(())
+    }
+}
+
+/// A file the game writes in a world folder: the header, the lock, a state,
+/// or the temp file of an interrupted header or state write.
+fn is_save_file(name: &str) -> bool {
+    let digits = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit());
+    let saved = |name: &str| {
+        name == HEADER_FILE
+            || name
+                .strip_prefix("state.")
+                .and_then(|rest| rest.strip_suffix(".ron"))
+                .is_some_and(digits)
+    };
+    // `write_atomic` names its temp file `.<name>.<pid>.tmp`.
+    let temp = name
+        .strip_prefix('.')
+        .and_then(|rest| rest.strip_suffix(".tmp"))
+        .and_then(|rest| rest.rsplit_once('.'))
+        .is_some_and(|(written, pid)| digits(pid) && saved(written));
+    name == LOCK_FILE || saved(name) || temp
 }
 
 /// The folder name of the world name `name`: trimmed, lowercase, spaces as

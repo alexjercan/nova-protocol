@@ -2,6 +2,7 @@
 //! refuses to load.
 
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
+use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_gameplay::prelude::*;
 use nova_world_base::{
     prelude::{create_world, ResumedWorld, WorldSaveSession, WorldSaveStatus},
@@ -9,7 +10,7 @@ use nova_world_base::{
 };
 
 use super::support::{app, dummy_scenarios};
-use crate::{scenarios::NewGameScenario, world_setup::WorldsRoot};
+use crate::{load_screen::SelectedWorldSlug, scenarios::NewGameScenario, world_setup::WorldsRoot};
 
 /// A menu app entered the real way, with the Load picker's plugin wiring in
 /// place.
@@ -128,4 +129,62 @@ fn load_lists_a_saved_world_and_a_refused_one_and_loads_only_the_saved_one() {
     assert_eq!(*app.world().resource::<GameMode>(), GameMode::NewGame);
     assert_eq!(app.world().resource::<NewGameScenario>().0, None);
     assert_eq!(state(&app), GameStates::Playing);
+}
+
+/// Delete asks to confirm first, and only removes the world and its row on confirm.
+#[test]
+fn delete_asks_first_then_removes_the_world_and_its_row() {
+    let mut app = menu();
+    let root = tempfile::tempdir().expect("a scratch worlds root");
+    app.insert_resource(WorldsRoot(Some(root.path().to_path_buf())));
+    app.insert_resource(LoadedSectionPacks {
+        packs: Vec::new(),
+        digest: ContentCatalogDigest(0),
+    });
+
+    let (_keep_folder, keep_lock) =
+        create_world(root.path(), "Keep World").expect("an empty root takes a new world");
+    drop(keep_lock);
+    let (_gone_folder, gone_lock) =
+        create_world(root.path(), "Gone World").expect("the root takes a second world");
+    drop(gone_lock);
+
+    press(&mut app, "Load Button");
+
+    let gone_row = named(&mut app, "Load World Row: gone-world");
+    app.world_mut().trigger(Activate { entity: gone_row });
+    app.update();
+
+    press(&mut app, "Load World Delete Button");
+    named(&mut app, "Load World Delete Prompt");
+
+    press(&mut app, "Load World Delete Cancel Button");
+    assert!(
+        root.path().join("gone-world").exists(),
+        "cancelling a delete must not touch the folder"
+    );
+    named(&mut app, "Load World Delete Button");
+
+    press(&mut app, "Load World Delete Button");
+    press(&mut app, "Load World Delete Confirm Button");
+
+    assert!(
+        !root.path().join("gone-world").exists(),
+        "confirming a delete must remove the folder"
+    );
+    assert!(
+        root.path().join("keep-world").exists(),
+        "a delete must not touch another world's folder"
+    );
+    let mut names = app.world_mut().query::<&Name>();
+    assert!(
+        !names
+            .iter(app.world())
+            .any(|name| name.as_str() == "Load World Row: gone-world"),
+        "the deleted world's row must not redraw"
+    );
+    assert_eq!(
+        app.world().resource::<SelectedWorldSlug>().0.as_deref(),
+        Some("keep-world")
+    );
 }

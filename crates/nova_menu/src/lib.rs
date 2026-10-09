@@ -86,7 +86,8 @@ use ambience::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 use load_screen::{
-    refresh_load_details, refresh_load_list, refuse_resumed_world, SelectedWorldSlug, WorldListings,
+    refresh_load_details, refresh_load_list, refuse_resumed_world, SelectedWorldSlug,
+    WorldDeleteStep, WorldListings,
 };
 use menu_ui::{setup_menu_ui, start_new_game_scenario};
 use mods::{
@@ -167,6 +168,7 @@ impl Plugin for NovaMenuPlugin {
         {
             app.init_resource::<WorldListings>();
             app.init_resource::<SelectedWorldSlug>();
+            app.init_resource::<WorldDeleteStep>();
         }
         // The handbook's material and the player's record of it. The CATALOG is
         // merged content: `register_bundles` inserts the base bundle's lessons
@@ -308,7 +310,8 @@ impl Plugin for NovaMenuPlugin {
         // writes the default/repaired selection, the details pane renders it
         // in the same frame. Both run off `resource_changed`, not a dirty
         // function - nothing here has a live registry to watch, only the
-        // two resources `on_load_screen` and `on_load_world` write.
+        // three resources `on_load_screen`, `on_load_world` and the delete
+        // flow write.
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(
             Update,
@@ -316,7 +319,8 @@ impl Plugin for NovaMenuPlugin {
                 refresh_load_list.run_if(resource_changed::<WorldListings>),
                 refresh_load_details.run_if(
                     resource_changed::<WorldListings>
-                        .or_else(resource_changed::<SelectedWorldSlug>),
+                        .or_else(resource_changed::<SelectedWorldSlug>)
+                        .or_else(resource_changed::<WorldDeleteStep>),
                 ),
             )
                 .chain()

@@ -12,14 +12,14 @@ use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::*;
 use nova_ui::{
     theme::UiColor,
-    widget::{list_row, themed_button, Selected, ThemedText, UiText},
+    widget::{list_row, themed_button, ButtonVariant, Selected, ThemedText, UiText},
 };
 use nova_world_base::prelude::{
-    list_worlds, open_world, resume_world, WorldListing, WorldRefusal, WorldResumeRefused,
-    WorldSaveSession,
+    delete_world, list_worlds, open_world, resume_world, WorldListing, WorldRefusal,
+    WorldResumeRefused, WorldSaveSession,
 };
 
-use crate::{scenarios::NewGameScenario, world_setup::WorldsRoot};
+use crate::{scenarios::NewGameScenario, widgets::button_variant, world_setup::WorldsRoot};
 
 /// Marker for the Load panel root, toggled by the Load button.
 #[derive(Component)]
@@ -42,6 +42,23 @@ impl Default for WorldListings {
 /// sets it from a row click.
 #[derive(Resource, Default)]
 pub(crate) struct SelectedWorldSlug(pub(crate) Option<String>);
+
+/// The Load screen's delete flow for the selected world.
+#[derive(Resource, Default)]
+pub(crate) enum WorldDeleteStep {
+    /// No delete is asked for or pending.
+    #[default]
+    Idle,
+    /// Asking to confirm deleting this slug.
+    Confirm(String),
+    /// A delete refused for this slug, with the reason.
+    Refused {
+        /// The slug asked about.
+        slug: String,
+        /// Why the delete refused.
+        reason: String,
+    },
+}
 
 /// The scrollable container holding the world rows; `refresh_load_list` swaps
 /// its children when [`WorldListings`] changes.
@@ -72,6 +89,7 @@ pub(crate) fn on_load_screen(
     packs: Res<LoadedSectionPacks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
+    mut step: ResMut<WorldDeleteStep>,
     mut panel: Single<&mut Visibility, With<LoadPanel>>,
 ) {
     listings.0 = match root.0.as_deref() {
@@ -79,6 +97,7 @@ pub(crate) fn on_load_screen(
         None => Ok(Vec::new()),
     };
     selected.0 = None;
+    *step = WorldDeleteStep::Idle;
     **panel = match **panel {
         Visibility::Hidden => Visibility::Visible,
         _ => Visibility::Hidden,
@@ -99,6 +118,7 @@ pub(crate) fn on_load_world_row_select(
     rows: Query<(Entity, &LoadWorldRow)>,
     selected_rows: Query<Entity, (With<LoadWorldRow>, With<Selected>)>,
     mut selected: ResMut<SelectedWorldSlug>,
+    mut step: ResMut<WorldDeleteStep>,
     mut commands: Commands,
 ) {
     let Ok((entity, row)) = rows.get(activate.entity) else {
@@ -107,11 +127,56 @@ pub(crate) fn on_load_world_row_select(
     if selected.0.as_deref() == Some(row.slug.as_str()) {
         return;
     }
+    *step = WorldDeleteStep::Idle;
     for previous in &selected_rows {
         commands.entity(previous).remove::<Selected>();
     }
     commands.entity(entity).insert(Selected);
     selected.0 = Some(row.slug.clone());
+}
+
+/// Ask to confirm deleting the selected world.
+pub(crate) fn on_delete_world(
+    _activate: On<Activate>,
+    selected: Res<SelectedWorldSlug>,
+    mut step: ResMut<WorldDeleteStep>,
+) {
+    if let Some(slug) = selected.0.clone() {
+        *step = WorldDeleteStep::Confirm(slug);
+    }
+}
+
+/// Cancel a pending delete confirmation.
+pub(crate) fn on_delete_world_cancel(_activate: On<Activate>, mut step: ResMut<WorldDeleteStep>) {
+    *step = WorldDeleteStep::Idle;
+}
+
+/// Delete the world asked about, then re-read the list from disk, so a
+/// delete that removed only part of the folder (see [`delete_world`]) shows
+/// truthfully instead of the stale list.
+pub(crate) fn on_delete_world_confirm(
+    _activate: On<Activate>,
+    root: Res<WorldsRoot>,
+    packs: Res<LoadedSectionPacks>,
+    mut step: ResMut<WorldDeleteStep>,
+    mut listings: ResMut<WorldListings>,
+) {
+    let WorldDeleteStep::Confirm(slug) = &*step else {
+        return;
+    };
+    let Some(root) = root.0.as_deref() else {
+        return;
+    };
+    let slug = slug.clone();
+    let result = delete_world(root, &slug);
+    listings.0 = list_worlds(root, &packs);
+    *step = match result {
+        Ok(()) => WorldDeleteStep::Idle,
+        Err(refusal) => WorldDeleteStep::Refused {
+            slug,
+            reason: refusal.to_string(),
+        },
+    };
 }
 
 /// Load the selected world. On `Err` (a world locked or refused since the
@@ -125,6 +190,7 @@ pub(crate) fn on_load_world(
     packs: Res<LoadedSectionPacks>,
     selected: Res<SelectedWorldSlug>,
     mut listings: ResMut<WorldListings>,
+    mut step: ResMut<WorldDeleteStep>,
     mut pick: ResMut<NewGameScenario>,
     mut mode: ResMut<GameMode>,
     mut state: ResMut<NextState<GameStates>>,
@@ -132,6 +198,9 @@ pub(crate) fn on_load_world(
     let (Some(root), Some(slug)) = (root.0.as_deref(), selected.0.as_deref()) else {
         return;
     };
+    // A Load drops a Delete asked about, so a refused resume does not bring
+    // its prompt back.
+    *step = WorldDeleteStep::Idle;
     match open_world(root, slug, &packs) {
         Ok((folder, lock, header, world_state)) => {
             commands.queue(move |world: &mut World| {
@@ -317,11 +386,13 @@ fn spawn_load_row(list: &mut ChildSpawnerCommands, listing: &WorldListing, selec
 
 /// Rebuild the world details pane from the selected world: name, seed,
 /// sector, credits, game version and saved time, or the refusal, and a Load
-/// button greyed on a refusal.
+/// button greyed on a refusal, and a Delete button (or its confirm prompt, or
+/// the reason a delete refused).
 pub(crate) fn refresh_load_details(
     mut commands: Commands,
     listings: Res<WorldListings>,
     selected: Res<SelectedWorldSlug>,
+    step: Res<WorldDeleteStep>,
     panels: Query<Entity, With<LoadWorldDetails>>,
 ) {
     let Ok(panel) = panels.single() else {
@@ -338,6 +409,19 @@ pub(crate) fn refresh_load_details(
     });
 
     commands.entity(panel).with_children(|details| {
+        if let WorldDeleteStep::Refused { slug, reason } = &*step {
+            details.spawn((
+                Name::new("Load World Delete Refusal"),
+                Text::new(format!("Cannot delete {slug}: {reason}")),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Danger),
+            ));
+        }
+
         let Some(listing) = listing else {
             details.spawn((
                 Name::new("Load World Details Empty"),
@@ -352,11 +436,16 @@ pub(crate) fn refresh_load_details(
             return;
         };
 
+        let title = match &listing.header {
+            Ok(header) => header.name.clone(),
+            Err(_) => listing.folder.slug.clone(),
+        };
+
         match &listing.header {
             Ok(header) => {
                 details.spawn((
                     Name::new("Load World Details Name"),
-                    Text::new(header.name.clone()),
+                    Text::new(title.clone()),
                     TextFont {
                         font_size: FontSize::Px(20.0),
                         ..default()
@@ -408,6 +497,37 @@ pub(crate) fn refresh_load_details(
                     observe(on_load_world),
                 ));
             }
+        }
+
+        if matches!(&*step, WorldDeleteStep::Confirm(slug) if slug == &listing.folder.slug) {
+            details.spawn((
+                Name::new("Load World Delete Prompt"),
+                Text::new(format!(
+                    "Delete {title}? This removes its save files and cannot be undone."
+                )),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Danger),
+            ));
+            details.spawn((
+                Name::new("Load World Delete Confirm Button"),
+                button_variant("Delete world", ButtonVariant::Danger, None),
+                observe(on_delete_world_confirm),
+            ));
+            details.spawn((
+                Name::new("Load World Delete Cancel Button"),
+                themed_button("Cancel"),
+                observe(on_delete_world_cancel),
+            ));
+        } else {
+            details.spawn((
+                Name::new("Load World Delete Button"),
+                button_variant("Delete", ButtonVariant::Danger, None),
+                observe(on_delete_world),
+            ));
         }
     });
 }

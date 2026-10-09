@@ -34,9 +34,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - GOTO's predicted path now curves for a coasting or tumbling target, gravity
   included. It hides while the target changes course or spin; the guide stays.
-- Create asks for a world name. A Load screen lists saved worlds and why one
-  cannot load, a status line shows the last save, and leaving shows a save
-  overlay with Try again.
+- Create asks for a world name. Load lists saved worlds and why one cannot
+  load, and deletes one after a confirm. A status line shows the last save, and
+  leaving shows a save overlay with Try again.
 
 ### Web & Platform
 

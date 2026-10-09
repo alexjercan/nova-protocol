@@ -5017,6 +5017,7 @@ dependencies = [
  "nova_ship",
  "nova_world",
  "ron",
+ "rustix 1.1.2",
  "serde",
  "tempfile",
 ]

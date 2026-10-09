@@ -14,7 +14,7 @@ Under it sits a **field note** - one short fact taken from the handbook, with **
 <summary>Show the full menu rundown</summary>
 
 - **New Game** - opens the world setup: a name for the world (desktop build only) and a seed (a fresh one each time, or type your own), **Randomize**, **Create** and **Cancel**. **Create** puts you in a line warship in an open world of sparse asteroid clusters, planetoids and [generated ships](../ships/#generated-ships), generated from the seed and streamed in around you as you fly. The same seed gives the same world on the same build. On the desktop build the world saves itself as you play, and the pause menu's Retry becomes **Load last save**; see [Saved worlds](#saved-worlds) below. The web build keeps no saved worlds.
-- **Load** - desktop build only: lists your saved world folders and resumes the one you pick, or shows why it cannot.
+- **Load** - desktop build only: lists your saved world folders and resumes the one you pick, or shows why it cannot. **Delete** removes the one you pick after you confirm.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
 - **Lessons** - opens the training handbook. Its first row, **Basic Training**, starts the first-flight course. Under it is one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked **read**, and one is marked **done** only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.
 - **Scenarios** - opens the complete scenario picker, every scenario your enabled mods ship included.
@@ -39,7 +39,7 @@ In any scenario, <kbd>Esc</kbd> pauses the game and gives you Resume / Retry (re
 ## Saved worlds
 
 <!-- Route: crates/nova_world_base/src/save/mod.rs (`create_world`, `open_world`,
-     `list_worlds`, `world_slug`, `WorldRefusal`), save/session.rs
+     `list_worlds`, `delete_world`, `world_slug`, `WorldRefusal`), save/session.rs
      (`WorldSaveSession`, `SaveReason`, death at :310-341), save/transients.rs
      (`FrozenTransient`, `WORLD_RESUME_SECONDS_MAX` 240 s); crates/nova_menu/src/
      world_setup.rs (Create), load_screen.rs (Load), save_status.rs (status
@@ -77,7 +77,11 @@ The Load screen lists every world folder and shows why one cannot be opened, on 
 | The sectors or transients did not come back in time | `the world did not come back within 240 s: <reason>` |
 | A saved reference matches two live bodies, or a saved style is not in this game's content | the reason, at once |
 
-There is no **Delete** in the game: to remove a saved world, delete its folder by hand.
+### Deleting a world
+
+Select a world on the Load screen and press **Delete**, then **Delete world** to confirm or **Cancel** to keep it. Delete works on a world that cannot load, too. It removes only the files the game writes (`world.ron`, `world.lock`, the `state.<n>.ron` files and the temp files of an interrupted save), then the empty folder. There is no undo.
+
+Delete removes nothing and shows `Cannot delete <folder>: <reason>` when another game has the world open, when the folder is gone, is a link or has a name no world gives, or when it holds any other file or folder: move that out first. If a removal fails part way, the world lists as unreadable and cannot load; press **Delete** again to remove the rest.
 
 For your first flight, pick **Start Basic Training** on the card, the **Basic Training** row at the top of **Lessons**, or **Basic Training** in **Scenarios**. It teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes as soon as the range sees the gesture done.
 

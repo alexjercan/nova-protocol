@@ -30,10 +30,10 @@ use nova_world::{
 };
 
 use super::{
-    create_world, list_worlds, open_world, restore_resumed_world, resume_world, write_world,
-    FrozenTransient, FrozenTransientType, ResumedTransients, SavedPlayer, WorldRefusal,
-    WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
-    WorldSaveStatus, WORLD_SAVE_FORMAT,
+    create_world, delete_world, list_worlds, open_world, restore_resumed_world, resume_world,
+    write_world, FrozenTransient, FrozenTransientType, ResumedTransients, SavedPlayer,
+    WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession,
+    WorldSaveState, WorldSaveStatus, WORLD_SAVE_FORMAT,
 };
 use crate::NovaLayeredWorld;
 
@@ -317,6 +317,146 @@ fn opening_a_world_removes_the_files_its_header_does_not_name() {
     assert_eq!(
         files(&folder.path),
         ["notes.txt", "state.1.ron", "world.lock", "world.ron"]
+    );
+}
+
+/// Delete removes every file the game writes and the folder, for a world
+/// that loads and for one whose header is corrupt; other worlds stay.
+#[test]
+fn delete_removes_the_save_files_and_folder_of_a_good_or_corrupt_world() {
+    let root = tempfile::tempdir().unwrap();
+    let (good, lock) = create_world(root.path(), "Good").unwrap();
+    write_world(&good, &header("Good", 1), &state(1, 750)).unwrap();
+    write_world(&good, &header("Good", 2), &state(2, 990)).unwrap();
+    drop(lock);
+    std::fs::write(good.path.join("state.1.ron"), "old").unwrap();
+    std::fs::write(good.path.join(".state.3.ron.123.tmp"), "half").unwrap();
+    std::fs::write(good.path.join(".world.ron.123.tmp"), "half").unwrap();
+    let (corrupt, lock) = create_world(root.path(), "Corrupt").unwrap();
+    drop(lock);
+    std::fs::write(corrupt.path.join("world.ron"), "not ron").unwrap();
+    let (kept, lock) = create_world(root.path(), "Kept").unwrap();
+    write_world(&kept, &header("Kept", 1), &state(1, 750)).unwrap();
+    drop(lock);
+
+    delete_world(root.path(), "good").unwrap();
+    delete_world(root.path(), "corrupt").unwrap();
+
+    assert_eq!(files(root.path()), ["kept"]);
+    assert_eq!(
+        files(&kept.path),
+        ["state.1.ron", "world.lock", "world.ron"]
+    );
+}
+
+/// While another game holds a world, Delete is refused and removes nothing.
+#[test]
+fn delete_refuses_a_world_another_game_holds_open_and_removes_nothing() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Held").unwrap();
+    write_world(&folder, &header("Held", 1), &state(1, 750)).unwrap();
+
+    assert_eq!(
+        delete_world(root.path(), "held").unwrap_err(),
+        WorldRefusal::Locked
+    );
+    assert_eq!(
+        files(&folder.path),
+        ["state.1.ron", "world.lock", "world.ron"]
+    );
+    drop(lock);
+}
+
+/// Delete refuses a missing folder, a folder no world name gives, and a
+/// folder that holds a file or folder the game did not write or a link, and
+/// removes nothing then. A link is never followed: what it points at stays.
+#[test]
+fn delete_refuses_a_folder_with_a_foreign_file_or_link_and_removes_nothing() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("world.ron"), "theirs").unwrap();
+
+    assert!(matches!(
+        delete_world(root.path(), "gone"),
+        Err(WorldRefusal::Io(_))
+    ));
+    std::fs::create_dir(root.path().join("Hand Made")).unwrap();
+    assert!(matches!(
+        delete_world(root.path(), "Hand Made"),
+        Err(WorldRefusal::InvalidName(_))
+    ));
+
+    // A folder the game never made gets no lock file either.
+    std::fs::create_dir(root.path().join("stranger")).unwrap();
+    std::fs::write(root.path().join("stranger").join("notes.txt"), "mine").unwrap();
+    assert!(matches!(
+        delete_world(root.path(), "stranger"),
+        Err(WorldRefusal::Foreign(_))
+    ));
+    assert_eq!(files(&root.path().join("stranger")), ["notes.txt"]);
+
+    let (notes, lock) = create_world(root.path(), "Notes").unwrap();
+    write_world(&notes, &header("Notes", 1), &state(1, 750)).unwrap();
+    drop(lock);
+    std::fs::write(notes.path.join("notes.txt"), "mine").unwrap();
+    let (nested, lock) = create_world(root.path(), "Nested").unwrap();
+    write_world(&nested, &header("Nested", 1), &state(1, 750)).unwrap();
+    drop(lock);
+    std::fs::create_dir(nested.path.join("state.2.ron")).unwrap();
+    for (slug, folder, extra) in [
+        ("notes", &notes, "notes.txt"),
+        ("nested", &nested, "state.2.ron"),
+    ] {
+        assert!(
+            matches!(
+                delete_world(root.path(), slug),
+                Err(WorldRefusal::Foreign(_))
+            ),
+            "{slug} must be refused"
+        );
+        let mut expected = vec![extra, "state.1.ron", "world.lock", "world.ron"];
+        expected.sort_unstable();
+        assert_eq!(files(&folder.path), expected, "{slug} must be untouched");
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+
+        let (linked_file, lock) = create_world(root.path(), "Linked File").unwrap();
+        drop(lock);
+        symlink(
+            outside.path().join("world.ron"),
+            linked_file.path.join("world.ron"),
+        )
+        .unwrap();
+        symlink(outside.path(), root.path().join("linked-folder")).unwrap();
+        let (linked_lock, lock) = create_world(root.path(), "Linked Lock").unwrap();
+        drop(lock);
+        std::fs::remove_file(linked_lock.path.join("world.lock")).unwrap();
+        symlink(
+            outside.path().join("world.ron"),
+            linked_lock.path.join("world.lock"),
+        )
+        .unwrap();
+        for slug in ["linked-file", "linked-folder", "linked-lock"] {
+            assert!(
+                matches!(
+                    delete_world(root.path(), slug),
+                    Err(WorldRefusal::Foreign(_))
+                ),
+                "{slug} must be refused"
+            );
+        }
+        assert_eq!(files(&linked_file.path), ["world.lock", "world.ron"]);
+        assert_eq!(files(&linked_lock.path), ["world.lock"]);
+        assert!(root.path().join("linked-folder").is_symlink());
+    }
+
+    assert_eq!(files(outside.path()), ["world.ron"]);
+    assert_eq!(
+        std::fs::read_to_string(outside.path().join("world.ron")).unwrap(),
+        "theirs"
     );
 }
 
