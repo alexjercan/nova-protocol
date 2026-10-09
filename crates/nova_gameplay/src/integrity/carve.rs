@@ -139,6 +139,8 @@ const MARK_BUDGET: usize = 24;
 
 /// One sphere of material a hit took out of a body.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct DamageMark {
     /// Centre, in the local frame of the body carrying the mark.
     pub at: Vec3,
@@ -185,6 +187,8 @@ impl DamageMark {
 /// skin reads one list. Nothing walks down from here; consumers walk up.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct DamageMarks(pub Vec<DamageMark>);
 
 impl DamageMarks {

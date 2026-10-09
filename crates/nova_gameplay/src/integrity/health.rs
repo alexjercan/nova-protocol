@@ -29,6 +29,8 @@ pub mod prelude {
 /// A hit-point pool. `current` never exceeds `max` and is clamped at zero.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Health {
     /// Current health.
     pub current: f32,

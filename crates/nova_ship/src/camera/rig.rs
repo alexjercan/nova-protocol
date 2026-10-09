@@ -8,8 +8,12 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 
 use super::{
-    chase::ChaseCamera, framing::spaceship_camera_rig, handback::CameraHandbackBlend,
-    mode::SpaceshipCameraControlMode, zoom::ChaseZoom,
+    chase::ChaseCamera,
+    framing::spaceship_camera_rig,
+    handback::CameraHandbackBlend,
+    mode::SpaceshipCameraControlMode,
+    resume::{CameraResumeBlend, ResumedCameraView},
+    zoom::ChaseZoom,
 };
 use crate::prelude::HullEnvelopeRadius;
 
@@ -91,12 +95,17 @@ pub struct SpaceshipRotationInputActiveMarker;
 ///
 /// The rig opens at the session zoom level, and wheel lines left over from the
 /// previous life are dropped so the new life does not open with a dolly.
+///
+/// A Load opens it at the saved view instead: the [`ResumedCameraView`] sets
+/// the zoom, opens the Normal rig at the saved steer, and starts the
+/// [`CameraResumeBlend`] that shows the saved pose first.
 pub(super) fn insert_camera_controller(
     add: On<Add, SpaceshipCameraController>,
     mut commands: Commands,
     q_camera: Query<Entity, With<SpaceshipCameraController>>,
     mode: Res<SpaceshipCameraControlMode>,
     mut zoom: ResMut<ChaseZoom>,
+    resumed: Option<Res<ResumedCameraView>>,
     q_player: Query<&HullEnvelopeRadius, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     let entity = add.entity;
@@ -111,6 +120,11 @@ pub(super) fn insert_camera_controller(
     };
 
     let envelope = q_player.iter().next().map_or(0.0, |envelope| **envelope);
+    let resumed = resumed.map(|resumed| *resumed);
+    if let Some(resumed) = resumed {
+        commands.remove_resource::<ResumedCameraView>();
+        zoom.manual = resumed.view.zoom;
+    }
     zoom.pending_lines = 0.0;
     let level = if matches!(*mode, SpaceshipCameraControlMode::Turret) {
         1.0
@@ -124,15 +138,24 @@ pub(super) fn insert_camera_controller(
         // A fresh controller starts blend-free: a stale handback blend
         // surviving a death/respawn path that skipped the teardown would
         // play a wrong 0.45s swing on the first frame of the new life.
-        .remove::<CameraHandbackBlend>()
+        .remove::<(CameraHandbackBlend, CameraResumeBlend)>()
         .with_children(|parent| {
             parent.spawn((
                 SpaceshipCameraInputMarker,
                 SpaceshipCameraNormalInputMarker,
                 SpaceshipRotationInputActiveMarker,
-                PointRotation::default(),
+                PointRotation {
+                    initial_rotation: resumed.map_or(Quat::IDENTITY, |resumed| resumed.steer),
+                },
             ));
         });
+    if let Some(resumed) = resumed {
+        commands.entity(camera).insert(CameraResumeBlend {
+            position_from_ship: resumed.view.position_from_ship,
+            rotation_from_ship: resumed.view.rotation_from_ship,
+            elapsed: 0.0,
+        });
+    }
 }
 
 pub(super) fn insert_camera_freelook(
@@ -291,9 +314,12 @@ pub(super) fn destroy_camera_controller(
         commands.entity(child).try_despawn();
     }
 
-    commands
-        .entity(entity)
-        .try_remove::<(ChaseCamera, SpaceshipCameraController, CameraHandbackBlend)>();
+    commands.entity(entity).try_remove::<(
+        ChaseCamera,
+        SpaceshipCameraController,
+        CameraHandbackBlend,
+        CameraResumeBlend,
+    )>();
 }
 
 #[derive(Component, Debug, Clone)]

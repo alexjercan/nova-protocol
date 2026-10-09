@@ -4,7 +4,8 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::{AssetRef, SectionClass};
 
 use crate::prelude::{
-    PlaceholderArt, RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf,
+    PlaceholderArt, PlaceholderArtType, RenderMeshTransform, SectionRenderMeshTransform,
+    SectionRenderOf,
 };
 
 /// The `hull_section` spawners, its config, marker and `HullSectionPlugin`.
@@ -121,8 +122,7 @@ fn insert_hull_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Hull Section Body"),
                 SectionRenderOf(entity),
-                Mesh3d(placeholder.body.clone()),
-                MeshMaterial3d(placeholder.structure_material.clone()),
+                placeholder.bundle(PlaceholderArtType::Body),
             ),],));
         }
     }

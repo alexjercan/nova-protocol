@@ -28,8 +28,8 @@ use bevy::prelude::*;
 /// The despawn message and its plugin, and `TempEntity` with `TempEntityPlugin`.
 pub mod prelude {
     pub use super::{
-        DespawnEntity, DespawnEntityPlugin, TempEntity, TempEntityPlugin, TempEntityState,
-        UnsettledBody,
+        resumed_lifetime, DespawnEntity, DespawnEntityPlugin, SavedLifetime, TempEntity,
+        TempEntityPlugin, TempEntityState, UnsettledBody,
     };
 }
 
@@ -71,6 +71,39 @@ pub struct TempEntity(pub f32);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TempEntityState(Timer);
 
+/// A transient's lifetime as a save keeps it: the authored total and what
+/// is left of it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SavedLifetime {
+    /// The authored [`TempEntity`] lifetime, seconds.
+    pub total: f32,
+    /// The seconds left before it despawns.
+    pub remaining: f32,
+}
+
+impl SavedLifetime {
+    /// The lifetime of `entity`, or `None` when it is not a [`TempEntity`]
+    /// or its countdown is not inserted yet.
+    pub fn of(world: &World, entity: Entity) -> Option<Self> {
+        let body = world.get_entity(entity).ok()?;
+        Some(Self {
+            total: body.get::<TempEntity>()?.0,
+            remaining: body.get::<TempEntityState>()?.remaining_secs(),
+        })
+    }
+}
+
+/// The lifetime of a resumed transient: it despawns after `saved.remaining`,
+/// not after a fresh `saved.total`.
+pub fn resumed_lifetime(saved: SavedLifetime) -> impl Bundle {
+    let mut timer = Timer::from_seconds(saved.total, TimerMode::Once);
+    timer.set_elapsed(std::time::Duration::from_secs_f32(
+        saved.total - saved.remaining,
+    ));
+    (TempEntity(saved.total), TempEntityState(timer))
+}
+
 /// Plugin that manages temporary entities.
 ///
 /// Automatically inserts the timer state on entities with `TempEntity` and
@@ -88,22 +121,27 @@ impl Plugin for TempEntityPlugin {
     }
 }
 
-/// Initialize the internal timer when a TempEntity is added.
+/// Initialize the internal timer when a TempEntity is inserted. A countdown
+/// already on the entity is kept: [`resumed_lifetime`] inserts the two
+/// together, with the saved time already spent.
 fn on_insert_temp_entity(
     insert: On<Insert, TempEntity>,
     mut commands: Commands,
-    q_temp: Query<&TempEntity>,
+    q_temp: Query<(&TempEntity, Has<TempEntityState>)>,
 ) {
     let entity = insert.entity;
     trace!("on_insert_temp_entity: entity {:?}", entity);
 
-    let Ok(temp_entity) = q_temp.get(entity) else {
+    let Ok((temp_entity, counting)) = q_temp.get(entity) else {
         error!(
             "on_insert_temp_entity: entity {:?} not found in q_temp",
             entity
         );
         return;
     };
+    if counting {
+        return;
+    }
 
     commands
         .entity(entity)

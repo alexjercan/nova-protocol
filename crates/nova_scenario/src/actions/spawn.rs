@@ -183,6 +183,21 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
         trace!("SpawnScenarioObject: spawning '{}'", config.base.id);
 
         world.push_command(move |commands| {
+            if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
+                let base = config.base.clone();
+                let id = config.base.id.clone();
+                let ship = ship.clone();
+                // Queued with world access, in this batch: whether the ship
+                // spawns fresh or thaws a saved one is decided by a resource,
+                // which a `Commands` closure cannot read. The root spawn moves
+                // into this closure too (D-T7 id-rule gate), so a bad section
+                // id is caught before anything exists to spawn partially.
+                commands.queue(move |world: &mut World| {
+                    spawn_scenario_spaceship(world, &base, &id, ship);
+                });
+                return;
+            }
+
             // The authored seam, and the only production one: `base_scenario_object`
             // is shared with `nova_world`'s streamed cells, whose ids nobody wrote.
             let mut entity_commands = commands.spawn((
@@ -205,21 +220,8 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                         .unwrap_or_else(|| asteroid_seed_from_id(&config.base.id));
                     asteroid_scenario_object(&mut entity_commands, asteroid.clone(), seed);
                 }
-                ScenarioObjectKind::Spaceship(config) => {
-                    entity_commands.insert(spaceship_scenario_object(config.clone()));
-                    // The authored allegiance override. Ordering is safe
-                    // either way: observer-queued commands (the controller
-                    // marker whose requirement defaults Player/Enemy) apply
-                    // BEFORE this queue's remaining commands (ledger:
-                    // verify-engine-guarantees-in-source), and a plain
-                    // insert overwrites the requirement default - so the
-                    // authored side always wins.
-                    if let Some(allegiance) = config.allegiance {
-                        entity_commands.insert(allegiance);
-                    }
-                    if config.lootable {
-                        entity_commands.insert(LootableShipMarker);
-                    }
+                ScenarioObjectKind::Spaceship(_) => {
+                    unreachable!("the Spaceship arm returns above before this spawn")
                 }
                 ScenarioObjectKind::Beacon(config) => {
                     entity_commands.insert(beacon_scenario_object(config.clone()));
@@ -237,6 +239,97 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
             }
         });
     }
+}
+
+/// Build the scenario ship `id` on a fresh root spawned from `base`: thawed
+/// from the [`ResumedSpaceship`] that names `id`, or fresh from `config`.
+///
+/// A resumed ship takes its pose and motion from the record; the authored
+/// object only gave it its id, its name and its addressability. A record for
+/// another id stays for the spawn that names it.
+///
+/// The root is spawned HERE, after the design is checked, rather than by the
+/// caller: the content gate (`nova_assets::merge::section_errors`, the
+/// scenario lint) already refuses a reserved (`/`) or duplicate section id in
+/// `config.design`, so nothing should ever reach this function carrying one -
+/// but if it does, no root exists for a caller to find half-built.
+///
+/// # Panics
+///
+/// `config.design` carries a [`ShipDesignError::ReservedSectionId`] or
+/// [`ShipDesignError::DuplicateSectionId`] (D-T7 id-rule gate). An unknown
+/// `Prototype` id is NOT a panic here - it resolves the way
+/// `insert_spaceship_sections` always has, by logging and flying with
+/// whatever design did resolve.
+fn spawn_scenario_spaceship(
+    world: &mut World,
+    base: &BaseScenarioObjectConfig,
+    id: &str,
+    config: SpaceshipConfig,
+) {
+    let id_errors = match &config.design {
+        ShipDesignSource::Inline(design) => section_id_errors(design),
+        ShipDesignSource::Prototype { id: design_id, .. } => world
+            .resource::<GameShipDesigns>()
+            .get_design(design_id)
+            .map(|prototype| section_id_errors(&prototype.design))
+            .unwrap_or_default(),
+    };
+    if !id_errors.is_empty() {
+        let errors = id_errors
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("; ");
+        panic!(
+            "spawn_scenario_spaceship: object '{id}' names a ship design the content gate \
+             should have refused: {errors}"
+        );
+    }
+
+    let resumed = match world.remove_resource::<ResumedSpaceship>() {
+        Some(resumed) if resumed.id.0 == id => Some(resumed),
+        other => {
+            if let Some(other) = other {
+                world.insert_resource(other);
+            }
+            None
+        }
+    };
+    let mut commands = world.commands();
+    let mut entity_commands =
+        commands.spawn((base_scenario_object(base), ScenarioAddressableMarker));
+    match resumed {
+        Some(ResumedSpaceship {
+            transform,
+            motion: (linear, angular),
+            ship,
+            ..
+        }) => {
+            debug!("SpawnScenarioObject: '{id}' thaws its saved ship");
+            thaw_ship(&mut entity_commands, ship);
+            entity_commands.insert((
+                transform,
+                GlobalTransform::from(transform),
+                LinearVelocity(linear),
+                AngularVelocity(angular),
+            ));
+        }
+        None => {
+            entity_commands.insert(spaceship_scenario_object(config.clone()));
+            // The authored allegiance override. Ordering is safe either way:
+            // the controller marker's requirement only fills an absent
+            // `Allegiance`, and a plain insert overwrites the requirement
+            // default - so the authored side always wins.
+            if let Some(allegiance) = config.allegiance {
+                entity_commands.insert(allegiance);
+            }
+            if config.lootable {
+                entity_commands.insert(LootableShipMarker);
+            }
+        }
+    }
+    world.flush();
 }
 
 /// A volume to scatter objects within, for [`ScatterObjectsConfig`].
@@ -767,6 +860,159 @@ mod tests {
             Some(Allegiance::Player),
             "an authored Player allegiance survives the AI marker's Enemy default"
         );
+    }
+
+    /// A saved world's player comes back as it was saved, through the same
+    /// authored spawn a New Game takes: the spawn of the saved id thaws the
+    /// record instead of the authored ship. The ship keeps its scenario
+    /// identity and its player controller, stands at the saved pose with the
+    /// saved motion, and keeps its hold, its balance, its hurt section and
+    /// the loss of its destroyed one. The record is a written save's: it
+    /// reads back from text first.
+    #[test]
+    fn a_resumed_player_spawn_thaws_the_saved_ship() {
+        use nova_gameplay::test_support::settle;
+        use nova_ship::prelude::{
+            BaseSectionConfig, GameSections, HullSectionConfig, NovaFlightPlugin,
+            PDControllerPlugin, SectionConfig, SectionKind, SpaceshipSectionPlugin,
+        };
+
+        fn app() -> App {
+            let mut app = nova_gameplay::test_support::unfinished_integrity_physics_app();
+            app.add_plugins((
+                PDControllerPlugin,
+                SpaceshipSectionPlugin { render: false },
+                crate::objects::spaceship::SpaceshipPlugin,
+                NovaFlightPlugin,
+            ));
+            app.insert_resource(GameSections(vec![SectionConfig {
+                base: BaseSectionConfig {
+                    id: "test_hull".to_string(),
+                    ..default()
+                },
+                kind: SectionKind::Hull(HullSectionConfig::default()),
+            }]));
+            app.init_resource::<NovaEventWorld>();
+            app.init_resource::<GameObjectives>();
+            app.init_resource::<CargoCanisterIdAllocator>();
+            app.finish();
+            app
+        }
+        fn spawn_player(app: &mut App) -> Entity {
+            let section = |id: &str, at: Vec3| SpaceshipSectionConfig {
+                id: id.into(),
+                position: at,
+                rotation: Quat::IDENTITY,
+                source: SectionSource::prototype("test_hull"),
+            };
+            let config = ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "player".to_string(),
+                    name: "Player".to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    design: ShipDesignSource::Inline(ShipDesign {
+                        sections: vec![section("fore", Vec3::ZERO), section("aft", Vec3::Z)],
+                        ..default()
+                    }),
+                    controller: SpaceshipController::Player(PlayerControllerConfig::default()),
+                    credits: 100,
+                    ..default()
+                }),
+            };
+            {
+                let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+                EventActionConfig::SpawnScenarioObject(config)
+                    .action(&mut world, &GameEventInfo { data: None });
+            }
+            drain(app.world_mut());
+            let world = app.world_mut();
+            world
+                .query_filtered::<Entity, With<SpaceshipRootMarker>>()
+                .single(world)
+                .expect("one ship spawns")
+        }
+        fn sections(world: &mut World, ship: Entity) -> Vec<(String, f32)> {
+            let mut sections: Vec<(String, f32)> = world
+                .query_filtered::<(&EntityId, &Health, &ChildOf), With<SectionMarker>>()
+                .iter(world)
+                .filter(|(_, _, child_of)| child_of.parent() == ship)
+                .map(|(id, health, _)| (id.0.clone(), health.current))
+                .collect();
+            sections.sort_by(|a, b| a.0.cmp(&b.0));
+            sections
+        }
+
+        let mut played = app();
+        let ship = spawn_player(&mut played);
+        settle(&mut played);
+        let world = played.world_mut();
+        for (section, id) in world
+            .query_filtered::<(Entity, &EntityId, &ChildOf), With<SectionMarker>>()
+            .iter(world)
+            .filter(|(_, _, child_of)| child_of.parent() == ship)
+            .map(|(entity, id, _)| (entity, id.0.clone()))
+            .collect::<Vec<_>>()
+        {
+            if id == "aft" {
+                world.entity_mut(section).despawn();
+            } else {
+                let mut health = world.get_mut::<Health>(section).unwrap();
+                health.current = health.max * 0.4;
+            }
+        }
+        world
+            .get_mut::<ShipInventory>(ship)
+            .unwrap()
+            .add(ItemType::IronOre, 3);
+        world.entity_mut(ship).insert(ShipCredits(555));
+        settle(&mut played);
+        let world = played.world_mut();
+        let hold = world.get::<ShipInventory>(ship).cloned().unwrap();
+        let saved_sections = sections(world, ship);
+        assert_eq!(saved_sections.len(), 1, "the aft section is destroyed");
+        let frozen = freeze_ship(world, ship).expect("a settled ship freezes");
+        let frozen: FrozenShip = ron::from_str(&ron::to_string(&frozen).unwrap()).unwrap();
+
+        let mut resumed = app();
+        let pose =
+            Transform::from_xyz(120.0, -4.5, 30.25).with_rotation(Quat::from_rotation_y(1.1));
+        let motion = (Vec3::new(3.0, 0.0, -1.5), Vec3::new(0.0, 0.25, 0.0));
+        resumed.insert_resource(ResumedSpaceship {
+            id: EntityId::new("player".to_string()),
+            transform: pose,
+            motion,
+            ship: frozen,
+        });
+        let ship = spawn_player(&mut resumed);
+        let world = resumed.world_mut();
+        assert!(
+            !world.contains_resource::<ResumedSpaceship>(),
+            "the spawn takes the record"
+        );
+        assert_eq!(world.get::<Transform>(ship), Some(&pose));
+        assert_eq!(
+            world.get::<LinearVelocity>(ship).map(|v| v.0),
+            Some(motion.0)
+        );
+        assert_eq!(
+            world.get::<AngularVelocity>(ship).map(|w| w.0),
+            Some(motion.1)
+        );
+        settle(&mut resumed);
+        let world = resumed.world_mut();
+        let root = world.entity(ship);
+        assert!(root.contains::<PlayerSpaceshipMarker>());
+        assert!(root.contains::<ScenarioAddressableMarker>());
+        assert_eq!(
+            root.get::<EntityId>().map(|id| id.0.as_str()),
+            Some("player")
+        );
+        assert_eq!(root.get::<ShipInventory>(), Some(&hold));
+        assert_eq!(root.get::<ShipCredits>().copied(), Some(ShipCredits(555)));
+        assert_eq!(sections(world, ship), saved_sections);
     }
 
     /// The behaviour the physics pair buys: a moving scenario body's Transform
@@ -1788,6 +2034,72 @@ mod tests {
         assert_eq!(
             spawned as u32, authored_count,
             "scatter spawns the full authored count ({authored_count}) even on Low - it is never thinned"
+        );
+    }
+
+    /// Bypass proof (D-T7 id-rule gate, revision 3): a code-built
+    /// `SpawnScenarioObject` skips every content check - no lint, nothing
+    /// refuses it - so the runtime guard in `spawn_scenario_spaceship` is the
+    /// only thing standing between a bad section id and a half-built ship. It
+    /// must panic, naming the object and the error, BEFORE the root spawns.
+    ///
+    /// `catch_unwind` rather than `#[should_panic]`: the root-spawn move
+    /// (section 4, D-T7 revision 3) put the root spawn and the check in the
+    /// SAME command, so nothing else was queued for this object either way -
+    /// catching the panic and then querying the same world proves the
+    /// negative directly instead of taking it on faith from the message.
+    #[test]
+    fn a_code_built_ship_with_a_bad_section_id_panics_before_its_root_spawns() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(crate::objects::spaceship::SpaceshipPlugin);
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+
+        let dup = |id: &str, z: f32| SpaceshipSectionConfig {
+            id: id.to_string(),
+            position: Vec3::new(0.0, 0.0, z),
+            rotation: Quat::IDENTITY,
+            source: SectionSource::prototype("hull"),
+        };
+        let config = ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "bad_ship".to_string(),
+                name: "Bad Ship".to_string(),
+                position: Meters3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                controller: SpaceshipController::AI(AIControllerConfig::default()),
+                design: ShipDesignSource::Inline(ShipDesign {
+                    sections: vec![dup("dup", 0.0), dup("dup", 1.0)],
+                    ..default()
+                }),
+                ..default()
+            }),
+        };
+        {
+            let mut event_world = app.world_mut().resource_mut::<NovaEventWorld>();
+            EventActionConfig::SpawnScenarioObject(config)
+                .action(&mut event_world, &GameEventInfo::default());
+        }
+
+        let world = app.world_mut();
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            NovaEventWorld::state_to_world_system(world);
+        }));
+        let message = panicked
+            .err()
+            .and_then(|payload| payload.downcast::<String>().ok())
+            .map(|message| *message)
+            .unwrap_or_default();
+        assert!(
+            message.contains("bad_ship") && message.contains("twice"),
+            "the panic names the object and the id-rule error: {message}"
+        );
+        assert!(
+            scoped_entities(world, "bad_ship").is_empty(),
+            "no root spawns for a design the panic refused"
         );
     }
 }

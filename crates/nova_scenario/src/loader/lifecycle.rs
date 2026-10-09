@@ -2123,4 +2123,87 @@ mod tests {
         step(&mut app);
         assert_eq!(ticks(&app), (1, 1, 1, 1), "unloaded: sets frozen again");
     }
+
+    /// D-T7 id-rule gate, revision 3: a Rust caller can skip authoring lint,
+    /// but `on_load_scenario`'s own `lint_scenario` call still catches a bad
+    /// inline design (here, a repeated section id) and refuses the start - no
+    /// ship root and no section entity ever spawns.
+    #[test]
+    fn a_scenario_with_a_bad_inline_design_spawns_no_ship() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<ContentIssues>();
+        app.init_resource::<ScenarioStartFailure>();
+        app.register_input_actions(scenario_bindings());
+        app.add_observer(on_load_scenario);
+
+        let dup_section = |id: &str| SpaceshipSectionConfig {
+            id: id.to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Inline(SectionConfig {
+                base: BaseSectionConfig {
+                    id: "plate".to_string(),
+                    ..default()
+                },
+                kind: SectionKind::Hull(HullSectionConfig::default()),
+            }),
+        };
+        let scenario = scenario_with(
+            "bad_inline_design",
+            vec![event_with(vec![EventActionConfig::SpawnScenarioObject(
+                ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: "player".to_string(),
+                        name: "Player".to_string(),
+                        position: Meters3::ZERO,
+                        rotation: Quat::IDENTITY,
+                    },
+                    kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                        controller: SpaceshipController::Player(PlayerControllerConfig::default()),
+                        design: ShipDesignSource::Inline(ShipDesign {
+                            sections: vec![dup_section("dup"), dup_section("dup")],
+                            ..default()
+                        }),
+                        ..default()
+                    }),
+                },
+            )])],
+        );
+
+        app.world_mut().trigger(LoadScenario(scenario));
+        app.update();
+
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), With<SpaceshipRootMarker>>()
+                .iter(app.world())
+                .count(),
+            0,
+            "a refused start must spawn no ship root"
+        );
+        assert_eq!(
+            app.world_mut()
+                .query_filtered::<(), With<EntityId>>()
+                .iter(app.world())
+                .count(),
+            0,
+            "a refused start must spawn no section entity either"
+        );
+        let failure = app.world().resource::<ScenarioStartFailure>();
+        let report = failure.0.as_ref().expect("the refusal sets the report");
+        assert!(
+            report
+                .messages
+                .iter()
+                .any(|message| message.contains("dup")),
+            "the refusal names the repeated section id: {:?}",
+            report.messages
+        );
+    }
 }

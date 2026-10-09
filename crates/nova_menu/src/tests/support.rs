@@ -128,6 +128,10 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     app.register_input_actions(nova_hud::hud_bindings());
     app.register_input_actions(nova_interface::bindings::interface_bindings());
     app.register_input_actions(nova_scenario::prelude::scenario_bindings());
+    // Before `NovaMenuPlugin`, which inserts the player's own worlds folder
+    // when the app has none. A test that saves or lists worlds inserts a
+    // scratch folder over this.
+    app.insert_resource(crate::world_setup::WorldsRoot(None));
     app.add_plugins(NovaMenuPlugin);
     app
 }

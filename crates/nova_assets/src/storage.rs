@@ -130,6 +130,25 @@ impl NativeStorage {
     }
 }
 
+/// The folder saved worlds live in: `$NOVA_CONFIG_ROOT/worlds` when the test
+/// and tooling override is set, else `dirs::data_dir()/nova-protocol/worlds`.
+///
+/// A world is player data, not a setting, so it lives under the data dir; the
+/// one override still moves every store a test or tool could write, so a run
+/// that saves a world never touches the developer's own. `None` when the
+/// platform names no data dir or the override is not a usable path.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn worlds_root() -> Option<std::path::PathBuf> {
+    match std::env::var_os(CONFIG_ROOT_ENV) {
+        Some(root) => Some(
+            std::path::absolute(std::path::PathBuf::from(root))
+                .ok()?
+                .join("worlds"),
+        ),
+        None => Some(dirs::data_dir()?.join("nova-protocol").join("worlds")),
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 impl Storage for NativeStorage {
     fn read(&self, key: &str) -> Option<Vec<u8>> {
@@ -208,6 +227,8 @@ impl Storage for WebStorage {
 /// The write goes to a sibling temp file which is flushed to the device before
 /// the rename publishes it, so a kill (or a full disk) mid-write can never
 /// leave a zero-length or half-encoded file where a readable one used to be.
+/// On unix the directory is flushed after the rename too, so a power loss
+/// right after this returns cannot bring the old entry back.
 /// [`NativeStorage`] writes through here, and so does every store in this crate
 /// that owns its own path (the mod cache index, the portal catalog, the content
 /// generator); that is the contract, not an optimization.
@@ -245,15 +266,20 @@ pub fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()>
     }
     std::fs::rename(&temp, path).inspect_err(|_| {
         let _ = std::fs::remove_file(&temp);
-    })
+    })?;
+    // The rename is only durable once the directory entry is: without this a
+    // crash can leave the new name unwritten even though the data is.
+    #[cfg(unix)]
+    std::fs::File::open(parent)?.sync_all()?;
+    Ok(())
 }
 
 /// Glob-import surface: `use nova_assets::storage::prelude::*` brings the
 /// storage trait, its platform selection and the error type into scope.
 pub mod prelude {
-    #[cfg(not(target_arch = "wasm32"))]
-    pub use super::CONFIG_ROOT_ENV;
     pub use super::{platform, platform_at, PlatformStorage, Storage, StorageError};
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::{worlds_root, CONFIG_ROOT_ENV};
 }
 
 // The native backend is exercised directly below. The wasm localStorage

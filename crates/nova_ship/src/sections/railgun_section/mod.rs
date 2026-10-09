@@ -290,6 +290,7 @@ pub struct RailgunSectionInput(pub bool);
 /// same entity, the machinery every weapon section shares, so a one-shell
 /// magazine with a long delay gives the cadence and the diegetic gauge at once.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RailgunCharge {
     /// Loaded, uncommitted, waiting for a trigger.
     #[default]

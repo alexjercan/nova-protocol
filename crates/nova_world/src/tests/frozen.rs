@@ -21,15 +21,16 @@ use nova_gameplay::{
     test_support::{settle, unfinished_integrity_physics_app},
 };
 use nova_scenario::prelude::{
-    AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin, SectionSource,
-    SpaceshipPlugin, KIND_ROCK,
+    freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin, SectionSource,
+    ShipDesign, ShipDesignSource, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
+    SpaceshipSectionConfig, KIND_ROCK,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
     BodyRadius, DockedHelmType, DockedShip, DockingConnection, DockingConnectionRequest,
     DockingHelmRequest, DockingSectionConfig, FlightIntent, GameSections, NovaFlightPlugin,
-    PDControllerPlugin, SectionConfig, SectionKind, SpaceshipSectionPlugin, ThrusterSectionConfig,
-    TurretSectionConfig,
+    PDControllerPlugin, SectionAnimations, SectionConfig, SectionKind, ShipCapabilities,
+    SpaceshipSectionPlugin, ThrusterSectionConfig, TurretSectionConfig,
 };
 
 use super::{answering, empty, rocks, ship, test_sections, Answers, Rocks, TEST_HULL_SECTION_ID};
@@ -77,9 +78,7 @@ fn materialize<G: SectorGenerator>(
 ) -> Entity {
     let config = world.resource::<WorldConfig<G>>().clone();
     let record = world.resource_mut::<FrozenSectors>().take(coord);
-    let visited = record.as_ref().is_some_and(FrozenSector::is_visited);
-    let rocks = record.as_ref().map(FrozenSector::rocks).unwrap_or_default();
-    let prepared = prepare_cell(config, coord, visited, &rocks).expect("the cell prepares");
+    let prepared = prepare_cell(config, coord, record.as_ref()).expect("the cell prepares");
     let sections = world
         .get_resource::<GameSections>()
         .cloned()
@@ -88,7 +87,7 @@ fn materialize<G: SectorGenerator>(
         &mut world.commands(),
         prepared,
         record,
-        &AssetRef::default(),
+        &AssetRef::Path(nova_assets::prelude::ASTEROID_TEXTURE_PATH.to_string()),
         &sections,
         observer,
     );
@@ -156,6 +155,48 @@ fn docking_hull(app: &mut App, at: Vec3, rotation: Quat, parent: Option<Entity>)
         docking_section(DockingSectionConfig::default()),
     ));
     ship
+}
+
+/// The `fore` docking port `docking_hull` builds `ship` with.
+fn fore_section(world: &mut World, ship: Entity) -> Entity {
+    world
+        .query::<(Entity, &EntityId, &ChildOf)>()
+        .iter(world)
+        .find(|(_, id, child_of)| id.0 == "fore" && child_of.parent() == ship)
+        .map(|(entity, ..)| entity)
+        .expect("the hull has a fore section")
+}
+
+/// The prototype a thawed ship's own `fore` docking port resolves against.
+const TEST_DOCKING_SECTION_ID: &str = "test_docking";
+
+/// A single-section design naming `TEST_DOCKING_SECTION_ID` as `fore`: what a
+/// thawed `docking_hull` ship resolves its frozen `fore` section against.
+fn docking_hull_design() -> SpaceshipDesign {
+    SpaceshipDesign(ShipDesignSource::Inline(ShipDesign {
+        sections: vec![SpaceshipSectionConfig {
+            id: "fore".into(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            source: SectionSource::prototype(TEST_DOCKING_SECTION_ID),
+        }],
+        ..default()
+    }))
+}
+
+/// Load `TEST_DOCKING_SECTION_ID` into `app`'s section catalog, alongside the
+/// hull prototype `ship_app` already seeds it with.
+fn load_docking_section(app: &mut App) {
+    app.world_mut()
+        .resource_mut::<GameSections>()
+        .0
+        .push(SectionConfig {
+            base: BaseSectionConfig {
+                id: TEST_DOCKING_SECTION_ID.to_string(),
+                ..default()
+            },
+            kind: SectionKind::Docking(DockingSectionConfig::default()),
+        });
 }
 
 /// A generator that places nothing.
@@ -646,15 +687,11 @@ fn section_ids(world: &mut World, ship: Entity) -> Vec<String> {
     ids
 }
 
-/// A cell left mined, fought and looted comes back that way, from its frozen
-/// record and not from the seed: the carved rock with its marks, field,
-/// radius and collider; the ship with only its surviving section at the
-/// health it froze with, its pinned hull, its hold and its balance, standing
-/// down with its only weapon gone; and the ship the observer was holding,
-/// still held. Nothing the generator places spawns beside them.
-#[test]
-fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
-    let mut app = ship_app();
+/// Home, live around an observer holding its second ship: its rock carved
+/// by one crater through to a validated remesh, and its first ship fought
+/// (aft turret destroyed, fore hurt) and looted (7 ore and every credit
+/// taken). Returns the rock and the fought ship.
+fn wreck_home(app: &mut App) -> (Entity, Entity) {
     app.world_mut()
         .resource_mut::<GameSections>()
         .0
@@ -678,7 +715,7 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
             reach: Meters::ZERO,
         },
     );
-    settle(&mut app);
+    settle(app);
 
     let world = app.world_mut();
     let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
@@ -732,7 +769,21 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
         .expect("a ship has a hold")
         .remove(ItemType::IronOre, 7);
     world.entity_mut(fought).insert(ShipCredits(0));
-    settle(&mut app);
+    settle(app);
+    (rock, fought)
+}
+
+/// A cell left mined, fought and looted comes back that way, from its frozen
+/// record and not from the seed: the carved rock with its marks, field,
+/// radius and collider; the ship with only its surviving section at the
+/// health it froze with, its pinned hull, its hold and its balance, standing
+/// down with its only weapon gone; and the ship the observer was holding,
+/// still held. Nothing the generator places spawns beside them.
+#[test]
+fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
+    let mut app = ship_app();
+    let (rock, fought) = wreck_home(&mut app);
+    let home = SectorCoord::ORIGIN;
 
     let world = app.world_mut();
     let node = rock_node(world, rock);
@@ -837,6 +888,279 @@ fn a_mined_fought_and_looted_cell_returns_as_it_was_left() {
             .count(),
         1,
         "the generator's rock does not spawn again beside the frozen one"
+    );
+}
+
+/// A saved world reads back as the world it was saved from. The ledger and
+/// every live cell - a carved rock, a fought and looted ship, a held ship -
+/// and a canister waiting top-level in a cell that is not live, write to
+/// text, restore into a fresh session, write the same text again, and
+/// materialize with the carved collider rebuilt from the rock's field.
+#[cfg(feature = "serde")]
+#[test]
+fn a_snapshot_of_the_live_world_reads_back_as_the_same_world() {
+    let mut app = ship_app();
+    let (rock, fought) = wreck_home(&mut app);
+    let home = SectorCoord::ORIGIN;
+    let world = app.world_mut();
+    let edge = world.resource::<WorldConfig<Answers>>().sector_edge;
+    let waiting_in = home.offset(1, 0, 0);
+    let id = world
+        .resource_mut::<nova_gameplay::inventory::CargoCanisterIdAllocator>()
+        .mint();
+    let contents = CargoCanister::new(ItemType::IronOre, 4);
+    world.spawn((
+        cargo_canister(
+            contents.clone(),
+            Transform::from_translation(waiting_in.centre(edge).to_engine()),
+            Vec3::ZERO,
+            AssetRef::from("canister.glb#Scene0"),
+        ),
+        id,
+    ));
+    let node = rock_node(world, rock);
+    let marks = world.get::<DamageMarks>(node).cloned().unwrap().0;
+    let collider_aabb = world.get::<ColliderAabb>(node).copied();
+    let hold = world.get::<ShipInventory>(fought).cloned().unwrap();
+
+    let saved = crate::snapshot_sectors::<Answers>(world).expect("every body is settled");
+    assert!(
+        world.get_entity(rock).is_ok() && world.get_entity(fought).is_ok(),
+        "a snapshot despawns nothing"
+    );
+    let text = ron::to_string(&saved).expect("the ledger writes");
+    let read: FrozenSectors = ron::from_str(&text).expect("the ledger reads back");
+
+    let mut fresh = ship_app();
+    fresh
+        .world_mut()
+        .resource_mut::<GameSections>()
+        .0
+        .push(SectionConfig {
+            base: BaseSectionConfig {
+                id: TEST_TURRET_SECTION_ID.to_string(),
+                ..default()
+            },
+            kind: SectionKind::Turret(TurretSectionConfig::default()),
+        });
+    arm(fresh.world_mut(), answering(wreckable), home);
+    let world = fresh.world_mut();
+    world.resource_mut::<FrozenSectors>().restore(read);
+    assert_eq!(
+        ron::to_string(world.resource::<FrozenSectors>()).unwrap(),
+        text,
+        "the restored ledger writes the same text"
+    );
+    assert!(world
+        .resource::<FrozenSectors>()
+        .get(waiting_in)
+        .expect("the waiting canister arrived in its cell")
+        .bodies()
+        .iter()
+        .any(|body| matches!(body.body(), FrozenBodyType::Canister(_))));
+
+    materialize::<Answers>(world, home, far());
+    settle(&mut fresh);
+    let world = fresh.world_mut();
+    let [rock] = body_with_id(world, &sector_id(home, "body", 0))[..] else {
+        panic!("the rock must come back once");
+    };
+    let [fought] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+        panic!("the fought ship must come back once");
+    };
+    let node = rock_node(world, rock);
+    assert_eq!(world.get::<DamageMarks>(node).unwrap().0, marks);
+    assert_eq!(
+        world.get::<ColliderAabb>(node).copied(),
+        collider_aabb,
+        "the carved collider is rebuilt from the saved field"
+    );
+    assert_eq!(section_ids(world, fought), vec!["fore".to_string()]);
+    assert_eq!(world.get::<ShipInventory>(fought), Some(&hold));
+    assert_eq!(
+        world.get::<ShipCredits>(fought).copied(),
+        Some(ShipCredits(0))
+    );
+    let held: Vec<String> = world
+        .query::<&PendingSectorShip>()
+        .iter(world)
+        .map(|held| held.ship().id.clone())
+        .collect();
+    assert_eq!(held, vec![sector_id(home, "ship", 1)]);
+}
+
+/// A docked pair is undocked ON PAPER before it freezes: `snapshot_sectors`
+/// keeps both ships at the poses they stood at, with no dock between them in
+/// the record, and leaves the live, still-docked pair untouched. Restoring
+/// and materializing the ledger brings the partner back alone and undocked,
+/// where it froze.
+#[cfg(feature = "serde")]
+#[test]
+fn a_docked_pair_saves_both_ships_undocked_at_their_poses() {
+    let mut app = ship_app();
+    load_docking_section(&mut app);
+
+    let home = SectorCoord::ORIGIN;
+    let edge = Meters(320.0);
+    arm(
+        app.world_mut(),
+        WorldConfig {
+            seed: 1,
+            sector_edge: edge,
+            active_radius: 1,
+            generator: Nothing,
+        },
+        home,
+    );
+    let home_root = app
+        .world_mut()
+        .spawn((SectorRoot(home), Transform::default()))
+        .id();
+    let centre = home.centre(edge).to_engine();
+    let player = docking_hull(&mut app, centre, Quat::IDENTITY, None);
+    app.world_mut().entity_mut(player).insert((
+        WorldObserver,
+        PlayerSpaceshipMarker,
+        FlightIntent::default(),
+    ));
+    let partner = docking_hull(
+        &mut app,
+        centre + Vec3::NEG_Z * 1.5,
+        Quat::from_rotation_y(std::f32::consts::PI),
+        Some(home_root),
+    );
+    settle(&mut app);
+    app.world_mut().trigger(DockingConnectionRequest {
+        entity: player,
+        target: partner,
+    });
+    settle(&mut app);
+
+    let world = app.world_mut();
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        1,
+        "the pair docks"
+    );
+    assert!(world.get::<DockedShip>(player).is_some());
+    assert!(world.get::<DockedShip>(partner).is_some());
+    let player_pose = world
+        .get::<Position>(player)
+        .copied()
+        .expect("the player has a pose");
+    let partner_pose = world
+        .get::<Position>(partner)
+        .copied()
+        .expect("the partner has a pose");
+
+    // `freeze_ship` needs an authored design, a controller and capabilities on
+    // the root, and a `Health` and `SectionAnimations` on each section; a bare
+    // `docking_hull` carries none of them (`DamageMarks`, `ShipInventory` and
+    // `ShipCredits` already arrive as `SpaceshipRootMarker` requirements).
+    for (ship, id) in [(player, "player"), (partner, "partner")] {
+        let fore = fore_section(world, ship);
+        world.entity_mut(ship).insert((
+            EntityId::new(id),
+            docking_hull_design(),
+            SpaceshipController::default(),
+            ShipCapabilities::default(),
+        ));
+        world
+            .entity_mut(fore)
+            .insert((Health::new(10.0), SectionAnimations::new(Vec::new())));
+    }
+
+    // The session saves the player this same way, outside any cell's record.
+    freeze_ship(world, player).expect("a docked player still freezes on its own");
+    assert_eq!(
+        world.get::<Position>(player).copied(),
+        Some(player_pose),
+        "freeze_ship only reads the player"
+    );
+
+    let saved =
+        crate::snapshot_sectors::<Nothing>(world).expect("the docked pair freezes undocked");
+
+    assert!(
+        world.get_entity(player).is_ok() && world.get_entity(partner).is_ok(),
+        "a snapshot despawns nothing"
+    );
+    assert!(world.get::<DockedShip>(player).is_some());
+    assert!(world.get::<DockedShip>(partner).is_some());
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        1,
+        "the live dock survives the snapshot"
+    );
+    assert_eq!(
+        world.get::<ChildOf>(partner).map(ChildOf::parent),
+        Some(home_root),
+        "the live partner stays under home"
+    );
+    assert_eq!(world.get::<Position>(player).copied(), Some(player_pose));
+    assert_eq!(world.get::<Position>(partner).copied(), Some(partner_pose));
+
+    let record = saved.get(home).expect("home froze");
+    let partner_body = record
+        .bodies()
+        .iter()
+        .find(|body| body.id() == Some("partner"))
+        .expect("the partner froze into home's record");
+    assert!(
+        matches!(partner_body.body(), FrozenBodyType::Ship(_)),
+        "the partner froze as a ship, not a dock"
+    );
+    assert_eq!(
+        partner_body.transform().translation,
+        partner_pose.0,
+        "the partner froze at its live pose"
+    );
+
+    let text = ron::to_string(&saved).expect("the ledger writes");
+    let read: FrozenSectors = ron::from_str(&text).expect("the ledger reads back");
+
+    let mut fresh = ship_app();
+    load_docking_section(&mut fresh);
+    arm(
+        fresh.world_mut(),
+        WorldConfig {
+            seed: 1,
+            sector_edge: edge,
+            active_radius: 1,
+            generator: Nothing,
+        },
+        home,
+    );
+    fresh
+        .world_mut()
+        .resource_mut::<FrozenSectors>()
+        .restore(read);
+    let root = materialize::<Nothing>(fresh.world_mut(), home, far());
+    settle(&mut fresh);
+
+    let world = fresh.world_mut();
+    let [restored_partner] = body_with_id(world, "partner")[..] else {
+        panic!("the partner must come back once");
+    };
+    assert_eq!(
+        world.get::<ChildOf>(restored_partner).map(ChildOf::parent),
+        Some(root)
+    );
+    assert_eq!(
+        world
+            .get::<Transform>(restored_partner)
+            .map(|transform| transform.translation),
+        Some(partner_pose.0),
+        "the partner comes back at the pose it froze with"
+    );
+    assert!(
+        world.get::<DockedShip>(restored_partner).is_none(),
+        "the partner comes back undocked"
+    );
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        0,
+        "no dock exists in the fresh world"
     );
 }
 

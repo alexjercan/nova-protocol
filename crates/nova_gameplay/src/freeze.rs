@@ -38,14 +38,19 @@ pub enum FreezeOwner {
     /// forever when the load fails, because the alternative is a half-built
     /// scene the player can fly around in.
     ScenarioLoad,
+    /// A Load of a saved world. Held until every saved sector is live and
+    /// the saved transients are back, so every resumed body starts on the
+    /// same tick; released at once when the Load is refused.
+    WorldResume,
 }
 
 impl FreezeOwner {
     /// Every owner, for the fixed-size hold table.
-    const ALL: [FreezeOwner; 3] = [
+    const ALL: [FreezeOwner; 4] = [
         FreezeOwner::PauseMenu,
         FreezeOwner::Interface,
         FreezeOwner::ScenarioLoad,
+        FreezeOwner::WorldResume,
     ];
 
     fn index(self) -> usize {
@@ -53,6 +58,7 @@ impl FreezeOwner {
             FreezeOwner::PauseMenu => 0,
             FreezeOwner::Interface => 1,
             FreezeOwner::ScenarioLoad => 2,
+            FreezeOwner::WorldResume => 3,
         }
     }
 }

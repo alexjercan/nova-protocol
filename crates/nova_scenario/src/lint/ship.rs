@@ -77,10 +77,16 @@ pub(super) fn check_object_prototypes(
     // The SPAWN's own layer: resolve exactly the way the spawn will, so a
     // patch that names nothing, disagrees with a section's kind or misspells a
     // muzzle is caught here rather than at the first playthrough. The design's
-    // OWN section references are dropped: they belong to the design, which the
-    // catalog walk lints once however many scenarios spawn it.
+    // OWN section references and section ids are dropped: they belong to the
+    // design, which the catalog walk lints once however many scenarios spawn
+    // it (`lint_ship_design_config` -> `check_design_sections`).
     for error in errors {
-        if matches!(error, ShipDesignError::UnknownSectionPrototype { .. }) {
+        if matches!(
+            error,
+            ShipDesignError::UnknownSectionPrototype { .. }
+                | ShipDesignError::ReservedSectionId(_)
+                | ShipDesignError::DuplicateSectionId(_)
+        ) {
             continue;
         }
         issues.push(LintIssue::error(

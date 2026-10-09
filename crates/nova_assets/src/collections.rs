@@ -5,7 +5,7 @@
 /// Glob-import surface: `use nova_assets::collections::prelude::*` re-exports
 /// the public API of this module.
 pub mod prelude {
-    pub use super::{BootAssets, GameAssets};
+    pub use super::{BootAssets, GameAssets, ASTEROID_TEXTURE_PATH};
 }
 
 use bevy::{
@@ -178,6 +178,12 @@ const KEY_GLYPH_COLLECTION_PATHS: [&str; 101] = [
     "input-prompts/keyboard/Alt/T_Z_Key_Alt.png",
 ];
 
+/// The asteroid surface texture's asset path, which
+/// [`GameAssets::asteroid_texture`] loads. A streamed rock names its texture
+/// by this path, not by the loaded handle: a saved world serializes the rock,
+/// and a handle has no form on disk.
+pub const ASTEROID_TEXTURE_PATH: &str = "base/textures/asteroid.png";
+
 /// The loaded base-game asset handles, collected by `bevy_asset_loader` and
 /// inserted as a [`Resource`] once every listed asset (and the installed-mods
 /// catalog) has loaded. Systems read these handles to build meshes/materials.
@@ -186,7 +192,8 @@ pub struct GameAssets {
     /// The skybox cubemap texture.
     #[asset(path = "base/textures/cubemap.png")]
     pub cubemap: Handle<Image>,
-    /// The asteroid surface texture.
+    /// The asteroid surface texture. The attribute takes only a literal, so
+    /// it repeats [`ASTEROID_TEXTURE_PATH`]; change both together.
     #[asset(path = "base/textures/asteroid.png")]
     pub asteroid_texture: Handle<Image>,
     /// The base hull section mesh.

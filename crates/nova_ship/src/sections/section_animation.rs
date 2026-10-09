@@ -383,10 +383,14 @@ impl SectionAnimations {
 /// A section's animation tracks when its body froze: each track's progress
 /// and target, in authored track order, with no `Entity` in it.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenSectionAnimations(Vec<FrozenTrack>);
 
 /// One track's progress and target when its body froze.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 struct FrozenTrack {
     progress: f32,
     target: f32,

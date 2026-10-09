@@ -656,18 +656,14 @@ pub fn plate_body(plate: &SkinPlate, pose: Transform) -> impl Bundle {
 }
 
 /// A plate rebuilt from a frozen record rather than derived fresh: the exact
-/// `shape`, `pose`, `health` and `collider` [`frozen::freeze_section`](super::frozen::freeze_section)
+/// `shape`, `pose` and `health` [`frozen::freeze_section`](super::frozen::freeze_section)
 /// captured, in place of the full-health shape [`plate_body`] would hand a
-/// freshly derived one.
+/// freshly derived one. The collider is rebuilt from `shape`, the same way a
+/// fresh plate's is, rather than carried in the frozen record.
 ///
 /// `ShipSkinMarker` still lands on it, so [`dress_skin_plate`] dresses it
 /// exactly as it dresses a freshly derived plate.
-pub(crate) fn frozen_plate_body(
-    shape: ShellShape,
-    pose: Transform,
-    health: Health,
-    collider: Collider,
-) -> impl Bundle {
+pub(crate) fn frozen_plate_body(shape: ShellShape, pose: Transform, health: Health) -> impl Bundle {
     (
         Name::new(format!("Skin Plate {}", shape.id())),
         SectionFixture,
@@ -676,7 +672,7 @@ pub(crate) fn frozen_plate_body(
         health,
         ColliderDensity(SKIN_DENSITY),
         Visibility::Inherited,
-        collider,
+        plate_collider(shape.volume()),
     )
 }
 
@@ -1093,7 +1089,7 @@ pub struct SkinSurfaceMarker;
 /// The first dressing and every re-dressing both come through here, so a worn
 /// plate is built exactly the way a fresh one is: same cache, same style
 /// lookup, same surface roles.
-fn hang_surfaces(
+pub(crate) fn hang_surfaces(
     commands: &mut Commands,
     plate: Entity,
     shape: ShellShape,

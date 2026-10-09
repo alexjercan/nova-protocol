@@ -63,10 +63,12 @@
 //! re-derived and only ever SHRINKS, so later contact and clearance checks
 //! cannot assume a larger surface than the rock still has.
 
-use avian3d::prelude::{AngularVelocity, Collider, ColliderDensity, LinearVelocity};
+use avian3d::prelude::{AngularVelocity, Collider, ColliderDensity, LinearVelocity, RigidBody};
 // Bevy's platform Instant, not std's - `std::time::Instant::now` panics
 // on wasm32-unknown-unknown, which this crate ships to.
 use bevy::{
+    asset::RenderAssetUsages,
+    mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
     platform::time::Instant,
     prelude::*,
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
@@ -76,16 +78,20 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::{BodyRadius, RadarOccluder};
 
 use super::{
-    asteroid::{AsteroidMarker, AsteroidRadius, AsteroidSeed},
-    asteroid_surface::prelude::{AsteroidSurfaceMaterial, RockHeight},
+    asteroid::{AsteroidMarker, AsteroidRadius, AsteroidSeed, AsteroidTexture},
+    asteroid_kind::prelude::{asteroid_kind_look, AsteroidKind, AsteroidKindId},
+    asteroid_surface::prelude::{AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt, RockHeight},
 };
 
-/// `AsteroidField`, its seed request and remesh event, `AsteroidCarvePlugin`
-/// and the rock mesh they share with the spawn path.
+/// `AsteroidField`, its seed request and remesh event, `AsteroidCarvePlugin`,
+/// the rock mesh they share with the spawn path, and the rock chunk
+/// freeze/thaw pair with `RockChunkSurface`, `FrozenRockChunk` and
+/// `FrozenChunkMesh`.
 pub mod prelude {
     pub use super::{
-        pristine_rock_mesh, AsteroidCarvePlugin, AsteroidField, AsteroidFieldSeedRequest,
-        AsteroidRemeshed, CarveApplyReport,
+        freeze_rock_chunk, pristine_rock_mesh, thaw_rock_chunk, AsteroidCarvePlugin, AsteroidField,
+        AsteroidFieldSeedRequest, AsteroidRemeshed, CarveApplyReport, FrozenChunkMesh,
+        FrozenRockChunk, RockChunkSurface,
     };
 }
 
@@ -239,6 +245,8 @@ fn corner_volume(field: &SignedField, corners: u32) -> f32 {
 /// module's to keep, so only the snapshot and its two restore paths cross the
 /// module boundary, never the raw fields.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub(crate) struct AsteroidFieldSnapshot {
     field: SignedField,
     applied: u64,
@@ -261,6 +269,16 @@ impl AsteroidField {
 }
 
 impl AsteroidFieldSnapshot {
+    /// The surface this field meshes to, and the trimesh that surface makes,
+    /// built with the calls `carve_surface` makes for a remesh. Pure, so a
+    /// sector worker builds it before the main thread thaws the rock. `None`
+    /// for the collider when the surface makes no usable trimesh.
+    pub(crate) fn geometry(&self) -> (Mesh, Option<Collider>) {
+        let surface = self.field.surface().build();
+        let collider = Collider::trimesh_from_mesh(&surface);
+        (surface, collider)
+    }
+
     /// Rebuild the field exactly as it was snapshotted: no remesh pending.
     pub(crate) fn restored(self) -> AsteroidField {
         AsteroidField {
@@ -433,6 +451,9 @@ struct Parent {
     ///
     /// `None` headless, where nothing is drawn at all.
     material: Option<MeshMaterial3d<AsteroidSurfaceMaterial>>,
+    /// The rock's own kind, texture and seed, copied onto every piece it
+    /// throws - see [`RockChunkSurface`].
+    surface: RockChunkSurface,
 }
 
 /// One piece a carve cut free, already measured and - where it is big enough to
@@ -563,6 +584,9 @@ fn throw_severed_pieces(
         if let Some(material) = parent.material.clone() {
             commands.entity(spawned).insert(material);
         }
+        // Copied so a save can rebuild the chunk's material after its own
+        // parent rock is gone - see `RockChunkSurface`.
+        commands.entity(spawned).insert(parent.surface.clone());
         // Rock stops radio whether or not it is still attached to the rock it
         // came off. Cover a player shoots loose is still cover, and without
         // this a lock held through a severed island read straight through it.
@@ -845,6 +869,9 @@ fn collect_asteroid_remeshes(
             &BodyRadius,
             Option<&EntityId>,
             Option<&EntityTypeName>,
+            &AsteroidKind,
+            &AsteroidTexture,
+            &AsteroidSeed,
         ),
         With<AsteroidMarker>,
     >,
@@ -867,7 +894,7 @@ fn collect_asteroid_remeshes(
         // The rock's own new solid, and nothing else - see `CarveApplyReport`.
         frame_cost.grids += 1;
         commands.entity(node).remove::<AsteroidRemesh>();
-        let Ok((nominal, body, id, type_name)) = q_asteroid.get(*root) else {
+        let Ok((nominal, body, id, type_name, kind, texture, seed)) = q_asteroid.get(*root) else {
             continue;
         };
 
@@ -890,6 +917,11 @@ fn collect_asteroid_remeshes(
             linear,
             angular,
             material: chunk_material.cloned(),
+            surface: RockChunkSurface {
+                kind: kind.0.clone(),
+                texture: texture.0.clone(),
+                seed: seed.0,
+            },
         };
 
         if remaining_world < CHUNK_MIN_VOLUME || carved.surface.count_vertices() == 0 {
@@ -973,6 +1005,338 @@ fn collect_asteroid_remeshes(
     }
 }
 
+// ---- Rock chunk freeze/thaw ----
+//
+// A chunk's field was built once by `sever_piece` and dropped the same frame
+// (see the module docs' "Kept only while it is needed") - by the time a save
+// freezes a live chunk there is no field left to re-mesh from, only the mesh
+// it was already meshed into. So a chunk record keeps the raw vertex data
+// (`FrozenChunkMesh`) rather than a field snapshot, unlike `FrozenAsteroid`'s
+// `CarvedState`.
+
+/// A carved rock chunk's own kind, texture and silhouette seed: the three
+/// things that drive its material and are not derivable from the chunk's
+/// mesh once it is a body of its own.
+///
+/// Copied from the parent rock's `AsteroidKind`/`AsteroidTexture`/
+/// `AsteroidSeed` at spawn (`collect_asteroid_remeshes`, `throw_severed_pieces`),
+/// because a resumed chunk may have no live parent rock left to clone a
+/// material handle off of - see `thaw_rock_chunk`.
+#[derive(Component, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RockChunkSurface {
+    kind: AsteroidKindId,
+    texture: AssetRef<Image>,
+    seed: u32,
+}
+
+/// A chunk's drawn surface, as raw vertex data a save can keep.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct FrozenChunkMesh {
+    positions: Vec<[f32; 3]>,
+    normals: Vec<[f32; 3]>,
+    indices: Vec<u32>,
+}
+
+/// A carved rock chunk's own state, as a save keeps it.
+///
+/// Built by [`freeze_rock_chunk`]; consumed once by [`thaw_rock_chunk`]. No
+/// `visibility` field: nothing ever hides a live chunk (unlike a mining
+/// beam or a stowed turret), so there is no state here to lose.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct FrozenRockChunk {
+    surface: RockChunkSurface,
+    mesh: FrozenChunkMesh,
+    translation: Vec3,
+    rotation: Quat,
+    scale: Vec3,
+    linear: Vec3,
+    angular: Vec3,
+    /// [`ChunkGrace::remaining`] while the chunk is still drifting clear of
+    /// what it left; `None` once it has landed (gone `RigidBody::Dynamic`
+    /// and shed its `ChunkGrace`).
+    grace: Option<f32>,
+}
+
+impl FrozenRockChunk {
+    /// Check a record read from a file before a thaw draws it.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite pose or velocity; a non-finite or negative `grace`; an
+    /// empty mesh; a mesh whose positions and normals disagree in length; a
+    /// mesh index count that is not a multiple of 3; a mesh index past its
+    /// positions; or a non-finite mesh position or normal.
+    pub fn validate(&self) -> Result<(), String> {
+        if !(self.translation.is_finite()
+            && self.rotation.is_finite()
+            && self.scale.is_finite()
+            && self.linear.is_finite()
+            && self.angular.is_finite())
+        {
+            return Err("a rock chunk's pose or velocity is not finite".to_string());
+        }
+        if let Some(grace) = self.grace {
+            if !(grace.is_finite() && grace >= 0.0) {
+                return Err(format!(
+                    "a rock chunk's grace of {grace} is not finite and non-negative"
+                ));
+            }
+        }
+        if self.mesh.positions.is_empty() {
+            return Err("a rock chunk's mesh has no positions".to_string());
+        }
+        if self.mesh.positions.len() != self.mesh.normals.len() {
+            return Err(format!(
+                "a rock chunk's mesh has {} positions but {} normals",
+                self.mesh.positions.len(),
+                self.mesh.normals.len()
+            ));
+        }
+        if self.mesh.indices.len() % 3 != 0 {
+            return Err(format!(
+                "a rock chunk's mesh has {} indices, which is not a multiple of 3",
+                self.mesh.indices.len()
+            ));
+        }
+        let vertex_count = self.mesh.positions.len();
+        for &index in &self.mesh.indices {
+            if index as usize >= vertex_count {
+                return Err(format!(
+                    "a rock chunk's mesh index {index} names a vertex past its {vertex_count} positions"
+                ));
+            }
+        }
+        if self
+            .mesh
+            .positions
+            .iter()
+            .any(|position| !Vec3::from_array(*position).is_finite())
+            || self
+                .mesh
+                .normals
+                .iter()
+                .any(|normal| !Vec3::from_array(*normal).is_finite())
+        {
+            return Err("a rock chunk's mesh has a non-finite position or normal".to_string());
+        }
+        Ok(())
+    }
+}
+
+/// `mesh`'s position, normal and index attributes, copied out for a save.
+///
+/// # Panics
+///
+/// If `mesh` carries no `Float32x3` `ATTRIBUTE_POSITION`, no `Float32x3`
+/// `ATTRIBUTE_NORMAL`, or no index buffer: every chunk mesh is built by
+/// `TriangleMeshBuilder::build` (`sever_piece`), which always writes all
+/// three in that form, so a gap here means `entity` is not really a chunk.
+fn frozen_chunk_mesh(entity: Entity, mesh: &Mesh) -> FrozenChunkMesh {
+    let positions = match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+        Some(VertexAttributeValues::Float32x3(values)) => values.clone(),
+        _ => panic!(
+            "freeze_rock_chunk: chunk {entity}'s mesh carries no Float32x3 ATTRIBUTE_POSITION"
+        ),
+    };
+    let normals = match mesh.attribute(Mesh::ATTRIBUTE_NORMAL) {
+        Some(VertexAttributeValues::Float32x3(values)) => values.clone(),
+        _ => {
+            panic!("freeze_rock_chunk: chunk {entity}'s mesh carries no Float32x3 ATTRIBUTE_NORMAL")
+        }
+    };
+    let indices = match mesh.indices() {
+        Some(Indices::U32(indices)) => indices.clone(),
+        Some(Indices::U16(indices)) => indices.iter().map(|&index| u32::from(index)).collect(),
+        None => panic!("freeze_rock_chunk: chunk {entity}'s mesh carries no index buffer"),
+    };
+    FrozenChunkMesh {
+        positions,
+        normals,
+        indices,
+    }
+}
+
+/// The rock chunk `entity` is drawn and collided with, as a value a save can
+/// keep.
+///
+/// # Errors
+///
+/// Never, today: a chunk carries no durable reference a save has to resolve
+/// and nothing about it runs as a multi-frame process the way a raking
+/// slug's tip does. The `Result` matches the other transient freezes
+/// (`freeze_shed_fixture`, `freeze_detached_piece`) so a caller can treat
+/// every transient kind the same way.
+///
+/// # Panics
+///
+/// If `entity` carries no [`RockChunkSurface`], [`Mesh3d`], [`Transform`],
+/// [`LinearVelocity`] or [`AngularVelocity`] - `throw_severed_pieces` and
+/// `land_carved_chunks` always leave a chunk with all five - or if its
+/// `Mesh3d` handle names no live [`Mesh`]. A gap in any of these is a
+/// programming error, not a save-time condition.
+pub fn freeze_rock_chunk(
+    world: &World,
+    entity: Entity,
+) -> Result<FrozenRockChunk, TransientFreezeFault> {
+    let surface = world
+        .get::<RockChunkSurface>(entity)
+        .unwrap_or_else(|| panic!("freeze_rock_chunk: chunk {entity} carries no RockChunkSurface"))
+        .clone();
+    let transform = world
+        .get::<Transform>(entity)
+        .copied()
+        .unwrap_or_else(|| panic!("freeze_rock_chunk: chunk {entity} carries no Transform"));
+    let linear = world
+        .get::<LinearVelocity>(entity)
+        .unwrap_or_else(|| panic!("freeze_rock_chunk: chunk {entity} carries no LinearVelocity"))
+        .0;
+    let angular = world
+        .get::<AngularVelocity>(entity)
+        .unwrap_or_else(|| panic!("freeze_rock_chunk: chunk {entity} carries no AngularVelocity"))
+        .0;
+    let mesh_handle = &world
+        .get::<Mesh3d>(entity)
+        .unwrap_or_else(|| panic!("freeze_rock_chunk: chunk {entity} carries no Mesh3d"))
+        .0;
+    let mesh = world
+        .resource::<Assets<Mesh>>()
+        .get(mesh_handle)
+        .unwrap_or_else(|| panic!("freeze_rock_chunk: chunk {entity}'s Mesh3d names no live Mesh"));
+    let mesh = frozen_chunk_mesh(entity, mesh);
+    let grace = world.get::<ChunkGrace>(entity).map(ChunkGrace::remaining);
+
+    Ok(FrozenRockChunk {
+        surface,
+        mesh,
+        translation: transform.translation,
+        rotation: transform.rotation,
+        scale: transform.scale,
+        linear,
+        angular,
+        grace,
+    })
+}
+
+/// `record`'s vertex data as a fresh [`Mesh`], built the same way
+/// `TriangleMeshBuilder::build` does.
+///
+/// # Panics
+///
+/// If `record.positions` is empty, if `record.normals` disagrees with it in
+/// length, or if an index in `record.indices` names a vertex past the end of
+/// `record.positions`. [`FrozenRockChunk::validate`] already rejects a saved
+/// chunk with any of these shapes before a thaw ever reaches here, so a
+/// panic means the thaw was handed a chunk that skipped that check, not a
+/// save-time condition.
+fn rebuild_chunk_mesh(record: &FrozenChunkMesh) -> Mesh {
+    assert!(
+        !record.positions.is_empty(),
+        "thaw_rock_chunk: a chunk record's mesh has no positions"
+    );
+    assert_eq!(
+        record.positions.len(),
+        record.normals.len(),
+        "thaw_rock_chunk: a chunk record's positions and normals disagree in length"
+    );
+    let vertex_count = record.positions.len() as u32;
+    assert!(
+        record.indices.iter().all(|&index| index < vertex_count),
+        "thaw_rock_chunk: a chunk record's indices name a vertex past its positions"
+    );
+
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, record.positions.clone())
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, record.normals.clone())
+    .with_inserted_indices(Indices::U32(record.indices.clone()))
+}
+
+/// Rebuild `record` as a live chunk: the exact mesh it was drawn with, a
+/// fresh collider from that mesh, and the material a live rock of the saved
+/// kind, texture and seed wears - built with the SAME helpers
+/// `insert_asteroid_render` (`asteroid.rs`) builds one with, since a resumed
+/// chunk has no live parent rock to clone a material handle off of.
+///
+/// `meshes`, `materials` and `asset_server` are explicit arguments rather
+/// than system params so this stays unit-testable against bare `Assets`
+/// fixtures. The caller borrows them once (a `SystemState` over the whole
+/// resumed spawn) and applies the pass once, so indices and refs stay
+/// stable.
+///
+/// # Panics
+///
+/// If `record.mesh` is invalid (see [`rebuild_chunk_mesh`]), if the rebuilt
+/// mesh has no usable bounds for [`chunk_collider`], or if
+/// `record.surface.kind` is not a known asteroid kind: a save never keeps
+/// any of these, so a gap here is corrupt or hand-edited data. No
+/// placeholder art.
+pub fn thaw_rock_chunk(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<AsteroidSurfaceMaterial>,
+    asset_server: &AssetServer,
+    record: &FrozenRockChunk,
+) -> Entity {
+    let mesh = rebuild_chunk_mesh(&record.mesh);
+    let collider = chunk_collider(&mesh)
+        .unwrap_or_else(|| panic!("thaw_rock_chunk: a chunk's rebuilt mesh has no usable bounds"));
+    let look = asteroid_kind_look(&record.surface.kind).unwrap_or_else(|| {
+        panic!(
+            "thaw_rock_chunk: a chunk is made of '{}', which is not a kind",
+            record.surface.kind
+        )
+    });
+    let image = record.surface.texture.resolve(asset_server);
+    let material = AsteroidSurfaceMaterial {
+        base: StandardMaterial::default(),
+        extension: AsteroidSurfaceMaterialExt::new(image, &look, record.surface.seed),
+    };
+
+    let entity = spawn_carved_chunk(
+        commands,
+        ChunkSpawn {
+            name: "Severed Rock".to_string(),
+            mesh: meshes.add(mesh),
+            transform: Transform {
+                translation: record.translation,
+                rotation: record.rotation,
+                scale: record.scale,
+            },
+            velocity: record.linear,
+            spin: record.angular,
+            collider: collider.clone(),
+        },
+    );
+
+    commands.entity(entity).insert((
+        record.surface.clone(),
+        MeshMaterial3d(materials.add(material)),
+        RadarOccluder,
+    ));
+
+    match record.grace {
+        Some(remaining) => {
+            commands
+                .entity(entity)
+                .insert(ChunkGrace::resumed(collider, remaining));
+        }
+        None => {
+            commands.entity(entity).remove::<ChunkGrace>().insert((
+                RigidBody::Dynamic,
+                collider,
+                GravityAffected,
+            ));
+        }
+    }
+
+    entity
+}
+
 /// Gives asteroids a carvable field and remeshes them as they are hit.
 #[derive(Default, Clone, Debug)]
 pub struct AsteroidCarvePlugin {
@@ -1008,6 +1372,16 @@ impl Plugin for AsteroidCarvePlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A stand-in rock surface for a test that does not care which kind,
+    /// texture or seed its chunk carries - only that it carries one.
+    fn test_rock_chunk_surface() -> RockChunkSurface {
+        RockChunkSurface {
+            kind: AsteroidKindId::from(crate::objects::asteroid_kind::prelude::KIND_ROCK),
+            texture: AssetRef::from("base/textures/asteroid_rock.png"),
+            seed: 7,
+        }
+    }
 
     /// The seeded field has to be the rock that is already on screen, not a new
     /// one. Both the shipped mesh and the field are read off the SAME
@@ -1089,6 +1463,7 @@ mod tests {
                             linear: Vec3::Z * 5.0,
                             angular,
                             material: None,
+                            surface: test_rock_chunk_surface(),
                         },
                         vec![piece.take().expect("the throw runs once")],
                     );
@@ -1165,6 +1540,7 @@ mod tests {
                             linear: Vec3::ZERO,
                             angular: Vec3::ZERO,
                             material: None,
+                            surface: test_rock_chunk_surface(),
                         },
                         vec![piece.take().expect("the throw runs once")],
                     );
@@ -1351,5 +1727,216 @@ mod tests {
         );
         assert!(scoped_entities(app.world_mut(), "rock").is_empty());
         assert_eq!(destroyed.load(Ordering::SeqCst), 1);
+    }
+
+    // ---- Rock chunk freeze/thaw ----
+
+    /// A resumed rock chunk has to look and move exactly like the live one it
+    /// was: same geometry, the same collider bounds rebuilt from it, the same
+    /// material inputs, the same visibility, and the same grace. Covers both
+    /// ends of `FrozenRockChunk::grace` - a chunk still drifting clear, and
+    /// one that has already landed.
+    ///
+    /// The chunk is thrown through the real `throw_severed_pieces`, the same
+    /// production path `a_severed_piece_carries_the_rock_it_left` exercises -
+    /// not a reimplementation of it.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn a_resumed_rock_chunk_has_its_mesh_material_and_grace() {
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.init_asset::<Image>();
+        app.init_asset::<AsteroidSurfaceMaterial>();
+
+        let surface = test_rock_chunk_surface();
+        let island = SignedField::sample(16, 4.0, |at| at.distance(Vec3::new(2.0, 0.0, 0.0)) - 1.0);
+        let piece = sever_piece(&island, 1.0).expect("the island is a body");
+        assert!(
+            piece.body.is_some(),
+            "delivery guard: the island is a body, not dust"
+        );
+        let mut piece = Some(piece);
+
+        let rock = app.world_mut().spawn_empty().id();
+        let thrown_surface = surface.clone();
+        app.world_mut()
+            .run_system_once(
+                move |mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>| {
+                    throw_severed_pieces(
+                        &mut commands,
+                        &mut meshes,
+                        &Parent {
+                            node: rock,
+                            frame: GlobalTransform::IDENTITY,
+                            centre: Vec3::ZERO,
+                            linear: Vec3::new(1.0, 0.0, 0.0),
+                            angular: Vec3::Y,
+                            material: None,
+                            surface: thrown_surface.clone(),
+                        },
+                        vec![piece.take().expect("the throw runs once")],
+                    );
+                },
+            )
+            .expect("the throw runs");
+
+        let chunk = app
+            .world_mut()
+            .query_filtered::<Entity, With<CarvedChunkMarker>>()
+            .iter(app.world())
+            .next()
+            .expect("the island became a body");
+
+        let live_grace = app
+            .world()
+            .get::<ChunkGrace>(chunk)
+            .expect("a freshly thrown chunk is still in grace")
+            .remaining();
+        // No required-component chain inserts `Visibility` on a chunk, so a
+        // live one never carries one either - the absence IS the proof that
+        // nothing hides a chunk (see `FrozenRockChunk`'s doc).
+        let live_visibility = app.world().get::<Visibility>(chunk).copied();
+        let live_mesh = {
+            let handle = &app.world().get::<Mesh3d>(chunk).unwrap().0;
+            app.world()
+                .resource::<Assets<Mesh>>()
+                .get(handle)
+                .expect("the thrown chunk's mesh handle resolves")
+                .clone()
+        };
+        let live_bounds = nova_gameplay::integrity::chunk::mesh_bounds(&live_mesh)
+            .expect("the thrown chunk's mesh has bounds");
+
+        let frozen = freeze_rock_chunk(app.world(), chunk).expect("a chunk always freezes");
+        assert_eq!(
+            frozen.grace,
+            Some(live_grace),
+            "a chunk still in grace freezes its remaining window"
+        );
+
+        let ron = ron::to_string(&frozen).expect("serialize");
+        println!("a rock chunk record is {} RON bytes", ron.len());
+        let record: FrozenRockChunk = ron::from_str(&ron).expect("deserialize");
+
+        app.world_mut().entity_mut(chunk).despawn();
+
+        let thaw = |world: &mut World, record: FrozenRockChunk| -> Entity {
+            world
+                .run_system_once(
+                    move |mut commands: Commands,
+                          mut meshes: ResMut<Assets<Mesh>>,
+                          mut materials: ResMut<Assets<AsteroidSurfaceMaterial>>,
+                          asset_server: Res<AssetServer>| {
+                        thaw_rock_chunk(
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            &asset_server,
+                            &record,
+                        )
+                    },
+                )
+                .expect("the thaw runs")
+        };
+
+        let thawed = thaw(app.world_mut(), record.clone());
+        app.world_mut().flush();
+
+        let thawed_mesh = {
+            let handle = &app.world().get::<Mesh3d>(thawed).unwrap().0;
+            app.world()
+                .resource::<Assets<Mesh>>()
+                .get(handle)
+                .expect("the thawed chunk's mesh handle resolves")
+                .clone()
+        };
+        let thawed_extracted = frozen_chunk_mesh(thawed, &thawed_mesh);
+        assert_eq!(
+            thawed_extracted.positions, record.mesh.positions,
+            "positions did not round-trip"
+        );
+        assert_eq!(
+            thawed_extracted.normals, record.mesh.normals,
+            "normals did not round-trip"
+        );
+        assert_eq!(
+            thawed_extracted.indices, record.mesh.indices,
+            "indices did not round-trip"
+        );
+
+        let thawed_bounds = nova_gameplay::integrity::chunk::mesh_bounds(&thawed_mesh)
+            .expect("the thawed chunk's mesh has bounds");
+        assert_eq!(
+            thawed_bounds, live_bounds,
+            "the rebuilt collider's bounds (same mesh, same chunk_collider) must match the live \
+             chunk's"
+        );
+
+        assert!(
+            app.world()
+                .get::<MeshMaterial3d<AsteroidSurfaceMaterial>>(thawed)
+                .is_some(),
+            "a thaw must build and insert a material, not leave the chunk undressed"
+        );
+        assert_eq!(
+            asteroid_kind_look(&record.surface.kind),
+            asteroid_kind_look(&surface.kind),
+            "the material's kind look did not round-trip"
+        );
+        assert_eq!(
+            record.surface.seed, surface.seed,
+            "the material's seed did not round-trip"
+        );
+        assert_eq!(
+            record.surface.texture.path(),
+            surface.texture.path(),
+            "the material's texture path did not round-trip"
+        );
+
+        assert_eq!(
+            app.world().get::<Visibility>(thawed).copied(),
+            live_visibility,
+            "visibility did not round-trip"
+        );
+        assert_eq!(
+            app.world()
+                .get::<ChunkGrace>(thawed)
+                .map(ChunkGrace::remaining),
+            Some(live_grace),
+            "grace remaining did not round-trip"
+        );
+        assert!(
+            app.world()
+                .get::<RigidBody>(thawed)
+                .is_none_or(|body| *body == RigidBody::Kinematic),
+            "a chunk still in grace must not already be dynamic"
+        );
+
+        // ---- Landed case: no ChunkGrace, a real collider, RigidBody::Dynamic ----
+
+        let landed_record = FrozenRockChunk {
+            grace: None,
+            ..record.clone()
+        };
+        let landed = thaw(app.world_mut(), landed_record);
+        app.world_mut().flush();
+
+        assert_eq!(
+            app.world().get::<RigidBody>(landed).copied(),
+            Some(RigidBody::Dynamic),
+            "a landed chunk must thaw straight to a dynamic body"
+        );
+        assert!(
+            app.world().get::<Collider>(landed).is_some(),
+            "a landed chunk must thaw with a real collider"
+        );
+        assert!(
+            app.world().get::<ChunkGrace>(landed).is_none(),
+            "a landed chunk must carry no ChunkGrace"
+        );
     }
 }

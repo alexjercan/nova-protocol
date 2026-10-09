@@ -181,11 +181,15 @@ pub(super) fn insert_turret_section(
 /// commanded and current angle, in tree order, with no `Entity` in it. Empty
 /// for a section that builds no turret joints.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenTurretHinges(Vec<FrozenHinge>);
 
 /// One hinge when its turret froze. `name` and `axis` identify it, so a thaw
 /// onto a differently built tree fails instead of posing the wrong joint.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 struct FrozenHinge {
     name: String,
     axis: Vec3,

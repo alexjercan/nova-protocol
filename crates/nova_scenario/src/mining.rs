@@ -198,6 +198,8 @@ pub struct MiningBeamHit {
 
 /// Ore a rock node owes for corners mined since its last validated remesh.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MinedOre {
     /// The ore the rock's kind yields.
     item: ItemType,
@@ -222,6 +224,8 @@ impl MinedOre {
 /// rock node, or on the drop entity a rock that ran out of material leaves.
 /// Never empty: the ejector removes the queue with its last canister.
 #[derive(Component, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MinedCanisterQueue {
     waiting: VecDeque<MinedCanister>,
 }
@@ -235,6 +239,8 @@ impl MinedCanisterQueue {
 
 /// One waiting canister and where it leaves from, in its owner's frame.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 struct MinedCanister {
     canister: CargoCanister,
     at: Vec3,
@@ -259,6 +265,8 @@ pub struct MinedOreDrop;
 /// canister queue, which is the only thing a drop carries beyond its pose
 /// (the caller keeps that separately, the same way it keeps an asteroid's).
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenOreDrop {
     queue: MinedCanisterQueue,
 }
@@ -1152,7 +1160,9 @@ mod tests {
                 kind: kind.into(),
                 destroy_sound: None,
                 radius: Meters(200.0),
-                texture: AssetRef::default(),
+                // A path, as authored content names it: the frozen rock's
+                // round trip below writes it.
+                texture: AssetRef::from("base/textures/asteroid.png"),
                 initial_velocity: MetersPerSecond3::ZERO,
                 seed: None,
                 lock_signature: None,
@@ -1740,7 +1750,12 @@ mod tests {
             "frozen ore must not stay in the world"
         );
 
-        let geometry = prepare_asteroid_geometry(frozen_rock.seed(), frozen_rock.radius());
+        // A saved world writes both records and reads them back whole.
+        let frozen_rock: FrozenAsteroid =
+            ron::from_str(&ron::to_string(&frozen_rock).unwrap()).unwrap();
+        let frozen_drop: FrozenOreDrop =
+            ron::from_str(&ron::to_string(&frozen_drop).unwrap()).unwrap();
+        let geometry = prepare_frozen_asteroid(&frozen_rock);
         let rock = {
             let mut commands = world.commands();
             let mut thawed = commands.spawn((Transform::default(), Visibility::default()));

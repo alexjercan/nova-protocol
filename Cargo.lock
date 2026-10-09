@@ -4665,6 +4665,7 @@ version = "0.15.0"
 dependencies = [
  "bevy",
  "bevy_enhanced_input",
+ "bevy_rand",
  "nova_assets",
  "nova_console",
  "nova_debug",
@@ -4680,7 +4681,10 @@ dependencies = [
  "nova_ship",
  "nova_training",
  "nova_ui",
+ "nova_world",
  "nova_world_base",
+ "ron",
+ "tempfile",
 ]
 
 [[package]]
@@ -4831,6 +4835,7 @@ dependencies = [
  "nova_world_base",
  "rand 0.10.2",
  "serde",
+ "tempfile",
 ]
 
 [[package]]
@@ -4994,12 +4999,15 @@ dependencies = [
  "nova_gameplay",
  "nova_scenario",
  "nova_ship",
+ "ron",
+ "serde",
 ]
 
 [[package]]
 name = "nova_world_base"
 version = "0.15.0"
 dependencies = [
+ "avian3d",
  "bevy",
  "noise",
  "nova_assets",
@@ -5009,6 +5017,8 @@ dependencies = [
  "nova_ship",
  "nova_world",
  "ron",
+ "serde",
+ "tempfile",
 ]
 
 [[package]]

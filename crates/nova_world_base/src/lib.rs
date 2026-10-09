@@ -26,9 +26,12 @@
 //!
 //! The one promise a world seed makes: the same build on the same platform
 //! generates the same pristine sectors from it, in any exploration order.
-//! What a player changes lasts the session: a retired sector is frozen and
-//! comes back as it was left, so a derelict destroyed there stays destroyed
-//! until the session ends. Nothing is saved to disk.
+//! What a player changes lasts: a retired sector is frozen and comes back as
+//! it was left, so a derelict destroyed there stays destroyed. On native
+//! builds the world is also a folder on disk: [`create_world`] makes it,
+//! [`WorldSaveSession`] saves the player, the frozen ledger and every live
+//! sector on each sector crossing and on leaving, and [`open_world`] with
+//! [`resume_world`] brings it back. The web build has no saved worlds.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
@@ -43,13 +46,24 @@ mod civilizations;
 mod clusters;
 mod environment;
 mod layered;
+#[cfg(not(target_arch = "wasm32"))]
+mod save;
 mod sector_ships;
 mod ship_layout;
 mod ship_parts;
 
+#[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
+pub mod test_support;
 #[cfg(test)]
 mod tests;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use crate::save::{
+    create_world, list_worlds, open_world, resume_world, world_slug, write_world, FrozenTransient,
+    FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer, WorldFolder, WorldListing,
+    WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader,
+    WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
+};
 pub use crate::{
     civilizations::{
         role_style_id, AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
@@ -72,8 +86,17 @@ pub use crate::{
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
 /// the session, the generator, its clearance margin, the environment, cluster
 /// and civilization diagnostics, the ship-part snapshot, the ship layout, the
-/// ship planner, the base-world ids and the role style ids into scope.
+/// ship planner, the base-world ids, the role style ids and the saved-world
+/// format into scope.
 pub mod prelude {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use super::{
+        create_world, list_worlds, open_world, resume_world, world_slug, write_world,
+        FrozenTransient, FrozenTransientType, ResumedWorld, SaveReason, SavedPlayer, WorldFolder,
+        WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
+        WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
+        WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
+    };
     pub use super::{
         generate_ship, generate_wreck, plan_ship, role_style_id, sector_clusters, ship_stock,
         AdvancementCurveType, Civilization, CivilizationField, CivilizationReach,
@@ -154,6 +177,31 @@ impl Plugin for NovaWorldBasePlugin {
         // then read a config nobody re-checked. Exclusive, so its writes are
         // in the world before `Cleanup` decides what to clear.
         app.add_systems(Update, sync_open_world.before(NovaWorldSystems::Cleanup));
+        // The saved world, native only. Restore runs on the arming frame,
+        // after `Cleanup` cleared the ledger and before `Observe` asks the
+        // first cells for their records. The save runs after `Retire`, so the
+        // snapshot sees the window this frame left. The writer is polled
+        // before the snapshot, so a waiting save starts on the frame the
+        // last one finishes. The saved transients come back after `Retire`,
+        // once this frame's sector spawns are applied, and before the save
+        // looks at the window.
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_systems(
+            Update,
+            (
+                save::restore_resumed_world
+                    .run_if(resource_exists::<save::ResumedWorld>)
+                    .after(NovaWorldSystems::Cleanup)
+                    .before(NovaWorldSystems::Observe),
+                (
+                    save::restore_resumed_transients
+                        .run_if(resource_exists::<save::ResumedTransients>),
+                    save::save_systems(),
+                )
+                    .chain()
+                    .after(NovaWorldSystems::Retire),
+            ),
+        );
     }
 }
 
@@ -217,6 +265,16 @@ fn sync_open_world(world: &mut World) {
         ),
     };
 
+    // The player spawn takes the record; one still here was saved for an id
+    // the scenario never spawned, and the world would arm around a fresh ship.
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(resumed) = world.get_resource::<nova_scenario::prelude::ResumedSpaceship>() {
+        panic!(
+            "nova_world_base: the open world armed with its player while the saved ship '{}' \
+             was never spawned; the scenario has no player spawn of that id",
+            resumed.id.0
+        );
+    }
     if !world.entity(player).contains::<WorldObserver>() {
         world.entity_mut(player).insert(WorldObserver);
     }

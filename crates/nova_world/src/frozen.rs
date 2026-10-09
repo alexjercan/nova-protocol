@@ -10,18 +10,25 @@
 //! live, and so does the root of a retiring cell that holds it, until it
 //! settles and freezes. [`SettlingBodies`] bounds that wait.
 //!
-//! Session memory only. [`crate::clear_sector_work`] drops every record on the
-//! frames it clears the world, and nothing is written to disk.
+//! The ledger lives in memory while the world runs. [`crate::clear_sector_work`]
+//! drops every record on the frames it clears the world. A saved world writes
+//! it out whole: [`snapshot_sectors`] adds the live cells to a copy of it
+//! without despawning anything, and [`FrozenSectors::restore`] seeds a fresh
+//! world's ledger from one read back. Every record is plain data for that
+//! reason; a collider or a mesh is rebuilt at thaw, never kept.
 //!
 //! The owner crates keep their bodies' private state private: each one exposes
 //! a `freeze_*` and a `thaw_*` pair. This module decides WHEN a body freezes
 //! and which cell keeps it, never what is inside it.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
-use nova_events::prelude::{EntityId, Meters, Meters3, ScenarioAddressableMarker};
+use nova_events::prelude::{EntityId, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{CargoCanister, SpaceshipRootMarker, TempEntity, UnsettledBody};
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_ore_drop, freeze_ship, thaw_asteroid, thaw_ore_drop, thaw_ship,
@@ -35,23 +42,57 @@ use nova_ship::prelude::{
 
 use crate::{
     desired_sectors, live_sectors,
-    streaming::{assert_world_was_cleared, ClearedConfig},
+    streaming::{assert_world_was_cleared, freeze_sector_bodies, ClearedConfig},
     CurrentSector, PendingSectorShip, SectorCoord, SectorGenerator, SectorRoot, SectorShip,
     WorldConfig, WorldObserver,
 };
 
-/// The frozen cells of this session, keyed by cell.
+/// The frozen cells of this world, keyed by cell.
 ///
 /// A cell has at most one record. A [`FrozenSector::Visited`] record is
 /// consumed when its cell materializes again; an [`FrozenSector::Arrivals`]
 /// record is consumed when its cell first generates.
-#[derive(Resource, Default, Debug)]
-pub struct FrozenSectors(BTreeMap<SectorCoord, FrozenSector>);
+///
+/// Each record is shared, so a save copies the ledger without copying its
+/// bodies, and a cell's job reads its record off the main thread. Changing a
+/// record a save or a job still holds copies it first.
+#[derive(Resource, Default, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct FrozenSectors(BTreeMap<SectorCoord, Arc<FrozenSector>>);
 
 impl FrozenSectors {
     /// The record a cell holds, if it holds one.
     pub fn get(&self, coord: SectorCoord) -> Option<&FrozenSector> {
-        self.0.get(&coord)
+        self.0.get(&coord).map(Arc::as_ref)
+    }
+
+    /// The record a cell holds, shared, for the job that prepares the cell.
+    pub(crate) fn shared(&self, coord: SectorCoord) -> Option<Arc<FrozenSector>> {
+        self.0.get(&coord).cloned()
+    }
+
+    /// Every cell's record, in cell order.
+    pub fn iter(&self) -> impl Iterator<Item = (SectorCoord, &FrozenSector)> {
+        self.0
+            .iter()
+            .map(|(coord, record)| (*coord, record.as_ref()))
+    }
+
+    /// Seed this world's empty ledger with a saved world's records, before
+    /// any cell of it materializes.
+    ///
+    /// # Panics
+    ///
+    /// When the ledger already holds a record: a saved world replaces no
+    /// world, and merging two would thaw bodies neither of them froze.
+    pub fn restore(&mut self, saved: FrozenSectors) {
+        assert!(
+            self.0.is_empty(),
+            "nova_world: restoring a saved ledger over {} live record(s)",
+            self.0.len()
+        );
+        self.0 = saved.0;
     }
 
     /// How many cells hold a record.
@@ -66,7 +107,7 @@ impl FrozenSectors {
 
     /// Take a cell's record, for the materialization that spawns it.
     pub(crate) fn take(&mut self, coord: SectorCoord) -> Option<FrozenSector> {
-        self.0.remove(&coord)
+        self.0.remove(&coord).map(Arc::unwrap_or_clone)
     }
 
     /// Keep the bodies a retiring cell froze this frame.
@@ -83,10 +124,11 @@ impl FrozenSectors {
     /// live cell is adopted rather than frozen, so arrivals there are a lost
     /// body. And on two bodies with one id.
     pub(crate) fn visit(&mut self, coord: SectorCoord, bodies: Vec<FrozenBody>) {
-        let record = self
-            .0
-            .entry(coord)
-            .or_insert_with(|| FrozenSector::Visited(Vec::new()));
+        let record = Arc::make_mut(
+            self.0
+                .entry(coord)
+                .or_insert_with(|| Arc::new(FrozenSector::Visited(Vec::new()))),
+        );
         let FrozenSector::Visited(kept) = record else {
             panic!(
                 "nova_world: {coord} retired while it held {} frozen arrival(s)",
@@ -108,10 +150,11 @@ impl FrozenSectors {
     ///
     /// When the body's id is already in the cell's record.
     pub(crate) fn arrive(&mut self, coord: SectorCoord, body: FrozenBody) {
-        let record = self
-            .0
-            .entry(coord)
-            .or_insert_with(|| FrozenSector::Arrivals(Vec::new()));
+        let record = Arc::make_mut(
+            self.0
+                .entry(coord)
+                .or_insert_with(|| Arc::new(FrozenSector::Arrivals(Vec::new()))),
+        );
         let bodies = match record {
             FrozenSector::Visited(bodies) | FrozenSector::Arrivals(bodies) => bodies,
         };
@@ -218,7 +261,8 @@ pub(crate) fn hold_unsettled(
 }
 
 /// One off-window cell's record.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FrozenSector {
     /// A cell that was generated and then retired. The bodies are the whole
     /// truth of it: the generator is asked again only for its planetoids,
@@ -243,17 +287,13 @@ impl FrozenSector {
         matches!(self, Self::Visited(_))
     }
 
-    /// The seed and radius of each frozen rock, in record order: what a
-    /// worker prepares the pristine geometry of before the main thread
-    /// thaws them.
-    pub(crate) fn rocks(&self) -> Vec<(u32, Meters)> {
-        self.bodies()
-            .iter()
-            .filter_map(|body| match &body.body {
-                FrozenBodyType::Asteroid(rock) => Some((rock.seed(), rock.radius())),
-                _ => None,
-            })
-            .collect()
+    /// Each frozen rock, in record order: what a worker prepares the
+    /// geometry of before the main thread thaws them.
+    pub(crate) fn rocks(&self) -> impl Iterator<Item = &FrozenAsteroid> {
+        self.bodies().iter().filter_map(|body| match &body.body {
+            FrozenBodyType::Asteroid(rock) => Some(rock),
+            _ => None,
+        })
     }
 
     fn into_bodies(self) -> Vec<FrozenBody> {
@@ -264,22 +304,60 @@ impl FrozenSector {
 }
 
 /// One persistent body, frozen.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenBody {
     id: Option<EntityId>,
-    name: Option<Name>,
+    name: Option<String>,
     /// World pose. A sector root stays at the origin with an identity
     /// transform, so a body's own transform is its world pose whether it was
     /// a root's child or top-level. A physics body's pose is its avian
     /// `Position` and `Rotation`, not its eased `Transform`.
     transform: Transform,
+    #[cfg_attr(feature = "serde", serde(with = "visibility_serde"))]
     visibility: Option<Visibility>,
-    motion: Option<(LinearVelocity, AngularVelocity)>,
+    /// Linear and angular velocity, in engine units.
+    motion: Option<(Vec3, Vec3)>,
     body: FrozenBodyType,
 }
 
+/// [`Visibility`] has no serde form of its own; a record writes its variant
+/// name.
+#[cfg(feature = "serde")]
+mod visibility_serde {
+    use bevy::prelude::Visibility;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(remote = "Visibility")]
+    enum VisibilityDef {
+        Inherited,
+        Hidden,
+        Visible,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct Authored(#[serde(with = "VisibilityDef")] Visibility);
+
+    pub(super) fn serialize<S: Serializer>(
+        visibility: &Option<Visibility>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        visibility.map(Authored).serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Visibility>, D::Error> {
+        Ok(Option::<Authored>::deserialize(deserializer)?.map(|Authored(visibility)| visibility))
+    }
+}
+
 impl FrozenBody {
-    /// The body's scenario id. A severed wreck and a canister have none.
+    /// The body's id: a scenario id, a generated id, or the id a wreck's
+    /// sever minted. A canister has none, nor a wreck whose sever could not
+    /// mint one.
     pub fn id(&self) -> Option<&str> {
         self.id.as_ref().map(|id| id.0.as_str())
     }
@@ -296,7 +374,8 @@ impl FrozenBody {
 }
 
 /// Every kind of body a cell can freeze, each in its owner crate's record.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     not(target_arch = "wasm32"),
     expect(
@@ -320,6 +399,19 @@ pub enum FrozenBodyType {
     OreDrop(FrozenOreDrop),
 }
 
+/// What freezing a docked ship means to the caller.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DockPolicy {
+    /// The body is about to despawn: a docked ship is a fault, because
+    /// freezing one half of a pair would release the dock and leave its
+    /// partner flying alone.
+    Refuse,
+    /// The body stays live and a save copies it: a docked ship is kept
+    /// without its dock, and a saved world thaws the pair undocked where it
+    /// stood.
+    Undock,
+}
+
 /// Freeze one persistent body.
 ///
 /// # Errors
@@ -329,10 +421,13 @@ pub enum FrozenBodyType {
 ///
 /// # Panics
 ///
-/// On a docked ship: freezing one half of a pair would release the dock and
-/// leave its partner flying alone. And on an entity that is no persistent body
-/// this module knows how to freeze.
-pub(crate) fn freeze_body(world: &World, entity: Entity) -> Result<FrozenBody, UnsettledBody> {
+/// On a docked ship under [`DockPolicy::Refuse`]. And on an entity that is no
+/// persistent body this module knows how to freeze.
+pub(crate) fn freeze_body(
+    world: &World,
+    entity: Entity,
+    docked: DockPolicy,
+) -> Result<FrozenBody, UnsettledBody> {
     let body = world.entity(entity);
     if let Some(held) = body.get::<PendingSectorShip>() {
         let ship = held.ship().clone();
@@ -345,10 +440,8 @@ pub(crate) fn freeze_body(world: &World, entity: Entity) -> Result<FrozenBody, U
             body: FrozenBodyType::PendingShip(Box::new(ship)),
         });
     }
-    let name = body.get::<Name>().cloned();
-    let label = name
-        .as_ref()
-        .map_or_else(|| entity.to_string(), ToString::to_string);
+    let name = body.get::<Name>().map(ToString::to_string);
+    let label = name.clone().unwrap_or_else(|| entity.to_string());
     let Some(mut transform) = body.get::<Transform>().copied() else {
         panic!("nova_world: persistent body '{label}' has no transform to freeze");
     };
@@ -360,7 +453,7 @@ pub(crate) fn freeze_body(world: &World, entity: Entity) -> Result<FrozenBody, U
     }
     let frozen = if body.contains::<SpaceshipRootMarker>() {
         assert!(
-            !body.contains::<DockedShip>(),
+            docked == DockPolicy::Undock || !body.contains::<DockedShip>(),
             "nova_world: ship '{label}' is docked and its cell is about to freeze it; a docked \
              pair cannot be split across the active window"
         );
@@ -383,8 +476,8 @@ pub(crate) fn freeze_body(world: &World, entity: Entity) -> Result<FrozenBody, U
         visibility: body.get::<Visibility>().copied(),
         motion: body
             .get::<LinearVelocity>()
-            .copied()
-            .zip(body.get::<AngularVelocity>().copied()),
+            .map(|linear| linear.0)
+            .zip(body.get::<AngularVelocity>().map(|angular| angular.0)),
         body: frozen,
     })
 }
@@ -431,7 +524,7 @@ pub(crate) fn thaw_record(
             entity.insert(id);
         }
         if let Some(name) = name {
-            entity.insert(name);
+            entity.insert(Name::new(name));
         }
         match body {
             FrozenBodyType::Asteroid(rock) => {
@@ -442,7 +535,7 @@ pub(crate) fn thaw_record(
             }
             FrozenBodyType::Ship(ship) => thaw_ship(&mut entity, *ship),
             FrozenBodyType::Canister(canister) => {
-                let linear = motion.map_or(Vec3::ZERO, |(linear, _)| linear.0);
+                let linear = motion.map_or(Vec3::ZERO, |(linear, _)| linear);
                 entity.insert(thaw_canister(canister, transform, linear));
             }
             FrozenBodyType::WreckFragment(fragment) => thaw_wreck_fragment(&mut entity, fragment),
@@ -454,8 +547,8 @@ pub(crate) fn thaw_record(
         // After the owner's thaw: a spawn bundle seeds the velocity and the
         // visibility it was authored with, and the body keeps the ones it
         // froze with.
-        if let Some(motion) = motion {
-            entity.insert(motion);
+        if let Some((linear, angular)) = motion {
+            entity.insert((LinearVelocity(linear), AngularVelocity(angular)));
         }
         if let Some(visibility) = visibility {
             entity.insert(visibility);
@@ -559,7 +652,7 @@ pub fn adopt_moving_bodies<G: SectorGenerator>(world: &mut World) {
                     world.entity_mut(entity).remove::<ChildOf>();
                 }
             }
-            _ => match freeze_body(world, entity) {
+            _ => match freeze_body(world, entity, DockPolicy::Refuse) {
                 Ok(body) => {
                     debug!("nova_world: froze {entity} into off-window {coord}");
                     world.resource_mut::<FrozenSectors>().arrive(coord, body);
@@ -589,4 +682,164 @@ pub fn adopt_moving_bodies<G: SectorGenerator>(world: &mut World) {
         trace!("nova_world: despawning transient {entity} outside the window");
         world.entity_mut(entity).despawn();
     }
+}
+
+/// Why [`snapshot_sectors`] could not copy the world.
+#[derive(Debug)]
+pub enum SectorSnapshotError {
+    /// A body is in a multi-frame process its owner cannot freeze yet. Ask
+    /// again on a later frame.
+    Unsettled {
+        /// The body's name, or its entity.
+        label: String,
+        /// The cell that holds it.
+        coord: SectorCoord,
+        /// The owner's reason.
+        reason: UnsettledBody,
+    },
+    /// A persistent body that no cell owns and that no save can place: an
+    /// authored, addressable one other than the observer, or one parented to
+    /// something that is not a sector root. A save refuses rather than drop
+    /// it.
+    UnownedBody {
+        /// The body's name, or its entity.
+        label: String,
+    },
+    /// A saved transient points at a live body with no `EntityId`, so no
+    /// Load could find it again. The save collector of the game returns
+    /// it; a sector snapshot never does.
+    NoDurableId {
+        /// The transient and the reference.
+        label: String,
+    },
+    /// Two saved bodies have one id, so a Load could not tell them apart.
+    /// The save collector of the game returns it; a sector snapshot never
+    /// does.
+    DuplicateId {
+        /// The id.
+        id: EntityId,
+    },
+    /// The saved state breaks an id rule other than a duplicate: an id with a
+    /// `/` that is not a minted wreck id, or a reference that names nothing
+    /// the save keeps. The save collector of the game returns it.
+    InvalidSavedState {
+        /// What is wrong.
+        reason: String,
+    },
+}
+
+impl std::fmt::Display for SectorSnapshotError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unsettled {
+                label,
+                coord,
+                reason,
+            } => write!(f, "'{label}' in {coord} cannot freeze yet: {reason}"),
+            Self::UnownedBody { label } => write!(
+                f,
+                "'{label}' is a persistent body that no sector owns, so no save can keep it"
+            ),
+            Self::NoDurableId { label } => {
+                write!(f, "{label} has no durable id, so no save can keep it")
+            }
+            Self::DuplicateId { id } => write!(
+                f,
+                "two saved bodies have the id '{}', so no Load could tell them apart",
+                id.0
+            ),
+            Self::InvalidSavedState { reason } => f.write_str(reason),
+        }
+    }
+}
+
+/// The whole streamed world as it would freeze now, without despawning
+/// anything: the ledger, every live cell's bodies as a visited record, and
+/// every body waiting top-level for its cell as an arrival there.
+///
+/// A docked ship is kept without its dock ([`DockPolicy::Undock`]), so a
+/// saved world thaws the pair undocked where it stood. The
+/// [`WorldObserver`] is not part of it: the world streams around the
+/// observer, and its owner saves it.
+///
+/// # Errors
+///
+/// [`SectorSnapshotError::Unsettled`] while any body is mid-process, and
+/// [`SectorSnapshotError::UnownedBody`] for a persistent body no record could
+/// hold.
+///
+/// # Panics
+///
+/// Without a [`WorldConfig`]: there is no world to copy.
+pub fn snapshot_sectors<G: SectorGenerator>(
+    world: &mut World,
+) -> Result<FrozenSectors, SectorSnapshotError> {
+    let edge = world.resource::<WorldConfig<G>>().sector_edge;
+    let label = |world: &World, entity: Entity| {
+        world
+            .get::<Name>(entity)
+            .map_or_else(|| entity.to_string(), ToString::to_string)
+    };
+
+    let unowned: Option<Entity> = world
+        .query_filtered::<(Entity, Option<&ChildOf>, Has<ScenarioAddressableMarker>), (
+            PersistentBody,
+            Without<WorldObserver>,
+        )>()
+        .iter(world)
+        .find(|(_, parent, addressable)| {
+            *addressable
+                || parent.is_some_and(|parent| !world.entity(parent.parent()).contains::<SectorRoot>())
+        })
+        .map(|(entity, ..)| entity);
+    if let Some(entity) = unowned {
+        return Err(SectorSnapshotError::UnownedBody {
+            label: label(world, entity),
+        });
+    }
+
+    let mut ledger = world.resource::<FrozenSectors>().clone();
+    let roots = live_sectors(world.query::<(Entity, &SectorRoot)>().iter(world));
+    for (coord, root) in roots {
+        let (frozen, unsettled) = freeze_sector_bodies(world, coord, root, DockPolicy::Undock);
+        if let Some((entity, reason)) = unsettled.into_iter().next() {
+            return Err(SectorSnapshotError::Unsettled {
+                label: label(world, entity),
+                coord,
+                reason,
+            });
+        }
+        ledger.visit(coord, frozen.into_iter().map(|(_, body)| body).collect());
+    }
+
+    let waiting: Vec<(Entity, Vec3)> = world
+        .query_filtered::<(Entity, &Transform, Option<&Position>), (
+            PersistentBody,
+            Without<ChildOf>,
+            Without<WorldObserver>,
+            Without<ScenarioAddressableMarker>,
+        )>()
+        .iter(world)
+        .map(|(entity, transform, position)| {
+            (
+                entity,
+                position.map_or(transform.translation, |position| position.0),
+            )
+        })
+        .collect();
+    for (entity, translation) in waiting {
+        // Engine boundary: a pose counts world units, a cell meters.
+        let coord = SectorCoord::containing(Meters3::from_engine(translation), edge);
+        match freeze_body(world, entity, DockPolicy::Undock) {
+            Ok(body) => ledger.arrive(coord, body),
+            Err(reason) => {
+                return Err(SectorSnapshotError::Unsettled {
+                    label: label(world, entity),
+                    coord,
+                    reason,
+                })
+            }
+        }
+    }
+    Ok(ledger)
 }

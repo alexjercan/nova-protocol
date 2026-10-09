@@ -140,6 +140,8 @@ pub struct CargoIntakeSectionConfigHelper(CargoIntakeSectionConfig);
 /// the queue as it drops the last canister.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CargoIntakeEjectionQueue(pub VecDeque<CargoCanister>);
 
 /// An intake's door started to move: the change of its target, not of its
@@ -271,11 +273,22 @@ pub fn cargo_canister(
 /// A drifting canister's runtime state when its body froze: its own runtime
 /// id (never re-minted by a thaw), contents, health and render model.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenCanister {
     id: CargoCanisterRuntimeId,
     contents: CargoCanister,
     health: Health,
     mesh: AssetRef<WorldAsset>,
+}
+
+impl FrozenCanister {
+    /// The canister's durable runtime id, the key a saved torpedo target
+    /// resolves against on thaw.
+    #[must_use]
+    pub fn id(&self) -> CargoCanisterRuntimeId {
+        self.id
+    }
 }
 
 /// Capture `canister`'s id, contents, health and model.

@@ -67,6 +67,14 @@ const WORLD_SEED: u32 = 115;
 #[cfg(feature = "debug")]
 const SEED_FIELD: &str = "World Seed Field";
 
+/// The world setup window's name field.
+#[cfg(feature = "debug")]
+const WORLD_NAME_FIELD: &str = "World Name Field";
+
+/// The name typed into the world setup window.
+#[cfg(feature = "debug")]
+const WORLD_NAME: &str = "Probe World";
+
 /// Backspaces that clear any seed the window opens with: it pre-fills a random
 /// u32, at most ten digits.
 #[cfg(feature = "debug")]
@@ -84,6 +92,22 @@ struct Cli;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
+
+    // This run's own settings and saved worlds, set before the app reads
+    // them: Create makes a world, and neither a player's worlds nor an
+    // earlier run's "Probe World" may be in its way.
+    std::env::set_var(
+        nova_assets::storage::CONFIG_ROOT_ENV,
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/example-profiles/{}-{}-{}",
+            env!("CARGO_CRATE_NAME"),
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("the clock is after 1970")
+                .as_nanos(),
+        )),
+    );
 
     // Pin the backdrop before the app boots. Menu entry draws one of the four
     // shipped backdrops at RANDOM, so an unpinned capture is a different scene
@@ -226,6 +250,15 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .until(shot_written(WORLD_SETUP_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
+        .click("focus the name field", WORLD_NAME_FIELD)
+        .step("the name field takes the keyboard")
+        .until(frames(2))
+        .add()
+        .step("type the world name")
+        .on_enter(type_text(WORLD_NAME.to_string()))
+        .until(name_field_reads(WORLD_NAME))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         .click("create the world", "Create World Button")
         .step("reach the first flight")
         .until(state_is(GameStates::Playing))
@@ -254,6 +287,22 @@ fn seed_field_reads(seed: u32) -> std::sync::Arc<nova_protocol::nova_debug::harn
                 fields
                     .iter(world)
                     .any(|(name, value)| name.as_str() == SEED_FIELD && value.0 == seed)
+            })
+    })
+}
+
+/// Advance once the name field reads `name`.
+#[cfg(feature = "debug")]
+fn name_field_reads(
+    name: &'static str,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        world
+            .try_query::<(&Name, &TextFieldValue)>()
+            .is_some_and(|mut fields| {
+                fields.iter(world).any(|(field_name, value)| {
+                    field_name.as_str() == WORLD_NAME_FIELD && value.0 == name
+                })
             })
     })
 }

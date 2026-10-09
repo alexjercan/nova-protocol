@@ -101,7 +101,7 @@ Undocked, the Inventory pane's **Jettison** packs an item into canisters queued 
 
 <!-- Values from crates/nova_gameplay/src/inventory.rs CARGO_CANISTER_MAX_MASS_G 200 kg; crates/nova_hud/src/cargo_canister_chips.rs CARGO_TAG_RANGE 100 m; canister health and lock rules in crates/nova_ship/src/sections/cargo_intake_section.rs `cargo_canister`. -->
 
-A canister holds at most 200 kg across all its stacks. Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for multiple item types, with its total mass in kg. The tag hides while the canister is off-screen. A canister has 20 HP; at zero it and its contents are destroyed, not picked up. Canisters can be designated with a travel lock but cannot enter the combat target slot. Canisters are not saved: they go when the scenario ends, and a jettisoned stack returns to your hold when the scenario loads again.
+A canister holds at most 200 kg across all its stacks. Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for multiple item types, with its total mass in kg. The tag hides while the canister is off-screen. A canister has 20 HP; at zero it and its contents are destroyed, not picked up. Canisters can be designated with a travel lock but cannot enter the combat target slot. In a saved Open World, a canister is saved as you left it, in the streamed window or frozen off it, on the desktop build. Any other scenario saves nothing: canisters go when it ends, and a jettisoned stack returns to your hold when it loads again.
 
 Canisters come from two places: your own jettison, and a [mining beam](../mining-beam/) cutting ore out of a rock.
 

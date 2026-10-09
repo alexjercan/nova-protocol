@@ -15,7 +15,7 @@ use nova_gameplay::prelude::{
 
 use crate::{
     prelude::{
-        DockedAssembly, DockedShip, PlaceholderArt, RenderMeshTransform,
+        DockedAssembly, DockedShip, PlaceholderArt, PlaceholderArtType, RenderMeshTransform,
         SectionRenderMeshTransform, SectionRenderOf,
     },
     sections::damage_plume::prelude::{plume_scale, DamagePlume},
@@ -781,16 +781,14 @@ fn insert_thruster_section_render(
                 (
                     Name::new("Thruster Section Body (A)"),
                     SectionRenderOf(entity),
-                    Mesh3d(placeholder.barrel.clone()),
-                    MeshMaterial3d(placeholder.structure_material.clone()),
+                    placeholder.bundle(PlaceholderArtType::Barrel),
                     Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
                         .with_translation(Vec3::new(0.0, 0.0, -0.3)),
                 ),
                 (
                     Name::new("Thruster Section Body (B)"),
                     SectionRenderOf(entity),
-                    Mesh3d(placeholder.nozzle.clone()),
-                    MeshMaterial3d(placeholder.nozzle_material.clone()),
+                    placeholder.bundle(PlaceholderArtType::Nozzle),
                     Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
                 ),
             ],));

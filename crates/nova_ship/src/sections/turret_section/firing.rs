@@ -389,6 +389,8 @@ pub(super) fn shoot_spawn_projectile(
                 if let Some(&allegiance) = allegiance {
                     projectile.insert(allegiance);
                 }
+                let round = projectile.id();
+                commands.trigger(RoundFired { round });
 
                 // Re-arm and immediately advance by the leftover: if the excess
                 // spans another full interval the barrel fires again this tick
@@ -402,6 +404,17 @@ pub(super) fn shoot_spawn_projectile(
             }
         }
     }
+}
+
+/// A round left the muzzle. The seam the render and audio halves hang the
+/// muzzle flash and the report on, so the fire path itself stays headless. A
+/// thawed round triggers neither: the cue belongs to the launch, not to the
+/// entity existing.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct RoundFired {
+    /// The round that was fired.
+    #[event_target]
+    pub round: Entity,
 }
 
 #[cfg(test)]

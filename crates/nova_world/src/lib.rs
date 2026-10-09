@@ -185,7 +185,10 @@ mod streaming;
 mod tests;
 
 pub use crate::{
-    frozen::{adopt_moving_bodies, FrozenBody, FrozenBodyType, FrozenSector, FrozenSectors},
+    frozen::{
+        adopt_moving_bodies, snapshot_sectors, FrozenBody, FrozenBodyType, FrozenSector,
+        FrozenSectors, SectorSnapshotError,
+    },
     generation::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
         CivilizationId, PreparedSector, SectorAsteroid, SectorDescription, SectorManifest,
@@ -213,7 +216,10 @@ pub mod prelude {
         SECTOR_SHIP_CLEARANCE_MAX,
     };
     pub use crate::{
-        frozen::{FrozenBody, FrozenBodyType, FrozenSector, FrozenSectors},
+        frozen::{
+            snapshot_sectors, FrozenBody, FrozenBodyType, FrozenSector, FrozenSectors,
+            SectorSnapshotError,
+        },
         streaming::{
             desired_sectors, CurrentSector, PendingSectorShip, ReadySectors, SectorJob,
             SectorJobStats, SectorRoot, WorldObserver,
@@ -278,6 +284,8 @@ pub(crate) fn window_cells(radius: i32) -> Result<usize, SectorFault> {
 /// collections. Generation must not depend on iteration order, but a REPORT
 /// that lists sectors in hash order is unreadable.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SectorCoord {
     /// Cell index along +X.
     pub x: i32,

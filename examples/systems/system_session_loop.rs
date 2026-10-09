@@ -29,6 +29,8 @@
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
+#[cfg(feature = "debug")]
+use nova_ui::widget::TextFieldValue;
 
 #[derive(Parser)]
 #[command(name = "system_session_loop")]
@@ -50,6 +52,22 @@ const LAUNCH_SCENARIO: &str = "menu_weave";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
+
+    // This run's own settings and saved worlds, set before the app reads
+    // them: Create makes a world, and neither a player's worlds nor an
+    // earlier run's "Probe World" may be in its way.
+    std::env::set_var(
+        nova_assets::storage::CONFIG_ROOT_ENV,
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/example-profiles/{}-{}-{}",
+            env!("CARGO_CRATE_NAME"),
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("the clock is after 1970")
+                .as_nanos(),
+        )),
+    );
 
     #[cfg(feature = "debug")]
     let startup = Some(StartupScenario::Id(LAUNCH_SCENARIO.to_string()));
@@ -143,6 +161,12 @@ const NEW_GAME_BUTTON: &str = "New Game Button";
 /// The world setup modal's button that starts the game.
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+/// The world setup modal's name field.
+#[cfg(feature = "debug")]
+const WORLD_NAME_FIELD: &str = "World Name Field";
+/// The name typed into the world setup modal.
+#[cfg(feature = "debug")]
+const WORLD_NAME: &str = "Probe World";
 /// The pause overlay's way out.
 #[cfg(feature = "debug")]
 const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
@@ -344,6 +368,17 @@ fn session_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .on_enter(release_mouse(MouseButton::Left))
         .until(ui_node_present(CREATE_WORLD_BUTTON))
         .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("session_loop: name the world")
+        .on_enter(|world: &mut World| {
+            let mut fields = world.query::<(&Name, &mut TextFieldValue)>();
+            let (_, mut value) = fields
+                .iter_mut(world)
+                .find(|(name, _)| name.as_str() == WORLD_NAME_FIELD)
+                .expect("session_loop: the modal has a name field");
+            value.0 = WORLD_NAME.to_string();
+        })
+        .until(frames(2))
         .add()
         .click_named(
             "session_loop: create the world",

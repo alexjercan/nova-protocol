@@ -45,6 +45,8 @@ pub mod prelude {
 /// system reads and decrements it with the query it already runs. A section with
 /// no `SectionAmmo` fires without limit.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SectionAmmo {
     /// Rounds left to fire. Never exceeds `capacity`.
     pub rounds: u32,
@@ -99,6 +101,8 @@ impl SectionAmmo {
 /// Only sections that HAD a magazine carry this, so a weapon authored unlimited
 /// stays unlimited when the cheat goes off.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SuspendedSectionAmmo {
     /// The authored magazine size to restore, full.
     pub capacity: u32,
@@ -186,6 +190,8 @@ pub struct SectionReloadConfig {
 /// cycle progress so the HUD ammo readout can render a reload/recharge state
 /// without a second source of truth.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SectionReload {
     /// The inventory item one round of this magazine consumes.
     pub item: ItemType,

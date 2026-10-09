@@ -7,10 +7,35 @@
 
 use bevy::prelude::*;
 
-/// The shared placeholder mesh and material set.
+/// The shared placeholder mesh and material set, and the marker that names
+/// which one a node wears.
 pub mod prelude {
-    pub use super::PlaceholderArt;
+    pub use super::{PlaceholderArt, PlaceholderArtMarker, PlaceholderArtType};
 }
+
+/// Which stand-in mesh a section node wears.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum PlaceholderArtType {
+    /// A hull, a torpedo bay, a railgun or a docking body.
+    Body,
+    /// A controller body, dyed the controller's own blue.
+    ControllerBody,
+    /// A controller's porthole.
+    Window,
+    /// A thruster's barrel.
+    Barrel,
+    /// A thruster's nozzle.
+    Nozzle,
+    /// The base plate under an unmeshed turret joint.
+    TurretPlate,
+}
+
+/// The stand-in a node wears, stamped when it spawns. A save reads the art
+/// from it, because section cracks swap the node's material away and the
+/// crack registry can forget the source.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlaceholderArtMarker(pub PlaceholderArtType);
 
 /// The unit cube a hull, a torpedo bay and a controller body stand in as.
 const BODY_CUBE: f32 = 1.0;
@@ -72,6 +97,25 @@ pub struct PlaceholderArt {
     pub nozzle_material: Handle<StandardMaterial>,
     /// The turret plate's dark grey.
     pub turret_plate_material: Handle<StandardMaterial>,
+}
+
+impl PlaceholderArt {
+    /// The mesh, material and marker that dress a node as `art`.
+    pub fn bundle(&self, art: PlaceholderArtType) -> impl Bundle + use<> {
+        let (mesh, material) = match art {
+            PlaceholderArtType::Body => (&self.body, &self.structure_material),
+            PlaceholderArtType::ControllerBody => (&self.body, &self.controller_material),
+            PlaceholderArtType::Window => (&self.window, &self.window_material),
+            PlaceholderArtType::Barrel => (&self.barrel, &self.structure_material),
+            PlaceholderArtType::Nozzle => (&self.nozzle, &self.nozzle_material),
+            PlaceholderArtType::TurretPlate => (&self.turret_plate, &self.turret_plate_material),
+        };
+        (
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(material.clone()),
+            PlaceholderArtMarker(art),
+        )
+    }
 }
 
 impl FromWorld for PlaceholderArt {

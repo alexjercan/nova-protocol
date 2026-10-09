@@ -48,8 +48,7 @@ pub(super) fn insert_docking_section_render(
             commands.entity(entity).insert(children![(
                 Name::new("Docking Section Body"),
                 SectionRenderOf(entity),
-                Mesh3d(placeholder.body.clone()),
-                MeshMaterial3d(placeholder.structure_material.clone()),
+                placeholder.bundle(PlaceholderArtType::Body),
             )]);
         }
     }

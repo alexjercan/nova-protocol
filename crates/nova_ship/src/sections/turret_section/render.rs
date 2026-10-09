@@ -13,7 +13,7 @@ use super::*;
 use crate::sections::nose_cone_mesh;
 
 pub(super) fn on_projectile_marker_effect(
-    add: On<Add, TurretBulletProjectileMarker>,
+    fired: On<RoundFired>,
     budget: Option<Res<GraphicsBudget>>,
     q_projectile: Query<
         (&TurretSectionMuzzleEntity, Option<&ProjectileOwner>),
@@ -32,7 +32,7 @@ pub(super) fn on_projectile_marker_effect(
     // should be fine, since it will not be called frequently.
     transform_helper: TransformHelper,
 ) {
-    let projectile = add.entity;
+    let projectile = fired.round;
     trace!("on_projectile_marker: entity {:?}", projectile);
 
     // Diagnostic rounds can carry their complete art directly. They have no
@@ -350,8 +350,7 @@ pub(super) fn insert_turret_joint_render(
                 Name::new("Render Turret Joint"),
                 transform.mul_transform(Transform::from_xyz(0.0, 0.05, 0.0)),
                 SectionRenderOf(**turret),
-                Mesh3d(placeholder.turret_plate.clone()),
-                MeshMaterial3d(placeholder.turret_plate_material.clone()),
+                placeholder.bundle(PlaceholderArtType::TurretPlate),
             ),],));
         }
         None => {}

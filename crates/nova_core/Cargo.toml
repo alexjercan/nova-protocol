@@ -46,6 +46,21 @@ nova_world_base = { path = "../nova_world_base" }
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
 bevy = { version = "0.19.0", features = ["webgpu"] }
 
+[dev-dependencies]
+# The world-resume refusal test's save fixture: the production save systems
+# and `arm_save_fixture` on a fixture catalog.
+nova_world_base = { path = "../nova_world_base", features = ["test-support"] }
+# `WorldConfig<NovaLayeredWorld>` to re-arm the window at active_radius 0
+# after a Load, standing in for the scenario arm this rig has no loader for.
+nova_world = { path = "../nova_world" }
+# The menu-backdrop rotation's GlobalRng entity (EntropyPlugin is registered
+# by nova_gameplay's plugin in production; this rig does not add it).
+bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
+# A scratch worlds/settings/training root, via NOVA_CONFIG_ROOT.
+tempfile = "3"
+# Reads the case-two save file directly to count its transients.
+ron = { version = "0.12" }
+
 [lints]
 workspace = true
 

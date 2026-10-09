@@ -13,7 +13,8 @@ Under it sits a **field note** - one short fact taken from the handbook, with **
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 
-- **New Game** - opens the world setup: a world seed (a fresh one each time, or type your own), **Randomize**, **Create** and **Cancel**. **Create** puts you in a line warship in an open world of sparse asteroid clusters, planetoids and [generated ships](../ships/#generated-ships), generated from the seed and streamed in around you as you fly. The same seed gives the same world on the same build. **Retry** keeps the seed.
+- **New Game** - opens the world setup: a name for the world (desktop build only) and a seed (a fresh one each time, or type your own), **Randomize**, **Create** and **Cancel**. **Create** puts you in a line warship in an open world of sparse asteroid clusters, planetoids and [generated ships](../ships/#generated-ships), generated from the seed and streamed in around you as you fly. The same seed gives the same world on the same build. On the desktop build the world saves itself as you play, and the pause menu's Retry becomes **Load last save**; see [Saved worlds](#saved-worlds) below. The web build keeps no saved worlds.
+- **Load** - desktop build only: lists your saved world folders and resumes the one you pick, or shows why it cannot.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
 - **Lessons** - opens the training handbook. Its first row, **Basic Training**, starts the first-flight course. Under it is one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked **read**, and one is marked **done** only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.
 - **Scenarios** - opens the complete scenario picker, every scenario your enabled mods ship included.
@@ -34,6 +35,49 @@ Under it sits a **field note** - one short fact taken from the handbook, with **
 </figure>
 
 In any scenario, <kbd>Esc</kbd> pauses the game and gives you Resume / Retry (restart the current scenario) / Settings / Back to Main Menu / Exit.
+
+## Saved worlds
+
+<!-- Route: crates/nova_world_base/src/save/mod.rs (`create_world`, `open_world`,
+     `list_worlds`, `world_slug`, `WorldRefusal`), save/session.rs
+     (`WorldSaveSession`, `SaveReason`, death at :310-341), save/transients.rs
+     (`FrozenTransient`, `WORLD_RESUME_SECONDS_MAX` 240 s); crates/nova_menu/src/
+     world_setup.rs (Create), load_screen.rs (Load), save_status.rs (status
+     line), leave.rs (leave overlay, Retry); crates/nova_assets/src/storage.rs
+     `worlds_root`; crates/nova_core/src/loading_screen.rs (resume progress
+     line). -->
+
+On the desktop build, New Game saves what you play; the web build keeps no saved worlds, and the main menu has no **Load** button.
+
+Each world is a folder named after it, under this system's data folder, inside `nova-protocol/worlds` (for example `~/.local/share/nova-protocol/worlds` on Linux, `~/Library/Application Support/nova-protocol/worlds` on macOS, or `%APPDATA%\nova-protocol\worlds` on Windows).
+
+**Create** takes a name of 1 to 32 letters, digits, spaces, `_` or `-`, and the seed field above it. A name already taken, or one this system cannot make a folder for, is refused under the field and nothing starts. The game takes the world's first save as soon as the world comes up.
+
+The game saves when you cross into a new sector, and again when you leave: **Back to Main Menu**, **Exit** and the window's close button each wait on that save before they act. A status line at the top right reads `World saved`, `Saving world...`, `Waiting to save: <reason>` or `SAVE FAILED: <reason>` for the open world's last attempt. Leaving shows an overlay while its save runs; a failed leave save offers **Try again** or **Leave without saving**, which keeps the last good save and leaves anyway.
+
+Dying writes nothing - the last good save stays on disk - and the pause menu's Retry reads **Load last save** instead of restarting: it reopens the world from disk rather than the seed.
+
+### What a Load brings back
+
+A Load restores your ship (pose, motion, sections, damage, plates, ammo, reloads, hold, credits, key bindings and the chase-camera zoom), every frozen off-window sector, and every live sector in the streamed window as it was at the last good save - including a turret round, a torpedo, a rock chunk cut off a rock, a detached hull piece and a shed plate or decor fixture still in flight, each resuming on its own remaining lifetime. A visual-only effect, such as a spark or a muzzle flash, is not saved and does not come back.
+
+A Load that cannot bring its sectors and transients back within 240 seconds is refused, and the loading screen shows `RESTORING SECTORS <live> / <desired>` while it waits.
+
+### A refused Load
+
+The Load screen lists every world folder and shows why one cannot be opened, on its row:
+
+| Reason | Shown as |
+| --- | --- |
+| Another game has it open | `open in another game` |
+| Saved with another save layout | `save format <found>; this build reads <current>` |
+| Saved with other content | `content changed; saved with <mods>` |
+| Save file missing, corrupt or of another generation | `unreadable: <reason>` |
+| A file operation failed | the raw I/O error |
+| The sectors or transients did not come back in time | `the world did not come back within 240 s: <reason>` |
+| A saved reference matches two live bodies, or a saved style is not in this game's content | the reason, at once |
+
+There is no **Delete** in the game: to remove a saved world, delete its folder by hand.
 
 For your first flight, pick **Start Basic Training** on the card, the **Basic Training** row at the top of **Lessons**, or **Basic Training** in **Scenarios**. It teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes as soon as the range sees the gesture done.
 

@@ -20,11 +20,28 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Open-world sectors you leave now freeze as you left them and come back that
   way: mined rocks, owed ore, damaged and looted ships, canisters and wrecks.
   A docked partner is no longer lost.
+- On desktop, New Game names its world and saves it on each sector crossing
+  and on leaving. Load resumes it with rounds, torpedoes and debris in flight.
+  Death keeps the last save.
+
+### Modding & Mod Portal
+
+- **(breaking)** A scenario object id or a ship section id may not contain
+  '/', and two sections of one ship may not share an id. Both fail at lint and
+  at load.
 
 ### Interface & HUD
 
 - GOTO's predicted path now curves for a coasting or tumbling target, gravity
   included. It hides while the target changes course or spin; the guide stays.
+- Create asks for a world name. A Load screen lists saved worlds and why one
+  cannot load, a status line shows the last save, and leaving shows a save
+  overlay with Try again.
+
+### Web & Platform
+
+- The web build keeps no saved worlds: New Game stays a one-off session
+  there, with no Load button or world name field.
 
 ## [0.15.0] - 2026-10-06
 

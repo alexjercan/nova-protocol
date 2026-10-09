@@ -192,6 +192,239 @@ pub(super) fn update_spawner_fire_state(
     }
 }
 
+/// The config a torpedo was launched under, independent of its bay's own
+/// lifetime.
+///
+/// [`spawn_torpedo`] builds most of a torpedo's components straight from a
+/// [`TorpedoSectionConfig`] (render mesh, guidance, blast, child section
+/// health, ...), and a later freeze has to hand an equal config back to a
+/// thaw's [`TorpedoLaunch`] - but a torpedo outlives the tube that fired it
+/// (`TorpedoType`'s own doc, above), so a dead bay leaves nothing live to
+/// read a config from. Every launch snapshots its own copy here instead, the
+/// same reasoning that put `TorpedoType` on the projectile rather than
+/// behind a lookup.
+#[derive(Component, Clone, Debug, Deref)]
+pub(crate) struct TorpedoLaunchConfig(pub(crate) TorpedoSectionConfig);
+
+/// The bay launch bundle, pulled out of a config and a pose/motion/state
+/// snapshot: [`spawn_torpedo`] builds the same projectile whether that
+/// snapshot is a live bay's shot or a saved torpedo's thaw.
+///
+/// Carries no lifetime: fire and thaw each own a different lifetime source
+/// (a fresh [`TempEntity`] against the authored total, a resumed one against
+/// what was left - see [`nova_gameplay::lifetime::resumed_lifetime`]), so the
+/// caller inserts it after this bundle lands, as it already does for
+/// [`TorpedoLaunched`] and - for fire only - the weave's entity-keyed phase
+/// (below).
+pub(crate) struct TorpedoLaunch<'a> {
+    /// The bay config the torpedo was launched under (or, at a thaw, the
+    /// config it was launched under then).
+    pub(crate) config: &'a TorpedoSectionConfig,
+    /// The ship that fired it, or [`Entity::PLACEHOLDER`] for
+    /// [`SavedOwner::Gone`].
+    pub(crate) owner: Entity,
+    /// The bay section, for [`TorpedoSectionPartOf`]. `None` (a dead bay at
+    /// freeze time) thaws as [`Entity::PLACEHOLDER`], matching the live
+    /// "owner is gone" degradation this component already has to answer.
+    pub(crate) section: Option<Entity>,
+    /// The spawner entity, for [`TorpedoSectionSpawnerEntity`]. `None` at a
+    /// thaw: a thaw is not a launch, so it carries nothing the launch cues
+    /// read.
+    pub(crate) spawner: Option<Entity>,
+    /// Where the torpedo is.
+    pub(crate) translation: Vec3,
+    /// Which way the torpedo is facing.
+    pub(crate) rotation: Quat,
+    /// The torpedo's linear velocity.
+    pub(crate) linear: Vec3,
+    /// The torpedo's angular velocity.
+    pub(crate) angular: Vec3,
+    /// The shooter's copied `Allegiance`, if it carries one.
+    pub(crate) allegiance: Option<Allegiance>,
+    /// The torpedo's arming state.
+    pub(crate) arming: TorpedoArming,
+    /// The torpedo's cold-launch countdown, or `None` once it has ignited.
+    pub(crate) cold: Option<TorpedoColdLaunch>,
+    /// The torpedo's current steering command.
+    pub(crate) steering: Vec3,
+    /// The torpedo's terminal-weave state.
+    pub(crate) weave: TorpedoWeave,
+}
+
+/// Spawns a torpedo projectile from `launch` and returns it: the bay launch
+/// bundle, shared by a live [`shoot_spawn_projectile`] shot and a save's
+/// thaw.
+///
+/// Does not insert [`TempEntity`] (the lifetime - see [`TorpedoLaunch`]'s own
+/// doc), trigger [`TorpedoLaunched`] (fire's cue, never a thaw's), or touch
+/// any `TorpedoTarget*` component (launch-time targeting is a separate
+/// decision layered on afterward by both callers, not part of the bundle).
+pub(crate) fn spawn_torpedo(commands: &mut Commands, launch: TorpedoLaunch) -> Entity {
+    let TorpedoLaunch {
+        config,
+        owner,
+        section,
+        spawner,
+        translation,
+        rotation,
+        linear,
+        angular,
+        allegiance,
+        arming,
+        cold,
+        steering,
+        weave,
+    } = launch;
+
+    let torpedo_type = &config.torpedo_type;
+    let transform = Transform {
+        translation,
+        rotation,
+        ..default()
+    };
+    // Every launch is cold; `ignite_cold_torpedoes` is what later clears
+    // this and re-enables the colliders. A thaw of an already-ignited
+    // torpedo (`cold: None`) must not re-disable them - there is nothing
+    // left to ignite them again.
+    let cold_disabled = cold.is_some();
+
+    let mut projectile = commands.spawn((
+        (
+            Name::new(format!("{} Torpedo", torpedo_type.name)),
+            TorpedoType {
+                name: torpedo_type.name.clone(),
+                tint: torpedo_type.tint,
+            },
+        ),
+        TorpedoProjectileMarker,
+        ProjectileOwner(owner),
+        transform,
+        RigidBody::Dynamic,
+        (
+            TransformInterpolation,
+            TranslationEasingState {
+                start: Some(translation),
+                end: None,
+            },
+            RotationEasingState {
+                start: Some(rotation),
+                end: None,
+            },
+        ),
+        LinearVelocity(linear),
+        TorpedoSectionPartOf(section.unwrap_or(Entity::PLACEHOLDER)),
+        DestroySound(config.detonation_sound.clone()),
+        TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
+        (
+            LockSignature(torpedo_lock_signature(config.torpedo_type.max_speed)),
+            TorpedoGuidance {
+                nav_constant: config.nav_constant,
+                max_speed: config.torpedo_type.max_speed.to_engine(),
+            },
+            TorpedoSteering(steering),
+            LinearDamping(config.linear_damping),
+            TorpedoBlast {
+                radius: config.blast_radius.to_engine(),
+                damage: config.blast_damage,
+            },
+        ),
+        arming,
+        (
+            AngularVelocity(angular),
+            TorpedoLaunchConfig(config.clone()),
+        ),
+        Visibility::Visible,
+    ));
+
+    projectile.with_children(|parent| {
+        let mut controller =
+            parent.spawn((
+                TorpedoControllerMarker,
+                ActiveCollisionHooks::FILTER_PAIRS,
+                base_section(BaseSectionConfig {
+                    id: "torpedo_controller".to_string(),
+                    name: "Torpedo Controller".to_string(),
+                    description: "The controller for the torpedo warhead".to_string(),
+                    health: config.projectile_health,
+                    ..default()
+                }),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)).with_rotation(
+                    Quat::from_euler(EulerRot::XYZ, std::f32::consts::FRAC_PI_2, 0.0, 0.0),
+                ),
+                ControllerSectionRenderMarker,
+                controller_section(ControllerSectionConfig {
+                    steering_lag: 0.5,
+                    max_torque: 50.0,
+                    render_mesh: None,
+                    ..default()
+                }),
+            ));
+        if cold_disabled {
+            controller.insert(ColliderDisabled);
+        }
+
+        let mut thruster = parent.spawn((
+            TorpedoThrusterMarker,
+            ActiveCollisionHooks::FILTER_PAIRS,
+            base_section(BaseSectionConfig {
+                id: "torpedo_thruster".to_string(),
+                name: "Torpedo Thruster".to_string(),
+                description: "The thruster for the torpedo".to_string(),
+                health: config.projectile_health,
+                ..default()
+            }),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+            ThrusterSectionRenderMarker,
+            thruster_section(ThrusterSectionConfig {
+                magnitude: 1.0,
+                render_mesh: None,
+                render_mesh_transform: None,
+                loop_sound: Some(AssetRef::from("base/sounds/thruster_loop.wav")),
+                exhaust: None,
+            }),
+        ));
+        if cold_disabled {
+            thruster.insert(ColliderDisabled);
+        }
+        thruster.with_children(|grandchildren| {
+            grandchildren.spawn((
+                Name::new("Thruster Exhaust"),
+                Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+                    .with_translation(Vec3::new(0.0, 0.0, -0.45)),
+                ThrusterExhaustConfig {
+                    geometry: ThrusterExhaustShape::Cone,
+                    width: 0.8,
+                    height: 0.8,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.15,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.05,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: LinearRgba::new(10.0, 5.0, 0.0, 1.0),
+                    emissive_inner_color: LinearRgba::new(10.0, 0.0, 0.0, 1.0),
+                },
+            ));
+        });
+    });
+
+    if let Some(spawner) = spawner {
+        projectile.insert(TorpedoSectionSpawnerEntity(spawner));
+    }
+    if let Some(allegiance) = allegiance {
+        projectile.insert(allegiance);
+    }
+    if let Some(cold) = cold {
+        projectile.insert(cold);
+    }
+    // The caller overwrites this with the entity-keyed phase once the
+    // entity is known (fire only - see `shoot_spawn_projectile`); a thaw's
+    // `weave` is already the saved value and is not re-derived.
+    projectile.insert(weave);
+
+    projectile.id()
+}
+
 pub(super) fn shoot_spawn_projectile(
     mut commands: Commands,
     q_spaceship: Query<
@@ -349,94 +582,30 @@ pub(super) fn shoot_spawn_projectile(
         // and PN guidance absorbs the sub-tick residual - so launch timing
         // stays tick-quantized on purpose (contrast the turret's exact
         // sub-tick lead, which a 100 rounds/s stream does need).
-        let projectile_transform = Transform {
-            translation: projectile_position,
-            rotation: projectile_rotation,
-            ..default()
-        };
 
-        let torpedo_type = &config.torpedo_type;
-        let mut projectile = commands.spawn((
-            // Named for the ORDNANCE, not for the mechanism: every reader that
-            // resolves an entity to a label (a log line, the event timeline, a
-            // probe snapshot's `owner` / `target`) then says WHICH torpedo it
-            // is looking at, with no extra plumbing. Nested with the type so
-            // the outer bundle stays inside bevy's tuple size limit.
-            (
-                Name::new(format!("{} Torpedo", torpedo_type.name)),
-                TorpedoType {
-                    name: torpedo_type.name.clone(),
-                    tint: torpedo_type.tint,
-                },
-            ),
-            TorpedoProjectileMarker,
-            ProjectileOwner(*spaceship),
-            projectile_transform,
-            RigidBody::Dynamic,
-            // Fast mover watched by the smoothed chase camera: interpolate
-            // between fixed ticks like turret bullets do, or it stair-steps.
-            // The easing seed makes the FIRST rendered frame sit at the
-            // rendered bay too: a body spawned mid-tick misses FixedFirst,
-            // so without a seeded `start` the spawn frame would show the
-            // raw pose while the world renders eased - one frame of
-            // launch pop (same mechanism and fix as turret bullets).
-            (
-                TransformInterpolation,
-                TranslationEasingState {
-                    start: Some(projectile_position),
-                    end: None,
-                },
-                RotationEasingState {
-                    start: Some(projectile_rotation),
-                    end: None,
-                },
-            ),
-            LinearVelocity(linear_velocity),
-            TorpedoSectionPartOf(section),
-            // Nested tuple: keeps the outer bundle under bevy's tuple size
-            // limit. The detonation voice rides the projectile: its
-            // destruction (the blast) fires the destroy observer, which reads
-            // this snapshot.
-            (
-                TorpedoSectionSpawnerEntity(**spawner),
-                DestroySound(config.detonation_sound.clone()),
-            ),
-            TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
-            // No `TorpedoTargetPosition` yet: it is inserted only once a target is
-            // locked (see `update_target_position`). Until then the torpedo has no
-            // target and flies straight ahead rather than steering at the origin.
-            (
-                // What the warhead returns to a scanner: a small object, but
-                // one with a drive lit and a seeker running, so it answers far
-                // louder than its size and a faster type answers louder still.
-                // Point defense depends on it - a torpedo nobody can lock is a
-                // torpedo nobody can shoot down. Nested with the guidance it
-                // is computed from, and to keep the outer bundle inside
-                // bevy's tuple size limit.
-                LockSignature(torpedo_lock_signature(config.torpedo_type.max_speed)),
-                TorpedoGuidance {
-                    nav_constant: config.nav_constant,
-                    max_speed: config.torpedo_type.max_speed.to_engine(),
-                },
-                // The LAUNCH direction, which `projectile_rotation` above now
-                // agrees with: the torpedo is born pointing this way and is
-                // asked to hold it. Seeding this from the spawner's own frame
-                // instead asked for a nose 90 degrees off the way the torpedo
-                // was travelling, and the coast gave the controller the whole
-                // window to act on it - the drive then lit across the run-in
-                // and threw the flight 13 world units - 130 m - off the line.
-                TorpedoSteering(spawner_direction),
-                LinearDamping(config.linear_damping),
-                TorpedoBlast {
-                    radius: config.blast_radius.to_engine(),
-                    damage: config.blast_damage,
-                },
-            ),
-            (
-                TorpedoArming::new(
+        // The weave is phased off the torpedo's own entity index so the
+        // torpedoes of one salvo are each somewhere different on their helix
+        // - which `spawn_torpedo` cannot derive itself, since it is the call
+        // that decides the entity. Seed it at phase zero and correct it below
+        // once the id is known; a thaw's `weave` is the saved value and is
+        // never recomputed this way.
+        let forward = projectile_rotation * Vec3::NEG_Z;
+        let torpedo = spawn_torpedo(
+            &mut commands,
+            TorpedoLaunch {
+                config: &config.0,
+                owner: *spaceship,
+                section: Some(section),
+                spawner: Some(**spawner),
+                translation: projectile_position,
+                rotation: projectile_rotation,
+                linear: linear_velocity,
+                angular: **ang_vel,
+                allegiance: allegiance.copied(),
+                arming: TorpedoArming::new(
                     config.arm_time,
                     config.arm_distance.to_engine(),
-                    projectile_transform.translation,
+                    projectile_position,
                     // SNAPSHOT, taken once here: the hull as it stands at
                     // launch plus the warhead's own blast. A ship shedding
                     // sections mid-flight shrinks its live `HullRadius`, and
@@ -448,115 +617,38 @@ pub(super) fn shoot_spawn_projectile(
                 // ejection charge alone and `ignite_cold_torpedoes` lights it;
                 // a bay authoring `ignition_delay` zero ignites on the next
                 // tick rather than taking a different path out of the tube.
-                TorpedoColdLaunch {
+                cold: Some(TorpedoColdLaunch {
                     remaining: config.ignition_delay,
-                },
+                }),
+                // The LAUNCH direction, which `projectile_rotation` above now
+                // agrees with: the torpedo is born pointing this way and is
+                // asked to hold it. Seeding this from the spawner's own frame
+                // instead asked for a nose 90 degrees off the way the torpedo
+                // was travelling, and the coast gave the controller the whole
+                // window to act on it - the drive then lit across the run-in
+                // and threw the flight 13 world units - 130 m - off the line.
+                steering: spawner_direction,
+                weave: TorpedoWeave::new(
+                    config.torpedo_type.weave_angle,
+                    config.torpedo_type.weave_rate,
+                    forward,
+                    0.0,
+                ),
+            },
+        );
+        // No `TorpedoTargetPosition` yet: it is inserted only once a target is
+        // locked (see `update_target_position`). Until then the torpedo has no
+        // target and flies straight ahead rather than steering at the origin.
+        commands.entity(torpedo).insert((
+            TorpedoWeave::new(
+                config.torpedo_type.weave_angle,
+                config.torpedo_type.weave_rate,
+                forward,
+                TorpedoWeave::phase_for(torpedo),
             ),
             TempEntity(config.projectile_lifetime),
-            Visibility::Visible,
-            children![
-                (
-                    TorpedoControllerMarker,
-                    // The torpedo's colliders live on these child sections, so the
-                    // owner collision filter (ProjectileHooks) opts in here, not on
-                    // the collider-less root.
-                    ActiveCollisionHooks::FILTER_PAIRS,
-                    // Inert until the drive lights - see `TorpedoColdLaunch`.
-                    // `ColliderDisabled` applies only to the entity carrying
-                    // it, so it goes HERE and not on the collider-less root.
-                    ColliderDisabled,
-                    base_section(BaseSectionConfig {
-                        id: "torpedo_controller".to_string(),
-                        name: "Torpedo Controller".to_string(),
-                        description: "The controller for the torpedo warhead".to_string(),
-                        health: config.projectile_health,
-                        ..default()
-                    }),
-                    Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)).with_rotation(
-                        Quat::from_euler(EulerRot::XYZ, std::f32::consts::FRAC_PI_2, 0.0, 0.0)
-                    ),
-                    ControllerSectionRenderMarker,
-                    controller_section(ControllerSectionConfig {
-                        steering_lag: 0.5,
-                        // A torpedo is a hull like any other under the attitude
-                        // model, and this leaves it structure-bound like every
-                        // other: two 1 u sections put its arm at 1.0 u, whose
-                        // structural ceiling needs about 6.5 of torque, so 50
-                        // is comfortably past it and the warhead turns at what
-                        // its airframe takes rather than at what its computer
-                        // can push.
-                        max_torque: 50.0,
-                        render_mesh: None,
-                        // A torpedo's guidance computer has no radar/safety
-                        // voice; the player-controller cue lookup never matches
-                        // it anyway (its parent is the projectile, not a ship).
-                        ..default()
-                    }),
-                ),
-                (
-                    TorpedoThrusterMarker,
-                    ActiveCollisionHooks::FILTER_PAIRS,
-                    ColliderDisabled,
-                    base_section(BaseSectionConfig {
-                        id: "torpedo_thruster".to_string(),
-                        name: "Torpedo Thruster".to_string(),
-                        description: "The thruster for the torpedo".to_string(),
-                        health: config.projectile_health,
-                        ..default()
-                    }),
-                    Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                    ThrusterSectionRenderMarker,
-                    thruster_section(ThrusterSectionConfig {
-                        magnitude: 1.0,
-                        render_mesh: None,
-                        render_mesh_transform: None,
-                        // The torpedo's engine keeps the base hum (DIRECT path:
-                        // this bundle is built at runtime outside the merge).
-                        // Lifting it to a TorpedoSectionConfig field is a
-                        // future authoring step if a mod wants a custom whine.
-                        loop_sound: Some(AssetRef::from("base/sounds/thruster_loop.wav")),
-                        exhaust: None,
-                    }),
-                    children![(
-                        Name::new("Thruster Exhaust"),
-                        Transform::from_rotation(Quat::from_rotation_x(
-                            std::f32::consts::FRAC_PI_2
-                        ))
-                        .with_translation(Vec3::new(0.0, 0.0, -0.45)),
-                        ThrusterExhaustConfig {
-                            geometry: ThrusterExhaustShape::Cone,
-                            width: 0.8,
-                            height: 0.8,
-                            exhaust_height: 0.1,
-                            exhaust_radius: 0.15,
-                            exhaust_max: 1.0,
-                            exhaust_inner_height: 0.05,
-                            exhaust_inner_radius: 0.05,
-                            exhaust_inner_max: 0.5,
-                            emissive_color: LinearRgba::new(10.0, 5.0, 0.0, 1.0),
-                            emissive_inner_color: LinearRgba::new(10.0, 0.0, 0.0, 1.0),
-                        },
-                    )],
-                )
-            ],
         ));
-        // The torpedo COPIES the shooter's allegiance instead of resolving
-        // through ProjectileOwner at read time: it stays attributable even if
-        // the owner dies mid-flight, and consumers stay single-query.
-        if let Some(&allegiance) = allegiance {
-            projectile.insert(allegiance);
-        }
-
-        // The weave rides on the projectile, phased off its own entity index so
-        // the torpedoes of one salvo are each somewhere different on their
-        // helix. Inserted after the spawn because the phase needs the id.
-        let torpedo = projectile.id();
-        projectile.insert(TorpedoWeave::new(
-            config.torpedo_type.weave_angle,
-            config.torpedo_type.weave_rate,
-            projectile_transform.forward().into(),
-            TorpedoWeave::phase_for(torpedo),
-        ));
+        commands.trigger(TorpedoLaunched { torpedo });
 
         // Start the next launch wait.
         fire_state.trigger();
@@ -580,6 +672,17 @@ pub(super) fn shoot_spawn_projectile(
             commands.entity(section).insert(TorpedoSectionInput(false));
         }
     }
+}
+
+/// A torpedo left the tube. The seam the render and audio halves hang the
+/// launch effect and the report on, so the fire path itself stays headless. A
+/// thawed torpedo triggers neither: the cue belongs to the launch, not to the
+/// entity existing.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct TorpedoLaunched {
+    /// The torpedo that was launched.
+    #[event_target]
+    pub torpedo: Entity,
 }
 
 /// Seconds the muzzle door stays open past ignition, so the closing petals

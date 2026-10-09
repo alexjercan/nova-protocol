@@ -14,11 +14,15 @@ use bevy::{log::info_span, math::Quat};
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{Allegiance, Fnv32, SeedStream, ShipInventoryStock};
 use nova_scenario::prelude::{
-    is_asteroid_kind, prepare_asteroid_geometry, prepare_planet, AsteroidKindId, PlanetConfig,
-    PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign, ASTEROID_GEOMETRIC_FACTOR_MAX,
+    is_asteroid_kind, prepare_asteroid_geometry, prepare_frozen_asteroid, prepare_planet,
+    AsteroidKindId, PlanetConfig, PreparedAsteroid, PreparedPlanet, SectionSource, ShipDesign,
+    ASTEROID_GEOMETRIC_FACTOR_MAX,
 };
 
-use crate::{SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator, WorldConfig};
+use crate::{
+    frozen::FrozenSector, SectorCoord, SectorFault, SectorGenerationInput, SectorGenerator,
+    WorldConfig,
+};
 
 /// One generated rock, in world meters.
 #[derive(Clone, Debug, PartialEq)]
@@ -51,6 +55,7 @@ pub struct SectorPlanet {
 
 /// Whether a generated ship still works or is a derelict.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SectorShipConditionType {
     /// Powered and unpiloted: every system works, and nothing flies it.
     Intact,
@@ -85,6 +90,8 @@ const NAME_SYLLABLES: [&str; 24] = [
 /// Never a hash and never a name. Two nodes whose draw streams collide still
 /// have distinct identities, and two civilizations may share a display name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CivilizationId {
     /// The world seed the civilization was drawn from.
     pub world_seed: u32,
@@ -158,6 +165,7 @@ impl fmt::Display for CivilizationId {
 
 /// The four closed ship roles a civilization fields.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ShipRoleType {
     /// Unarmed traffic.
     Civilian,
@@ -191,6 +199,8 @@ impl ShipRoleType {
 
 /// Who flies an intact generated ship, and where.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SectorShipCrew {
     /// The side it fights for: its civilization's side.
     pub allegiance: Allegiance,
@@ -205,6 +215,8 @@ pub struct SectorShipCrew {
 
 /// One generated ship: a hull, its civilization, and its crew if it works.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SectorShip {
     /// The ship's scenario id, prefixed with its owning cell's slug.
     pub id: String,
@@ -842,21 +854,22 @@ pub fn prepare_sector<G: SectorGenerator>(
     config: WorldConfig<G>,
     coord: SectorCoord,
 ) -> Result<PreparedSector, SectorFault> {
-    prepare_cell(config, coord, false, &[])
+    prepare_cell(config, coord, None)
 }
 
 /// [`prepare_sector`] for a cell that may hold a frozen record.
 ///
-/// A `visited` cell's record replaces its generated bodies, so its
+/// A visited cell's record replaces its generated bodies, so its
 /// description's rocks are not meshed; the description is still drawn,
-/// because its planetoids never freeze. `frozen_rocks` is the seed and radius
-/// of each frozen rock, whose pristine geometry its thaw starts from.
+/// because its planetoids never freeze. Each rock the record froze is
+/// prepared from its record: its pristine geometry, and for a carved one the
+/// surface its field meshes to.
 pub(crate) fn prepare_cell<G: SectorGenerator>(
     config: WorldConfig<G>,
     coord: SectorCoord,
-    visited: bool,
-    frozen_rocks: &[(u32, Meters)],
+    record: Option<&FrozenSector>,
 ) -> Result<PreparedSector, SectorFault> {
+    let visited = record.is_some_and(FrozenSector::is_visited);
     let _job = info_span!("nova_world::prepare_sector", cell = %coord).entered();
     let description = generate_sector(&config, coord)?;
     let asteroids = if visited {
@@ -878,9 +891,10 @@ pub(crate) fn prepare_cell<G: SectorGenerator>(
             .collect()
     });
     let thawed = info_span!("nova_world::prepare_frozen_asteroids").in_scope(|| {
-        frozen_rocks
-            .iter()
-            .map(|(seed, radius)| prepare_asteroid_geometry(*seed, *radius))
+        record
+            .into_iter()
+            .flat_map(FrozenSector::rocks)
+            .map(prepare_frozen_asteroid)
             .collect()
     });
     Ok(PreparedSector {

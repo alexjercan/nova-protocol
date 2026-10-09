@@ -568,6 +568,13 @@ path = "examples/systems/system_world_sectors.rs"
 name = "system_open_world"
 path = "examples/systems/system_open_world.rs"
 
+# A real resumable New Game world, across a fresh process: create, carve, cross
+# a sector, leave, then reopen in a second process and check the saved state.
+[[example]]
+name = "system_world_resume"
+path = "examples/systems/system_world_resume.rs"
+required-features = ["debug"]
+
 # What a generated ship tells the player: on a pinned seed, one intact ship and
 # one derelict read in the HUD target inset and the Map pane, with no ship name
 # on any map blip.

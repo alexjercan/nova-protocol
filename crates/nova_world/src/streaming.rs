@@ -10,14 +10,17 @@
 //! takes it, but never scenario-ADDRESSABLE, because its id came from a
 //! coordinate and no author wrote it.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use bevy::{
     ecs::change_detection::{CheckChangeTicks, Tick},
     prelude::*,
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
-use nova_assets::prelude::GameAssets;
+use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{
     Allegiance, AssetRef, DerelictShipMarker, IntegrityEnvelope, LootableShipMarker, TempEntity,
@@ -34,8 +37,8 @@ use nova_ship::prelude::GameSections;
 use crate::{
     bodies_clear,
     frozen::{
-        freeze_body, hold_unsettled, thaw_record, FrozenBody, FrozenSector, FrozenSectors,
-        PersistentBody, SettlingBodies,
+        freeze_body, hold_unsettled, thaw_record, DockPolicy, FrozenBody, FrozenSector,
+        FrozenSectors, PersistentBody, SettlingBodies,
     },
     generation::prepare_cell,
     PreparedSector, SectorCoord, SectorFault, SectorGenerator, SectorShip, SectorShipConditionType,
@@ -544,8 +547,8 @@ impl SectorJob {
     /// Start one cell's preparation on `AsyncComputeTaskPool`.
     ///
     /// `record` is the cell's frozen record, if it holds one: a visited cell's
-    /// description rocks are not meshed, and every frozen rock's pristine
-    /// geometry is. A record changes only while its cell is off-window, and
+    /// description rocks are not meshed, and every frozen rock's geometry is
+    /// prepared from its record. A record changes only while its cell is off-window, and
     /// [`retire_sectors`] cancels every job for an off-window cell, so the
     /// record a job was started from is the one its materialization takes.
     ///
@@ -558,12 +561,10 @@ impl SectorJob {
     pub fn start<G: SectorGenerator>(
         config: WorldConfig<G>,
         coord: SectorCoord,
-        record: Option<&FrozenSector>,
+        record: Option<Arc<FrozenSector>>,
     ) -> Self {
-        let visited = record.is_some_and(FrozenSector::is_visited);
-        let rocks = record.map(FrozenSector::rocks).unwrap_or_default();
         let task = AsyncComputeTaskPool::get()
-            .spawn(async move { prepare_cell(config, coord, visited, &rocks) });
+            .spawn(async move { prepare_cell(config, coord, record.as_deref()) });
         Self { coord, task }
     }
 }
@@ -725,7 +726,7 @@ pub fn request_sectors<G: SectorGenerator>(
         trace!("nova_world: requesting {coord}");
         commands.spawn((
             Name::new(format!("Sector Job {coord}")),
-            SectorJob::start(config.clone(), coord, frozen.get(coord)),
+            SectorJob::start(config.clone(), coord, frozen.shared(coord)),
         ));
         stats.requested += 1;
     }
@@ -819,7 +820,6 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
     mut ready: ResMut<ReadySectors>,
     mut frozen: ResMut<FrozenSectors>,
     mut stats: ResMut<SectorJobStats>,
-    game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     observer: Query<(&GlobalTransform, Option<&IntegrityEnvelope>), With<WorldObserver>>,
 ) {
@@ -842,7 +842,7 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
     };
 
     let coord = prepared.description().coord;
-    let texture: AssetRef<Image> = game_assets.asteroid_texture.clone().into();
+    let texture = AssetRef::<Image>::Path(ASTEROID_TEXTURE_PATH.to_string());
     let Ok((transform, envelope)) = observer.single() else {
         panic!("nova_world: {}", SectorFault::AbsentObserver);
     };
@@ -951,7 +951,7 @@ pub fn retire_sectors<G: SectorGenerator>(world: &mut World) {
         if desired.contains(&coord) && !retiring {
             continue;
         }
-        let (frozen, unsettled) = freeze_sector_bodies(world, coord, root);
+        let (frozen, unsettled) = freeze_sector_bodies(world, coord, root, DockPolicy::Refuse);
         trace!(
             "nova_world: retiring {coord}, freezing {} body(ies)",
             frozen.len()
@@ -1007,13 +1007,15 @@ pub fn retire_sectors<G: SectorGenerator>(world: &mut World) {
     }
 }
 
-/// Freeze every settled persistent body a retiring root holds, in child
-/// order. Returns the frozen bodies with their entities, and each body its
-/// owner reports unsettled.
-fn freeze_sector_bodies(
+/// Freeze every settled persistent body a root holds, in child order.
+/// Returns the frozen bodies with their entities, and each body its owner
+/// reports unsettled. A retiring root refuses a docked ship; a save keeps one
+/// undocked.
+pub(crate) fn freeze_sector_bodies(
     world: &World,
     coord: SectorCoord,
     root: Entity,
+    docked: DockPolicy,
 ) -> (Vec<(Entity, FrozenBody)>, Vec<(Entity, UnsettledBody)>) {
     let mut frozen = Vec::new();
     let mut unsettled = Vec::new();
@@ -1027,7 +1029,7 @@ fn freeze_sector_bodies(
         if entity.contains::<PlanetMarker>() || entity.contains::<TempEntity>() {
             continue;
         }
-        match freeze_body(world, child) {
+        match freeze_body(world, child, docked) {
             Ok(body) => {
                 trace!("nova_world: freezing {child} with {coord}");
                 frozen.push((child, body));

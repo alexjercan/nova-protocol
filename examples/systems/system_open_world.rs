@@ -50,6 +50,22 @@ struct Cli;
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
 
+    // This run's own settings and saved worlds, set before the app reads
+    // them: Create makes a world, and neither a player's worlds nor an
+    // earlier run's "Probe World" may be in its way.
+    std::env::set_var(
+        nova_assets::storage::CONFIG_ROOT_ENV,
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/example-profiles/{}-{}-{}",
+            env!("CARGO_CRATE_NAME"),
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("the clock is after 1970")
+                .as_nanos(),
+        )),
+    );
+
     let mut app = editor_app(true, None);
 
     #[cfg(feature = "debug")]
@@ -72,7 +88,11 @@ fn main() -> bevy::app::AppExit {
 /// The main menu's way in.
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";
-/// The world setup modal's seed field and its start button.
+/// The world setup modal's name field, its seed field and its start button.
+#[cfg(feature = "debug")]
+const WORLD_NAME_FIELD: &str = "World Name Field";
+#[cfg(feature = "debug")]
+const WORLD_NAME: &str = "Probe World";
 #[cfg(feature = "debug")]
 const SEED_FIELD: &str = "World Seed Field";
 #[cfg(feature = "debug")]
@@ -329,6 +349,17 @@ fn open_world_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
                 serde_json::json!({ "seed": seed }),
             );
         })
+        .add()
+        .step("open_world: name the world")
+        .on_enter(|world: &mut World| {
+            let mut fields = world.query::<(&Name, &mut TextFieldValue)>();
+            let (_, mut value) = fields
+                .iter_mut(world)
+                .find(|(name, _)| name.as_str() == WORLD_NAME_FIELD)
+                .expect("open_world: the modal has a name field");
+            value.0 = WORLD_NAME.to_string();
+        })
+        .until(frames(2))
         .add()
         .click_named(
             "open_world: click Create",

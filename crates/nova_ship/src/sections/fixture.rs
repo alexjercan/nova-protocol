@@ -26,6 +26,8 @@ use nova_gameplay::prelude::{
 };
 use rand::RngExt;
 
+use super::skin_style::ShipStyle;
+
 /// The fixture marker and the marker a shed one carries.
 pub mod prelude {
     pub use super::{SectionFixture, ShedFixtureMarker};
@@ -189,6 +191,29 @@ pub struct SectionFixture;
 #[reflect(Component)]
 pub struct ShedFixtureMarker(pub Entity);
 
+/// The [`ShipStyle`] the nearest ancestor of `start` wears, or `ShipStyle(None)`
+/// when none of its ancestors carries one - the same walk [`shell_skin::dress_skin_plate`](super::shell_skin::dress_skin_plate)
+/// makes through its private `worn_style`, reimplemented here because shedding
+/// is the one caller that must run it BEFORE dropping the only path to that
+/// ancestor (`ChildOf`): once a fixture is shed it has no parent left, and a
+/// later save freezing the drifting debris would have nothing to walk.
+fn ancestor_ship_style(
+    start: Entity,
+    q_parents: &Query<&ChildOf>,
+    q_style: &Query<&ShipStyle>,
+) -> ShipStyle {
+    let mut current = start;
+    loop {
+        if let Ok(style) = q_style.get(current) {
+            return style.clone();
+        }
+        let Ok(ChildOf(parent)) = q_parents.get(current) else {
+            return ShipStyle(None);
+        };
+        current = *parent;
+    }
+}
+
 /// Take a spent fixture off the ship and let it tumble away.
 ///
 /// The same finale a destroyed section gets from
@@ -267,6 +292,7 @@ pub(crate) fn shed_dead_fixtures(
     q_parents: Query<&ChildOf>,
     q_children: Query<&Children>,
     q_motion: Query<(&GlobalTransform, &LinearVelocity, Option<&AngularVelocity>)>,
+    q_style: Query<&ShipStyle>,
     // `Option<Single>`, like the turret's spread: a plain `Single` that matches
     // nothing - no global RNG, or two of them - skips the whole system, and a
     // dead plate that is never shed keeps its collider bolted to the hull
@@ -313,6 +339,10 @@ pub(crate) fn shed_dead_fixtures(
         let toss = random_unit_vector(&mut *rng);
         let away =
             Dir3::new(transform.translation - centre).unwrap_or(Dir3::new(toss).unwrap_or(Dir3::Y));
+        // Stamped now, while `fixture` still has the `ChildOf` chain up to the
+        // ship it is leaving: a save freezing it later, once it is drifting
+        // debris with no parent, has no ancestor left to read a style from.
+        let style = ancestor_ship_style(fixture, &q_parents, &q_style);
 
         // Every write here is a `try_`: the section this plate hangs off may
         // have died in the same frame, and `explode` despawns what it takes
@@ -336,6 +366,7 @@ pub(crate) fn shed_dead_fixtures(
                 LinearVelocity(drift + away * rng.random_range(SHED_KICK)),
                 AngularVelocity(random_unit_vector(&mut *rng) * rng.random_range(SHED_SPIN)),
                 TempEntity(SHED_LIFETIME_SECS),
+                style,
             ));
 
         // The greebles on a plate come with it, and their colliders do not -

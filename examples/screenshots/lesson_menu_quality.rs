@@ -36,6 +36,8 @@ use nova_protocol::prelude::*;
 #[path = "shared/ui_walk.rs"]
 mod ui_walk;
 #[cfg(feature = "debug")]
+use nova_ui::widget::TextFieldValue;
+#[cfg(feature = "debug")]
 use ui_walk::{hide_menu_version, Gestures};
 
 #[derive(Parser)]
@@ -53,6 +55,22 @@ const GRAPHICS_SHOT: &str = "advanced_graphics.png";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
+
+    // This run's own settings and saved worlds, set before the app reads
+    // them: Create makes a world, and neither a player's worlds nor an
+    // earlier run's "Probe World" may be in its way.
+    std::env::set_var(
+        nova_assets::storage::CONFIG_ROOT_ENV,
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/example-profiles/{}-{}-{}",
+            env!("CARGO_CRATE_NAME"),
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("the clock is after 1970")
+                .as_nanos(),
+        )),
+    );
 
     // The same app the game binary runs: the main menu over its live backdrop.
     let mut app = editor_app(true, None);
@@ -136,6 +154,17 @@ fn menu_quality_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         // `reached_playing` is there to catch.
         .click("close Settings", "Settings Back Button")
         .click("start a new game", "New Game Button")
+        .step("name the world")
+        .on_enter(|world: &mut World| {
+            let mut fields = world.query::<(&Name, &mut TextFieldValue)>();
+            let (_, mut value) = fields
+                .iter_mut(world)
+                .find(|(name, _)| name.as_str() == "World Name Field")
+                .expect("lesson menu quality: the modal has a name field");
+            value.0 = "Probe World".to_string();
+        })
+        .until(frames(SETTLE_FRAMES))
+        .add()
         .click("create the world", "Create World Button")
         .step("reach the first flight")
         .until(state_is(GameStates::Playing))

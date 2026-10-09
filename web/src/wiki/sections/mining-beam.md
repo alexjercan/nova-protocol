@@ -84,7 +84,7 @@ What a rock is made of decides the ore. Every ore weighs 10 kg, so one canister 
 | carbon | Carbon ore |
 | plain | none: the beam does not fire on it |
 
-The ore leaves the rock once the cut is drawn, packed into canisters of up to 200 kg. They are born one at a time, 10 m off the last cut and drifting away from it at 2 m/s on top of the rock's own motion, and the next waits until the space there is clear. A rock that is cut away entirely still lets its last canisters go. Fly your [cargo intake](../cargo-intake/#taking-a-canister-in) onto a canister to take it in. Canisters are not saved.
+The ore leaves the rock once the cut is drawn, packed into canisters of up to 200 kg. They are born one at a time, 10 m off the last cut and drifting away from it at 2 m/s on top of the rock's own motion, and the next waits until the space there is clear. A rock that is cut away entirely still lets its last canisters go. Fly your [cargo intake](../cargo-intake/#taking-a-canister-in) onto a canister to take it in. A saved Open World keeps a canister as you left it; any other scenario keeps it only for the session.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-section-mining-beam-carve.png (producer: screenshot_mining_beam) -->
