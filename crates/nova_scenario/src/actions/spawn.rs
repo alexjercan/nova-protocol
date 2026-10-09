@@ -307,13 +307,13 @@ fn spawn_scenario_spaceship(
             ..
         }) => {
             debug!("SpawnScenarioObject: '{id}' thaws its saved ship");
+            // The saved pose before the thaw: the body's `Rotation` and the
+            // helm seed read the root `Transform` when the ship is added, and
+            // the authored pose there swung the hull on Load. The motion
+            // after: the spawn bundle seeds zero velocity.
+            entity_commands.insert((transform, GlobalTransform::from(transform)));
             thaw_ship(&mut entity_commands, ship);
-            entity_commands.insert((
-                transform,
-                GlobalTransform::from(transform),
-                LinearVelocity(linear),
-                AngularVelocity(angular),
-            ));
+            entity_commands.insert((LinearVelocity(linear), AngularVelocity(angular)));
         }
         None => {
             entity_commands.insert(spaceship_scenario_object(config.clone()));
@@ -873,8 +873,9 @@ mod tests {
     fn a_resumed_player_spawn_thaws_the_saved_ship() {
         use nova_gameplay::test_support::settle;
         use nova_ship::prelude::{
-            BaseSectionConfig, GameSections, HullSectionConfig, NovaFlightPlugin,
-            PDControllerPlugin, SectionConfig, SectionKind, SpaceshipSectionPlugin,
+            BaseSectionConfig, ControllerSectionConfig, ControllerSectionRotationInput,
+            GameSections, HullSectionConfig, NovaFlightPlugin, PDControllerPlugin, SectionConfig,
+            SectionKind, SpaceshipSectionPlugin,
         };
 
         fn app() -> App {
@@ -885,13 +886,22 @@ mod tests {
                 crate::objects::spaceship::SpaceshipPlugin,
                 NovaFlightPlugin,
             ));
-            app.insert_resource(GameSections(vec![SectionConfig {
-                base: BaseSectionConfig {
-                    id: "test_hull".to_string(),
-                    ..default()
+            app.insert_resource(GameSections(vec![
+                SectionConfig {
+                    base: BaseSectionConfig {
+                        id: "test_hull".to_string(),
+                        ..default()
+                    },
+                    kind: SectionKind::Hull(HullSectionConfig::default()),
                 },
-                kind: SectionKind::Hull(HullSectionConfig::default()),
-            }]));
+                SectionConfig {
+                    base: BaseSectionConfig {
+                        id: "test_controller".to_string(),
+                        ..default()
+                    },
+                    kind: SectionKind::Controller(ControllerSectionConfig::default()),
+                },
+            ]));
             app.init_resource::<NovaEventWorld>();
             app.init_resource::<GameObjectives>();
             app.init_resource::<CargoCanisterIdAllocator>();
@@ -899,11 +909,11 @@ mod tests {
             app
         }
         fn spawn_player(app: &mut App) -> Entity {
-            let section = |id: &str, at: Vec3| SpaceshipSectionConfig {
+            let section = |id: &str, prototype: &str, at: Vec3| SpaceshipSectionConfig {
                 id: id.into(),
                 position: at,
                 rotation: Quat::IDENTITY,
-                source: SectionSource::prototype("test_hull"),
+                source: SectionSource::prototype(prototype),
             };
             let config = ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
@@ -914,7 +924,11 @@ mod tests {
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
                     design: ShipDesignSource::Inline(ShipDesign {
-                        sections: vec![section("fore", Vec3::ZERO), section("aft", Vec3::Z)],
+                        sections: vec![
+                            section("fore", "test_hull", Vec3::ZERO),
+                            section("aft", "test_hull", Vec3::Z),
+                            section("helm", "test_controller", Vec3::NEG_Z),
+                        ],
                         ..default()
                     }),
                     controller: SpaceshipController::Player(PlayerControllerConfig::default()),
@@ -972,7 +986,7 @@ mod tests {
         let world = played.world_mut();
         let hold = world.get::<ShipInventory>(ship).cloned().unwrap();
         let saved_sections = sections(world, ship);
-        assert_eq!(saved_sections.len(), 1, "the aft section is destroyed");
+        assert_eq!(saved_sections.len(), 2, "the aft section is destroyed");
         let frozen = freeze_ship(world, ship).expect("a settled ship freezes");
         let frozen: FrozenShip = ron::from_str(&ron::to_string(&frozen).unwrap()).unwrap();
 
@@ -993,6 +1007,21 @@ mod tests {
             "the spawn takes the record"
         );
         assert_eq!(world.get::<Transform>(ship), Some(&pose));
+        // The body and the helm start at the saved attitude, not the authored
+        // one: a seed from the authored pose swung the hull on Load.
+        let helm = world
+            .query::<(&ControllerSectionRotationInput, &ChildOf)>()
+            .iter(world)
+            .find(|(_, child_of)| child_of.parent() == ship)
+            .map(|(input, _)| input.0);
+        assert_eq!(helm, Some(pose.rotation));
+        // Avian reads the rotation back through the `GlobalTransform` affine.
+        let body = world.get::<Rotation>(ship).map(|r| r.0).unwrap();
+        assert!(
+            body.abs_diff_eq(pose.rotation, 1e-6),
+            "body {body:?} != saved {:?}",
+            pose.rotation
+        );
         assert_eq!(
             world.get::<LinearVelocity>(ship).map(|v| v.0),
             Some(motion.0)
