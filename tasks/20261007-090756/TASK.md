@@ -1,6 +1,6 @@
 # Deliver resumable New Game worlds with sector and player persistence
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.16.0,world,persistence
 

@@ -1,6 +1,6 @@
 # Decide what survives leaving and restarting the open world
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.16.0, world, design
 
