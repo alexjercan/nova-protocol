@@ -1042,14 +1042,14 @@ fn a_resumed_shot_still_belongs_to_its_shooter() {
         } else {
             world.spawn((EntityId("bay".to_string()), ChildOf(player)));
             world.spawn((EntityId("bay".to_string()), ChildOf(player)));
-            FrozenTransientType::Torpedo(torpedo(
+            FrozenTransientType::Torpedo(Box::new(torpedo(
                 SavedOwner::Ship(player_id()),
                 Some(SavedSectionRef {
                     ship: player_id(),
                     section: EntityId("bay".to_string()),
                 }),
                 SavedTorpedoTarget::DumbFire,
-            ))
+            )))
         };
         world
             .resource_mut::<ResumedTransients>()
@@ -1503,11 +1503,11 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
             total: 4.0,
             remaining: 3.0,
         },
-        body: FrozenTransientType::Torpedo(torpedo(
+        body: FrozenTransientType::Torpedo(Box::new(torpedo(
             SavedOwner::Ship(EntityId("player".to_string())),
             section,
             target,
-        )),
+        ))),
     };
     let cases: [(FrozenSectors, Vec<FrozenTransient>, &str); 9] = [
         (

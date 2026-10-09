@@ -71,7 +71,7 @@ pub enum FrozenTransientType {
     /// A turret round or a railgun slug.
     Round(FrozenRound),
     /// A torpedo in flight.
-    Torpedo(FrozenTorpedo),
+    Torpedo(Box<FrozenTorpedo>),
     /// A plate or a piece of decor shed off a live hull.
     ShedFixture(FrozenShedFixture),
     /// A chunk carved off a rock.
@@ -262,9 +262,9 @@ pub(crate) fn freeze_transients(
             TransientKind::Blast => {
                 return Err(unsettled(label, "a blast is resolving"));
             }
-            TransientKind::Torpedo => {
-                freeze_torpedo(world, entity, &target).map(FrozenTransientType::Torpedo)
-            }
+            TransientKind::Torpedo => freeze_torpedo(world, entity, target)
+                .map(Box::new)
+                .map(FrozenTransientType::Torpedo),
             TransientKind::ShedFixture => {
                 freeze_shed_fixture(world, entity).map(FrozenTransientType::ShedFixture)
             }
@@ -735,11 +735,10 @@ fn spawn_resumed(world: &mut World, refs: Vec<ResolvedRefs>) {
         spawned.push(entity);
     }
     for ((transient, refs), &torpedo) in transients.iter().zip(&refs).zip(&spawned) {
-        let FrozenTransientType::Torpedo(FrozenTorpedo {
-            target: SavedTorpedoTarget::Tracking { target, .. },
-            ..
-        }) = &transient.body
-        else {
+        let FrozenTransientType::Torpedo(record) = &transient.body else {
+            continue;
+        };
+        let SavedTorpedoTarget::Tracking { target, .. } = &record.target else {
             continue;
         };
         let target = match target {

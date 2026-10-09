@@ -438,17 +438,18 @@ fn check_saved_ids(state: &WorldSaveState) -> Result<(), SavedIdFault> {
                     return dangling(index, format!("its target canister {} is not saved", id.0));
                 }
             }
-            Some(&SavedTargetRef::Transient(other)) => {
-                if other == index || other >= state.transients.len() {
-                    return dangling(
-                        index,
-                        format!(
-                            "its target transient {other} is not another of the {} saved",
-                            state.transients.len()
-                        ),
-                    );
-                }
+            Some(&SavedTargetRef::Transient(other))
+                if other == index || other >= state.transients.len() =>
+            {
+                return dangling(
+                    index,
+                    format!(
+                        "its target transient {other} is not another of the {} saved",
+                        state.transients.len()
+                    ),
+                );
             }
+            Some(SavedTargetRef::Transient(_)) => {}
         }
     }
     Ok(())
