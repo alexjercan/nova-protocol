@@ -11474,13 +11474,13 @@ function initCollapseBudget(host: HTMLElement): void {
 // cargo_intake.rs: INTAKE_CELLS 3 x 2 x 1 (:23), detection_range 40 m (:111),
 // capture_gap 1 m (:112), aperture 22.2 x 15.3 m (:117-118), eject_speed
 // 3 m/s (:119). The runtime is crates/nova_ship/src/sections/
-// cargo_intake_section.rs: CARGO_CANISTER_SIZE 0.94 x 0.58 x 0.58 units (:72);
+// cargo_intake_section.rs: CARGO_CANISTER_SIZE 0.94 x 0.58 x 0.58 units (:73);
 // the door opens for a canister whose centre is in front of the face and
-// within detection_range of the face centre (:453-459); the take is a contact
-// with nonnegative penetration into the trigger box, whatever the door does,
-// with room in the hold (:486-495); a drop is born half a canister deep +
-// capture_gap + CARGO_CANISTER_CLEARANCE 0.05 units (:81) off the face
-// (:499-503).
+// within detection_range of the face centre, with room in the hold
+// (:555-562); the take is a contact with nonnegative penetration into the
+// trigger box, whatever the door does, with room in the hold (:578-584); a
+// drop is born half a canister deep + capture_gap + CARGO_CANISTER_CLEARANCE
+// 0.05 units (:82) off the face (:602-606).
 const INTAKE_HEIGHT_M = 20;
 const INTAKE_DEPTH_M = 10;
 const INTAKE_APERTURE_WIDTH_M = 22.2;
@@ -11494,7 +11494,7 @@ const INTAKE_BIRTH_M = CANISTER_SIDE_M / 2 + INTAKE_CAPTURE_GAP_M + 0.5;
 
 /** What one intake does with one canister in the widget's side view. */
 export interface IntakeTake {
-    /** The canister's centre is in front of the face, within 40 m of it. */
+    /** The canister's centre is in front of the face, within 40 m of it, and the hold has room. */
     doorOpens: boolean;
     /** The canister's outline meets the 1 m slab in front of the opening. */
     touchesSlab: boolean;
@@ -11535,7 +11535,7 @@ export function cargoIntakeTake(
         overlapsOn(long, halfLong) &&
         overlapsOn(side, halfSide);
     return {
-        doorOpens: Math.hypot(out, upM) <= INTAKE_DETECTION_M,
+        doorOpens: holdHasRoom && Math.hypot(out, upM) <= INTAKE_DETECTION_M,
         touchesSlab,
         taken: touchesSlab && holdHasRoom,
     };
@@ -11775,6 +11775,13 @@ function initCargoIntakeTake(host: HTMLElement): void {
                       "touching the hull there is not taken."
                     : `Close the last ` +
                       `${meters(g - INTAKE_CAPTURE_GAP_M, 1)} to reach the slab.`);
+        } else if (!room && centreM <= INTAKE_DETECTION_M) {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                `DOOR SHUT: the hold is full. The centre is ` +
+                `${meters(centreM, 1)} from the face centre, inside ` +
+                `${INTAKE_DETECTION_M} m, but the door opens only for a ` +
+                "canister the hold has room for.";
         } else {
             readout.classList.add("is-warn");
             readout.textContent =

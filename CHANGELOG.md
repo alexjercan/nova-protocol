@@ -26,6 +26,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.
 
+### Ships & Sections
+
+- A cargo intake's door now stays shut for a canister the hold has no room
+  for. A canister that fits still opens it.
+
 ### Modding & Mod Portal
 
 - **(breaking)** A scenario object id or a ship section id may not contain

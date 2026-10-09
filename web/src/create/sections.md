@@ -313,7 +313,7 @@ Who raises each cue:
 | `StowDoors` | The turret's stow machine or a mining emitter's sequence, against the lift: it shuts the lids only once the gun or tip is fully in, and parts them before moving it out. | shut over the sunk gun or tip |
 | `Charge` | The railgun's charge system, from the committed trigger to the shot. It writes the charge fraction straight in, so `open_seconds` and `close_seconds` are unread on this cue: the travel is the authored `charge_seconds`, and the snap back to 0 is the shot leaving. | fully charged, the instant before firing |
 | `DockTube` | The docking port's sleeve, once the dock's fixed joint EXISTS - never before it, so the tube can never be what holds the two hulls together. It stows again the moment the dock is released. | the sleeve fully out, 0.5 cells past the port face |
-| `IntakeDoor` | The cargo intake, while a canister is in its detection volume or a jettison waits on it. It takes a canister in or drops one only at progress 1. | the door fully folded open |
+| `IntakeDoor` | The cargo intake, while a canister that fits the hold is in its detection volume or a jettison waits on it. It drops a canister only at progress 1. | the door fully folded open |
 
 Authoring a `StowLift` track is what MAKES a turret retractable - the stow
 machine is armed on turrets that have one and on no others. Such a turret
@@ -1070,10 +1070,11 @@ the pair and leaves the dock in place.
 ## Cargo intake
 
 `CargoIntakeSectionConfig` - a cargo intake: a hold mouth behind a door on the
-section's local `-Z` face. The door opens for a nearby canister, the intake
-takes one, at any speed, into the ship's [inventory](../objects/#inventory),
-and the Inventory pane's Jettison drops canisters out through it. One ships:
-`cargo_intake_section`, a 3x2x1 box on the line warship's top deck, door up.
+section's local `-Z` face. The door opens for a nearby canister that fits the
+hold, the intake takes one, at any speed, into the ship's
+[inventory](../objects/#inventory), and the Inventory pane's Jettison drops
+canisters out through it. One ships: `cargo_intake_section`, a 3x2x1 box on
+the line warship's top deck, door up.
 
 ```ron
 kind: CargoIntake((

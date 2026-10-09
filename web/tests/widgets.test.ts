@@ -1031,8 +1031,8 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.equal(small.shedFrames, 1);
 }
 
-// Intake: the door reads the centre, the take any part in the 1 m slab, and
-// a full hold refuses a touching canister.
+// Intake: the door reads the centre and the hold's room, the take any part in
+// the 1 m slab, and a full hold refuses a touching canister.
 {
     const endOn = cargoIntakeTake(0.5, 0, 90, true);
     assert.ok(endOn.doorOpens && endOn.touchesSlab && endOn.taken);
@@ -1040,6 +1040,7 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.ok(!cargoIntakeTake(1.01, 0, 90, true).touchesSlab);
     const full = cargoIntakeTake(0.5, 0, 90, false);
     assert.ok(full.touchesSlab && !full.taken, "a full hold takes nothing");
+    assert.ok(!full.doorOpens, "a full hold keeps the door shut");
     // Along the face, 4.7 m half length over a 7.65 m half opening.
     assert.ok(cargoIntakeTake(0, 12.3, 0, true).taken);
     assert.ok(

@@ -28,28 +28,28 @@ The intake does not reach out or pull. A canister goes in only when it touches t
 |---|---|
 | Size | **30 x 20 x 10 m**: three cells across, two high, one deep |
 | Opening | **22.2 x 15.3 m**, centred on the door face |
-| Door | opens for a canister within **40 m** in front of it, in **1.2 s** |
+| Door | opens for a canister within **40 m** in front of it that your hold has room for, in **1.2 s** |
 | Take | any part of a canister within **1 m** in front of the opening |
 | Drop | one canister at a time, at **3 m/s** away from your ship |
 | Sight | drawn for a canister within **200 m** of your ship |
 | Health | **90** |
 
-<!-- Widget values: crates/nova_authoring/src/base_content/sections/cargo_intake.rs:23 (INTAKE_CELLS 3 x 2 x 1), :111-112 (detection_range 40 m, capture_gap 1 m), :117-119 (aperture 22.2 x 15.3 m, eject_speed 3 m/s); crates/nova_ship/src/sections/cargo_intake_section.rs:72 (CARGO_CANISTER_SIZE 9.4 x 5.8 x 5.8 m), :453-459 (door detection by the canister centre from the face centre, front half only), :486-495 (take: contact penetration >= 0 and room in the hold), :499-503 (birth 2.9 + 1 + 0.5 = 4.4 m off the face). -->
+<!-- Widget values: crates/nova_authoring/src/base_content/sections/cargo_intake.rs:23 (INTAKE_CELLS 3 x 2 x 1), :111-112 (detection_range 40 m, capture_gap 1 m), :117-119 (aperture 22.2 x 15.3 m, eject_speed 3 m/s); crates/nova_ship/src/sections/cargo_intake_section.rs:73 (CARGO_CANISTER_SIZE 9.4 x 5.8 x 5.8 m), :555-562 (door detection by the canister centre from the face centre, front half only, room in the hold), :578-584 (take: contact penetration >= 0 and room in the hold), :602-606 (birth 2.9 + 1 + 0.5 = 4.4 m off the face). -->
 
 <div class="widget" data-widget="cargo-intake-take">
-<p>The intake's door face is 30 by 20 m, and the clear opening in it is 22.2 by 15.3 m, wider than a 9.4 by 5.8 by 5.8 m canister is long. The door opens for a canister whose centre is in front of the face and within 40 m of the face centre, so an end-on canister whose near end is inside 40 m can still leave the door shut. The intake takes the whole canister when part of it is in contact with the 1 m slab in front of the opening and the hold has room for it. A dropped canister is born 4.4 m off the face and leaves at 3 m/s.</p>
+<p>The intake's door face is 30 by 20 m, and the clear opening in it is 22.2 by 15.3 m, wider than a 9.4 by 5.8 by 5.8 m canister is long. The door opens for a canister whose centre is in front of the face and within 40 m of the face centre and fits the hold's free room, so an end-on canister whose near end is inside 40 m can still leave the door shut. The intake takes the whole canister when part of it is in contact with the 1 m slab in front of the opening and the hold has room for it. A dropped canister is born 4.4 m off the face and leaves at 3 m/s.</p>
 </div>
 
 ## Taking a canister in
 
-<!-- Behavior verified against crates/nova_ship/src/sections/cargo_intake_section.rs `run_cargo_intakes` (the trigger slab, whole-canister take, room check, a drop born outside the slab) and crates/nova_hud/src/pickup_sight.rs (sight target order). -->
+<!-- Behavior verified against crates/nova_ship/src/sections/cargo_intake_section.rs `run_cargo_intakes` (the door's room check, the trigger slab, whole-canister take, room check, a drop born outside the slab) and crates/nova_hud/src/pickup_sight.rs (sight target order). -->
 
 | Canister | What the intake does |
 | --- | --- |
-| In front of the door and within 40 m of it | Opens the door. |
+| In front of the door and within 40 m of it | Opens the door if your hold has room for it. |
 | Any part of it within 1 m in front of the 22.2 x 15.3 m opening | Takes the whole canister into your hold at once, at any speed and any angle, open door or not. |
 | Touching your ship anywhere else | Is not taken. |
-| Heavier than your hold has room for | Stays out, whole. |
+| Heavier than your hold has room for | Stays out, whole. Alone, it leaves the door shut. |
 | Just dropped | Leaves without being taken. It is taken back only if it turns and comes within 1 m of the opening again. |
 
 With a canister within 200 m of your ship, the **pickup sight** draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap. The sight stays cyan while closing. The take sound and the canister going through the door confirm a take; the sight goes with the canister. An unavailable intake, or no canister within 200 m, draws no sight.

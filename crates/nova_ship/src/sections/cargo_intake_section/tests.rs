@@ -461,7 +461,7 @@ fn a_canister_larger_than_the_free_room_is_refused_whole() {
     for _ in 0..120 {
         app.update();
     }
-    assert_eq!(door(&app, intake), 1.0, "the door opened for it");
+    assert_eq!(door(&app, intake), 0.0, "the door stays shut for it");
     assert!(app
         .world()
         .resource::<CargoPickupReadiness>()
@@ -486,6 +486,37 @@ fn a_canister_larger_than_the_free_room_is_refused_whole() {
     }
     assert_eq!(plates(&app, ship), 40);
     assert!(app.world().get_entity(canister).is_err());
+}
+
+#[test]
+fn the_door_opens_for_a_canister_that_fits_beside_one_that_does_not() {
+    let (mut app, ship, intake) = intake_app(38);
+    let oversized = drifting_canister(
+        &mut app,
+        4,
+        Vec3::new(-1.0, 0.0, -4.5),
+        Quat::IDENTITY,
+        Vec3::ZERO,
+    );
+    let fitting = drifting_canister(
+        &mut app,
+        1,
+        Vec3::new(1.0, 0.0, -4.5),
+        Quat::IDENTITY,
+        Vec3::ZERO,
+    );
+
+    for _ in 0..120 {
+        app.update();
+    }
+    assert_eq!(
+        door(&app, intake),
+        1.0,
+        "the door opened for the fitting one"
+    );
+    assert_eq!(plates(&app, ship), 38, "neither reached the trigger");
+    assert!(app.world().get_entity(oversized).is_ok());
+    assert!(app.world().get_entity(fitting).is_ok());
 }
 
 #[test]

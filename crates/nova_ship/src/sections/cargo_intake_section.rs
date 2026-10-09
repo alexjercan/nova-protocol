@@ -12,8 +12,8 @@
 //! trigger with it.
 //!
 //! - detection: the canister centre is in front of the face and within
-//!   `detection_range` of its centre. A canister here, or a waiting drop,
-//!   opens the door.
+//!   `detection_range` of its centre. A canister here that fits the hold's
+//!   free mass, or a waiting drop, opens the door.
 //! - take: an avian contact point has nonnegative penetration into the
 //!   trigger. Speculative separated contacts do not count. Speed, rotation
 //!   and the door play no part. The report is one physics step old, and a
@@ -108,8 +108,8 @@ pub struct CargoIntakeSectionConfig {
     /// Played as a canister is taken into the hold.
     #[reflect(ignore)]
     pub take_sound: AssetRef<AudioSource>,
-    /// How far from the face centre a canister in front of the face opens the
-    /// door.
+    /// How far from the face centre a canister in front of the face that fits
+    /// the hold opens the door.
     pub detection_range: Meters,
     /// The trigger's depth out from the face plane. Less than
     /// `detection_range`.
@@ -471,10 +471,10 @@ struct CanisterRead {
     taken: bool,
 }
 
-/// Run every live intake on a spaceship root: steer its door, take every
-/// canister overlapping its trigger that fits the hold, and drop the front of its
-/// ejection queue once the door is open and no canister is near the birth
-/// point.
+/// Run every live intake on a spaceship root: steer its door from the hold's
+/// free mass before this pass's takes, take every canister overlapping its
+/// trigger that fits the hold, and drop the front of its ejection queue once
+/// the door is open and no canister is near the birth point.
 ///
 /// A missing `IntakeDoor` track counts as an open door, as a doorless torpedo
 /// bay launches at once: content lint requires the track, so only a
@@ -555,7 +555,10 @@ fn run_cargo_intakes(
         let wanted = ejections.is_some()
             || canisters.iter().any(|read| {
                 let offset = read.position - face_centre;
-                !read.taken && offset.dot(normal) >= 0.0 && offset.length() <= detection_range
+                !read.taken
+                    && offset.dot(normal) >= 0.0
+                    && offset.length() <= detection_range
+                    && inventory.free_g() >= read.canister.total_mass_g()
             });
         let target = if wanted { 1.0 } else { 0.0 };
         if let Some(was) = animations.cue_target(SectionAnimationCue::IntakeDoor) {
