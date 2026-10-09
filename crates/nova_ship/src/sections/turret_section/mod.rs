@@ -40,6 +40,7 @@ use render::{
     on_projectile_marker_effect, stretch_round_tracers, DefaultMuzzleEffect,
     DefaultProjectileRender,
 };
+pub use setup::FrozenTurretHinges;
 use setup::{apply_turret_config_to_children, insert_turret_section};
 use stow::{drive_turret_stow, insert_turret_stow};
 pub use stow::{TurretStow, TurretStowDoorsMoved, TurretStowPhase};
@@ -51,10 +52,10 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         muzzle_aim_error, muzzle_on_target, on_target_cone, preview_turret_section, turret_section,
-        LoadedBullet, MuzzleConfig, TurretEngineFigures, TurretJoint, TurretSectionAimPoint,
-        TurretSectionAimSystems, TurretSectionArc, TurretSectionBarrelMuzzleMarker,
-        TurretSectionConfig, TurretSectionConfigHelper, TurretSectionInput,
-        TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionSystems,
+        FrozenTurretHinges, LoadedBullet, MuzzleConfig, TurretEngineFigures, TurretJoint,
+        TurretSectionAimPoint, TurretSectionAimSystems, TurretSectionArc,
+        TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
+        TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionSystems,
         TurretSectionTargetEntity, TurretSectionTargetInput, TurretSectionTargetRadius,
         TurretSectionTargetTrack, TurretSectionTargetVelocity, TurretStow, TurretStowDoorsMoved,
         TurretStowPhase, CLOSE_ENGAGEMENT_RANGE, POINT_AIM_ON_TARGET_RAD, POINT_AIM_RADIUS,

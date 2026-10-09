@@ -1596,6 +1596,7 @@ mod generated_wreck {
         materialize_sector(
             &mut world.commands(),
             prepared,
+            None,
             &AssetRef::default(),
             &loaded,
             ObserverBody {

@@ -58,10 +58,11 @@ use crate::{physics::prelude::rigid_body_point_velocity, prelude::*};
 /// `CargoIntakeSectionPlugin` with `CargoIntakeSystems`.
 pub mod prelude {
     pub use super::{
-        cargo_canister, cargo_intake_face, cargo_intake_section, preview_cargo_intake_section,
-        CargoCanisterEjected, CargoCanisterTaken, CargoIntakeDoorMoved, CargoIntakeEjectionQueue,
-        CargoIntakeSectionConfig, CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker,
-        CargoIntakeSectionPlugin, CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness,
+        cargo_canister, cargo_intake_face, cargo_intake_section, freeze_canister,
+        preview_cargo_intake_section, thaw_canister, CargoCanisterEjected, CargoCanisterTaken,
+        CargoIntakeDoorMoved, CargoIntakeEjectionQueue, CargoIntakeSectionConfig,
+        CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker, CargoIntakeSectionPlugin,
+        CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness, FrozenCanister,
         CARGO_CANISTER_SIZE,
     };
 }
@@ -264,6 +265,91 @@ pub fn cargo_canister(
         ),
         LinearVelocity(velocity),
         CargoCanisterRenderMesh(mesh),
+    )
+}
+
+/// A drifting canister's runtime state when its body froze: its own runtime
+/// id (never re-minted by a thaw), contents, health and render model.
+#[derive(Clone, Debug)]
+pub struct FrozenCanister {
+    id: CargoCanisterRuntimeId,
+    contents: CargoCanister,
+    health: Health,
+    mesh: AssetRef<WorldAsset>,
+}
+
+/// Capture `canister`'s id, contents, health and model.
+///
+/// # Errors
+///
+/// [`UnsettledBody`] when `canister` carries [`HealthZeroMarker`]:
+/// [`despawn_destroyed_canister`] is about to remove it, so there is nothing
+/// left for a thaw to usefully rebuild.
+///
+/// # Panics
+///
+/// When `canister` is not a drifting [`CargoCanister`] with its runtime id
+/// and render mesh - the shape every [`cargo_canister`] spawn carries.
+pub fn freeze_canister(world: &World, canister: Entity) -> Result<FrozenCanister, UnsettledBody> {
+    if world.get::<HealthZeroMarker>(canister).is_some() {
+        return Err(UnsettledBody {
+            reason: "canister at zero health, awaiting despawn",
+        });
+    }
+
+    let Some(id) = world.get::<CargoCanisterRuntimeId>(canister) else {
+        panic!("freeze_canister: entity {canister:?} carries no CargoCanisterRuntimeId");
+    };
+    let Some(contents) = world.get::<CargoCanister>(canister) else {
+        panic!("freeze_canister: entity {canister:?} carries no CargoCanister");
+    };
+    let Some(health) = world.get::<Health>(canister) else {
+        panic!("freeze_canister: entity {canister:?} carries no Health");
+    };
+    let Some(CargoCanisterRenderMesh(mesh)) = world.get::<CargoCanisterRenderMesh>(canister) else {
+        panic!("freeze_canister: entity {canister:?} carries no CargoCanisterRenderMesh");
+    };
+
+    Ok(FrozenCanister {
+        id: *id,
+        contents: contents.clone(),
+        health: health.clone(),
+        mesh: mesh.clone(),
+    })
+}
+
+/// The canister with its own runtime id (never re-minted), contents, health
+/// and model, at `transform` moving at `velocity` in world units per second.
+pub fn thaw_canister(frozen: FrozenCanister, transform: Transform, velocity: Vec3) -> impl Bundle {
+    (
+        Name::new("Cargo Canister"),
+        frozen.contents,
+        frozen.id,
+        transform,
+        Visibility::Visible,
+        RigidBody::Dynamic,
+        SleepingDisabled,
+        Collider::cuboid(
+            CARGO_CANISTER_SIZE.x,
+            CARGO_CANISTER_SIZE.y,
+            CARGO_CANISTER_SIZE.z,
+        ),
+        ColliderDensity(1.0),
+        frozen.health,
+        LockSignature(CARGO_CANISTER_LOCK_SIGNATURE),
+        (
+            TransformInterpolation,
+            TranslationEasingState {
+                start: Some(transform.translation),
+                end: None,
+            },
+            RotationEasingState {
+                start: Some(transform.rotation),
+                end: None,
+            },
+        ),
+        LinearVelocity(velocity),
+        CargoCanisterRenderMesh(frozen.mesh),
     )
 }
 

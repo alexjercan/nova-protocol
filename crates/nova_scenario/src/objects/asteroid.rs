@@ -17,20 +17,25 @@ use nova_hud::prelude::*;
 use nova_ship::prelude::*;
 
 use super::{
-    asteroid_carve::pristine_rock_mesh,
+    asteroid_carve::{
+        pristine_rock_mesh, AsteroidField, AsteroidFieldSeedRequest, AsteroidFieldSeeding,
+        AsteroidFieldSnapshot, AsteroidRemesh,
+    },
     asteroid_kind::prelude::{asteroid_kind_look, AsteroidKind, AsteroidKindId, ASTEROID_KINDS},
     asteroid_surface::prelude::{AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt},
 };
+use crate::mining::prelude::{MinedCanisterQueue, MinedOre};
 
 /// The asteroid scenario object and its config, the prepared-geometry half of
 /// the spawn, the radius, mass, mesh and texture components, the
-/// geometric-factor bounds and `AsteroidPlugin`.
+/// geometric-factor bounds, the freeze/thaw pair and `AsteroidPlugin`.
 pub mod prelude {
     pub use super::{
         asteroid_scenario_object, asteroid_scenario_object_prepared, asteroid_seed_from_id,
-        prepare_asteroid_geometry, AsteroidConfig, AsteroidMarker, AsteroidPlugin, AsteroidRadius,
-        AsteroidRenderMesh, AsteroidSeed, AsteroidTexture, PlanetHeight, PlanetHeightNoise,
-        PreparedAsteroid, ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
+        freeze_asteroid, prepare_asteroid_geometry, thaw_asteroid, AsteroidConfig, AsteroidMarker,
+        AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSeed, AsteroidTexture,
+        FrozenAsteroid, PlanetHeight, PlanetHeightNoise, PreparedAsteroid,
+        ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
     };
 }
 
@@ -402,6 +407,308 @@ pub struct AsteroidRadius(pub f32);
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidSeed(pub u32);
 
+/// A streamed asteroid's whole state while its sector is frozen: everything a
+/// [`thaw_asteroid`] spawn needs to put back the SAME rock - the one the
+/// player left carved, marked and owed ore the way they left it - rather than
+/// a fresh one at the same seed.
+///
+/// Built by [`freeze_asteroid`]; consumed once by [`thaw_asteroid`].
+#[derive(Clone, Debug)]
+pub struct FrozenAsteroid {
+    seed: u32,
+    radius: Meters,
+    kind: AsteroidKindId,
+    texture: AssetRef<Image>,
+    destroy_sound: Option<AssetRef<AudioSource>>,
+    lock_signature: f32,
+    body_radius: f32,
+    damage_marks: DamageMarks,
+    carved: Option<CarvedState>,
+    pending_seed: bool,
+    collider: Option<Collider>,
+    drawn_mesh: Option<Handle<Mesh>>,
+    mined_ore: Option<MinedOre>,
+    mined_queue: Option<MinedCanisterQueue>,
+}
+
+impl FrozenAsteroid {
+    /// The silhouette seed its pristine geometry is prepared from.
+    pub fn seed(&self) -> u32 {
+        self.seed
+    }
+
+    /// The nominal radius its pristine geometry is prepared for.
+    pub fn radius(&self) -> Meters {
+        self.radius
+    }
+}
+
+/// The carved field a frozen rock's node held, and whether its last remesh
+/// had already landed.
+#[derive(Clone, Debug)]
+enum CarvedState {
+    /// The field's mesh and collider were already validated, drawn and
+    /// collided with; nothing is in flight.
+    Settled(AsteroidFieldSnapshot),
+    /// A remesh job was in flight when the rock froze. The dropped job cost
+    /// nothing real - every mark is already subtracted into the live field in
+    /// place (see `asteroid_carve::carve_asteroid_fields`), so only the mesh
+    /// and collider swap was still pending - and thaw only has to make
+    /// `carve_asteroid_fields` queue that swap again.
+    PendingRemesh(AsteroidFieldSnapshot),
+}
+
+/// Carries a thawed carved rock's exact drawn mesh handle onto its freshly
+/// spawned node.
+///
+/// `insert_asteroid_render`'s `Add<AsteroidRenderMesh>` observer prefers this
+/// handle over building a fresh `Mesh3d` from the pristine mesh, so a carved
+/// rock thaws drawn exactly as it froze instead of popping back to its
+/// pristine silhouette for a frame. It has to ride in the SAME spawn bundle as
+/// `AsteroidRenderMesh`: the observer fires as that bundle lands, before any
+/// later, separately-queued `Mesh3d` insert would apply, so a later insert
+/// loses the race rather than winning it. Consumed and removed by the
+/// observer the same flush.
+#[derive(Component, Clone, Debug, Deref, DerefMut)]
+struct FrozenDrawnMesh(Handle<Mesh>);
+
+/// Snapshot an asteroid's whole live state so its sector can despawn it and
+/// [`thaw_asteroid`] can put the same rock back later.
+///
+/// # Panics
+///
+/// When `asteroid` is not an [`AsteroidMarker`] root, or has no collider
+/// node - both mean the caller resolved the wrong entity.
+pub fn freeze_asteroid(world: &World, asteroid: Entity) -> Result<FrozenAsteroid, UnsettledBody> {
+    assert!(
+        world.get::<AsteroidMarker>(asteroid).is_some(),
+        "freeze_asteroid: {asteroid:?} is not an AsteroidMarker"
+    );
+    let node = world
+        .get::<Children>(asteroid)
+        .and_then(|children| {
+            children
+                .iter()
+                .find(|child| world.get::<DamageMarks>(*child).is_some())
+        })
+        .unwrap_or_else(|| panic!("freeze_asteroid: {asteroid:?} has no collider node"));
+
+    if world.get::<IntegrityDestroyMarker>(node).is_some() {
+        return Err(UnsettledBody {
+            reason: "freeze_asteroid: the node is exhausting",
+        });
+    }
+
+    let seed = world
+        .get::<AsteroidSeed>(asteroid)
+        .expect("freeze_asteroid: an AsteroidMarker root carries AsteroidSeed")
+        .0;
+    let radius = Meters::from_engine(
+        world
+            .get::<AsteroidRadius>(asteroid)
+            .expect("freeze_asteroid: an AsteroidMarker root carries AsteroidRadius")
+            .0,
+    );
+    let kind = world
+        .get::<AsteroidKind>(asteroid)
+        .expect("freeze_asteroid: an AsteroidMarker root carries AsteroidKind")
+        .0
+        .clone();
+    let texture = world
+        .get::<AsteroidTexture>(asteroid)
+        .expect("freeze_asteroid: an AsteroidMarker root carries AsteroidTexture")
+        .0
+        .clone();
+    let destroy_sound = world
+        .get::<DestroySound>(asteroid)
+        .expect("freeze_asteroid: an AsteroidMarker root carries DestroySound")
+        .0
+        .clone();
+    let lock_signature = world
+        .get::<LockSignature>(asteroid)
+        .expect("freeze_asteroid: an AsteroidMarker root carries LockSignature")
+        .0;
+    let body_radius = world
+        .get::<BodyRadius>(asteroid)
+        .expect("freeze_asteroid: an AsteroidMarker root carries BodyRadius")
+        .0;
+    let damage_marks = world
+        .get::<DamageMarks>(node)
+        .expect("freeze_asteroid: the node carries DamageMarks")
+        .clone();
+
+    let pending_seed = world.get::<AsteroidFieldSeedRequest>(node).is_some()
+        || world.get::<AsteroidFieldSeeding>(node).is_some();
+    let carved = if pending_seed {
+        None
+    } else {
+        world.get::<AsteroidField>(node).map(|field| {
+            if world.get::<AsteroidRemesh>(node).is_some() {
+                CarvedState::PendingRemesh(field.snapshot())
+            } else {
+                CarvedState::Settled(field.snapshot())
+            }
+        })
+    };
+    // Only captured when the rock has actually been carved: a pristine node's
+    // collider and mesh are already exactly what `prepare_asteroid_geometry`
+    // reproduces for this same seed and radius, so there is nothing to carry
+    // that geometry would not already give back.
+    let (collider, drawn_mesh) = match carved {
+        Some(_) => (
+            world.get::<Collider>(node).cloned(),
+            world.get::<Mesh3d>(node).map(|mesh| mesh.0.clone()),
+        ),
+        None => (None, None),
+    };
+
+    Ok(FrozenAsteroid {
+        seed,
+        radius,
+        kind,
+        texture,
+        destroy_sound,
+        lock_signature,
+        body_radius,
+        damage_marks,
+        carved,
+        pending_seed,
+        collider,
+        drawn_mesh,
+        mined_ore: world.get::<MinedOre>(node).copied(),
+        mined_queue: world.get::<MinedCanisterQueue>(node).cloned(),
+    })
+}
+
+/// Rebuild a frozen asteroid's root and collider node onto `entity`, exactly
+/// as [`freeze_asteroid`] found them: its carved field (or its still-pristine
+/// one), its damage marks, its owed ore, and - for a rock that had been
+/// carved - the drawn mesh and collider it was carved to.
+///
+/// `geometry` is the rock's PRISTINE geometry, prepared off-thread for the
+/// frozen seed and radius (see [`prepare_asteroid_geometry`]); a carved
+/// rock's actual silhouette is restored on top of it from the frozen collider
+/// and drawn mesh, the same way a live carve replaces a pristine rock's hull
+/// and mesh on its first hit.
+///
+/// Inserts no velocity: the caller already knows the rock's last
+/// `LinearVelocity`/`AngularVelocity` and inserts them itself.
+///
+/// # Panics
+///
+/// When `geometry` was not prepared for `frozen`'s own seed and radius - the
+/// same guard [`asteroid_scenario_object_prepared`] makes, for the same
+/// reason: a rock drawn as one shape and collided as another is a defect
+/// nothing downstream can detect.
+pub fn thaw_asteroid(
+    entity: &mut EntityCommands,
+    frozen: FrozenAsteroid,
+    geometry: PreparedAsteroid,
+) {
+    assert!(
+        geometry.seed == frozen.seed && geometry.radius == frozen.radius,
+        "thaw_asteroid: geometry was prepared for seed {} at {} m, not seed {} at {} m",
+        geometry.seed,
+        geometry.radius.get(),
+        frozen.seed,
+        frozen.radius.get(),
+    );
+    let FrozenAsteroid {
+        seed,
+        radius,
+        kind,
+        texture,
+        destroy_sound,
+        lock_signature,
+        body_radius,
+        damage_marks,
+        carved,
+        pending_seed,
+        collider,
+        drawn_mesh,
+        mined_ore,
+        mined_queue,
+    } = frozen;
+    let PreparedAsteroid {
+        mesh,
+        collider: pristine_collider,
+        ..
+    } = geometry;
+    let radius_engine = radius.to_engine();
+
+    entity.insert((
+        AsteroidMarker,
+        EntityTypeName::new(ASTEROID_TYPE_NAME),
+        CarveDebris::Rock,
+        AsteroidTexture(texture),
+        AsteroidRadius(radius_engine),
+        DestroySound(destroy_sound),
+        (AsteroidKind(kind), ImpactSurface::Rock),
+        AsteroidSeed(seed),
+        LockSignature(lock_signature),
+        InsetZoomable,
+        RigidBody::Dynamic,
+        GravityAffected,
+        TransformInterpolation,
+        BodyRadius(body_radius),
+    ));
+
+    let node_collider = collider.unwrap_or(pristine_collider);
+    let mut node_entity = Entity::PLACEHOLDER;
+    entity.with_children(|parent| {
+        node_entity = match drawn_mesh {
+            Some(handle) => parent
+                .spawn((
+                    Transform::from_scale(Vec3::splat(radius_engine)),
+                    AsteroidRenderMesh(mesh),
+                    node_collider,
+                    RadarOccluder,
+                    ConnectedTo::default(),
+                    ColliderDensity(1.0),
+                    Visibility::Inherited,
+                    damage_marks,
+                    CollisionEventsEnabled,
+                    FrozenDrawnMesh(handle),
+                ))
+                .id(),
+            None => parent
+                .spawn((
+                    Transform::from_scale(Vec3::splat(radius_engine)),
+                    AsteroidRenderMesh(mesh),
+                    node_collider,
+                    RadarOccluder,
+                    ConnectedTo::default(),
+                    ColliderDensity(1.0),
+                    Visibility::Inherited,
+                    damage_marks,
+                    CollisionEventsEnabled,
+                ))
+                .id(),
+        };
+    });
+
+    let mut commands = entity.commands();
+    let mut node = commands.entity(node_entity);
+    if pending_seed {
+        node.insert(AsteroidFieldSeedRequest);
+    }
+    match carved {
+        Some(CarvedState::Settled(snapshot)) => {
+            node.insert(snapshot.restored());
+        }
+        Some(CarvedState::PendingRemesh(snapshot)) => {
+            node.insert(snapshot.restored_pending_remesh());
+        }
+        None => {}
+    }
+    if let Some(ore) = mined_ore {
+        node.insert(ore);
+    }
+    if let Some(queue) = mined_queue {
+        node.insert(queue);
+    }
+}
+
 /// The asteroid scenario object: generates a noise-displaced rock and derives
 /// its collider. Asteroids opt in to gravity as dynamic bodies. Geometry-owned
 /// destruction lives in `asteroid_carve`; `render` gates the visible mesh.
@@ -457,13 +764,13 @@ fn insert_asteroid_render(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<AsteroidSurfaceMaterial>>,
     asset_server: Res<AssetServer>,
-    q_render: Query<(&AsteroidRenderMesh, &ChildOf)>,
+    q_render: Query<(&AsteroidRenderMesh, &ChildOf, Option<&FrozenDrawnMesh>)>,
     q_asteroid: Query<(&AsteroidTexture, &AsteroidKind, &AsteroidSeed), With<AsteroidMarker>>,
 ) {
     let entity = add.entity;
     trace!("insert_asteroid_render: entity {:?}", entity);
 
-    let Ok((render_mesh, ChildOf(asteroid))) = q_render.get(entity) else {
+    let Ok((render_mesh, ChildOf(asteroid), frozen_mesh)) = q_render.get(entity) else {
         error!(
             "insert_asteroid_render: entity {:?} not found in q_render",
             entity
@@ -479,7 +786,6 @@ fn insert_asteroid_render(
         return;
     };
 
-    let mesh = (**render_mesh).clone();
     // The texture goes to the EXTENSION, not to `base_color_texture`: the
     // standard sampler would read it through the mesh UVs, and reading it
     // through the mesh UVs is exactly what made a rock look quilted and made a
@@ -509,10 +815,20 @@ fn insert_asteroid_render(
         extension: AsteroidSurfaceMaterialExt::new(image, &look, **seed),
     };
 
-    commands.entity(entity).insert((
-        Mesh3d(meshes.add(mesh)),
-        MeshMaterial3d(materials.add(material)),
-    ));
+    // A thawed carved rock carries its exact frozen handle rather than the
+    // pristine mesh `render_mesh` names - see `FrozenDrawnMesh`. Consumed
+    // here so a later `Add<AsteroidRenderMesh>` (there never is one, but
+    // nothing should rely on that) does not reuse a stale handle.
+    let mesh_handle = match frozen_mesh {
+        Some(frozen) => frozen.0.clone(),
+        None => meshes.add((**render_mesh).clone()),
+    };
+    commands
+        .entity(entity)
+        .insert((Mesh3d(mesh_handle), MeshMaterial3d(materials.add(material))));
+    if frozen_mesh.is_some() {
+        commands.entity(entity).remove::<FrozenDrawnMesh>();
+    }
 }
 
 /// Planet seed. Change this to generate a different planet.

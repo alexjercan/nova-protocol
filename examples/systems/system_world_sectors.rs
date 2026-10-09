@@ -33,18 +33,18 @@
 //! | 5 | `outcome: a sector's cluster and scatter counts add up to its manifest` | each cell's placed count is its manifest's object count and the sum of its clusters' and its scatter's, every companion skip and escort is counted against a cluster, a cell with clusters counts every skip against one of them, and the window skips at least one body |
 //! | 6 | `outcome: only a sector with no cluster body draws a background scatter` | every cell that places background rocks owns no cluster body and places one to five of them, and the window holds at least one such cell |
 //! | 7 | `outcome: every physical object stands clear inside its own sector` | every rock, planetoid and ship's clearance sphere is wholly inside its owning cell and clears every other object in that cell by the placement margin |
-//! | 8 | `outcome: arming the stream materializes the whole desired set` | exactly the desired 5x5x5 set is live, one root each, every root scenario-scoped and owning exactly the objects its manifest names |
+//! | 8 | `outcome: arming the stream materializes the whole desired set` | exactly the desired 5x5x5 set is live, one root each, every root scenario-scoped, and the roots together hold each object the window's manifests name exactly once; a body that drifted over a face is held by the cell it stands in |
 //! | 9 | `outcome: every sector is requested and prepared before it is materialized` | arming started 125 jobs, never more at once than the task pool has threads, preparation overlapped where the pool has more than one, all 125 came back, all 125 were spawned from a prepared result, and none was discarded |
-//! | 10 | `outcome: a featured sector owns real planetoids and inert derelict ships` | every planetoid a manifest names is a real `PlanetMarker` body whose gravity well keeps its authored mass whole and offers an ORBIT ring band, and every derelict a `SpaceshipRootMarker` with no driver and neutral allegiance, each a child of the sector root whose manifest names it |
+//! | 10 | `outcome: a featured sector owns real planetoids and inert derelict ships` | every planetoid a manifest names is a real `PlanetMarker` body whose gravity well keeps its authored mass whole and offers an ORBIT ring band, and every derelict a `SpaceshipRootMarker` with no driver and neutral allegiance, each held by a live root of the window |
 //! | 11 | `outcome: crossing one boundary retains the shared slab and swaps a face` | after a +X crossing 100 roots are the SAME entities, 25 are gone and 25 are new |
-//! | 12 | `outcome: the return trip leaves no duplicate root` | coming back gives the original 125 cells, one root each, and the returned sectors hold the objects their manifests name |
-//! | 13 | `outcome: a destroyed streamed asteroid returns pristine after its sector retires` | a streamed rock in the face the crossing retires is exhausted through the carve chain and despawns; after the return its cell has a new root and the same rock id with empty damage marks |
+//! | 12 | `outcome: the return trip leaves no duplicate root` | coming back gives the original 125 cells, one root each, holding each object the window's manifests name at most once and nothing else, less the one rock the range destroyed; any object not held is frozen in a nearby cell's record |
+//! | 13 | `outcome: a destroyed streamed asteroid stays destroyed after its sector retires` | a streamed rock in the face the crossing retires is exhausted through the carve chain and despawns; after the return its cell has a new root, thawed from its frozen record, and no body with that rock's id |
 //! | 14 | `outcome: work for an undesired sector never materializes` | a job and a prepared result for cells outside the desired set are both discarded, nothing is spawned from them, and the live set does not move |
 //! | 15 | `outcome: replacing the world config retires the world it built` | swapping `WorldConfig` under a live session leaves no baseline root alive, discards the in-window job uncompleted and the in-window prepared result, and rebuilds the window once so both of those cells hold the NEW world's objects |
 //! | 16 | `outcome: unloading the session removes every sector root` | `UnloadScenario` leaves zero sector roots, zero scenario object entities, zero pending jobs and zero prepared results |
 //!
 //! What this range does NOT claim: anything about a floating origin,
-//! persistence, a measured frame budget, wall-clock preparation cost,
+//! persistence beyond the session, a measured frame budget, wall-clock preparation cost,
 //! production density, or how the cluster policy should be tuned. The 32 km edge
 //! and the 125-cell active window are the selected baseline; this range does
 //! not prove either under production load.
@@ -370,7 +370,7 @@ fn hand_in_work(world: &mut World, job_cell: SectorCoord, ready_cell: SectorCoor
     let job = world
         .spawn((
             Name::new(format!("Sector Job {job_cell}")),
-            SectorJob::start(config.clone(), job_cell),
+            SectorJob::start(config.clone(), job_cell, None),
         ))
         .id();
     world.resource_mut::<SectorJobStats>().requested += 1;
@@ -489,8 +489,8 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .step("report the return")
         .on_enter(report_return)
         .add()
-        .step("report the regenerated rock")
-        .on_enter(report_regenerated_rock)
+        .step("report the destroyed rock")
+        .on_enter(report_destroyed_rock)
         .add()
         .step("abandon a job and a prepared sector")
         .on_enter(|world: &mut World| {
@@ -556,21 +556,50 @@ fn streaming_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
 struct ExhaustedRock {
     /// Its cell, in the face the +X crossing leaves behind.
     coord: SectorCoord,
-    /// Its generated id, which the regenerated rock carries again.
+    /// Its generated id, which no body in the returned cell may carry.
     id: String,
     /// The entity the carve chain must despawn.
     entity: Entity,
 }
 
-/// The object `id` under `coord`'s live sector root.
+/// Every named object the live roots hold, by id, with the cell whose root
+/// holds it.
+///
+/// Read across the window, not under the cell a manifest names: adoption
+/// moves a body that drifts over a face to the root of the cell it stands
+/// in. A ship held back because the observer overlapped it is held under its
+/// manifest id, by the entity that holds it. Fails the run when two roots
+/// hold the same id.
 #[cfg(feature = "debug")]
-fn sector_object(world: &mut World, coord: SectorCoord, id: &str) -> Option<Entity> {
-    let root = *live_roots(world).get(&coord)?;
-    world.get::<Children>(root)?.iter().find(|child| {
-        world
-            .get::<EntityId>(*child)
-            .is_some_and(|child_id| child_id.0 == id)
-    })
+fn held_objects(world: &mut World) -> BTreeMap<String, (SectorCoord, Entity)> {
+    let mut held = BTreeMap::new();
+    for (coord, root) in live_roots(world) {
+        for child in world.get::<Children>(root).into_iter().flatten() {
+            let id = if let Some(id) = world.get::<EntityId>(*child) {
+                id.0.clone()
+            } else if let Some(pending) = world.get::<PendingSectorShip>(*child) {
+                pending.ship().id.clone()
+            } else {
+                continue;
+            };
+            if let Some((other, _)) = held.insert(id.clone(), (coord, *child)) {
+                panic!("world sectors: '{id}' is held by both {other} and {coord}");
+            }
+        }
+    }
+    held
+}
+
+/// Every object id the manifests of `cells` name.
+#[cfg(feature = "debug")]
+fn named_objects<G: SectorGenerator>(
+    cells: impl IntoIterator<Item = SectorCoord>,
+    config: &WorldConfig<G>,
+) -> BTreeSet<String> {
+    cells
+        .into_iter()
+        .flat_map(|coord| describe(coord, config).object_ids())
+        .collect()
 }
 
 /// Advance once the exhausted rock is despawned.
@@ -590,21 +619,23 @@ fn exhausted_rock_is_gone() -> std::sync::Arc<dyn Fn(&World) -> bool + Send + Sy
 fn exhaust_retiring_rock(world: &mut World) {
     let config = world.resource::<WorldConfig<NovaLayeredWorld>>().clone();
     let face = FEATURE_HOME.x - EXAMPLE_ACTIVE_RADIUS;
-    let (coord, id) = live_roots(world)
+    let rocks: BTreeSet<String> = live_roots(world)
         .keys()
-        .filter(|coord| coord.x == face)
-        .find_map(|coord| {
+        .flat_map(|coord| {
             describe(*coord, &config)
                 .asteroids()
-                .first()
-                .map(|rock| (*coord, rock.id.clone()))
+                .iter()
+                .map(|rock| rock.id.clone())
+                .collect::<Vec<_>>()
         })
+        .collect();
+    let (id, (coord, entity)) = held_objects(world)
+        .into_iter()
+        .find(|(id, (coord, _))| coord.x == face && rocks.contains(id))
         .expect(
             "world sectors: the face the crossing retires must hold a rock, or this claim \
              proves nothing",
         );
-    let entity = sector_object(world, coord, &id)
-        .unwrap_or_else(|| panic!("world sectors: {coord} describes rock '{id}' but spawned none"));
     let node = world
         .get::<Children>(entity)
         .and_then(|children| {
@@ -1083,24 +1114,36 @@ fn report_initial_set(world: &mut World) {
         "world sectors: the live set must be the desired set"
     );
 
-    let mut objects = 0;
+    let mut children = 0;
     for (coord, entity) in &live {
         assert!(
             world.get::<ScenarioScopedMarker>(*entity).is_some(),
             "world sectors: the root for {coord} must be scenario-scoped, or the \
              session sweep cannot reach it"
         );
-        let expected = describe(*coord, &config).object_count();
-        let children = world
+        children += world
             .get::<Children>(*entity)
             .map_or(0, |children| children.len());
-        assert_eq!(
-            children, expected,
-            "world sectors: the root for {coord} must own the {expected} object(s) its \
-             manifest names"
-        );
-        objects += expected;
     }
+    let held = held_objects(world);
+    assert_eq!(
+        children,
+        held.len(),
+        "world sectors: every child of a sector root must be a named object"
+    );
+    assert_eq!(
+        held.keys().cloned().collect::<BTreeSet<_>>(),
+        named_objects(live.keys().copied(), &config),
+        "world sectors: the roots must hold each object the window's manifests name, once"
+    );
+    // A body that drifted over a face during arming is held by the cell it
+    // stands in. Counted, not asserted: how far bodies drift is physics.
+    let adopted: Vec<&String> = held
+        .iter()
+        .filter(|(id, (coord, _))| !describe(*coord, &config).object_ids().contains(id))
+        .map(|(id, _)| id)
+        .collect();
+    let objects = held.len();
     assert!(
         objects > 0,
         "world sectors: the armed window must contain objects"
@@ -1110,11 +1153,13 @@ fn report_initial_set(world: &mut World) {
     nova_probe::probe_marker(
         world,
         "outcome: arming the stream materializes the whole desired set",
-        serde_json::json!({ "roots": live.len(), "objects": objects }),
+        serde_json::json!({ "roots": live.len(), "objects": objects, "adopted": adopted }),
     );
     info!(
-        "world sectors: {} roots live around {FEATURE_HOME}, holding {objects} objects",
-        live.len()
+        "world sectors: {} roots live around {FEATURE_HOME}, holding {objects} objects, \
+         {} held by a neighbour cell: {adopted:?}",
+        live.len(),
+        adopted.len()
     );
 }
 
@@ -1198,7 +1243,7 @@ fn report_preparation(world: &mut World) {
 /// is the manifest's mass under the live `GravitySettings` cap and whose ring
 /// band the live `FlightSettings` accept, `SpaceshipRootMarker` with
 /// `SpaceshipController::None` and `Allegiance::Neutral` for a derelict -
-/// and each of them under the root of the cell whose manifest names it. The
+/// and each of them held by a live root of the window. The
 /// manifest carries no cluster, so which cluster placed a body is proved in
 /// `nova_world_base`, not here.
 #[cfg(feature = "debug")]
@@ -1207,26 +1252,19 @@ fn report_places(world: &mut World) {
     let gravity = world.resource::<GravitySettings>().clone();
     let flight = world.resource::<FlightSettings>().clone();
     let live = live_roots(world);
+    let by_id: BTreeMap<String, Entity> = held_objects(world)
+        .into_iter()
+        .map(|(id, (_, entity))| (id, entity))
+        .collect();
 
     let mut planets = 0;
     let mut reach = (f32::INFINITY, 0.0_f32);
     let mut ships = 0;
-    for (coord, root) in &live {
+    for coord in live.keys() {
         let description = describe(*coord, &config);
         if description.planets().is_empty() && description.ships().is_empty() {
             continue;
         }
-        let children: Vec<Entity> = world
-            .get::<Children>(*root)
-            .map_or_else(Vec::new, |children| children.iter().collect());
-        let by_id: BTreeMap<String, Entity> = children
-            .iter()
-            .filter_map(|child| {
-                world
-                    .get::<EntityId>(*child)
-                    .map(|id| (id.0.clone(), *child))
-            })
-            .collect();
 
         for planet in description.planets() {
             let entity = *by_id.get(&planet.id).unwrap_or_else(|| {
@@ -1392,28 +1430,47 @@ fn report_return(world: &mut World) {
         "world sectors: the return must hold one root per cell"
     );
 
-    // The set being right is not enough: a sector that came back with someone
-    // else's rocks would still count 125. Each returned root has to hold the
-    // objects its own manifest names.
-    for (coord, entity) in &live {
-        let described = describe(*coord, &config)
-            .object_ids()
-            .into_iter()
-            .collect::<BTreeSet<String>>();
-        let children = world
-            .get::<Children>(*entity)
-            .map_or_else(Vec::new, |children| children.iter().collect());
-        let spawned: BTreeSet<String> = children
-            .iter()
-            .filter_map(|child| world.get::<EntityId>(*child))
-            .map(|id| id.0.clone())
-            .collect();
-        assert_eq!(
-            spawned, described,
-            "world sectors: the returned root for {coord} must hold the objects its \
-             manifest names"
-        );
-    }
+    // The set being right is not enough: a window that came back with a
+    // second copy of a rock would still count 125. The roots hold each object
+    // the window's manifests name at most once and nothing else; the rock the
+    // range destroyed stays destroyed; and an object no root holds drifted out
+    // of the window and is frozen in the record of the cell it stands in.
+    let destroyed = world
+        .get_resource::<ExhaustedRock>()
+        .map(|rock| rock.id.clone())
+        .expect("world sectors: the exhaustion beat must name its rock");
+    let mut named = named_objects(live.keys().copied(), &config);
+    assert!(
+        named.remove(&destroyed),
+        "world sectors: the destroyed rock '{destroyed}' must be named by the window"
+    );
+    let held: BTreeSet<String> = held_objects(world).into_keys().collect();
+    assert!(
+        held.is_subset(&named),
+        "world sectors: the returned roots hold objects no manifest of the window names, or \
+         the destroyed rock: {:?}",
+        held.difference(&named).collect::<Vec<_>>()
+    );
+    // Two cells past the window edge bounds the search: a body that drifted
+    // farther fails the run by name rather than passing unseen.
+    let frozen = world.resource::<FrozenSectors>();
+    let reach = config.active_radius + 2;
+    let frozen_ids: BTreeSet<String> = (-reach..=reach)
+        .flat_map(|x| (-reach..=reach).flat_map(move |y| (-reach..=reach).map(move |z| (x, y, z))))
+        .map(|(x, y, z)| FEATURE_HOME.offset(x, y, z))
+        .filter(|coord| !live.contains_key(coord))
+        .filter_map(|coord| frozen.get(coord))
+        .flat_map(|record| record.bodies().iter().filter_map(|body| body.id()))
+        .map(str::to_owned)
+        .collect();
+    let gone: Vec<&String> = named
+        .difference(&held)
+        .filter(|id| !frozen_ids.contains(*id))
+        .collect();
+    assert!(
+        gone.is_empty(),
+        "world sectors: objects the window names are neither held nor frozen: {gone:?}"
+    );
 
     nova_probe::probe_marker(
         world,
@@ -1426,10 +1483,11 @@ fn report_return(world: &mut World) {
     );
 }
 
-/// Claim 13: destroying a streamed rock is session-local. The crossing retires
-/// its cell and the return regenerates the pristine rock; nothing persists.
+/// Claim 13: destroying a streamed rock lasts the session. The crossing
+/// freezes its cell without the rock, and the return thaws the record rather
+/// than generating the cell again.
 #[cfg(feature = "debug")]
-fn report_regenerated_rock(world: &mut World) {
+fn report_destroyed_rock(world: &mut World) {
     let ExhaustedRock { coord, id, .. } = world
         .remove_resource::<ExhaustedRock>()
         .expect("world sectors: the exhaustion beat must name its rock");
@@ -1439,32 +1497,16 @@ fn report_regenerated_rock(world: &mut World) {
         root, baseline,
         "world sectors: the crossing must retire {coord} and the return rebuild it"
     );
-    let returned = sector_object(world, coord, &id)
-        .unwrap_or_else(|| panic!("world sectors: the return must regenerate rock '{id}'"));
     assert!(
-        world.get::<AsteroidMarker>(returned).is_some(),
-        "world sectors: regenerated '{id}' must be a rock"
-    );
-    let marks: Vec<usize> = world
-        .get::<Children>(returned)
-        .map_or_else(Vec::new, |children| {
-            children
-                .iter()
-                .filter_map(|child| world.get::<DamageMarks>(child))
-                .map(|marks| marks.0.len())
-                .collect()
-        });
-    assert_eq!(
-        marks,
-        vec![0],
-        "world sectors: regenerated rock '{id}' must carry one empty set of damage marks"
+        !held_objects(world).contains_key(&id),
+        "world sectors: the return must not bring destroyed rock '{id}' back"
     );
     nova_probe::probe_marker(
         world,
-        "outcome: a destroyed streamed asteroid returns pristine after its sector retires",
+        "outcome: a destroyed streamed asteroid stays destroyed after its sector retires",
         serde_json::json!({ "cell": coord.to_string(), "rock": id }),
     );
-    info!("world sectors: rock '{id}' in {coord} came back pristine");
+    info!("world sectors: rock '{id}' in {coord} stayed destroyed");
 }
 
 /// Claim 14: work the observer walked away from is dropped, not spawned.

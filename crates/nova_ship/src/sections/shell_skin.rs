@@ -33,14 +33,14 @@
 
 use std::collections::BTreeSet;
 
-use avian3d::prelude::Collider;
+use avian3d::prelude::{Collider, ColliderDensity};
 use bevy::{
     platform::collections::{HashMap, HashSet},
     prelude::*,
 };
 use nova_gameplay::prelude::{
-    destructible_body, IntegritySystems, NovaDamageSystems, NovaRoundSystems, SectionMarker,
-    SpaceshipRootMarker,
+    destructible_body, Health, IntegritySystems, NovaDamageSystems, NovaRoundSystems,
+    SectionMarker, SpaceshipRootMarker,
 };
 
 use crate::sections::{
@@ -68,7 +68,8 @@ use crate::sections::{
 pub mod prelude {
     pub use super::{
         derive_skin, plate_body, read_structure, section_cell, PlacedPart, ShipSkin,
-        ShipSkinMarker, ShipSkinPlugin, SkinAssets, SkinPlate, SkinStructure, SkinSurfaceMarker,
+        ShipSkinMarker, ShipSkinPlugin, ShipSkinRestored, SkinAssets, SkinPlate, SkinStructure,
+        SkinSurfaceMarker,
     };
 }
 
@@ -604,6 +605,16 @@ fn turns() -> Vec<Quat> {
 #[reflect(Component)]
 pub struct ShipSkin(pub bool);
 
+/// Marks a ship root whose cladding a thaw is restoring from its frozen
+/// record, so [`spawn_ship_skin`] must not derive one and clad it again.
+///
+/// The thaw spawns a plate per frozen fixture itself, in the same command
+/// batch as the section it clads - by the time `spawn_ship_skin` would see the
+/// `Added<SectionLinkPoints>` edge, this marker is already on the root.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct ShipSkinRestored;
+
 /// Marks a derived-skin plate and remembers the shape it wears.
 ///
 /// Two jobs, and the second is what makes the render half possible: a rebuild
@@ -644,6 +655,31 @@ pub fn plate_body(plate: &SkinPlate, pose: Transform) -> impl Bundle {
     )
 }
 
+/// A plate rebuilt from a frozen record rather than derived fresh: the exact
+/// `shape`, `pose`, `health` and `collider` [`frozen::freeze_section`](super::frozen::freeze_section)
+/// captured, in place of the full-health shape [`plate_body`] would hand a
+/// freshly derived one.
+///
+/// `ShipSkinMarker` still lands on it, so [`dress_skin_plate`] dresses it
+/// exactly as it dresses a freshly derived plate.
+pub(crate) fn frozen_plate_body(
+    shape: ShellShape,
+    pose: Transform,
+    health: Health,
+    collider: Collider,
+) -> impl Bundle {
+    (
+        Name::new(format!("Skin Plate {}", shape.id())),
+        SectionFixture,
+        ShipSkinMarker(shape),
+        pose,
+        health,
+        ColliderDensity(SKIN_DENSITY),
+        Visibility::Inherited,
+        collider,
+    )
+}
+
 /// Derive a freshly spawned ship's skin and bolt it on.
 ///
 /// Runs on the SPAWN BATCH, the same `Added<SectionLinkPoints>` edge the
@@ -662,10 +698,18 @@ pub fn plate_body(plate: &SkinPlate, pose: Transform) -> impl Bundle {
 /// hangs off the PLATE rather than the section, one level further out for the
 /// same reason: a plate shot off takes its greebles with it, which is what makes
 /// stripping a patch of skin read as stripping a patch of skin.
+///
+/// A root carrying [`ShipSkinRestored`] is skipped outright: a thaw already
+/// spawned its exact plates (and their decor) from a frozen record in the
+/// same command batch, and deriving a fresh, full-health skin on top would
+/// double the cladding.
 fn spawn_ship_skin(
     mut commands: Commands,
     q_added: Query<&ChildOf, (With<SectionMarker>, Added<SectionLinkPoints>)>,
-    q_clad: Query<(&ShipSkin, Option<&ShipStyle>), With<SpaceshipRootMarker>>,
+    q_clad: Query<
+        (&ShipSkin, Option<&ShipStyle>),
+        (With<SpaceshipRootMarker>, Without<ShipSkinRestored>),
+    >,
     q_children: Query<&Children>,
     q_sections: Query<
         (
@@ -1124,6 +1168,7 @@ pub struct ShipSkinPlugin {
 impl Plugin for ShipSkinPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<ShipSkin>();
+        app.register_type::<ShipSkinRestored>();
         app.register_type::<ShipSkinMarker>();
         app.register_type::<SectionExit>();
         app.register_type::<ShipStyle>();

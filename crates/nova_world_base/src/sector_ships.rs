@@ -24,8 +24,9 @@
 //! hold its hull sections give, a wreck's toward half that share of what its
 //! remaining hull holds, drawn apart from the intact ship's. Its balance
 //! rises with advancement whatever its role or hold; a wreck keeps a seeded
-//! share of an intact balance, at least one credit. Nothing keeps what was
-//! taken: a retired cell comes back with its ships' stock and credits whole.
+//! share of an intact balance, at least one credit. What was taken stays
+//! taken for the session: a retired cell freezes its ships' holds and
+//! balances as they were.
 //!
 //! FAIL LOUD. A layout or wreck that fails for the selected civilization and
 //! role fails the sector; only a cell's spatial checks may skip a planned

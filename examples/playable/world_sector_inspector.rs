@@ -483,7 +483,7 @@ fn collect_sector(
         commands.entity(root).despawn();
     }
     let texture: AssetRef<Image> = game_assets.asteroid_texture.clone().into();
-    let root = materialize_sector(&mut commands, prepared, &texture, &sections, observer);
+    let root = materialize_sector(&mut commands, prepared, None, &texture, &sections, observer);
     info!(
         "inspector: live {coord} of seed {}: {rocks} rocks, {planets} planetoids, {ships} ships",
         world.0.seed

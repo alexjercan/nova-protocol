@@ -30,9 +30,10 @@ use crate::{
 /// configs, and `SpaceshipPlugin`.
 pub mod prelude {
     pub use super::{
-        patrol_stops_fault, spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig,
-        SectionId, SectionSource, SpaceshipConfig, SpaceshipController, SpaceshipDesign,
-        SpaceshipPlugin, SpaceshipSectionConfig, SpaceshipSectionConfigPatch,
+        freeze_ship, patrol_stops_fault, spaceship_scenario_object, thaw_ship, AIControllerConfig,
+        FrozenShip, PlayerControllerConfig, SectionId, SectionSource, SpaceshipConfig,
+        SpaceshipController, SpaceshipDesign, SpaceshipPlugin, SpaceshipSectionConfig,
+        SpaceshipSectionConfigPatch,
     };
 }
 
@@ -547,6 +548,167 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
     )
 }
 
+/// A ship's whole durable state while the sector that held it is frozen.
+///
+/// The ship thaws by spawning its ORIGINAL design again, so everything the
+/// design derives - colliders, link points, the integrity graph, render
+/// dressing - is built the way the first spawn built it. The record carries
+/// only what the fight and the trade changed: which sections survive and
+/// their state, the plates still bolted on, the hold, the balance, the pinned
+/// health, the dents, the outcome markers and the AI's progress.
+#[derive(Clone, Debug)]
+pub struct FrozenShip {
+    design: ShipDesignSource,
+    controller: SpaceshipController,
+    capabilities: ShipCapabilities,
+    /// Absent on a ship spawned with no side, which thaws with none.
+    allegiance: Option<Allegiance>,
+    derelict: bool,
+    lootable: bool,
+    credits: u32,
+    state: FrozenShipState,
+}
+
+/// The part of a [`FrozenShip`] the section spawn applies over the fresh
+/// design.
+#[derive(Clone, Debug)]
+struct FrozenShipState {
+    /// Surviving sections by section id. A design section missing here was
+    /// destroyed and is not spawned again.
+    sections: BTreeMap<String, FrozenSection>,
+    inventory: ShipInventory,
+    /// The root's pinned pool. Absent when the ship froze before its first
+    /// aggregation, which then pins it from the sections as it would have.
+    health: Option<Health>,
+    marks: DamageMarks,
+    neutralized: bool,
+    defeated: bool,
+    was_armed: bool,
+    had_flight_computer: bool,
+    had_thruster: bool,
+    ai: Option<FrozenAI>,
+}
+
+/// Carries a thawing ship's record onto its root in the bundle that adds
+/// [`SpaceshipRootMarker`], for `insert_spaceship_sections` to take.
+#[derive(Component)]
+struct ThawingShip(Option<FrozenShipState>);
+
+/// Freeze a scenario ship: its design, its driver and side, and the state
+/// [`FrozenShip`] lists.
+///
+/// # Errors
+///
+/// [`UnsettledBody`] while its structure is collapsing, being destroyed or
+/// mid-sever, or while a section or plate is mid-destruction.
+///
+/// # Panics
+///
+/// On an entity that is not a ship root with an authored design, and on a
+/// section with no section id: neither could be spawned again.
+pub fn freeze_ship(world: &World, ship: Entity) -> Result<FrozenShip, UnsettledBody> {
+    let root = world.entity(ship);
+    let Some(design) = root.get::<SpaceshipDesign>() else {
+        panic!("freeze_ship: {ship} is not a ship root with an authored design");
+    };
+    if let Some(unsettled) = unsettled_structure(world, ship) {
+        return Err(unsettled);
+    }
+    let mut sections = BTreeMap::new();
+    for child in root.get::<Children>().into_iter().flatten() {
+        if !world.entity(*child).contains::<SectionMarker>() {
+            continue;
+        }
+        let Some(id) = world.get::<EntityId>(*child) else {
+            panic!("freeze_ship: ship {ship} has section {child} with no section id");
+        };
+        sections.insert(id.0.clone(), freeze_section(world, *child)?);
+    }
+    let required = |name: &str| -> ! {
+        panic!("freeze_ship: ship {ship} has no {name}, which every scenario ship carries")
+    };
+    Ok(FrozenShip {
+        design: design.0.clone(),
+        controller: root
+            .get::<SpaceshipController>()
+            .cloned()
+            .unwrap_or_else(|| required("SpaceshipController")),
+        capabilities: root
+            .get::<ShipCapabilities>()
+            .cloned()
+            .unwrap_or_else(|| required("ShipCapabilities")),
+        allegiance: root.get::<Allegiance>().copied(),
+        derelict: root.contains::<DerelictShipMarker>(),
+        lootable: root.contains::<LootableShipMarker>(),
+        credits: root
+            .get::<ShipCredits>()
+            .unwrap_or_else(|| required("ShipCredits"))
+            .0,
+        state: FrozenShipState {
+            sections,
+            inventory: root
+                .get::<ShipInventory>()
+                .cloned()
+                .unwrap_or_else(|| required("ShipInventory")),
+            health: root.get::<Health>().cloned(),
+            marks: root
+                .get::<DamageMarks>()
+                .cloned()
+                .unwrap_or_else(|| required("DamageMarks")),
+            neutralized: root.contains::<NeutralizedMarker>(),
+            defeated: root.contains::<DefeatedMarker>(),
+            was_armed: root.contains::<WasArmedCombatant>(),
+            had_flight_computer: root.contains::<HadFlightComputer>(),
+            had_thruster: root.contains::<HadThruster>(),
+            ai: freeze_ai(world, ship),
+        },
+    })
+}
+
+/// Rebuild a frozen ship on `entity`, which the caller spawned with its pose,
+/// identity and parent.
+///
+/// The original design spawns through the same section spawn every scenario
+/// ship takes, which skips the destroyed sections, applies each survivor's
+/// frozen state in the batch that builds it, and lays the record over the
+/// fresh root. The caller inserts the velocity after this.
+pub fn thaw_ship(entity: &mut EntityCommands, frozen: FrozenShip) {
+    let FrozenShip {
+        design,
+        controller,
+        capabilities,
+        allegiance,
+        derelict,
+        lootable,
+        credits,
+        state,
+    } = frozen;
+    // Before the root marker: the section spawn reads it to spawn a
+    // derelict's systems inactive.
+    if derelict {
+        entity.insert(DerelictShipMarker);
+    }
+    entity.insert((
+        spaceship_scenario_object(SpaceshipConfig {
+            design,
+            controller,
+            initial_velocity: MetersPerSecond3::ZERO,
+            allegiance,
+            capabilities,
+            inventory: ShipInventoryStock::default(),
+            lootable,
+            credits,
+        }),
+        ThawingShip(Some(state)),
+    ));
+    if let Some(allegiance) = allegiance {
+        entity.insert(allegiance);
+    }
+    if lootable {
+        entity.insert(LootableShipMarker);
+    }
+}
+
 /// Spawns spaceship scenario objects: resolves each ship's hull and section
 /// list into child section entities and wires the player/AI controller.
 /// Adds the `Add<SpaceshipRootMarker>` section-insert observer, seeds empty
@@ -586,6 +748,7 @@ fn insert_spaceship_sections(
         ),
         With<SpaceshipRootMarker>,
     >,
+    mut q_thawing: Query<&mut ThawingShip>,
 ) {
     let entity = add.entity;
     trace!("insert_spaceship_sections: entity {:?}", entity);
@@ -605,6 +768,13 @@ fn insert_spaceship_sections(
         return;
     };
     let spawn_position = transform.translation;
+    let mut thawing = q_thawing
+        .get_mut(entity)
+        .ok()
+        .and_then(|mut thawing| thawing.0.take());
+    if thawing.is_some() {
+        commands.entity(entity).remove::<ThawingShip>();
+    }
 
     // ONE resolve, shared with the content lint and the editor preview. Errors
     // are logged and the rest still flies: a design naming no catalog entry
@@ -645,9 +815,10 @@ fn insert_spaceship_sections(
     ));
     commands.entity(entity).remove::<ShipInventoryStock>();
 
-    // An AI ship with no turret or torpedo section cannot fight; it becomes a
-    // non-combatant below so it flies its routine and never chases. Tracked
-    // through the section loop.
+    // An AI ship with no weapon section cannot fight; it becomes a
+    // non-combatant below so it flies its routine and never chases. Counted
+    // over the sections this spawn builds, so a thawed ship whose last weapon
+    // was destroyed spawns unable to fight.
     let mut has_weapon = false;
     // Every source a player mining section holds so far, so a second emitter on
     // the same key is refused rather than deployed by the same press.
@@ -656,145 +827,107 @@ fn insert_spaceship_sections(
     commands.entity(entity).with_children(|parent| {
         for section in &design.sections {
             let config = &section.config;
+            // A thawing ship spawns only the sections that survived, each
+            // with its frozen state.
+            let frozen = match thawing.as_mut() {
+                Some(thawing) => match thawing.sections.remove(&section.id) {
+                    Some(frozen) => Some(frozen),
+                    None => continue,
+                },
+                None => None,
+            };
+            has_weapon |= matches!(
+                config.kind,
+                SectionKind::Turret(_) | SectionKind::Torpedo(_) | SectionKind::Railgun(_)
+            );
 
             let mut section_entity = parent.spawn((
                 EntityId::new(section.id.clone()),
-                EntityTypeName::new(config.base.id.clone()),
-                base_section(config.base.clone()),
                 Transform::from_translation(section.position).with_rotation(section.rotation),
             ));
-
-            // The last point anything knows this section's KIND. A live section
-            // carries its sockets and its collider and nothing that says what
-            // sort of part it is, and the derived skin has to know which face a
-            // part fires through to leave that one cell of it bare.
-            if let Some(exit) = SectionExit::of(config) {
-                section_entity.insert(exit);
-            }
 
             // A derelict keeps its structure and its docking ports live, so
             // it can be hit, carved and docked with; every system it could
             // run spawns inactive, before any tick can fire or thrust it.
             let passive = matches!(config.kind, SectionKind::Hull(_) | SectionKind::Docking(_));
-            if derelict && !passive {
-                section_entity.insert(SectionInactiveMarker);
-            }
+            section_body(&mut section_entity, config, derelict && !passive);
 
             match &config.kind {
-                SectionKind::Hull(hull_config) => {
-                    section_entity.insert(hull_section(hull_config.clone()));
-                }
-                SectionKind::Controller(controller_config) => {
-                    section_entity.insert(controller_section(controller_config.clone()));
-                }
-                SectionKind::Thruster(thruster_config) => {
-                    section_entity.insert(thruster_section(thruster_config.clone()));
-
-                    match controller_config {
-                        SpaceshipController::None => {}
-                        SpaceshipController::Player(config) => {
-                            if let Some(bindings) = config.input_mapping.get(&section.id) {
-                                section_entity
-                                    .insert(SpaceshipThrusterInputBinding(bindings.clone()));
-                            };
-                        }
-                        SpaceshipController::AI(_) => {}
+                SectionKind::Hull(_)
+                | SectionKind::Controller(_)
+                | SectionKind::Docking(_)
+                | SectionKind::CargoIntake(_) => {}
+                SectionKind::Thruster(_) => match controller_config {
+                    SpaceshipController::None => {}
+                    SpaceshipController::Player(config) => {
+                        if let Some(bindings) = config.input_mapping.get(&section.id) {
+                            section_entity.insert(SpaceshipThrusterInputBinding(bindings.clone()));
+                        };
                     }
-                }
-                SectionKind::Turret(turret_config) => {
-                    has_weapon = true;
-                    let turret_config = turret_config.clone();
-                    section_entity.insert(turret_section(turret_config));
-
-                    match controller_config {
-                        SpaceshipController::None => {}
-                        SpaceshipController::Player(config) => {
-                            if let Some(bindings) = config.input_mapping.get(&section.id) {
-                                section_entity
-                                    .insert(SpaceshipTurretInputBinding(bindings.clone()));
-                            }
+                    SpaceshipController::AI(_) => {}
+                },
+                SectionKind::Turret(_) => match controller_config {
+                    SpaceshipController::None => {}
+                    SpaceshipController::Player(config) => {
+                        if let Some(bindings) = config.input_mapping.get(&section.id) {
+                            section_entity.insert(SpaceshipTurretInputBinding(bindings.clone()));
                         }
-                        SpaceshipController::AI(_) => {}
                     }
-                }
-                SectionKind::Torpedo(torpedo_config) => {
-                    has_weapon = true;
-                    let torpedo_config = torpedo_config.clone();
-                    section_entity.insert(torpedo_section(torpedo_config));
-
-                    match controller_config {
-                        SpaceshipController::None => {}
-                        SpaceshipController::Player(config) => {
-                            if let Some(bindings) = config.input_mapping.get(&section.id) {
-                                section_entity
-                                    .insert(SpaceshipTorpedoInputBinding(bindings.clone()));
-                            }
+                    SpaceshipController::AI(_) => {}
+                },
+                SectionKind::Torpedo(_) => match controller_config {
+                    SpaceshipController::None => {}
+                    SpaceshipController::Player(config) => {
+                        if let Some(bindings) = config.input_mapping.get(&section.id) {
+                            section_entity.insert(SpaceshipTorpedoInputBinding(bindings.clone()));
                         }
-                        SpaceshipController::AI(_) => {}
                     }
-                }
-                // A port is passive: nothing aims it, nothing fires it, and
-                // no controller binds a key to it. The DOCK verb finds it by
-                // looking for free ports on the two hulls, so the spawn has
-                // only to build one.
-                SectionKind::Docking(docking_config) => {
-                    section_entity.insert(docking_section(docking_config.clone()));
-                }
-                // Passive like a port: the intake runs off canister positions
-                // and the Inventory pane's jettison, not a bound key.
-                SectionKind::CargoIntake(intake_config) => {
-                    section_entity.insert(cargo_intake_section(intake_config.clone()));
-                }
+                    SpaceshipController::AI(_) => {}
+                },
                 // Each emitter deploys on its own key. A player emitter without
                 // one could never be used; the lint refuses it first.
-                SectionKind::Mining(mining_config) => {
-                    section_entity.insert(mining_section(mining_config.clone()));
-
-                    match controller_config {
-                        SpaceshipController::None => {}
-                        SpaceshipController::Player(config) => {
-                            let bindings = match config.input_mapping.get(&section.id) {
-                                Some(bindings) if !bindings.is_empty() => bindings,
-                                _ => panic!(
-                                    "spaceship: player mining section '{}' has no \
+                SectionKind::Mining(_) => match controller_config {
+                    SpaceshipController::None => {}
+                    SpaceshipController::Player(config) => {
+                        let bindings = match config.input_mapping.get(&section.id) {
+                            Some(bindings) if !bindings.is_empty() => bindings,
+                            _ => panic!(
+                                "spaceship: player mining section '{}' has no \
                                      input_mapping entry",
-                                    section.id
-                                ),
-                            };
-                            for &source in bindings {
-                                if let Some((_, other)) =
-                                    mining_sources.iter().find(|(taken, _)| *taken == source)
-                                {
-                                    panic!(
-                                        "spaceship: player mining sections '{other}' and '{}' \
+                                section.id
+                            ),
+                        };
+                        for &source in bindings {
+                            if let Some((_, other)) =
+                                mining_sources.iter().find(|(taken, _)| *taken == source)
+                            {
+                                panic!(
+                                    "spaceship: player mining sections '{other}' and '{}' \
                                          share {}",
-                                        section.id,
-                                        source.label()
-                                    );
-                                }
-                                mining_sources.push((source, section.id.as_str()));
+                                    section.id,
+                                    source.label()
+                                );
                             }
-                            section_entity.insert(SpaceshipMiningInputBinding(bindings.clone()));
+                            mining_sources.push((source, section.id.as_str()));
                         }
-                        SpaceshipController::AI(_) => {}
+                        section_entity.insert(SpaceshipMiningInputBinding(bindings.clone()));
                     }
-                }
-                SectionKind::Railgun(railgun_config) => {
-                    has_weapon = true;
-                    let railgun_config = railgun_config.clone();
-                    section_entity.insert(railgun_section(railgun_config));
-
-                    match controller_config {
-                        SpaceshipController::None => {}
-                        SpaceshipController::Player(config) => {
-                            if let Some(bindings) = config.input_mapping.get(&section.id) {
-                                section_entity
-                                    .insert(SpaceshipRailgunInputBinding(bindings.clone()));
-                            }
+                    SpaceshipController::AI(_) => {}
+                },
+                SectionKind::Railgun(_) => match controller_config {
+                    SpaceshipController::None => {}
+                    SpaceshipController::Player(config) => {
+                        if let Some(bindings) = config.input_mapping.get(&section.id) {
+                            section_entity.insert(SpaceshipRailgunInputBinding(bindings.clone()));
                         }
-                        SpaceshipController::AI(_) => {}
                     }
-                }
+                    SpaceshipController::AI(_) => {}
+                },
+            }
+            // Last, so the frozen state overrides the fresh one the kind
+            // bundle seeded.
+            if let Some(frozen) = frozen {
+                thaw_section(&mut section_entity, frozen);
             }
         }
     });
@@ -806,7 +939,7 @@ fn insert_spaceship_sections(
         }
         SpaceshipController::AI(config) => {
             commands.entity(entity).insert(AISpaceshipMarker);
-            // An unarmed AI ship (no turret/torpedo section) cannot fight, so
+            // An unarmed AI ship (no weapon section) cannot fight, so
             // it flies its patrol/orbit/idle routine and never chases - a
             // convoy hauler or civilian escort. It stays targetable by
             // hostiles, so a Player-aligned convoy is still hunted and must be
@@ -933,6 +1066,52 @@ fn insert_spaceship_sections(
                     .insert(FlightArrivalStandoff(standoff.to_engine()));
             }
         }
+    }
+
+    if let Some(state) = thawing.as_mut() {
+        if let Some(id) = state.sections.keys().next() {
+            panic!(
+                "insert_spaceship_sections: entity {entity:?} thawed a frozen section '{id}' its \
+                 design does not name"
+            );
+        }
+        // After the design's own root components, so the record wins: the
+        // hold it froze with, the pinned pool, the dents and the outcome
+        // markers neutralization latches only once. The skin is restored
+        // section by section above, so it is not derived again. After the
+        // controller's marker too: the AI stands down when
+        // `NeutralizedMarker` is added, and only to a ship that already
+        // carries `AISpaceshipMarker`.
+        let mut root = commands.entity(entity);
+        root.insert((
+            std::mem::take(&mut state.inventory),
+            std::mem::take(&mut state.marks),
+            ShipSkinRestored,
+        ));
+        if let Some(health) = state.health.take() {
+            root.insert(health);
+        }
+        if state.neutralized {
+            root.insert(NeutralizedMarker);
+        }
+        if state.defeated {
+            root.insert(DefeatedMarker);
+        }
+        if state.was_armed {
+            root.insert(WasArmedCombatant);
+        }
+        if state.had_flight_computer {
+            root.insert(HadFlightComputer);
+        }
+        if state.had_thruster {
+            root.insert(HadThruster);
+        }
+    }
+
+    // After the controller's own wiring, so the progress the AI froze with
+    // replaces the fresh route, grace and leash it seeded.
+    if let Some(ai) = thawing.and_then(|state| state.ai) {
+        thaw_ai(&mut commands.entity(entity), ai);
     }
 }
 
@@ -1313,6 +1492,62 @@ mod tests {
         assert!(
             world.entity(escort).contains::<AISpaceshipMarker>(),
             "and it is still an AI ship: it flies its own routine"
+        );
+    }
+
+    /// A neutralized armed AI ship stands down through the AI's own
+    /// `Add<NeutralizedMarker>` reaction, and a frozen copy of it thaws
+    /// standing down the same way.
+    #[test]
+    fn a_neutralized_ai_ship_thaws_standing_down() {
+        let mut app = App::new();
+        app.add_plugins(SpaceshipAIInputPlugin);
+        let world = app.world_mut();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShipDesigns>();
+        world.add_observer(insert_spaceship_sections);
+
+        let ship = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::AI(AIControllerConfig::default()),
+                    design: ShipDesignSource::Inline(ShipDesign {
+                        sections: vec![SpaceshipSectionConfig {
+                            id: "turret".to_string(),
+                            position: Vec3::ZERO,
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Inline(SectionConfig {
+                                base: BaseSectionConfig {
+                                    id: "turret".to_string(),
+                                    ..default()
+                                },
+                                kind: SectionKind::Turret(TurretSectionConfig::default()),
+                            }),
+                        }],
+                        ..default()
+                    }),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        world.entity_mut(ship).insert(NeutralizedMarker);
+        world.flush();
+        assert!(world.entity(ship).contains::<AINonCombatant>());
+
+        let frozen = freeze_ship(world, ship).expect("a settled ship freezes");
+        world.entity_mut(ship).despawn();
+        let mut commands = world.commands();
+        let mut thawed = commands.spawn(Transform::default());
+        thaw_ship(&mut thawed, frozen);
+        let thawed = thawed.id();
+        world.flush();
+
+        assert!(world.entity(thawed).contains::<NeutralizedMarker>());
+        assert!(
+            world.entity(thawed).contains::<AINonCombatant>(),
+            "a thawed neutralized AI ship must stand down again"
         );
     }
 

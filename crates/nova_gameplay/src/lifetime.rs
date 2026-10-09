@@ -1,5 +1,7 @@
 //! Entity lifetime: [`TempEntity`] despawns an entity after a timer, and
-//! [`DespawnEntity`] despawns it the moment the marker lands.
+//! [`DespawnEntity`] despawns it the moment the marker lands. A persistent
+//! body that a streamed world freezes answers [`UnsettledBody`] while a
+//! multi-frame process still runs on it.
 //!
 //! Nova owns this because it is what every transient the game spawns rides on -
 //! torpedo projectiles, muzzle flashes, impact volumes and the debris
@@ -27,7 +29,29 @@ use bevy::prelude::*;
 pub mod prelude {
     pub use super::{
         DespawnEntity, DespawnEntityPlugin, TempEntity, TempEntityPlugin, TempEntityState,
+        UnsettledBody,
     };
+}
+
+/// Why a persistent body cannot be frozen on this frame.
+///
+/// A freeze captures a body's whole state and despawns it. Some state lives
+/// in a process that spans frames - a sever between its two schedules, a
+/// collapse cascade, a section or fixture already marked to die - and a
+/// snapshot taken in the middle would lose or duplicate part of it. The owner
+/// of that process answers this instead of a snapshot, and the caller keeps
+/// the body live and asks again on a later frame. A body the owner cannot
+/// freeze at all is not this: that is a panic in the owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnsettledBody {
+    /// What is still running, for the log line that names the wait.
+    pub reason: &'static str,
+}
+
+impl std::fmt::Display for UnsettledBody {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.reason)
+    }
 }
 
 /// Component indicating that the entity is temporary.

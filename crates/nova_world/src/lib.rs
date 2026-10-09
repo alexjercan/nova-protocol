@@ -45,8 +45,8 @@
 //! A ship whose clearance sphere the observer's body overlaps when its cell
 //! materializes is held as a [`PendingSectorShip`] under the cell's root and
 //! spawned by [`materialize_pending_ships`] once the observer is clear. Its
-//! manifest entry never changes, and retiring the cell takes the held ship
-//! with the root.
+//! manifest entry never changes, and retiring the cell freezes the held ship
+//! with the rest of it.
 //!
 //! # The job lifetime
 //!
@@ -54,7 +54,7 @@
 //! not live becomes a [`SectorJob`]; the job describes, validates and meshes
 //! the whole sector on `AsyncComputeTaskPool`; and the main thread spends its
 //! frame only on the one step a worker cannot take, which is turning a
-//! [`PreparedSector`] into entities. Six explicit stages, ordered by
+//! [`PreparedSector`] into entities. Seven explicit stages, ordered by
 //! [`NovaWorldSystems`]:
 //!
 //! 1. [`NovaWorldSystems::Cleanup`] drops the work the session no longer owns.
@@ -77,10 +77,14 @@
 //!    itself; a completion for a cell nobody wants any more is dropped.
 //! 5. [`NovaWorldSystems::Materialize`] spawns AT MOST ONE prepared sector,
 //!    nearest first, so a large window costs one frame of spawning per cell
-//!    instead of one frame of all of it. Then it spawns each held ship the
-//!    observer is clear of.
-//! 6. [`NovaWorldSystems::Retire`] takes back roots, running jobs and prepared
-//!    results that fall outside the desired set.
+//!    instead of one frame of all of it. A cell that holds a frozen record
+//!    spawns it too. Then it spawns each held ship the observer is clear of.
+//! 6. [`NovaWorldSystems::Adopt`] gives every persistent body to the live root
+//!    of the cell it stands in now, and freezes one that left the window.
+//! 7. [`NovaWorldSystems::Retire`] freezes the persistent bodies of every root
+//!    outside the desired set, then takes back those roots, running jobs and
+//!    prepared results. A root keeps only its unsettled bodies live, and
+//!    retires once the last one freezes.
 //!
 //! Every decision is taken over a TOTAL ORDER - distance from the observer's
 //! cell first, the coordinate itself breaking ties - read out of ordered
@@ -93,14 +97,29 @@
 //!
 //! # Who owns what
 //!
-//! Three owners, nested rather than competing:
+//! Four owners, nested rather than competing:
 //!
 //! - the scenario owns the session. Every sector root carries
 //!   `ScenarioScopedMarker`, so `UnloadScenario` is the final sweep and cannot
 //!   leave a sector behind.
-//! - [`SectorRoot`] owns one sector. Retiring it despawns that sector's
-//!   bodies, planetoids and ships and nothing else. Every body id carries
-//!   its cell's slug, so a body is spawned once and retired once.
+//! - [`SectorRoot`] owns the bodies standing in one cell. A body is owned by
+//!   the cell it stands in NOW, not the one that generated it:
+//!   [`NovaWorldSystems::Adopt`] moves a rock, ship, canister, wreck or ore
+//!   drop under the root of the cell it drifted, flew or was towed into. A
+//!   retiring root takes no new body: one bound for its cell waits as for a
+//!   cell not live yet. The [`WorldObserver`] and every authored, addressable
+//!   object stay top-level and are never adopted.
+//! - [`FrozenSectors`] owns what an off-window cell holds. Retiring a root
+//!   freezes its persistent bodies into a typed record and despawns it, and a
+//!   body that leaves the window for a cell nobody holds live is frozen into
+//!   that cell's record. Nothing frozen is simulated. A body its owner reports
+//!   unsettled stays live until it settles, for a bounded number of advancing
+//!   frames. A cell generated before comes back from its record alone; a cell
+//!   never generated spawns its generated bodies and the bodies that arrived
+//!   in it, removing neither.
+//!   Transients - projectiles, debris - are not kept. Records are session
+//!   memory: [`NovaWorldSystems::Cleanup`] drops them with the work, and
+//!   nothing is saved to disk.
 //! - the plugin owns the WORK. A pending [`SectorJob`] and a prepared
 //!   [`ReadySectors`] payload are not scenario objects and the scenario sweep
 //!   cannot see them, so [`NovaWorldSystems::Cleanup`] drops them the moment
@@ -123,7 +142,8 @@
 //!
 //! So a swap is a CLEAR SESSION, not a merge. On the frame the resource is
 //! inserted, replaced or removed, [`NovaWorldSystems::Cleanup`] retires every
-//! live [`SectorRoot`] and drops every job and prepared result - and because
+//! live [`SectorRoot`], despawns every persistent body waiting top-level for a
+//! cell, and drops every job, prepared result and frozen record - and because
 //! the stages are chained, all of that lands before
 //! [`NovaWorldSystems::Request`] asks the new world for anything. The window
 //! refills from the new config over the following frames at the usual one
@@ -157,6 +177,7 @@ use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::{Fnv32, SeedStream};
 use nova_scenario::prelude::{scenario_is_live, AsteroidKindId, CurrentScenario, ShipDesignError};
 
+mod frozen;
 mod generation;
 mod streaming;
 
@@ -164,6 +185,7 @@ mod streaming;
 mod tests;
 
 pub use crate::{
+    frozen::{adopt_moving_bodies, FrozenBody, FrozenBodyType, FrozenSector, FrozenSectors},
     generation::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
         CivilizationId, PreparedSector, SectorAsteroid, SectorDescription, SectorManifest,
@@ -190,9 +212,12 @@ pub mod prelude {
         ShipRoleType, WorldConfig, WorldGeometry, ACTIVE_WINDOW_SECTORS_MAX,
         SECTOR_SHIP_CLEARANCE_MAX,
     };
-    pub use crate::streaming::{
-        desired_sectors, CurrentSector, PendingSectorShip, ReadySectors, SectorJob, SectorJobStats,
-        SectorRoot, WorldObserver,
+    pub use crate::{
+        frozen::{FrozenBody, FrozenBodyType, FrozenSector, FrozenSectors},
+        streaming::{
+            desired_sectors, CurrentSector, PendingSectorShip, ReadySectors, SectorJob,
+            SectorJobStats, SectorRoot, WorldObserver,
+        },
     };
 }
 
@@ -480,8 +505,8 @@ pub struct WorldConfig<G: SectorGenerator> {
     pub sector_edge: Meters,
     /// How many cells out from the current one the desired set reaches. The
     /// desired set is the cube of side `2 * active_radius + 1`, and
-    /// [`WorldConfig::validate`] refuses a radius whose cube is above
-    /// [`ACTIVE_WINDOW_SECTORS_MAX`].
+    /// [`WorldConfig::validate`] refuses a radius below 1 or one whose cube is
+    /// above [`ACTIVE_WINDOW_SECTORS_MAX`].
     pub active_radius: i32,
     /// What fills a cell.
     pub generator: G,
@@ -516,7 +541,8 @@ impl<G: SectorGenerator> WorldConfig<G> {
     /// # Errors
     ///
     /// [`SectorFault::Config`] for a cell edge that is not a finite positive
-    /// length, for a window above [`ACTIVE_WINDOW_SECTORS_MAX`], and for an
+    /// length, for a radius below 1 or a window above
+    /// [`ACTIVE_WINDOW_SECTORS_MAX`], and for an
     /// edge so wide that the window around the origin has no representable
     /// face - that cell would fault on a worker, long after the world armed.
     /// None of them is clamped: a clamp would stream a window nobody asked
@@ -527,6 +553,18 @@ impl<G: SectorGenerator> WorldConfig<G> {
             return refuse("sector_edge", format!("{} m", self.sector_edge.get()));
         }
         window_cells(self.active_radius)?;
+        // A ship docked to the observer stands across at most one face from
+        // it, so every cell around the observer's must be live: a window of
+        // one cell would freeze the partner and split the pair.
+        if self.active_radius < 1 {
+            return refuse(
+                "active_radius",
+                format!(
+                    "{}, a window of one cell, which a ship docked across its face would leave",
+                    self.active_radius
+                ),
+            );
+        }
         // The window is centred on the ORIGIN here, because that is the only
         // part of it the config fixes - where the observer stands is runtime,
         // and `generate_sector` refuses a far cell on its own. What must not
@@ -710,7 +748,10 @@ pub enum NovaWorldSystems {
     /// Spawn at most one prepared sector, then every held ship the observer
     /// has left.
     Materialize,
-    /// Take back everything outside the desired set.
+    /// Give every persistent body to the cell it stands in now, freezing the
+    /// ones that left the window.
+    Adopt,
+    /// Freeze and take back everything outside the desired set.
     Retire,
 }
 
@@ -738,8 +779,11 @@ pub enum NovaWorldSystems {
 /// work the previous one asked for; the observer is read next, so a crossing
 /// is acted on in the frame it is noticed; requesting before polling is what
 /// lets a job be started and collected in the same frame if a worker is that
-/// fast; retiring last is what keeps a sector materialized this frame from
-/// being taken back by the same frame that made it.
+/// fast; adopting after materializing is what hands a body to a cell spawned
+/// this frame instead of freezing it; adopting before retiring is what takes a
+/// body that left a retiring cell out of it before the cell freezes; retiring
+/// last is what keeps a sector materialized this frame from being taken back
+/// by the same frame that made it.
 pub struct NovaWorldPlugin<G: SectorGenerator>(PhantomData<fn() -> G>);
 
 impl<G: SectorGenerator> Default for NovaWorldPlugin<G> {
@@ -772,6 +816,8 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
         app.insert_resource(InstalledGenerator(type_name::<G>()));
         app.init_resource::<ReadySectors>();
         app.init_resource::<SectorJobStats>();
+        app.init_resource::<FrozenSectors>();
+        app.init_resource::<crate::frozen::SettlingBodies>();
         app.init_resource::<crate::streaming::ClearedConfig>();
         // `ClearedConfig` holds a `Tick` in a plain field, which bevy's
         // periodic tick sweep cannot reach on its own. Without this the
@@ -804,6 +850,7 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
                         NovaWorldSystems::Request,
                         NovaWorldSystems::Collect,
                         NovaWorldSystems::Materialize,
+                        NovaWorldSystems::Adopt,
                         NovaWorldSystems::Retire,
                     )
                         .chain()
@@ -828,6 +875,7 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
                 (materialize_ready_sector::<G>, materialize_pending_ships)
                     .chain()
                     .in_set(NovaWorldSystems::Materialize),
+                adopt_moving_bodies::<G>.in_set(NovaWorldSystems::Adopt),
                 retire_sectors::<G>.in_set(NovaWorldSystems::Retire),
             ),
         );

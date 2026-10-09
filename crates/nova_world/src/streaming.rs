@@ -18,21 +18,28 @@ use bevy::{
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
 use nova_assets::prelude::GameAssets;
-use nova_events::prelude::{Meters, Meters3};
+use nova_events::prelude::{Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{
-    Allegiance, AssetRef, DerelictShipMarker, IntegrityEnvelope, LootableShipMarker,
+    Allegiance, AssetRef, DerelictShipMarker, IntegrityEnvelope, LootableShipMarker, TempEntity,
+    UnsettledBody,
 };
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     resolve_ship_design, spaceship_scenario_object, AIControllerConfig, AsteroidConfig,
-    BaseScenarioObjectConfig, GameShipDesigns, ShipDesignSource, SpaceshipConfig,
+    BaseScenarioObjectConfig, GameShipDesigns, PlanetMarker, ShipDesignSource, SpaceshipConfig,
     SpaceshipController,
 };
 use nova_ship::prelude::GameSections;
 
 use crate::{
-    bodies_clear, prepare_sector, PreparedSector, SectorCoord, SectorFault, SectorGenerator,
-    SectorShip, SectorShipConditionType, SectorShipCrew, WorldConfig,
+    bodies_clear,
+    frozen::{
+        freeze_body, hold_unsettled, thaw_record, FrozenBody, FrozenSector, FrozenSectors,
+        PersistentBody, SettlingBodies,
+    },
+    generation::prepare_cell,
+    PreparedSector, SectorCoord, SectorFault, SectorGenerator, SectorShip, SectorShipConditionType,
+    SectorShipCrew, WorldConfig,
 };
 
 /// Marks the entity the desired set is centred on.
@@ -62,7 +69,7 @@ pub struct SectorRoot(pub SectorCoord);
 /// [`materialize_pending_ships`] spawns exactly that ship where the manifest
 /// put it once the observer is clear. It has no body of its own.
 #[derive(Component, Debug)]
-pub struct PendingSectorShip(SectorShip);
+pub struct PendingSectorShip(pub(crate) SectorShip);
 
 impl PendingSectorShip {
     /// The manifest entry it holds.
@@ -153,7 +160,14 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 }
 
 /// Spawn one prepared sector: the sector root, and one child per object the
-/// description names - rocks, then planetoids, then ships. Returns the root.
+/// description names - rocks, then planetoids, then ships - then the bodies
+/// of the cell's frozen `record`. Returns the root.
+///
+/// A [`FrozenSector::Visited`] record is the whole truth of a cell that was
+/// generated before: only the description's planetoids spawn beside it,
+/// because nothing changes them, and its rocks and ships come from the record
+/// as they froze. A [`FrozenSector::Arrivals`] record spawns beside everything
+/// the description places, and a generated body it overlaps is not removed.
 ///
 /// The root is an OWNERSHIP node and not a pose - it stays at the world origin
 /// and its children carry world positions. `base_scenario_object` seeds a
@@ -182,8 +196,9 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 ///
 /// # Panics
 ///
-/// When `prepared` carries a different number of rocks than asteroids or a
-/// different number of surfaces than planetoids - zipping a short list would
+/// When `prepared` carries a different number of rocks than asteroids it
+/// spawns, a different number of surfaces than planetoids, or a different
+/// number of pristine rocks than `record` froze - zipping a short list would
 /// silently spawn a sector missing its tail - and on
 /// [`SectorFault::InvalidShipDesign`] when a ship's inline design does not
 /// resolve whole against `sections`. The spawn's resolver skips a broken
@@ -193,16 +208,22 @@ pub fn desired_sectors(centre: SectorCoord, radius: i32) -> BTreeSet<SectorCoord
 pub fn materialize_sector(
     commands: &mut Commands,
     prepared: PreparedSector,
+    record: Option<FrozenSector>,
     texture: &AssetRef<Image>,
     sections: &GameSections,
     observer: ObserverBody,
 ) -> Entity {
     let PreparedSector {
-        description,
+        mut description,
         asteroids,
         planets,
+        thawed,
     } = prepared;
     let coord = description.coord;
+    if record.as_ref().is_some_and(FrozenSector::is_visited) {
+        description.asteroids.clear();
+        description.ships.clear();
+    }
     assert_eq!(
         description.asteroids.len(),
         asteroids.len(),
@@ -285,6 +306,20 @@ pub fn materialize_sector(
         } else {
             spawn_sector_ship(commands, root, ship);
         }
+    }
+
+    match record {
+        Some(record) => {
+            trace!(
+                "nova_world: thawing {} frozen body(ies) into {coord}",
+                record.bodies().len()
+            );
+            thaw_record(commands, root, coord, record, thawed);
+        }
+        None => assert!(
+            thawed.is_empty(),
+            "nova_world: {coord} was prepared with frozen rocks but holds no frozen record"
+        ),
     }
 
     trace!("nova_world: materialized {coord} with {objects} object(s)");
@@ -415,7 +450,9 @@ fn spawn_sector_ship(commands: &mut Commands, root: Entity, ship: SectorShip) {
 /// this is the only place the two could ever disagree - and a duplicate means
 /// a retirement was missed, which is the leak the whole nested-ownership rule
 /// exists to prevent.
-pub fn live_sectors(roots: &Query<(Entity, &SectorRoot)>) -> BTreeMap<SectorCoord, Entity> {
+pub fn live_sectors<'a>(
+    roots: impl IntoIterator<Item = (Entity, &'a SectorRoot)>,
+) -> BTreeMap<SectorCoord, Entity> {
     let mut live = BTreeMap::new();
     for (entity, root) in roots {
         if live.insert(root.0, entity).is_some() {
@@ -461,7 +498,7 @@ pub fn track_current_sector<G: SectorGenerator>(
     observer: Query<&GlobalTransform, With<WorldObserver>>,
     current: Option<ResMut<CurrentSector>>,
 ) {
-    assert_world_was_cleared(&config, &cleared);
+    assert_world_was_cleared(config.last_changed(), &cleared);
     if config.is_changed() {
         if let Err(fault) = config.validate() {
             panic!("nova_world: {fault}");
@@ -506,14 +543,27 @@ pub struct SectorJob {
 impl SectorJob {
     /// Start one cell's preparation on `AsyncComputeTaskPool`.
     ///
+    /// `record` is the cell's frozen record, if it holds one: a visited cell's
+    /// description rocks are not meshed, and every frozen rock's pristine
+    /// geometry is. A record changes only while its cell is off-window, and
+    /// [`retire_sectors`] cancels every job for an off-window cell, so the
+    /// record a job was started from is the one its materialization takes.
+    ///
     /// The config is MOVED into the task rather than read from the resource
     /// when it finishes: a job answers the question it was asked, and a dial
     /// changed mid-flight must not silently re-aim work already in the air.
     /// The other half of that rule is [`clear_sector_work`], which drops every
     /// job in the air on the frame the config changes - a job that answers the
     /// old question must not be ACCEPTED under the new one either.
-    pub fn start<G: SectorGenerator>(config: WorldConfig<G>, coord: SectorCoord) -> Self {
-        let task = AsyncComputeTaskPool::get().spawn(async move { prepare_sector(config, coord) });
+    pub fn start<G: SectorGenerator>(
+        config: WorldConfig<G>,
+        coord: SectorCoord,
+        record: Option<&FrozenSector>,
+    ) -> Self {
+        let visited = record.is_some_and(FrozenSector::is_visited);
+        let rocks = record.map(FrozenSector::rocks).unwrap_or_default();
+        let task = AsyncComputeTaskPool::get()
+            .spawn(async move { prepare_cell(config, coord, visited, &rocks) });
         Self { coord, task }
     }
 }
@@ -570,12 +620,9 @@ impl ClearedConfig {
 /// # Panics
 ///
 /// When the config changed after `Cleanup` ran this frame.
-pub(crate) fn assert_world_was_cleared<G: SectorGenerator>(
-    config: &Res<WorldConfig<G>>,
-    cleared: &ClearedConfig,
-) {
+pub(crate) fn assert_world_was_cleared(config_changed: Tick, cleared: &ClearedConfig) {
     assert!(
-        config.last_changed() == cleared.0,
+        config_changed == cleared.0,
         "nova_world: the WorldConfig changed after NovaWorldSystems::Cleanup ran, so the world \
          the previous one built was never retired and this frame would stream two worlds at \
          once; order every WorldConfig writer .before(NovaWorldSystems::Cleanup)"
@@ -654,16 +701,17 @@ pub fn request_sectors<G: SectorGenerator>(
     roots: Query<(Entity, &SectorRoot)>,
     jobs: Query<&SectorJob>,
     ready: Res<ReadySectors>,
+    frozen: Res<FrozenSectors>,
     mut stats: ResMut<SectorJobStats>,
 ) {
-    assert_world_was_cleared(&config, &cleared);
+    assert_world_was_cleared(config.last_changed(), &cleared);
     let running: BTreeSet<SectorCoord> = jobs.iter().map(|job| job.coord).collect();
     let openings = job_limit().saturating_sub(running.len());
     if openings == 0 {
         return;
     }
 
-    let live = live_sectors(&roots);
+    let live = live_sectors(roots);
     let centre = current.0;
     let mut missing: Vec<SectorCoord> = desired_sectors(centre, config.active_radius)
         .into_iter()
@@ -677,7 +725,7 @@ pub fn request_sectors<G: SectorGenerator>(
         trace!("nova_world: requesting {coord}");
         commands.spawn((
             Name::new(format!("Sector Job {coord}")),
-            SectorJob::start(config.clone(), coord),
+            SectorJob::start(config.clone(), coord, frozen.get(coord)),
         ));
         stats.requested += 1;
     }
@@ -712,7 +760,7 @@ pub fn collect_sector_jobs<G: SectorGenerator>(
     mut ready: ResMut<ReadySectors>,
     mut stats: ResMut<SectorJobStats>,
 ) {
-    assert_world_was_cleared(&config, &cleared);
+    assert_world_was_cleared(config.last_changed(), &cleared);
     stats.peak_pending = stats.peak_pending.max(jobs.iter().len());
     let desired = desired_sectors(current.0, config.active_radius);
 
@@ -744,6 +792,9 @@ pub fn collect_sector_jobs<G: SectorGenerator>(
 /// in - rather than first-prepared-first, so the world fills out from where
 /// the observer stands instead of from the low corner of the window.
 ///
+/// The cell's [`FrozenSectors`] record, if any, is consumed here: a visited
+/// cell comes back as it was frozen, and arrivals join a freshly generated one.
+///
 /// # Panics
 ///
 /// Through [`live_sectors`] on a duplicate root, through
@@ -766,14 +817,15 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
     current: Res<CurrentSector>,
     roots: Query<(Entity, &SectorRoot)>,
     mut ready: ResMut<ReadySectors>,
+    mut frozen: ResMut<FrozenSectors>,
     mut stats: ResMut<SectorJobStats>,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
     observer: Query<(&GlobalTransform, Option<&IntegrityEnvelope>), With<WorldObserver>>,
 ) {
-    assert_world_was_cleared(&config, &cleared);
+    assert_world_was_cleared(config.last_changed(), &cleared);
     let desired = desired_sectors(current.0, config.active_radius);
-    let live = live_sectors(&roots);
+    let live = live_sectors(roots);
     let centre = current.0;
     // Skipping a cell that is already live is what keeps the second root that
     // `live_sectors` panics on from ever being spawned. It costs a lookup and
@@ -795,7 +847,14 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
         panic!("nova_world: {}", SectorFault::AbsentObserver);
     };
     let observer = ObserverBody::read(transform, envelope);
-    materialize_sector(&mut commands, prepared, &texture, &sections, observer);
+    materialize_sector(
+        &mut commands,
+        prepared,
+        frozen.take(coord),
+        &texture,
+        &sections,
+        observer,
+    );
     stats.materialized += 1;
 
     if desired
@@ -855,68 +914,128 @@ pub fn materialize_pending_ships(
 /// Take back everything outside the desired set: live roots, running jobs, and
 /// prepared sectors nobody asked for any more.
 ///
+/// A retiring root's persistent bodies freeze into a
+/// [`FrozenSector::Visited`] record and despawn, so the cell comes back as it
+/// was left. Its planetoids are not frozen - the description spawns them
+/// again unchanged - and its transients despawn with it. A body whose owner
+/// reports it unsettled stays live under the root, and the root stays live
+/// until the last one freezes; each later frame freezes the ones that settled
+/// into the same record. A live root whose cell holds a record keeps retiring
+/// even when the cell is desired again: the record already holds part of the
+/// cell, and the cell comes back whole from it once the root is gone.
+///
 /// # Panics
 ///
-/// Through [`live_sectors`] on a duplicate root.
+/// Through [`live_sectors`] on a duplicate root, on a root child that is
+/// neither a planetoid, a transient nor a persistent body a sector can freeze,
+/// or a docked ship: retiring it would lose it. And on a body that stays
+/// unsettled for too many advancing frames.
 ///
 /// When a caller wrote [`WorldConfig`] after
 /// [`crate::NovaWorldSystems::Cleanup`] had already gone, so the world the old
 /// config built was never retired.
-#[expect(
-    private_interfaces,
-    reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
-              caller-readable epoch"
-)]
-pub fn retire_sectors<G: SectorGenerator>(
-    mut commands: Commands,
-    config: Res<WorldConfig<G>>,
-    cleared: Res<ClearedConfig>,
-    current: Res<CurrentSector>,
-    roots: Query<(Entity, &SectorRoot)>,
-    jobs: Query<(Entity, &SectorJob)>,
-    mut ready: ResMut<ReadySectors>,
-    mut stats: ResMut<SectorJobStats>,
-) {
-    assert_world_was_cleared(&config, &cleared);
-    let centre = current.0;
-    let desired = desired_sectors(centre, config.active_radius);
+pub fn retire_sectors<G: SectorGenerator>(world: &mut World) {
+    let config = world.resource_ref::<WorldConfig<G>>();
+    assert_world_was_cleared(config.last_changed(), world.resource::<ClearedConfig>());
+    let radius = config.active_radius;
+    let centre = world.resource::<CurrentSector>().0;
+    let desired = desired_sectors(centre, radius);
 
+    let live = live_sectors(world.query::<(Entity, &SectorRoot)>().iter(world));
     let mut retired = 0_usize;
-    for (coord, entity) in &live_sectors(&roots) {
-        if !desired.contains(coord) {
-            trace!("nova_world: retiring {coord}");
-            commands.entity(*entity).despawn();
+    let mut held = 0_usize;
+    for (coord, root) in live {
+        // A live cell's record was consumed when it materialized, so a live
+        // root whose cell holds one is part-way through retiring.
+        let retiring = world.resource::<FrozenSectors>().get(coord).is_some();
+        if desired.contains(&coord) && !retiring {
+            continue;
+        }
+        let (frozen, unsettled) = freeze_sector_bodies(world, coord, root);
+        trace!(
+            "nova_world: retiring {coord}, freezing {} body(ies)",
+            frozen.len()
+        );
+        let mut bodies = Vec::with_capacity(frozen.len());
+        for (entity, body) in frozen {
+            world.entity_mut(entity).despawn();
+            bodies.push(body);
+        }
+        world.resource_mut::<FrozenSectors>().visit(coord, bodies);
+        if unsettled.is_empty() {
+            world.entity_mut(root).despawn();
             retired += 1;
+            continue;
+        }
+        held += 1;
+        for (entity, reason) in unsettled {
+            debug!("nova_world: holding {entity} live in retiring {coord}: {reason}");
+            hold_unsettled(world, entity, coord, reason);
         }
     }
+    world.resource_mut::<SettlingBodies>().sweep();
 
-    let mut cancelled = 0_usize;
-    for (entity, job) in &jobs {
-        if !desired.contains(&job.coord) {
-            trace!("nova_world: cancelling the job for {}", job.coord);
-            commands.entity(entity).despawn();
-            stats.discarded += 1;
-            cancelled += 1;
-        }
+    let unwanted: Vec<(Entity, SectorCoord)> = world
+        .query::<(Entity, &SectorJob)>()
+        .iter(world)
+        .filter(|(_, job)| !desired.contains(&job.coord))
+        .map(|(entity, job)| (entity, job.coord))
+        .collect();
+    let cancelled = unwanted.len();
+    for (entity, coord) in unwanted {
+        trace!("nova_world: cancelling the job for {coord}");
+        world.entity_mut(entity).despawn();
     }
 
     let mut dropped = 0_usize;
-    ready.0.retain(|coord, _| {
+    world.resource_mut::<ReadySectors>().0.retain(|coord, _| {
         let wanted = desired.contains(coord);
         if !wanted {
             trace!("nova_world: dropping the prepared sector {coord}");
-            stats.discarded += 1;
             dropped += 1;
         }
         wanted
     });
+    world.resource_mut::<SectorJobStats>().discarded += cancelled + dropped;
 
-    if retired + cancelled + dropped > 0 {
+    if retired + held + cancelled + dropped > 0 {
         debug!(
-            "nova_world: around {centre}, retired {retired} sector(s), cancelled {cancelled} \
-             job(s) and dropped {dropped} prepared sector(s)"
+            "nova_world: around {centre}, retired {retired} sector(s), held {held} with \
+             unsettled bodies, cancelled {cancelled} job(s) and dropped {dropped} prepared \
+             sector(s)"
         );
     }
+}
+
+/// Freeze every settled persistent body a retiring root holds, in child
+/// order. Returns the frozen bodies with their entities, and each body its
+/// owner reports unsettled.
+fn freeze_sector_bodies(
+    world: &World,
+    coord: SectorCoord,
+    root: Entity,
+) -> (Vec<(Entity, FrozenBody)>, Vec<(Entity, UnsettledBody)>) {
+    let mut frozen = Vec::new();
+    let mut unsettled = Vec::new();
+    let Some(children) = world.get::<Children>(root) else {
+        return (frozen, unsettled);
+    };
+    for &child in children {
+        let entity = world.entity(child);
+        // The description spawns a planetoid again unchanged, and a transient
+        // is never kept.
+        if entity.contains::<PlanetMarker>() || entity.contains::<TempEntity>() {
+            continue;
+        }
+        match freeze_body(world, child) {
+            Ok(body) => {
+                trace!("nova_world: freezing {child} with {coord}");
+                frozen.push((child, body));
+            }
+            Err(reason) => unsettled.push((child, reason)),
+        }
+    }
+    (frozen, unsettled)
 }
 
 /// Drop the work the session no longer owns, and the world a replaced
@@ -939,9 +1058,16 @@ pub fn retire_sectors<G: SectorGenerator>(
 ///   carries the config it was STARTED with and everything on hand is keyed by
 ///   coordinate alone, so an old seed, edge or generator value would otherwise
 ///   materialize into the new world looking like the new world's own cell.
-///   That case is the only one that also takes the LIVE ROOTS: they describe a
-///   world nobody configured any more, and no other system would ever retire
-///   them, because the desired set names the same coordinates either way.
+///   That case is the only one that also takes the LIVE ROOTS and every
+///   persistent body standing top-level outside them, waiting for a cell to
+///   materialize: they describe a world nobody configured any more, and no
+///   other system would ever retire them, because the desired set names the
+///   same coordinates either way. Adoption would give a waiting body to the
+///   new world's cell.
+///
+/// Every [`FrozenSectors`] record and every unsettled-body wait goes on each
+/// of those frames too: a record is the state of the world that froze it, and
+/// the session is the most it outlives.
 ///
 /// It runs before the streaming stages, so a world that is replaced and
 /// re-armed in one frame cannot spawn the old world's prepared sectors into
@@ -949,14 +1075,25 @@ pub fn retire_sectors<G: SectorGenerator>(
 #[expect(
     private_interfaces,
     reason = "ClearedConfig is the crate's own record of what Cleanup saw, deliberately not a \
-              caller-readable epoch"
+              caller-readable epoch; SettlingBodies is the crate's own count of unsettled waits"
 )]
 pub fn clear_sector_work<G: SectorGenerator>(
     mut commands: Commands,
     config: Option<Res<WorldConfig<G>>>,
     roots: Query<Entity, With<SectorRoot>>,
+    loose: Query<
+        Entity,
+        (
+            PersistentBody,
+            Without<ChildOf>,
+            Without<WorldObserver>,
+            Without<ScenarioAddressableMarker>,
+        ),
+    >,
     jobs: Query<Entity, With<SectorJob>>,
     mut ready: ResMut<ReadySectors>,
+    mut frozen: ResMut<FrozenSectors>,
+    mut settling: ResMut<SettlingBodies>,
     mut stats: ResMut<SectorJobStats>,
     mut cleared: ResMut<ClearedConfig>,
 ) {
@@ -970,17 +1107,28 @@ pub fn clear_sector_work<G: SectorGenerator>(
     if let Some(config) = config {
         cleared.0 = config.last_changed();
     }
-    let retiring = if world_replaced {
-        roots.iter().len()
+    let (retiring, abandoned) = if world_replaced {
+        (roots.iter().len(), loose.iter().len())
     } else {
-        0
+        (0, 0)
     };
-    if jobs.is_empty() && ready.0.is_empty() && retiring == 0 {
+    // Every frame this runs on, the session or the world that froze a record
+    // is gone: an unload, a replaced scenario, a Retry, a swapped config.
+    let forgotten = frozen.clear();
+    let waits = settling.clear();
+    if jobs.is_empty()
+        && ready.0.is_empty()
+        && retiring == 0
+        && abandoned == 0
+        && forgotten == 0
+        && waits == 0
+    {
         return;
     }
     debug!(
-        "nova_world: the world on hand is gone, dropping {} job(s) and {} prepared sector(s) \
-         and retiring {retiring} live sector(s)",
+        "nova_world: the world on hand is gone, dropping {} job(s), {} prepared sector(s), \
+         {forgotten} frozen sector(s) and {waits} unsettled wait(s), retiring {retiring} live \
+         sector(s) and despawning {abandoned} top-level body(ies)",
         jobs.iter().len(),
         ready.0.len()
     );
@@ -994,6 +1142,9 @@ pub fn clear_sector_work<G: SectorGenerator>(
             // try_despawn: a scenario replaced on the same frame the config is
             // has already queued the same root through the scoped sweep, and
             // the probe's clean pass fails a run that warns on the second one.
+            commands.entity(entity).try_despawn();
+        }
+        for entity in &loose {
             commands.entity(entity).try_despawn();
         }
     }

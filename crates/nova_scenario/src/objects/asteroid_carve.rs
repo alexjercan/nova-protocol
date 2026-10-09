@@ -230,6 +230,66 @@ fn corner_volume(field: &SignedField, corners: u32) -> f32 {
     corners as f32 * field.cell_size().powi(3)
 }
 
+/// A frozen asteroid's whole carved solid: the field itself and its remesh
+/// bookkeeping, for [`crate::objects::asteroid::freeze_asteroid`] and
+/// [`crate::objects::asteroid::thaw_asteroid`].
+///
+/// `pub(crate)`, not re-exported: the carve invariants
+/// (`applied`/`attempted`/`meshed_volume` agreeing with `volume`) are this
+/// module's to keep, so only the snapshot and its two restore paths cross the
+/// module boundary, never the raw fields.
+#[derive(Clone, Debug)]
+pub(crate) struct AsteroidFieldSnapshot {
+    field: SignedField,
+    applied: u64,
+    attempted: Option<u64>,
+    volume: f32,
+    meshed_volume: f32,
+}
+
+impl AsteroidField {
+    /// Snapshot this field's whole state, for a freeze.
+    pub(crate) fn snapshot(&self) -> AsteroidFieldSnapshot {
+        AsteroidFieldSnapshot {
+            field: self.field.clone(),
+            applied: self.applied,
+            attempted: self.attempted,
+            volume: self.volume,
+            meshed_volume: self.meshed_volume,
+        }
+    }
+}
+
+impl AsteroidFieldSnapshot {
+    /// Rebuild the field exactly as it was snapshotted: no remesh pending.
+    pub(crate) fn restored(self) -> AsteroidField {
+        AsteroidField {
+            field: self.field,
+            applied: self.applied,
+            attempted: self.attempted,
+            volume: self.volume,
+            meshed_volume: self.meshed_volume,
+        }
+    }
+
+    /// Rebuild the field with its remesh forced to queue again: used when a
+    /// remesh was in flight at freeze and its task was dropped rather than
+    /// carried over. The solid already holds every mark - marks apply in
+    /// place every frame, never on the worker - so `volume` is already short
+    /// of `meshed_volume`; only `attempted` has to clear, since the live
+    /// field set it to the in-flight candidate's signature to stop a second
+    /// task from queuing behind the first one.
+    pub(crate) fn restored_pending_remesh(self) -> AsteroidField {
+        AsteroidField {
+            field: self.field,
+            applied: self.applied,
+            attempted: None,
+            volume: self.volume,
+            meshed_volume: self.meshed_volume,
+        }
+    }
+}
+
 /// Asks for the pristine field of a rock node that no hit has marked, so a
 /// mining pulse can carve it. Removed when the seed task starts.
 #[derive(Component, Clone, Copy, Debug, Default)]

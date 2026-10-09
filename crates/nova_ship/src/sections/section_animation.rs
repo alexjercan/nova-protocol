@@ -22,8 +22,9 @@ use bevy::{app::SceneSpawnerSystems, prelude::*, world_serialization::WorldInsta
 /// `SectionAnimationPlugin` with `SectionAnimationSystems`.
 pub mod prelude {
     pub use super::{
-        SectionAnimation, SectionAnimationCue, SectionAnimationMotion, SectionAnimationPlugin,
-        SectionAnimationRigDirty, SectionAnimationSystems, SectionAnimations,
+        FrozenSectionAnimations, SectionAnimation, SectionAnimationCue, SectionAnimationMotion,
+        SectionAnimationPlugin, SectionAnimationRigDirty, SectionAnimationSystems,
+        SectionAnimations,
     };
 }
 
@@ -342,6 +343,53 @@ impl SectionAnimations {
             .find(|track| track.config.cue == cue)
             .map(|track| track.target)
     }
+
+    /// Every track's progress and target, without the resolved scene nodes.
+    pub fn freeze(&self) -> FrozenSectionAnimations {
+        FrozenSectionAnimations(
+            self.tracks
+                .iter()
+                .map(|track| FrozenTrack {
+                    progress: track.progress,
+                    target: track.target,
+                })
+                .collect(),
+        )
+    }
+
+    /// Land every track at the progress and target `frozen` recorded, so a
+    /// thawed rig resumes mid-travel where it froze. The rig writes the pose
+    /// when its nodes resolve.
+    ///
+    /// # Panics
+    ///
+    /// When `frozen` holds a different track count: it was frozen from
+    /// another section design, and pairing its tracks by position would
+    /// pose the wrong parts.
+    pub fn thaw(&mut self, frozen: &FrozenSectionAnimations) {
+        assert_eq!(
+            self.tracks.len(),
+            frozen.0.len(),
+            "SectionAnimations::thaw: frozen track count differs from the section's"
+        );
+        for (track, frozen) in self.tracks.iter_mut().zip(&frozen.0) {
+            track.progress = frozen.progress;
+            track.target = frozen.target;
+            track.dirty = true;
+        }
+    }
+}
+
+/// A section's animation tracks when its body froze: each track's progress
+/// and target, in authored track order, with no `Entity` in it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FrozenSectionAnimations(Vec<FrozenTrack>);
+
+/// One track's progress and target when its body froze.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FrozenTrack {
+    progress: f32,
+    target: f32,
 }
 
 /// Marks a section whose animation rig must be (re)resolved against its

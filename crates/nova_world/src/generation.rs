@@ -422,9 +422,11 @@ fn canonical_rotation(rotation: Quat) -> String {
 /// One sector described, validated and prepared: everything
 /// `materialize_sector` needs that a worker can produce.
 ///
-/// Built only by [`prepare_sector`], and the fields are private, so
-/// `asteroids` is always one prepared rock per description asteroid and
-/// `planets` one prepared world per description planetoid, both in order. The
+/// Built only by [`prepare_sector`] and a [`crate::SectorJob`], and the fields
+/// are private, so `asteroids` is one prepared rock per description asteroid -
+/// or none, for a cell whose frozen record replaces its generated bodies -
+/// `planets` one prepared world per description planetoid, and `thawed` one
+/// pristine rock per frozen rock of the cell's record, all in order. The
 /// two halves are not the same shape: a [`PreparedAsteroid`] is the GEOMETRY
 /// only, and the rock's config is rebuilt from the description at spawn, while
 /// a [`PreparedPlanet`] carries its config beside its visual. A ship needs no
@@ -435,6 +437,7 @@ pub struct PreparedSector {
     pub(crate) description: SectorDescription,
     pub(crate) asteroids: Vec<PreparedAsteroid>,
     pub(crate) planets: Vec<PreparedPlanet>,
+    pub(crate) thawed: Vec<PreparedAsteroid>,
 }
 
 impl PreparedSector {
@@ -839,15 +842,34 @@ pub fn prepare_sector<G: SectorGenerator>(
     config: WorldConfig<G>,
     coord: SectorCoord,
 ) -> Result<PreparedSector, SectorFault> {
+    prepare_cell(config, coord, false, &[])
+}
+
+/// [`prepare_sector`] for a cell that may hold a frozen record.
+///
+/// A `visited` cell's record replaces its generated bodies, so its
+/// description's rocks are not meshed; the description is still drawn,
+/// because its planetoids never freeze. `frozen_rocks` is the seed and radius
+/// of each frozen rock, whose pristine geometry its thaw starts from.
+pub(crate) fn prepare_cell<G: SectorGenerator>(
+    config: WorldConfig<G>,
+    coord: SectorCoord,
+    visited: bool,
+    frozen_rocks: &[(u32, Meters)],
+) -> Result<PreparedSector, SectorFault> {
     let _job = info_span!("nova_world::prepare_sector", cell = %coord).entered();
     let description = generate_sector(&config, coord)?;
-    let asteroids = info_span!("nova_world::prepare_asteroids").in_scope(|| {
-        description
-            .asteroids
-            .iter()
-            .map(|body| prepare_asteroid_geometry(body.seed, body.radius))
-            .collect()
-    });
+    let asteroids = if visited {
+        Vec::new()
+    } else {
+        info_span!("nova_world::prepare_asteroids").in_scope(|| {
+            description
+                .asteroids
+                .iter()
+                .map(|body| prepare_asteroid_geometry(body.seed, body.radius))
+                .collect()
+        })
+    };
     let planets = info_span!("nova_world::prepare_planets").in_scope(|| {
         description
             .planets
@@ -855,9 +877,16 @@ pub fn prepare_sector<G: SectorGenerator>(
             .map(|planet| prepare_planet(planet.config.clone()))
             .collect()
     });
+    let thawed = info_span!("nova_world::prepare_frozen_asteroids").in_scope(|| {
+        frozen_rocks
+            .iter()
+            .map(|(seed, radius)| prepare_asteroid_geometry(*seed, *radius))
+            .collect()
+    });
     Ok(PreparedSector {
         description,
         asteroids,
         planets,
+        thawed,
     })
 }

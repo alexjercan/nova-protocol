@@ -36,9 +36,9 @@
 
 use std::f32::consts::FRAC_PI_2;
 
-use avian3d::prelude::Collider;
+use avian3d::prelude::{Collider, ColliderDensity};
 use bevy::{platform::collections::HashMap, prelude::*};
-use nova_gameplay::prelude::{destructible_body, AssetRef, Fnv64};
+use nova_gameplay::prelude::{destructible_body, AssetRef, Fnv64, Health};
 
 use crate::sections::{
     fixture::prelude::SectionFixture,
@@ -574,6 +574,32 @@ pub fn decor_body(fixture: &StyleFixtureConfig, pose: Transform) -> impl Bundle 
         // Health, density and `Visibility::Inherited` in one bundle.
         destructible_body(fixture.health, DECOR_DENSITY),
         decor_collider(fixture.collider),
+    )
+}
+
+/// A decoration rebuilt from a frozen record rather than scattered fresh: the
+/// exact `name`, `model`, `pose`, `health` and `collider` [`frozen::freeze_section`](super::frozen::freeze_section)
+/// captured, in place of the full-health piece [`decor_body`] would hand a
+/// freshly scattered one.
+///
+/// `ShipDecorMarker` still lands on it, so [`dress_skin_decor`] resolves its
+/// model exactly as it resolves a freshly scattered one.
+pub(crate) fn frozen_decor_body(
+    name: String,
+    model: AssetRef<WorldAsset>,
+    pose: Transform,
+    health: Health,
+    collider: Collider,
+) -> impl Bundle {
+    (
+        Name::new(name),
+        SectionFixture,
+        ShipDecorMarker(model),
+        pose,
+        health,
+        ColliderDensity(DECOR_DENSITY),
+        Visibility::Inherited,
+        collider,
     )
 }
 

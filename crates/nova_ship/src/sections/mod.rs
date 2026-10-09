@@ -17,6 +17,7 @@ pub mod damage_plume;
 pub mod damage_sparks;
 pub mod docking_section;
 pub mod fixture;
+pub mod frozen;
 pub mod hull_radius;
 pub mod hull_section;
 pub mod integrity;
@@ -45,7 +46,7 @@ pub mod prelude {
         catalog_ids::prelude::*, cell_grid::prelude::*, clearance::prelude::*,
         controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
         damage_plume::prelude::*, damage_sparks::prelude::*, docking_section::prelude::*,
-        fixture::prelude::*, hull_radius::prelude::*, hull_section::prelude::*,
+        fixture::prelude::*, frozen::prelude::*, hull_radius::prelude::*, hull_section::prelude::*,
         integrity::prelude::*, link_points::prelude::*, live_structure_anchor,
         mining_section::prelude::*, patch::prelude::*, placeholder_art::prelude::*,
         railgun_section::prelude::*, section_animation::prelude::*, shell_shape::prelude::*,

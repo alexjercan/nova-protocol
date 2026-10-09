@@ -7,6 +7,9 @@ publish = false
 description = "Deterministic sector generation and streaming for the Nova Protocol open world"
 
 [dependencies]
+# `LinearVelocity` and `AngularVelocity`: a frozen body keeps the motion it
+# left the window with.
+avian3d = { version = "0.7.0" }
 # Components, resources, system sets and `AsyncComputeTaskPool`. This crate
 # owns systems, so it builds a plugin; `nova_world_base` adds it for the game.
 bevy = { version = "0.19.0" }
@@ -28,8 +31,9 @@ nova_scenario = { path = "../nova_scenario" }
 nova_ship = { path = "../nova_ship" }
 
 [dev-dependencies]
-# Inspect the dynamic body and seeded velocity the scenario factory puts on a streamed rock.
-avian3d = { version = "0.7.0" }
+# The headless avian app a docked pair needs, to prove a sector retirement
+# never takes a ship the player is docked to.
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
 
 [lints]
 workspace = true
