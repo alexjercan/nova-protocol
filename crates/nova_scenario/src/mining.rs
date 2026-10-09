@@ -20,9 +20,10 @@
 //! beam meets the rock, and a rendered app draws the beam to that point. Every
 //! pulse that passes its checks plays the section's authored `pulse_sound` at
 //! the hit, and a rendered app flares the beam and throws a fixed burst of
-//! sparks off the hit. A refused pulse is silent and draws nothing. The beam,
-//! its flare and the sparks are art: they read the pulse and the hit and never
-//! change what the pulse cut.
+//! sparks off the hit. Every refused pulse plays the section's authored
+//! `refusal_sound` at the emitter face and draws nothing. The beam, its flare
+//! and the sparks are art: they read the pulse and the hit and never change
+//! what the pulse cut.
 //!
 //! An untouched rock has no field. The first pulse asks for one with
 //! [`AsteroidFieldSeedRequest`] and takes nothing; later pulses wait while
@@ -825,20 +826,24 @@ fn flash_mining_beam(
     }
 }
 
-/// Play the section's pulse sound at its hit, on every pulse that passes its
-/// checks. On the player's own ship it is heard through the hull; on any
-/// other, from out there. A refused pulse plays nothing.
+/// Play one sound per pulse: the section's pulse sound at its hit for a pulse
+/// that passes its checks, its refusal sound at the emitter face for a refused
+/// one. On the player's own ship it is heard through the hull; on any other,
+/// from out there.
 fn play_mining_pulse_sfx(
     pulse: On<MiningPulse>,
     asset_server: Res<AssetServer>,
-    q_sections: Query<(&MiningSectionConfigHelper, &ChildOf, &MiningBeamHit)>,
+    q_sections: Query<(
+        &MiningSectionConfigHelper,
+        &ChildOf,
+        &GlobalTransform,
+        &SectionCollider,
+        Option<&MiningBeamHit>,
+    )>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
-    if pulse.outcome.is_err() {
-        return;
-    }
-    let Ok((config, &ChildOf(ship), hit)) = q_sections.get(pulse.entity) else {
+    let Ok((config, &ChildOf(ship), frame, collider, hit)) = q_sections.get(pulse.entity) else {
         return;
     };
     let route = if q_player.contains(ship) {
@@ -846,12 +851,16 @@ fn play_mining_pulse_sfx(
     } else {
         AudioRoute::Exterior
     };
-    commands.play_sfx_at(
-        config.pulse_sound.resolve(&asset_server),
-        route,
-        MINING_PULSE_VOLUME,
-        hit.at,
-    );
+    let (sound, volume, at) = match (pulse.outcome, hit) {
+        (Ok(_), Some(hit)) => (&config.pulse_sound, MINING_PULSE_VOLUME, hit.at),
+        (Ok(_), None) => return,
+        (Err(_), _) => {
+            let (_, rotation, position) = frame.to_scale_rotation_translation();
+            let (face, _) = mining_emitter_face(position, rotation, *collider);
+            (&config.refusal_sound, MINING_REFUSAL_VOLUME, face)
+        }
+    };
+    commands.play_sfx_at(sound.resolve(&asset_server), route, volume, at);
 }
 
 /// Turn the ore a rock owes into queued canisters once its carve is drawn and
@@ -1103,9 +1112,10 @@ mod tests {
     struct Remeshes(u32);
 
     /// Every sound played, in order: its route, whether it was placed at a
-    /// live beam hit, and the path it loads.
+    /// live beam hit, whether it was placed at an emitter face, and the path
+    /// it loads.
     #[derive(Resource, Default)]
-    struct Played(Vec<(AudioRoute, bool, Option<String>)>);
+    struct Played(Vec<(AudioRoute, bool, bool, Option<String>)>);
 
     fn mining_app() -> App {
         let mut app = unfinished_integrity_physics_app();
@@ -1132,12 +1142,18 @@ mod tests {
             |sfx: On<PlaySfx>,
              server: Res<AssetServer>,
              q_hits: Query<&MiningBeamHit>,
+             q_faces: Query<(&GlobalTransform, &SectionCollider), With<MiningSectionMarker>>,
              mut played: ResMut<Played>| {
                 let at_hit = q_hits.iter().any(|hit| sfx.source == SfxSource::At(hit.at));
+                let at_face = q_faces.iter().any(|(frame, collider)| {
+                    let (_, rotation, position) = frame.to_scale_rotation_translation();
+                    let (face, _) = mining_emitter_face(position, rotation, *collider);
+                    sfx.source == SfxSource::At(face)
+                });
                 let path = server
                     .get_path(sfx.handle.id())
                     .map(|path| path.to_string());
-                played.0.push((sfx.route, at_hit, path));
+                played.0.push((sfx.route, at_hit, at_face, path));
             },
         );
         app.add_observer(|_: On<AsteroidRemeshed>, mut remeshes: ResMut<Remeshes>| {
@@ -1193,6 +1209,7 @@ mod tests {
             render_mesh: AssetRef::default(),
             render_mesh_transform: None,
             pulse_sound: AssetRef::from("base/sounds/mining_pulse.wav"),
+            refusal_sound: AssetRef::from("base/sounds/radar_deny.wav"),
             door_open_sound: AssetRef::from("base/sounds/mining_door_open.wav"),
             door_close_sound: AssetRef::from("base/sounds/mining_door_close.wav"),
             reach: Meters(100.0),
@@ -1433,10 +1450,11 @@ mod tests {
         assert!(app.world().get::<MiningBeamHit>(aimed).is_none());
     }
 
-    /// A held ship's emitters play their authored pulse sound once for every
-    /// pulse that passes its checks, at the beam's hit and through the hull of
-    /// the player's own ship. A refused pulse plays nothing: the turned
-    /// emitter refuses every pulse.
+    /// A held ship's emitters play one sound for every pulse, through the hull
+    /// of the player's own ship: the authored pulse sound at the beam's hit
+    /// for a pulse that passes its checks, and the authored refusal sound at
+    /// the emitter face for a refused one. The turned emitter refuses every
+    /// pulse, and its held key plays the refusal once a pulse, not a frame.
     #[test]
     fn only_a_pulse_that_passes_its_checks_plays_the_pulse_sound() {
         let mut app = mining_app();
@@ -1461,12 +1479,25 @@ mod tests {
         assert!(passed >= 2, "{pulses:?}");
         assert!(refused >= 1, "{pulses:?}");
         let played = &app.world().resource::<Played>().0;
-        assert_eq!(played.len(), passed, "{played:?}");
-        for (route, at_hit, path) in played {
+        assert_eq!(played.len(), pulses.len(), "{played:?}");
+        let mut pulse_sounds = 0;
+        for (route, at_hit, at_face, path) in played {
             assert_eq!(*route, AudioRoute::Hull);
-            assert!(*at_hit, "a pulse sound was not placed at the beam hit");
-            assert_eq!(path.as_deref(), Some("base/sounds/mining_pulse.wav"));
+            match path.as_deref() {
+                Some("base/sounds/mining_pulse.wav") => {
+                    assert!(*at_hit, "a pulse sound was not placed at the beam hit");
+                    pulse_sounds += 1;
+                }
+                Some("base/sounds/radar_deny.wav") => {
+                    assert!(
+                        *at_face,
+                        "a refusal sound was not placed at the emitter face"
+                    );
+                }
+                other => panic!("a pulse played {other:?}"),
+            }
         }
+        assert_eq!(pulse_sounds, passed, "{played:?}");
     }
 
     /// A weapon's crater remeshes the rock like a pulse does, and pays
@@ -1509,7 +1540,8 @@ mod tests {
 
     /// A pulse refuses, in order, with no lock, on a rock that holds no ore,
     /// past reach, and aimed away within reach. A refused pulse asks for no
-    /// field, owes nothing and leaves no beam hit.
+    /// field, owes nothing and leaves no beam hit. It plays the authored
+    /// refusal sound once, at the emitter face.
     #[test]
     fn a_refused_pulse_changes_nothing() {
         fn pulse_once(app: &mut App, emitter: Entity) -> Result<u32, MiningRefusalType> {
@@ -1517,10 +1549,19 @@ mod tests {
                 .entity_mut(emitter)
                 .insert(MiningSectionHeld(false));
             app.update();
+            let before = app.world().resource::<Played>().0.len();
             app.world_mut()
                 .entity_mut(emitter)
                 .insert(MiningSectionHeld(true));
             app.update();
+            let played = &app.world().resource::<Played>().0[before..];
+            assert_eq!(played.len(), 1, "{played:?}");
+            let (_, _, at_face, path) = &played[0];
+            assert!(
+                *at_face,
+                "a refusal sound was not placed at the emitter face"
+            );
+            assert_eq!(path.as_deref(), Some("base/sounds/radar_deny.wav"));
             *app.world()
                 .resource::<Pulses>()
                 .of(emitter)

@@ -24,6 +24,7 @@ fn config() -> MiningSectionConfig {
         render_mesh: AssetRef::default(),
         render_mesh_transform: None,
         pulse_sound: AssetRef::from("pulse.wav"),
+        refusal_sound: AssetRef::from("deny.wav"),
         door_open_sound: AssetRef::from("door_open.wav"),
         door_close_sound: AssetRef::from("door_close.wav"),
         reach: Meters(100.0),

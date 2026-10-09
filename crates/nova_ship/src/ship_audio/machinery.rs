@@ -475,6 +475,7 @@ mod tests {
                     render_mesh: AssetRef::from("mining.glb#Scene0"),
                     render_mesh_transform: None,
                     pulse_sound: AssetRef::from("base/sounds/mining_pulse.wav"),
+                    refusal_sound: AssetRef::from("base/sounds/radar_deny.wav"),
                     door_open_sound: AssetRef::from("base/sounds/mining_door_open.wav"),
                     door_close_sound: AssetRef::from("base/sounds/mining_door_close.wav"),
                     reach: Meters(100.0),

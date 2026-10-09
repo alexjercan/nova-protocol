@@ -45,6 +45,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The web build keeps no saved worlds: New Game stays a one-off session
   there, with no Load button or world name field.
 
+### Audio & Visuals
+
+- **(breaking)** A refused mining pulse plays the section's new required
+  `refusal_sound` at the emitter, once per pulse. Base content uses
+  `radar_deny.wav`.
+
 ## [0.15.0] - 2026-10-06
 
 ### Gameplay & Flight

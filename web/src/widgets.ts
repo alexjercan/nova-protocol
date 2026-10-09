@@ -12345,7 +12345,8 @@ function initMiningBeamChecks(host: HTMLElement): void {
                   "canisters after the rock's remesh lands; the first pulse " +
                   "into an untouched rock seeds it and cuts nothing."
                 : `REFUSED: ${refusalWords[verdict.refusal]}. The HUD shows ` +
-                  "nothing for this: no beam, no sound, no cut.";
+                  "nothing for this: no beam and no cut, only a refusal " +
+                  "sound at the emitter.";
     };
 
     host.appendChild(keys);

@@ -48,10 +48,12 @@ pub struct MiningSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh_transform: Option<RenderMeshTransform>,
-    /// Played at the beam's hit on every pulse that passes its checks. A
-    /// refused pulse plays nothing.
+    /// Played at the beam's hit on every pulse that passes its checks.
     #[reflect(ignore)]
     pub pulse_sound: AssetRef<AudioSource>,
+    /// Played at the emitter face on every refused pulse.
+    #[reflect(ignore)]
+    pub refusal_sound: AssetRef<AudioSource>,
     /// Played at the section when the doors start to part.
     #[reflect(ignore)]
     pub door_open_sound: AssetRef<AudioSource>,

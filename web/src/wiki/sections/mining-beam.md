@@ -32,7 +32,7 @@ The beam does not aim. It runs straight out of the emitter's face, so the **ship
 | Cut | a sphere about **7.5 m** in radius where the beam hits |
 | Health | **90** |
 
-<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 200 kg in crates/nova_gameplay/src/inventory.rs:532; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; check order and inclusive reach :160-173, :449-486; refusal is an info log only :434-435; canisters after the remesh :804-841. -->
+<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 200 kg in crates/nova_gameplay/src/inventory.rs:532; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; check order and inclusive reach in MiningRefusalType and aim_beam; a refusal is an info log and the authored refusal_sound at the emitter face in play_mining_pulse_sfx; canisters after the remesh :804-841. -->
 
 <div class="widget" data-widget="mining-beam-checks">
 <p>A pulse runs its checks in order and stops at the first failure: a travel lock, on an asteroid, of a kind that holds ore, with its nearest point within 100 m of the emitter face, and on the line straight out of that face within 100 m. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 200 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
@@ -40,14 +40,14 @@ The beam does not aim. It runs straight out of the emitter's face, so the **ship
 
 ## Cutting ore
 
-<!-- Behavior verified against crates/nova_ship/src/sections/mining_section.rs (hold to deploy, doors then tip, tip then doors on release, reverse mid-travel) and crates/nova_scenario/src/mining.rs (the MiningRefusalType checks in order, silent refusal, MiningBeamHit drawn only while every check passes, the first pulse into an untouched rock seeds its field and cuts nothing). -->
+<!-- Behavior verified against crates/nova_ship/src/sections/mining_section.rs (hold to deploy, doors then tip, tip then doors on release, reverse mid-travel) and crates/nova_scenario/src/mining.rs (the MiningRefusalType checks in order, one refusal_sound per refused pulse at the emitter face, MiningBeamHit drawn only while every check passes, the first pulse into an untouched rock seeds its field and cuts nothing). -->
 
 1. **Lock the rock.** Hold the radar on it with weapons lowered, so it takes your **travel lock**. See [Targeting & radar](../../targeting-radar/#stances-and-slots).
 2. **Point the emitter at it.** The Line Warship's emitter sits on the starboard top deck at the bow and looks forward, so put your nose on the rock and close to inside 100 m.
 3. **Hold the beam's key.** The doors part and the tip runs out. Once the tip is out, the beam fires at once and then once a second for as long as you hold the key.
 4. **Let go.** The tip runs in first, then the doors shut. Pressing or letting go halfway reverses from wherever the parts are.
 
-Every pulse checks five things, in order: your ship has a travel lock; the lock is a rock; the rock holds ore; the rock is within 100 m of the emitter face; the line straight out of that face meets it within 100 m. A pulse that fails any of them does nothing at all: no beam, no sound, no cut. So **no beam means a check is failing** - most often the nose is off the rock or the rock is too far. Nothing else blocks the beam: it is cast against the locked rock alone.
+Every pulse checks five things, in order: your ship has a travel lock; the lock is a rock; the rock holds ore; the rock is within 100 m of the emitter face; the line straight out of that face meets it within 100 m. A pulse that fails any of them draws no beam and cuts nothing; it plays one refusal sound at the emitter, once a pulse while you hold the key. So **no beam and a refusal sound mean a check is failing** - most often the nose is off the rock or the rock is too far. Nothing else blocks the beam: it is cast against the locked rock alone.
 
 A pulse that passes draws the beam to the hit, flares it, throws sparks and plays a pulse sound at the rock. The first pulse into a rock nobody has cut yet only readies it and takes nothing; the cut starts with the next pulse. A pulse into a crater an earlier pulse or a weapon already emptied finds nothing to cut and frees no ore, so walk the beam onto fresh rock.
 

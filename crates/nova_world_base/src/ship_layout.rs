@@ -2530,6 +2530,7 @@ pub(crate) mod fixture {
             render_mesh: "beam.glb#Scene0".into(),
             render_mesh_transform: None,
             pulse_sound: "pulse.wav".into(),
+            refusal_sound: "deny.wav".into(),
             door_open_sound: "open.wav".into(),
             door_close_sound: "close.wav".into(),
             reach: Meters(100.0),

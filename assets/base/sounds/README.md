@@ -134,6 +134,7 @@ without a controller flies blind and gets no warnings at all.
 | `salvage_pickup.wav` | the cargo intake's `take_sound` |
 | `cargo_eject.wav` | the cargo intake's `eject_sound` |
 | `mining_pulse.wav` | the mining beam's `pulse_sound`, once per pulse that passes its checks |
+| `radar_deny.wav` | the mining beam's `refusal_sound`, once per refused pulse (also the controller's `radar_deny_sound`) |
 | `mining_door_open.wav` | the mining beam's `door_open_sound`, when its lids start to part |
 | `mining_door_close.wav` | the mining beam's `door_close_sound`, when its lids start to shut |
 

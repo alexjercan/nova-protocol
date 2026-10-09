@@ -2746,6 +2746,7 @@ mod tests {
                         render_mesh: AssetRef::default(),
                         render_mesh_transform: None,
                         pulse_sound: AssetRef::default(),
+                        refusal_sound: AssetRef::default(),
                         door_open_sound: AssetRef::default(),
                         door_close_sound: AssetRef::default(),
                         reach: Meters(100.0),

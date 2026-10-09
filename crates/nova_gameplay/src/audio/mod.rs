@@ -91,11 +91,11 @@ pub mod prelude {
         PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxListenerMarker, SfxPlugin, SfxSource, SfxVoice,
         SoundBank, UiSfx, VoiceMix, WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME,
         EDITOR_REMOVE_VOLUME, EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME, MENU_FOCUS_VOLUME,
-        MENU_SELECT_VOLUME, MINING_PULSE_VOLUME, NOVA_OS_BACK_VOLUME, NOVA_OS_BED_VOLUME,
-        NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME, NOVA_OS_KEY_MIN_INTERVAL,
-        NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME, NOVA_OS_POWER_VOLUME, NOVA_OS_TICK_VOLUME,
-        OBJECTIVE_FAIL_VOLUME, SALVAGE_PICKUP_VOLUME, UI_SFX_FILES, UI_TICK_VOLUME,
-        UI_TOGGLE_VOLUME,
+        MENU_SELECT_VOLUME, MINING_PULSE_VOLUME, MINING_REFUSAL_VOLUME, NOVA_OS_BACK_VOLUME,
+        NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME,
+        NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME, NOVA_OS_POWER_VOLUME,
+        NOVA_OS_TICK_VOLUME, OBJECTIVE_FAIL_VOLUME, SALVAGE_PICKUP_VOLUME, UI_SFX_FILES,
+        UI_TICK_VOLUME, UI_TOGGLE_VOLUME,
     };
 }
 
@@ -230,6 +230,11 @@ pub const SALVAGE_PICKUP_VOLUME: f32 = 0.22;
 /// salvage pickup it leads to. Fired from `nova_scenario`'s mining plugin,
 /// which owns `MiningPulse`.
 pub const MINING_PULSE_VOLUME: f32 = 0.18;
+
+/// One refused mining beam pulse. It repeats on the same clock as a landing
+/// pulse while the key is held, so it sits at [`MINING_PULSE_VOLUME`]. Fired
+/// from `nova_scenario`'s mining plugin, which owns `MiningPulse`.
+pub const MINING_REFUSAL_VOLUME: f32 = 0.18;
 
 /// Volume for the menu click cue, fired from `nova_menu`. Non-positional and
 /// in the informational-tick band, like the ship's own cue volumes over in

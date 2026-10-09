@@ -94,6 +94,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             render_mesh: meshes.mining_beam.clone(),
             render_mesh_transform: None,
             pulse_sound: meshes.mining_pulse_sound.clone(),
+            refusal_sound: meshes.mining_refusal_sound.clone(),
             door_open_sound: meshes.mining_door_open_sound.clone(),
             door_close_sound: meshes.mining_door_close_sound.clone(),
             // Provisional stats: 100 m of reach, one pulse a second, and a

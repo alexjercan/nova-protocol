@@ -1141,6 +1141,7 @@ the railgun.
 kind: Mining((
     render_mesh: "dep://base/gltf/mining_beam_compact.glb#Scene0",
     pulse_sound: "self://sounds/mining_pulse.wav",
+    refusal_sound: "self://sounds/radar_deny.wav",
     door_open_sound: "self://sounds/mining_door_open.wav",
     door_close_sound: "self://sounds/mining_door_close.wav",
     reach: 100.0,
@@ -1152,8 +1153,10 @@ kind: Mining((
 - `render_mesh` - the emitter's scene: its casing, the doors its `StowDoors`
   track slides and the tip its `StowLift` track retracts.
   `render_mesh_transform` (optional) moves the mesh only.
-- `pulse_sound` - played at the hit on every pulse that passes its checks. A
-  refused pulse plays nothing. Base content ships `mining_pulse.wav`.
+- `pulse_sound` - played at the hit on every pulse that passes its checks.
+  Base content ships `mining_pulse.wav`.
+- `refusal_sound` - played at the emitter face on every refused pulse, so a
+  held key plays it once a pulse. Base content ships `radar_deny.wav`.
 - `door_open_sound` and `door_close_sound` - played at the section when its
   doors start to part and start to shut. Base content ships
   `mining_door_open.wav` and `mining_door_close.wav`.
@@ -1172,7 +1175,7 @@ Release it and the tip goes in before the doors shut. Only a
 fully deployed emitter pulses, and each one pulses on its own clock. A pulse
 needs a travel-locked asteroid of a kind that yields ore, within `reach`, and a
 straight line out of the face that meets it. A pulse that fails any check
-changes nothing and is logged. A pulse pays one ore per cell corner it empties,
+changes nothing, is logged and plays `refusal_sound`. A pulse pays one ore per cell corner it empties,
 once the rock is redrawn, so material already shot away pays nothing. The ore
 leaves the rock as canisters, one at a time, when the space by the surface is
 clear. The emitter costs no power and no ammunition.
