@@ -4,10 +4,11 @@
 //! leaves without a save. The world saves through the production save
 //! systems on a fixture ship (`nova_world_base`'s `test-support`).
 
-use std::{path::Path, time::Duration};
+use std::{path::Path, sync::mpsc, time::Duration};
 
 use bevy::{
-    prelude::*, time::update_virtual_time, ui_widgets::Activate, window::WindowCloseRequested,
+    prelude::*, tasks::IoTaskPool, time::update_virtual_time, ui_widgets::Activate,
+    window::WindowCloseRequested,
 };
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
@@ -17,7 +18,7 @@ use nova_ship::prelude::{
 };
 use nova_world_base::{
     prelude::{
-        create_world, list_worlds, open_world, FrozenTransient, FrozenTransientType,
+        create_world, list_worlds, open_world, FrozenTransient, FrozenTransientType, WorldRefusal,
         WorldSaveSession, WorldSaveStatus,
     },
     test_support::{arm_save_fixture, WorldSaveTestPlugin},
@@ -424,6 +425,90 @@ fn entering_the_menu_after_a_death_releases_the_world() {
     )
     .expect("the world opens again");
     assert_eq!(on_disk(&app, root.path()), (1, 300));
+}
+
+/// How long [`IoPoolHold`] waits for a held thread to start, and how long a
+/// held thread waits for its release.
+const IO_HOLD_MAX: Duration = Duration::from_secs(10);
+
+/// Every `IoTaskPool` thread blocked, so a task spawned meanwhile stays
+/// queued and cannot finish before the test looks. Dropping the hold, also
+/// on a failed assertion, disconnects each thread's channel and releases it.
+/// The pool is shared with the tests running beside this one, so a thread
+/// also gives up after [`IO_HOLD_MAX`].
+struct IoPoolHold(
+    #[expect(dead_code, reason = "held, never read; dropping it releases")] Vec<mpsc::Sender<()>>,
+);
+
+impl IoPoolHold {
+    fn new() -> Self {
+        let pool = IoTaskPool::get();
+        let (started, held) = mpsc::channel();
+        let releases = (0..pool.thread_num())
+            .map(|_| {
+                let (release, waiting) = mpsc::channel::<()>();
+                let started = started.clone();
+                pool.spawn(async move {
+                    // The test may have panicked and dropped the receiver.
+                    let _ = started.send(());
+                    let _ = waiting.recv_timeout(IO_HOLD_MAX);
+                })
+                .detach();
+                release
+            })
+            .collect();
+        let hold = Self(releases);
+        for _ in 0..pool.thread_num() {
+            held.recv_timeout(IO_HOLD_MAX)
+                .expect("every IoTaskPool thread is held");
+        }
+        hold
+    }
+}
+
+/// A death exit that drops the session while a write is in flight keeps the
+/// world locked until the write ends, and the write lands whole. The write
+/// is held queued, so the session drops before it can start.
+#[test]
+fn a_write_in_flight_keeps_the_world_locked_after_a_death_exit() {
+    let (mut app, root, player) = saved_world();
+    app.world_mut().entity_mut(player).insert(ShipCredits(410));
+    let hold = IoPoolHold::new();
+    app.world_mut()
+        .resource_mut::<WorldSaveSession>()
+        .request_leave();
+    app.update();
+    let mut session_mut = app.world_mut().resource_mut::<WorldSaveSession>();
+    assert!(session_mut.is_writing(), "the leave save is in flight");
+    session_mut.stop_saving();
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+
+    assert_eq!(game_state(&app), GameStates::MainMenu);
+    assert!(session(&app).is_none(), "the spent session is dropped");
+    let reopen = |app: &App| {
+        open_world(
+            root.path(),
+            "leave",
+            app.world()
+                .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+        )
+    };
+    assert!(
+        matches!(reopen(&app), Err(WorldRefusal::Locked)),
+        "the write in flight holds the world"
+    );
+    drop(hold);
+    update_until(&mut app, "the write in flight ends", |app| {
+        reopen(app).is_ok()
+    });
+    assert_eq!(on_disk(&app, root.path()), (2, 410));
+    assert_eq!(
+        files(&root.path().join("leave")),
+        ["state.2.ron", "world.lock", "world.ron"]
+    );
 }
 
 /// The window's close button in a saved world is Exit: it pauses, waits for

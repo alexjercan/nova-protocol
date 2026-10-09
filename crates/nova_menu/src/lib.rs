@@ -440,7 +440,8 @@ impl Plugin for NovaMenuPlugin {
             app.add_systems(Update, leave::on_window_close_requested);
             // [Enter] over a Defeat goes to the menu without a leave. A spent
             // session saves nothing more, and its lock must not outlive the
-            // game it ended in.
+            // game it ended in. A write still in flight keeps the lock until
+            // that write ends.
             app.add_systems(
                 OnExit(GameStates::Playing),
                 |mut commands: Commands, session: Option<Res<WorldSaveSession>>| {

@@ -7,7 +7,10 @@
 //! whole world in one frame: the ledger, every live sector, the player and
 //! the canister counter.
 
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::{
@@ -77,11 +80,17 @@ pub enum WorldSaveStatus {
 /// from the seed), the session is spent and never writes again: what streams
 /// after that is not the saved world, and saving it would overwrite the last
 /// good save. Only a new session, from Create or Load, saves again.
+///
+/// Dropping the session does not cut a write in flight short: the write runs
+/// on to the end and keeps the world locked until it does, so no other open
+/// of the folder can read or delete a half-written save. A detached write
+/// that fails is logged; nothing is left to show it to the player.
 #[derive(Resource, Debug)]
 pub struct WorldSaveSession {
     folder: WorldFolder,
-    /// Held, never read: dropping the session releases the world.
-    _lock: WorldLock,
+    /// Held for its lock. Each writer holds a clone, so the world is released
+    /// only when the session and its last write are both gone.
+    _lock: Arc<WorldLock>,
     name: String,
     seed: u32,
     /// The generation of the last good save, zero before the first.
@@ -124,7 +133,7 @@ impl WorldSaveSession {
     ) -> Self {
         Self {
             folder,
-            _lock: lock,
+            _lock: Arc::new(lock),
             name,
             seed,
             generation,
@@ -483,13 +492,34 @@ pub(crate) fn snapshot_world(world: &mut World) {
         return;
     }
     let folder = session.folder.clone();
-    session.writer = Some(
-        IoTaskPool::get()
-            .spawn(async move { write_world(&folder, &header, &state).map(|()| generation) }),
-    );
+    let lock = Arc::clone(&session._lock);
+    session.writer = Some(IoTaskPool::get().spawn(async move {
+        let written = write_world(&folder, &header, &state).map(|()| generation);
+        drop(lock);
+        written
+    }));
     session.wanted = None;
     session.settling_frames = 0;
     session.status = WorldSaveStatus::Writing;
+}
+
+impl Drop for WorldSaveSession {
+    /// Detach a write in flight. Dropping its task would cancel a write that
+    /// has not started and release the lock under one that has.
+    fn drop(&mut self) {
+        let Some(writer) = self.writer.take() else {
+            return;
+        };
+        IoTaskPool::get()
+            .spawn(async move {
+                if let Err(reason) = writer.await {
+                    error!(
+                        "nova_world_base: the world save failed after the world closed: {reason}"
+                    );
+                }
+            })
+            .detach();
+    }
 }
 
 /// Record what a finished writer did.
