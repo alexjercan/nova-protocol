@@ -96,7 +96,7 @@ use mods::{
 };
 use nova_training::prelude::{FieldNoteRotation, TrainingCatalog};
 #[cfg(not(target_arch = "wasm32"))]
-use nova_world_base::prelude::WorldResumeRefused;
+use nova_world_base::prelude::{WorldResumeRefused, WorldSaveSession};
 use outcome::{
     auto_advance_outcome, clear_start_failure, regrab_cursor_on_player_spawn, sync_outcome_cursor,
     sync_outcome_overlay, sync_outcome_pause, sync_start_failure_cursor,
@@ -438,9 +438,18 @@ impl Plugin for NovaMenuPlugin {
             // `WindowPlugin` registers it in the game; a headless rig has none.
             app.add_message::<bevy::window::WindowCloseRequested>();
             app.add_systems(Update, leave::on_window_close_requested);
-            app.add_systems(OnExit(GameStates::Playing), |mut commands: Commands| {
-                commands.remove_resource::<leave::PendingLeave>();
-            });
+            // [Enter] over a Defeat goes to the menu without a leave. A spent
+            // session saves nothing more, and its lock must not outlive the
+            // game it ended in.
+            app.add_systems(
+                OnExit(GameStates::Playing),
+                |mut commands: Commands, session: Option<Res<WorldSaveSession>>| {
+                    commands.remove_resource::<leave::PendingLeave>();
+                    if session.is_some_and(|session| session.is_spent()) {
+                        commands.remove_resource::<WorldSaveSession>();
+                    }
+                },
+            );
         }
         // The message this plugin writes below. `nova_assets` owns it and adds
         // it too, which is a no-op the second time - declared here so a rig

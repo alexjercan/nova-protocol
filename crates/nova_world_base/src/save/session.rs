@@ -171,6 +171,12 @@ impl WorldSaveSession {
         self.settling_frames = 0;
     }
 
+    /// The session's run ended, or saving was stopped: nothing is written
+    /// again, and a leave save would only fail.
+    pub fn is_spent(&self) -> bool {
+        self.spent
+    }
+
     /// A write is in flight.
     pub fn is_writing(&self) -> bool {
         self.writer.is_some()

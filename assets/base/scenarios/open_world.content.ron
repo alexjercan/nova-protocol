@@ -168,6 +168,21 @@
                     )),
                 ],
             ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship was destroyed."),
+                    )),
+                ],
+            ),
         ],
     )),
 ]

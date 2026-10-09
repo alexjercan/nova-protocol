@@ -3,9 +3,10 @@
 //! The scenario spawns the player's line warship and the lights. It declares
 //! [`ScenarioRole::OpenWorld`], so the Scenarios picker renders no row for it.
 //! `nova_world_base` sees the role and the one player ship and streams the
-//! seeded sectors in around it. There is no objective and no outcome: the
-//! world is the scenario, and its generated wrecks are the loot a docked
-//! player may Take.
+//! seeded sectors in around it. There is no objective: the world is the
+//! scenario, and its generated wrecks are the loot a docked player may Take.
+//! The one outcome is the player's death, a Defeat with nothing queued: the
+//! menu offers Load last save in a saved world and Main Menu everywhere.
 
 use std::collections::BTreeMap;
 
@@ -17,12 +18,15 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::ShipCapabilities;
 use nova_world_base::prelude::{BLOCK_LINE_WARSHIP_SHIP_ID, OPEN_WORLD_SCENARIO_ID};
 
-use crate::base_content::{
-    assets::BaseContentAssets,
-    ships::{
-        self, BLOCK_LINE_WARSHIP_MINING_ID, BLOCK_LINE_WARSHIP_PDC_IDS,
-        BLOCK_LINE_WARSHIP_RAILGUN_ID, BLOCK_LINE_WARSHIP_TORPEDO_IDS,
+use crate::{
+    base_content::{
+        assets::BaseContentAssets,
+        ships::{
+            self, BLOCK_LINE_WARSHIP_MINING_ID, BLOCK_LINE_WARSHIP_PDC_IDS,
+            BLOCK_LINE_WARSHIP_RAILGUN_ID, BLOCK_LINE_WARSHIP_TORPEDO_IDS,
+        },
     },
+    scenario_helpers::prelude::entity,
 };
 
 /// The player's ship, by the id events and tools address it with.
@@ -41,13 +45,25 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
                       planetoids and generated ships, streamed in around your line warship as you fly."
             .to_string(),
         role: ScenarioRole::OpenWorld,
-        events: vec![ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnStart,
-            once: true,
-            filters: vec![],
-            actions: start,
-        }],
+        events: vec![
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnStart,
+                once: true,
+                filters: vec![],
+                actions: start,
+            },
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnDestroyed,
+                once: true,
+                filters: vec![entity(PLAYER_ID)],
+                actions: vec![EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Defeat,
+                    "Your ship was destroyed.",
+                ))],
+            },
+        ],
         ..ScenarioConfig::new(OPEN_WORLD_SCENARIO_ID, "Open World", assets.cubemap.clone())
     }
 }

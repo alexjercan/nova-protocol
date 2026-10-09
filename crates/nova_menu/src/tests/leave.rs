@@ -1,7 +1,8 @@
 //! Leaving a saved world: every way out waits on the leave save, a failed
-//! save leaves only on the player's consent, and Load last save writes
-//! nothing. The world saves through the production save systems on a
-//! fixture ship (`nova_world_base`'s `test-support`).
+//! save leaves only on the player's consent, Load last save writes nothing,
+//! and after a death the Defeat offers Load last save and every way out
+//! leaves without a save. The world saves through the production save
+//! systems on a fixture ship (`nova_world_base`'s `test-support`).
 
 use std::{path::Path, time::Duration};
 
@@ -312,6 +313,117 @@ fn load_last_save_reopens_the_saved_world_without_writing() {
         files(&root.path().join("leave")),
         ["state.1.ron", "world.lock", "world.ron"]
     );
+}
+
+/// A saved world whose player died after its first save, with the open
+/// world's Defeat shown. The player had 410 credits when it died; the save
+/// on disk holds 300.
+///
+/// The rig arms no world, so nothing disarms it on the death. A scenario
+/// change spends the session's run the same way the disarm does
+/// (`request_world_save`).
+fn dead_saved_world() -> (App, TempDir) {
+    let (mut app, root, player) = saved_world();
+    app.world_mut().entity_mut(player).insert(ShipCredits(410));
+    app.world_mut().despawn(player);
+    app.world_mut()
+        .resource_mut::<CurrentScenario>()
+        .set_changed();
+    app.init_resource::<CurrentOutcome>();
+    app.init_resource::<NovaEventWorld>();
+    app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig::new(
+        ScenarioOutcomeKind::Defeat,
+        "Your ship was destroyed.",
+    ));
+    for _ in 0..5 {
+        app.update();
+    }
+    (app, root)
+}
+
+/// A Defeat in a saved world offers Load last save beside Main Menu, and
+/// [Enter] still goes to the menu. Load last save writes nothing and reopens
+/// the world from disk.
+#[test]
+fn a_defeat_in_a_saved_world_offers_load_last_save() {
+    let (mut app, root) = dead_saved_world();
+    let texts = super::support::all_text(&mut app);
+    for text in [
+        "DEFEAT",
+        "Your ship was destroyed.",
+        "Load last save",
+        "Main Menu",
+        "[Enter] Main Menu",
+    ] {
+        assert!(texts.iter().any(|t| t == text), "{text:?} in {texts:?}");
+    }
+
+    press(&mut app, "Outcome Primary Button");
+    update_until(&mut app, "the reopen", |app| {
+        app.world().get_resource::<PendingLeave>().is_none()
+    });
+
+    assert_eq!(
+        app.world().resource::<LoadedScenario>().0.as_deref(),
+        Some("open_world")
+    );
+    assert_eq!(
+        app.world().resource::<ResumedSpaceship>().id.0,
+        "player",
+        "the player spawn thaws the saved ship"
+    );
+    assert_eq!(on_disk(&app, root.path()), (1, 300));
+    assert_eq!(
+        files(&root.path().join("leave")),
+        ["state.1.ron", "world.lock", "world.ron"]
+    );
+}
+
+/// After a death the leave writes nothing and does not fail: Main Menu goes
+/// to the menu once no write is in flight, and the last save stays.
+#[test]
+fn main_menu_after_a_death_leaves_without_a_save_failure() {
+    let (mut app, root) = dead_saved_world();
+
+    press(&mut app, "Outcome Menu Button");
+    for _ in 0..20 {
+        app.update();
+    }
+
+    let texts = super::support::all_text(&mut app);
+    assert_eq!(game_state(&app), GameStates::MainMenu, "texts: {texts:?}");
+    assert!(!texts.iter().any(|t| t == "SAVE FAILED"), "{texts:?}");
+    assert!(session(&app).is_none(), "the session and its lock are gone");
+    assert_eq!(on_disk(&app, root.path()), (1, 300));
+    assert_eq!(
+        files(&root.path().join("leave")),
+        ["state.1.ron", "world.lock", "world.ron"]
+    );
+}
+
+/// [Enter] over the Defeat goes to the menu without the leave flow. The
+/// spent session is dropped on the way out, so its lock does not keep the
+/// world from opening again.
+#[test]
+fn entering_the_menu_after_a_death_releases_the_world() {
+    let (mut app, root) = dead_saved_world();
+
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+    app.update();
+
+    assert_eq!(game_state(&app), GameStates::MainMenu);
+    assert!(session(&app).is_none(), "the session and its lock are gone");
+    open_world(
+        root.path(),
+        "leave",
+        app.world()
+            .resource::<nova_assets::prelude::LoadedSectionPacks>(),
+    )
+    .expect("the world opens again");
+    assert_eq!(on_disk(&app, root.path()), (1, 300));
 }
 
 /// The window's close button in a saved world is Exit: it pauses, waits for

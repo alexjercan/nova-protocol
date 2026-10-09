@@ -14,7 +14,11 @@ use nova_ui::{
     theme::UiColor,
     widget::{panel, ThemedRadius, ThemedText},
 };
+#[cfg(not(target_arch = "wasm32"))]
+use nova_world_base::prelude::WorldSaveSession;
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::pause::on_retry;
 use crate::{
     pause::{focus_lost, on_back_to_menu, FocusPause},
     widgets::button,
@@ -41,6 +45,7 @@ pub(crate) fn sync_outcome_overlay(
     outcome: Res<CurrentOutcome>,
     world: Option<Res<NovaEventWorld>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
+    #[cfg(not(target_arch = "wasm32"))] saved: Option<Res<WorldSaveSession>>,
     q_existing: Query<(Entity, &OutcomeOverlay)>,
 ) {
     // What Continue means is whatever the scenario queued: a Victory pairs it
@@ -94,6 +99,12 @@ pub(crate) fn sync_outcome_overlay(
         ScenarioOutcomeKind::Victory => "Continue",
         ScenarioOutcomeKind::Defeat => "Retry",
     });
+    // A Defeat in a saved world with nothing queued (the open world's death)
+    // offers the last save, through the pause menu's Load last save. [Enter]
+    // still goes to the menu. The web build keeps no saved worlds.
+    #[cfg(not(target_arch = "wasm32"))]
+    let load_last_save =
+        !queued && saved.is_some() && matches!(config.outcome, ScenarioOutcomeKind::Defeat);
     let message = config.message.clone();
 
     commands
@@ -167,6 +178,14 @@ pub(crate) fn sync_outcome_overlay(
                             Name::new("Outcome Primary Button"),
                             button(primary),
                             observe(on_outcome_advance),
+                        ));
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if load_last_save {
+                        parent.spawn((
+                            Name::new("Outcome Primary Button"),
+                            button("Load last save"),
+                            observe(on_retry),
                         ));
                     }
                     parent.spawn((

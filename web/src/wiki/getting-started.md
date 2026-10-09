@@ -40,10 +40,12 @@ In any scenario, <kbd>Esc</kbd> pauses the game and gives you Resume / Retry (re
 
 <!-- Route: crates/nova_world_base/src/save/mod.rs (`create_world`, `open_world`,
      `list_worlds`, `delete_world`, `world_slug`, `WorldRefusal`), save/session.rs
-     (`WorldSaveSession`, `SaveReason`, death at :310-341), save/transients.rs
+     (`WorldSaveSession`, `SaveReason`, death at :316-347), save/transients.rs
      (`FrozenTransient`, `WORLD_RESUME_SECONDS_MAX` 240 s); crates/nova_menu/src/
      world_setup.rs (Create), load_screen.rs (Load), save_status.rs (status
-     line), leave.rs (leave overlay, Retry); crates/nova_assets/src/storage.rs
+     line), leave.rs (leave overlay, Retry), outcome.rs (Defeat Load last
+     save); crates/nova_authoring/src/base_content/scenarios/open_world.rs
+     (the death Defeat); crates/nova_assets/src/storage.rs
      `worlds_root`; crates/nova_core/src/loading_screen.rs (resume progress
      line). -->
 
@@ -55,7 +57,7 @@ Each world is a folder named after it, under this system's data folder, inside `
 
 The game saves when you cross into a new sector, and again when you leave: **Back to Main Menu**, **Exit** and the window's close button each wait on that save before they act. A status line at the top right reads `World saved`, `Saving world...`, `Waiting to save: <reason>` or `SAVE FAILED: <reason>` for the open world's last attempt. Leaving shows an overlay while its save runs; a failed leave save offers **Try again** or **Leave without saving**, which keeps the last good save and leaves anyway.
 
-Dying writes nothing - the last good save stays on disk - and the pause menu's Retry reads **Load last save** instead of restarting: it reopens the world from disk rather than the seed.
+Dying ends the run with a **DEFEAT** panel: "Your ship was destroyed." On the desktop build it offers **Load last save** and **Main Menu**, and <kbd>Enter</kbd> goes to the menu; the web build offers **Main Menu** alone. Dying writes nothing - the last good save stays on disk - and a way out after a death writes nothing either. The pause menu's Retry reads **Load last save** instead of restarting too: it reopens the world from disk rather than the seed.
 
 ### What a Load brings back
 

@@ -7,12 +7,14 @@
 //! clock hold is released: bodies settle, and the session takes its leave
 //! save. The way out happens only once that save is on disk. A save that
 //! fails shows why, and the player chooses: try again, or leave without
-//! saving and keep the last good save.
+//! saving and keep the last good save. After a death the session is spent:
+//! the ways out write nothing, wait only for a write in flight, and keep the
+//! last save.
 //!
-//! Load last save (the pause Retry in a saved world) writes nothing. It waits
-//! for a write in flight, drops the session and its lock, and opens the world
-//! from disk again. A world that no longer opens is reported as a refused
-//! start, and the scenario ends.
+//! Load last save (the pause Retry in a saved world, and the primary action of
+//! its Defeat) writes nothing. It waits for a write in flight, drops the
+//! session and its lock, and opens the world from disk again. A world that no
+//! longer opens is reported as a refused start, and the scenario ends.
 //!
 //! Without a [`WorldSaveSession`] - the web build, a scenario, the editor -
 //! none of this runs, and every button does what it always did.
@@ -61,8 +63,10 @@ pub(crate) struct LeaveOverlay;
 /// Start leaving the saved world for `target`.
 ///
 /// The game pauses (a window closed mid-flight was not paused yet), so input
-/// stays off for the whole wait. Menu and Exit want the leave save; Retry
-/// stops every save, so nothing is written before the world reopens.
+/// stays off for the whole wait. Menu and Exit want the leave save, unless
+/// the session is spent (the player died): that world is not the saved one,
+/// and the last save stays. Retry stops every save, so nothing is written
+/// before the world reopens.
 pub(crate) fn begin_leave(
     target: LeaveTarget,
     commands: &mut Commands,
@@ -70,7 +74,8 @@ pub(crate) fn begin_leave(
     pause: &mut NextState<PauseStates>,
 ) {
     match target {
-        LeaveTarget::Menu | LeaveTarget::Exit => session.request_leave(),
+        LeaveTarget::Menu | LeaveTarget::Exit if !session.is_spent() => session.request_leave(),
+        LeaveTarget::Menu | LeaveTarget::Exit => {}
         LeaveTarget::Retry => session.stop_saving(),
     }
     pause.set_if_neq(PauseStates::Paused);
@@ -83,7 +88,8 @@ pub(crate) fn begin_leave(
 /// idle only after the leave save itself was taken, so a saved status from
 /// an earlier crossing cannot end the wait. While the save waits, the pause
 /// menu's clock hold is released, so bodies settle; on a failure the hold is
-/// taken back and the overlay asks the player.
+/// taken back and the overlay asks the player. A spent session wants no leave
+/// save; Menu and Exit go once no write is in flight.
 ///
 /// Retry goes once no write is in flight.
 pub(crate) fn drive_pending_leave(
@@ -99,11 +105,14 @@ pub(crate) fn drive_pending_leave(
     let session = session.expect("a pending leave outlived its world session");
     match pending.target {
         LeaveTarget::Menu | LeaveTarget::Exit => {
-            if !session.is_idle() {
+            if session.is_spent() {
+                if session.is_writing() {
+                    return;
+                }
+            } else if !session.is_idle() {
                 clocks.release(FreezeOwner::PauseMenu);
                 return;
-            }
-            if !matches!(session.status(), WorldSaveStatus::Saved { .. }) {
+            } else if !matches!(session.status(), WorldSaveStatus::Saved { .. }) {
                 clocks.hold(FreezeOwner::PauseMenu);
                 return;
             }
@@ -191,11 +200,14 @@ pub(crate) fn sync_leave_overlay(
                     "Progress since the last save is discarded.".to_string(),
                     false,
                 ),
-                (_, WorldSaveStatus::Failed(error)) if session.is_idle() => (
-                    "SAVE FAILED".to_string(),
-                    format!("{error}. The last save is kept."),
-                    true,
-                ),
+                // A spent session wants no leave save, so none can fail.
+                (_, WorldSaveStatus::Failed(error)) if session.is_idle() && !session.is_spent() => {
+                    (
+                        "SAVE FAILED".to_string(),
+                        format!("{error}. The last save is kept."),
+                        true,
+                    )
+                }
                 (_, WorldSaveStatus::Waiting(why)) => {
                     ("Saving world...".to_string(), why.clone(), false)
                 }
