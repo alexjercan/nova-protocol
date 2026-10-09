@@ -25,6 +25,7 @@ use crate::prelude::*;
 /// reshaping it (stubs to `Engage` today).
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum AIBehaviorState {
     /// Station-keeping: kill drift, hold position loosely, no fire.
     Idle,
@@ -75,6 +76,8 @@ impl AIBehaviorState {
 /// was holding at and holds its whole stop again.
 #[derive(Component, Debug, Clone, PartialEq, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AIPatrolRoute {
     /// The loop's waypoints, world coordinates. Legs shorter than the
     /// arrival radius (arrival_standoff + `AI_WAYPOINT_SLACK`) are all
@@ -173,6 +176,8 @@ fn leash_exceeded(current: AIBehaviorState, distance: f32, leash: &AILeash) -> b
 /// fades.
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AILeash {
     /// World-space anchor (the patrol centroid, else the spawn position).
     pub center: Vec3,

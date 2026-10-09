@@ -53,6 +53,8 @@ pub mod prelude {
 /// [`trigger`](Self::trigger) starts the wait, [`tick`](Self::tick) advances it.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Cooldown {
     remaining: f32,
     duration: f32,

@@ -240,7 +240,7 @@ pub(super) fn on_surface_impact_play_sfx(
 /// is gone with its `WorldSfx::TurretFire` key). Everything else (per-turret
 /// throttle key, distance attenuation, positioning) is unchanged.
 pub(super) fn on_turret_fire_play_sfx(
-    add: On<Add, TurretBulletProjectileMarker>,
+    fired: On<RoundFired>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
     q_projectile: Query<(&Transform, &TurretSectionPartOf)>,
@@ -255,7 +255,7 @@ pub(super) fn on_turret_fire_play_sfx(
     // is still identity this frame; its local Transform is already world-space.
     // `TurretSectionPartOf` names the firing turret, so each gun throttles on
     // its own key - the fix for "only one of several guns is audible".
-    let Ok((transform, part_of)) = q_projectile.get(add.entity) else {
+    let Ok((transform, part_of)) = q_projectile.get(fired.round) else {
         return;
     };
     // No authored sound -> silent, and BEFORE the throttle: an unauthored
@@ -296,7 +296,7 @@ pub(super) fn on_turret_fire_play_sfx(
 /// is the firing ship, so a salvo is a single report while two ships firing at
 /// once are still two.
 pub(super) fn on_torpedo_launch_play_sfx(
-    add: On<Add, TorpedoProjectileMarker>,
+    launched: On<TorpedoLaunched>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
     mut throttle: ResMut<SfxThrottle>,
@@ -308,7 +308,7 @@ pub(super) fn on_torpedo_launch_play_sfx(
     mut commands: Commands,
 ) {
     // Freshly-spawned root entity: use local Transform (== world) this frame.
-    let Ok((source, spawner)) = q_projectile.get(add.entity) else {
+    let Ok((source, spawner)) = q_projectile.get(launched.torpedo) else {
         return;
     };
     let Some(sound) = q_launch_sound
@@ -544,13 +544,18 @@ mod tests {
     }
 
     /// Spawn a turret round parented (by `TurretSectionPartOf`) to `turret`,
-    /// firing the `On<Add, TurretBulletProjectileMarker>` cue observer.
+    /// then trigger `RoundFired` to fire the cue observer.
     fn fire_round(app: &mut App, turret: Entity) {
-        app.world_mut().spawn((
-            TurretBulletProjectileMarker,
-            Transform::default(),
-            TurretSectionPartOf(turret),
-        ));
+        let round = app
+            .world_mut()
+            .spawn((
+                TurretBulletProjectileMarker,
+                Transform::default(),
+                TurretSectionPartOf(turret),
+            ))
+            .id();
+        app.world_mut().flush();
+        app.world_mut().trigger(RoundFired { round });
         app.world_mut().flush();
     }
 
@@ -634,11 +639,16 @@ mod tests {
                 "base/sounds/torpedo_launch.wav",
             ))))
             .id();
-        app.world_mut().spawn((
-            TorpedoProjectileMarker,
-            Transform::default(),
-            TorpedoSectionSpawnerEntity(authored),
-        ));
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                Transform::default(),
+                TorpedoSectionSpawnerEntity(authored),
+            ))
+            .id();
+        app.world_mut().flush();
+        app.world_mut().trigger(TorpedoLaunched { torpedo });
         app.world_mut().flush();
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
@@ -648,11 +658,16 @@ mod tests {
 
         app.world_mut().resource_mut::<LastPlayed>().0 = None;
         let silent = app.world_mut().spawn(TorpedoSectionLaunchSound(None)).id();
-        app.world_mut().spawn((
-            TorpedoProjectileMarker,
-            Transform::default(),
-            TorpedoSectionSpawnerEntity(silent),
-        ));
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                Transform::default(),
+                TorpedoSectionSpawnerEntity(silent),
+            ))
+            .id();
+        app.world_mut().flush();
+        app.world_mut().trigger(TorpedoLaunched { torpedo });
         app.world_mut().flush();
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
@@ -691,14 +706,19 @@ mod tests {
                         ChildOf(ship),
                     ))
                     .id();
-                app.world_mut().spawn((
-                    TorpedoProjectileMarker,
-                    Transform::default(),
-                    TorpedoSectionSpawnerEntity(bay),
-                ));
+                let torpedo = app
+                    .world_mut()
+                    .spawn((
+                        TorpedoProjectileMarker,
+                        Transform::default(),
+                        TorpedoSectionSpawnerEntity(bay),
+                    ))
+                    .id();
+                app.world_mut().flush();
+                app.world_mut().trigger(TorpedoLaunched { torpedo });
+                app.world_mut().flush();
             }
         }
-        app.world_mut().flush();
 
         assert_eq!(
             app.world().resource::<Reports>().0,

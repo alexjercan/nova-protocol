@@ -61,8 +61,7 @@ pub(super) fn insert_torpedo_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Torpedo Section Body"),
                 SectionRenderOf(entity),
-                Mesh3d(placeholder.body.clone()),
-                MeshMaterial3d(placeholder.structure_material.clone()),
+                placeholder.bundle(PlaceholderArtType::Body),
             ),],));
         }
     }
@@ -805,7 +804,7 @@ pub(super) fn insert_torpedo_spawner_effect(
 /// entity, so we look up that spawner's child effect, point the burst along the
 /// spawner's launch axis, and `reset()` the spawner to emit one puff.
 pub(super) fn on_torpedo_launch_effect(
-    add: On<Add, TorpedoProjectileMarker>,
+    launched: On<TorpedoLaunched>,
     budget: Option<Res<GraphicsBudget>>,
     q_projectile: Query<
         (&TorpedoSectionSpawnerEntity, Option<&ProjectileOwner>),
@@ -823,7 +822,7 @@ pub(super) fn on_torpedo_launch_effect(
     // shot, so the cost is fine.
     transform_helper: TransformHelper,
 ) {
-    let projectile = add.entity;
+    let projectile = launched.torpedo;
     trace!("on_torpedo_launch_effect: entity {:?}", projectile);
 
     // On the Low tier `insert_torpedo_spawner_effect` never spawned the launch

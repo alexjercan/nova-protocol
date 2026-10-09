@@ -48,7 +48,11 @@
 //! components and ensures the camera updates after gameplay logic.
 
 use bevy::prelude::*;
-use nova_gameplay::math::prelude::*;
+use nova_gameplay::{math::prelude::*, prelude::*};
+
+use super::{
+    authority::CameraAuthoritySystems, handback::HANDBACK_BLEND_SECONDS, resume::CameraResumeBlend,
+};
 
 /// Glob-import surface for the chase camera rig.
 pub mod prelude {
@@ -125,9 +129,13 @@ pub struct ChaseCameraInput {
 ///
 /// Not intended to be modified manually.
 #[derive(Component, Default, Debug, Reflect)]
-struct ChaseCameraState {
+pub(super) struct ChaseCameraState {
     /// The smoothed anchor position used to compute the final camera transform.
-    anchor_pos: Vec3,
+    pub(super) anchor_pos: Vec3,
+    /// The pose the base solve wrote last, before shake and any scripted
+    /// pose. A saved world keeps this pose, so a jolt or a cutscene in flight
+    /// is not saved as the player's view. `None` until the first sync.
+    pub(super) solved: Option<Transform>,
 }
 
 /// The system set used by the chase camera plugin.
@@ -162,6 +170,13 @@ impl Plugin for ChaseCameraPlugin {
             )
                 .chain()
                 .in_set(ChaseCameraSystems::Sync),
+        );
+        // Still the base solve: shake and a scripted pose come after it.
+        app.add_systems(
+            PostUpdate,
+            apply_camera_resume_blend
+                .in_set(CameraAuthoritySystems::Solve)
+                .after(ChaseCameraSystems::Sync),
         );
     }
 }
@@ -228,13 +243,13 @@ fn chase_camera_sync_transform_system(
         (
             &ChaseCamera,
             &ChaseCameraInput,
-            &ChaseCameraState,
+            &mut ChaseCameraState,
             &mut Transform,
         ),
         With<ChaseCamera>,
     >,
 ) {
-    for (chase, input, state, mut transform) in q_camera.iter_mut() {
+    for (chase, input, mut state, mut transform) in q_camera.iter_mut() {
         transform.translation = state.anchor_pos;
 
         let focus = input.anchor_pos
@@ -243,5 +258,52 @@ fn chase_camera_sync_transform_system(
             + input.anchor_rot * Vec3::X * chase.focus_offset.x;
 
         transform.look_at(focus, input.anchor_rot * Vec3::Y);
+        state.solved = Some(*transform);
     }
+}
+
+/// Show a resumed camera at its saved ship-relative pose, then ease onto the
+/// solved chase pose over [`HANDBACK_BLEND_SECONDS`].
+///
+/// The saved pose is composed with the ship's pose of THIS frame, so it stays
+/// ship-relative while the ship moves. On the first frame the chase smoothing
+/// is seeded at the shown position, so the chase does not jump when the blend
+/// ends. `Time` is virtual here: a paused game holds the blend.
+fn apply_camera_resume_blend(
+    mut commands: Commands,
+    time: Res<Time>,
+    camera: Single<(
+        Entity,
+        &mut CameraResumeBlend,
+        &mut ChaseCameraState,
+        &mut Transform,
+    )>,
+    ship: Single<
+        &Transform,
+        (
+            With<SpaceshipRootMarker>,
+            With<PlayerSpaceshipMarker>,
+            Without<CameraResumeBlend>,
+        ),
+    >,
+) {
+    let (entity, mut blend, mut state, mut transform) = camera.into_inner();
+    let ship = ship.into_inner();
+    let resumed = Transform {
+        translation: ship.translation + ship.rotation * blend.position_from_ship,
+        rotation: ship.rotation * blend.rotation_from_ship,
+        scale: transform.scale,
+    };
+    if blend.elapsed == 0.0 {
+        state.anchor_pos = resumed.translation;
+    }
+    let t = (blend.elapsed / HANDBACK_BLEND_SECONDS).clamp(0.0, 1.0);
+    let eased = t * t * (3.0 - 2.0 * t);
+    transform.translation = resumed.translation.lerp(transform.translation, eased);
+    transform.rotation = resumed.rotation.slerp(transform.rotation, eased);
+    state.solved = Some(*transform);
+    if t >= 1.0 {
+        commands.entity(entity).remove::<CameraResumeBlend>();
+    }
+    blend.elapsed += time.delta_secs();
 }

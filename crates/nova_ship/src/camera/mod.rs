@@ -30,6 +30,7 @@ mod framing;
 mod handback;
 mod mode;
 pub mod post;
+mod resume;
 mod rig;
 pub mod skybox;
 pub mod wasd;
@@ -41,6 +42,7 @@ pub use self::{
     framing::{chase_camera_opening_pose, CAMERA_HULL_CLEARANCE},
     handback::CameraHandbackBlend,
     mode::{SpaceshipCameraControlMode, WeaponsRaised},
+    resume::{CameraResumeBlend, CameraView, CameraViewFault, ResumedCameraView},
     rig::{
         ActiveLookRay, SpaceshipCameraController, SpaceshipCameraFreeLookInputMarker,
         SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
@@ -69,7 +71,8 @@ pub mod prelude {
     pub use super::{
         chase::prelude::*, chase_camera_opening_pose, post::prelude::*, skybox::prelude::*,
         wasd::prelude::*, wasd_controller::prelude::*, ActiveLookRay, CameraAuthorityPlugin,
-        CameraAuthoritySystems, ChaseZoom, NovaCameraSystems, SpaceshipCameraControlMode,
+        CameraAuthoritySystems, CameraResumeBlend, CameraView, CameraViewFault, ChaseZoom,
+        NovaCameraSystems, ResumedCameraView, SpaceshipCameraControlMode,
         SpaceshipCameraController, SpaceshipCameraControllerPlugin,
         SpaceshipCameraFreeLookInputMarker, SpaceshipCameraInputMarker,
         SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,

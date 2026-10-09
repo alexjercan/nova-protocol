@@ -1,5 +1,7 @@
 //! The pause overlay: ESC freezes the sim and raises a modal panel with
-//! Resume / Retry / Settings / Back to Main Menu / Exit.
+//! Resume / Retry / Settings / Back to Main Menu / Exit. In a saved world
+//! Retry reads Load last save, and the ways out wait on the leave save
+//! (`leave.rs`).
 //!
 //! ESC is not the only way in. Losing the window pauses interactive play too
 //! ([`pause_on_focus_loss`]), and the panel itself is RECONCILED
@@ -24,9 +26,14 @@ use nova_ui::{
     theme::UiColor,
     widget::{panel, ButtonVariant, ThemedRadius, ThemedText, UiText},
 };
+#[cfg(not(target_arch = "wasm32"))]
+use nova_world_base::prelude::WorldSaveSession;
 
 #[cfg(not(target_arch = "wasm32"))]
-use crate::menu_ui::on_exit;
+use crate::{
+    leave::{begin_leave, LeaveTarget, PendingLeave},
+    menu_ui::on_exit,
+};
 use crate::{
     settings::{
         build_settings_tabs, PauseSettingsPanel, SettingsActiveTab, SettingsTabBody,
@@ -365,6 +372,8 @@ pub(crate) fn reconcile_pause_overlay(
     active_settings_tab: Res<SettingsActiveTab>,
     outcome: Option<Res<CurrentOutcome>>,
     failure: Option<Res<ScenarioStartFailure>>,
+    #[cfg(not(target_arch = "wasm32"))] leaving: Option<Res<PendingLeave>>,
+    #[cfg(not(target_arch = "wasm32"))] saved: Option<Res<WorldSaveSession>>,
     q_overlay: Query<Entity, With<PauseOverlay>>,
     q_owned: Query<Entity, Or<(With<PauseOverlay>, With<PauseSettingsPanel>)>>,
 ) {
@@ -378,6 +387,9 @@ pub(crate) fn reconcile_pause_overlay(
     // modal, whichever arrived last.
     let taken = outcome.is_some_and(|outcome| outcome.0.is_some())
         || failure.is_some_and(|failure| failure.0.is_some());
+    // A pending leave holds `Paused` too, behind its own overlay.
+    #[cfg(not(target_arch = "wasm32"))]
+    let taken = taken || leaving.is_some();
     let wanted = pausing == PauseStates::Paused && !taken;
     if wanted == !q_overlay.is_empty() {
         return;
@@ -392,6 +404,15 @@ pub(crate) fn reconcile_pause_overlay(
     // pauses through this same overlay but never has one loaded, so it gets
     // no dead button.
     let live = scenario.is_some_and(|scenario| scenario.is_some());
+    // In a saved world Retry reopens the last save (`leave.rs`).
+    #[cfg(not(target_arch = "wasm32"))]
+    let retry = if saved.is_some() {
+        "Load last save"
+    } else {
+        "Retry"
+    };
+    #[cfg(target_arch = "wasm32")]
+    let retry = "Retry";
     commands
         .spawn((
             PauseOverlay,
@@ -450,7 +471,7 @@ pub(crate) fn reconcile_pause_overlay(
                     if live {
                         parent.spawn((
                             Name::new("Pause Retry Button"),
-                            button("Retry"),
+                            button(retry),
                             observe(on_retry),
                         ));
                     }
@@ -603,12 +624,21 @@ pub(crate) fn on_resume(_activate: On<Activate>, mut next: ResMut<NextState<Paus
 /// reset exactly like on a scenario switch. Unpauses in the same activation;
 /// the cursor re-grab rides the new player ship's spawn
 /// (`regrab_cursor_on_player_spawn`), as for the outcome overlay's Retry.
+///
+/// In a saved world it is Load last save instead, which reopens the world
+/// from disk and writes nothing ([`begin_leave`]).
 pub(crate) fn on_retry(
     _activate: On<Activate>,
     current: Option<Res<CurrentScenario>>,
+    #[cfg(not(target_arch = "wasm32"))] mut saved: Option<ResMut<WorldSaveSession>>,
     mut pause: ResMut<NextState<PauseStates>>,
     mut commands: Commands,
 ) {
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(session) = saved.as_mut() {
+        begin_leave(LeaveTarget::Retry, &mut commands, session, &mut pause);
+        return;
+    }
     // The button only spawns over a live scenario (setup_pause_ui), but the
     // scenario could in principle die between spawn and click: stay a no-op
     // rather than reload a stale config.
@@ -624,11 +654,20 @@ pub(crate) fn on_retry(
 /// leaving the overlay over the menu for a frame); entering MainMenu loads the
 /// ambience backdrop (tearing the gameplay scenario down) and the editor resets
 /// its own inner state on OnExit(Playing).
+///
+/// In a saved world the way back waits on the leave save ([`begin_leave`]).
 pub(crate) fn on_back_to_menu(
     _activate: On<Activate>,
+    #[cfg(not(target_arch = "wasm32"))] mut commands: Commands,
+    #[cfg(not(target_arch = "wasm32"))] mut saved: Option<ResMut<WorldSaveSession>>,
     mut state: ResMut<NextState<GameStates>>,
     mut pause: ResMut<NextState<PauseStates>>,
 ) {
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(session) = saved.as_mut() {
+        begin_leave(LeaveTarget::Menu, &mut commands, session, &mut pause);
+        return;
+    }
     state.set(GameStates::MainMenu);
     pause.set(PauseStates::Unpaused);
 }

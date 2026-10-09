@@ -18,7 +18,7 @@ const SEED: u32 = 20_260_923;
 /// `digest`.
 fn loaded_with(digest: u64) -> LoadedSectionPacks {
     LoadedSectionPacks {
-        packs: crate::ship_layout::tests::packs()
+        packs: crate::ship_layout::fixture::packs()
             .into_iter()
             .map(|pack| LoadedSectionPack {
                 id: pack.id,

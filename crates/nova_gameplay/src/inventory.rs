@@ -11,11 +11,11 @@
 //! [`plan_item_transfer`] rule, and a jettison queues [`CargoCanister`]s by the
 //! [`plan_item_jettison`] rule, a weapon's idle reload moves its ammunition
 //! item into the magazine, and a Buy or Sell with a docked trader moves items
-//! and [`ShipCredits`] together by the [`plan_item_trade`] rule. Stock and
-//! credits are not saved: they return to their authored values when the
-//! scenario loads again. A stack exists only while its count is
-//! above zero, and the mass of all stacks never passes the capacity. Mass is
-//! counted in grams; [`kg_text`] shows it in kilograms.
+//! and [`ShipCredits`] together by the [`plan_item_trade`] rule. A saved
+//! world keeps stock and credits across a Load; any other scenario returns
+//! them to their authored values when it loads again. A stack exists only
+//! while its count is above zero, and the mass of all stacks never passes the
+//! capacity. Mass is counted in grams; [`kg_text`] shows it in kilograms.
 
 use std::collections::BTreeMap;
 
@@ -243,6 +243,8 @@ impl ShipInventoryStock {
 /// The `Default` has a capacity of zero: it is the required-component value
 /// for a ship that no config states, and such a ship can take nothing.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ShipInventory {
     capacity_g: u32,
     stacks: BTreeMap<ItemType, u32>,
@@ -348,6 +350,8 @@ impl ShipInventory {
 /// of zero is the value for a ship that no config states. An authored ship
 /// states its balance through `SpaceshipConfig::credits`.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ShipCredits(pub u32);
 
 /// Marks a ship root that a docked ship may Take from although it was never
@@ -572,6 +576,8 @@ pub const CARGO_CANISTER_MAX_MASS_G: u32 = 200_000;
 /// Item stacks drifting free in a canister. Every count is above zero and the
 /// total mass is at most [`CARGO_CANISTER_MAX_MASS_G`].
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CargoCanister {
     stacks: BTreeMap<ItemType, u32>,
 }
@@ -615,19 +621,24 @@ impl CargoCanister {
 }
 
 /// Runtime identity for one cargo canister entity, minted the moment it is
-/// spawned. Not addressable: nothing looks a canister up by this id, so a
-/// mining or jettison spawn mints one and no system ever reads it back by
-/// value. It exists so an external reader (bench, probe, logs) can tell two
-/// canister entities apart without reaching for `Entity` (recycled) or `Name`
-/// (every canister shares `"Cargo Canister"`).
+/// spawned. A canister has no `EntityId`, so this is its durable key: a saved
+/// torpedo that tracks a canister keeps it as [`SavedTargetRef::Canister`],
+/// and the Load finds the canister again by this value. An external reader
+/// (bench, probe, logs) also uses it to tell two canisters apart without
+/// `Entity` (recycled) or `Name` (every canister shares `"Cargo Canister"`).
+///
+/// [`SavedTargetRef::Canister`]: crate::saved_refs::SavedTargetRef::Canister
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CargoCanisterRuntimeId(pub u64);
 
 /// Mints unique [`CargoCanisterRuntimeId`]s. Owned and initialized only by
 /// `NovaGameplayPlugin`: the counter is never reset by a scenario load, retry,
 /// or New Game for as long as the app process runs. No ID can be reused even
-/// if a canister survives a world transition. Numeric IDs are not stable
-/// across revisions.
+/// if a canister survives a world transition. A saved world stores
+/// [`Self::next_unminted`], and loading it calls [`Self::resume_after`], so a
+/// canister it froze keeps an id no later mint repeats.
 #[derive(Resource, Default, Debug)]
 pub struct CargoCanisterIdAllocator(u64);
 
@@ -645,6 +656,18 @@ impl CargoCanisterIdAllocator {
             .checked_add(1)
             .expect("CargoCanisterIdAllocator exhausted u64 ids");
         CargoCanisterRuntimeId(id)
+    }
+
+    /// The id the next [`Self::mint`] returns.
+    pub fn next_unminted(&self) -> CargoCanisterRuntimeId {
+        CargoCanisterRuntimeId(self.0)
+    }
+
+    /// Never mint below `saved_next`, the [`Self::next_unminted`] a saved
+    /// world stored. Keeps the higher counter: ids this process minted
+    /// before the load are not reused either.
+    pub fn resume_after(&mut self, saved_next: CargoCanisterRuntimeId) {
+        self.0 = self.0.max(saved_next.0);
     }
 }
 
@@ -864,6 +887,23 @@ mod tests {
         assert_eq!(allocator.mint(), CargoCanisterRuntimeId(0));
         assert_eq!(allocator.mint(), CargoCanisterRuntimeId(1));
         assert_eq!(allocator.mint(), CargoCanisterRuntimeId(2));
+    }
+
+    /// A loaded world's canisters keep their ids: minting resumes past the
+    /// saved counter, and past this process's own when that is higher.
+    #[test]
+    fn cargo_canister_id_allocator_resumes_past_a_saved_world() {
+        let mut saved = CargoCanisterIdAllocator::default();
+        let frozen: Vec<_> = (0..5).map(|_| saved.mint()).collect();
+
+        let mut fresh = CargoCanisterIdAllocator::default();
+        fresh.resume_after(saved.next_unminted());
+        assert!(!frozen.contains(&fresh.mint()));
+        assert_eq!(fresh.next_unminted(), CargoCanisterRuntimeId(6));
+
+        let mut busy = CargoCanisterIdAllocator(40);
+        busy.resume_after(saved.next_unminted());
+        assert_eq!(busy.mint(), CargoCanisterRuntimeId(40));
     }
 
     #[test]

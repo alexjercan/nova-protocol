@@ -205,8 +205,7 @@ pub(super) fn insert_railgun_section_render(
             commands.entity(entity).insert(children![(
                 Name::new("Railgun Section Body"),
                 SectionRenderOf(entity),
-                Mesh3d(placeholder.body.clone()),
-                MeshMaterial3d(placeholder.structure_material.clone()),
+                placeholder.bundle(PlaceholderArtType::Body),
             )]);
         }
     }

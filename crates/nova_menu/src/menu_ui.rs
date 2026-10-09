@@ -21,7 +21,14 @@ use nova_ui::{
         ThemedText, ThemedTextShadow, UiText,
     },
 };
+#[cfg(not(target_arch = "wasm32"))]
+use nova_world_base::prelude::WorldSaveSession;
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::{
+    leave::{begin_leave, LeaveTarget},
+    load_screen::{on_load_back, on_load_screen, LoadPanel, LoadWorldDetails, LoadWorldList},
+};
 use crate::{
     mods::{
         on_mods, on_mods_back, on_mods_tab, ModDetailsPanel, ModsActiveTab, ModsList, ModsPanel,
@@ -105,6 +112,14 @@ pub(crate) fn setup_menu_ui(
                 Name::new("New Game Button"),
                 button_variant("New Game", ButtonVariant::Primary, None),
                 observe(on_new_game),
+            ));
+            // Saved worlds are a desktop-build concept; the web build never
+            // offers a folder to load from.
+            #[cfg(not(target_arch = "wasm32"))]
+            parent.spawn((
+                Name::new("Load Button"),
+                button("Load"),
+                observe(on_load_screen),
             ));
             parent.spawn((
                 Name::new("Sandbox Button"),
@@ -432,6 +447,86 @@ pub(crate) fn setup_menu_ui(
                 });
         });
 
+    // The Load picker: hidden until the Load button toggles it. Same
+    // list-beside-details shape as the Scenarios picker above; the Load
+    // button itself re-reads the worlds root on each open, so nothing here
+    // needs to seed its resources.
+    #[cfg(not(target_arch = "wasm32"))]
+    commands
+        .spawn((
+            DespawnOnExit(GameStates::MainMenu),
+            Name::new("Load Panel Root"),
+            LoadPanel,
+            overlay_root(),
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Name::new("Load Panel"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        width: percent(85),
+                        height: percent(85),
+                        padding: UiRect::all(px(20)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        ..default()
+                    },
+                    ThemedRadius::control(),
+                    panel(),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Name::new("Load Title"),
+                        Text::new("Load"),
+                        TextFont {
+                            font_size: FontSize::Px(24.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
+                    ));
+                    parent.spawn((
+                        Name::new("Load Subtitle"),
+                        Text::new("Pick a saved world to resume."),
+                        TextFont {
+                            font_size: FontSize::Px(13.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
+                    ));
+
+                    parent.spawn((
+                        Name::new("Load Content"),
+                        list_detail_screen(
+                            (
+                                Name::new("Load World List"),
+                                LoadWorldList,
+                                Node {
+                                    overflow: Overflow::scroll_y(),
+                                    ..list_pane()
+                                },
+                                scroll_viewport(),
+                            ),
+                            (
+                                Name::new("Load World Details Panel"),
+                                LoadWorldDetails,
+                                details_pane(),
+                            ),
+                        ),
+                    ));
+
+                    parent.spawn((
+                        Name::new("Load Footer"),
+                        footer_back_slot((
+                            Name::new("Load Back Button"),
+                            back_button("Back"),
+                            observe(on_load_back),
+                        )),
+                    ));
+                });
+        });
+
     // The Training handbook, reached from the `Lessons` row above, and the
     // bottom-left notice corner: the offer to fly Basic Training on a fresh
     // install, and a field note. The offer is a one-off - once it is answered
@@ -453,8 +548,20 @@ pub(crate) fn on_sandbox(
     state.set(GameStates::Playing);
 }
 
+/// Quit the game. In a saved world (the pause menu's Exit) it waits on the
+/// leave save first.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn on_exit(_activate: On<Activate>, mut exit: MessageWriter<AppExit>) {
+pub(crate) fn on_exit(
+    _activate: On<Activate>,
+    mut commands: Commands,
+    mut saved: Option<ResMut<WorldSaveSession>>,
+    mut pause: ResMut<NextState<PauseStates>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    if let Some(session) = saved.as_mut() {
+        begin_leave(LeaveTarget::Exit, &mut commands, session, &mut pause);
+        return;
+    }
     exit.write(AppExit::Success);
 }
 

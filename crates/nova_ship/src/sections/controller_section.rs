@@ -14,7 +14,7 @@ use nova_gameplay::prelude::{
 use crate::prelude::{
     AttitudeEnvelope, DockedAssembly, DockedShip, HullRadius, PDController, PDControllerInput,
     PDControllerOutput, PDControllerSystems, PDControllerTarget, PlaceholderArt,
-    RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf,
+    PlaceholderArtType, RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf,
 };
 
 /// The controller-section spawners, its config, authored tuning, and rotation
@@ -652,14 +652,12 @@ fn insert_controller_section_render(
                 (
                     Name::new("Controller Section Body (A)"),
                     SectionRenderOf(entity),
-                    Mesh3d(placeholder.body.clone()),
-                    MeshMaterial3d(placeholder.controller_material.clone()),
+                    placeholder.bundle(PlaceholderArtType::ControllerBody),
                 ),
                 (
                     Name::new("Controller Section Window (B)"),
                     SectionRenderOf(entity),
-                    Mesh3d(placeholder.window.clone()),
-                    MeshMaterial3d(placeholder.window_material.clone()),
+                    placeholder.bundle(PlaceholderArtType::Window),
                     Transform::from_xyz(0.0, 0.5, 0.0),
                 )
             ],));

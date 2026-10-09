@@ -134,9 +134,12 @@ Each gesture is one object with one verb:
   edge. Send ten Backspace gestures to clear all digits before typing. Each
   key gesture sends an event even if several land in one act. `Ctrl+A` is not
   a channel editing key.
-- `{"text": "<characters>"}`: type into the focused field. For New Game,
-  type the exact requested world seed after clearing the field. Click
-  `Create World Button` only after typing.
+- `{"text": "<characters>"}`: type into the focused field. New Game also has
+  `World Name Field`, empty at open. Click it the same way as the seed field
+  (move to its rect's right edge, press, release), then send
+  `{"text": "Probe World"}`; it needs no clearing. Type the exact requested
+  world seed into `World Seed Field` after clearing it. Click
+  `Create World Button` only after typing both fields.
 
 Gestures in one act apply on the same tick, in order. A held input stays
 held across acts until released; `inputs.held` reminds you.

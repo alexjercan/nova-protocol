@@ -18,7 +18,8 @@ pub(crate) const CHASE_ZOOM_MAX: f32 = 8.0;
 /// 2, so four lines double the distance and twelve go from 1x to the cap.
 const CHASE_ZOOM_FACTOR_PER_LINE: f32 = 1.189_207_1;
 
-/// Session chase-camera dolly: lives for the app run, never saved.
+/// Session chase-camera dolly: lives for the app run. A saved world keeps
+/// `manual` in its [`CameraView`](super::CameraView).
 ///
 /// Normal and FreeLook share `manual`, so the level survives a mode switch and
 /// a respawn. Turret ignores every level and keeps the authored combat rig. A

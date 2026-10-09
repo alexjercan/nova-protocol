@@ -58,12 +58,18 @@ pub(super) const AI_THREAT_ATTACKER_DISCOUNT: f32 = 0.5;
 /// attacker bias in `pick_ai_target`. Required by [`AISpaceshipMarker`].
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AIThreat {
     /// Time left in the recent-damage memory; ready = not under fire.
     pub(crate) damage_memory: Cooldown,
     /// The ship root behind the remembered damage (a hit's source resolved
     /// through [`ProjectileOwner`]). May be despawned by read time; the
     /// picker simply no longer finds it, while the memory still evades.
+    ///
+    /// Skipped by serde: an `Entity` does not survive a save, so a thaw
+    /// always starts with `None` (`freeze_ai` already clears it this way too).
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) attacker: Option<Entity>,
 }
 
@@ -103,6 +109,8 @@ impl AIThreat {
 /// `Self::leg` to fly the current jink. Required by [`AISpaceshipMarker`].
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AIEvade {
     /// Legs left to fly in the current cycle. Set to [`AI_EVADE_LEGS`] on
     /// entering Evade and counted down as each leg is flown; zero is what

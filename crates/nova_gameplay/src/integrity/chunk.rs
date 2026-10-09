@@ -196,6 +196,15 @@ impl ChunkGrace {
             remaining: CHUNK_GRACE_SECS * clearance_scale(clearance),
         }
     }
+
+    /// The window of a saved piece that was still drifting clear when it was
+    /// saved: `remaining` seconds left, then it grows `collider`.
+    pub fn resumed(collider: Collider, remaining: f32) -> Self {
+        Self {
+            collider,
+            remaining,
+        }
+    }
 }
 
 /// Everything a caller has to decide about a chunk. The rest - lifetime, the

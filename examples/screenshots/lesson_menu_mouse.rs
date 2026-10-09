@@ -95,6 +95,8 @@ use lesson::{lesson_profile, LESSON_GRID};
 #[cfg(feature = "debug")]
 use nova_input::sensitivity::prelude::{MousePath, MouseSensitivity, MouseSensitivityRange};
 #[cfg(feature = "debug")]
+use nova_ui::widget::TextFieldValue;
+#[cfg(feature = "debug")]
 use ui_walk::{hide_menu_version, Gestures};
 
 #[derive(Parser)]
@@ -406,6 +408,22 @@ fn the_sweep_spent_the_range(world: &mut World) {
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
 
+    // This run's own settings and saved worlds, set before the app reads
+    // them: Create makes a world, and neither a player's worlds nor an
+    // earlier run's "Probe World" may be in its way.
+    std::env::set_var(
+        nova_assets::storage::CONFIG_ROOT_ENV,
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/example-profiles/{}-{}-{}",
+            env!("CARGO_CRATE_NAME"),
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("the clock is after 1970")
+                .as_nanos(),
+        )),
+    );
+
     // Pinned before the app boots, the way `screenshot_menu` pins its own: the
     // packaging script runs every producer through one generic command, so a
     // producer that needs an environment carries it itself.
@@ -534,6 +552,17 @@ fn menu_mouse_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         // `reached_playing` is there to catch.
         .click("close Settings", "Settings Back Button")
         .click("start a new game", "New Game Button")
+        .step("name the world")
+        .on_enter(|world: &mut World| {
+            let mut fields = world.query::<(&Name, &mut TextFieldValue)>();
+            let (_, mut value) = fields
+                .iter_mut(world)
+                .find(|(name, _)| name.as_str() == "World Name Field")
+                .expect("lesson mouse: the modal has a name field");
+            value.0 = "Probe World".to_string();
+        })
+        .until(frames(2))
+        .add()
         .click("create the world", "Create World Button")
         .step("reach the first flight")
         .until(state_is(GameStates::Playing))

@@ -29,7 +29,7 @@ You point the hull by mouse or stick - the controller section turns the ship tow
 
 In normal flight and in <kbd>Alt</kbd> free look, the scroll wheel zooms the chase camera. Wheel up moves the camera closer. Wheel down moves it farther. The closest view is the ordinary framing. The farthest view sits several times farther back. The camera dollies along its arm; the field of view does not change.
 
-Normal flight and free look share one zoom level, and free look stays farther out than normal flight. The level lasts for the game session, so a mode switch or a respawn keeps it. It is not saved, and the HUD does not show it. A planned ORBIT opens at its own survey distance. The wheel adjusts from there, and it cannot go closer than the ordinary framing. Leaving ORBIT restores your earlier level.
+Normal flight and free look share one zoom level, and free look stays farther out than normal flight. The level lasts for the game session, so a mode switch or a respawn keeps it; a saved Open World keeps it across a Load too, on the desktop build. The HUD does not show it. A planned ORBIT opens at its own survey distance. The wheel adjusts from there, and it cannot go closer than the ordinary framing. Leaving ORBIT restores your earlier level.
 
 A main-drive burn eases the camera back by a fixed share of its distance from the moment it starts, whether you or the autopilot fly it. A short tap leans it only slightly. The camera holds its lean through gaps in the burn, so braking pulses do not flicker it. Half a second without the burn eases it home.
 

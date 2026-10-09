@@ -235,6 +235,47 @@ struct PendingSectionCracks {
     section: Entity,
 }
 
+/// Marks `mesh` as wreck art with no section of its own, so grading burns it
+/// to the top bucket on the next pass instead of reading it as pristine.
+///
+/// `section` is set to [`Entity::PLACEHOLDER`], the same orphan shape
+/// [`resolve_pending_cracks`] and [`grade_section_cracks`] already read off a
+/// section that despawned out from under a live [`PendingSectionCracks`] or
+/// [`SectionCracks`]: a lookup against a missing entity.
+pub(crate) fn mark_wreck_cracks(commands: &mut Commands, mesh: Entity) {
+    commands.entity(mesh).try_insert(PendingSectionCracks {
+        section: Entity::PLACEHOLDER,
+    });
+}
+
+/// Whether `mesh` wears section cracks, or will on the next grading pass: it
+/// draws a cracked material, or it is marked and its section is gone (wreck
+/// art burns to the top bucket) or reads past the pristine bucket. A save
+/// reads this, so a mesh frozen between a detach and its grading does not
+/// come back pristine.
+pub(crate) fn mesh_wears_cracks(world: &World, mesh: Entity) -> bool {
+    if world
+        .get::<MeshMaterial3d<SectionCracksMaterial>>(mesh)
+        .is_some()
+    {
+        return true;
+    }
+    let section = match (
+        world.get::<PendingSectionCracks>(mesh),
+        world.get::<SectionCracks>(mesh),
+    ) {
+        (Some(pending), _) => pending.section,
+        (None, Some(cracks)) => cracks.section,
+        (None, None) => return false,
+    };
+    if world.get::<SectionMarker>(section).is_none() {
+        return true;
+    }
+    world
+        .get::<DamageLevel>(section)
+        .is_some_and(|level| crack_bucket(level.0) > 0)
+}
+
 /// Cracks section surfaces by their own integrity. Registered by the section
 /// plugin only when rendering is enabled.
 #[derive(Default, Clone, Debug)]

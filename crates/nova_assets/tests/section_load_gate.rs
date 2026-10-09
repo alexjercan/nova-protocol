@@ -22,9 +22,10 @@ use nova_modding::prelude::{
     NovaModdingPlugin,
 };
 use nova_scenario::prelude::{
-    BaseScenarioObjectConfig, EventActionConfig, EventConfig, GameScenarios, GameShipDesigns,
-    ScenarioConfig, ScenarioEventConfig, ScenarioObjectConfig, ScenarioObjectKind, SectionSource,
-    ShipDesign, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig, SpaceshipSectionConfig,
+    BaseScenarioObjectConfig, ContentIssues, EventActionConfig, EventConfig, GameScenarios,
+    GameShipDesigns, ScenarioConfig, ScenarioEventConfig, ScenarioObjectConfig, ScenarioObjectKind,
+    SectionSource, ShipDesign, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
+    SpaceshipSectionConfig,
 };
 use nova_ship::prelude::*;
 
@@ -464,6 +465,102 @@ fn a_mod_depending_on_a_refused_mod_is_refused_too() {
     assert!(
         section_ids(&app).iter().any(|id| id == "bystander_hull"),
         "an unrelated mod still merges"
+    );
+}
+
+/// A catalog ship with one section id repeated twice - refused by the D-T7
+/// id-rule gate (`section_id_errors`) before any section prototype is even
+/// looked up.
+fn ship_with_duplicate_section_id(id: &str) -> Content {
+    let placed = |section_id: &str, z: f32| SpaceshipSectionConfig {
+        id: section_id.into(),
+        position: Vec3::new(0.0, 0.0, z),
+        rotation: Quat::IDENTITY,
+        source: SectionSource::prototype("hull"),
+    };
+    Content::Ship(ShipDesignPrototype {
+        id: id.into(),
+        name: id.to_string(),
+        design: ShipDesign {
+            sections: vec![placed("dup", 0.0), placed("dup", -1.0)],
+            ..default()
+        },
+    })
+}
+
+/// D-T7 id-rule gate, revision 3: a design's own section ids are checked
+/// before anything about it is published, exactly like a section's config.
+#[test]
+fn a_design_with_a_bad_section_id_is_refused_before_any_registry() {
+    // Base: the whole load is refused, the valid hull included.
+    let mut app = headless_app();
+    let base = bundle_entry(
+        &mut app,
+        "base",
+        true,
+        &[],
+        vec![hull("hull"), ship_with_duplicate_section_id("bad_ship")],
+    );
+    merge(&mut app, vec![base]);
+
+    let fatal = app
+        .world()
+        .get_resource::<FatalAssetFailure>()
+        .expect("a base design with a repeated section id refuses the load");
+    assert!(
+        fatal.detail.contains("bad_ship") && !fatal.boot,
+        "the refusal names the design: {fatal:?}"
+    );
+    assert!(
+        app.world().get_resource::<GameShipDesigns>().is_none(),
+        "a refused base publishes no registry at all"
+    );
+
+    // A mod: quarantined whole, its design absent from the registry, and a
+    // scenario of another enabled mod that names it gets an UnknownDesign
+    // error - the same gap the gate closes, since the catalog never holds a
+    // design with a bad section id for the scenario to resolve against.
+    let mut app = headless_app();
+    let base = shipped_base(&mut app);
+    let badship = bundle_entry(
+        &mut app,
+        "badship",
+        false,
+        &[],
+        vec![
+            hull("badship_hull"),
+            ship_with_duplicate_section_id("bad_ship"),
+        ],
+    );
+    let fleet = bundle_entry(
+        &mut app,
+        "fleet",
+        false,
+        &[],
+        vec![scenario_spawning("fleet_run", "bad_ship")],
+    );
+    merge(&mut app, vec![base, badship, fleet]);
+
+    assert!(app.world().get_resource::<FatalAssetFailure>().is_none());
+    assert!(
+        !app.world()
+            .resource::<GameShipDesigns>()
+            .iter()
+            .any(|ship| ship.id.as_str() == "bad_ship"),
+        "the quarantined mod's design is absent from the registry"
+    );
+    let disabled = disabled(&app);
+    assert_eq!(disabled.len(), 1, "{disabled:?}");
+    assert_eq!(disabled[0].0, "badship");
+    assert!(disabled[0].1.contains("bad_ship"), "{}", disabled[0].1);
+
+    let issues = app.world().resource::<ContentIssues>();
+    let errors = issues.errors("fleet_run");
+    assert!(
+        errors.iter().any(|issue| {
+            issue.message.contains("bad_ship") && issue.message.contains("unknown ship design")
+        }),
+        "a scenario naming the quarantined design gets an UnknownDesign error: {errors:?}"
     );
 }
 

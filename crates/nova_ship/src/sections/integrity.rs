@@ -163,6 +163,8 @@ pub fn unsettled_structure(world: &World, body: Entity) -> Option<UnsettledBody>
 /// fragment, with its frozen state and its structural neighbours on the same
 /// fragment.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenWreckFragment {
     /// The style the ship it was cut from wore, which its plates dress in.
     /// Absent when that ship wore none.
@@ -171,6 +173,8 @@ pub struct FrozenWreckFragment {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 struct FrozenWreckSection {
     id: Option<EntityId>,
     name: Option<Name>,
@@ -489,6 +493,16 @@ fn queue_depleted_section_sever(
     );
 }
 
+/// Mint the `EntityId` a severed fragment is born with: the sever source's
+/// own id, joined to the fragment's least section id by its inner `String`.
+///
+/// `None` when `sections` is empty: a fragment with no section ids has
+/// nothing of its own to derive one from.
+fn wreck_id(source: &EntityId, sections: &[&EntityId]) -> Option<EntityId> {
+    let least = sections.iter().min_by_key(|id| id.0.as_str())?;
+    Some(EntityId::new(format!("{}/wreck/{}", source.0, least.0)))
+}
+
 /// Split a structure whose destroyed section disconnected its graph.
 #[expect(
     clippy::type_complexity,
@@ -501,6 +515,7 @@ fn sever_disconnected_structures(
     q_roots: Query<
         (
             Entity,
+            Option<&EntityId>,
             &Children,
             &Position,
             &Rotation,
@@ -523,14 +538,17 @@ fn sever_disconnected_structures(
             Has<ControllerSectionMarker>,
             Has<SectionInactiveMarker>,
             Has<IntegrityDestroyMarker>,
+            Option<&EntityId>,
         ),
         With<SectionMarker>,
     >,
+    q_live_ids: Query<&EntityId>,
 ) {
     let pending_roots = std::mem::take(&mut pending.0);
     for (root, cut) in pending_roots {
         let Ok((
             _,
+            source_id,
             children,
             position,
             rotation,
@@ -552,7 +570,7 @@ fn sever_disconnected_structures(
             .filter(|child| {
                 q_sections
                     .get(*child)
-                    .is_ok_and(|(_, _, _, _, _, destroying)| !destroying)
+                    .is_ok_and(|(_, _, _, _, _, destroying, _)| !destroying)
             })
             .collect();
         sections.sort_by_key(|section| section.to_bits());
@@ -588,7 +606,7 @@ fn sever_disconnected_structures(
             let mut live_controllers = 0usize;
             let mut maximum_health = 0.0f32;
             for section in component {
-                if let Ok((_, _, health, controller, inactive, _)) = q_sections.get(*section) {
+                if let Ok((_, _, health, controller, inactive, _, _)) = q_sections.get(*section) {
                     maximum_health += health.max;
                     live_controllers +=
                         usize::from(controller && !inactive && health.current > 0.0);
@@ -641,6 +659,29 @@ fn sever_disconnected_structures(
             }
             let fragment = fragment.id();
             bodies.push(fragment);
+
+            let section_ids: Vec<&EntityId> = component
+                .iter()
+                .filter_map(|section| q_sections.get(*section).ok().and_then(|(.., id)| id))
+                .collect();
+            match source_id.and_then(|source| wreck_id(source, &section_ids)) {
+                None => error!(
+                    "sever_disconnected_structures: wreck fragment {fragment:?} off of {root:?} \
+                     has no source id or no section id to derive one from; it stays id-less"
+                ),
+                Some(id) if q_live_ids.iter().any(|live| live.0 == id.0) => error!(
+                    "sever_disconnected_structures: minted id '{}' for wreck fragment {fragment:?} \
+                     off of source '{}' is already live; it stays id-less",
+                    id.0,
+                    source_id
+                        .expect("wreck_id only returns Some with a source id")
+                        .0
+                ),
+                Some(id) => {
+                    commands.entity(fragment).insert(id);
+                }
+            }
+
             for section in component {
                 let Ok((_, transform, ..)) = q_sections.get(*section) else {
                     continue;
@@ -1955,6 +1996,317 @@ mod physics_tests {
         assert!(
             !app.world().entities().contains(empty_root),
             "an empty wreck root must not persist"
+        );
+    }
+
+    /// A severed root with its own id mints a distinct wreck id for every
+    /// fragment the one sever produces, derived from its least section, and
+    /// the ship keeps its own id.
+    #[test]
+    fn a_severed_ship_mints_a_distinct_id_for_each_wreck() {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.finish();
+
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+                EntityId::new("ship_a"),
+            ))
+            .id();
+        let left = spawn_section(&mut app, root, Vec3::ZERO);
+        app.world_mut()
+            .entity_mut(left)
+            .insert((ControllerSectionMarker, EntityId::new("left")));
+        let bridge_one = spawn_section(&mut app, root, Vec3::X);
+        let mid = spawn_section(&mut app, root, Vec3::X * 2.0);
+        app.world_mut().entity_mut(mid).insert(EntityId::new("mid"));
+        let bridge_two = spawn_section(&mut app, root, Vec3::X * 3.0);
+        let right = spawn_section(&mut app, root, Vec3::X * 4.0);
+        app.world_mut()
+            .entity_mut(right)
+            .insert(EntityId::new("right"));
+        settle(&mut app);
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: bridge_one,
+            source: None,
+            amount: 100.0,
+        });
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: bridge_two,
+            source: None,
+            amount: 100.0,
+        });
+        app.update();
+        let debris: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<DetachedPieceMarker>>()
+            .iter(app.world())
+            .collect();
+        for entity in debris {
+            app.world_mut().entity_mut(entity).despawn();
+        }
+        app.update();
+
+        let fragments: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<ShipWreckFragmentMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(
+            fragments.len(),
+            2,
+            "two destroyed bridges split one ship into two wrecks"
+        );
+        let ids: Vec<String> = fragments
+            .iter()
+            .map(|&fragment| {
+                app.world()
+                    .get::<EntityId>(fragment)
+                    .unwrap_or_else(|| panic!("wreck {fragment:?} must have minted an id"))
+                    .0
+                    .clone()
+            })
+            .collect();
+        assert_ne!(ids[0], ids[1], "each wreck mints a distinct id");
+        for id in &ids {
+            assert!(
+                id.starts_with("ship_a/wreck/"),
+                "a wreck's id derives from its source: {id}"
+            );
+        }
+        assert_eq!(
+            app.world().get::<EntityId>(root).unwrap().0,
+            "ship_a",
+            "the ship keeps its own id"
+        );
+    }
+
+    /// A wreck that severs again is itself the source, so the grandchild's id
+    /// derives from the wreck's own minted id, not the ship's.
+    #[test]
+    fn a_wreck_severed_again_derives_its_id_from_the_wreck() {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.finish();
+
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+                EntityId::new("ship_a"),
+            ))
+            .id();
+        let left = spawn_section(&mut app, root, Vec3::ZERO);
+        app.world_mut()
+            .entity_mut(left)
+            .insert((ControllerSectionMarker, EntityId::new("left")));
+        let bridge = spawn_section(&mut app, root, Vec3::X);
+        let right = spawn_section(&mut app, root, Vec3::X * 2.0);
+        app.world_mut()
+            .entity_mut(right)
+            .insert(EntityId::new("right"));
+        let second_bridge = spawn_section(&mut app, root, Vec3::X * 3.0);
+        let rear = spawn_section(&mut app, root, Vec3::X * 4.0);
+        app.world_mut()
+            .entity_mut(rear)
+            .insert(EntityId::new("rear"));
+        settle(&mut app);
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: bridge,
+            source: None,
+            amount: 100.0,
+        });
+        app.update();
+        let debris: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<DetachedPieceMarker>>()
+            .iter(app.world())
+            .collect();
+        for entity in debris {
+            app.world_mut().entity_mut(entity).despawn();
+        }
+        app.update();
+
+        let fragments: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<ShipWreckFragmentMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(fragments.len(), 1, "one detached component makes one wreck");
+        let fragment = fragments[0];
+        let wreck_id = app
+            .world()
+            .get::<EntityId>(fragment)
+            .expect("the first wreck must have minted an id")
+            .0
+            .clone();
+        assert_eq!(
+            wreck_id, "ship_a/wreck/rear",
+            "'rear' is the least of the fragment's sections {{right, second_bridge, rear}}"
+        );
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: second_bridge,
+            source: None,
+            amount: 100.0,
+        });
+        app.update();
+        let debris: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<DetachedPieceMarker>>()
+            .iter(app.world())
+            .collect();
+        for entity in debris {
+            app.world_mut().entity_mut(entity).despawn();
+        }
+        for _ in 0..3 {
+            app.update();
+        }
+
+        let fragment_roots: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<ShipWreckFragmentMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(fragment_roots.len(), 2, "a wreck can sever again");
+        let right_body = app.world().get::<ColliderOf>(right).unwrap().body;
+        let rear_body = app.world().get::<ColliderOf>(rear).unwrap().body;
+        assert_ne!(right_body, rear_body, "the cut made two wreck bodies");
+
+        let (grandchild, grandchild_section_id) = if right_body == fragment {
+            (rear_body, "rear")
+        } else {
+            (right_body, "right")
+        };
+        let grandchild_id = app
+            .world()
+            .get::<EntityId>(grandchild)
+            .expect("the grandchild wreck must have minted an id")
+            .0
+            .clone();
+        assert_eq!(
+            grandchild_id,
+            format!("{wreck_id}/wreck/{grandchild_section_id}"),
+            "a wreck severing again derives its id from the wreck, not the ship"
+        );
+    }
+
+    /// A minted id that is already live is never stolen: the collision is
+    /// logged, the fragment stays id-less, and the live holder keeps its id.
+    ///
+    /// Calls `sever_disconnected_structures` directly off a hand-built
+    /// `PendingSeverRoots` entry, as `a_sever_that_never_gets_mass_data_retries_once_then_expires_with_one_line`
+    /// calls `apply_pending_sever_motion`: a scheduled `app.update()` runs the
+    /// multi-threaded executor, which steps around a thread-local log capture.
+    #[test]
+    fn a_minted_id_already_live_leaves_the_wreck_idless() {
+        use bevy::log::tracing_subscriber::{self, util::SubscriberInitExt};
+
+        let mut app = integrity_physics_app();
+
+        let left = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                ConnectedTo::default(),
+                Transform::default(),
+                Health::new(100.0),
+                ControllerSectionMarker,
+                EntityId::new("left"),
+            ))
+            .id();
+        let right = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                ConnectedTo::default(),
+                Transform::default(),
+                Health::new(100.0),
+                EntityId::new("right"),
+            ))
+            .id();
+        let root = app
+            .world_mut()
+            .spawn((
+                IntegrityRoot,
+                SpaceshipRootMarker,
+                Position::default(),
+                Rotation::default(),
+                LinearVelocity::default(),
+                AngularVelocity::default(),
+                EntityId::new("ship_a"),
+            ))
+            .id();
+        app.world_mut()
+            .entity_mut(root)
+            .add_children(&[left, right]);
+
+        let decoy = app
+            .world_mut()
+            .spawn(EntityId::new("ship_a/wreck/right"))
+            .id();
+
+        app.world_mut()
+            .resource_mut::<PendingSeverRoots>()
+            .0
+            .insert(
+                root,
+                PendingSeverCut {
+                    cut_offsets_from_com: vec![Vec3::ZERO],
+                    old_origin_world: Vec3::ZERO,
+                    old_rotation: Quat::IDENTITY,
+                    old_com_local: Vec3::ZERO,
+                    old_linear_velocity: Vec3::ZERO,
+                    old_angular_velocity: Vec3::ZERO,
+                },
+            );
+
+        let log = CapturedLog::default();
+        let writer = log.clone();
+        let _guard = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .set_default();
+
+        app.world_mut()
+            .run_system_cached(sever_disconnected_structures)
+            .expect("the sever system runs");
+
+        assert!(
+            log.contents().contains("ERROR"),
+            "a collision with a live id logs an error:\n{}",
+            log.contents()
+        );
+
+        let fragments: Vec<_> = app
+            .world_mut()
+            .query_filtered::<Entity, With<ShipWreckFragmentMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(
+            fragments.len(),
+            1,
+            "the disconnected section makes one wreck"
+        );
+        assert!(
+            app.world().get::<EntityId>(fragments[0]).is_none(),
+            "the wreck whose minted id collided stays id-less"
+        );
+        assert_eq!(
+            app.world().get::<EntityId>(decoy).unwrap().0,
+            "ship_a/wreck/right",
+            "the live holder of the id is never overwritten"
         );
     }
 

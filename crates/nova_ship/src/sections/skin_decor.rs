@@ -556,6 +556,13 @@ pub fn decor_pose(plate: &SkinPlate, turns: u8) -> Transform {
 #[reflect(Component)]
 pub struct ShipDecorMarker(#[reflect(ignore)] pub AssetRef<WorldAsset>);
 
+/// The authored collider size a decoration's [`decor_collider`] was built
+/// from. Carried alongside [`ShipDecorMarker`] so a freeze can rebuild the
+/// collider at thaw instead of storing the un-serializable avian `Collider`
+/// itself.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
+pub struct DecorColliderSize(pub Vec3);
+
 /// The whole of a decoration that is not a look: what takes damage, weighs
 /// something and stops a round.
 ///
@@ -570,6 +577,7 @@ pub fn decor_body(fixture: &StyleFixtureConfig, pose: Transform) -> impl Bundle 
         Name::new(format!("Skin Decor {}", fixture.id)),
         SectionFixture,
         ShipDecorMarker(fixture.model.clone()),
+        DecorColliderSize(fixture.collider),
         pose,
         // Health, density and `Visibility::Inherited` in one bundle.
         destructible_body(fixture.health, DECOR_DENSITY),
@@ -578,9 +586,10 @@ pub fn decor_body(fixture: &StyleFixtureConfig, pose: Transform) -> impl Bundle 
 }
 
 /// A decoration rebuilt from a frozen record rather than scattered fresh: the
-/// exact `name`, `model`, `pose`, `health` and `collider` [`frozen::freeze_section`](super::frozen::freeze_section)
+/// exact `name`, `model`, `pose` and `health` [`frozen::freeze_section`](super::frozen::freeze_section)
 /// captured, in place of the full-health piece [`decor_body`] would hand a
-/// freshly scattered one.
+/// freshly scattered one. The collider is rebuilt from `collider_size`, the
+/// same way a fresh decoration's is, rather than carried in the frozen record.
 ///
 /// `ShipDecorMarker` still lands on it, so [`dress_skin_decor`] resolves its
 /// model exactly as it resolves a freshly scattered one.
@@ -589,17 +598,18 @@ pub(crate) fn frozen_decor_body(
     model: AssetRef<WorldAsset>,
     pose: Transform,
     health: Health,
-    collider: Collider,
+    collider_size: Vec3,
 ) -> impl Bundle {
     (
         Name::new(name),
         SectionFixture,
         ShipDecorMarker(model),
+        DecorColliderSize(collider_size),
         pose,
         health,
         ColliderDensity(DECOR_DENSITY),
         Visibility::Inherited,
-        collider,
+        decor_collider(collider_size),
     )
 }
 

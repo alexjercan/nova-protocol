@@ -572,6 +572,8 @@ impl GameStyles {
 /// undressed derivation: built-in plate colours and no decoration at all.
 #[derive(Component, Clone, Default, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ShipStyle(pub Option<String>);
 
 impl ShipStyle {

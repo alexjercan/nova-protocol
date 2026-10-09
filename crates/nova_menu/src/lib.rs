@@ -57,12 +57,18 @@ pub mod prelude {
 }
 
 mod ambience;
+#[cfg(not(target_arch = "wasm32"))]
+mod leave;
+#[cfg(not(target_arch = "wasm32"))]
+mod load_screen;
 mod menu_ui;
 mod mods;
 mod outcome;
 mod pause;
 mod portal;
 mod safe_mode;
+#[cfg(not(target_arch = "wasm32"))]
+mod save_status;
 mod scenarios;
 mod settings;
 mod settings_store;
@@ -78,12 +84,19 @@ use ambience::{
     advance_menu_backdrop, hide_hud_chrome, load_menu_ambience, restore_hud_chrome,
     stage_menu_camera, unload_menu_ambience,
 };
+#[cfg(not(target_arch = "wasm32"))]
+use load_screen::{
+    refresh_load_details, refresh_load_list, refuse_resumed_world, SelectedWorldSlug,
+    WorldDeleteStep, WorldListings,
+};
 use menu_ui::{setup_menu_ui, start_new_game_scenario};
 use mods::{
     mod_details_dirty, mods_list_dirty, refresh_mod_details, refresh_mods_list,
     sync_mod_checkboxes, ModsActiveTab, SelectedModId,
 };
 use nova_training::prelude::{FieldNoteRotation, TrainingCatalog};
+#[cfg(not(target_arch = "wasm32"))]
+use nova_world_base::prelude::WorldResumeRefused;
 use outcome::{
     auto_advance_outcome, clear_start_failure, regrab_cursor_on_player_spawn, sync_outcome_cursor,
     sync_outcome_overlay, sync_outcome_pause, sync_start_failure_cursor,
@@ -96,6 +109,8 @@ use pause::{
     toggle_pause, FocusPause,
 };
 use portal::{drive_update_choreography, UpdateRequested};
+#[cfg(not(target_arch = "wasm32"))]
+use save_status::sync_save_status_line;
 pub use scenarios::NewGameScenario;
 use scenarios::{
     poll_scenario_thumbnail, refresh_scenario_details, refresh_scenarios_list,
@@ -145,6 +160,16 @@ impl Plugin for NovaMenuPlugin {
         // it here too lets the menu stand alone in slim and headless rigs.
         app.init_resource::<nova_scenario::prelude::NovaEventWorld>();
         app.init_resource::<CollapsedCampaigns>();
+        #[cfg(not(target_arch = "wasm32"))]
+        if !app.world().contains_resource::<world_setup::WorldsRoot>() {
+            app.insert_resource(world_setup::WorldsRoot(nova_assets::storage::worlds_root()));
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            app.init_resource::<WorldListings>();
+            app.init_resource::<SelectedWorldSlug>();
+            app.init_resource::<WorldDeleteStep>();
+        }
         // The handbook's material and the player's record of it. The CATALOG is
         // merged content: `register_bundles` inserts the base bundle's lessons
         // plus every enabled mod's over this empty default, so a rig with no
@@ -242,11 +267,11 @@ impl Plugin for NovaMenuPlugin {
             )
                 .run_if(in_state(GameStates::MainMenu)),
         );
-        // After the field's own systems, so a seed typed this frame is refused
+        // After the field's own systems, so a name or seed typed this frame is refused
         // or accepted before anything repaints the field.
         app.add_systems(
             Update,
-            world_setup::read_world_seed
+            world_setup::read_world_setup
                 .after(TextFieldSystems)
                 .run_if(in_state(GameStates::MainMenu)),
         );
@@ -280,6 +305,35 @@ impl Plugin for NovaMenuPlugin {
             )
                 .chain()
                 .run_if(in_state(GameStates::MainMenu)),
+        );
+        // The Load picker's list and details, chained the same way: the list
+        // writes the default/repaired selection, the details pane renders it
+        // in the same frame. Both run off `resource_changed`, not a dirty
+        // function - nothing here has a live registry to watch, only the
+        // three resources `on_load_screen`, `on_load_world` and the delete
+        // flow write.
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_systems(
+            Update,
+            (
+                refresh_load_list.run_if(resource_changed::<WorldListings>),
+                refresh_load_details.run_if(
+                    resource_changed::<WorldListings>
+                        .or_else(resource_changed::<SelectedWorldSlug>)
+                        .or_else(resource_changed::<WorldDeleteStep>),
+                ),
+            )
+                .chain()
+                .run_if(in_state(GameStates::MainMenu)),
+        );
+        // Ungated by menu state: a Load resume can be refused while still
+        // `Playing` (nova_world_base's restore holds the clocks past
+        // `WORLD_RESUME_SECONDS_MAX`), and the teardown that lands the
+        // player in `MainMenu` has to run from there.
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_systems(
+            Update,
+            refuse_resumed_world.run_if(resource_exists::<WorldResumeRefused>),
         );
         // Same same-frame chain rule again: the list writes the default
         // selection, the details pane renders it in the same frame.
@@ -366,6 +420,28 @@ impl Plugin for NovaMenuPlugin {
             OnExit(GameStates::Playing),
             (force_unpause, end_gameplay_scenario),
         );
+        // A saved world's ways out wait on its leave save. The overlay reads
+        // what the drive just decided, so a finished leave draws no frame of
+        // an overlay for a world already gone. The close answer is ungated:
+        // the menu, the editor and a scenario quit at once.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            app.add_systems(
+                Update,
+                (
+                    leave::drive_pending_leave.run_if(resource_exists::<leave::PendingLeave>),
+                    leave::sync_leave_overlay,
+                )
+                    .chain()
+                    .run_if(in_state(GameStates::Playing)),
+            );
+            // `WindowPlugin` registers it in the game; a headless rig has none.
+            app.add_message::<bevy::window::WindowCloseRequested>();
+            app.add_systems(Update, leave::on_window_close_requested);
+            app.add_systems(OnExit(GameStates::Playing), |mut commands: Commands| {
+                commands.remove_resource::<leave::PendingLeave>();
+            });
+        }
         // The message this plugin writes below. `nova_assets` owns it and adds
         // it too, which is a no-op the second time - declared here so a rig
         // that stands the menu up without the content pipeline still runs.
@@ -392,6 +468,11 @@ impl Plugin for NovaMenuPlugin {
         app.add_systems(
             PostUpdate,
             keep_frozen_cursor_released.run_if(in_state(GameStates::Playing)),
+        );
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_systems(
+            Update,
+            sync_save_status_line.run_if(in_state(GameStates::Playing)),
         );
 
         // `resource_exists`-gated - headless rigs without the scenario

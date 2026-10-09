@@ -63,13 +63,16 @@ use crate::{
 /// (install/uninstall) re-triggers it too.
 ///
 /// Every section a loaded enabled bundle carries passes
-/// [`lint_section_config`](nova_scenario::prelude::lint_section_config) before
+/// [`lint_section_config`](nova_scenario::prelude::lint_section_config), and
+/// every ship design it carries passes
+/// [`section_id_errors`](nova_scenario::prelude::section_id_errors), before
 /// anything is published, used or not, and the finding is charged to the
 /// bundle that authored it. An error in the base bundle refuses the load: it
 /// inserts [`FatalAssetFailure`] and publishes nothing. An error in any other
 /// bundle quarantines that whole mod and every enabled mod that depends on it,
 /// and this pass merges without them - so no registry ever holds an invalid
-/// section, and no ship resolves against a prototype its mod took away.
+/// section or a design with a reserved or duplicate section id, and no ship
+/// resolves against a prototype or a design its mod took away.
 ///
 /// In [`GameStates::Playing`] a mod this gate would refuse, invalid or
 /// depending on a disabled mod, refuses the load like the base does: the
@@ -617,8 +620,10 @@ pub fn register_bundles(
 }
 
 /// Every error [`lint_section_config`](nova_scenario::prelude::lint_section_config)
-/// finds in one bundle's sections, charged to `mod_id`. Warnings are logged
-/// here and do not refuse the bundle.
+/// finds in one bundle's sections, plus every
+/// [`section_id_errors`](nova_scenario::prelude::section_id_errors) finds in
+/// one bundle's ship designs, charged to `mod_id`. Warnings are logged here
+/// and do not refuse the bundle.
 ///
 /// A content file that did not load is skipped: the flatten reports it.
 fn section_errors(
@@ -627,26 +632,36 @@ fn section_errors(
     contents: &Assets<ContentAsset>,
 ) -> Vec<nova_scenario::prelude::LintIssue> {
     let mut errors = Vec::new();
-    let sections = bundle
+    let items = bundle
         .content
         .iter()
         .filter_map(|handle| contents.get(handle))
-        .flat_map(|content| content.0.iter())
-        .filter_map(|item| match item {
-            Content::Section(config) => Some(config.as_ref()),
-            _ => None,
-        });
-    for config in sections {
-        for issue in nova_scenario::prelude::lint_section_config(config, mod_id) {
-            match issue.severity {
-                nova_scenario::prelude::LintSeverity::Error => errors.push(issue),
-                nova_scenario::prelude::LintSeverity::Warn => {
-                    warn!(
-                        "register_bundles: content lint [Warn] mod '{mod_id}': {}",
-                        issue.message
-                    );
+        .flat_map(|content| content.0.iter());
+    for item in items {
+        match item {
+            Content::Section(config) => {
+                for issue in nova_scenario::prelude::lint_section_config(config, mod_id) {
+                    match issue.severity {
+                        nova_scenario::prelude::LintSeverity::Error => errors.push(issue),
+                        nova_scenario::prelude::LintSeverity::Warn => {
+                            warn!(
+                                "register_bundles: content lint [Warn] mod '{mod_id}': {}",
+                                issue.message
+                            );
+                        }
+                    }
                 }
             }
+            Content::Ship(prototype) => {
+                for error in nova_scenario::prelude::section_id_errors(&prototype.design) {
+                    errors.push(nova_scenario::prelude::LintIssue {
+                        severity: nova_scenario::prelude::LintSeverity::Error,
+                        scenario: mod_id.to_string(),
+                        message: format!("ship '{}': {error}", prototype.id),
+                    });
+                }
+            }
+            _ => {}
         }
     }
     errors

@@ -2406,8 +2406,10 @@ fn prototype_of(section: &SpaceshipSectionConfig) -> Option<&str> {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
+/// The ship-part packs the tests and the `test-support` save fixture arm a
+/// world over: a weak and a strong part of every family, and a mod.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) mod fixture {
     use nova_events::prelude::MetersPerSecond;
     use nova_ship::prelude::{
         BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, DockingSectionConfig,
@@ -2584,6 +2586,11 @@ pub(crate) mod tests {
             ),
         ]
     }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::{fixture::*, *};
 
     fn request(seed: u32, role: ShipRoleType, advancement: f32) -> ShipLayoutRequest {
         ShipLayoutRequest {

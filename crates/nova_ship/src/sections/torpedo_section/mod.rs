@@ -23,7 +23,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
 use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
-use nova_events::units::prelude::*;
+use nova_events::{prelude::EntityId, units::prelude::*};
 use nova_gameplay::{lifetime::TempEntity, prelude::*};
 
 use super::local_pose_in_root;
@@ -31,6 +31,10 @@ use crate::{physics::prelude::rigid_body_point_velocity, prelude::*};
 
 /// Building the bay, its fire timer, and the launch that spawns a torpedo.
 mod bay;
+/// Save/restore of a flying torpedo: [`frozen::FrozenTorpedo`] pairs the
+/// bay-launch bundle [`bay::TorpedoLaunch`]/[`bay::spawn_torpedo`] builds with
+/// the in-flight state only a save needs to carry.
+mod frozen;
 /// In-flight torpedo behavior: target tracking, arming, detonation, and PN
 /// guidance (steer / thrust). These systems act on the spawned projectiles, not
 /// on the bay that launched them.
@@ -42,8 +46,9 @@ mod render;
 /// the projectile with no controller involved (scenario-timer emplacements).
 mod scripted;
 
-pub use bay::TorpedoBayDoorsMoved;
 use bay::*;
+pub use bay::{TorpedoBayDoorsMoved, TorpedoLaunched};
+pub use frozen::{freeze_torpedo, thaw_torpedo, FrozenTorpedo, SavedTorpedoTarget};
 use projectile::*;
 use render::*;
 use scripted::*;
@@ -52,9 +57,10 @@ use scripted::*;
 /// components, the blast, and `TorpedoSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        preview_torpedo_section, scripted::ScriptedTorpedoOrder, torpedo_section, BlastMomentum,
-        TorpedoArming, TorpedoBayDoorsMoved, TorpedoBlast, TorpedoColdLaunch,
-        TorpedoControllerMarker, TorpedoEngineFigures, TorpedoGuidance, TorpedoIgnited,
+        freeze_torpedo, preview_torpedo_section, scripted::ScriptedTorpedoOrder, thaw_torpedo,
+        torpedo_section, BlastMomentum, FrozenTorpedo, SavedTorpedoTarget, TorpedoArming,
+        TorpedoBayDoorsMoved, TorpedoBlast, TorpedoColdLaunch, TorpedoControllerMarker,
+        TorpedoEngineFigures, TorpedoGuidance, TorpedoIgnited, TorpedoLaunched,
         TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
         TorpedoSectionPartOf, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
         TorpedoSectionSpawnerMarker, TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen,
@@ -713,6 +719,7 @@ pub struct TorpedoType {
 /// path IS the price, so straightening it out is not an optimisation - it is
 /// deleting the balance.
 #[derive(Component, Debug, Clone, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TorpedoWeave {
     /// Peak half-angle (radians) the guidance command is tilted by. Zero flies
     /// the bare intercept.
@@ -778,6 +785,7 @@ pub struct TorpedoBlast {
 /// no second, warm-launch spawn path to keep in step with this one.
 #[derive(Component, Debug, Clone, Copy, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TorpedoColdLaunch {
     /// Seconds left before the drive lights.
     pub remaining: f32,
@@ -817,6 +825,7 @@ pub struct TorpedoIgnited {
 /// warhead's own blast radius, so a ship losing sections mid-flight cannot
 /// shrink the safety distance its own ordnance was launched under.
 #[derive(Component, Debug, Clone, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TorpedoArming {
     min_time: f32,
     min_distance: f32,

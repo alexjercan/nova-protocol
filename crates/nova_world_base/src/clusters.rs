@@ -1897,7 +1897,7 @@ mod tests {
     /// cell checks where it fits.
     #[test]
     fn a_hull_whose_layout_fails_fails_its_cell_rather_than_being_skipped() {
-        use crate::ship_layout::tests::{
+        use crate::ship_layout::fixture::{
             controller, cube, dock, drive, intake, pack, turret, DOCK_FACES,
         };
 

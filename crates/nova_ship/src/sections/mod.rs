@@ -18,6 +18,8 @@ pub mod damage_sparks;
 pub mod docking_section;
 pub mod fixture;
 pub mod frozen;
+pub mod frozen_piece;
+pub mod frozen_rounds;
 pub mod hull_radius;
 pub mod hull_section;
 pub mod integrity;
@@ -46,7 +48,8 @@ pub mod prelude {
         catalog_ids::prelude::*, cell_grid::prelude::*, clearance::prelude::*,
         controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
         damage_plume::prelude::*, damage_sparks::prelude::*, docking_section::prelude::*,
-        fixture::prelude::*, frozen::prelude::*, hull_radius::prelude::*, hull_section::prelude::*,
+        fixture::prelude::*, frozen::prelude::*, frozen_piece::prelude::*,
+        frozen_rounds::prelude::*, hull_radius::prelude::*, hull_section::prelude::*,
         integrity::prelude::*, link_points::prelude::*, live_structure_anchor,
         mining_section::prelude::*, patch::prelude::*, placeholder_art::prelude::*,
         railgun_section::prelude::*, section_animation::prelude::*, shell_shape::prelude::*,
@@ -264,6 +267,11 @@ impl Plugin for SpaceshipSectionPlugin {
                 .after(hull_radius::publish_hull_radii),
         );
         app.add_plugins(integrity::ShipIntegrityPlugin);
+        // A detached piece's art survives headless too (a save needs it even
+        // with no renderer), so both observers are unconditional - the second
+        // simply never fires without a rendered scene.
+        app.add_observer(frozen_piece::stamp_detached_piece_source);
+        app.add_observer(frozen_piece::apply_resumed_scene_poses);
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads
         // the same content), and without spawned scenes the rigs stay empty.

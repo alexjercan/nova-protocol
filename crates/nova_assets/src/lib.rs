@@ -62,7 +62,8 @@ pub mod prelude {
         shadows_shipped, ContentCatalogDigest, DisabledMod, DownloadedMod, DownloadedMods,
         EnabledBundle, EnabledMods, FatalAssetFailure, GameAssets, GameAssetsPlugin,
         GameAssetsStates, LoadedSectionPack, LoadedSectionPacks, ModCatalog, ModInfo,
-        ModQuarantine, OptionalBundle, OptionalBundles, ReloadContent, RELOAD_KEY,
+        ModQuarantine, OptionalBundle, OptionalBundles, ReloadContent, ASTEROID_TEXTURE_PATH,
+        RELOAD_KEY,
     };
 }
 

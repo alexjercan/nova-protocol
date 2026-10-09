@@ -33,9 +33,33 @@ ron = { version = "0.12" }
 # The mechanism: `SectorGenerator`, `WorldConfig`, `NovaWorldPlugin`.
 nova_world = { path = "../nova_world" }
 
+# Saved worlds are native only: web builds have no world folder.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# `Position`, `Rotation` and the velocities: a saved player's physics pose.
+avian3d = { version = "0.7.0" }
+# `serde` for the frozen player ship a saved world holds.
+nova_scenario = { path = "../nova_scenario", features = ["serde"] }
+# The saved-world header and state derive their RON form directly.
+serde = { version = "1", features = ["derive"] }
+# `serde` for the frozen ledger a saved world holds.
+nova_world = { path = "../nova_world", features = ["serde"] }
+
+# Delete removes a world's files relative to the folder handle it opened
+# without following links, so a folder swapped for a link mid-delete cannot
+# send a removal outside it. std has no `openat`/`unlinkat`.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["fs"] }
+
+[dev-dependencies]
+# Scratch worlds roots for the save tests.
+tempfile = "3"
+
 [lints]
 workspace = true
 
 [features]
+# `test_support`: an armed open world whose saves run the production save
+# path, for the menu's leave tests. Dev-dependencies only.
+test-support = []
 # Debug-build extras, fanned out so the whole tree resolves ONE bevy variant.
 debug = ["bevy/track_location", "nova_world/debug", "nova_scenario/debug"]

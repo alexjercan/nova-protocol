@@ -28,6 +28,7 @@ const STOW_AIM_SETTLE_RAD: f32 = 0.02;
 /// fires; the travel through the other three phases is the deploy delay the
 /// design prices as a real combat cost.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TurretStowPhase {
     /// Up, free to track and fire.
     Deployed,
@@ -61,6 +62,8 @@ pub struct TurretStowDoorsMoved {
 /// [`TurretSectionInput`] and keep showing the deployed gun); a turret
 /// without the track never stows and behaves exactly as before.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct TurretStow {
     phase: TurretStowPhase,
     /// Seconds the deployed mount has been quiet (cold and untracked).

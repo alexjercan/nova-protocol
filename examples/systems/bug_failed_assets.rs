@@ -33,6 +33,8 @@
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
+#[cfg(feature = "debug")]
+use nova_ui::widget::TextFieldValue;
 
 #[derive(Parser)]
 #[command(name = "bug_failed_assets")]
@@ -74,6 +76,12 @@ const NEW_GAME_BUTTON: &str = "New Game Button";
 /// The world setup modal's button that starts the game.
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+/// The world setup modal's name field.
+#[cfg(feature = "debug")]
+const WORLD_NAME_FIELD: &str = "World Name Field";
+/// The name typed into the world setup modal.
+#[cfg(feature = "debug")]
+const WORLD_NAME: &str = "Probe World";
 
 /// Seconds a boot or a scenario load is given. Sized to outlast a
 /// software-rendered CI GPU and kept under the harness completion deadline, so
@@ -391,6 +399,17 @@ fn failed_assets_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         .on_enter(release_mouse(MouseButton::Left))
         .until(ui_node_present(CREATE_WORLD_BUTTON))
         .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("failed_assets: name the world")
+        .on_enter(|world: &mut World| {
+            let mut fields = world.query::<(&Name, &mut TextFieldValue)>();
+            let (_, mut value) = fields
+                .iter_mut(world)
+                .find(|(name, _)| name.as_str() == WORLD_NAME_FIELD)
+                .expect("failed_assets: the modal has a name field");
+            value.0 = WORLD_NAME.to_string();
+        })
+        .until(frames(2))
         .add()
         .click_named(
             "failed_assets: create the world",

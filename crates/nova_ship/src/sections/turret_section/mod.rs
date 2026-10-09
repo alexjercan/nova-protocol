@@ -31,6 +31,7 @@ use bevy::prelude::*;
 use bevy_hanabi::prelude::EffectAsset;
 pub use config::{MuzzleConfig, TurretJoint, TurretSectionConfig};
 use firing::shoot_spawn_projectile;
+pub use firing::RoundFired;
 use nova_gameplay::prelude::*;
 /// The built-in round streak, so the lance's slug can wear the same one. Not
 /// on the prelude: it is render machinery, not a section's vocabulary.
@@ -52,8 +53,8 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         muzzle_aim_error, muzzle_on_target, on_target_cone, preview_turret_section, turret_section,
-        FrozenTurretHinges, LoadedBullet, MuzzleConfig, TurretEngineFigures, TurretJoint,
-        TurretSectionAimPoint, TurretSectionAimSystems, TurretSectionArc,
+        FrozenTurretHinges, LoadedBullet, MuzzleConfig, RoundFired, TurretEngineFigures,
+        TurretJoint, TurretSectionAimPoint, TurretSectionAimSystems, TurretSectionArc,
         TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
         TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionSystems,
         TurretSectionTargetEntity, TurretSectionTargetInput, TurretSectionTargetRadius,
@@ -199,7 +200,9 @@ pub struct TurretSectionAimPoint(pub Option<Vec3>);
 pub(crate) struct TurretSectionPartOf(pub Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct BulletProjectileRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
+pub(crate) struct BulletProjectileRenderMesh(
+    #[reflect(ignore)] pub(crate) Option<AssetRef<WorldAsset>>,
+);
 
 /// A turret joint entity: the runtime of one [`TurretJoint`] node. Articulated
 /// joints (axis Some) also carry a [`SmoothLookRotation`]. Paired with a

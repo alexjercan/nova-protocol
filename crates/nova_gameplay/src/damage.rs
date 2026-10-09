@@ -88,6 +88,7 @@ pub enum DamageType {
 ///
 /// [`power`]: ProjectileDamage::power
 #[derive(Component, Clone, Copy, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProjectileDamage {
     /// Damage one hit deals, before the Kinetic speed curve. For a Kinetic round
     /// this doubles as the budget and decays; for a Pierce round it is flat.

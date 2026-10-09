@@ -42,6 +42,8 @@
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
+#[cfg(feature = "debug")]
+use nova_ui::widget::TextFieldValue;
 
 #[derive(Parser)]
 #[command(name = "system_menu_boot")]
@@ -51,6 +53,22 @@ struct Cli;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
+
+    // This run's own settings and saved worlds, set before the app reads
+    // them: Create makes a world, and neither a player's worlds nor an
+    // earlier run's "Probe World" may be in its way.
+    std::env::set_var(
+        nova_assets::storage::CONFIG_ROOT_ENV,
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/example-profiles/{}-{}-{}",
+            env!("CARGO_CRATE_NAME"),
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("the clock is after 1970")
+                .as_nanos(),
+        )),
+    );
 
     // The same app the game/binary runs - not a bespoke copy.
     let mut app = editor_app(true, None);
@@ -82,6 +100,13 @@ const NEW_GAME_BUTTON: &str = "New Game Button";
 /// The world setup modal's button that starts the game.
 #[cfg(feature = "debug")]
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
+
+/// The world setup modal's name field.
+#[cfg(feature = "debug")]
+const WORLD_NAME_FIELD: &str = "World Name Field";
+/// The name typed into the world setup modal.
+#[cfg(feature = "debug")]
+const WORLD_NAME: &str = "Probe World";
 
 /// How many nodes carry [`NEW_GAME_BUTTON`], visible or not.
 ///
@@ -174,6 +199,17 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
     })
     .until(ui_node_present(CREATE_WORLD_BUTTON))
     .deadline(BEAT_DEADLINE_SECS)
+    .add()
+    .step("menu_boot: name the world")
+    .on_enter(|world: &mut World| {
+        let mut fields = world.query::<(&Name, &mut TextFieldValue)>();
+        let (_, mut value) = fields
+            .iter_mut(world)
+            .find(|(name, _)| name.as_str() == WORLD_NAME_FIELD)
+            .expect("menu_boot: the modal has a name field");
+        value.0 = WORLD_NAME.to_string();
+    })
+    .until(frames(2))
     .add()
     // New Game opens the world setup modal over the menu; Create is the
     // gesture that leaves it.

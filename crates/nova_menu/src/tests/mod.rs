@@ -2,6 +2,10 @@
 //! holds the shared app rig they all build on.
 
 mod ambience;
+#[cfg(not(target_arch = "wasm32"))]
+mod leave;
+#[cfg(not(target_arch = "wasm32"))]
+mod load_screen;
 mod menu;
 mod mods;
 mod outcome;

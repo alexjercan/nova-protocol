@@ -1180,6 +1180,12 @@ fn check_target(
 /// no reflected payload (`inspect: Opaque`). Both name a beat CHAIN and never
 /// an object, and the actions nested in their steps are visited in their own
 /// right by [`EventActionConfig::walk`].
+///
+/// A [`Names::NewObject`] field is checked too, but for a different fault: it
+/// MINTS an id rather than resolving one, so the only thing that can be wrong
+/// with it here is the character `/`, reserved for the ids a sever mints
+/// (D-T7 second amendment). A duplicate `NewObject` id is caught separately by
+/// the per-handler and cross-handler spawn-id passes above.
 fn check_object_names(
     action: &EventActionConfig,
     scenario: &str,
@@ -1190,17 +1196,26 @@ fn check_object_names(
         return;
     };
     let tag = action.tag().name();
-    walk_names(payload, &mut |named| {
-        if named.names != Names::Object {
-            return;
+    walk_names(payload, &mut |named| match named.names {
+        Names::Object => {
+            check_target(
+                named.text,
+                &format!("{tag} `{}`", named.field),
+                scenario,
+                satisfiable,
+                issues,
+            );
         }
-        check_target(
-            named.text,
-            &format!("{tag} `{}`", named.field),
-            scenario,
-            satisfiable,
-            issues,
-        );
+        Names::NewObject if named.text.contains('/') => {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "object '{}' field '{}': '/' is reserved for minted ids",
+                    named.text, named.field
+                ),
+            ));
+        }
+        _ => {}
     });
 }
 
@@ -4087,6 +4102,109 @@ mod tests {
                     && issue.message.contains("strke")
             }),
             "an unmatched CancelCinematic key must warn: {issues:?}"
+        );
+    }
+
+    /// `/` is reserved for the ids a wreck sever mints (D-T7 second
+    /// amendment); an authored object id or ship section id must not use it.
+    #[test]
+    fn a_slash_in_an_object_or_section_id_is_an_error() {
+        let s = scenario(vec![spawn_object("bad/beacon")], vec![]);
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            errors(&issues).iter().any(|issue| {
+                issue.message.contains("bad/beacon") && issue.message.contains("reserved")
+            }),
+            "a `/` in an object id must error: {issues:?}"
+        );
+
+        let ship = ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "ship".to_string(),
+                name: "ship".to_string(),
+                position: Meters3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                controller: SpaceshipController::AI(AIControllerConfig::default()),
+                design: ShipDesignSource::Inline(ShipDesign {
+                    sections: vec![SpaceshipSectionConfig {
+                        id: "bad/section".to_string(),
+                        position: Vec3::ZERO,
+                        rotation: Quat::IDENTITY,
+                        source: SectionSource::prototype("hull"),
+                    }],
+                    ..default()
+                }),
+                ..default()
+            }),
+        };
+        let s = scenario(vec![EventActionConfig::SpawnScenarioObject(ship)], vec![]);
+        let issues = lint_scenario(&s, &sections(&["hull"]), &ships(&[]), &known(&[]));
+        assert!(
+            errors(&issues).iter().any(|issue| {
+                issue.message.contains("bad/section") && issue.message.contains("reserved")
+            }),
+            "a `/` in a section id must error: {issues:?}"
+        );
+    }
+
+    /// A design that names one section id twice is refused whether it is
+    /// authored in the catalog (`lint_ship_design_config`) or inline on a
+    /// scenario's own spawn (`lint_scenario`).
+    #[test]
+    fn a_repeated_section_id_is_an_error() {
+        let design = ShipDesign {
+            sections: vec![
+                SpaceshipSectionConfig {
+                    id: "dup".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::prototype("hull"),
+                },
+                SpaceshipSectionConfig {
+                    id: "dup".to_string(),
+                    position: Vec3::new(0.0, 0.0, 1.0),
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::prototype("hull"),
+                },
+            ],
+            ..default()
+        };
+
+        let prototype = ShipDesignPrototype {
+            id: "corvette".into(),
+            name: "corvette".to_string(),
+            design: design.clone(),
+        };
+        let catalog_issues = lint_ship_design_config(&prototype, &sections(&["hull"]), "corvette");
+        assert!(
+            catalog_issues
+                .iter()
+                .any(|issue| issue.message.contains("dup") && issue.message.contains("twice")),
+            "a catalog design with a repeated section id must error: {catalog_issues:?}"
+        );
+
+        let ship = ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "ship".to_string(),
+                name: "ship".to_string(),
+                position: Meters3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                controller: SpaceshipController::AI(AIControllerConfig::default()),
+                design: ShipDesignSource::Inline(design),
+                ..default()
+            }),
+        };
+        let s = scenario(vec![EventActionConfig::SpawnScenarioObject(ship)], vec![]);
+        let issues = lint_scenario(&s, &sections(&["hull"]), &ships(&[]), &known(&[]));
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("dup") && issue.message.contains("twice")),
+            "an inline design with a repeated section id must error: {issues:?}"
         );
     }
 }

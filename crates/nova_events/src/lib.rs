@@ -64,7 +64,10 @@ pub mod prelude {
 /// Component tagging a scenario object with its scenario id, so event filters can
 /// find it by name. Inserted by `nova_gameplay`/`nova_scenario` when spawning
 /// scenario objects.
-#[derive(Component, Debug, Clone, Default, Deref, DerefMut, Reflect)]
+#[derive(
+    Component, Debug, Clone, Default, Deref, DerefMut, Reflect, serde::Serialize, serde::Deserialize,
+)]
+#[serde(transparent)]
 pub struct EntityId(pub String);
 
 impl EntityId {

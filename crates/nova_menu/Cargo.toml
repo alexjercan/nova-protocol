@@ -47,6 +47,12 @@ serde = { version = "1", features = ["derive"] }
 bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
 
 
+[dev-dependencies]
+# The leave tests' saving world: the production save systems on a fixture.
+nova_world_base = { path = "../nova_world_base", features = ["test-support"] }
+# Scratch worlds folders.
+tempfile = "3"
+
 [lints]
 workspace = true
 

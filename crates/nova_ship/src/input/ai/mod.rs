@@ -122,6 +122,8 @@ pub mod prelude {
 /// `AIControllerConfig::engage_delay`.
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AIEngageGrace {
     /// Time left before the ship may engage. Starts counting down: the grace
     /// is running from the moment the ship arrives.

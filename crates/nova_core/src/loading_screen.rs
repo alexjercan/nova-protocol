@@ -36,6 +36,8 @@ use nova_ui::{
     font::UiFont,
     prelude::{FATAL_Z, LOADING_Z},
 };
+#[cfg(not(target_arch = "wasm32"))]
+use nova_world_base::prelude::WorldResumeProgress;
 
 /// Near-black CRT screen (PoC `--screen`). The panel background.
 const LOADING_BACKDROP: Color = Color::srgb_u8(0, 3, 6);
@@ -129,6 +131,13 @@ struct LoadingDotsMarker;
 /// The block that sweeps back and forth along its track.
 #[derive(Component)]
 struct LoadingSweepMarker;
+
+/// The world-resume progress line ("RESTORING SECTORS `<live>` / `<desired>`"),
+/// shown while [`WorldResumeProgress`] exists and cleared to empty text
+/// otherwise. Always present, on both screens, so no spawn path needs to know
+/// whether a resume is in progress.
+#[derive(Component)]
+struct LoadingResumeLineMarker;
 
 /// Spawns/animates/tears down the [loading screens](self).
 pub struct LoadingScreenPlugin;
@@ -231,6 +240,10 @@ fn loading_panel(mark: &str, font: Handle<Font>, note: Option<&FieldNote>) -> im
                     },
                     BackgroundColor(LOADING_AMBER),
                 )],
+            ),
+            (
+                loading_text("", 14.0, LOADING_TEXT, &font),
+                LoadingResumeLineMarker,
             ),
             field_note_slot(note, &font),
         ],
@@ -405,12 +418,17 @@ fn spawn_scenario_load_screen(
 /// objects are still landing, and the panel says so on screen for exactly that
 /// long. [`ScenarioPreload`] is the same bargain for the scenario's glTF, which
 /// is resolved at load so a hull that first appears mid-mission is not still
-/// wearing placeholder art when it does. Both are checked BEFORE the cap on
-/// purpose - the cap exists for a machine that never gets smooth again, not for
-/// a scene that is legitimately big - and both are finite: the spawn queue
-/// always makes progress, and the warm-up carries its own deadline. Optional, so
-/// a rig without the scenario engine (the boot screen's own tests) dismisses on
-/// the frame rule alone.
+/// wearing placeholder art when it does. [`WorldResumeProgress`] is the same
+/// bargain again for a Load's saved window and transients: the resource exists
+/// for as long as `nova_world_base` holds the clocks to bring them back. All
+/// three are checked BEFORE the cap on purpose - the cap exists for a machine
+/// that never gets smooth again, not for a scene that is legitimately big -
+/// and all three are finite: the spawn queue always makes progress, the warm-up
+/// carries its own deadline, and a Load past
+/// [`WORLD_RESUME_SECONDS_MAX`](nova_world_base::prelude::WORLD_RESUME_SECONDS_MAX)
+/// is refused rather than held forever. Optional, so a rig without the
+/// scenario engine (the boot screen's own tests) dismisses on the frame rule
+/// alone.
 ///
 /// Reads `Time<Real>` for both the dwell and the settle test - a load can be
 /// requested from a paused outcome frame, where the virtual clock is stopped and
@@ -420,6 +438,7 @@ fn dismiss_scenario_load_screen(
     time: Res<Time<Real>>,
     event_world: Option<Res<NovaEventWorld>>,
     preload: Option<Res<ScenarioPreload>>,
+    #[cfg(not(target_arch = "wasm32"))] world_resume: Option<Res<WorldResumeProgress>>,
     failure: Option<Res<ScenarioStartFailure>>,
     q_screen: Query<(Entity, &ScenarioLoadScreenMarker)>,
 ) {
@@ -438,6 +457,10 @@ fn dismiss_scenario_load_screen(
     {
         return;
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    if world_resume.is_some() {
+        return;
+    }
     let now = time.elapsed_secs();
     let delta = time.delta_secs();
     for (entity, screen) in &q_screen {
@@ -450,8 +473,9 @@ fn dismiss_scenario_load_screen(
 }
 
 /// Drive the indeterminate CRT animation on whichever screen is up: blink the
-/// block cursor, march the amber dots (0..=3), and sweep the block along its
-/// track.
+/// block cursor, march the amber dots (0..=3), sweep the block along its
+/// track, and show the [`WorldResumeProgress`] line while it exists (empty
+/// otherwise - the boot screen never has it).
 ///
 /// Time-driven, no progress tracking, so it needs no per-collection wiring. The
 /// clock is [`Time<Real>`]: see the module docs for why the virtual one cannot
@@ -459,9 +483,14 @@ fn dismiss_scenario_load_screen(
 /// accumulated deltas so a stalled frame moves it by what the stall cost.
 fn animate_loading_screen(
     time: Res<Time<Real>>,
+    #[cfg(not(target_arch = "wasm32"))] world_resume: Option<Res<WorldResumeProgress>>,
     mut q_cursor: Query<&mut Visibility, With<LoadingCursorMarker>>,
     mut q_dots: Query<&mut Text, With<LoadingDotsMarker>>,
     mut q_sweep: Query<&mut Node, With<LoadingSweepMarker>>,
+    mut q_resume_line: Query<
+        &mut Text,
+        (With<LoadingResumeLineMarker>, Without<LoadingDotsMarker>),
+    >,
 ) {
     let elapsed = time.elapsed_secs();
 
@@ -488,6 +517,18 @@ fn animate_loading_screen(
     let left = Val::Px((SWEEP_TRACK.x - SWEEP_BLOCK_W) * (1.0 - travel));
     for mut node in &mut q_sweep {
         node.left = left;
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let resume_text = world_resume.map_or_else(String::new, |progress| {
+        format!("RESTORING SECTORS {} / {}", progress.live, progress.desired)
+    });
+    #[cfg(target_arch = "wasm32")]
+    let resume_text = String::new();
+    for mut text in &mut q_resume_line {
+        if text.0 != resume_text {
+            text.0 = resume_text.clone();
+        }
     }
 }
 

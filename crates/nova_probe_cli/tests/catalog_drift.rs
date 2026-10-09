@@ -906,6 +906,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_world_resume",
+        &[
+            "the create phase injects carve, canister and credit fixture state directly through production APIs, disclosed as fixture state and not gameplay",
+            "the create phase records the fixture's expected state",
+            "the leave save keeps every live transient, in save-list order, with a kind tag and (for a round, a torpedo or a detached piece) its owner, pose and remaining lifetime",
+            "the frame before the leave and the first frame after the Load are compared by a reported pixel-difference figure, never asserted",
+            "the load phase resumes every piece of the saved fixture state",
+            "a world folder with no world.ron lists refused and disabled",
+            "every saved transient pairs with the thaw-time entry at the same save-list index, agreeing on kind and, for a round, a torpedo or a detached piece, owner, pose and remaining lifetime; the observer saw no duplicate entity (post-resume TempEntityState inserts, if any, are unrelated live gameplay, logged not asserted)",
+        ],
+    ),
+    (
         "system_open_world_identity",
         &[
             "the window streams one intact generated ship and one derelict",
@@ -916,7 +928,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 447;
+const SYSTEMS_INVARIANTS: usize = 454;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

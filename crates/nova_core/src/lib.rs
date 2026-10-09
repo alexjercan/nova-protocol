@@ -467,6 +467,13 @@ impl AppBuilder {
         let has_menu = self.use_default_plugins;
         if has_menu {
             self.app.add_plugins(NovaMenuPlugin);
+        } else {
+            // `window_plugin` turns bevy's close answer off for the menu.
+            #[cfg(not(target_arch = "wasm32"))]
+            self.app.add_systems(
+                Last,
+                bevy::window::close_when_requested.before(bevy::window::ExitSystems),
+            );
         }
 
         // The Command shell's dispatcher goes after the menu: a `graphics` or
@@ -732,6 +739,11 @@ fn window_plugin(assembly: Assembly) -> WindowPlugin {
             },
             ..Default::default()
         }),
+        // A close in a saved world waits on the world's leave save, so the
+        // menu answers the close itself (`nova_menu`'s leave flow). An app
+        // without the menu gets bevy's own answer back in `build`. The web
+        // build saves no world and keeps bevy's answer.
+        close_when_requested: cfg!(target_arch = "wasm32"),
         ..default()
     }
 }

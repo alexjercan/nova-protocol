@@ -22,6 +22,8 @@ use super::{
 /// rather than carrying an `Entity` that cannot survive the freeze's
 /// despawn.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenAI {
     behavior: AIBehaviorState,
     patrol: Option<AIPatrolRoute>,

@@ -31,9 +31,9 @@ use crate::{
 pub mod prelude {
     pub use super::{
         freeze_ship, patrol_stops_fault, spaceship_scenario_object, thaw_ship, AIControllerConfig,
-        FrozenShip, PlayerControllerConfig, SectionId, SectionSource, SpaceshipConfig,
-        SpaceshipController, SpaceshipDesign, SpaceshipPlugin, SpaceshipSectionConfig,
-        SpaceshipSectionConfigPatch,
+        FrozenShip, PlayerControllerConfig, ResumedSpaceship, SectionId, SectionSource,
+        SpaceshipConfig, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
+        SpaceshipSectionConfig, SpaceshipSectionConfigPatch,
     };
 }
 
@@ -557,6 +557,8 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
 /// their state, the plates still bolted on, the hold, the balance, the pinned
 /// health, the dents, the outcome markers and the AI's progress.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenShip {
     design: ShipDesignSource,
     controller: SpaceshipController,
@@ -572,6 +574,8 @@ pub struct FrozenShip {
 /// The part of a [`FrozenShip`] the section spawn applies over the fresh
 /// design.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 struct FrozenShipState {
     /// Surviving sections by section id. A design section missing here was
     /// destroyed and is not spawned again.
@@ -587,6 +591,35 @@ struct FrozenShipState {
     had_flight_computer: bool,
     had_thruster: bool,
     ai: Option<FrozenAI>,
+}
+
+impl FrozenShip {
+    /// Whether section `section` survived to freeze: whether it still has a
+    /// state entry a thaw would spawn.
+    #[must_use]
+    pub fn has_section(&self, section: &str) -> bool {
+        self.state.sections.contains_key(section)
+    }
+}
+
+/// The ship a scenario's spawn of [`ResumedSpaceship::id`] thaws instead of
+/// building it fresh from the authored config: a saved world's player.
+///
+/// Inserted by the code that loads a save, before the scenario that spawns
+/// the id loads; the spawn takes it. The authored object still decides the
+/// id, the name and that the ship is addressable; the record decides
+/// everything [`thaw_ship`] restores, and the pose and motion here replace
+/// the authored ones.
+#[derive(Resource, Debug)]
+pub struct ResumedSpaceship {
+    /// The scenario object id whose spawn takes this record.
+    pub id: EntityId,
+    /// Where the ship stood, in engine units, from its physics pose.
+    pub transform: Transform,
+    /// Its linear and angular velocity, in engine units.
+    pub motion: (Vec3, Vec3),
+    /// The ship itself.
+    pub ship: FrozenShip,
 }
 
 /// Carries a thawing ship's record onto its root in the bundle that adds
@@ -627,12 +660,18 @@ pub fn freeze_ship(world: &World, ship: Entity) -> Result<FrozenShip, UnsettledB
     let required = |name: &str| -> ! {
         panic!("freeze_ship: ship {ship} has no {name}, which every scenario ship carries")
     };
+    let mut controller = root
+        .get::<SpaceshipController>()
+        .cloned()
+        .unwrap_or_else(|| required("SpaceshipController"));
+    // A rebind writes the live section's binding, not the authored table the
+    // spawn read, so the record reads every surviving section's binding back.
+    if let SpaceshipController::Player(config) = &mut controller {
+        config.input_mapping = live_input_mapping(world, ship);
+    }
     Ok(FrozenShip {
         design: design.0.clone(),
-        controller: root
-            .get::<SpaceshipController>()
-            .cloned()
-            .unwrap_or_else(|| required("SpaceshipController")),
+        controller,
         capabilities: root
             .get::<ShipCapabilities>()
             .cloned()
@@ -663,6 +702,45 @@ pub fn freeze_ship(world: &World, ship: Entity) -> Result<FrozenShip, UnsettledB
             ai: freeze_ai(world, ship),
         },
     })
+}
+
+/// The per-section bindings a player ship flies with now, keyed by section id:
+/// the table `insert_spaceship_sections` would spawn the same bindings from.
+fn live_input_mapping(world: &World, ship: Entity) -> BTreeMap<SectionId, Vec<InputSource>> {
+    let mut mapping = BTreeMap::new();
+    for child in world.entity(ship).get::<Children>().into_iter().flatten() {
+        let section = world.entity(*child);
+        let Some(id) = section.get::<EntityId>() else {
+            continue;
+        };
+        let bindings = section
+            .get::<SpaceshipThrusterInputBinding>()
+            .map(|binding| &binding.0)
+            .or_else(|| {
+                section
+                    .get::<SpaceshipTurretInputBinding>()
+                    .map(|binding| &binding.0)
+            })
+            .or_else(|| {
+                section
+                    .get::<SpaceshipTorpedoInputBinding>()
+                    .map(|binding| &binding.0)
+            })
+            .or_else(|| {
+                section
+                    .get::<SpaceshipRailgunInputBinding>()
+                    .map(|binding| &binding.0)
+            })
+            .or_else(|| {
+                section
+                    .get::<SpaceshipMiningInputBinding>()
+                    .map(|binding| &binding.0)
+            });
+        if let Some(bindings) = bindings {
+            mapping.insert(id.0.clone(), bindings.clone());
+        }
+    }
+    mapping
 }
 
 /// Rebuild a frozen ship on `entity`, which the caller spawned with its pose,

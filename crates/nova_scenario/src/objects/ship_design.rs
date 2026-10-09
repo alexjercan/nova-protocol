@@ -28,9 +28,9 @@ use crate::objects::spaceship::prelude::{
 /// resolved form every consumer reads, and the loaded catalog.
 pub mod prelude {
     pub use super::{
-        resolve_ship_design, GameShipDesigns, ResolvedSection, ResolvedShipDesign, ShipDesign,
-        ShipDesignError, ShipDesignId, ShipDesignPrototype, ShipDesignSource, ShipIntegrityConfig,
-        ShipPresentationConfig, HULL_SECTION_CARGO_G,
+        resolve_ship_design, section_id_errors, GameShipDesigns, ResolvedSection,
+        ResolvedShipDesign, ShipDesign, ShipDesignError, ShipDesignId, ShipDesignPrototype,
+        ShipDesignSource, ShipIntegrityConfig, ShipPresentationConfig, HULL_SECTION_CARGO_G,
     };
 }
 
@@ -436,6 +436,11 @@ pub enum ShipDesignError {
         /// Why the patch was refused.
         error: SectionPatchError,
     },
+    /// A section id contains `/`, which is reserved for ids minted at sever
+    /// time (D-T7 second amendment).
+    ReservedSectionId(SectionId),
+    /// A section id is used twice in this design.
+    DuplicateSectionId(SectionId),
 }
 
 impl std::fmt::Display for ShipDesignError {
@@ -454,8 +459,33 @@ impl std::fmt::Display for ShipDesignError {
             ShipDesignError::Patch { section, error } => {
                 write!(f, "section '{section}': {error}")
             }
+            ShipDesignError::ReservedSectionId(id) => {
+                write!(f, "section '{id}': '/' is reserved for minted ids")
+            }
+            ShipDesignError::DuplicateSectionId(id) => {
+                write!(f, "section '{id}' is used twice in this design")
+            }
         }
     }
+}
+
+/// Every section id error in this design: a `/` in an id (reserved for ids
+/// minted at sever time), and an id used more than once.
+///
+/// Pure, so the lint, the bundle gate and the spawn-time guard all read the
+/// same answer.
+pub fn section_id_errors(design: &ShipDesign) -> Vec<ShipDesignError> {
+    let mut errors = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for section in &design.sections {
+        if section.id.contains('/') {
+            errors.push(ShipDesignError::ReservedSectionId(section.id.clone()));
+        }
+        if !seen.insert(&section.id) {
+            errors.push(ShipDesignError::DuplicateSectionId(section.id.clone()));
+        }
+    }
+    errors
 }
 
 /// Resolve a design source into finished sections: look the design up, resolve
@@ -470,6 +500,11 @@ impl std::fmt::Display for ShipDesignError {
 /// than fatal, because a hull missing one engine is still a ship worth
 /// spawning and a scenario should not die at load over a mod overlay that
 /// dropped a part. The lint turns the same list into authoring errors.
+///
+/// A design with a reserved (`/`) or duplicate section id resolves to nothing
+/// at all - [`section_id_errors`] runs first, and any hit returns the empty
+/// design with those errors, so no caller ever gets a partial ship built on
+/// an id the sever mint could collide with.
 pub fn resolve_ship_design(
     source: &ShipDesignSource,
     designs: &GameShipDesigns,
@@ -493,6 +528,12 @@ pub fn resolve_ship_design(
     let Some(design) = design else {
         return (ResolvedShipDesign::default(), errors);
     };
+
+    let id_errors = section_id_errors(design);
+    if !id_errors.is_empty() {
+        errors.extend(id_errors);
+        return (ResolvedShipDesign::default(), errors);
+    }
 
     let mut resolved = ResolvedShipDesign {
         sections: Vec::with_capacity(design.sections.len()),

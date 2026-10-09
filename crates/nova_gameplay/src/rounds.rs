@@ -18,6 +18,7 @@ use avian3d::{
     prelude::*,
 };
 use bevy::{ecs::system::SystemParam, prelude::*};
+use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 
 use crate::prelude::*;
 
@@ -25,7 +26,8 @@ use crate::prelude::*;
 /// [`NovaRoundSystems`].
 pub mod prelude {
     pub use super::{
-        NovaRoundPlugin, NovaRoundSystems, RoundBitten, RoundRake, RoundVelocity, PIERCE_SKIN,
+        freeze_round_flight, thaw_round_flight, FrozenRoundFlight, NovaRoundPlugin,
+        NovaRoundSystems, ResumedRound, RoundBitten, RoundRake, RoundVelocity, PIERCE_SKIN,
     };
 }
 
@@ -179,6 +181,151 @@ impl RoundRake {
     }
 }
 
+/// A round's flight as a save keeps it: no `Entity` anywhere, so the value
+/// outlives the despawn a freeze follows with.
+///
+/// Carries no lifetime: the save wrapper keeps [`SavedLifetime`] beside this
+/// rather than inside it, because a round's remaining flight time and its
+/// remaining fuse are the same number asked two different ways depending on
+/// who reads it, and only the wrapper knows which transient it is freezing.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct FrozenRoundFlight {
+    /// Where the round was: the easing `end` pose when one was set, else the
+    /// raw `Transform`. See [`freeze_round_flight`].
+    pub translation: Vec3,
+    /// The round's facing, by the same rule as `translation`.
+    pub rotation: Quat,
+    /// The round's own [`RoundVelocity`].
+    pub velocity: Vec3,
+    /// What the round still has to spend.
+    pub damage: ProjectileDamage,
+    /// The round's copied [`Allegiance`], if it carries one.
+    pub allegiance: Option<Allegiance>,
+    /// The ship that fired it, or [`SavedOwner::Gone`].
+    pub owner: SavedOwner,
+    /// The trailing [`RoundRake`]'s radius, if the round carries one. A
+    /// raking round only ever reaches [`freeze_round_flight`] with an empty
+    /// `armed` set, so a fresh [`RoundRake::new`] is the whole of what a
+    /// thaw has to rebuild.
+    pub rake_radius: Option<f32>,
+}
+
+/// The flight `entity` is riding, as a value a save can keep.
+///
+/// # Errors
+///
+/// [`TransientFreezeFault::Unsettled`] while a raking slug's tip is mid-body
+/// (`RoundRake` with a non-empty armed set): the rake's exemption bookkeeping
+/// is not saved, so a save taken there would let the slug re-open the same
+/// section on resume. [`TransientFreezeFault::NoDurableId`] from
+/// [`SavedOwner::of`] when the firing ship is alive but unidentifiable.
+///
+/// # Panics
+///
+/// If `entity` carries no [`ProjectileOwner`]. The turret and railgun fire
+/// paths insert `ProjectileOwner` in the same bundle as the round marker, so a live round
+/// with no owner is a bare test spawn, not a save-time condition - inventing
+/// a record for it would misattribute a shot that was never fired by
+/// anyone. The same bundles always carry [`ProjectileDamage`], so its
+/// absence panics for the same reason.
+pub fn freeze_round_flight(
+    world: &World,
+    entity: Entity,
+) -> Result<FrozenRoundFlight, TransientFreezeFault> {
+    if let Some(rake) = world.get::<RoundRake>(entity) {
+        if !rake.armed.is_empty() {
+            return Err(TransientFreezeFault::Unsettled(UnsettledBody {
+                reason: "a raking slug is mid-body",
+            }));
+        }
+    }
+
+    let transform = world
+        .get::<Transform>(entity)
+        .copied()
+        .unwrap_or_else(|| panic!("freeze_round_flight: round {entity} carries no Transform"));
+    let translation = world
+        .get::<TranslationEasingState>(entity)
+        .and_then(|state| state.end)
+        .unwrap_or(transform.translation);
+    let rotation = world
+        .get::<RotationEasingState>(entity)
+        .and_then(|state| state.end)
+        .unwrap_or(transform.rotation);
+    let velocity = world
+        .get::<RoundVelocity>(entity)
+        .unwrap_or_else(|| panic!("freeze_round_flight: round {entity} carries no RoundVelocity"))
+        .0;
+    let damage = world
+        .get::<ProjectileDamage>(entity)
+        .copied()
+        .unwrap_or_else(|| {
+            panic!("freeze_round_flight: round {entity} carries no ProjectileDamage")
+        });
+    let &ProjectileOwner(owner_entity) =
+        world.get::<ProjectileOwner>(entity).unwrap_or_else(|| {
+            panic!(
+                "freeze_round_flight: round {entity} carries no ProjectileOwner; every fired \
+                 round spawns with one"
+            )
+        });
+
+    Ok(FrozenRoundFlight {
+        translation,
+        rotation,
+        velocity,
+        damage,
+        allegiance: world.get::<Allegiance>(entity).copied(),
+        owner: SavedOwner::of(world, owner_entity)?,
+        rake_radius: world.get::<RoundRake>(entity).map(RoundRake::radius),
+    })
+}
+
+/// The bundle a resumed round carries: its pose, its own [`RoundVelocity`],
+/// what it has left to spend, who fired it, and [`ResumedRound`] for the
+/// sweep's first step. `owner` is the live ship [`SavedOwner`] already
+/// resolved to.
+///
+/// Does not carry [`Allegiance`] or a fresh [`RoundRake`]: both are
+/// conditional on [`FrozenRoundFlight`]'s own optional fields, and `Option`
+/// has no `Bundle` impl to carry that condition through a single return
+/// value - the caller inserts them from `flight.allegiance` and
+/// `flight.rake_radius` the same way the live spawn paths do.
+pub fn thaw_round_flight(flight: &FrozenRoundFlight, owner: Entity) -> impl Bundle {
+    let transform = Transform {
+        translation: flight.translation,
+        rotation: flight.rotation,
+        ..default()
+    };
+    (
+        transform,
+        Visibility::Visible,
+        RoundVelocity(flight.velocity),
+        flight.damage,
+        ProjectileOwner(owner),
+        ResumedRound,
+        TransformInterpolation,
+        TranslationEasingState {
+            start: Some(flight.translation),
+            end: None,
+        },
+        RotationEasingState {
+            start: Some(flight.rotation),
+            end: None,
+        },
+    )
+}
+
+/// A resumed round's first sweep step only: every collider that step's
+/// forward cast meets at distance zero is a wound the round already had
+/// when it was saved (the save keeps no [`RoundBitten`] history), not a new
+/// one - [`advance_rounds`] bites it for free and forgets it the instant the
+/// step ends.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct ResumedRound;
+
 /// Ordering handle for [`advance_rounds`], so a scenario or a range can put
 /// work either side of the sweep.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -256,6 +403,7 @@ impl Plugin for NovaRoundPlugin {
         app.register_type::<RoundVelocity>();
         app.register_type::<RoundBitten>();
         app.register_type::<RoundRake>();
+        app.register_type::<ResumedRound>();
         // The sweep integrates the well pull itself, so it needs the tunables
         // whether or not `NovaGravityPlugin` is in the app. Both plugins
         // `init_resource` the same defaulted settings, so this is
@@ -327,6 +475,7 @@ fn advance_rounds(
             Option<&mut ProjectileDamage>,
             Option<&ProjectileOwner>,
             Option<&mut RoundRake>,
+            Has<ResumedRound>,
         ),
         With<GunRoundMarker>,
     >,
@@ -351,7 +500,14 @@ fn advance_rounds(
     // and building a parry shape per round per step was pure allocation.
     let shape = Collider::sphere(ROUND_RADIUS);
 
-    for (entity, mut transform, mut velocity, mut bitten, damage, owner, rake) in &mut q_rounds {
+    for (entity, mut transform, mut velocity, mut bitten, damage, owner, rake, resumed) in
+        &mut q_rounds
+    {
+        if resumed {
+            // Only ever true for the step right after a thaw: later steps
+            // must go back to charging a distance-zero hit normally.
+            commands.entity(entity).try_remove::<ResumedRound>();
+        }
         let start = transform.translation;
         **velocity += well_pull(start, &q_wells, &settings) * dt;
         let step = **velocity * dt;
@@ -387,6 +543,7 @@ fn advance_rounds(
                     &mut damage,
                     owner,
                     &mut rake,
+                    resumed,
                     sweep,
                     &shape,
                 );
@@ -403,6 +560,7 @@ fn advance_rounds(
                 &mut bitten,
                 &mut damage,
                 owner,
+                resumed,
                 sweep,
                 &shape,
             ),
@@ -777,11 +935,20 @@ fn sweep_narrow(
     bitten: &mut RoundBitten,
     damage: &mut ProjectileDamage,
     owner: Option<&ProjectileOwner>,
+    resumed: bool,
     sweep: Sweep,
     shape: &Collider,
 ) {
     let mut walk = TipWalk::new(sweep, shape);
     while let Some(hit) = walk.next(world, sweep, owner, bitten, &[]) {
+        if resumed && hit.impact == 0.0 {
+            // A wound this round already had when it was saved, not a new
+            // one: the save kept no `RoundBitten` history, so without this
+            // the plate it was mid-crossing would be bitten a second time.
+            bitten.remember(hit.collider);
+            walk.advance(sweep, hit.impact);
+            continue;
+        }
         // A collider with no Health is a wall to either round type.
         let health = world.health.get(hit.collider).ok();
         trace!(
@@ -850,6 +1017,7 @@ fn sweep_raking(
     damage: &mut ProjectileDamage,
     owner: Option<&ProjectileOwner>,
     rake: &mut RoundRake,
+    resumed: bool,
     sweep: Sweep,
     shape: &Collider,
 ) {
@@ -863,6 +1031,16 @@ fn sweep_raking(
     let mut walk = TipWalk::new(sweep, shape);
     let mut provisional = *damage;
     while let Some(hit) = walk.next(world, sweep, owner, bitten, &rake.charged) {
+        if resumed && hit.impact == 0.0 {
+            // See `sweep_narrow`: a wound this round already had when saved,
+            // not a new one, and not a strike to arm the trailing sphere
+            // against either - a fresh `RoundRake` only ever resumes with an
+            // empty `armed` set (`freeze_round_flight` refuses otherwise),
+            // so this body was never mid-rake to begin with.
+            bitten.remember(hit.collider);
+            walk.advance(sweep, hit.impact);
+            continue;
+        }
         let body = world.body_of(hit.collider);
         if !rake.is_armed(body) && !armed_now.iter().any(|&(known, _)| known == body) {
             armed_now.push((body, rake.clock + hit.elapsed));
@@ -1231,6 +1409,8 @@ fn well_pull(
 #[cfg(test)]
 mod tests {
     mod exact;
+
+    use nova_events::prelude::EntityId;
 
     use super::*;
     use crate::test_support::{settle, unfinished_integrity_physics_app_with};
@@ -2781,6 +2961,264 @@ mod tests {
             (lateral.x - RAKE_CELL * 0.5).abs() < 0.1,
             "the lateral bite was recorded at {lateral:?} rather than on the inner face of \
              the cell it cut"
+        );
+    }
+
+    // ---- Freeze/thaw: a round a save keeps and a later load resumes ----
+
+    /// Round-trips [`FrozenRoundFlight`] and [`SavedLifetime`] through RON (the
+    /// form a save file keeps), then thaws from the DESERIALIZED values, so the
+    /// assertions below are about what a load actually has to work with. The
+    /// round is frozen with 0.4s of its 1.0s fuse left; a load that reseeds a
+    /// fresh 1.0s instead would still be alive at the 0.5s mark this asserts
+    /// against.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn a_resumed_round_flies_on_and_expires_on_its_saved_lifetime() {
+        // Built by hand, not `round_app()`: `TempEntityPlugin` must land
+        // before `App::finish()`.
+        let mut app = unfinished_integrity_physics_app_with(PhysicsPlugins::default());
+        app.add_plugins((NovaRoundPlugin, TempEntityPlugin));
+        app.finish();
+        // `TimeUpdateStrategy::ManualDuration` reads zero delta on the app's
+        // first update; warm it up so every later update below ticks a full
+        // 1/60s and the frame counts are the literal seconds they look like.
+        app.update();
+        let shooter = app
+            .world_mut()
+            .spawn((Name::new("shooter"), EntityId::new("shooter")))
+            .id();
+
+        const TOTAL_LIFETIME: f32 = 1.0;
+        let round = app
+            .world_mut()
+            .spawn((
+                Name::new("bullet"),
+                TurretBulletProjectileMarker,
+                Transform::from_translation(Vec3::new(1.0, 2.0, 3.0)),
+                RoundVelocity(Vec3::new(4.0, 5.0, 6.0)),
+                ProjectileDamage {
+                    amount: 25.0,
+                    power: 12345.0,
+                    kind: DamageType::Pierce,
+                },
+                ProjectileOwner(shooter),
+                TempEntity(TOTAL_LIFETIME),
+            ))
+            .id();
+
+        // Burn 0.6s of the 1.0s fuse before the save.
+        for _ in 0..36 {
+            app.update();
+        }
+
+        // Captured before the round-trip, since the round has flown since
+        // spawn: what matters is that RON preserves it, not a specific value.
+        let before =
+            freeze_round_flight(app.world(), round).expect("an unraked round always freezes");
+        let lifetime =
+            SavedLifetime::of(app.world(), round).expect("a TempEntity round always has one");
+        assert!(
+            (lifetime.remaining - 0.4).abs() < 0.01,
+            "test setup: expected 0.4s left of the fuse, got {}",
+            lifetime.remaining
+        );
+
+        let flight: FrozenRoundFlight =
+            ron::from_str(&ron::to_string(&before).expect("serialize")).expect("deserialize");
+        let lifetime: SavedLifetime =
+            ron::from_str(&ron::to_string(&lifetime).expect("serialize")).expect("deserialize");
+
+        assert_eq!(
+            flight.translation, before.translation,
+            "pose did not round-trip"
+        );
+        assert_eq!(flight.rotation, before.rotation, "pose did not round-trip");
+        assert_eq!(
+            flight.velocity, before.velocity,
+            "velocity did not round-trip"
+        );
+        assert_eq!(
+            flight.damage.amount, before.damage.amount,
+            "damage did not round-trip"
+        );
+        assert_eq!(
+            flight.damage.power, before.damage.power,
+            "damage did not round-trip"
+        );
+        assert_eq!(
+            flight.damage.kind, before.damage.kind,
+            "damage did not round-trip"
+        );
+
+        app.world_mut().entity_mut(round).despawn();
+
+        let resumed = app
+            .world_mut()
+            .spawn((
+                TurretBulletProjectileMarker,
+                thaw_round_flight(&flight, shooter),
+                resumed_lifetime(lifetime),
+            ))
+            .id();
+
+        assert_eq!(
+            *app.world()
+                .get::<ProjectileOwner>(resumed)
+                .expect("thawed owner"),
+            ProjectileOwner(shooter),
+            "owner did not round-trip"
+        );
+
+        // Short of the saved 0.4s remaining: must still be flying.
+        for _ in 0..20 {
+            app.update();
+        }
+        assert!(
+            app.world().get_entity(resumed).is_ok(),
+            "a resumed round must not expire before its saved remaining fuse"
+        );
+
+        // Past the saved 0.4s remaining, short of a fresh 1.0s total.
+        for _ in 0..20 {
+            app.update();
+        }
+        assert!(
+            app.world().get_entity(resumed).is_err(),
+            "a resumed round must expire on its saved remaining fuse, not a fresh total"
+        );
+    }
+
+    /// A Pierce round survives its first bite and keeps flying while still
+    /// geometrically inside the plate it bit - the state a save can catch it
+    /// in. A thaw that forgot [`ResumedRound`]'s one-step exemption would bite
+    /// the same plate again the instant it resumes, dealing a doubled 40
+    /// instead of the authored 20.
+    #[test]
+    fn a_round_resumed_inside_a_plate_does_not_bite_it_again() {
+        const BITE: f32 = 20.0;
+        const PLATE_HP: f32 = 1_000.0;
+        /// Slow: the round spends several steps inside the plate rather than
+        /// clearing it inside one.
+        const CRAWL_SPEED: f32 = 50.0;
+
+        let mut app = round_app();
+        let shooter = app
+            .world_mut()
+            .spawn((Name::new("shooter"), EntityId::new("shooter")))
+            .id();
+        let plate = spawn_plate(&mut app, 0.0, PLATE_HP);
+        settle(&mut app);
+
+        let round = app
+            .world_mut()
+            .spawn((
+                Name::new("bullet"),
+                TurretBulletProjectileMarker,
+                Transform::from_translation(Vec3::Z * 5.0),
+                RoundVelocity(Vec3::NEG_Z * CRAWL_SPEED),
+                ProjectileDamage {
+                    amount: BITE,
+                    // Priced to outlast the plate, so what is under test is
+                    // the bite ring, not the pierce budget.
+                    power: 1.0e6,
+                    kind: DamageType::Pierce,
+                },
+                ProjectileOwner(shooter),
+            ))
+            .id();
+
+        // Enters the plate around step 4 (0.833 u/step at 50 u/s; the plate's
+        // near face is 3u from the 5.0 start) and clears the far face around
+        // step 9 (4u plate, [`PIERCE_PLATE_THICKNESS`]); 6 steps leaves it
+        // bitten once and still embedded, centred in the plate.
+        for _ in 0..6 {
+            app.update();
+        }
+        let bitten_before_save = PLATE_HP - plate_health(&app, plate);
+        assert!(
+            (bitten_before_save - BITE).abs() < 0.01,
+            "test setup: the round must have bitten the plate exactly once before the save, \
+             got {bitten_before_save}"
+        );
+        assert!(
+            app.world().get_entity(round).is_ok(),
+            "test setup: the round must still be flying, still inside the plate"
+        );
+
+        let flight =
+            freeze_round_flight(app.world(), round).expect("an unraked round always freezes");
+        app.world_mut().entity_mut(round).despawn();
+
+        app.world_mut().spawn((
+            TurretBulletProjectileMarker,
+            thaw_round_flight(&flight, shooter),
+        ));
+
+        // Clears the far face and flies on.
+        for _ in 0..20 {
+            app.update();
+        }
+
+        let total_dealt = PLATE_HP - plate_health(&app, plate);
+        assert!(
+            (total_dealt - BITE).abs() < 0.01,
+            "a round resumed mid-plate must not bite it a second time: authored {BITE}, dealt \
+             {total_dealt}"
+        );
+    }
+
+    /// Mirrors [`a_round_flies_out_of_the_hull_that_fired_it`], but the round
+    /// under test is a freeze/thaw round-trip of one spawned inside its own
+    /// shooter - the owner filter must still hold once `ProjectileOwner` has
+    /// gone through [`SavedOwner`] and back.
+    #[test]
+    fn a_resumed_round_never_hits_the_ship_that_fired_it() {
+        let mut app = round_app();
+        let shooter = app
+            .world_mut()
+            .spawn((
+                Name::new("shooter"),
+                EntityId::new("shooter"),
+                RigidBody::Dynamic,
+                Transform::default(),
+                Collider::cuboid(4.0, 4.0, 4.0),
+                ColliderDensity(1.0),
+                Health::new(100.0),
+            ))
+            .id();
+        settle(&mut app);
+
+        // Spawned INSIDE the shooter's own collider, as a muzzle on the hull is.
+        let round = spawn_round(&mut app, 0.0, 20.0);
+        app.world_mut()
+            .entity_mut(round)
+            .insert(ProjectileOwner(shooter));
+
+        let flight =
+            freeze_round_flight(app.world(), round).expect("an unraked round always freezes");
+        app.world_mut().entity_mut(round).despawn();
+
+        let resumed = app
+            .world_mut()
+            .spawn((
+                TurretBulletProjectileMarker,
+                thaw_round_flight(&flight, shooter),
+            ))
+            .id();
+
+        for _ in 0..10 {
+            app.update();
+        }
+
+        assert!(
+            app.world().get_entity(resumed).is_ok(),
+            "a resumed round must fly out of its own ship, not expend on it"
+        );
+        assert_eq!(
+            plate_health(&app, shooter),
+            100.0,
+            "and must not damage it on the way"
         );
     }
 }
