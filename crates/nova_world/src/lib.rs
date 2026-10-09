@@ -117,9 +117,9 @@
 //!   frames. A cell generated before comes back from its record alone; a cell
 //!   never generated spawns its generated bodies and the bodies that arrived
 //!   in it, removing neither.
-//!   Transients - projectiles, debris - are not kept. Records are session
-//!   memory: [`NovaWorldSystems::Cleanup`] drops them with the work, and
-//!   nothing is saved to disk.
+//!   A record never holds a transient (a projectile or debris); retirement
+//!   despawns it. [`NovaWorldSystems::Cleanup`] drops the records with the
+//!   work. A saved world writes the ledger to disk through `nova_world_base`.
 //! - the plugin owns the WORK. A pending [`SectorJob`] and a prepared
 //!   [`ReadySectors`] payload are not scenario objects and the scenario sweep
 //!   cannot see them, so [`NovaWorldSystems::Cleanup`] drops them the moment

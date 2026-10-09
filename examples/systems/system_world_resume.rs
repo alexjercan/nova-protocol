@@ -438,7 +438,12 @@ fn cross_sector_edge(world: &mut World) {
     info!("world_resume: crossing from {current} toward {beyond}");
 }
 
-/// The JSON object the create phase writes and the load phase reads.
+/// The JSON object the create phase writes and the load phase reads. Its
+/// `player`/`stock` fields are the LIVE pre-click sample, recorded before any
+/// leave attempt - log-only context once `record_transient_fixture_state`
+/// merges in `saved_player`, the leave save's own record and the only one
+/// `assert_resumed_state` checks the player's pose, credits and stock
+/// against.
 #[cfg(feature = "debug")]
 fn record_expected_state(world: &mut World) -> serde_json::Value {
     let player = the_player(world).expect("world_resume: exactly one player ship");
@@ -710,17 +715,28 @@ fn fixture_transients_expired() -> std::sync::Arc<nova_protocol::nova_debug::har
     )
 }
 
-/// Read the just-written leave save's OWN transient records back off disk
-/// with [`open_world`] - the save's own types, the same typed read a real
-/// Load uses, never hand-parsed RON - and return every record, in the SAME
-/// order `state.transients` keeps (the order `spawn_resumed`,
+/// Read the just-written leave save's OWN records back off disk with
+/// [`open_world`] - the save's own types, the same typed read a real Load
+/// uses, never hand-parsed RON. Returns `{ "transients": [...],
+/// "saved_player": {...} }`.
+///
+/// `transients` holds every `state.transients` record, in the SAME order
+/// `state.transients` keeps (the order `spawn_resumed`,
 /// `crates/nova_world_base/src/save/transients.rs:707-736`, thaws them in),
 /// tagged by kind, with owner/pose/remaining lifetime where that kind
 /// carries them. This stable order is what lets the load phase pair each
-/// thaw-time entry against its saved record by index. This is the
+/// thaw-time entry against its saved record by index.
+///
+/// `saved_player` holds the player's pose (`state.player.transform`),
+/// credits (`header.credits`) and every stock entry
+/// (`state.player.ship`'s own `Serialize`, since `FrozenShip`'s fields are
+/// private to `nova_scenario` - read through the trait, not a new
+/// accessor). This, not the live pre-click sample `write_expected_state`
+/// wrote earlier (`expected["player"]`/`expected["stock"]`), is the
 /// authoritative reference `assert_resumed_state` checks the Load against:
-/// not live components read before the click, which the settling and the
-/// leave-save round trip can still move.
+/// the live sample can still move during the leave save's own settle
+/// window (`drive_pending_leave`, `crates/nova_menu/src/leave.rs:100-105`,
+/// releases `FreezeOwner::PauseMenu` while a write is in flight).
 ///
 /// # Panics
 ///
@@ -731,7 +747,7 @@ fn fixture_transients_expired() -> std::sync::Arc<nova_protocol::nova_debug::har
 fn record_transient_fixture_state(world: &mut World) -> serde_json::Value {
     let root = nova_assets::storage::worlds_root()
         .expect("world_resume: the sandboxed CONFIG_ROOT must give a worlds root");
-    let (_folder, _lock, _header, state) =
+    let (_folder, _lock, header, state) =
         open_world(&root, WORLD_SLUG, world.resource::<LoadedSectionPacks>()).unwrap_or_else(|e| {
             panic!(
                 "world_resume: cannot open the just-saved '{WORLD_SLUG}' to read its leave save's \
@@ -848,7 +864,35 @@ fn record_transient_fixture_state(world: &mut World) -> serde_json::Value {
         }),
     );
 
-    serde_json::Value::Array(transients_json)
+    // The player's saved pose, credits and stock, read straight off
+    // `state.player`/`header` - not the live pre-click sample. `FrozenShip`'s
+    // fields (`credits`, `state.inventory`) are private to `nova_scenario`
+    // (only `has_section` is public), so `state.player.ship`'s stock is read
+    // through its own `Serialize` impl rather than a new accessor: that impl
+    // runs inside `nova_scenario`, where the fields are visible, and exposes
+    // them through the public `serde_json::to_value` call here, not through
+    // any new API surface. `header.credits` is already a public field, the
+    // simpler path for credits.
+    let saved_ship = serde_json::to_value(&state.player.ship)
+        .expect("world_resume: the saved player's ship encodes to JSON");
+    let mut saved_stock: Vec<_> = saved_ship["state"]["inventory"]["stacks"]
+        .as_object()
+        .expect("world_resume: a saved ship's inventory stacks are a JSON object")
+        .iter()
+        .map(|(item, count)| serde_json::json!({ "item": item, "count": count }))
+        .collect();
+    saved_stock.sort_by(|a, b| a["item"].as_str().cmp(&b["item"].as_str()));
+    let saved_pose = state.player.transform.translation;
+    let saved_player = serde_json::json!({
+        "pose": [saved_pose.x, saved_pose.y, saved_pose.z],
+        "credits": header.credits,
+        "stock": saved_stock,
+    });
+
+    serde_json::json!({
+        "transients": transients_json,
+        "saved_player": saved_player,
+    })
 }
 
 /// Mean absolute per-channel difference between two captured PNGs under
@@ -1049,26 +1093,43 @@ fn create_script(
         // combat_stance is already arming (the previous step), so WeaponsHot
         // already reads true on this frame - safe to press the PDC trigger
         // straight away; see hold_fire_inputs for why the two cannot press
-        // on the same frame to begin with. Held for exactly this one step's
-        // own frame, no `.until()` (a bare step and `.until(frames(1))`
-        // advance together - `nova_autopilot::predicate::frames`'s own doc
-        // says to write the bare step): a held trigger fires continuously
-        // (round 5, SW-PT9.md, ~200 rounds/run), which the match step's
-        // position/lifetime tolerance cannot re-identify individually. The
-        // next step releases the trigger on its own entry and waits for the
-        // one round this single press is expected to produce.
+        // on the same frame to begin with. A one-frame press is not enough:
+        // `autopilot_drive` is only `.after(InputSystems)`
+        // (crates/nova_autopilot/src/autopilot.rs:531), with no edge against
+        // `bevy_enhanced_input`'s PreUpdate evaluation of the turret's
+        // `Action<TurretInput>`, so the next step can release the press
+        // before the action reads it. This step waits for
+        // `TurretSectionInput` to read true on a player PDC bay, the
+        // production state that proves the press latched
+        // (crates/nova_ship/src/input/player/weapons.rs:183-218), before the
+        // next step releases the trigger and waits for the round.
         .step("world_resume: fire a PDC round")
         .on_enter(|world: &mut World| {
             world.resource_mut::<FireHeld>().pdc = true;
         })
+        .until(std::sync::Arc::new(|world: &World| {
+            let Some(player) = the_player(world) else {
+                return false;
+            };
+            let Some(mut turrets) = world
+                .try_query_filtered::<(&TurretSectionInput, &ChildOf), With<TurretSectionMarker>>()
+            else {
+                return false;
+            };
+            turrets
+                .iter(world)
+                .any(|(input, child_of)| child_of.parent() == player && input.0)
+        }))
+        .deadline(PDC_FIRE_DEADLINE_SECS)
         .add()
-        // Release on entry, then wait: a one-frame press may still take the
-        // turret's own fire cadence a frame or two before the round exists,
-        // so (unlike the previous step) this one needs its own `.until()`.
-        // The screenshot command still captures this exact live,
-        // chrome-free frame once the round is confirmed; the write is
-        // confirmed by the next step's own `.until()` once the pause menu is
-        // up, which the engine reaches on its own schedule.
+        // Release on entry, then wait: the previous step's own `.until()`
+        // only proves the press latched (`TurretSectionInput` read true),
+        // not that a round yet exists - the turret's own fire cadence can
+        // still take a frame or two past that, so this step waits again,
+        // for the round itself. The screenshot command still captures this
+        // exact live, chrome-free frame once the round is confirmed; the
+        // write is confirmed by the next step's own `.until()` once the
+        // pause menu is up, which the engine reaches on its own schedule.
         .step("world_resume: release the trigger and shoot the frame right before the leave")
         .on_enter(|world: &mut World| {
             {
@@ -1131,14 +1192,58 @@ fn create_script(
         )
         .step("world_resume: record the leave save's own transients")
         .on_enter(move |world: &mut World| {
-            let transients = record_transient_fixture_state(world);
+            let recorded = record_transient_fixture_state(world);
             let text = std::fs::read_to_string(&expected_path).unwrap_or_else(|e| {
                 panic!("world_resume: cannot read {}: {e}", expected_path.display())
             });
             let mut expected: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| {
                 panic!("world_resume: {} is not JSON: {e}", expected_path.display())
             });
-            expected["transients"] = transients;
+
+            // Log, never assert, what the leave save's own settle window
+            // changed since the live pre-click sample `expected["player"]`/
+            // `expected["stock"]` was written - e.g. an idle reload drawing
+            // down PdcRound while drive_pending_leave
+            // (crates/nova_menu/src/leave.rs:100-105) released
+            // FreezeOwner::PauseMenu for that write. The live sample stays in
+            // `expected.json` for exactly this log; assert_resumed_state
+            // checks `saved_player` below instead.
+            let saved_player = recorded["saved_player"].clone();
+            if let (Some(live_stock), Some(saved_stock)) = (
+                expected["stock"].as_array(),
+                saved_player["stock"].as_array(),
+            ) {
+                for live in live_stock {
+                    let item = live["item"]
+                        .as_str()
+                        .expect("a live stock entry carries an item name");
+                    let live_count = live["count"]
+                        .as_u64()
+                        .expect("a live stock entry carries a count");
+                    let saved_count = saved_stock
+                        .iter()
+                        .find(|entry| entry["item"] == live["item"])
+                        .and_then(|entry| entry["count"].as_u64())
+                        .unwrap_or(0);
+                    if live_count != saved_count {
+                        info!(
+                            "world_resume: live {item} {live_count} -> saved {saved_count} \
+                             (settled during the leave save's own write)"
+                        );
+                    }
+                }
+            }
+            let live_credits = expected["player"]["credits"].as_u64();
+            let saved_credits = saved_player["credits"].as_u64();
+            if live_credits != saved_credits {
+                info!(
+                    "world_resume: live credits {live_credits:?} -> saved {saved_credits:?} \
+                     (settled during the leave save's own write)"
+                );
+            }
+
+            expected["transients"] = recorded["transients"].clone();
+            expected["saved_player"] = saved_player;
             std::fs::write(
                 &expected_path,
                 serde_json::to_string_pretty(&expected).expect("expected state must encode"),
@@ -1150,7 +1255,7 @@ fn create_script(
                 )
             });
             info!(
-                "world_resume: merged the leave save's own transients into {}",
+                "world_resume: merged the leave save's own transients and saved_player into {}",
                 expected_path.display()
             );
         })
@@ -1270,45 +1375,12 @@ fn assert_resumed_state(
         );
         info!("world_resume load: the resumed ledger seam ran");
 
-        let player = the_player(world).expect("world_resume load: exactly one player ship");
-        let pose = world
-            .get::<Position>(player)
-            .expect("the player ship has a physics pose")
-            .0;
-        let expected_pose = expected["player"]["pose"]
-            .as_array()
-            .expect("expected.player.pose is an array");
-        let expected_pose = Vec3::new(
-            expected_pose[0].as_f64().unwrap() as f32,
-            expected_pose[1].as_f64().unwrap() as f32,
-            expected_pose[2].as_f64().unwrap() as f32,
-        );
-        assert!(
-            pose.distance(expected_pose) < 1.0,
-            "world_resume load: resumed pose {pose:?} is far from the saved pose {expected_pose:?}"
-        );
-
-        let credits = world
-            .get::<ShipCredits>(player)
-            .expect("the player ship carries ShipCredits")
-            .0;
-        assert_eq!(
-            credits,
-            expected["player"]["credits"].as_u64().unwrap() as u32,
-            "world_resume load: resumed credits do not match the saved credits"
-        );
-
-        let stock: Vec<_> = world
-            .get::<ShipInventory>(player)
-            .expect("the player ship carries ShipInventory")
-            .stacks()
-            .map(|(item, count)| serde_json::json!({ "item": format!("{item:?}"), "count": count }))
-            .collect();
-        assert_eq!(
-            serde_json::Value::Array(stock),
-            expected["stock"],
-            "world_resume load: resumed stock does not match the saved stock"
-        );
+        // The player pose, credits and stock are checked earlier, in the
+        // "match and assert the resumed transients" step, against the
+        // thaw-time snapshot (while `FreezeOwner::WorldResume` still held
+        // the clocks) - not read here, live, which would check the same
+        // claim twice against state the idle reload or physics may have
+        // already moved.
 
         let rock_id = expected["rock"]["id"].as_str().unwrap();
         let mut rocks = world.query_filtered::<(&EntityId, &BodyRadius), With<AsteroidMarker>>();
@@ -1407,7 +1479,11 @@ fn assert_probe_world_enabled(world: &mut World) {
 #[cfg(feature = "debug")]
 fn load_script(
     expected: serde_json::Value,
-    recorded: std::sync::Arc<std::sync::Mutex<Vec<(&'static str, Option<String>, Vec3, f32)>>>,
+    recorded: std::sync::Arc<
+        std::sync::Mutex<Vec<(Entity, &'static str, Option<String>, Vec3, f32)>>,
+    >,
+    post_resume_inserts: std::sync::Arc<std::sync::Mutex<u32>>,
+    player_snapshot: std::sync::Arc<std::sync::Mutex<Option<(Vec3, u32, Vec<(ItemType, u32)>)>>>,
 ) -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("world_resume load: reach the main menu")
@@ -1471,16 +1547,25 @@ fn load_script(
         .step("world_resume load: match and assert the resumed transients")
         .on_enter({
             let expected_transients = expected["transients"].clone();
+            let saved_player = expected["saved_player"].clone();
             let recorded = std::sync::Arc::clone(&recorded);
+            let post_resume_inserts = std::sync::Arc::clone(&post_resume_inserts);
+            let player_snapshot = std::sync::Arc::clone(&player_snapshot);
             move |world: &mut World| {
-                // `spawn_resumed` (crates/nova_world_base/src/save/
-                // transients.rs:707-736) queues each saved transient's
-                // spawn, then its `resumed_lifetime` insert, in saved-list
-                // order, all on one command buffer applied once - so the
-                // thaw-time observer's Nth `Insert<TempEntityState>` is
-                // always the Nth saved transient. The values compared below
-                // are the ones that observer captured at the instant of
-                // that insert, not a live read on this later frame.
+                // Ordering evidence for every check below: `spawn_resumed`
+                // (crates/nova_world_base/src/save/transients.rs:707-736)
+                // queues each saved transient's spawn, then its
+                // `resumed_lifetime` insert, in saved-list order, all on the
+                // ONE Commands buffer `state.apply(world)` applies once
+                // (transients.rs:753) - so the thaw-time observer's Nth
+                // `Insert<TempEntityState>` is always the Nth saved
+                // transient, each insert landing while `WorldResumeProgress`
+                // is still present. This holds for the kinds this fixture
+                // saves; a rock chunk thaw inserts `TempEntity` in its own
+                // spawn bundle and then gets `resumed_lifetime`, so it would
+                // be seen twice and fail the duplicate check. The values compared
+                // below are the ones that observer captured at the instant
+                // of that insert, not a live read on this later frame.
                 let saved = expected_transients
                     .as_array()
                     .expect("world_resume load: expected.transients is an array");
@@ -1488,6 +1573,10 @@ fn load_script(
                     .lock()
                     .expect("world_resume load: the thaw-time recorder is never held across a panic")
                     .clone();
+
+                // Fail loudly on a missing or an extra callback: the thaw
+                // loop and the observer must agree on how many inserts
+                // happened.
                 assert_eq!(
                     recorded_entries.len(),
                     saved.len(),
@@ -1497,9 +1586,99 @@ fn load_script(
                     saved.len()
                 );
 
+                // Fail loudly on a duplicate entity: one entity recorded
+                // twice would mean the observer saw two Insert<TempEntityState>
+                // for the same body, which the index pairing above cannot
+                // tell apart from a missing one.
+                let mut seen_entities = std::collections::HashSet::new();
+                for (index, (entity, ..)) in recorded_entries.iter().enumerate() {
+                    assert!(
+                        seen_entities.insert(*entity),
+                        "world_resume load: thaw-time entity {entity} was recorded twice; first \
+                         seen again at record index {index}"
+                    );
+                }
+
+                // Logged, not asserted: TempEntity (and so TempEntityState)
+                // is a shared, game-wide transient-lifetime marker - live
+                // gameplay spawns its own after the resume window too (a
+                // light flash off a torpedo ignition, an NPC round), and
+                // those are not a resume defect. A genuinely late RESUMED
+                // insert is already caught above: it would make
+                // `recorded_entries.len()` fall short of `saved.len()`.
+                let post_resume_inserts = *post_resume_inserts
+                    .lock()
+                    .expect("world_resume load: the post-resume counter is never held across a panic");
+                info!(
+                    "world_resume load: TempEntityState insert(s) after the resume window: \
+                     {post_resume_inserts}"
+                );
+
+                // Compared against the thaw-time snapshot taken by the
+                // same observer, while `FreezeOwner::WorldResume` still held
+                // the clocks (see the comment beside `player_snapshot` in
+                // `run_load`) - not a live read on this later frame, which
+                // would let an idle reload or a physics step drift the
+                // values before this check ever ran.
+                let (snapshot_pose, snapshot_credits, mut snapshot_stock) = player_snapshot
+                    .lock()
+                    .expect("world_resume load: the player snapshot is never held across a panic")
+                    .clone()
+                    .expect(
+                        "world_resume load: the thaw-time observer never matched exactly one \
+                         player ship",
+                    );
+                let saved_pose = saved_player["pose"]
+                    .as_array()
+                    .expect("expected.saved_player.pose is an array");
+                let saved_pose = Vec3::new(
+                    saved_pose[0].as_f64().unwrap() as f32,
+                    saved_pose[1].as_f64().unwrap() as f32,
+                    saved_pose[2].as_f64().unwrap() as f32,
+                );
+                let pose_delta = snapshot_pose.distance(saved_pose);
+                assert!(
+                    pose_delta < 1.0,
+                    "world_resume load: thaw-time player pose delta {pose_delta:.4}m exceeds \
+                     1.0m: saved {saved_pose:?}, thaw-time {snapshot_pose:?}"
+                );
+                let saved_credits = saved_player["credits"]
+                    .as_u64()
+                    .expect("expected.saved_player.credits is a number") as u32;
+                assert_eq!(
+                    snapshot_credits, saved_credits,
+                    "world_resume load: thaw-time player credits {snapshot_credits} does not \
+                     match the saved credits {saved_credits}"
+                );
+                let mut saved_stock: Vec<(String, u32)> = saved_player["stock"]
+                    .as_array()
+                    .expect("expected.saved_player.stock is an array")
+                    .iter()
+                    .map(|entry| {
+                        (
+                            entry["item"]
+                                .as_str()
+                                .expect("a saved stock entry carries an item name")
+                                .to_string(),
+                            entry["count"].as_u64().expect("a saved stock entry carries a count")
+                                as u32,
+                        )
+                    })
+                    .collect();
+                saved_stock.sort_by(|a, b| a.0.cmp(&b.0));
+                snapshot_stock.sort_by(|a, b| format!("{:?}", a.0).cmp(&format!("{:?}", b.0)));
+                let snapshot_stock: Vec<(String, u32)> = snapshot_stock
+                    .into_iter()
+                    .map(|(item, count)| (format!("{item:?}"), count))
+                    .collect();
+                assert_eq!(
+                    snapshot_stock, saved_stock,
+                    "world_resume load: thaw-time player stock does not match the saved stock"
+                );
+
                 let mut max_deltas: std::collections::HashMap<&str, (f32, f32)> =
                     std::collections::HashMap::new();
-                for (index, (saved_entry, (recorded_kind, recorded_owner, recorded_pose, recorded_remaining))) in
+                for (index, (saved_entry, (_entity, recorded_kind, recorded_owner, recorded_pose, recorded_remaining))) in
                     saved.iter().zip(recorded_entries.into_iter()).enumerate()
                 {
                     let saved_kind = saved_entry["kind"]
@@ -1589,23 +1768,39 @@ fn load_script(
                 let (piece_max_t, piece_max_l) = max_deltas.get("piece").copied().unwrap_or_default();
 
                 info!(
-                    "world_resume load: matched {} transient(s) by stable save-list index - \
-                     round max pose delta {round_max_t:.4}m/lifetime delta {round_max_l:.4}s, \
-                     torpedo max pose delta {torpedo_max_t:.4}m/lifetime delta \
-                     {torpedo_max_l:.4}s, piece max pose delta {piece_max_t:.4}m/lifetime delta \
-                     {piece_max_l:.4}s",
+                    "world_resume load: matched {} transient(s) by stable save-list index \
+                     (recorded == saved per kind: round {}, torpedo {}, piece {}; duplicates 0; \
+                     post-resume inserts {post_resume_inserts}) - round max pose delta \
+                     {round_max_t:.4}m/lifetime delta {round_max_l:.4}s, torpedo max pose delta \
+                     {torpedo_max_t:.4}m/lifetime delta {torpedo_max_l:.4}s, piece max pose \
+                     delta {piece_max_t:.4}m/lifetime delta {piece_max_l:.4}s - thaw-time \
+                     player pose delta {pose_delta:.4}m, credits saved {saved_credits} == \
+                     thaw-time {snapshot_credits}, stock saved == thaw-time for all {} item(s)",
                     saved.len(),
+                    saved_count("round"),
+                    saved_count("torpedo"),
+                    saved_count("piece"),
+                    saved_stock.len(),
                 );
                 nova_probe::probe_marker(
                     world,
                     "outcome: every saved transient pairs with the thaw-time entry at the same \
                      save-list index, agreeing on kind and, for a round, a torpedo or a \
-                     detached piece, owner, pose and remaining lifetime",
+                     detached piece, owner, pose and remaining lifetime; the observer saw no \
+                     duplicate entity (post-resume TempEntityState inserts, if any, are \
+                     unrelated live gameplay, logged not asserted)",
                     serde_json::json!({
                         "count": saved.len(),
-                        "round": { "max_pose_delta": round_max_t, "max_lifetime_delta": round_max_l },
-                        "torpedo": { "max_pose_delta": torpedo_max_t, "max_lifetime_delta": torpedo_max_l },
-                        "piece": { "max_pose_delta": piece_max_t, "max_lifetime_delta": piece_max_l },
+                        "round": { "count": saved_count("round"), "max_pose_delta": round_max_t, "max_lifetime_delta": round_max_l },
+                        "torpedo": { "count": saved_count("torpedo"), "max_pose_delta": torpedo_max_t, "max_lifetime_delta": torpedo_max_l },
+                        "piece": { "count": saved_count("piece"), "max_pose_delta": piece_max_t, "max_lifetime_delta": piece_max_l },
+                        "duplicates": 0,
+                        "post_resume_inserts": post_resume_inserts,
+                        "p6_player": {
+                            "pose_delta": pose_delta,
+                            "credits_match": snapshot_credits == saved_credits,
+                            "stock_match": snapshot_stock == saved_stock,
+                        },
                     }),
                 );
             }
@@ -1676,21 +1871,48 @@ fn run_load() -> bevy::app::AppExit {
 
     // Thaw-time capture: `spawn_resumed` (crates/nova_world_base/src/save/
     // transients.rs:707-736) queues each saved transient's spawn, then its
-    // `resumed_lifetime` insert, in saved-list order, all on one command
-    // buffer applied once - so the Nth `Insert<TempEntityState>` this
-    // observer sees is always the Nth saved transient. Gated on
+    // `resumed_lifetime` insert, in saved-list order, all on the ONE
+    // Commands buffer `state.apply(world)` applies once (transients.rs:753)
+    // - so for a round, a torpedo, a piece or a shed fixture the Nth
+    // `Insert<TempEntityState>` this observer sees is the Nth saved
+    // transient. A rock chunk thaw also inserts `TempEntity` in its own
+    // spawn bundle, so it is seen twice; this fixture saves none. Gated on
     // `WorldResumeProgress`, which stays until `end_resume` runs right
-    // after that same `state.apply` (transients.rs:768-774) - `ResumedTransients`
-    // itself is pub(crate), so this is the public seam this file can gate
-    // on - so this never captures a `TempEntityState` insert outside a
-    // Load. Every resumed kind is recorded, tagged "other" when it carries
-    // none of the three checked markers (a rock chunk or a shed fixture),
-    // so the recorded list's length and order always mirror the saved
-    // list's.
-    let recorded: std::sync::Arc<std::sync::Mutex<Vec<(&'static str, Option<String>, Vec3, f32)>>> =
-        std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    // after that same `state.apply` (transients.rs:768-774) -
+    // `ResumedTransients` itself is pub(crate), so this is the public seam
+    // this file can gate on. Every resumed kind is recorded, tagged "other"
+    // when it carries none of the three checked markers (a rock chunk or a
+    // shed fixture), so the recorded list's length and order always mirror
+    // the saved list's. An insert seen with `WorldResumeProgress` already
+    // gone is NEVER recorded - only counted, in `post_resume_inserts`, once
+    // a Load has already produced at least one recorded entry (so a
+    // process that has not yet Loaded does not count as "after removal").
+    let recorded: std::sync::Arc<
+        std::sync::Mutex<Vec<(Entity, &'static str, Option<String>, Vec3, f32)>>,
+    > = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let post_resume_inserts: std::sync::Arc<std::sync::Mutex<u32>> =
+        std::sync::Arc::new(std::sync::Mutex::new(0));
+    // The player's pose, credits and stock, snapshotted the first time
+    // this observer fires after a Load (any insert, not only one of the
+    // three checked kinds) rather than read live later. `FreezeOwner::
+    // WorldResume` holds `Time<Virtual>`/`Time<Physics>` until `end_resume`
+    // (transients.rs:768-774), which runs after this whole `spawn_resumed`
+    // call - so nothing has ticked on the player yet: no reload has drawn
+    // on `ShipInventory`, no physics step has moved it. A later live read
+    // would race the PDC idle reload (crates/nova_ship/src/sections/ammo.rs),
+    // which refills a fired magazine from `ShipInventory`. Pose
+    // reads `Transform`, not `Position`: avian only writes `Position` from
+    // `Transform` in `FixedPostUpdate`, which does not run while
+    // `WorldResume` holds the clocks, so `Position` would still be the
+    // player's pre-thaw default here - `Transform` is also what the save
+    // itself records (`SavedPlayer.transform`).
+    let player_snapshot: std::sync::Arc<
+        std::sync::Mutex<Option<(Vec3, u32, Vec<(ItemType, u32)>)>>,
+    > = std::sync::Arc::new(std::sync::Mutex::new(None));
     {
         let recorded = std::sync::Arc::clone(&recorded);
+        let post_resume_inserts = std::sync::Arc::clone(&post_resume_inserts);
+        let player_snapshot = std::sync::Arc::clone(&player_snapshot);
         app.add_observer(
             move |insert: On<Insert, TempEntityState>,
                   progress: Option<Res<WorldResumeProgress>>,
@@ -1702,9 +1924,48 @@ fn run_load() -> bevy::app::AppExit {
                 Has<TorpedoProjectileMarker>,
                 Has<DetachedPieceMarker>,
             )>,
-                  owners: Query<&EntityId>| {
+                  owners: Query<&EntityId>,
+                  players: Query<
+                (&Transform, &ShipCredits, &ShipInventory),
+                With<PlayerSpaceshipMarker>,
+            >| {
                 if progress.is_none() {
+                    let recorded = recorded.lock().expect(
+                        "world_resume load: the thaw-time recorder is never held across a panic",
+                    );
+                    if !recorded.is_empty() {
+                        *post_resume_inserts.lock().expect(
+                            "world_resume load: the post-resume counter is never held across a \
+                             panic",
+                        ) += 1;
+                        warn!(
+                            "world_resume load: a TempEntityState insert on {} landed after \
+                             WorldResumeProgress was removed; not recorded, only counted",
+                            insert.entity
+                        );
+                    }
+                    drop(recorded);
                     return;
+                }
+                {
+                    let mut snapshot = player_snapshot.lock().expect(
+                        "world_resume load: the player snapshot is never held across a panic",
+                    );
+                    if snapshot.is_none() {
+                        let mut matched = players.iter();
+                        if let Some((transform, credits, inventory)) = matched.next() {
+                            assert!(
+                                matched.next().is_none(),
+                                "world_resume load: more than one player ship matched while \
+                                 snapshotting thaw-time state, expected exactly 1"
+                            );
+                            *snapshot = Some((
+                                transform.translation,
+                                credits.0,
+                                inventory.stacks().collect(),
+                            ));
+                        }
+                    }
                 }
                 let Ok((state, transform, projectile_owner, is_round, is_torpedo, is_piece)) =
                     bodies.get(insert.entity)
@@ -1741,13 +2002,18 @@ fn run_load() -> bevy::app::AppExit {
                     .expect(
                         "world_resume load: the thaw-time recorder is never held across a panic",
                     )
-                    .push((kind, owner, translation, remaining));
+                    .push((insert.entity, kind, owner, translation, remaining));
             },
         );
     }
 
     app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-    app.add_plugins(load_script(expected, recorded));
+    app.add_plugins(load_script(
+        expected,
+        recorded,
+        post_resume_inserts,
+        player_snapshot,
+    ));
 
     app.run()
 }

@@ -11,11 +11,11 @@
 //! [`plan_item_transfer`] rule, and a jettison queues [`CargoCanister`]s by the
 //! [`plan_item_jettison`] rule, a weapon's idle reload moves its ammunition
 //! item into the magazine, and a Buy or Sell with a docked trader moves items
-//! and [`ShipCredits`] together by the [`plan_item_trade`] rule. Stock and
-//! credits are not saved: they return to their authored values when the
-//! scenario loads again. A stack exists only while its count is
-//! above zero, and the mass of all stacks never passes the capacity. Mass is
-//! counted in grams; [`kg_text`] shows it in kilograms.
+//! and [`ShipCredits`] together by the [`plan_item_trade`] rule. A saved
+//! world keeps stock and credits across a Load; any other scenario returns
+//! them to their authored values when it loads again. A stack exists only
+//! while its count is above zero, and the mass of all stacks never passes the
+//! capacity. Mass is counted in grams; [`kg_text`] shows it in kilograms.
 
 use std::collections::BTreeMap;
 

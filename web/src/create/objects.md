@@ -281,8 +281,8 @@ any other docked ship at the item's ask and Sell to it at the item's bid,
 moving `credits` between the two ships at once. A trade takes only stock the
 seller carries and credits the buyer holds; nothing restocks. An undocked player with a
 [cargo intake](../sections/#cargo-intake) can Jettison items in canisters and
-take canisters back in. Nothing is saved: stock and credits return to their
-authored values when the scenario loads again.
+take canisters back in. Outside a saved Open World (desktop build only), nothing is
+saved: stock and credits return to their authored values when the scenario loads again.
 
 | Item | Mass | Category | Ask | Bid |
 | --- | --- | --- | --- | --- |

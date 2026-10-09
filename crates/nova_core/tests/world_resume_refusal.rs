@@ -424,11 +424,15 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
     });
     app.world_mut().spawn(SectorRoot(SectorCoord::ORIGIN));
     app.update();
-    update_until(&mut app, "the resume progress line to render (case two)", |app| {
-        texts_now(app)
-            .iter()
-            .any(|text| text == "RESTORING SECTORS 1 / 1")
-    });
+    update_until(
+        &mut app,
+        "the resume progress line to render (case two)",
+        |app| {
+            texts_now(app)
+                .iter()
+                .any(|text| text == "RESTORING SECTORS 1 / 1")
+        },
+    );
 
     assert!(
         app.world()

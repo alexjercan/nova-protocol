@@ -1563,3 +1563,418 @@ something else. I did not pick or combine any of these without asking.
 Xvfb :117 (PID 3537933) stopped and verified gone. Nothing staged, nothing
 committed, only `examples/systems/system_world_resume.rs` touched (plus
 this report).
+
+## Round 7: pair by stable save-list index - the match step itself now
+passes clean, 0.0000m/0.0000s, both times it ran (2026-10-09)
+
+Scope held: only `examples/systems/system_world_resume.rs` edited, plus
+this report. No production file touched. Owner's decision, used as given:
+pair each thaw-time recorded entry against its saved record by stable
+save-list index (the Nth `Insert<TempEntityState>` the observer sees is
+always the Nth saved transient - `spawn_resumed`,
+`crates/nova_world_base/src/save/transients.rs:707-736`, queues every
+saved transient's spawn then its `resumed_lifetime` insert, in saved-list
+order, on one command buffer applied once). No new named fn/type/const:
+every new piece is a `let`-bound closure or a plain value, same style as
+round 6.
+
+### 1. What changed
+
+- `record_transient_fixture_state` (`system_world_resume.rs:731`) no
+  longer groups saved records by kind into three separate arrays. It now
+  returns ONE ordered JSON array mirroring `state.transients` exactly - one
+  object per saved transient, in save order, each tagged `"kind"`
+  (`"round"` / `"torpedo"` / `"piece"` / `"other"`), carrying `owner`
+  (`"player"` for round/torpedo, `null` for piece/other, validated the
+  same way round 6 did) and `pose/lifetime_remaining` where that kind
+  defines them (`null` pose for `"other"`). This is what lets the load
+  phase pair by index across the WHOLE list, not just within one kind's
+  own sub-list.
+- The thaw-time observer in `run_load` (`system_world_resume.rs:1659`) now
+  tags an insert that carries none of the three checked markers as
+  `"other"` instead of returning early - every resumed transient is now
+  recorded, not just round/torpedo/piece, so the recorded list's length
+  and order always mirror the saved list's (this scenario never actually
+  produces a rock chunk or a shed fixture, so `"other"` never appears in
+  practice here, but the recorder no longer silently drops a kind it
+  wasn't told to check).
+- The "match and assert" step's `on_enter`
+  (`system_world_resume.rs:1471`) deleted `match_kind`, `read_saved`,
+  `thawed` and the old `assert_live_at_most_recorded` (which compared
+  against the thaw-time RECORDED count) entirely - no more candidate
+  search, no `HashSet` of used indices. In their place: one
+  `assert_eq!(recorded_entries.len(), saved.len(), ...)` naming both
+  counts, then one `for (index, (saved_entry, recorded_entry)) in
+  saved.iter().zip(recorded_entries.into_iter()).enumerate()` loop that
+  asserts the recorded kind equals the saved kind at that index (panic
+  names the index and both kinds), and - for `"round"`/`"torpedo"`/`"piece"`
+  only - asserts owner equality, translation within 1.0 m and remaining
+  lifetime within 0.01 s (every panic names the index, the kind, and both
+  the saved and recorded values; `"other"` records are skipped after the
+  kind check, per the owner's scope). A second, smaller
+  `assert_live_at_most_saved` closure then checks each kind's live count
+  at this on_enter against the SAVED count for that kind (not the
+  recorded count, per the owner's item - a live body can have already
+  expired between the thaw and this later frame, but it can never exceed
+  what the leave save actually held). No tolerance was loosened - still
+  1.0 m / 0.01 s, same comparison operators (`<`, `<`).
+- The big round-6 comment above the match (citing `SW-PT9.md Round 5`'s
+  ~0.4 s gap finding, explaining the one-to-one candidate search) is gone.
+  The comment now reads: `spawn_resumed` queues each saved transient's
+  spawn then its `resumed_lifetime` insert, in saved-list order, on one
+  command buffer applied once, so the observer's Nth insert is always the
+  Nth saved transient - the values compared are what that observer
+  captured at the instant of that insert, not a live read on this later
+  frame. Two sentences, states the ordering evidence and the thaw-time
+  capture point, nothing else.
+- The module doc's "Phase `load`" paragraph was rewritten to describe
+  index-based pairing instead of content-matching.
+
+Build clean: `cargo build --example system_world_resume --features debug
+-j 8` passes after every edit. `rustfmt --edition 2024` was run once on
+this file only, right after the edits; `rustfmt --edition 2024 --check`
+reports clean on the final version.
+
+### 2. Runs (3 of 3 allowed, foreground, owned `Xvfb :117`, lavapipe)
+
+Env shape for all attempts: `DISPLAY=:117`,
+`VK_DRIVER_FILES=/nix/store/1vkzwrp4ny20iljfnv9valq0bfn8czlv-mesa-26.2.3/share/vulkan/icd.d/lvp_icd.x86_64.json`,
+`ALSA_CONFIG_PATH=/tmp/nova-pt9/alsa-empty.conf` (empty file),
+`NOVA_AUTOPILOT=1`, `NOVA_CAPTURE=1`, `NOVA_CAPTURE_DIR=/tmp/nova-pt9/capture-r7`,
+`NOVA_AUTOPILOT_DEADLINE=900`, `RUST_LOG=info,nova_ship=debug`,
+`CARGO_TARGET_DIR=./target`, `cargo run --example system_world_resume
+--features debug -j 8 -- --phase create`. One `Xvfb :117 -screen 0
+1920x1080x24`, real PID `3541122` (verified via `pgrep -af "^Xvfb :117"`,
+the same false-match trap rounds 4 and 6 hit was checked for and avoided),
+started once and reused across all 3 attempts. Stopped by that exact PID
+after the last attempt and verified gone: `ps -p 3541122` printed no
+process line and exited 1.
+
+Host load was shared with other agents' sessions this round
+(`uptime` read 8.41 before the first attempt, 8.81/7.22/4.33 before the
+last) - see below for the effect this had.
+
+1. First attempt (log overwritten by attempt 2 below, same filename):
+   stalled 180.1 s in the CREATE phase's own `world_resume: release the
+   trigger and shoot the frame right before the leave` step, waiting for
+   `any_entity::<With<TurretBulletProjectileMarker>>()` that never
+   appeared - `create_script` was not touched this round, and this step's
+   own deadline (`PDC_FIRE_DEADLINE_SECS`, 180.0 s, unchanged since round
+   4) is the same one rounds 4-6 ran under without a stall. Read as host
+   contention, not a regression: the load-side code this round actually
+   changed never ran.
+2. Second attempt (`/tmp/nova-pt9/run-r7-1.log`): create phase fired a
+   12-round volley (same one-frame-press shape as round 6's run 1), saved
+   15 transients (`Round` x12, `Torpedo` x2, `DetachedPiece` x1), spawned
+   the load phase. Load phase's match step: **`world_resume load: matched
+   15 transient(s) by stable save-list index - round max pose delta
+   0.0000m/lifetime delta 0.0000s, torpedo max pose delta
+   0.0000m/lifetime delta 0.0000s, piece max pose delta 0.0000m/lifetime
+   delta 0.0000s`** - no panic, no failing index, the `assert_eq!` on
+   `recorded_entries.len()`/`saved.len()` never fired either (both 15).
+   This is the step this round exists to fix, and it passed completely:
+   every one of the 15 saved records, across all three checked kinds,
+   paired with its thaw-time entry at the SAME index with ZERO measured
+   delta. Execution then continued three more steps (screenshot, pixel
+   report, `assert_resumed_state`) before panicking on a DIFFERENT, later
+   assertion - see section 3. Sandbox kept:
+   `target/example-profiles/system_world_resume-3541811-1791522980904146306/`
+   (`state.4.ron` 400658 bytes, `expected.json` 15 kind-tagged records: 12
+   round, 2 torpedo, 1 piece, 0 other).
+3. Third attempt (`/tmp/nova-pt9/run-r7-2.log`), the planned repeat: same
+   stall as attempt 1, same step, same 180.1 s deadline - host load was
+   higher at this point (`uptime` 8.81/7.22/4.33 vs. 8.41 before attempt
+   1). The repeat could not re-exercise the match step because the
+   create-phase fixture never got that far; it reproduces attempt 1's
+   stall, not attempt 2's pass. The 3-run budget is now spent.
+
+### 3. The downstream stock-assertion failure: pre-existing, unrelated,
+out of this round's scope
+
+Attempt 2's load phase panicked at `assert_resumed_state`
+(`system_world_resume.rs`, the "resumed stock does not match the saved
+stock" assert) with saved `PdcRound` 6000 vs. resumed `PdcRound` 5988 -
+every other stock line (`HullPlate`, `RailSlug`, `Torpedo`, `Rations`)
+matched exactly. This is the SAME shape of failure Round 3 first hit and
+Round 4 believed it had fixed by moving `write_expected_state` to right
+after "let escape go" (SW-PT9.md Round 4, section 1) - that fix holds for
+a single fired round, but round 6's create-phase redesign (a bare
+one-frame PDC press that lets every deployed bay/muzzle fire a 12-22-round
+burst, SW-PT9.md Round 6 section 2) means the burst can still be
+depositing rounds, and consuming `PdcRound` stock, for a few frames AFTER
+the capture point - the 12-unit gap (6000-5988) matches this run's own
+12-round volley exactly. This is NOT the match step this round was scoped
+to fix (which passed, see section 2.2), is NOT something
+`match_kind`/the index pairing touches, and fixing it would need a new
+capture-point decision (move `write_expected_state` again, or something
+else) that is outside this round's owner-approved items. Per scope, I did
+not touch it.
+
+### 4. What was asked for, with evidence, labeled where unverified
+
+- **Diff summary**: section 1 above.
+- **Recorded vs saved total and per-kind counts**: attempt 2, the only
+  attempt that reached the match step - recorded 15 total (12 round, 2
+  torpedo, 1 piece, 0 other), saved 15 total (same breakdown,
+  `expected.json` read directly). Equal at every level; the whole-list
+  `assert_eq!` never fired. Attempt 3's counts are **unverified** - it
+  never reached this step (see section 2.3).
+- **Max translation and lifetime deltas per kind**: attempt 2 - round,
+  torpedo and piece ALL report max pose delta 0.0000m and max lifetime
+  delta 0.0000s, straight from the log line quoted in section 2.2. Unlike
+  round 6, these are real matched-pair deltas for every record, not
+  closest-candidate diagnostics for failures - every index passed on its
+  first and only candidate.
+- **Expiry step result**: not reached, attempt 2 (panicked at the stock
+  assertion, several steps before `world_resume load: the fixture
+  transients expire on their own saved clocks`); not reached, attempt 3
+  (stalled in the create phase, never spawned a load phase). **Unverified
+  this round**, same gap round 6 had for a different reason.
+- **Final PASS line or precise failure**: no PASS. Precise failure
+  (attempt 2): `` assertion `left == right` failed: world_resume load:
+  resumed stock does not match the saved stock / left: [...PdcRound 5988...]
+  / right: [...PdcRound 6000...] `` (full arrays in
+  `/tmp/nova-pt9/run-r7-1.log`) - a pre-existing, unrelated assertion (see
+  section 3), not the transient-matching logic this round changed.
+- **Pixel figure**: attempt 2 only - `mean |channel diff| = 10.041` (0-255
+  scale), reported (never asserted) between `world_resume-before-leave.png`
+  and `world_resume-after-load.png` as captured during attempt 2 itself.
+- **What before-leave.png and after-load.png show**: both files on disk
+  under `/tmp/nova-pt9/capture-r7/` were LOOKED AT with `Read`, but
+  `NOVA_CAPTURE_DIR` is shared across all 3 attempts and each attempt's
+  `on_enter` re-shoots on step entry regardless of whether that attempt
+  then stalls - so the file timestamps matter: `world_resume-after-load.png`
+  (mtime 08:17:18) and `world_resume-leave-overlay.png`/`world_resume-load-screen.png`
+  (08:16) are from attempt 2, the one that reached those steps. But
+  `world_resume-before-leave.png` and `world_resume-status-line.png` were
+  BOTH overwritten by attempt 3 (mtime 08:19, after attempt 2 finished) -
+  attempt 3 stalled waiting for a round that never existed, so its
+  `before-leave.png` shows the ship from behind/above with the dorsal PDC
+  bays visible and CLEAN, no tracer streak, no round - it is NOT
+  attempt 2's pre-leave frame and does not show the 12-round volley.
+  `world_resume-after-load.png` (attempt 2, genuine) shows the resumed
+  ship head-on at 5 fps, "World saved" status visible, both PDC bay radar
+  rings lit, and one small bright point above the dorsal hull near the
+  left bay - consistent with a resumed round still in flight, though not
+  verified pixel-by-pixel against a specific saved pose. Labeled:
+  before-leave.png's content this round is unverified for attempt 2 and
+  known-wrong for what it currently shows on disk.
+- **State file size and log paths**: attempt 2's `state.4.ron` 400658
+  bytes
+  (`target/example-profiles/system_world_resume-3541811-1791522980904146306/worlds/probe-world/state.4.ron`).
+  Logs: `/tmp/nova-pt9/run-r7-1.log` (attempt 2, the one that reached the
+  match step), `/tmp/nova-pt9/run-r7-2.log` (attempt 3, stalled in create).
+  Attempt 1's log was overwritten by attempt 2 under the same filename;
+  its own stall is described in section 2.1 from direct observation
+  before the retry.
+
+### Handoff
+
+The match step this round exists to fix now passes cleanly, with zero
+measured deltas, the one time it ran under this round's own fixture -
+pairing by stable save-list index resolves round 6's spatial ambiguity
+completely, as the owner's evidence predicted: index order sidesteps the
+close-muzzle collision entirely, since it never compares pose between
+different saved records at all. The planned repeat (attempt 3) could not
+confirm this a second time because host load stalled the CREATE phase's
+unrelated PDC-fire step before the load phase ever ran, the same way
+attempt 1 did - this round's 3-run budget is spent on 2 stalls and 1 pass,
+not 2 passes, so the index-pairing fix's reproducibility is **only
+single-run-confirmed**, not double-confirmed, through no fault in the
+code touched this round. A clean re-run on a quieter host would most
+likely repeat attempt 2's result, since nothing about the match logic is
+load-sensitive (it is pure index/value comparison, no timing or geometry
+involved), but that is a prediction, not a second measurement.
+
+Separately, attempt 2 surfaced a real, reproducible-by-shape, pre-existing
+gap: round 6's one-frame-press redesign broke round 4's stock-capture-point
+fix for any run where the resulting burst is more than a couple of rounds.
+This needs the owner's call, not a guess, the same way round 6's spatial
+ambiguity did: (a) move `write_expected_state` later still, after the
+burst has fully settled, if there is a reliable signal for "the burst is
+done"; (b) special-case `PdcRound` to `resumed <= expected` the way round
+3's option B proposed, now for a burst-sized gap instead of a single-round
+one; (c) something else. I did not pick or combine any of these without
+asking, and did not touch the stock assertion or the fire sequence.
+
+Xvfb :117 (PID 3541122) stopped and verified gone. I did not stage or
+commit anything myself (`git status --cached`/`git diff --cached` were
+empty throughout). Note: an external `wip` commit (`9ce136a54`, author
+Alex Jercan, 2026-10-09 08:20:13, 175 files) landed on this branch mid-run,
+after my edits to `examples/systems/system_world_resume.rs` were already
+made and formatted - it swept the whole worktree, including that file (its
+committed content matches my edited version exactly, confirmed by `git
+diff HEAD -- examples/systems/system_world_resume.rs` being empty) and the
+pre-Round-7 state of this report. This commit was not made by me; flagging
+it since it changes what "nothing committed" means for this round. Only
+`examples/systems/system_world_resume.rs` was touched by me (plus this
+report).
+
+## Round 8: P6 authority, observer ordering audit, PDC-latch fix, 2 clean
+repeats (2026-10-09)
+
+Scope held: only `examples/systems/system_world_resume.rs` edited, plus
+this report. No production file touched, nothing staged or committed. No
+new named fn/type/const - every new piece below is a `let`-bound closure,
+tuple or plain value.
+
+### 1. What changed
+
+- **P6 authority.** `record_transient_fixture_state`
+  (`system_world_resume.rs`) now also builds a `saved_player` JSON object
+  from the SAME `open_world()` read the transients already use: `pose`
+  from `state.player.transform.translation`, `credits` from
+  `header.credits`, `stock` from `serde_json::to_value(&state.player.ship)`
+  walked to `["state"]["inventory"]["stacks"]` (sorted by item name - no
+  new accessor needed, `FrozenShip` already derives `Serialize`). The
+  create script's "record the leave save's own transients" step keeps the
+  live pre-click sample only to log save-time deltas (`info!`), never to
+  assert; a comment states this once.
+- **The actual assertion target moved to thaw time**, on the owner's
+  correction (the first `on_enter` after resume already lands ~0.4s of sim
+  later - long enough for a saved reload timer to run, which run 1 of this
+  round proved: live-read PdcRound 5908 vs saved 6000). The SAME inline
+  `On<Insert, TempEntityState>` observer in `run_load` that records the
+  transient list now also snapshots the player's `Transform` translation,
+  `ShipCredits` and `ShipInventory::stacks()` on its first callback only,
+  into a second `Arc<Mutex<Option<(Vec3, u32, Vec<(ItemType, u32)>)>>>`
+  (`player_snapshot`) - panicking if more than one `PlayerSpaceshipMarker`
+  ever matches. Pose reads `Transform`, not `Position`: avian only writes
+  `Position` from `Transform` in `FixedPostUpdate`, which does not run
+  while `WorldResume` holds the clocks (confirmed in avian3d 0.7.0 source,
+  `src/physics_transform/mod.rs:106-110`, gated on Bevy's fixed-timestep
+  accumulator, itself frozen with `Time<Virtual>`) - run 3 of this round
+  hit exactly this (thaw-time `Position` read 0,0,0 against a saved
+  3200,0,0 pose) before the fix. `Transform` is also what the save itself
+  records (`SavedPlayer.transform`), so this is the apples-to-apples read,
+  not a loosened one. The match step's `on_enter` asserts this snapshot
+  (pose <1.0m, credits and stock exact) against `saved_player`, and
+  `assert_resumed_state` no longer re-checks player pose/credits/stock at
+  all - removed, so the same claim is never checked twice against state
+  that may have already drifted live.
+- **Observer ordering audit.** The match step still fails loudly on a
+  missing/extra callback (`recorded_entries.len() != saved.len()`) and on
+  a duplicate entity (`HashSet` over recorded entities). It does NOT fail
+  on a `TempEntityState` insert recorded after `WorldResumeProgress` was
+  removed - that assert was removed mid-round on the owner's correction
+  (see "A design turn" below); the count is still logged
+  (`post_resume_inserts`), never asserted. Ordering evidence stays in one
+  comment: `spawn_resumed` (`transients.rs:707-736`) queues every saved
+  transient's spawn then its `resumed_lifetime` insert, in saved-list
+  order, on the ONE Commands buffer `state.apply(world)` applies once
+  (`transients.rs:753`).
+- **PDC-latch fix**, confirmed against `run-r7-2.log` before changing
+  anything (per the task's own requirement): the "fire a PDC round" step
+  now `.until()`s a live `TurretSectionInput` reading true on any player
+  PDC bay (`try_query_filtered`, since the predicate closure only gets
+  `&World`) before the next step releases the trigger, closing the race
+  between the one-frame input tap and `bevy_enhanced_input`'s PreUpdate
+  evaluation (both scheduled `.after(InputSystems)` with no edge between
+  them).
+
+### 2. A design turn: the post-resume-insert assert was unsound
+
+Run 2 (first full attempt this round) failed on
+`assert_eq!(post_resume_inserts, 0, ...)`: a torpedo scripted to ignite
+right in the resume window (`ignite_cold_torpedoes`,
+`torpedo_section/projectile.rs:97-124`) triggered `TorpedoIgnited` ->
+`on_torpedo_ignition` (`torpedo_section/render.rs:639-648`) -> `LightFlash`
+-> `light_the_flash` (`transient_light.rs:153-178`), which spawns a brand
+new `TempEntity`-tagged light for ANY flash anywhere in the game.
+`TempEntity`'s own `On<Insert, TempEntity>` observer
+(`crates/nova_gameplay/src/lifetime.rs:128-148`) universally inserts
+`TempEntityState` - the same component this audit watches - on that
+unrelated entity, 0.3ms after `end_resume` removed `WorldResumeProgress`.
+I asked before changing the approved design (two proposals: hard-fail as
+specified, or narrow the count to round/torpedo/piece kinds only). Neither
+was taken - the owner pointed out B still breaks on a live hostile round
+fired right after resume, and that a genuinely late RESUMED insert is
+already caught by the existing `recorded_entries.len() != saved.len()`
+check, making the post-removal count redundant as a hard failure either
+way. Verdict: log the count, never assert it; one-sentence comment says
+why.
+
+Run 3 then hit the `Position`-vs-`Transform` gap described above (also
+asked before changing, with the avian source citation). Both turns are
+"ask before acting on a design decision", used as the task directs, not
+guesses.
+
+### 3. Runs
+
+Four runs total (budget: 4), Xvfb :117 reused throughout (owner's PID
+3555128, confirmed alive before every run, stopped and verified gone at
+the end). `VK_DRIVER_FILES`/`VK_ICD_FILENAMES` pointed at the host's
+`lvp_icd*.json`, `ALSA_CONFIG_PATH` at a genuinely empty file,
+`NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_AUTOPILOT_DEADLINE=900
+RUST_LOG=info,nova_ship=debug`, one `--phase create` invocation per run
+(it internally spawns `--phase load` as a child and reports both).
+
+- **Run 1** (pre-dates this report's P6/pose fixes, same session): loadavg
+  not sampled under this round's protocol yet. Failed on the live-read P6
+  stock mismatch this round's thaw-time fix was built to solve (PdcRound
+  5908 live vs 6000 saved) - this is the finding that produced the P6
+  design turn above, not a passing run (confirmed explicitly by the owner:
+  "Run 1 does not count as a passing run").
+- **Run 2**: loadavg 1.93/1.61/2.17 before. Failed on
+  `post_resume_inserts == 0` (the unsound assert above) - pairing,
+  duplicate and kind checks for this run's 87 transients were never
+  reached (the post-resume assert runs first). `run-r8-2-create.log`.
+- **Run 3**: loadavg 1.04/1.32/1.99 before. The post-resume count fix
+  held (logged "1", not asserted); pairing/duplicate/count/kind for 55
+  transients and P6 credits+stock all passed; failed on thaw-time pose
+  (`Position` read 0,0,0 vs saved 3200,0,0 - the avian sync gap above).
+  `run-r8-3-create.log`.
+- **Run 4** (first full PASS): loadavg 2.36/2.71/2.55 before. 47
+  transients: round 44, torpedo 2, piece 1, recorded == saved per kind,
+  duplicates 0, post-resume inserts 1 (logged, the same live-torpedo-light
+  shape as run 2 - confirms this really is ordinary gameplay, not
+  resume-specific). Max deltas 0.0000m/0.0000s on every kind. P6: pose
+  delta 0.0000m, credits 918273 == 918273, stock matched for all 5 items.
+  Pixel-difference figure 10.312 (mean |channel diff|, 0-255 scale,
+  informational). Expiry step (`fixture_transients_expired`, deadline
+  `TRANSIENT_EXPIRE_DEADLINE_SECS`) completed inside its deadline - the
+  walk reached "open the pause menu" next with no panic. Final line:
+  `world_resume load: PASS every fixture value matched`. `run-r8-4-create.log`.
+- **Run 5** (second full PASS, confirming): loadavg sampled at 4.92 first
+  (above the 4.0 threshold - waited, logged, re-sampled 4.53 then 3.25,
+  proceeded per the task's wait protocol). 32 transients: round 29,
+  torpedo 2, piece 1, recorded == saved per kind, duplicates 0, post-resume
+  inserts 1 (same live-torpedo-light shape again). Max deltas
+  0.0000m/0.0000s on every kind. P6: pose delta 0.0000m, credits 918273 ==
+  918273, stock matched for all 5 items. Pixel-difference figure 10.386.
+  Expiry step completed inside its deadline. Final line: `world_resume
+  load: PASS every fixture value matched`. `run-r8-5-create.log`.
+
+Two consecutive full passes (runs 4 and 5), as required. Neither run's
+sandbox was kept (the harness only retains the sandbox on failure, unlike
+runs 2/3's kept sandboxes); a `state.4.ron` from run 3's kept sandbox
+(same fixture shape, 47 transients) is 414919 bytes, for scale.
+
+Both PASS runs' before/after screenshots
+(`/tmp/nova-pt9/capture-r8-5/world_resume-before-leave.png` and
+`-after-load.png`, read via the Read tool) show the same cargoa corvette
+hull, the same drifting detached-piece chunk upper-left, and the same
+orange PDC-fire markers on both turret mounts, across the leave/load
+boundary - the only visible difference is the follow-camera's angle
+(closer-in over the deck before leaving, pulled back to frame the whole
+hull plus engine glow after loading), which is the known, already-
+documented driver of the ~10/255 pixel-difference figure, not a content
+regression.
+
+### Handoff
+
+This round's three owner-directed fixes (P6 moved to a thaw-time
+`Transform` read, the post-resume-insert count demoted from assert to log,
+and the PDC one-frame-press race closed with an input-latch wait) are now
+double-confirmed: runs 4 and 5 both reached the final PASS line with zero
+measured deltas on every checked kind and on P6, under two different
+transient-count shapes (47 and 32) and two different loadavg conditions.
+The `post_resume_inserts == 1` seen on both passing runs (always tied to
+`ignite_cold_torpedoes` lighting a torpedo right as `WorldResumeProgress`
+is removed) is expected, ordinary live-gameplay noise under this audit's
+current, corrected design, not a resume defect - flagging it here only so
+a future reader does not mistake a nonzero count for a regression.
+
+Xvfb :117 (PID 3555128) stopped and verified gone (`ps -p` exit 1). Nothing
+staged, nothing committed (`git status --porcelain` showed only
+`examples/systems/system_world_resume.rs` and this report throughout).
