@@ -7,20 +7,22 @@ use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    nova_blast, resumed_lifetime, CargoCanisterRuntimeId, ClockFreeze, DamageMarks, DamageType,
-    FreezeOwner, FrozenRoundFlight, Health, IntegrityDestroyMarker, PlayerSpaceshipMarker,
-    PointRotationOutput, ProjectileDamage, ProjectileOwner, RailgunSlugProjectileMarker, RoundRake,
-    SavedBodyRef, SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, ShipCredits,
-    ShipInventory, SpaceshipRootMarker, TorpedoProjectileMarker, TurretBulletProjectileMarker,
+    nova_blast, resumed_lifetime, AssetRef, CargoCanister, CargoCanisterIdAllocator,
+    CargoCanisterRuntimeId, ClockFreeze, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight,
+    Health, IntegrityDestroyMarker, ItemType, PlayerSpaceshipMarker, PointRotationOutput,
+    ProjectileDamage, ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef,
+    SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, ShipCredits, ShipInventory,
+    SpaceshipRootMarker, TorpedoProjectileMarker, TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
     freeze_ship, spaceship_scenario_object, CurrentScenario, SpaceshipConfig,
 };
 use nova_ship::prelude::{
-    thaw_round, thaw_torpedo, CameraView, ChaseZoom, FrozenRound, FrozenTorpedo, RoundSourceType,
-    SavedTorpedoTarget, SpaceshipCameraController, SpaceshipCameraInputMarker,
-    SpaceshipCameraNormalInputMarker, TorpedoArming, TorpedoControllerMarker, TorpedoSectionConfig,
-    TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave,
+    cargo_canister, freeze_canister, thaw_round, thaw_torpedo, CameraView, ChaseZoom, FrozenRound,
+    FrozenTorpedo, RoundSourceType, SavedTorpedoTarget, SpaceshipCameraController,
+    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, TorpedoArming,
+    TorpedoControllerMarker, TorpedoSectionConfig, TorpedoTargetChosen, TorpedoTargetEntity,
+    TorpedoTargetPosition, TorpedoWeave,
 };
 use nova_world::{
     prelude::{CurrentSector, FrozenSectors, SectorCoord, WorldConfig},
@@ -1669,4 +1671,130 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
     let (_, _lock, _, saved) = open_world(root.path(), "ids", &catalog(7)).unwrap();
     assert_eq!(saved.transients.len(), 2);
     assert_eq!(saved.sectors.len(), 1);
+}
+
+/// A ledger whose cells each hold a real frozen canister for each of their
+/// canister ids, built through the record's RON form like [`ledger`].
+fn canister_ledger(cells: &[(SectorCoord, &[u64])]) -> FrozenSectors {
+    let mut world = World::new();
+    let transform = ron::to_string(&Transform::IDENTITY).unwrap();
+    let cells: Vec<String> = cells
+        .iter()
+        .map(|(coord, ids)| {
+            let bodies: Vec<String> = ids
+                .iter()
+                .map(|&id| {
+                    let canister = world
+                        .spawn((
+                            cargo_canister(
+                                CargoCanister::new(ItemType::IronOre, 1),
+                                Transform::IDENTITY,
+                                Vec3::ZERO,
+                                AssetRef::from("canister.glb#Scene0"),
+                            ),
+                            CargoCanisterRuntimeId(id),
+                        ))
+                        .id();
+                    let frozen = freeze_canister(&world, canister).expect("a whole canister");
+                    format!(
+                        "(id: None, name: None, transform: {transform}, \
+                         visibility: None, motion: None, body: Canister({}))",
+                        ron::to_string(&frozen).unwrap()
+                    )
+                })
+                .collect();
+            format!(
+                "{}: Visited([{}])",
+                ron::to_string(coord).unwrap(),
+                bodies.join(", ")
+            )
+        })
+        .collect();
+    ron::from_str(&format!("{{{}}}", cells.join(", "))).unwrap()
+}
+
+/// A saved world with two canisters of one id, or a canister id at or past
+/// the saved next canister id, is refused on open: a resumed allocator would
+/// mint that id again. Distinct canister ids below it open.
+#[test]
+fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Canisters").unwrap();
+    drop(lock);
+    let east = SectorCoord::new(1, 0, 0);
+    let cases: [(&[u64], &str); 2] = [
+        (&[3, 3], "two saved canisters have the id 3"),
+        (
+            &[12],
+            "the saved canister 12 was never minted: the next canister id is 12",
+        ),
+    ];
+    for (generation, (ids, expected)) in (1..).zip(cases) {
+        let state = WorldSaveState {
+            sectors: canister_ledger(&[(east, ids)]),
+            ..state(generation, 750)
+        };
+        assert_eq!(state.canister_ids_next, 12);
+        write_world(&folder, &header("Canisters", generation), &state).unwrap();
+        assert_eq!(
+            open_world(root.path(), "canisters", &catalog(7)).map(|_| ()),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: {expected}"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+
+    let state = WorldSaveState {
+        sectors: canister_ledger(&[(east, &[3, 11])]),
+        ..state(3, 750)
+    };
+    write_world(&folder, &header("Canisters", 3), &state).unwrap();
+    let (_, _lock, _, saved) = open_world(root.path(), "canisters", &catalog(7)).unwrap();
+    assert_eq!(saved.sectors.len(), 1);
+}
+
+/// A save whose ledger holds two canisters of one id, or a canister id the
+/// allocator never minted, fails visibly and keeps the last save.
+#[test]
+fn a_save_with_a_duplicate_or_unminted_canister_fails_and_keeps_the_last_save() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _) = armed_session(root.path());
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 1 }
+    );
+    let folder = root.path().join("session");
+    let saved = std::fs::read(folder.join("state.1.ron")).unwrap();
+    let refused = |world: &mut World, expected: &str| {
+        world.resource_mut::<WorldSaveSession>().request_leave();
+        run_until_idle(world);
+        let WorldSaveStatus::Failed(reason) = world.resource::<WorldSaveSession>().status() else {
+            panic!(
+                "'{expected}' fails the save, not {:?}",
+                world.resource::<WorldSaveSession>().status()
+            );
+        };
+        assert!(reason.contains(expected), "{reason}");
+        assert_eq!(files(&folder), ["state.1.ron", "world.lock", "world.ron"]);
+        assert_eq!(std::fs::read(folder.join("state.1.ron")).unwrap(), saved);
+    };
+    let east = SectorCoord::new(1, 0, 0);
+
+    assert_eq!(
+        world.resource::<CargoCanisterIdAllocator>().next_unminted(),
+        CargoCanisterRuntimeId(0)
+    );
+    world.insert_resource(canister_ledger(&[(east, &[0])]));
+    refused(
+        &mut world,
+        "the saved canister 0 was never minted: the next canister id is 0",
+    );
+
+    for _ in 0..5 {
+        world.resource_mut::<CargoCanisterIdAllocator>().mint();
+    }
+    world.insert_resource(canister_ledger(&[(east, &[3, 3])]));
+    refused(&mut world, "two saved canisters have the id 3");
 }

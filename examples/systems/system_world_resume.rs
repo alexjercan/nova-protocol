@@ -407,8 +407,7 @@ fn inject_fixture(world: &mut World) {
     );
     nova_probe::probe_marker(
         world,
-        "outcome: the create phase injects carve, canister and credit fixture state directly \
-         through production APIs, disclosed as fixture state and not gameplay",
+        "outcome: the create phase injects carve, canister and credit fixture state directly through production APIs, disclosed as fixture state and not gameplay",
         serde_json::json!({
             "rock_id": rock_id.0,
             "body_radius_before": body_radius_before,
@@ -852,9 +851,7 @@ fn record_transient_fixture_state(world: &mut World) -> serde_json::Value {
     );
     nova_probe::probe_marker(
         world,
-        "outcome: the leave save keeps every live transient, in save-list order, with a kind \
-         tag and (for a round, a torpedo or a detached piece) its owner, pose and remaining \
-         lifetime",
+        "outcome: the leave save keeps every live transient, in save-list order, with a kind tag and (for a round, a torpedo or a detached piece) its owner, pose and remaining lifetime",
         serde_json::json!({
             "kinds": kinds,
             "count": transients_json.len(),
@@ -987,8 +984,7 @@ fn report_pixel_difference(world: &mut World, before_path: &str, after_path: &st
     );
     nova_probe::probe_marker(
         world,
-        "outcome: the frame before the leave and the first frame after the Load are compared by \
-         a reported pixel-difference figure, never asserted",
+        "outcome: the frame before the leave and the first frame after the Load are compared by a reported pixel-difference figure, never asserted",
         serde_json::json!({
             "before": before.display().to_string(),
             "after": after.display().to_string(),
@@ -1784,11 +1780,7 @@ fn load_script(
                 );
                 nova_probe::probe_marker(
                     world,
-                    "outcome: every saved transient pairs with the thaw-time entry at the same \
-                     save-list index, agreeing on kind and, for a round, a torpedo or a \
-                     detached piece, owner, pose and remaining lifetime; the observer saw no \
-                     duplicate entity (post-resume TempEntityState inserts, if any, are \
-                     unrelated live gameplay, logged not asserted)",
+                    "outcome: every saved transient pairs with the thaw-time entry at the same save-list index, agreeing on kind and, for a round, a torpedo or a detached piece, owner, pose and remaining lifetime; the observer saw no duplicate entity (post-resume TempEntityState inserts, if any, are unrelated live gameplay, logged not asserted)",
                     serde_json::json!({
                         "count": saved.len(),
                         "round": { "count": saved_count("round"), "max_pose_delta": round_max_t, "max_lifetime_delta": round_max_l },

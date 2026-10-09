@@ -27,7 +27,9 @@ use std::{
 use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
-use nova_gameplay::prelude::{SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef};
+use nova_gameplay::prelude::{
+    CargoCanisterRuntimeId, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
+};
 use nova_scenario::prelude::FrozenShip;
 use nova_ship::prelude::{CameraView, SavedTorpedoTarget};
 use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord};
@@ -100,7 +102,8 @@ pub struct WorldSaveState {
     pub player: SavedPlayer,
     /// The frozen ledger with every live sector frozen into it.
     pub sectors: FrozenSectors,
-    /// The first cargo canister id the world had not minted.
+    /// The first cargo canister id the world had not minted. Every saved
+    /// canister id is below it.
     pub canister_ids_next: u64,
     /// Every combat transient in flight in the window.
     pub transients: Vec<FrozenTransient>,
@@ -328,6 +331,16 @@ enum SavedIdFault {
     /// An id with a `/` that is not a minted wreck id
     /// `<base>/wreck/<section>`, repeated for a wreck of a wreck.
     Malformed(EntityId),
+    /// Two saved canisters have this id.
+    DuplicateCanister(CargoCanisterRuntimeId),
+    /// A saved canister id at or past the saved next canister id: a resumed
+    /// allocator would mint it again.
+    CanisterUnminted {
+        /// The saved canister's id.
+        id: CargoCanisterRuntimeId,
+        /// The saved next canister id.
+        next: u64,
+    },
     /// A saved reference that names nothing the save keeps.
     Dangling(String),
 }
@@ -341,14 +354,23 @@ impl std::fmt::Display for SavedIdFault {
                 "the id '{}' has a '/' but is not a minted wreck id",
                 id.0
             ),
+            Self::DuplicateCanister(id) => {
+                write!(f, "two saved canisters have the id {}", id.0)
+            }
+            Self::CanisterUnminted { id, next } => write!(
+                f,
+                "the saved canister {} was never minted: the next canister id is {next}",
+                id.0
+            ),
             Self::Dangling(reason) => f.write_str(reason),
         }
     }
 }
 
 /// Every saved body id is well formed and names one body, every saved
-/// reference names a body, bay or canister the save keeps, and a torpedo
-/// that tracks a transient names another saved transient.
+/// canister id names one canister below the saved next canister id, every
+/// saved reference names a body, bay or canister the save keeps, and a
+/// torpedo that tracks a transient names another saved transient.
 ///
 /// The ledger refuses a duplicate inside one cell when it freezes; this also
 /// covers ids across cells and the player. A save checks before it writes,
@@ -369,7 +391,16 @@ fn check_saved_ids(state: &WorldSaveState) -> Result<(), SavedIdFault> {
                 ships.insert(id, ship);
             }
             (_, FrozenBodyType::Canister(canister)) => {
-                canisters.insert(canister.id());
+                let id = canister.id();
+                if id.0 >= state.canister_ids_next {
+                    return Err(SavedIdFault::CanisterUnminted {
+                        id,
+                        next: state.canister_ids_next,
+                    });
+                }
+                if !canisters.insert(id) {
+                    return Err(SavedIdFault::DuplicateCanister(id));
+                }
             }
             _ => {}
         }

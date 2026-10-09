@@ -719,9 +719,11 @@ pub enum SectorSnapshotError {
         /// The id.
         id: EntityId,
     },
-    /// The saved state breaks an id rule other than a duplicate: an id with a
-    /// `/` that is not a minted wreck id, or a reference that names nothing
-    /// the save keeps. The save collector of the game returns it.
+    /// The saved state breaks an id rule other than a duplicate body id: an id
+    /// with a `/` that is not a minted wreck id, two canisters with one id, a
+    /// canister id at or past the saved next canister id, or a reference that
+    /// names nothing the save keeps. The save collector of the game returns
+    /// it.
     InvalidSavedState {
         /// What is wrong.
         reason: String,
