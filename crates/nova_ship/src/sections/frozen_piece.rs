@@ -1245,7 +1245,7 @@ mod tests {
             app.update();
             let glow = find_named_descendant(app.world(), source, "Railgun Charge Glow")
                 .expect("case railgun: the real body always wears a charge glow");
-            Some(app.world().get::<PointLight>(glow).unwrap().clone())
+            Some(*app.world().get::<PointLight>(glow).unwrap())
         } else {
             None
         };

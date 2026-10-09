@@ -1095,7 +1095,7 @@ impl FrozenRockChunk {
                 self.mesh.normals.len()
             ));
         }
-        if self.mesh.indices.len() % 3 != 0 {
+        if !self.mesh.indices.len().is_multiple_of(3) {
             return Err(format!(
                 "a rock chunk's mesh has {} indices, which is not a multiple of 3",
                 self.mesh.indices.len()
