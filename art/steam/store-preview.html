@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Nova Protocol on Steam</title>
+
+<!--
+  A REPLICA, NOT A DESIGN. The page follows the source preview's 940px width,
+  616px media column, 308px rail, glance box, tag pills and wishlist button.
+  It is for showing the proposed store layout to somebody who has never seen
+  the game and asking what they think it is.
+
+  Everything in it is real: the trailer is the cut, the eleven stills are the
+  captures, the five loops are the GIFs that go in the description, and the
+  copy is PITCH.md plus the feature list section 08 called for.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+
+<style>
+/* Steam's own palette. Named after where they sit, not after the colour. */
+:root {
+  --ink:        #1b2838;
+  --ink-deep:   #171a21;
+  --ink-panel:  #16202d;
+  --glance:     rgba(0, 0, 0, 0.2);
+  --text:       #c6d4df;
+  --text-dim:   #8f98a0;
+  --text-bright:#ffffff;
+  --link:       #66c0f4;
+  --rule:       #000000;
+  --tag-bg:     rgba(103, 128, 159, 0.5);
+  --green-1:    #a4d007;
+  --green-2:    #536904;
+  --blue-1:     #67c1f5;
+  --blue-2:     #417a9b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--text);
+  font: 14px/1.4 "Inter", "Motiva Sans", Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--link); text-decoration: none; }
+a:hover { color: var(--text-bright); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--blue-1); outline-offset: 2px; }
+
+/* --------------------------------------------------------- the honest label */
+.mock {
+  margin: 0;
+  background: #3d1f0f;
+  border-bottom: 1px solid #7a3d14;
+  color: #f0b27a;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  padding: 8px 16px;
+  text-align: center;
+}
+.mock b { color: #ffd8a8; font-weight: 600; }
+
+/* ------------------------------------------------------------- chrome above */
+.nav {
+  background: var(--ink-deep);
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+}
+.nav__logo { color: #b8b6b4; font-size: 19px; font-weight: 700; letter-spacing: 0.06em; }
+.nav__links { display: flex; gap: 18px; font-size: 13px; color: #b8b6b4; text-transform: uppercase; letter-spacing: 0.02em; }
+.nav__links span:first-child { color: var(--text-bright); }
+.nav__right { margin-left: auto; font-size: 12px; color: #b8b6b4; }
+@media (max-width: 700px) { .nav__links, .nav__right { display: none; } }
+
+.subnav {
+  background: linear-gradient(to bottom, #1b2838, #16202d);
+  border-bottom: 1px solid #000;
+  padding: 0 24px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 12px;
+  color: #b8b6b4;
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------ the page body */
+/* The background image Steam paints behind the whole page, at 1438 wide with
+   the top of it under the hero and the rest fading into the ground. */
+.ground {
+  background-image:
+    linear-gradient(to bottom, rgba(27, 40, 56, 0) 0, rgba(27, 40, 56, 0.9) 420px, var(--ink) 620px),
+    url("capsules/page-background.png");
+  background-repeat: no-repeat;
+  background-position: top center;
+  background-size: 1438px auto, 1438px auto;
+}
+
+.page { width: 940px; max-width: 100%; margin: 0 auto; padding: 0 0 64px; }
+@media (max-width: 940px) { .page { padding: 0 12px 64px; } }
+
+.crumbs { padding: 14px 0 8px; font-size: 12px; color: var(--text-dim); }
+
+.apphead { padding: 4px 0 14px; }
+.apphead h1 { margin: 0; font-size: 26px; font-weight: 300; color: var(--text-bright); letter-spacing: 0; }
+
+/* ------------------------------------------------------------- the hero grid */
+.hero { display: grid; grid-template-columns: 616px 308px; gap: 16px; }
+@media (max-width: 940px) { .hero { grid-template-columns: minmax(0, 1fr); } }
+
+/* --- the player ----------------------------------------------------------- */
+.player { background: #000; position: relative; aspect-ratio: 16 / 9; }
+.player video,
+.player img { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.player__cap {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 8px 10px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0));
+  font-size: 12px;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.strip {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+.thumb {
+  flex: none;
+  position: relative;
+  width: 116px;
+  height: 65px;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  background: #000;
+  opacity: 0.55;
+  transition: opacity 0.1s linear;
+}
+.thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.thumb:hover { opacity: 0.85; }
+.thumb[aria-current="true"] { opacity: 1; box-shadow: inset 0 0 0 2px var(--blue-1); }
+.thumb__play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 22px;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+}
+
+/* --- the right rail ------------------------------------------------------- */
+.rail { display: grid; gap: 12px; align-content: start; }
+.rail__cap { display: block; width: 100%; height: auto; }
+.rail__short { font-size: 13px; line-height: 1.5; color: var(--text); }
+
+.glance { background: var(--glance); padding: 10px 12px; display: grid; gap: 6px; font-size: 12px; }
+.glance__row { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px; }
+.glance__key { color: var(--text-dim); }
+.glance__val { color: var(--text); }
+
+.taglist { background: var(--glance); padding: 10px 12px; }
+.taglist__head { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+.taglist__pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.pill {
+  background: var(--tag-bg);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 19px;
+  padding: 0 7px;
+  border-radius: 2px;
+}
+.pill--more { color: var(--text-dim); }
+
+/* --------------------------------------------------------- the coming soon */
+.soon {
+  margin-top: 16px;
+  background: var(--glance);
+  padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+}
+.soon h2 { margin: 0 0 4px; font-size: 16px; font-weight: 500; color: var(--text-bright); }
+.soon p { margin: 0; font-size: 13px; color: var(--text-dim); }
+.btn {
+  display: inline-block;
+  padding: 0 18px;
+  line-height: 30px;
+  border-radius: 2px;
+  font-size: 15px;
+  color: #d2e885;
+  background: linear-gradient(to bottom, var(--green-1) 5%, var(--green-2) 95%);
+  border: 0;
+  cursor: default;
+}
+.btn b { color: #fff; font-weight: 400; }
+@media (max-width: 640px) { .soon { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------------------------------------------------------------- the body */
+.below { display: grid; grid-template-columns: 616px 308px; gap: 16px; margin-top: 24px; }
+@media (max-width: 940px) { .below { grid-template-columns: minmax(0, 1fr); } }
+
+.sect { background: var(--glance); padding: 16px; margin-bottom: 16px; }
+.sect > h2 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-bright);
+  border-bottom: 1px solid #000;
+  padding-bottom: 6px;
+}
+.sect h3 { margin: 22px 0 6px; font-size: 16px; font-weight: 700; color: var(--text-bright); }
+.sect h3:first-of-type { margin-top: 0; }
+.sect p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; }
+.sect ul { margin: 0 0 12px; padding-left: 20px; }
+.sect li { margin-bottom: 4px; }
+.sect__hook { color: var(--text-bright); font-size: 15px; }
+.sect img.loop { display: block; width: 100%; height: auto; margin: 0 0 16px; border: 1px solid #000; }
+
+.req { font-size: 13px; }
+.req dt { color: var(--text-bright); font-weight: 600; margin-top: 10px; }
+.req dd { margin: 2px 0 0; color: var(--text-dim); }
+.req__note { margin-top: 14px; color: var(--text-dim); font-size: 12px; font-style: italic; }
+
+.railbox { background: var(--glance); padding: 12px; font-size: 13px; }
+.railbox h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; }
+.railbox ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+
+.mark { display: block; width: 100%; height: auto; margin-bottom: 12px; }
+
+footer.steamfoot {
+  border-top: 1px solid #000;
+  background: var(--ink-deep);
+  color: #626366;
+  font-size: 12px;
+  padding: 20px 24px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<p class="mock">
+  <b>Preview mock-up.</b> This is not a live Steam page and nothing here is
+  purchasable. It shows how the Nova Protocol store page will look once the
+  assets and copy from the build sheet are uploaded. No app ID exists yet.
+</p>
+
+<div class="nav">
+  <span class="nav__logo">STEAM</span>
+  <span class="nav__links"><span>Store</span><span>Community</span><span>About</span><span>Support</span></span>
+  <span class="nav__right">Install Steam &middot; login</span>
+</div>
+<div class="subnav">Your Store &nbsp; New &amp; Noteworthy &nbsp; Categories &nbsp; Points Shop &nbsp; News &nbsp; Labs</div>
+
+<div class="ground">
+<div class="page">
+
+  <p class="crumbs">All Games &gt; Simulation Games &gt; Nova Protocol</p>
+
+  <div class="apphead"><h1>Nova Protocol</h1></div>
+
+  <div class="hero">
+    <div>
+      <div class="player">
+        <video id="player-video" controls preload="none" poster="screenshots/01-gal-combat-wide.png" width="616" height="347">
+          <source src="trailer.mp4" type="video/mp4">
+        </video>
+        <img id="player-still" src="screenshots/01-gal-combat-wide.png" alt="" hidden>
+        <span class="player__cap" id="player-cap" hidden></span>
+      </div>
+
+      <div class="strip" id="strip">
+        <button type="button" class="thumb" data-kind="video" aria-current="true" aria-label="Trailer">
+          <img src="screenshots/01-gal-combat-wide.png" alt="">
+          <span class="thumb__play" aria-hidden="true">&#9654;</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="rail">
+      <img class="rail__cap" src="capsules/header-capsule.png" width="616" height="288" alt="Nova Protocol">
+      <p class="rail__short">
+        Design a warship section by section, fly it under real physics, and
+        watch every hit take it apart.
+      </p>
+
+      <div class="glance">
+        <div class="glance__row"><span class="glance__key">RELEASE DATE:</span><span class="glance__val">Coming soon</span></div>
+        <div class="glance__row"><span class="glance__key">DEVELOPER:</span><span class="glance__val">To be confirmed</span></div>
+        <div class="glance__row"><span class="glance__key">PUBLISHER:</span><span class="glance__val">To be confirmed</span></div>
+      </div>
+
+      <div class="taglist">
+        <p class="taglist__head">Popular user-defined tags for this product:</p>
+        <div class="taglist__pills">
+          <span class="pill">Space Sim</span>
+          <span class="pill">Building</span>
+          <span class="pill">Spaceships</span>
+          <span class="pill">Physics</span>
+          <span class="pill">Destruction</span>
+          <span class="pill">Space</span>
+          <span class="pill">Sandbox</span>
+          <span class="pill">Sci-fi</span>
+          <span class="pill">Simulation</span>
+          <span class="pill">Combat</span>
+          <span class="pill">Moddable</span>
+          <span class="pill">Singleplayer</span>
+          <span class="pill pill--more">+</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="soon">
+    <div>
+      <h2>Coming soon</h2>
+      <p>This item is not yet available. A free demo of the current build is on itch.io, and the source is public on GitHub.</p>
+    </div>
+    <button type="button" class="btn" aria-disabled="true">Add to your <b>Wishlist</b></button>
+  </div>
+
+  <div class="below">
+    <div>
+      <div class="sect">
+        <h2>About This Game</h2>
+        <p class="sect__hook">Design a warship section by section, fly it under real physics, and watch every hit take it apart.</p>
+
+        <h3>Build modular ships</h3>
+        <p>Choose parts from a visual gallery, stack sections together, add procedurally generated details, and test the finished hull before taking it into a fight. Four hull styles &mdash; industrial, armoured, civilian and salvage &mdash; change what the same ship looks like.</p>
+        <img class="loop" src="loops/build.gif" alt="The ship editor: sections stacking into a hull on the build stage.">
+
+        <h3>Fly what you build</h3>
+        <p>Every section affects the ship. Thrusters provide acceleration, flight computers control handling, and mass determines how the hull moves under Newtonian physics. The flight computer also flies for you: GOTO runs a burn-and-flip transfer to whatever you have locked, ORBIT parks the hull around a gravity well, and STOP kills your velocity.</p>
+        <img class="loop" src="loops/fly.gif" alt="The flight computer flying a GOTO: the course line, the ETA, and the hull flipping to burn retrograde.">
+
+        <h3>Combat</h3>
+        <p>Launch torpedoes at long range, charge up a railgun shot for a mid range heavy hit, or use point defence cannons to engage in CQB or take down incoming ordnance. Lock a ship, then pick a section inside it: your guns target the piece you chose, and the HUD draws the bracket inside the bracket.</p>
+        <img class="loop" src="loops/combat.gif" alt="A spinal railgun raking a corridor through an enemy hull.">
+
+        <h3>Damage</h3>
+        <p>When a ship takes damage you can actually see it, cracks start to appear, machinery sparks, and sections break apart. A ship stays alive as long as it has enough sections left.</p>
+        <img class="loop" src="loops/damage.gif" alt="A hull breaking into sections with debris and tracer fire.">
+
+        <h3>Cockpit</h3>
+        <p>The game offers a diegetic HUD that updates based on what you are doing. The UI shows you the relevant things when you need them.</p>
+        <img class="loop" src="loops/cockpit.gif" alt="The HUD filling in as the weapons come up: ammo gauges on the mounts, then a combat lock and the scope, then an empty screen again.">
+
+        <h3>Features</h3>
+        <ul>
+          <li>A modular ship editor: pick sections from a parts catalog, stack them, clad them, and switch the whole hull between four styles with one toggle.</li>
+          <li>Newtonian flight, where every section you added is mass the ship has to move, and thrusters and flight computers are the only things that move it.</li>
+          <li>A diegetic HUD that changes with what you are doing, and a flight computer you order around with GOTO, ORBIT and STOP.</li>
+          <li>Three weapon classes: long-range torpedoes, a charged spinal railgun, and point defence cannons that shoot down incoming ordnance.</li>
+          <li>Section-by-section damage: plating spalls, machinery sparks, sections sever, and a ship keeps flying as long as enough of it is left.</li>
+          <li>Ships and scenarios are plain-text RON files, and the whole source is public on GitHub.</li>
+          <li>Single player. Windows, macOS and Linux.</li>
+        </ul>
+
+        <h3>Where to play it now</h3>
+        <p>The current build is a free demo on itch.io, and the source is public on GitHub. This page is for a future Steam release; no date and no price are announced.</p>
+      </div>
+
+      <div class="sect">
+        <h2>Mature Content Description</h2>
+        <p>The developers describe the content like this:</p>
+        <p>This game depicts ships being destroyed in combat. No humans are depicted and no human casualties are shown.</p>
+      </div>
+
+      <div class="sect">
+        <h2>System Requirements</h2>
+        <dl class="req">
+          <dt>Minimum</dt>
+          <dd>OS: Windows 10 64-bit, macOS 12, or a 64-bit Linux distribution</dd>
+          <dd>Processor: to be measured</dd>
+          <dd>Memory: to be measured</dd>
+          <dd>Graphics: Vulkan or Metal capable GPU</dd>
+          <dd>Storage: to be measured</dd>
+        </dl>
+        <p class="req__note">Placeholder. These get taken off the actual v0.14.0 release builds rather than estimated, before the page is submitted.</p>
+      </div>
+    </div>
+
+    <div class="rail">
+      <img class="mark" src="capsules/library-logo.png" alt="Nova Protocol">
+      <div class="railbox">
+        <h3>Links</h3>
+        <ul>
+          <li>Website</li>
+          <li>Free demo on itch.io</li>
+          <li>Source on GitHub</li>
+        </ul>
+      </div>
+      <div class="railbox">
+        <h3>Category</h3>
+        <ul>
+          <li>Single-player</li>
+          <li>Full controller support: no</li>
+          <li>Steam Cloud: no</li>
+        </ul>
+      </div>
+      <div class="railbox">
+        <h3>Languages</h3>
+        <ul>
+          <li>English &mdash; interface, subtitles</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<footer class="steamfoot">
+  Preview built from the Nova Protocol v0.14.0 store build sheet. Steam and the
+  Steam logo are trademarks of Valve Corporation. This page is a layout preview
+  and is not affiliated with Valve.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var SHOTS = [
+    ["01-gal-combat-wide.png",   "Both fleets firing across the lane, with the wreckage already in it."],
+    ["02-gal-vista-pair.png",    "A capital and a corvette off the same world, for the scale of it."],
+    ["03-gal-build-catalog.png", "The parts catalog, sixteen sections on the grid."],
+    ["04-gal-hud-weapons.png",   "A combat lock: red crosshair, and the scope on what is under it."],
+    ["05-gal-combat-shear.png",  "A capital coming apart: one flank stripped to bare structure."],
+    ["06-gal-build-stage.png",   "A hull half built, with the next section in hand."],
+    ["07-gal-hud-autopilot.png", "The flight computer flying a 3.3 km GOTO: burn, flip and ETA."],
+    ["08-gal-flight-orbit.png",  "ORBIT taken: the computer's ring drawn round the world."],
+    ["09-gal-build-part.png",    "One part turned on its card, with the numbers it carries."],
+    ["10-gal-combat-pdc.png",    "The torpedo racks loaded, tracers over the top of them."],
+    ["11-gal-build-salvage.png", "A finished hull wearing the salvage style."]
+  ];
+
+  var strip = document.getElementById("strip");
+  var video = document.getElementById("player-video");
+  var still = document.getElementById("player-still");
+  var cap = document.getElementById("player-cap");
+
+  SHOTS.forEach(function (shot, i) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "thumb";
+    b.dataset.kind = "still";
+    b.dataset.index = String(i);
+    b.setAttribute("aria-label", "Screenshot " + (i + 1) + ": " + shot[1]);
+    b.setAttribute("aria-current", "false");
+    var img = document.createElement("img");
+    img.src = "screenshots/" + shot[0];
+    img.alt = "";
+    img.loading = "lazy";
+    b.appendChild(img);
+    strip.appendChild(b);
+  });
+
+  var thumbs = Array.prototype.slice.call(strip.querySelectorAll(".thumb"));
+
+  function show(button) {
+    thumbs.forEach(function (t) { t.setAttribute("aria-current", t === button ? "true" : "false"); });
+    if (button.dataset.kind === "video") {
+      still.hidden = true;
+      cap.hidden = true;
+      video.hidden = false;
+      return;
+    }
+    // Pause before swapping away, or the trailer keeps playing under a still.
+    if (!video.paused) { video.pause(); }
+    var shot = SHOTS[Number(button.dataset.index)];
+    still.src = "screenshots/" + shot[0];
+    still.alt = shot[1];
+    cap.textContent = (Number(button.dataset.index) + 1) + " of " + SHOTS.length + " · " + shot[1];
+    video.hidden = true;
+    still.hidden = false;
+    cap.hidden = false;
+  }
+
+  strip.addEventListener("click", function (event) {
+    var button = event.target.closest ? event.target.closest(".thumb") : null;
+    if (button) { show(button); }
+  });
+}());
+</script>
+</body>
+</html>

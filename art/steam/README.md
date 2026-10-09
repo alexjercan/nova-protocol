@@ -1,29 +1,35 @@
 # Steam store page: the upload sheet
 
 Everything that goes on the page, in the order it uploads, with the copy in a
-form you can paste. Nothing here needs a render to rebuild it: the files beside
-this document are the files that upload.
+form you can paste. The trailer, screenshots, loops and capsules beside this
+document are the files that upload. `store-preview.html` does not upload.
 
-The page itself does not exist yet. Steamworks onboarding and the Steam Direct
-credit are open, and the app ID is what unlocks every upload below.
+The Steam page itself does not exist yet. Steamworks onboarding and the Steam
+Direct credit are open, and the app ID is what unlocks every upload below.
 
-Two working documents sit outside this folder, because neither is an upload
-and both carry their own images. The build sheet holds every asset, the audit
-against the Zukowski checklist, and the evidence behind each decision:
-<https://claude.ai/code/artifact/28e31b1f-cdf0-45fa-b141-af88fa11973e>. The
-replica of the finished page, which is the one to show people, is at
-<https://claude.ai/code/artifact/44f16874-2cad-49cc-b641-cdea5a8838fd>. Both
-are built from `projects/nova-v014-store/` in the content-machine repository.
-Every field either of them carries is written out below, so this document
-stands on its own if the links do not.
+Open [the local store-page replica](store-preview.html) to show the layout to
+people before upload. It uses the assets in this folder, not an uploaded Steam
+HTML page. Its screenshot strip needs JavaScript; its Inter font needs access
+to Google Fonts, but local system fonts are the fallback when offline. The
+outbound link labels are not clickable until the store URLs are set. The
+preview is not a substitute for the paste-ready fields below. Developer and
+publisher are shown as unconfirmed in the replica: the owner must decide their
+Steamworks account name before upload.
+
+The separate build sheet holds the asset audit against the Zukowski checklist
+and the evidence behind each decision:
+<https://claude.ai/code/artifact/28e31b1f-cdf0-45fa-b141-af88fa11973e>.
+It is built from `projects/nova-v014-store/` in the content-machine repository.
+Every upload field is written out below, so this document stands on its own if
+the link does not.
 
 ## Upload order
 
 1. `trailer.mp4`. 68.5 s, 1920x1080, H.264 / AAC. Set it to lead the carousel.
 2. `screenshots/`, all eleven, in the numbered order. `01-gal-combat-wide.png`
    leads, because the first image is the one a tag-search reader gives about a
-   second to. The first four are the hover tooltip and are one each of fight,
-   fly, build and HUD, so do not reorder them.
+   second to. The first four are the hover tooltip and show fight, ship scale,
+   build and HUD, so do not reorder them.
 3. `loops/`, five GIFs, into the app's Extras image area. The description body
    references them by the tokens below.
 4. `capsules/`, one file per slot. See the table.
