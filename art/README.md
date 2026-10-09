@@ -10,6 +10,10 @@ adds to the download whether or not the game loads it.
 
 ## Contents
 
+- `steam/` - Steam store page upload outputs (trailer, capsules, logo,
+  description loops, screenshots): the exact files the store page uploads, not
+  source for anything built. See `steam/README.md` for the upload order and
+  field copy. Produced by task `20260909-212954`.
 - `blender/` - the Blender sources (`.blend`) the runtime
   `assets/base/gltf/*.glb` models are exported from. `.blend1`/`.blend2` autosave backups are gitignored.
 - `kenney-space-kit/`

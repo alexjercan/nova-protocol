@@ -153,7 +153,7 @@ answer matches the hook.
 ## Done when
 
 `PITCH.md` is approved by the owner; every source and exported asset above is
-committed under this task; the copy does not promise backlog features; and the
+committed under `art/steam/`; the copy does not promise backlog features; and the
 Steam and itch.io tasks can populate their pages without making new marketing
 material.
 

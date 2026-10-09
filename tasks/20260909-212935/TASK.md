@@ -37,7 +37,8 @@ can be uploaded before an app exists.
 
 ### Populate the store page
 
-1. Import the approved task `20260909-212954` outputs:
+1. Import the approved task `20260909-212954` outputs, committed under
+   `art/steam/` (upload sheet: `art/steam/README.md`):
    - [x] store header 920x430, small capsule 462x174, main capsule 1232x706,
      and vertical capsule 748x896 - built and approved (see
      `20260909-212954`), so this is an upload once the app exists;
